@@ -33,6 +33,7 @@ class QLineEdit;
 class QString;
 class QPushButton;
 class QTreeView;
+class QStackedWidget;
 class QWidget;
 class QLabel;
 class QEvent;
@@ -83,6 +84,8 @@ private:
     void ensure_one_checkbox_active(QCheckBox* changed_checkbox);
     void update_file_scan_option(FileScanOptions option, bool enabled);
     void update_analyze_button_state(bool analyzing);
+    void update_results_view_mode();
+    void update_folder_contents(const QString& directory);
 
     void handle_analysis_finished();
     void handle_analysis_failure(const std::string& message);
@@ -136,6 +139,11 @@ private:
     QCheckBox* categorize_directories_checkbox{nullptr};
     QTreeView* tree_view{nullptr};
     QStandardItemModel* tree_model{nullptr};
+    QStackedWidget* results_stack{nullptr};
+    QTreeView* folder_contents_view{nullptr};
+    QFileSystemModel* folder_contents_model{nullptr};
+    int tree_view_page_index_{-1};
+    int folder_view_page_index_{-1};
 
     QDockWidget* file_explorer_dock{nullptr};
     QTreeView* file_explorer_view{nullptr};
