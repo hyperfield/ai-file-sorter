@@ -36,6 +36,8 @@ public:
 
     void set_skipped_version(const std::string &version);
     std::string get_skipped_version();
+    void set_show_file_explorer(bool value);
+    bool get_show_file_explorer() const;
 
 private:
     std::string config_path;
@@ -46,9 +48,10 @@ private:
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;
-    const char *default_sort_folder;
+    std::string default_sort_folder;
     std::string sort_folder;
     std::string skipped_version;
+    bool show_file_explorer{true};
 };
 
 #endif

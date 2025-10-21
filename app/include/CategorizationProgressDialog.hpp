@@ -1,30 +1,30 @@
-    #ifndef CATEGORIZATIONPROGRESSDIALOG_HPP
-    #define CATEGORIZATIONPROGRESSDIALOG_HPP
+#ifndef CATEGORIZATIONPROGRESSDIALOG_HPP
+#define CATEGORIZATIONPROGRESSDIALOG_HPP
 
-    #include <gtkmm.h>
-    #include <thread>
-    #include <atomic>
+#include <QDialog>
 
-    class MainApp;
+#include <string>
 
-    class CategorizationProgressDialog
-    {
-    public:
-        MainApp* m_MainApp;
+class MainApp;
+class QPlainTextEdit;
+class QPushButton;
 
-        CategorizationProgressDialog(GtkWindow* parent, MainApp *main_app, gboolean show_subcategory_col);
-        ~CategorizationProgressDialog();
-        void show();
-        void hide();
-        void append_text(const std::string &text);        
+class CategorizationProgressDialog : public QDialog
+{
+public:
+    CategorizationProgressDialog(QWidget* parent, MainApp* main_app, bool show_subcategory_col);
 
-    private:
-        GtkWidget* m_Dialog;
-        GtkWidget* m_TextView;
-        GtkWidget* m_StopButton;
-        GtkTextBuffer *buffer;
+    void show();
+    void hide();
+    void append_text(const std::string& text);
 
-        GtkWidget* create_categorization_progress_dialog(GtkWindow* parent);
-    };
+private:
+    void setup_ui(bool show_subcategory_col);
+    void request_stop();
 
-    #endif
+    MainApp* main_app;
+    QPlainTextEdit* text_view{nullptr};
+    QPushButton* stop_button{nullptr};
+};
+
+#endif // CATEGORIZATIONPROGRESSDIALOG_HPP

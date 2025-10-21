@@ -4,7 +4,6 @@
 #include <iostream>
 #include <filesystem>
 #include <unordered_set>
-#include <gtk/gtk.h>
 
 #ifdef _WIN32
 #include <windows.h>

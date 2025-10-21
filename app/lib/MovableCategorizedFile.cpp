@@ -3,7 +3,6 @@
 #include "Logger.hpp"
 #include <filesystem>
 #include <cstdio>
-#include <gtk/gtk.h>
 
 
 MovableCategorizedFile::MovableCategorizedFile(

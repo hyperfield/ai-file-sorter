@@ -1,9 +1,9 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Version](https://badgen.net/badge/version/0.9.7/green)](#)
+[![Version](https://badgen.net/badge/version/1.0.0/green)](#)
 
-AI File Sorter is a powerful, cross-platform desktop application that automates file organization. Featuring AI integration and a user-friendly GTK-based interface, it categorizes and sorts files and folders based on their names and extensions. The app intelligently assigns categories and, optionally, subcategories, which you can review and edit before confirming. Once approved, the necessary folders are created, and your files are sorted accordingly. The app uses local (LLaMa, Mistral) and remote (ChatGPT 4o-mini) LLMs for this task, depending on your choice.
+AI File Sorter is a powerful, cross-platform desktop application that automates file organization. Featuring AI integration and a modern Qt6 interface, it categorizes and sorts files and folders based on their names and extensions. The app intelligently assigns categories and, optionally, subcategories, which you can review and edit before confirming. Once approved, the necessary folders are created, and your files are sorted accordingly. The app uses local (LLaMa, Mistral) and remote (ChatGPT 4o-mini) LLMs for this task, depending on your choice.
 
 [![Download ai-file-sorter](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 
@@ -13,6 +13,7 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
 
 - [AI File Sorter](#ai-file-sorter)
   - [Changelog](#changelog)
+    - [[1.0.0] - 2026-02-18](#100---2026-02-18)
     - [[0.9.7] - 2025-10-19](#097---2025-10-19)
     - [[0.9.3] - 2025-09-22](#093---2025-09-22)
     - [[0.9.2] - 2025-08-06](#092---2025-08-06)
@@ -21,33 +22,11 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
   - [Features](#features)
   - [Requirements](#requirements)
   - [Installation](#installation)
-    - [Windows](#windows)
-      - [Install Git](#install-git)
-        - [Clone the repository](#clone-the-repository)
-        - [Navigate into the directory](#navigate-into-the-directory)
-      - [Compile the app](#compile-the-app)
-    - [MacOS](#macos)
-      - [Clone the repository](#clone-the-repository-1)
-      - [Navigate into the directory](#navigate-into-the-directory-1)
-      - [Compile the app](#compile-the-app-1)
-  - [Uninstallation](#uninstallation)
     - [Linux](#linux)
-      - [Clone the repository](#clone-the-repository-2)
-      - [Navigate into the directory](#navigate-into-the-directory-2)
-      - [Compile the app](#compile-the-app-2)
-        - [1. Install the dependencies](#1-install-the-dependencies)
-          - [Debian / Ubuntu](#debian--ubuntu)
-          - [Fedora / RedHat](#fedora--redhat)
-          - [Arch / Manjaro](#arch--manjaro)
-        - [2. Compile `llama.cpp`](#2-compile-llamacpp)
-          - [Debian / Ubuntu](#debian--ubuntu-1)
-          - [Fedora / RedHat](#fedora--redhat-1)
-          - [Arch / Manjaro](#arch--manjaro-1)
-          - [All Linux](#all-linux)
-        - [3. [Optional] Get API key](#3-optional-get-api-key)
-        - [4. Compile and install AI File Sorter](#4-compile-and-install-ai-file-sorter)
+    - [macOS](#macos)
+    - [Windows](#windows)
+  - [Uninstallation](#uninstallation)
   - [API Key, Obfuscation, and Encryption](#api-key-obfuscation-and-encryption)
-  - [Uninstallation](#uninstallation-1)
   - [How to Use](#how-to-use)
   - [Sorting a Remote Directory (e.g., NAS)](#sorting-a-remote-directory-eg-nas)
   - [Contributing](#contributing)
@@ -58,6 +37,13 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
 ---
 
 ## Changelog
+
+### [1.0.0] - 2026-02-18
+
+- Migrated the entire desktop UI from GTK/Glade to a native Qt6 interface.
+- Replaced GLib/GIO resource usage with Qt resources and modernized build pipeline.
+- Added refreshed menu icons, mnemonic behaviour, and persistent File Explorer settings.
+- Simplified cross-platform builds (Linux/macOS) around Qt6; retired the MSYS2/GTK toolchain.
 
 ### [0.9.7] - 2025-10-19
 
@@ -98,7 +84,7 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
                                  remote LLM (ChatGPT), depending on your preference.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
   **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
-- **Intuitive Interface**: Lightweight and user-friendly for fast, efficient use.
+- **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
 - **Local Database Caching**: Speeds up repeated categorization and minimizes remote LLM usage costs.
 - **Sorting Preview**: See how files will be organized before confirming changes.
@@ -109,246 +95,96 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
 
 ## Requirements
 
-- **Operating System**: Windows, macOS, or Linux with a stable internet connection.
-- **C++ Compiler**: A recent `g++` version (used in `Makefile`).
-- **Platform specific requirements**:
-  - **Windows**: `MSYS2` / `MINGW64` with some requirements.
-  - **MacOS**: `brew` to install some requirements. `Xcode`.
-  
-  Optional:
-  - **Git**: For cloning this repository. You can alternatively download the repo in a zip archive.
-  - **OpenAI API Key**: Not needed for local LLMs.
+- **Operating System**: Linux or macOS for source builds (Windows builds are provided as binaries; native Qt/MSVC build instructions are planned).
+- **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
+- **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
+- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **Git** (optional): For cloning this repository. Archives can also be downloaded.
+- **OpenAI API Key** (optional): Required only when using the remote ChatGPT workflow.
 
 ---
 
 ## Installation
 
-File categorization with local LLMs is completely free of charge.
+File categorization with local LLMs is completely free of charge. If you prefer to use the ChatGPT workflow you will need an OpenAI API key with a small balance (see [API Key, Obfuscation, and Encryption](#api-key-obfuscation-and-encryption)).
 
-If you want file categorization with ChatGPT, you will need to get an OpenAI API key and add a minimal balance to it for this program to work. Categorization is quite cheap, so $0.01 will be enough to categorize a relatively large number of files. The instructions on how to integrate your API key into the app are given below. You can also download a [Release](https://github.com/hyperfield/ai-file-sorter/releases) version, which has an embedded API key.
+### Linux
+
+1. **Install dependencies**
+   - Debian / Ubuntu:
+     ```bash
+     sudo apt update && sudo apt install -y \\
+       build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \\
+       libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
+     ```
+   - Fedora / RHEL:
+     ```bash
+     sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \\
+       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
+     ```
+   - Arch / Manjaro:
+     ```bash
+     sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog
+     ```
+     Optional CUDA support also requires the distro CUDA packages.
+2. **Clone the repository**
+   ```bash
+   git clone https://github.com/hyperfield/ai-file-sorter.git
+   cd ai-file-sorter
+   git submodule update --init --recursive --remote
+   ```
+3. **Build the llama runtime** (add `cuda=on` if you have a CUDA toolchain)
+   ```bash
+   ./app/scripts/build_llama_linux.sh [cuda=on|cuda=off]
+   ```
+4. **Compile the application**
+   ```bash
+   cd app
+   make
+   ```
+   The binary is produced at `app/bin/aifilesorter`.
+5. **Install system-wide (optional)**
+   ```bash
+   sudo make install
+   ```
+
+### macOS
+
+1. **Install Xcode command-line tools** (`xcode-select --install`).
+2. **Install Homebrew** (if required).
+3. **Install dependencies**
+   ```bash
+   brew install qt curl jsoncpp sqlite openssl fmt spdlog cmake git
+   ```
+   Add Qt to your environment if it is not already present:
+   ```bash
+   export PATH="$(brew --prefix)/opt/qt/bin:$PATH"
+   export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$PKG_CONFIG_PATH"
+   ```
+4. **Clone the repository and submodules** (same commands as Linux).
+5. **Build the llama runtime**
+   ```bash
+   ./app/scripts/build_llama_macos.sh
+   ```
+6. **Compile the application**
+   ```bash
+   cd app
+   make
+   sudo make install   # optional
+   ```
 
 ### Windows
 
-#### Install Git
-
-First, you need `git`. Download `git-scm` for Windows from [git-scm.com](https://git-scm.com/downloads) and install it. Verify the installation in `cmd` or `powershell` with
-
-    git --version
-
-You can also now launch `Git Bash` from Start Menu.
-
-##### Clone the repository
-
-    git clone https://github.com/hyperfield/ai-file-sorter.git
-    cd ai-file-sorter
-    git submodule update --init --recursive --remote
-
-##### Navigate into the directory
-
-    cd ai-file-sorter
-
-#### Compile the app
-
-**Important**: Install all the packages specified below in their default installation directories. Otherwise, you'll need to adjust the paths in `build_llama_windows.ps1` and `Makefile`. 
-
-1. Install [MSYS2](https://www.msys2.org/). Make sure to launch *as Administrator* `MSYS2 MINGW64`, **NOT** `MSYS2 MSYS`. If you don't launch it as Administrator, `make install` won't work. You may run it as regular user if you don't need to use `make install` in the last step.
-2. Update MSYS2 packages: `pacman -Syu`.
-3. Install dependencies:
-
-```bash
-pacman -S mingw-w64-x86_64-toolchain mingw-w64-x86_64-gtk3 mingw-w64-x86_64-gtkmm3 mingw-w64-x86_64-jsoncpp mingw-w64-x86_64-pcre mingw-w64-x86_64-libidn2 mingw-w64-x86_64-libssh mingw-w64-x86_64-libpsl mingw-w64-x86_64-openldap mingw-w64-x86_64-gnutls mingw-w64-x86_64-lz4 mingw-w64-x86_64-libgcrypt mingw-w64-x86_64-fmt mingw-w64-x86_64-spdlog mingw-w64-x86_64-curl mingw-w64-x86_64-openblas make
-```
-
-4. Install [Visual Studio Community](https://visualstudio.microsoft.com/vs/community/).
-   **Important**: Be sure to check the `Dekstop development with C++` workflow, under which the `Windows 1x SDK` (depending on your Windows version) should be checked.
-
-5. **Optional**: If you want to compile AI File Sorter with CUDA (for Nvidia GPUs only) then download and install [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads). CUDA significantly increases the compute speed of local LLMs. Otherwise, AI File Sorter will fall back on either OpenCL or OpenBLAS (CPU only, but faster than without it).
-
-6. Launch `Developer PowerShell for VS 2022` and `cd path\to\cloned\github\repo\app\scripts` (e.g., `cd C:\Users\username\repos\ai-file-sorter\app\scripts`). Check that the script `build_llama.windows.ps1` contains the paths in accordance with your versions of CUDA and Visual Studio tools. In particular, check the version numbers in these lines:
-
-    ```ini
-    $cudaRoot = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9"
-    -DCMAKE_C_COMPILER="C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe" `
-    -DCMAKE_CXX_COMPILER="C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe"
-    ```
-
-    Save any changes.
-
-7. In `Developer PowerShell for VS 2022`, run
-
-    **If you have CUDA**:
-
-        powershell -ExecutionPolicy Bypass -File .\build_llama_windows.ps1 cuda=on
-
-    **If you don't have CUDA**:
-
-        powershell -ExecutionPolicy Bypass -File .\build_llama_windows.ps1 cuda=off
-
-    `llama.cpp` will be built from source.
-
-8. **Optional** (not needed if you want to use only local LLMs for file sorting). Go to [API Key, Obfuscation, and Encryption](#api-key-obfuscation-and-encryption) and complete all steps there before proceeding to step 6 here.
-
-9. Go back the `MSYS2 MINGW64` shell (ensure you ran it *as Administrator*, otherwise `make install` won't work). Go to the cloned repo's `app/resources` path (e.g., `/c/Users/username/repos/ai-file-sorter/app/resources`) and run `bash compile-resources.sh`. Go to the `app` directory (`cd ..`).
-
-10. Run `make`, `make install` and `make clean`. The executable `AiFileSorter.exe` will be located in `C:\Program Files\AiFileSorter`. You can add the directory to `%PATH%`.
-
-To uninstall, launch `MSYS2 MINGW64` (**NOT** `MSYS2 MSYS`) *as Administrator*, go to the same directory (`ai-file-sorter/app`) and issue the command `make uninstall`.
-
----
-
-### MacOS
-
-##### Clone the repository
-
-    git clone https://github.com/hyperfield/ai-file-sorter.git
-    cd ai-file-sorter
-    git submodule update --init --recursive --remote
-
-##### Navigate into the directory
-
-    cd ai-file-sorter
-
-#### Compile the app
-
-1. Install Xcode (required for Accelerate.framework and AppleClang):
-
-- From the App Store, install **Xcode**.
-- Then run in Terminal:
-
-      sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-
-2. Install Homebrew:
-
-       /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-3. Install dependencies:
-
-   ```bash
-   brew install cmake gcc atkmm@2.28 cairo at-spi2-core pangomm@2.46 gtk+3 gtkmm3 glibmm@2.66 cairomm@1.14 pango harfbuzz glib gettext curl jsoncpp sqlite3 openssl@3 pkg-config libffi expat xorgproto fmt spdlog adwaita-icon-theme hicolor-icon-theme
-
-   brew install --cask font-0xproto
-   ```
-
-4. Go to [API Key, Obfuscation, and Encryption](#api-key-obfuscation-and-encryption) and complete all steps there before proceeding to step 6 here.
-
-5. Go to `app/resources` and run `./compile-resources.sh`. Go back to the `app` directory.
-
-6. Run `make`, `sudo make install`, `make clean`. Then you can launch the app with the command `aifilesorter`.
+Pre-built installers continue to be published on the [Releases](https://github.com/hyperfield/ai-file-sorter/releases) page. The new Qt6-based toolchain targets MSVC rather than MSYS2/GTK; native build instructions will be documented once the workflow is finalised.
 
 ---
 
 ## Uninstallation
 
-Use `sudo make uninstall` in the same `app` subdirectory
+- **Linux**: `cd app && sudo make uninstall`
+- **macOS**: `cd app && sudo make uninstall`
 
----
-
-### Linux
-
-##### Clone the repository
-
-```bash
-git clone https://github.com/hyperfield/ai-file-sorter.git
-cd ai-file-sorter
-git submodule update --init --recursive --remote
-```
-
-##### Navigate into the directory
-
-```bash
-cd ai-file-sorter
-```
-
-#### Compile the app
-
-#### 1. Install the dependencies
-
-##### Debian / Ubuntu
-
-```bash
-sudo apt update && sudo apt install -y build-essential cmake libgtk-3-dev libgtkmm-3.0-dev libgdk-pixbuf2.0-dev libglib2.0-dev libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libx11-dev libxi-dev libxfixes-dev libcairo2-dev libatk1.0-dev libepoxy-dev libharfbuzz-dev libfontconfig1-dev libfmt-dev libspdlog-dev libpng-dev libjpeg-dev libffi-dev libpcre3-dev libnghttp2-dev libidn2-0-dev librtmp-dev libssh-dev libpsl-dev libkrb5-dev libldap2-dev libbrotli-dev libxcb1-dev libxrandr-dev libxinerama-dev libxkbcommon-dev libwayland-dev libthai-dev libfreetype6-dev libgraphite2-dev libgnutls28-dev libp11-kit-dev liblzma-dev liblz4-dev libgcrypt20-dev libsystemd-dev ocl-icd-opencl-dev
-```
-
-##### Fedora / RedHat
-
-```bash
-sudo dnf install -y gcc-c++ make cmake gtk3-devel gtkmm30-devel gdk-pixbuf2-devel glib2-devel   libcurl-devel jsoncpp-devel sqlite-devel openssl-devel libX11-devel libXi-devel libXfixes-devel cairo-devel atk-devel epoxy-devel harfbuzz-devel fontconfig-devel fmt-devel spdlog-devel libpng-devel libjpeg-turbo-devel libffi-devel pcre-devel libnghttp2-devel libidn2-devel librtmp-devel libssh-devel libpsl-devel krb5-devel openldap-devel brotli-devel xcb-util-devel libXrandr-devel libXinerama-devel xkbcommon-devel wayland-devel libthai-devel freetype-devel graphite2-devel gnutls-devel p11-kit-devel xz-devel lz4-devel libgcrypt-devel systemd-devel ocl-icd-devel
-```
-
-##### Arch / Manjaro
-
-```bash
-sudo pacman -Syu --needed base-devel cmake gtk3 gtkmm3 gdk-pixbuf2 glib2 curl jsoncpp sqlite openssl libx11 libxi libxfixes cairo atk epoxy harfbuzz fontconfig fmt spdlog libpng libjpeg-turbo libffi pcre nghttp2 libidn2 rtmpdump libssh libpsl krb5 openldap brotli libxcb libxrandr libxinerama xkbcommon wayland libthai freetype2 graphite gnutls p11-kit xz lz4 libgcrypt systemd opencl-headers ocl-icd
-```
-
-#### 2. Compile `llama.cpp`
-
-##### Debian / Ubuntu
-
-- If you are going to compile `llama.cpp` with CUDA (you have an Nvidia GPU), you need `g++` of at least version 10 and CUDA Toolkit:
-
-  ```bash
-  sudo apt install g++-10 nvidia-cuda-toolkit
-  ```
-
-##### Fedora / RedHat
-
-- If you are going to compile `llama.cpp` with CUDA (you have an Nvidia GPU), you need `g++` of at least version 10  and CUDA Toolkit:
-
-  ```bash
-  sudo dnf install gcc-toolset-10
-  ```
-
-  Then enable it with:
-
-  ```bash
-  scl enable gcc-toolset-10 bash
-  ```
-
-  Download CUDA from [Nvidia](https://developer.nvidia.com/cuda-downloads?target_os=Linux) and install it.
-
-##### Arch / Manjaro
-
-- If you are going to compile `llama.cpp` with CUDA, you need CUDA Toolkit:
-
-  ```bash
-  sudo pacman -S cuda
-  ```
-
-##### All Linux
-
-- If you have CUDA, run
-
-  ```bash
-  scripts/build_llama_linux.sh cuda=on
-  ```
-
-- If you don't have CUDA, run
-
-  ```bash
-  scripts/build_llama_linux.sh
-  ```
-
-#### 3. [Optional] Get API key
-
-*Only needed if you want to be able to use the Remote LLM (ChatGPT o4-mini)*.
-
-Go to the section [API Key, Obfuscation, and Encryption](#api-key-obfuscation-and-encryption) and complete all steps there before proceeding to step 4 here.
-
-#### 4. Compile and install AI File Sorter
-
-While still in `ai-file-sorter/app`, run
-
-```bash
-make
-sudo make install
-```
-
-Run the app with
-
-```bash
-aifilesorter
-```
+The command removes the executable and the staged precompiled libraries. You can also delete cached local LLM models in `~/.local/share/aifilesorter/llms` (Linux) or `~/Library/Application Support/aifilesorter/llms` (macOS) if you no longer need them.
 
 ---
 

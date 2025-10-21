@@ -1,95 +1,90 @@
 #include "MainAppHelpActions.hpp"
-#include <gtk/gtkcontainer.h>
-#include <string>
+
 #include <app_version.hpp>
 
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QPixmap>
+#include <QTabWidget>
+#include <QVBoxLayout>
+#include <QString>
 
-void MainAppHelpActions::show_about(GtkWindow *parent)
+void MainAppHelpActions::show_about(QWidget* parent)
 {
-    // Create a custom dialog
-    GtkWidget *dialog = gtk_dialog_new_with_buttons(
-        "About QN AI File Sorter",    // Title
-        parent,                       // Parent window
-        GTK_DIALOG_MODAL,             // Dialog flag
-        "Close",                      // Button text
-        GTK_RESPONSE_CLOSE,           // Response ID
-        NULL                          // End of button list
-    );
+    QDialog dialog(parent);
+    dialog.setWindowTitle(QObject::tr("About QN AI File Sorter"));
+    dialog.resize(600, 420);
 
-    // Set dialog size and style
-    gtk_window_set_default_size(GTK_WINDOW(dialog), 600, 400);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* tabs = new QTabWidget(&dialog);
+    layout->addWidget(tabs);
 
-    // Create a notebook for the tabs
-    GtkWidget *notebook = gtk_notebook_new();
-    gtk_notebook_set_tab_pos(GTK_NOTEBOOK(notebook), GTK_POS_TOP);
-    gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), notebook, TRUE, TRUE, 0);
+    // About tab
+    auto* about_tab = new QWidget(&dialog);
+    auto* about_layout = new QVBoxLayout(about_tab);
+    about_layout->setSpacing(8);
 
-    // --- "About" tab ---
-    GtkWidget *about_tab_content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-
-    // Add logo to the "About" tab
-    GError *error = NULL;
-    GdkPixbuf *pixbuf_al = gdk_pixbuf_new_from_resource("/net/quicknode/AIFileSorter/images/logo.png", &error);
-    if (!pixbuf_al) {
-        g_critical("Failed to load resource: %s", error->message);
-        g_clear_error(&error);
-    } else {
-        GtkWidget *app_logo = gtk_image_new_from_pixbuf(pixbuf_al);
-        gtk_box_pack_start(GTK_BOX(about_tab_content), app_logo, FALSE, FALSE, 10);
-        g_object_unref(pixbuf_al);
+    if (QPixmap logo_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png")); !logo_pix.isNull()) {
+        auto* logo_label = new QLabel(about_tab);
+        logo_label->setAlignment(Qt::AlignHCenter);
+        logo_label->setPixmap(logo_pix.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        about_layout->addWidget(logo_label);
     }
 
-    // Add program details to the "About" tab
-    GtkWidget *program_name = gtk_label_new("QN AI File Sorter");
-    
-    std::string version_text = "Version: " + APP_VERSION.to_string();
-    GtkWidget *version = gtk_label_new(version_text.c_str());
+    auto* program_name = new QLabel(QStringLiteral("<h2>QN AI File Sorter</h2>"), about_tab);
+    program_name->setAlignment(Qt::AlignHCenter);
+    about_layout->addWidget(program_name);
 
-    GtkWidget *copyright = gtk_label_new("© 2024-2025 QuickNode. All rights reserved.");
-    GtkWidget *website = gtk_link_button_new_with_label("https://www.filesorter.app", "Visit the Website");
+    const QString version_text = QStringLiteral("Version: %1").arg(QString::fromStdString(APP_VERSION.to_string()));
+    auto* version_label = new QLabel(version_text, about_tab);
+    version_label->setAlignment(Qt::AlignHCenter);
+    about_layout->addWidget(version_label);
 
-    gtk_box_pack_start(GTK_BOX(about_tab_content), program_name, FALSE, FALSE, 5);
-    gtk_box_pack_start(GTK_BOX(about_tab_content), version, FALSE, FALSE, 5);
-    gtk_box_pack_start(GTK_BOX(about_tab_content), copyright, FALSE, FALSE, 5);
-    gtk_box_pack_start(GTK_BOX(about_tab_content), website, FALSE, FALSE, 5);
+    auto* copyright_label =
+        new QLabel(QStringLiteral("© 2024-2025 QuickNode. All rights reserved."), about_tab);
+    copyright_label->setAlignment(Qt::AlignHCenter);
+    about_layout->addWidget(copyright_label);
 
-    // Add the "About" tab to the notebook
-    GtkWidget *about_label = gtk_label_new("About");
-    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), about_tab_content, about_label);
+    auto* website_label = new QLabel(QStringLiteral(
+        "<a href=\"https://www.filesorter.app\">Visit the Website</a>"), about_tab);
+    website_label->setOpenExternalLinks(true);
+    website_label->setAlignment(Qt::AlignHCenter);
+    about_layout->addWidget(website_label);
 
-    // --- "Credits" tab ---
-    GtkWidget *credits_tab_content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    about_layout->addStretch(1);
+    tabs->addTab(about_tab, QObject::tr("About"));
 
-    // Add logo to the "Credits" tab    
-    GdkPixbuf *pixbuf_cl = gdk_pixbuf_new_from_resource("/net/quicknode/AIFileSorter/images/qn_logo.png", &error);
-    if (!pixbuf_cl) {
-        g_critical("Failed to load resource: %s", error->message);
-        g_clear_error(&error);
-    } else {
-        GtkWidget *credits_logo = gtk_image_new_from_pixbuf(pixbuf_cl);
-        gtk_box_pack_start(GTK_BOX(credits_tab_content), credits_logo, FALSE, FALSE, 10);
-        g_object_unref(pixbuf_cl);
+    // Credits tab
+    auto* credits_tab = new QWidget(&dialog);
+    auto* credits_layout = new QVBoxLayout(credits_tab);
+    credits_layout->setSpacing(8);
+
+    if (QPixmap qn_logo_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/qn_logo.png")); !qn_logo_pix.isNull()) {
+        auto* qn_logo = new QLabel(credits_tab);
+        qn_logo->setAlignment(Qt::AlignHCenter);
+        qn_logo->setPixmap(qn_logo_pix.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        credits_layout->addWidget(qn_logo);
     }
 
-    // Add author's details
-    const gchar *author_name = "Author: hyperfield";
-    GtkWidget *author_label = gtk_label_new(author_name);
-    gtk_box_pack_start(GTK_BOX(credits_tab_content), author_label, FALSE, FALSE, 5);
+    auto* author_label = new QLabel(QStringLiteral("Author: hyperfield"), credits_tab);
+    author_label->setAlignment(Qt::AlignHCenter);
+    credits_layout->addWidget(author_label);
 
-    // Add brand name and links
-    GtkWidget *author_details = gtk_label_new(NULL);
-    const gchar *author_text = "Author's brand name is <a href=\"https://quicknode.net\">QN (QuickNode)</a>.\n"
-                               "Source code on Github is <a href=\"https://github.com/hyperfield/ai-file-sorter\">here.</a>";
-    gtk_label_set_markup(GTK_LABEL(author_details), author_text);
-    gtk_label_set_line_wrap(GTK_LABEL(author_details), TRUE);
-    gtk_box_pack_start(GTK_BOX(credits_tab_content), author_details, FALSE, FALSE, 5);
+    auto* author_details = new QLabel(QStringLiteral(
+        "Author's brand name is <a href=\"https://quicknode.net\">QN (QuickNode)</a>.<br>"
+        "Source code on GitHub is <a href=\"https://github.com/hyperfield/ai-file-sorter\">here</a>."), credits_tab);
+    author_details->setOpenExternalLinks(true);
+    author_details->setAlignment(Qt::AlignHCenter);
+    author_details->setWordWrap(true);
+    credits_layout->addWidget(author_details);
 
-    // Add the "Credits" tab to the notebook
-    GtkWidget *credits_label = gtk_label_new("Credits");
-    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), credits_tab_content, credits_label);
+    credits_layout->addStretch(1);
+    tabs->addTab(credits_tab, QObject::tr("Credits"));
 
-    // Show dialog
-    gtk_widget_show_all(dialog);
-    gtk_dialog_run(GTK_DIALOG(dialog));
-    gtk_widget_destroy(dialog);
+    auto* button_box = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    QObject::connect(button_box, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
+    layout->addWidget(button_box);
+
+    dialog.exec();
 }

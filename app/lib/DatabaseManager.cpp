@@ -11,7 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include <glib.h>
 #include <sqlite3.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>

@@ -6,7 +6,6 @@
 #include <windows.h>
 #include <vector>
 
-#include <gtk/gtk.h>
 
 
 typedef unsigned int cl_uint;
@@ -92,43 +91,16 @@ void addToPath(const std::string& directory) {
 }
 
 
-void showCudaDownloadDialog(GtkWindow* parent = nullptr) {
-    GtkWidget* dialog = gtk_message_dialog_new(
-        parent,
-        GTK_DIALOG_MODAL,
-        GTK_MESSAGE_WARNING,
-        GTK_BUTTONS_NONE,
-        nullptr
-    );
-
-    gtk_window_set_title(GTK_WINDOW(dialog), "CUDA Toolkit Missing");
-
-    // Center the dialog on the screen (even if parent is null)
-    gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER);
-
-    // Set formatted primary and secondary text
-    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+void showCudaDownloadDialog() {
+    const int result = MessageBoxA(
+        nullptr,
         "A compatible NVIDIA GPU was detected, but the CUDA Toolkit is missing.\n\n"
         "CUDA is required for GPU acceleration in this application.\n\n"
-        "Would you like to download and install it now?"
-    );
+        "Would you like to download and install it now?",
+        "CUDA Toolkit Missing",
+        MB_ICONWARNING | MB_OKCANCEL | MB_DEFBUTTON1);
 
-    gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
-        "<b>CUDA Toolkit Not Found</b>"
-    );
-
-    // Add "Download" and "Ignore" buttons
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Ignore (not recommended)", GTK_RESPONSE_CANCEL);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Download CUDA Toolkit", GTK_RESPONSE_OK);
-
-    // Set default response
-    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
-
-    // Run the dialog and capture response
-    gint result = gtk_dialog_run(GTK_DIALOG(dialog));
-    gtk_widget_destroy(dialog);
-
-    if (result == GTK_RESPONSE_OK) {
+    if (result == IDOK) {
         ShellExecuteA(nullptr, "open", "https://developer.nvidia.com/cuda-downloads", nullptr, nullptr, SW_SHOWNORMAL);
         exit(EXIT_SUCCESS);
     }
@@ -160,7 +132,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     bool hasNvidiaDriver = isNvidiaDriverAvailable();
 
     if (hasNvidiaDriver && !hasCuda) {
-        gtk_init(nullptr, nullptr);
         showCudaDownloadDialog();
     }
 

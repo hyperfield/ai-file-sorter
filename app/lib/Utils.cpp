@@ -5,10 +5,13 @@
 #include <cstring>  // for memset
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <stdlib.h>
 #include <string>
+#include <system_error>
 #include <vector>
-#include <glibmm/fileutils.h>
+#include <QCoreApplication>
+#include <QMetaObject>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 
@@ -122,7 +125,11 @@ std::string Utils::get_executable_path()
 
 bool Utils::is_valid_directory(const char *path)
 {
-    return g_file_test(path, G_FILE_TEST_IS_DIR);
+    if (!path || *path == '\0') {
+        return false;
+    }
+    std::error_code ec;
+    return std::filesystem::is_directory(std::filesystem::path(path), ec);
 }
 
 
@@ -269,13 +276,12 @@ int Utils::determine_ngl_cuda() {
 template <typename Func>
 void Utils::run_on_main_thread(Func&& func)
 {
-    auto* task = new std::function<void()>(std::forward<Func>(func));
-    g_idle_add([](gpointer data) -> gboolean {
-        auto* f = static_cast<std::function<void()>*>(data);
-        (*f)();
-        delete f;
-        return G_SOURCE_REMOVE;
-    }, task);
+    auto task = std::make_shared<std::function<void()>>(std::forward<Func>(func));
+    if (auto* app = QCoreApplication::instance()) {
+        QMetaObject::invokeMethod(app, [task]() { (*task)(); }, Qt::QueuedConnection);
+    } else {
+        (*task)();
+    }
 }
 
 

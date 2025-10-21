@@ -1,14 +1,11 @@
 #include "LLMDownloader.hpp"
 #include "Utils.hpp"
-#include "DialogUtils.hpp"
-#include "ErrorMessages.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <curl/curl.h>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
-#include <glibmm/main.h>
 
 
 LLMDownloader::LLMDownloader(const std::string& download_url)
@@ -117,11 +114,9 @@ int LLMDownloader::progress_func(void* clientp, curl_off_t dltotal, curl_off_t d
     if (elapsed.count() > 100) {
         self->last_progress_update = now;
 
-        Glib::signal_idle().connect_once([self, clamped_progress]() {
-            if (self->progress_callback) {
-                self->progress_callback(clamped_progress);
-            }
-        });
+        if (self->progress_callback) {
+            self->progress_callback(clamped_progress);
+        }
     }
 
     return 0;
@@ -223,9 +218,9 @@ void LLMDownloader::mark_download_resumable()
 
 void LLMDownloader::notify_download_complete()
 {
-    Glib::signal_idle().connect_once([this]() {
-        if (on_download_complete) on_download_complete();
-    });
+    if (on_download_complete) {
+        on_download_complete();
+    }
 }
 
 

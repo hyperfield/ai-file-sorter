@@ -1,50 +1,61 @@
-#pragma once
+#ifndef LLMSELECTIONDIALOG_HPP
+#define LLMSELECTIONDIALOG_HPP
+
 #include "LLMDownloader.hpp"
 #include "Types.hpp"
-#include <gtk/gtk.h>
+
+#include <QDialog>
+
 #include <atomic>
+#include <memory>
 #include <mutex>
-#include <thread>
 
+class QLabel;
+class QProgressBar;
+class QPushButton;
+class QRadioButton;
+class QDialogButtonBox;
+class QWidget;
+class QString;
 
-class LLMSelectionDialog {
+class Settings;
+
+class LLMSelectionDialog : public QDialog
+{
 public:
-    static void on_llm_radio_toggled(GtkWidget *widget, gpointer data);
-    LLMSelectionDialog(Settings& settings);
-    ~LLMSelectionDialog();
+    explicit LLMSelectionDialog(Settings& settings, QWidget* parent = nullptr);
+    ~LLMSelectionDialog() override;
+
     LLMChoice get_selected_llm_choice() const;
-    int run();
-    GtkWidget* get_widget();
 
 private:
-    GtkWidget *dialog;
-    GtkWidget *main_box;
-    GtkWidget *title_label;
-    GtkWidget *remote_url_label;
-    GtkWidget *local_path_label;
-    GtkWidget *file_size_label;
-    GtkWidget *remote_llm_button;
-    GtkWidget *local_llm_3b_button;
-    GtkWidget *local_llm_7b_button;
-    GtkWidget *download_button;
-    GtkWidget *progress_bar;
-    GtkWidget *ok_btn;
-    GtkWidget* file_info_box;
-    GtkWidget* details_frame;
+    void setup_ui();
+    void connect_signals();
+    void update_ui_for_choice();
+    void update_download_info();
+    void start_download();
+    void refresh_downloader();
+    void set_status_message(const QString& message);
+    std::string current_download_env_var() const;
+
+    Settings& settings;
+    LLMChoice selected_choice{LLMChoice::Unset};
+
+    QRadioButton* remote_radio{nullptr};
+    QRadioButton* local3_radio{nullptr};
+    QRadioButton* local7_radio{nullptr};
+    QLabel* remote_url_label{nullptr};
+    QLabel* local_path_label{nullptr};
+    QLabel* file_size_label{nullptr};
+    QLabel* status_label{nullptr};
+    QProgressBar* progress_bar{nullptr};
+    QPushButton* download_button{nullptr};
+    QDialogButtonBox* button_box{nullptr};
+    QWidget* download_section{nullptr};
 
     std::unique_ptr<LLMDownloader> downloader;
-    std::thread download_thread;
     std::atomic<bool> is_downloading{false};
     std::mutex download_mutex;
-
-    void on_selection_changed(GtkWidget *widget, gpointer data);
-    void on_download_button_clicked(GtkWidget *widget, gpointer data);
-    void update_progress(double fraction);
-    void on_download_complete();
-    void update_progress_text(const std::string &text);
-    void update_file_size_label();
-    void init_progress_bar();
-    
-    Settings& settings;
-    LLMChoice selected_choice;
 };
+
+#endif // LLMSELECTIONDIALOG_HPP

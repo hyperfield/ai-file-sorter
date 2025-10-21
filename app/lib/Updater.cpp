@@ -13,13 +13,17 @@
     #include <jsoncpp/json/json.h>
 #endif
 #include <optional>
-#include <gtk/gtk.h>
-#include <gtk/gtktypes.h>
 #include <curl/easy.h>
-#include <glibmm/main.h>
 #include <future>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
+#include <QApplication>
+#include <QDesktopServices>
+#include <QMessageBox>
+#include <QMetaObject>
+#include <QObject>
+#include <QPushButton>
+#include <QUrl>
 
 namespace {
 template <typename... Args>
@@ -107,23 +111,22 @@ void Updater::begin()
     this->update_future = std::async(std::launch::async, [this]() { 
         try {
             if (is_update_available()) {
-                Glib::signal_idle().connect_once([this]() {
+                QMetaObject::invokeMethod(QApplication::instance(), [this]() {
                     if (is_update_required()) {
-                        bool is_required = true;
-                        display_update_dialog(is_required);
+                        display_update_dialog(true);
                     } else if (!is_update_skipped()) {
-                        display_update_dialog();
+                        display_update_dialog(false);
                     }
-                });
+                }, Qt::QueuedConnection);
             } else {
-                Glib::signal_idle().connect_once([]() {
+                QMetaObject::invokeMethod(QApplication::instance(), []() {
                     std::cout << "No updates available.\n";
-                });
+                }, Qt::QueuedConnection);
             }
         } catch (const std::exception &e) {
-            Glib::signal_idle().connect_once([msg = std::string(e.what())]() {
+            QMetaObject::invokeMethod(QApplication::instance(), [msg = std::string(e.what())]() {
                 updater_log(spdlog::level::err, "Updater encountered an error: {}", msg);
-            });
+            }, Qt::QueuedConnection);
         }
     });
 }
@@ -137,135 +140,62 @@ bool Updater::is_update_skipped()
 
 
 void Updater::display_update_dialog(bool is_required) {
-    GtkWidget* dialog;
-    GtkWidget* content_area;
-
     if (!update_info) {
         updater_log(spdlog::level::warn, "No update information available.");
         return;
     }
 
-    if (update_info.has_value() && is_required) {
-        dialog = gtk_dialog_new_with_buttons(
-            "Required Update Available", nullptr, GTK_DIALOG_MODAL,
-            "Update Now", GTK_RESPONSE_ACCEPT,
-            "Quit", GTK_RESPONSE_DELETE_EVENT, // Quit button
-            nullptr);
-        content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    QWidget* parent = QApplication::activeWindow();
+    const auto& info = update_info.value();
 
-        GtkWidget* label = gtk_label_new(
-            "A required update is available. Please update to continue.\nIf you choose to quit, the application will close.");
-        gtk_label_set_xalign(GTK_LABEL(label), 0.5);  // Horizontal alignment: 0.0 (left) to 1.0 (right), 0.5 is center
-        gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_CENTER);
-        gtk_container_add(GTK_CONTAINER(content_area), label);
-        
-        // Add padding to the label
-        gtk_widget_set_margin_start(label, 20);
-        gtk_widget_set_margin_end(label, 20);
-        gtk_widget_set_margin_top(label, 10);
-        gtk_widget_set_margin_bottom(label, 10);
+    auto open_download = [&info]() {
+        const QUrl url(QString::fromStdString(info.download_url));
+        if (!QDesktopServices::openUrl(url)) {
+            updater_log(spdlog::level::err, "Failed to open URL: {}", info.download_url);
+        }
+    };
 
-        // Disable the close button to ensure users must act explicitly
-        gtk_window_set_deletable(GTK_WINDOW(dialog), false);
-    } else {
-        dialog = gtk_dialog_new_with_buttons(
-            "Optional Update Available", nullptr, GTK_DIALOG_MODAL,
-            "Update Now", GTK_RESPONSE_ACCEPT,
-            "Skip This Version", GTK_RESPONSE_REJECT,
-            "Cancel", GTK_RESPONSE_CANCEL,
-            nullptr);
-        content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    if (is_required) {
+        QMessageBox box(parent);
+        box.setIcon(QMessageBox::Warning);
+        box.setWindowTitle(QObject::tr("Required Update Available"));
+        box.setText(QObject::tr("A required update is available. Please update to continue.\nIf you choose to quit, the application will close."));
+        QPushButton* update_now = box.addButton(QObject::tr("Update Now"), QMessageBox::AcceptRole);
+        QPushButton* quit_button = box.addButton(QObject::tr("Quit"), QMessageBox::RejectRole);
+        box.setDefaultButton(update_now);
+        box.exec();
 
-        GtkWidget* label = gtk_label_new(
-            "An optional update is available. Would you like to update now?");
-        gtk_container_add(GTK_CONTAINER(content_area), label);
-
-        // Add padding to the label
-        gtk_widget_set_margin_start(label, 20);
-        gtk_widget_set_margin_end(label, 20);
-        gtk_widget_set_margin_top(label, 10);
-        gtk_widget_set_margin_bottom(label, 10);
+        if (box.clickedButton() == update_now) {
+            open_download();
+            QApplication::quit();
+        } else if (box.clickedButton() == quit_button) {
+            QApplication::quit();
+        }
+        return;
     }
 
-    // Add padding to the content area (if needed for future widgets)
-    gtk_widget_set_margin_top(content_area, 10);
-    gtk_widget_set_margin_bottom(content_area, 10);
-    gtk_widget_set_margin_start(content_area, 10);
-    gtk_widget_set_margin_end(content_area, 10);
+    QMessageBox box(parent);
+    box.setIcon(QMessageBox::Information);
+    box.setWindowTitle(QObject::tr("Optional Update Available"));
+    box.setText(QObject::tr("An optional update is available. Would you like to update now?"));
+    QPushButton* update_now = box.addButton(QObject::tr("Update Now"), QMessageBox::AcceptRole);
+    QPushButton* skip_button = box.addButton(QObject::tr("Skip This Version"), QMessageBox::RejectRole);
+    QPushButton* cancel_button = box.addButton(QObject::tr("Cancel"), QMessageBox::DestructiveRole);
+    box.setDefaultButton(update_now);
+    box.exec();
 
-    gtk_widget_show_all(dialog);
-    gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-
-    switch (response) {
-        case GTK_RESPONSE_ACCEPT: {
-            std::string command;
-
-            #ifdef __linux__
-                command = "xdg-open " + update_info.value().download_url;
-            #elif _WIN32
-                command = "start " + update_info.value().download_url;
-            #elif __APPLE__
-                command = "open " + update_info.value().download_url;
-            #else
-                updater_log(spdlog::level::warn, "Unsupported platform for opening URLs.");
-                return;
-            #endif
-
-            int result = std::system(command.c_str());
-            if (result != 0) {
-                updater_log(spdlog::level::err, "Failed to open URL: {}", update_info.value().download_url);
-            } else {
-                std::cout << "Opening download URL: " << update_info.value().download_url << std::endl;
-            }
-
-            if (GTK_IS_WIDGET(dialog)) {
-                gtk_widget_destroy(dialog);
-            }
-
-            if (is_required) {
-                exit(EXIT_SUCCESS);
-            }
-            break;
+    if (box.clickedButton() == update_now) {
+        open_download();
+    } else if (box.clickedButton() == skip_button) {
+        settings.set_skipped_version(info.current_version);
+        if (!settings.save()) {
+            updater_log(spdlog::level::err, "Failed to save skipped version to settings.");
+        } else {
+            std::cout << "User chose to skip version " << info.current_version << "." << std::endl;
         }
-
-        case GTK_RESPONSE_DELETE_EVENT: {
-            gtk_widget_destroy(dialog);
-
-            // Exit the app only for required updates
-            if (is_required) {
-                exit(EXIT_SUCCESS);
-            }
-            break;
-        }
-
-        case GTK_RESPONSE_REJECT: {
-            if (!is_required) {
-                std::string skipped_version = update_info.value().current_version;
-                settings.set_skipped_version(skipped_version);
-                if (!settings.save()) {
-                    updater_log(spdlog::level::err, "Failed to save skipped version to settings.");
-                } else {
-                    std::cout << "User chose to skip version " << skipped_version << "." << std::endl;
-                }
-            }
-            break;
-        }
-
-        case GTK_RESPONSE_CANCEL:
-            if (!is_required) {
-                break;
-            }
-            // For required updates, Cancel should not be an option.
-            [[fallthrough]];
-
-        default:
-            if (!is_required) {
-                std::cout << "Dialog closed with an unknown response." << std::endl;
-            }
-            break;
+    } else if (box.clickedButton() == cancel_button) {
+        // No action needed; user dismissed the dialog.
     }
-
-    gtk_widget_destroy(dialog);
 }
 
 

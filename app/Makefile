@@ -4,7 +4,6 @@ UNAME := $(shell uname | cut -d'-' -f1)
 BIN_DIR := ./bin
 OBJ_DIR := ./obj
 SRC_DIR := ./lib
-RESOURCES = resources/resources.c
 
 ifeq ($(UNAME), Linux)
     PLATFORM := Linux
@@ -14,10 +13,16 @@ ifeq ($(UNAME), Linux)
     INSTALL_LIB_DIR := /usr/local/lib/aifilesorter
 	LD_CONF_FILE := /etc/ld.so.conf.d/aifilesorter.conf
 
+    # --- Qt6 setup ---
+    QT_INCLUDE_BASE ?= /usr/include/x86_64-linux-gnu/qt6
+    QT_LIB_BASE     ?= /usr/lib/x86_64-linux-gnu
+    CXXFLAGS += -I$(QT_INCLUDE_BASE) -I$(QT_INCLUDE_BASE)/QtCore -I$(QT_INCLUDE_BASE)/QtGui -I$(QT_INCLUDE_BASE)/QtWidgets
+    LDFLAGS  += -L$(QT_LIB_BASE) -lQt6Widgets -lQt6Gui -lQt6Core
+
+    # --- Other dependencies ---
 	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lX11 -pthread
 	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled'
 	LDFLAGS += -Wl,-rpath-link=./lib/precompiled
-
 
 else ifeq ($(UNAME), Darwin)
     export PATH := /opt/homebrew/opt/curl/bin:$(PATH)
@@ -42,26 +47,27 @@ else ifeq ($(UNAME), Darwin)
     LDFLAGS += -Wl,-rpath,@loader_path/lib
 
 
-else ifeq ($(UNAME), MINGW64_NT)
-    PLATFORM := Windows (64-bit)
-    CXXFLAGS += -DWINDOWS
-    TARGET := $(BIN_DIR)/AiFileSorter.exe
-	INSTALL_DIR := "C:/Program Files/Ai File Sorter"
-    WINDRES = windres
-    RC_FILE = resources/exe_icon.rc
-    RC_OBJ = resources/exe_icon.o
-
-    LDFLAGS += -mwindows -lwininet -ljsoncpp -lcrypto -lcurl -lspdlog -lsqlite3 -lssl -lfmt -lllama -lggml
 endif
 
 # Compiler and flags
 CXX = g++
-CXXFLAGS += -std=c++20 -Wall $(shell pkg-config --cflags gtkmm-3.0)
-CXXFLAGS += -O2
-
-LDFLAGS += $(shell pkg-config --libs gtkmm-3.0)
+CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
 INCLUDE_DIRS = -I./include -I./include/llama
 LIB_DIRS = -L./lib/precompiled
+
+QRC_FILE := resources/app.qrc
+QRC_CPP := $(OBJ_DIR)/qrc_app.cpp
+QRC_OBJ := $(OBJ_DIR)/qrc_app.o
+
+ifndef RCC
+RCC := $(shell command -v qt6-rcc 2>/dev/null)
+ifeq ($(strip $(RCC)),)
+RCC := $(shell command -v rcc 2>/dev/null)
+endif
+endif
+ifeq ($(strip $(RCC)),)
+$(error Could not find Qt resource compiler (qt6-rcc or rcc))
+endif
 
 # Source files
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
@@ -73,9 +79,9 @@ OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
 all: $(TARGET)
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
-$(TARGET): $(OBJS) $(RC_OBJ)
+$(TARGET): $(OBJS) $(QRC_OBJ)
 	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(RESOURCES) $(LIB_DIRS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIB_DIRS) $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	mkdir -p $(OBJ_DIR)
@@ -85,14 +91,15 @@ $(OBJ_DIR)/main.o: main.cpp
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
-# Windows resource compilation
-ifeq ($(PLATFORM), Windows (64-bit))
-$(RC_OBJ): $(RC_FILE)
-	$(WINDRES) -i $< -o $@
-endif
+$(QRC_CPP): $(QRC_FILE)
+	mkdir -p $(OBJ_DIR)
+	$(RCC) -o $@ $<
+
+$(QRC_OBJ): $(QRC_CPP)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR) $(RC_OBJ)
+	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
 install: $(TARGET)
 ifeq ($(PLATFORM), Linux)
@@ -128,37 +135,6 @@ else ifeq ($(PLATFORM), MacOS)
 	install_name_tool -add_rpath $(INSTALL_LIB_DIR) $(INSTALL_DIR)/aifilesorter
 
 	@echo "macOS installation complete."
-
-else ifeq ($(PLATFORM), Windows (64-bit))
-	mkdir -p $(INSTALL_DIR)/certs
-	mkdir -p $(INSTALL_DIR)/share
-
-	cp -v $(TARGET) $(INSTALL_DIR)/
-	cp -v ./lib/precompiled/*.dll $(INSTALL_DIR)/
-	cp -v "C:/msys64/mingw64/bin/gdbus.exe" $(INSTALL_DIR)/
-
-	$(foreach dll, \
-		libcairo-2 libfribidi-0 libharfbuzz-0 libpango-1.0-0 libssl-3-x64 \
-		libcairo-gobject-2 libgcc_s_seh-1 libiconv-2 libpangocairo-1.0-0 \
-		libstdc++-6 libcrypto-3-x64 libgdk-3-0 libgdk_pixbuf-2.0-0 libgfortran-5 \
-		libidn2-0 libpangoft2-1.0-0 libgio-2.0-0 libintl-8 libgomp-1 libzstd \
-		libjbig-0 libwebp-7 libthai-0 libtiff-6 libcurl-4 libdatrie-1 \
-		libgiomm-2.4-1 libjpeg-8 libpcre2-8-0 libpangowin32-1.0-0 libunistring-5 \
-		libdeflate libepoxy-0 libglib-2.0-0 libjsoncpp-26 libpng16-16 libwinpthread-1 \
-		libLerc libexpat-1 libglibmm-2.4-1 liblzma-5 libpsl-5 libatk-1.0-0 libffi-8 \
-		libgmodule-2.0-0 libnghttp2-14 libsharpyuv-0 libbrotlicommon libfmt-11 \
-		libgobject-2.0-0 libnghttp3-9 libsigc-2.0-0 zlib1 libbrotlidec libfontconfig-1 \
-		libgraphite2 libopenblas libngtcp2-16 libsqlite3-0 libbz2-1 libfreetype-6 \
-		libgtk-3-0 libngtcp2_crypto_ossl-0 libquadmath-0 libssh2-1 libpixman-1-0, \
-		cp -v "C:/msys64/mingw64/bin/$(dll).dll" $(INSTALL_DIR)/;)
-
-	cp -v "C:/msys64/usr/ssl/cert.pem" $(INSTALL_DIR)/certs/cacert.pem
-	cp -vr "C:/msys64/mingw64/lib/gdk-pixbuf-2.0/" $(INSTALL_DIR)/gdk-pixbuf-2.0
-	cp -vr "C:/msys64/mingw64/share/glib-2.0/schemas/" $(INSTALL_DIR)/schemas
-	cp -vr "C:/msys64/mingw64/share/icons/" $(INSTALL_DIR)/share/icons
-	cp -vr "C:/msys64/mingw64/share/themes/" $(INSTALL_DIR)/share/themes
-
-	glib-compile-schemas $(INSTALL_DIR)/schemas
 endif
 
 uninstall:
@@ -187,6 +163,7 @@ ifeq ($(PLATFORM), Linux)
 			echo "Keeping downloaded models."; \
 		fi'
 
+
 else ifeq ($(PLATFORM), MacOS)
 	@echo "Uninstalling aifilesorter binary and libraries on macOS..."
 
@@ -211,7 +188,4 @@ else ifeq ($(PLATFORM), MacOS)
 	else \
 		echo "Keeping downloaded models."; \
 	fi
-
-else ifeq ($(PLATFORM), Windows (64-bit))
-	rm -rf $(INSTALL_DIR)
 endif

@@ -3,7 +3,6 @@
 #include "Utils.hpp"
 #include "Logger.hpp"
 #include <curl/curl.h>
-#include <glib.h>
 #include <filesystem>
 #ifdef _WIN32
     #include <json/json.h>
