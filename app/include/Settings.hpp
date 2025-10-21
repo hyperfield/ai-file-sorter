@@ -3,6 +3,7 @@
 
 #include <IniConfig.hpp>
 #include <Types.hpp>
+#include <Language.hpp>
 #include <string>
 #include <filesystem>
 
@@ -38,6 +39,8 @@ public:
     std::string get_skipped_version();
     void set_show_file_explorer(bool value);
     bool get_show_file_explorer() const;
+    Language get_language() const;
+    void set_language(Language value);
 
 private:
     std::string config_path;
@@ -52,6 +55,7 @@ private:
     std::string sort_folder;
     std::string skipped_version;
     bool show_file_explorer{true};
+    Language language{Language::English};
 };
 
 #endif

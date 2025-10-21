@@ -8,6 +8,7 @@
 class MainApp;
 class QPlainTextEdit;
 class QPushButton;
+class QEvent;
 
 class CategorizationProgressDialog : public QDialog
 {
@@ -18,8 +19,12 @@ public:
     void hide();
     void append_text(const std::string& text);
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private:
     void setup_ui(bool show_subcategory_col);
+    void retranslate_ui();
     void request_stop();
 
     MainApp* main_app;

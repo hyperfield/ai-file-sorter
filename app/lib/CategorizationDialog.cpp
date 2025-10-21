@@ -8,11 +8,13 @@
 #include <QBrush>
 #include <QCheckBox>
 #include <QCloseEvent>
+#include <QEvent>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QStandardItem>
 #include <QStandardItemModel>
+#include <QStringList>
 #include <QTableView>
 #include <QVBoxLayout>
 #include <QSignalBlocker>
@@ -31,9 +33,9 @@ CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
       db_logger(Logger::get_logger("db_logger")),
       ui_logger(Logger::get_logger("ui_logger"))
 {
-    setWindowTitle(tr("Review Categorization"));
     resize(1100, 720);
     setup_ui();
+    retranslate_ui();
 }
 
 
@@ -55,20 +57,12 @@ void CategorizationDialog::setup_ui()
 {
     auto* layout = new QVBoxLayout(this);
 
-    select_all_checkbox = new QCheckBox(tr("Select all"), this);
+    select_all_checkbox = new QCheckBox(this);
     select_all_checkbox->setChecked(true);
     layout->addWidget(select_all_checkbox);
 
     model = new QStandardItemModel(this);
     model->setColumnCount(6);
-    model->setHorizontalHeaderLabels({
-        tr("Move"),
-        tr("File"),
-        tr("Type"),
-        tr("Category"),
-        tr("Subcategory"),
-        tr("Status")
-    });
 
     table_view = new QTableView(this);
     table_view->setModel(model);
@@ -84,9 +78,9 @@ void CategorizationDialog::setup_ui()
     auto* button_layout = new QHBoxLayout();
     button_layout->addStretch(1);
 
-    confirm_button = new QPushButton(tr("Confirm and Sort"), this);
-    continue_button = new QPushButton(tr("Continue Later"), this);
-    close_button = new QPushButton(tr("Close"), this);
+    confirm_button = new QPushButton(this);
+    continue_button = new QPushButton(this);
+    close_button = new QPushButton(this);
     close_button->setVisible(false);
 
     button_layout->addWidget(confirm_button);
@@ -133,6 +127,9 @@ void CategorizationDialog::populate_model()
 
         auto* status_item = new QStandardItem;
         status_item->setEditable(false);
+        status_item->setData(static_cast<int>(RowStatus::None), kStatusRole);
+        apply_status_text(status_item);
+        status_item->setForeground(QBrush());
 
         row << select_item << file_item << type_item << category_item << subcategory_item << status_item;
         model->appendRow(row);
@@ -289,14 +286,24 @@ void CategorizationDialog::show_close_button()
 void CategorizationDialog::update_status_column(int row, bool success, bool attempted)
 {
     if (auto* status_item = model->item(row, 5)) {
+        RowStatus status = RowStatus::None;
         if (!attempted) {
-            status_item->setText(tr("Not selected"));
+            status = RowStatus::NotSelected;
             status_item->setForeground(QBrush(Qt::gray));
-            return;
+        } else if (success) {
+            status = RowStatus::Moved;
+            status_item->setForeground(QBrush(Qt::darkGreen));
+        } else {
+            status = RowStatus::Skipped;
+            status_item->setForeground(QBrush(Qt::red));
         }
 
-        status_item->setText(success ? tr("Moved") : tr("Skipped"));
-        status_item->setForeground(success ? QBrush(Qt::darkGreen) : QBrush(Qt::red));
+        if (status == RowStatus::None) {
+            status_item->setForeground(QBrush());
+        }
+
+        status_item->setData(static_cast<int>(status), kStatusRole);
+        apply_status_text(status_item);
     }
 }
 
@@ -317,6 +324,96 @@ void CategorizationDialog::apply_select_all(bool checked)
     }
     updating_select_all = false;
     update_select_all_state();
+}
+
+void CategorizationDialog::retranslate_ui()
+{
+    setWindowTitle(tr("Review Categorization"));
+
+    if (select_all_checkbox) {
+        select_all_checkbox->setText(tr("Select all"));
+    }
+    if (confirm_button) {
+        confirm_button->setText(tr("Confirm and Sort"));
+    }
+    if (continue_button) {
+        continue_button->setText(tr("Continue Later"));
+    }
+    if (close_button) {
+        close_button->setText(tr("Close"));
+    }
+
+    if (model) {
+        model->setHorizontalHeaderLabels(QStringList{
+            tr("Move"),
+            tr("File"),
+            tr("Type"),
+            tr("Category"),
+            tr("Subcategory"),
+            tr("Status")
+        });
+
+        for (int row = 0; row < model->rowCount(); ++row) {
+            if (auto* type_item = model->item(row, 2)) {
+                const QString code = type_item->data(Qt::UserRole).toString();
+                if (code == QStringLiteral("D")) {
+                    type_item->setText(tr("Directory"));
+                } else if (code == QStringLiteral("F")) {
+                    type_item->setText(tr("File"));
+                }
+            }
+            if (auto* status_item = model->item(row, 5)) {
+                apply_status_text(status_item);
+            }
+        }
+    }
+}
+
+void CategorizationDialog::apply_status_text(QStandardItem* item) const
+{
+    if (!item) {
+        return;
+    }
+
+    switch (status_from_item(item)) {
+    case RowStatus::Moved:
+        item->setText(tr("Moved"));
+        break;
+    case RowStatus::Skipped:
+        item->setText(tr("Skipped"));
+        break;
+    case RowStatus::NotSelected:
+        item->setText(tr("Not selected"));
+        break;
+    case RowStatus::None:
+    default:
+        item->setText(QString());
+        break;
+    }
+}
+
+CategorizationDialog::RowStatus CategorizationDialog::status_from_item(const QStandardItem* item) const
+{
+    if (!item) {
+        return RowStatus::None;
+    }
+
+    bool ok = false;
+    const int value = item->data(kStatusRole).toInt(&ok);
+    if (!ok) {
+        return RowStatus::None;
+    }
+
+    const RowStatus status = static_cast<RowStatus>(value);
+    switch (status) {
+    case RowStatus::None:
+    case RowStatus::Moved:
+    case RowStatus::Skipped:
+    case RowStatus::NotSelected:
+        return status;
+    }
+
+    return RowStatus::None;
 }
 
 
@@ -350,6 +447,14 @@ void CategorizationDialog::update_select_all_state()
 
     QSignalBlocker blocker(select_all_checkbox);
     select_all_checkbox->setChecked(all_checked);
+}
+
+void CategorizationDialog::changeEvent(QEvent* event)
+{
+    QDialog::changeEvent(event);
+    if (event && event->type() == QEvent::LanguageChange) {
+        retranslate_ui();
+    }
 }
 
 

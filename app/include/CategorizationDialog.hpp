@@ -13,6 +13,7 @@
 
 class DatabaseManager;
 class QCloseEvent;
+class QEvent;
 class QPushButton;
 class QTableView;
 class QCheckBox;
@@ -30,8 +31,18 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void changeEvent(QEvent* event) override;
 
 private:
+    enum class RowStatus {
+        None = 0,
+        Moved,
+        Skipped,
+        NotSelected
+    };
+
+    static constexpr int kStatusRole = Qt::UserRole + 100;
+
     void setup_ui();
     void populate_model();
     void record_categorization_to_db();
@@ -43,6 +54,9 @@ private:
     void apply_select_all(bool checked);
     void on_item_changed(QStandardItem* item);
     void update_select_all_state();
+    void retranslate_ui();
+    void apply_status_text(QStandardItem* item) const;
+    RowStatus status_from_item(const QStandardItem* item) const;
     std::vector<std::tuple<bool, std::string, std::string, std::string, std::string>> get_rows() const;
 
     DatabaseManager* db_manager;

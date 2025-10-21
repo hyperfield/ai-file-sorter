@@ -11,6 +11,11 @@
 #include <QMainWindow>
 #include <QPointer>
 #include <QStandardItemModel>
+#include <QMenu>
+#include <QAction>
+#include <QActionGroup>
+
+#include "Language.hpp"
 
 #include <atomic>
 #include <functional>
@@ -29,6 +34,8 @@ class QString;
 class QPushButton;
 class QTreeView;
 class QWidget;
+class QLabel;
+class QEvent;
 
 struct CategorizedFile;
 struct FileEntry;
@@ -67,6 +74,9 @@ private:
     void save_settings();
     void sync_settings_to_ui();
     void sync_ui_to_settings();
+    void retranslate_ui();
+    void update_language_checks();
+    void on_language_selected(Language language);
 
     void on_analyze_clicked();
     void on_directory_selected(const QString& path);
@@ -105,6 +115,7 @@ private:
     std::unique_ptr<ILLMClient> make_llm_client();
 
     void run_on_ui(std::function<void()> func);
+    void changeEvent(QEvent* event) override;
 
     Settings& settings;
     DatabaseManager db_manager;
@@ -119,6 +130,7 @@ private:
     QLineEdit* path_entry{nullptr};
     QPushButton* analyze_button{nullptr};
     QPushButton* browse_button{nullptr};
+    QLabel* path_label{nullptr};
     QCheckBox* use_subcategories_checkbox{nullptr};
     QCheckBox* categorize_files_checkbox{nullptr};
     QCheckBox* categorize_directories_checkbox{nullptr};
@@ -129,6 +141,23 @@ private:
     QTreeView* file_explorer_view{nullptr};
     QFileSystemModel* file_system_model{nullptr};
     QAction* file_explorer_menu_action{nullptr};
+    QMenu* file_menu{nullptr};
+    QMenu* edit_menu{nullptr};
+    QMenu* view_menu{nullptr};
+    QMenu* settings_menu{nullptr};
+    QMenu* language_menu{nullptr};
+    QMenu* help_menu{nullptr};
+    QAction* file_quit_action{nullptr};
+    QAction* copy_action{nullptr};
+    QAction* cut_action{nullptr};
+    QAction* paste_action{nullptr};
+    QAction* delete_action{nullptr};
+    QAction* toggle_explorer_action{nullptr};
+    QAction* toggle_llm_action{nullptr};
+    QActionGroup* language_group{nullptr};
+    QAction* english_action{nullptr};
+    QAction* french_action{nullptr};
+    QAction* about_action{nullptr};
 
     std::unique_ptr<CategorizationDialog> categorization_dialog;
     std::unique_ptr<CategorizationProgressDialog> progress_dialog;
@@ -139,6 +168,8 @@ private:
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;
     std::atomic<bool> stop_analysis{false};
+    bool analysis_in_progress_{false};
+    bool status_is_ready_{true};
 };
 
 #endif // MAINAPP_HPP

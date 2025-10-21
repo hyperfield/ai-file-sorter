@@ -1,6 +1,7 @@
 #include "Settings.hpp"
 #include "Types.hpp"
 #include "Logger.hpp"
+#include "Language.hpp"
 #include <filesystem>
 #include <cstdio>
 #include <iostream>
@@ -107,6 +108,8 @@ bool Settings::load()
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = config.getValue("Settings", "ShowFileExplorer", "true") == "true";
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
+    const std::string language_value = config.getValue("Settings", "Language", "English");
+    language = languageFromString(QString::fromStdString(language_value));
 
     return true;
 }
@@ -134,6 +137,7 @@ bool Settings::save()
     }
 
     config.setValue("Settings", "ShowFileExplorer", show_file_explorer ? "true" : "false");
+    config.setValue("Settings", "Language", languageToString(language).toStdString());
 
     return config.save(config_path);
 }
@@ -224,4 +228,16 @@ void Settings::set_show_file_explorer(bool value)
 bool Settings::get_show_file_explorer() const
 {
     return show_file_explorer;
+}
+
+
+Language Settings::get_language() const
+{
+    return language;
+}
+
+
+void Settings::set_language(Language value)
+{
+    language = value;
 }

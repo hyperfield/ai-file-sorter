@@ -11,6 +11,7 @@
 #include <QTextCursor>
 #include <QVBoxLayout>
 #include <QString>
+#include <QEvent>
 
 CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
                                                            MainApp* main_app,
@@ -18,9 +19,9 @@ CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
     : QDialog(parent),
       main_app(main_app)
 {
-    setWindowTitle(tr("Analyzing Files"));
     resize(800, 600);
     setup_ui(show_subcategory_col);
+    retranslate_ui();
 }
 
 
@@ -36,7 +37,7 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
     auto* button_layout = new QHBoxLayout();
     button_layout->addStretch(1);
 
-    stop_button = new QPushButton(tr("Stop Analysis"), this);
+    stop_button = new QPushButton(this);
     QIcon stop_icon = QIcon::fromTheme(QStringLiteral("process-stop"));
     if (stop_icon.isNull()) {
         stop_icon = QIcon(style()->standardIcon(QStyle::SP_BrowserStop));
@@ -93,4 +94,22 @@ void CategorizationProgressDialog::request_stop()
     }
     main_app->report_progress("[STOP] Cancelling analysis...");
     main_app->request_stop_analysis();
+}
+
+
+void CategorizationProgressDialog::changeEvent(QEvent* event)
+{
+    QDialog::changeEvent(event);
+    if (event && event->type() == QEvent::LanguageChange) {
+        retranslate_ui();
+    }
+}
+
+
+void CategorizationProgressDialog::retranslate_ui()
+{
+    setWindowTitle(tr("Analyzing Files"));
+    if (stop_button) {
+        stop_button->setText(tr("Stop Analysis"));
+    }
 }
