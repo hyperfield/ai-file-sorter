@@ -46,10 +46,6 @@ int main(int argc, char **argv) {
         _putenv("GSETTINGS_SCHEMA_DIR=schemas");
     #endif
 
-    #ifdef __linux__
-        XInitThreads();
-    #endif
-
     try {
         EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
         env_loader.load_env();

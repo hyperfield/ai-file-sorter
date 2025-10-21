@@ -4,6 +4,7 @@
 #include "Types.hpp"
 
 #include <QDialog>
+#include <QStandardItemModel>
 
 #include <memory>
 #include <tuple>
@@ -13,8 +14,9 @@
 class DatabaseManager;
 class QCloseEvent;
 class QPushButton;
-class QStandardItemModel;
 class QTableView;
+class QCheckBox;
+class QStandardItem;
 
 class CategorizationDialog : public QDialog
 {
@@ -36,8 +38,12 @@ private:
     void on_confirm_and_sort_button_clicked();
     void on_continue_later_button_clicked();
     void show_close_button();
-    void update_status_column(int row, bool success);
-    std::vector<std::tuple<std::string, std::string, std::string, std::string>> get_rows() const;
+    void update_status_column(int row, bool success, bool attempted = true);
+    void on_select_all_toggled(bool checked);
+    void apply_select_all(bool checked);
+    void on_item_changed(QStandardItem* item);
+    void update_select_all_state();
+    std::vector<std::tuple<bool, std::string, std::string, std::string, std::string>> get_rows() const;
 
     DatabaseManager* db_manager;
     bool show_subcategory_column;
@@ -52,6 +58,9 @@ private:
     QPushButton* confirm_button{nullptr};
     QPushButton* continue_button{nullptr};
     QPushButton* close_button{nullptr};
+    QCheckBox* select_all_checkbox{nullptr};
+
+    bool updating_select_all{false};
 };
 
 #endif // CATEGORIZATIONDIALOG_HPP
