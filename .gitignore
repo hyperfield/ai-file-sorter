@@ -70,6 +70,9 @@ vcpkg_installed/
 # Local History for Visual Studio Code
 .history/
 
+# Cache directories
+.cache/
+
 # Built Visual Studio Code Extensions
 *.vsix
 

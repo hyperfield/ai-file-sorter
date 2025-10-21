@@ -12,6 +12,10 @@
 #include <sstream>
 #include <spdlog/spdlog.h>
 #include <cstdlib>
+#include <algorithm>
+#include <cstring>
+#include <climits>
+#include <cerrno>
 
 #if defined(_WIN32)
 static void set_env_var(const char *key, const char *value) {
@@ -22,6 +26,49 @@ static void set_env_var(const char *key, const char *value) {
     setenv(key, value, 1);
 }
 #endif
+
+
+namespace {
+
+bool try_parse_env_int(const char *key, int &out) {
+    const char *value = std::getenv(key);
+    if (!value || *value == '\0') {
+        return false;
+    }
+
+    char *end_ptr = nullptr;
+    errno = 0;
+    long parsed = std::strtol(value, &end_ptr, 10);
+    if (end_ptr == value || *end_ptr != '\0' || errno == ERANGE) {
+        return false;
+    }
+    if (parsed > INT_MAX || parsed < INT_MIN) {
+        return false;
+    }
+
+    out = static_cast<int>(parsed);
+    return true;
+}
+
+int resolve_gpu_layer_override() {
+    int parsed = 0;
+    if (try_parse_env_int("AI_FILE_SORTER_N_GPU_LAYERS", parsed)) {
+        return parsed;
+    }
+    if (try_parse_env_int("LLAMA_CPP_N_GPU_LAYERS", parsed)) {
+        return parsed;
+    }
+    return INT_MIN;
+}
+
+std::string gpu_layers_to_string(int value) {
+    if (value == -1) {
+        return "auto (-1)";
+    }
+    return std::to_string(value);
+}
+
+} // namespace
 
 
 void silent_logger(enum ggml_log_level, const char *, void *) {}
@@ -45,7 +92,29 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
         logger->info("Initializing local LLM client with model '{}'", model_path);
     }
 
-    llama_log_set(silent_logger, nullptr);
+    auto should_enable_llama_logs = []() {
+        const char * env = std::getenv("AI_FILE_SORTER_LLAMA_LOGS");
+        if (!env || std::strlen(env) == 0) {
+            env = std::getenv("LLAMA_CPP_DEBUG_LOGS");
+        }
+        if (!env || std::strlen(env) == 0) {
+            return false;
+        }
+        std::string value{env};
+        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        return value != "0" && value != "false" && value != "off" && value != "no";
+    };
+
+    if (should_enable_llama_logs()) {
+        llama_log_set(llama_debug_logger, nullptr);
+        if (logger) {
+            logger->info("Enabled detailed llama.cpp logging via environment configuration");
+        }
+    } else {
+        llama_log_set(silent_logger, nullptr);
+    }
 
     bool cuda_available = false;
 #ifdef GGML_USE_METAL
@@ -62,33 +131,40 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
 
     llama_model_params model_params = llama_model_default_params();
 
-    #ifdef GGML_USE_METAL
-        model_params.n_gpu_layers = 0;
-    #else
-        if (cuda_available) {
-            int ngl = Utils::determine_ngl_cuda();
-            if (ngl > 0) {
-                model_params.n_gpu_layers = ngl;
-                std::cout << "ngl: " << model_params.n_gpu_layers << std::endl;
-            } else {
-                model_params.n_gpu_layers = 0;
-                set_env_var("GGML_DISABLE_CUDA", "1");
-                std::cout << "CUDA not usable, falling back to CPU.\n";
-            }
+#ifdef GGML_USE_METAL
+    int gpu_layers = resolve_gpu_layer_override();
+    if (gpu_layers == INT_MIN) {
+        gpu_layers = -1; // allow llama.cpp to pick an optimal split for Metal
+    }
+    model_params.n_gpu_layers = gpu_layers;
+    if (logger) {
+        logger->info("Using Metal backend with n_gpu_layers={}", gpu_layers_to_string(model_params.n_gpu_layers));
+    }
+#else
+    if (cuda_available) {
+        int ngl = Utils::determine_ngl_cuda();
+        if (ngl > 0) {
+            model_params.n_gpu_layers = ngl;
+            std::cout << "ngl: " << model_params.n_gpu_layers << std::endl;
         } else {
             model_params.n_gpu_layers = 0;
-            printf("model_params.n_gpu_layers: %d\n",
-                model_params.n_gpu_layers);
-            std::vector<std::string> devices;
-            if (Utils::is_opencl_available(&devices)) {
-                std::cout << "OpenCL is available.\n";
-                for (const auto& dev : devices)
-                    std::cout << "Device: " << dev << "\n";
-            } else {
-                std::cout << "OpenCL not found.\n";
-            }
+            set_env_var("GGML_DISABLE_CUDA", "1");
+            std::cout << "CUDA not usable, falling back to CPU.\n";
         }
-    #endif
+    } else {
+        model_params.n_gpu_layers = 0;
+        printf("model_params.n_gpu_layers: %d\n",
+            model_params.n_gpu_layers);
+        std::vector<std::string> devices;
+        if (Utils::is_opencl_available(&devices)) {
+            std::cout << "OpenCL is available.\n";
+            for (const auto& dev : devices)
+                std::cout << "Device: " << dev << "\n";
+        } else {
+            std::cout << "OpenCL not found.\n";
+        }
+    }
+#endif
 
     model = llama_model_load_from_file(model_path.c_str(), model_params);
     if (!model) {
@@ -108,6 +184,11 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
     int n_ctx = 1024;
     ctx_params.n_ctx = n_ctx;
     ctx_params.n_batch = n_ctx;
+#ifdef GGML_USE_METAL
+    if (model_params.n_gpu_layers != 0) {
+        ctx_params.offload_kqv = true;
+    }
+#endif
 }
 
 
