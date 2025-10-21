@@ -3,9 +3,15 @@
 #include "MainApp.hpp"
 #include "Utils.hpp"
 #include "LLMSelectionDialog.hpp"
+#include <app_version.hpp>
 
 #include <QApplication>
 #include <QDialog>
+#include <QSplashScreen>
+#include <QPixmap>
+#include <QSize>
+#include <QElapsedTimer>
+#include <QTimer>
 
 #include <curl/curl.h>
 #include <locale.h>
@@ -55,6 +61,21 @@ int main(int argc, char **argv) {
 
         QApplication app(argc, argv);
 
+        QPixmap splash_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/icon_512x512.png"));
+        if (splash_pix.isNull()) {
+            splash_pix = QPixmap(256, 256);
+            splash_pix.fill(Qt::black);
+        }
+        QPixmap scaled_splash = splash_pix.scaled(QSize(320, 320), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        QSplashScreen splash(scaled_splash);
+        splash.setWindowFlag(Qt::WindowStaysOnTopHint);
+        const QString splash_text = QStringLiteral("AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
+        splash.showMessage(splash_text, Qt::AlignBottom | Qt::AlignHCenter, Qt::white);
+        splash.show();
+        QElapsedTimer splash_timer;
+        splash_timer.start();
+        app.processEvents();
+
         Settings settings;
         settings.load();
 
@@ -70,7 +91,22 @@ int main(int argc, char **argv) {
 
         MainApp main_app(settings);
         main_app.run();
+
+        constexpr qint64 minimum_duration_ms = 4000;
+        const qint64 elapsed_ms = splash_timer.elapsed();
+        if (elapsed_ms < minimum_duration_ms) {
+            const int remaining_ms = static_cast<int>(minimum_duration_ms - elapsed_ms);
+            QTimer::singleShot(remaining_ms, &splash, [&splash, &main_app]() {
+                splash.finish(&main_app);
+            });
+        } else {
+            splash.finish(&main_app);
+        }
+
         int result = app.exec();
+        if (splash.isVisible()) {
+            splash.finish(&main_app);
+        }
         main_app.shutdown();
         return result;
     } catch (const std::exception& ex) {

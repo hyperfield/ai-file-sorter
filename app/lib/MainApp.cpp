@@ -161,6 +161,15 @@ void MainApp::setup_ui()
 
     // Analyze button
     analyze_button = new QPushButton(tr("Analyze folder"), central);
+    QIcon analyze_icon = QIcon::fromTheme(QStringLiteral("sparkle"));
+    if (analyze_icon.isNull()) {
+        analyze_icon = QIcon::fromTheme(QStringLiteral("applications-education"));
+    }
+    if (analyze_icon.isNull()) {
+        analyze_icon = style()->standardIcon(QStyle::SP_MediaPlay);
+    }
+    analyze_button->setIcon(analyze_icon);
+    analyze_button->setIconSize(QSize(20, 20));
     analyze_button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     main_layout->addWidget(analyze_button);
 

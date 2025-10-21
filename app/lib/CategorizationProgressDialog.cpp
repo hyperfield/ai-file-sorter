@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStyle>
 #include <QScrollBar>
 #include <QTextCursor>
 #include <QVBoxLayout>
@@ -36,6 +37,12 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
     button_layout->addStretch(1);
 
     stop_button = new QPushButton(tr("Stop Analysis"), this);
+    QIcon stop_icon = QIcon::fromTheme(QStringLiteral("process-stop"));
+    if (stop_icon.isNull()) {
+        stop_icon = QIcon(style()->standardIcon(QStyle::SP_BrowserStop));
+    }
+    stop_button->setIcon(stop_icon);
+    stop_button->setIconSize(QSize(18, 18));
     button_layout->addWidget(stop_button);
 
     layout->addLayout(button_layout);
