@@ -16,6 +16,15 @@
 #include <cstring>
 #include <climits>
 #include <cerrno>
+#include <filesystem>
+#include <optional>
+#include <cmath>
+#include <fstream>
+
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#include <sys/sysctl.h>
+#endif
 
 #if defined(_WIN32)
 static void set_env_var(const char *key, const char *value) {
@@ -66,6 +75,209 @@ std::string gpu_layers_to_string(int value) {
         return "auto (-1)";
     }
     return std::to_string(value);
+}
+
+struct MetalDeviceInfo {
+    size_t total_bytes = 0;
+    size_t free_bytes = 0;
+    std::string name;
+
+    bool valid() const {
+        return total_bytes > 0;
+    }
+};
+
+MetalDeviceInfo query_primary_gpu_device() {
+    MetalDeviceInfo info;
+
+#if defined(__APPLE__)
+    uint64_t memsize = 0;
+    size_t len = sizeof(memsize);
+    if (sysctlbyname("hw.memsize", &memsize, &len, nullptr, 0) == 0) {
+        info.total_bytes = static_cast<size_t>(memsize);
+    }
+
+    mach_port_t host_port = mach_host_self();
+    vm_size_t page_size = 0;
+    if (host_port != MACH_PORT_NULL && host_page_size(host_port, &page_size) == KERN_SUCCESS) {
+        vm_statistics64_data_t vm_stat {};
+        mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
+        if (host_statistics64(host_port, HOST_VM_INFO64,
+                              reinterpret_cast<host_info64_t>(&vm_stat), &count) == KERN_SUCCESS) {
+            const uint64_t free_pages = static_cast<uint64_t>(vm_stat.free_count) +
+                                        static_cast<uint64_t>(vm_stat.inactive_count);
+            info.free_bytes = static_cast<size_t>(free_pages * static_cast<uint64_t>(page_size));
+        }
+    }
+
+    info.name = "Metal (system memory)";
+#endif
+
+    return info;
+}
+
+std::optional<int32_t> extract_block_count(const std::string & model_path) {
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file) {
+        return std::nullopt;
+    }
+
+    constexpr std::size_t kScanBytes = 8 * 1024 * 1024; // first 8 MiB should contain metadata
+    std::vector<char> buffer(kScanBytes);
+    file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    const std::size_t bytes_read = static_cast<std::size_t>(file.gcount());
+    if (bytes_read == 0) {
+        return std::nullopt;
+    }
+
+    const std::string_view data(buffer.data(), bytes_read);
+    static const std::string_view candidate_keys[] = {
+        "llama.block_count",
+        "llama.layer_count",
+        "llama.n_layer",
+    };
+
+    auto read_le32 = [](const char * ptr) -> uint32_t {
+        uint32_t value;
+        std::memcpy(&value, ptr, sizeof(uint32_t));
+        return value;
+    };
+
+    auto read_le64 = [](const char * ptr) -> uint64_t {
+        uint64_t value;
+        std::memcpy(&value, ptr, sizeof(uint64_t));
+        return value;
+    };
+
+    for (const auto & key : candidate_keys) {
+        std::size_t pos = data.find(key);
+        while (pos != std::string_view::npos) {
+            if (pos < sizeof(uint64_t)) {
+                pos = data.find(key, pos + 1);
+                continue;
+            }
+
+            const uint64_t declared_len = read_le64(buffer.data() + pos - sizeof(uint64_t));
+            if (declared_len != key.size()) {
+                pos = data.find(key, pos + 1);
+                continue;
+            }
+
+            const std::size_t type_offset = pos + key.size();
+            if (type_offset + sizeof(uint32_t) > bytes_read) {
+                break;
+            }
+
+            const uint32_t type = read_le32(buffer.data() + type_offset);
+            const std::size_t value_offset = type_offset + sizeof(uint32_t);
+
+            int32_t parsed_value = 0;
+            bool parsed = false;
+
+            switch (type) {
+                case 4: // GGUF_TYPE_UINT32
+                    if (value_offset + sizeof(uint32_t) <= bytes_read) {
+                        parsed_value = static_cast<int32_t>(read_le32(buffer.data() + value_offset));
+                        parsed = true;
+                    }
+                    break;
+                case 5: // GGUF_TYPE_INT32
+                    if (value_offset + sizeof(uint32_t) <= bytes_read) {
+                        parsed_value = static_cast<int32_t>(read_le32(buffer.data() + value_offset));
+                        parsed = true;
+                    }
+                    break;
+                case 10: // GGUF_TYPE_UINT64
+                    if (value_offset + sizeof(uint64_t) <= bytes_read) {
+                        parsed_value = static_cast<int32_t>(read_le64(buffer.data() + value_offset));
+                        parsed = true;
+                    }
+                    break;
+                case 11: // GGUF_TYPE_INT64
+                    if (value_offset + sizeof(uint64_t) <= bytes_read) {
+                        parsed_value = static_cast<int32_t>(read_le64(buffer.data() + value_offset));
+                        parsed = true;
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+            if (parsed) {
+                return parsed_value;
+            }
+
+            pos = data.find(key, pos + 1);
+        }
+    }
+
+    return std::nullopt;
+}
+
+struct AutoGpuLayerEstimation {
+    int32_t layers = -1;
+    std::string reason;
+};
+
+AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_path,
+                                                     const MetalDeviceInfo & device_info) {
+    AutoGpuLayerEstimation result;
+
+    if (!device_info.valid()) {
+        result.layers = -1;
+        result.reason = "no GPU memory metrics available";
+        return result;
+    }
+
+    std::error_code ec;
+    const auto file_size = std::filesystem::file_size(model_path, ec);
+    if (ec) {
+        result.layers = -1;
+        result.reason = "model file size unavailable";
+        return result;
+    }
+
+    const auto block_count_opt = extract_block_count(model_path);
+    if (!block_count_opt.has_value() || block_count_opt.value() <= 0) {
+        result.layers = -1;
+        result.reason = "model block count not found";
+        return result;
+    }
+
+    const int32_t total_layers = block_count_opt.value();
+    const double bytes_per_layer = static_cast<double>(file_size) / static_cast<double>(total_layers);
+
+    // Prefer reported free memory, but fall back to a fraction of total RAM on unified-memory systems.
+    double approx_free = static_cast<double>(device_info.free_bytes);
+    double total_bytes = static_cast<double>(device_info.total_bytes);
+
+    if (approx_free <= 0.0) {
+        approx_free = total_bytes * 0.6; // assume we can use ~60% of total RAM when free info is missing
+    }
+
+    const double safety_reserve = std::max(total_bytes * 0.10, 512.0 * 1024.0 * 1024.0); // keep at least 10% or 512 MiB free
+    double budget_bytes = std::max(approx_free - safety_reserve, total_bytes * 0.35);    // use at least 35% of total as budget
+    budget_bytes = std::min(budget_bytes, total_bytes * 0.80);                           // never try to use more than 80% of RAM
+
+    if (budget_bytes <= 0.0 || bytes_per_layer <= 0.0) {
+        result.layers = 0;
+        result.reason = "insufficient GPU memory budget";
+        return result;
+    }
+
+    // Account for temporary buffers / fragmentation.
+    const double overhead_factor = 1.20;
+    int32_t estimated_layers = static_cast<int32_t>(std::floor(budget_bytes / (bytes_per_layer * overhead_factor)));
+    estimated_layers = std::clamp<int32_t>(estimated_layers, 1, total_layers);
+
+    result.layers = estimated_layers;
+    if (estimated_layers == 0) {
+        result.reason = "model layers larger than available GPU headroom";
+    } else {
+        result.reason = "estimated from GPU memory headroom";
+    }
+
+    return result;
 }
 
 } // namespace
@@ -134,12 +346,32 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
 #ifdef GGML_USE_METAL
     int gpu_layers = resolve_gpu_layer_override();
     if (gpu_layers == INT_MIN) {
-        gpu_layers = -1; // allow llama.cpp to pick an optimal split for Metal
+        const MetalDeviceInfo device_info = query_primary_gpu_device();
+        const auto estimation = estimate_gpu_layers_for_metal(model_path, device_info);
+
+        if (estimation.layers >= 0) {
+            gpu_layers = estimation.layers;
+        } else {
+            gpu_layers = -1; // fall back to llama.cpp defaults
+        }
+
+        if (logger) {
+            const double to_mib = 1024.0 * 1024.0;
+            logger->info(
+                "Metal device '{}' total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
+                device_info.name.empty() ? "GPU" : device_info.name,
+                device_info.total_bytes / to_mib,
+                device_info.free_bytes / to_mib,
+                gpu_layers_to_string(gpu_layers),
+                estimation.reason
+            );
+        }
+    } else if (logger) {
+        logger->info("Using Metal backend with explicit n_gpu_layers override={}",
+                     gpu_layers_to_string(gpu_layers));
     }
+
     model_params.n_gpu_layers = gpu_layers;
-    if (logger) {
-        logger->info("Using Metal backend with n_gpu_layers={}", gpu_layers_to_string(model_params.n_gpu_layers));
-    }
 #else
     if (cuda_available) {
         int ngl = Utils::determine_ngl_cuda();
