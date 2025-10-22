@@ -19,9 +19,6 @@
 #include <cstdio>
 #include <iostream>
 
-#ifdef __linux__
-        #include <X11/Xlib.h>
-#endif
 
 bool initialize_loggers()
 {
