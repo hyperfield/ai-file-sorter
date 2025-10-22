@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
         MainApp main_app(settings);
         main_app.run();
 
-        constexpr qint64 minimum_duration_ms = 4000;
+        constexpr qint64 minimum_duration_ms = 3300;
         const qint64 elapsed_ms = splash_timer.elapsed();
         if (elapsed_ms < minimum_duration_ms) {
             const int remaining_ms = static_cast<int>(minimum_duration_ms - elapsed_ms);
