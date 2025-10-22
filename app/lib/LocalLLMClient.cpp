@@ -280,6 +280,89 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
     return result;
 }
 
+AutoGpuLayerEstimation estimate_gpu_layers_for_cuda(const std::string & model_path,
+                                                    const Utils::CudaMemoryInfo & memory_info) {
+    AutoGpuLayerEstimation result;
+
+    if (!memory_info.valid()) {
+        result.layers = -1;
+        result.reason = "CUDA memory metrics unavailable";
+        return result;
+    }
+
+    std::error_code ec;
+    const auto file_size = std::filesystem::file_size(model_path, ec);
+    if (ec) {
+        result.layers = -1;
+        result.reason = "model file size unavailable";
+        return result;
+    }
+
+    const auto block_count_opt = extract_block_count(model_path);
+    if (!block_count_opt.has_value() || block_count_opt.value() <= 0) {
+        result.layers = -1;
+        result.reason = "model block count not found";
+        return result;
+    }
+
+    const int32_t total_layers = block_count_opt.value();
+    const double bytes_per_layer =
+        static_cast<double>(file_size) / static_cast<double>(total_layers);
+
+    double approx_free = static_cast<double>(memory_info.free_bytes);
+    double total_bytes = static_cast<double>(memory_info.total_bytes);
+
+    if (total_bytes <= 0.0) {
+        total_bytes = approx_free;
+    }
+
+    const double usable_total = std::max(total_bytes, approx_free);
+    if (usable_total <= 0.0) {
+        result.layers = 0;
+        result.reason = "CUDA memory metrics invalid";
+        return result;
+    }
+
+    if (approx_free <= 0.0) {
+        approx_free = usable_total * 0.80;
+    } else if (approx_free > usable_total) {
+        approx_free = usable_total;
+    }
+
+    if (approx_free <= 0.0 || bytes_per_layer <= 0.0) {
+        result.layers = 0;
+        result.reason = "insufficient CUDA memory metrics";
+        return result;
+    }
+
+    const double safety_reserve =
+        std::max(usable_total * 0.05, 192.0 * 1024.0 * 1024.0); // keep at least 5% or 192 MiB free
+    double budget_bytes = approx_free - safety_reserve;
+    if (budget_bytes <= 0.0) {
+        budget_bytes = approx_free * 0.75;
+    }
+
+    const double max_budget = std::min(approx_free * 0.98, usable_total * 0.90);
+    const double min_budget = usable_total * 0.45;
+    budget_bytes = std::clamp(budget_bytes, min_budget, max_budget);
+
+    constexpr double overhead_factor = 1.08;
+    int32_t estimated_layers =
+        static_cast<int32_t>(std::floor(budget_bytes / (bytes_per_layer * overhead_factor)));
+
+    if (estimated_layers <= 0) {
+        result.layers = 0;
+        result.reason = "insufficient CUDA memory budget";
+        return result;
+    }
+
+    estimated_layers = std::clamp<int32_t>(estimated_layers, 1, total_layers);
+
+    result.layers = estimated_layers;
+    result.reason = "estimated from CUDA memory headroom";
+    return result;
+}
+
 } // namespace
 
 
@@ -374,7 +457,52 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
     model_params.n_gpu_layers = gpu_layers;
 #else
     if (cuda_available) {
-        int ngl = Utils::determine_ngl_cuda();
+        int ngl = 0;
+        std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
+        AutoGpuLayerEstimation estimation{};
+        int heuristic_from_info = 0;
+        if (cuda_info.has_value()) {
+            estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
+            heuristic_from_info = Utils::compute_ngl_from_cuda_memory(*cuda_info);
+
+            int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
+            if (heuristic_from_info > 0) {
+                candidate_layers = std::max(candidate_layers, heuristic_from_info);
+            }
+            ngl = candidate_layers;
+
+            if (estimation.layers > 0) {
+                if (logger && estimation.layers != candidate_layers) {
+                    logger->info("CUDA estimator suggested {} layers, but heuristic floor kept {}",
+                                 estimation.layers, candidate_layers);
+                }
+            }
+            if (logger) {
+                const double to_mib = 1024.0 * 1024.0;
+                logger->info(
+                    "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
+                    cuda_info->total_bytes / to_mib,
+                    cuda_info->free_bytes / to_mib,
+                    gpu_layers_to_string(estimation.layers),
+                    gpu_layers_to_string(heuristic_from_info),
+                    gpu_layers_to_string(ngl),
+                    estimation.reason.empty() ? "no estimation detail" : estimation.reason
+                );
+            }
+        } else if (logger) {
+            logger->warn("Unable to query CUDA memory information, falling back to heuristic");
+        }
+
+        if (ngl <= 0) {
+            ngl = (heuristic_from_info > 0)
+                ? heuristic_from_info
+                : Utils::determine_ngl_cuda();
+            if (logger && ngl > 0) {
+                logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
+                             gpu_layers_to_string(ngl));
+            }
+        }
+
         if (ngl > 0) {
             model_params.n_gpu_layers = ngl;
             std::cout << "ngl: " << model_params.n_gpu_layers << std::endl;

@@ -1,10 +1,12 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
+#include <curl/system.h>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
-#include <curl/system.h>
+#include <cstddef>
 
 
 class Utils {
@@ -22,6 +24,16 @@ public:
     static bool is_os_linux();
     static std::string format_size(curl_off_t bytes);
     static int determine_ngl_cuda();
+    struct CudaMemoryInfo {
+        size_t free_bytes{0};
+        size_t total_bytes{0};
+
+        bool valid() const {
+            return total_bytes > 0 || free_bytes > 0;
+        }
+    };
+    static std::optional<CudaMemoryInfo> query_cuda_memory();
+    static int compute_ngl_from_cuda_memory(const CudaMemoryInfo& info);
     template <typename Func> void run_on_main_thread(Func &&func);
     static std::string get_default_llm_destination();
     static std::string get_file_name_from_url(std::string url);

@@ -10,6 +10,7 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#include <optional>
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <spdlog/spdlog.h>
@@ -213,7 +214,7 @@ int Utils::get_ngl(int vram_mb) {
 }
 
 
-int Utils::determine_ngl_cuda() {
+std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
 #ifdef _WIN32
     std::string dllName = get_cudart_dll_name();
     LibraryHandle lib = loadLibrary(dllName.c_str());
@@ -226,7 +227,7 @@ int Utils::determine_ngl_cuda() {
 
     if (!lib) {
         log_core(spdlog::level::err, "Failed to load CUDA runtime library.");
-        return 0;
+        return std::nullopt;
     }
 
     using cudaMemGetInfo_t = int (*)(size_t*, size_t*);
@@ -238,7 +239,7 @@ int Utils::determine_ngl_cuda() {
     if (!cudaMemGetInfo) {
         log_core(spdlog::level::err, "Failed to resolve required CUDA runtime symbols.");
         closeLibrary(lib);
-        return 0;
+        return std::nullopt;
     }
 
     size_t free_bytes = 0;
@@ -266,10 +267,35 @@ int Utils::determine_ngl_cuda() {
 
     closeLibrary(lib);
 
-    size_t usable_bytes = (free_bytes > 0) ? free_bytes : total_bytes;
-    int vram_mb = static_cast<int>(usable_bytes / (1024 * 1024));
+    if (free_bytes == 0 && total_bytes == 0) {
+        log_core(spdlog::level::warn, "CUDA memory metrics unavailable (both free and total bytes are zero).");
+        return std::nullopt;
+    }
 
+    CudaMemoryInfo info;
+    info.free_bytes = free_bytes;
+    info.total_bytes = total_bytes;
+    return info;
+}
+
+
+int Utils::compute_ngl_from_cuda_memory(const CudaMemoryInfo& info) {
+    size_t usable_bytes = (info.free_bytes > 0) ? info.free_bytes : info.total_bytes;
+    if (usable_bytes == 0) {
+        return 0;
+    }
+    int vram_mb = static_cast<int>(usable_bytes / (1024 * 1024));
     return get_ngl(vram_mb);
+}
+
+
+int Utils::determine_ngl_cuda() {
+    auto info = query_cuda_memory();
+    if (!info.has_value()) {
+        return 0;
+    }
+
+    return compute_ngl_from_cuda_memory(*info);
 }
 
 
