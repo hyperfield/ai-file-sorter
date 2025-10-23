@@ -67,7 +67,7 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
 
 - Bug fixes.
 - Minor improvements for stability.
-- OpenCL is now not supported by default in the build script for llama.cpp.
+- Removed the deprecated GPU backend from the runtime build.
 
 ### [0.9.0] - 2025-07-18
 

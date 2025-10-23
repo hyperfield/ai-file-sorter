@@ -515,14 +515,10 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
         model_params.n_gpu_layers = 0;
         printf("model_params.n_gpu_layers: %d\n",
             model_params.n_gpu_layers);
-        std::vector<std::string> devices;
-        if (Utils::is_opencl_available(&devices)) {
-            std::cout << "OpenCL is available.\n";
-            for (const auto& dev : devices)
-                std::cout << "Device: " << dev << "\n";
-        } else {
-            std::cout << "OpenCL not found.\n";
+        if (logger) {
+            logger->info("CUDA backend unavailable; using CPU backend");
         }
+        std::cout << "No supported GPU backend detected. Running on CPU.\n";
     }
 #endif
 
