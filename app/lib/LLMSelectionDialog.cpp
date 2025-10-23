@@ -81,10 +81,6 @@ void LLMSelectionDialog::setup_ui()
     auto* radio_layout = new QVBoxLayout(radio_container);
     radio_layout->setSpacing(10);
 
-    remote_radio = new QRadioButton(tr("Remote LLM (ChatGPT 4o-mini)"), radio_container);
-    auto* remote_desc = new QLabel(tr("Fast and accurate, but requires internet connection."), radio_container);
-    remote_desc->setWordWrap(true);
-
     local7_radio = new QRadioButton(tr("Local LLM (Mistral 7b Instruct v0.2 Q5)"), radio_container);
     auto* local7_desc = new QLabel(tr("Quite precise. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."), radio_container);
     local7_desc->setWordWrap(true);
@@ -93,12 +89,16 @@ void LLMSelectionDialog::setup_ui()
     auto* local3_desc = new QLabel(tr("Less precise, but works quickly even on CPUs. Good for lightweight local use."), radio_container);
     local3_desc->setWordWrap(true);
 
-    radio_layout->addWidget(remote_radio);
-    radio_layout->addWidget(remote_desc);
+    remote_radio = new QRadioButton(tr("Remote LLM (ChatGPT 4o-mini)"), radio_container);
+    auto* remote_desc = new QLabel(tr("Fast and accurate, but requires internet connection."), radio_container);
+    remote_desc->setWordWrap(true);
+
     radio_layout->addWidget(local7_radio);
     radio_layout->addWidget(local7_desc);
     radio_layout->addWidget(local3_radio);
     radio_layout->addWidget(local3_desc);
+    radio_layout->addWidget(remote_radio);
+    radio_layout->addWidget(remote_desc);
 
     layout->addWidget(radio_container);
 
