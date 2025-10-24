@@ -51,6 +51,7 @@ bin/
 
 # Scripts
 reset_key_4_github.sh
+create_macos_bundle.sh
 
 # References
 # includePaths.txt
@@ -69,6 +70,9 @@ vcpkg_installed/
 
 # Local History for Visual Studio Code
 .history/
+
+# Cache directories
+.cache/
 
 # Built Visual Studio Code Extensions
 *.vsix

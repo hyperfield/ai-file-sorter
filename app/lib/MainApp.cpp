@@ -48,6 +48,7 @@
 #include <QDir>
 #include <QStyle>
 #include <QEvent>
+#include <QStackedWidget>
 
 #include <chrono>
 #include <filesystem>
@@ -181,18 +182,45 @@ void MainApp::setup_ui()
     }
     analyze_button->setIcon(analyze_icon);
     analyze_button->setIconSize(QSize(20, 20));
-    analyze_button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    main_layout->addWidget(analyze_button);
+    analyze_button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+    analyze_button->setMinimumWidth(160);
+    auto* analyze_layout = new QHBoxLayout();
+    analyze_layout->addStretch();
+    analyze_layout->addWidget(analyze_button);
+    analyze_layout->addStretch();
+    main_layout->addLayout(analyze_layout);
 
     // Tree view for quick summary
     tree_model = new QStandardItemModel(0, 5, this);
 
-    tree_view = new QTreeView(central);
+    results_stack = new QStackedWidget(central);
+
+    tree_view = new QTreeView(results_stack);
     tree_view->setModel(tree_model);
     tree_view->setSelectionBehavior(QAbstractItemView::SelectRows);
     tree_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tree_view->header()->setSectionResizeMode(QHeaderView::Stretch);
-    main_layout->addWidget(tree_view, 1);
+    tree_view->setUniformRowHeights(true);
+    tree_view_page_index_ = results_stack->addWidget(tree_view);
+
+    folder_contents_model = new QFileSystemModel(results_stack);
+    folder_contents_model->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot);
+    folder_contents_model->setRootPath(QDir::homePath());
+
+    folder_contents_view = new QTreeView(results_stack);
+    folder_contents_view->setModel(folder_contents_model);
+    folder_contents_view->setRootIndex(folder_contents_model->index(QDir::homePath()));
+    folder_contents_view->setSelectionBehavior(QAbstractItemView::SelectRows);
+    folder_contents_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    folder_contents_view->setRootIsDecorated(false);
+    folder_contents_view->setUniformRowHeights(true);
+    folder_contents_view->setSortingEnabled(true);
+    folder_contents_view->sortByColumn(0, Qt::AscendingOrder);
+    folder_contents_view->setAlternatingRowColors(true);
+    folder_view_page_index_ = results_stack->addWidget(folder_contents_view);
+
+    results_stack->setCurrentIndex(tree_view_page_index_);
+    main_layout->addWidget(results_stack, 1);
 
     setCentralWidget(central);
 
@@ -251,6 +279,7 @@ void MainApp::setup_menus()
             file_explorer_dock->setVisible(checked);
         }
         settings.set_show_file_explorer(checked);
+        update_results_view_mode();
     });
     file_explorer_menu_action = toggle_explorer_action;
 
@@ -310,6 +339,21 @@ void MainApp::setup_file_explorer()
         on_directory_selected(file_system_model->filePath(index));
     });
 
+    connect(file_explorer_view->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, [this](const QModelIndex& current, const QModelIndex&) {
+                if (!file_system_model) {
+                    return;
+                }
+                if (!current.isValid() || !file_system_model->isDir(current)) {
+                    return;
+                }
+                update_folder_contents(file_system_model->filePath(current));
+            });
+
+    connect(file_explorer_dock, &QDockWidget::visibilityChanged, this, [this](bool) {
+        update_results_view_mode();
+    });
+
     file_explorer_dock->setWidget(file_explorer_view);
 
     const bool show_explorer = settings.get_show_file_explorer();
@@ -317,6 +361,7 @@ void MainApp::setup_file_explorer()
         file_explorer_menu_action->setChecked(show_explorer);
     }
     file_explorer_dock->setVisible(show_explorer);
+    update_results_view_mode();
 }
 
 
@@ -373,8 +418,13 @@ void MainApp::start_updater()
 
 void MainApp::set_app_icon()
 {
-    QIcon icon(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png"));
+    const QString icon_path = QStringLiteral(":/net/quicknode/AIFileSorter/images/app_icon_128.png");
+    QIcon icon(icon_path);
+    if (icon.isNull()) {
+        icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png"));
+    }
     if (!icon.isNull()) {
+        QApplication::setWindowIcon(icon);
         setWindowIcon(icon);
     }
 }
@@ -410,6 +460,7 @@ void MainApp::sync_settings_to_ui()
     if (QDir(QString::fromStdString(sort_folder)).exists()) {
         statusBar()->showMessage(tr("Loaded folder %1").arg(QString::fromStdString(sort_folder)), 3000);
         status_is_ready_ = false;
+        update_folder_contents(QString::fromStdString(sort_folder));
     } else if (!sort_folder.empty()) {
         core_logger->warn("Sort folder path is invalid: {}", sort_folder);
     }
@@ -429,6 +480,7 @@ void MainApp::sync_settings_to_ui()
     if (file_explorer_menu_action) {
         file_explorer_menu_action->setChecked(show_explorer);
     }
+    update_results_view_mode();
 
     update_language_checks();
 }
@@ -654,6 +706,15 @@ void MainApp::on_directory_selected(const QString& path)
     path_entry->setText(path);
     statusBar()->showMessage(tr("Folder selected: %1").arg(path), 3000);
     status_is_ready_ = false;
+
+    if (file_system_model && file_explorer_view) {
+        const QModelIndex index = file_system_model->index(path);
+        if (index.isValid()) {
+            file_explorer_view->setCurrentIndex(index);
+        }
+    }
+
+    update_folder_contents(path);
 }
 
 
@@ -693,6 +754,43 @@ void MainApp::update_analyze_button_state(bool analyzing)
         analyze_button->setText(tr("Analyze folder"));
         statusBar()->showMessage(tr("Ready"));
         status_is_ready_ = true;
+    }
+}
+
+void MainApp::update_results_view_mode()
+{
+    if (!results_stack) {
+        return;
+    }
+
+    const bool explorer_visible = file_explorer_dock && file_explorer_dock->isVisible();
+    const int target_index = explorer_visible ? folder_view_page_index_ : tree_view_page_index_;
+    if (target_index >= 0 && target_index < results_stack->count()) {
+        results_stack->setCurrentIndex(target_index);
+    }
+
+    if (explorer_visible && path_entry) {
+        update_folder_contents(path_entry->text());
+    }
+}
+
+void MainApp::update_folder_contents(const QString& directory)
+{
+    if (!folder_contents_model || !folder_contents_view || directory.isEmpty()) {
+        return;
+    }
+
+    QDir dir(directory);
+    if (!dir.exists()) {
+        return;
+    }
+
+    const QModelIndex new_root = folder_contents_model->setRootPath(directory);
+    folder_contents_view->setRootIndex(new_root);
+    folder_contents_view->scrollTo(new_root, QAbstractItemView::PositionAtTop);
+
+    for (int col = 0; col < folder_contents_model->columnCount(); ++col) {
+        folder_contents_view->resizeColumnToContents(col);
     }
 }
 

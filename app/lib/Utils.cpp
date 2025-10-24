@@ -10,6 +10,7 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#include <optional>
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <spdlog/spdlog.h>
@@ -41,19 +42,6 @@ void log_core(spdlog::level::level_enum level, const char* fmt, Args&&... args) 
 #include <iostream>
 #include <Types.hpp>
 #include <cstddef>
-
-// For OpenCL dynamic library loading
-typedef unsigned int cl_uint;
-typedef int cl_int;
-typedef size_t cl_device_type;
-typedef struct _cl_platform_id* cl_platform_id;
-typedef struct _cl_device_id* cl_device_id;
-
-// These constants are normally defined in cl.h
-constexpr cl_int CL_SUCCESS = 0;
-constexpr cl_device_type CL_DEVICE_TYPE_ALL = 0xFFFFFFFF;
-constexpr cl_uint CL_DEVICE_NAME = 0x102B;
-
 
 // Shortcuts for loading libraries on different OSes
 #ifdef _WIN32
@@ -213,7 +201,7 @@ int Utils::get_ngl(int vram_mb) {
 }
 
 
-int Utils::determine_ngl_cuda() {
+std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
 #ifdef _WIN32
     std::string dllName = get_cudart_dll_name();
     LibraryHandle lib = loadLibrary(dllName.c_str());
@@ -226,7 +214,7 @@ int Utils::determine_ngl_cuda() {
 
     if (!lib) {
         log_core(spdlog::level::err, "Failed to load CUDA runtime library.");
-        return 0;
+        return std::nullopt;
     }
 
     using cudaMemGetInfo_t = int (*)(size_t*, size_t*);
@@ -238,7 +226,7 @@ int Utils::determine_ngl_cuda() {
     if (!cudaMemGetInfo) {
         log_core(spdlog::level::err, "Failed to resolve required CUDA runtime symbols.");
         closeLibrary(lib);
-        return 0;
+        return std::nullopt;
     }
 
     size_t free_bytes = 0;
@@ -266,10 +254,35 @@ int Utils::determine_ngl_cuda() {
 
     closeLibrary(lib);
 
-    size_t usable_bytes = (free_bytes > 0) ? free_bytes : total_bytes;
-    int vram_mb = static_cast<int>(usable_bytes / (1024 * 1024));
+    if (free_bytes == 0 && total_bytes == 0) {
+        log_core(spdlog::level::warn, "CUDA memory metrics unavailable (both free and total bytes are zero).");
+        return std::nullopt;
+    }
 
+    CudaMemoryInfo info;
+    info.free_bytes = free_bytes;
+    info.total_bytes = total_bytes;
+    return info;
+}
+
+
+int Utils::compute_ngl_from_cuda_memory(const CudaMemoryInfo& info) {
+    size_t usable_bytes = (info.free_bytes > 0) ? info.free_bytes : info.total_bytes;
+    if (usable_bytes == 0) {
+        return 0;
+    }
+    int vram_mb = static_cast<int>(usable_bytes / (1024 * 1024));
     return get_ngl(vram_mb);
+}
+
+
+int Utils::determine_ngl_cuda() {
+    auto info = query_cuda_memory();
+    if (!info.has_value()) {
+        return 0;
+    }
+
+    return compute_ngl_from_cuda_memory(*info);
 }
 
 
@@ -532,55 +545,3 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
     return sanitized.empty() ? fs_path.filename().generic_string() : sanitized;
 }
 
-
-bool Utils::is_opencl_available(std::vector<std::string>* device_names)
-{
-#ifdef _WIN32
-    LibraryHandle handle = loadLibrary("OpenCL.dll");
-#else
-    LibraryHandle handle = loadLibrary("libOpenCL.so");
-#endif
-
-    if (!handle) return false;
-
-    using clGetPlatformIDs_t = cl_int (*)(cl_uint, cl_platform_id*, cl_uint*);
-    using clGetDeviceIDs_t = cl_int (*)(cl_platform_id, cl_device_type, cl_uint, cl_device_id*, cl_uint*);
-    using clGetDeviceInfo_t = cl_int (*)(cl_device_id, cl_uint, size_t, void*, size_t*);
-
-    auto clGetPlatformIDs = reinterpret_cast<clGetPlatformIDs_t>(getSymbol(handle, "clGetPlatformIDs"));
-    auto clGetDeviceIDs = reinterpret_cast<clGetDeviceIDs_t>(getSymbol(handle, "clGetDeviceIDs"));
-    auto clGetDeviceInfo = reinterpret_cast<clGetDeviceInfo_t>(getSymbol(handle, "clGetDeviceInfo"));
-
-    if (!clGetPlatformIDs || !clGetDeviceIDs || !clGetDeviceInfo) {
-        closeLibrary(handle);
-        return false;
-    }
-
-    cl_platform_id platform;
-    cl_uint num_platforms = 0;
-    if (clGetPlatformIDs(1, &platform, &num_platforms) != CL_SUCCESS || num_platforms == 0) {
-        closeLibrary(handle);
-        return false;
-    }
-
-    cl_device_id devices[4];
-    cl_uint num_devices = 0;
-    if (clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 4, devices,
-                       &num_devices) !=CL_SUCCESS || num_devices == 0) {
-        closeLibrary(handle);
-        return false;
-    }
-
-    if (device_names) {
-        for (cl_uint i = 0; i < num_devices; ++i) {
-            char name[256];
-            if (clGetDeviceInfo(devices[i], CL_DEVICE_NAME, sizeof(name),
-                name, nullptr) == CL_SUCCESS) {
-                device_names->emplace_back(name);
-            }
-        }
-    }
-
-    closeLibrary(handle);
-    return true;
-}

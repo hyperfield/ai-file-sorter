@@ -33,6 +33,7 @@ class QLineEdit;
 class QString;
 class QPushButton;
 class QTreeView;
+class QStackedWidget;
 class QWidget;
 class QLabel;
 class QEvent;
@@ -83,6 +84,8 @@ private:
     void ensure_one_checkbox_active(QCheckBox* changed_checkbox);
     void update_file_scan_option(FileScanOptions option, bool enabled);
     void update_analyze_button_state(bool analyzing);
+    void update_results_view_mode();
+    void update_folder_contents(const QString& directory);
 
     void handle_analysis_finished();
     void handle_analysis_failure(const std::string& message);
@@ -127,19 +130,24 @@ private:
     std::vector<FileEntry> files_to_categorize;
     std::vector<CategorizedFile> new_files_to_sort;
 
-    QLineEdit* path_entry{nullptr};
-    QPushButton* analyze_button{nullptr};
-    QPushButton* browse_button{nullptr};
-    QLabel* path_label{nullptr};
-    QCheckBox* use_subcategories_checkbox{nullptr};
-    QCheckBox* categorize_files_checkbox{nullptr};
-    QCheckBox* categorize_directories_checkbox{nullptr};
-    QTreeView* tree_view{nullptr};
-    QStandardItemModel* tree_model{nullptr};
+    QPointer<QLineEdit> path_entry;
+    QPointer<QPushButton> analyze_button;
+    QPointer<QPushButton> browse_button;
+    QPointer<QLabel> path_label;
+    QPointer<QCheckBox> use_subcategories_checkbox;
+    QPointer<QCheckBox> categorize_files_checkbox;
+    QPointer<QCheckBox> categorize_directories_checkbox;
+    QPointer<QTreeView> tree_view;
+    QPointer<QStandardItemModel> tree_model;
+    QPointer<QStackedWidget> results_stack;
+    QPointer<QTreeView> folder_contents_view;
+    QPointer<QFileSystemModel> folder_contents_model;
+    int tree_view_page_index_{-1};
+    int folder_view_page_index_{-1};
 
-    QDockWidget* file_explorer_dock{nullptr};
-    QTreeView* file_explorer_view{nullptr};
-    QFileSystemModel* file_system_model{nullptr};
+    QPointer<QDockWidget> file_explorer_dock;
+    QPointer<QTreeView> file_explorer_view;
+    QPointer<QFileSystemModel> file_system_model;
     QAction* file_explorer_menu_action{nullptr};
     QMenu* file_menu{nullptr};
     QMenu* edit_menu{nullptr};

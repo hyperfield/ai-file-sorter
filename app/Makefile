@@ -25,9 +25,10 @@ ifeq ($(UNAME), Linux)
 	LDFLAGS += -Wl,-rpath-link=./lib/precompiled
 
 else ifeq ($(UNAME), Darwin)
-    export PATH := /opt/homebrew/opt/curl/bin:$(PATH)
+    PATH := /opt/homebrew/opt/qt/bin:/opt/homebrew/opt/curl/bin:$(PATH)
+    export PATH
 
-    export PKG_CONFIG_PATH := /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig:/opt/homebrew/opt/expat/lib/pkgconfig:$(PKG_CONFIG_PATH)
+    export PKG_CONFIG_PATH := /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig:/opt/homebrew/opt/expat/lib/pkgconfig:/opt/homebrew/opt/qt/lib/pkgconfig:$(PKG_CONFIG_PATH)
 
     export LDFLAGS += -L/opt/homebrew/opt/libffi/lib
     export CPPFLAGS += -I/opt/homebrew/opt/libffi/include
@@ -42,9 +43,23 @@ else ifeq ($(UNAME), Darwin)
     SPDLOG_PATH := $(shell if [ "$(IS_APPLE_SILICON)" = "1" ]; then echo "/opt/homebrew/include"; else echo "/usr/local/include"; fi)
     CXXFLAGS += -I$(SPDLOG_PATH)
 
-    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -pthread
+    PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
+ifeq ($(strip $(PKG_CONFIG)),)
+$(error pkg-config is required to locate Qt6 frameworks on macOS. Please install it (e.g. brew install pkg-config))
+endif
+
+    QT_PACKAGES := Qt6Widgets Qt6Gui Qt6Core
+    QT_CXXFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --cflags $(QT_PACKAGES))
+    QT_LDFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --libs $(QT_PACKAGES))
+ifeq ($(strip $(QT_CXXFLAGS)),)
+$(error Could not retrieve Qt6 flags via pkg-config. Ensure Qt6 is installed (brew install qt) and PKG_CONFIG_PATH includes its pkgconfig directory.)
+endif
+    CXXFLAGS += $(QT_CXXFLAGS)
+    LDFLAGS += $(QT_LDFLAGS)
+
+    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lintl -pthread
 	LDFLAGS += -framework Metal -framework Foundation
-    LDFLAGS += -Wl,-rpath,@loader_path/lib
+    LDFLAGS += -Wl,-rpath,@loader_path/lib -Wl,-rpath,@loader_path/../lib/precompiled
 
 
 endif
@@ -54,6 +69,9 @@ CXX = g++
 CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
 INCLUDE_DIRS = -I./include -I./include/llama
 LIB_DIRS = -L./lib/precompiled
+ifeq ($(UNAME), Darwin)
+LIB_DIRS += -L/opt/homebrew/lib
+endif
 
 QRC_FILE := resources/app.qrc
 QRC_CPP := $(OBJ_DIR)/qrc_app.cpp
@@ -63,6 +81,9 @@ ifndef RCC
 RCC := $(shell command -v qt6-rcc 2>/dev/null)
 ifeq ($(strip $(RCC)),)
 RCC := $(shell command -v rcc 2>/dev/null)
+endif
+ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /opt/homebrew/opt/qt/bin/qt6-rcc)
 endif
 endif
 ifeq ($(strip $(RCC)),)

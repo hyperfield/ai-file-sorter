@@ -49,6 +49,15 @@ mkdir -p "$PRECOMPILED_LIBS_DIR"
 # Copy dynamic libs
 cp build/bin/*.so "$PRECOMPILED_LIBS_DIR"
 
+# Ensure the libraries remain relocatable after cleaning the build tree
+if command -v patchelf >/dev/null 2>&1; then
+    for lib in "$PRECOMPILED_LIBS_DIR"/*.so; do
+        patchelf --set-rpath '$ORIGIN' "$lib"
+    done
+else
+    echo "Warning: patchelf not found; skipping RUNPATH fix for llama libraries."
+fi
+
 # Copy headers
 rm -rf "$HEADERS_DIR" && mkdir -p "$HEADERS_DIR"
 cp include/llama.h "$HEADERS_DIR"
