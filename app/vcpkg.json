@@ -1,0 +1,16 @@
+{
+  "name": "ai-file-sorter",
+  "version-string": "0.1.0",
+  "description": "AI File Sorter (Qt6) - Windows build dependencies",
+  "builtin-baseline": "3b9d086009cc1c2256e9c28ad44a00036fbd9b26",
+  "dependencies": [
+    "qtbase",
+    "curl",
+    "jsoncpp",
+    "sqlite3",
+    "openssl",
+    "fmt",
+    "spdlog",
+    "gettext"
+  ]
+}

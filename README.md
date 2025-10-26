@@ -175,7 +175,67 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 ### Windows
 
-Pre-built installers continue to be published on the [Releases](https://github.com/hyperfield/ai-file-sorter/releases) page. The new Qt6-based toolchain targets MSVC rather than MSYS2/GTK; native build instructions will be documented once the workflow is finalised.
+Build now targets native MSVC + Qt6 without MSYS2. Two options are supported; the vcpkg route is simplest.
+
+Option A - CMake + vcpkg (recommended)
+
+1. Install prerequisites:
+   - Visual Studio 2022 with Desktop C++ workload
+   - CMake 3.21+ (Visual Studio ships a recent version)
+   - vcpkg: https://github.com/microsoft/vcpkg (clone and bootstrap)
+2. Clone repo and submodules:
+   ```powershell
+   git clone https://github.com/hyperfield/ai-file-sorter.git
+   cd ai-file-sorter
+   git submodule update --init --recursive
+   ```
+3. Determine your vcpkg root. It is the folder that contains `vcpkg.exe` (for example `C:\dev\vcpkg`).
+    - If `vcpkg` is on your `PATH`, run this command to print the location:
+      ```powershell
+      Split-Path -Parent (Get-Command vcpkg).Source
+      ```
+    - Otherwise use the directory where you cloned vcpkg.
+4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` if you have a CUDA toolkit configured, otherwise leave it off (default is CPU-only). The script installs OpenBLAS and cURL via vcpkg automatically if they are missing:
+   ```powershell
+   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
+   ```
+   This script produces the `llama.dll`/`ggml*.dll` set under `app\lib\precompiled` which the GUI links against.
+5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\bin` is immediately runnable:
+   ```powershell
+    # If script execution is blocked, run:  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    pwsh .\app\build_windows.ps1 -VcpkgRoot "C:\dev\vcpkg"
+    ```
+    `-VcpkgRoot` is optional if you set `VCPKG_ROOT`/`VPKG_ROOT` or have `vcpkg`/`vpkg` on `PATH`.
+    The executable and all required Qt/third-party DLLs are placed in `app\bin`. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
+
+Option B - CMake + Qt online installer
+
+1. Install prerequisites:
+   - Visual Studio 2022 with Desktop C++ workload
+   - Qt 6.x MSVC kit via Qt Online Installer (e.g., Qt 6.6+ with MSVC 2019/2022)
+   - CMake 3.21+
+   - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext
+2. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
+   ```powershell
+   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
+   ```
+   This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
+3. Configure CMake to see Qt (adapt `CMAKE_PREFIX_PATH` to your Qt install):
+    ```powershell
+    $env:VCPKG_ROOT = "C:\path\to\vcpkg"
+    $qt = "C:\Qt\6.6.3\msvc2019_64"  # example
+    cmake -S app -B build -G "Ninja" `
+      -DCMAKE_PREFIX_PATH=$qt `
+     -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
+     -DVCPKG_TARGET_TRIPLET=x64-windows
+   cmake --build build --config Release
+   ```
+
+Notes
+- To rebuild from scratch, run `pwsh .\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
+- Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
+- If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
+- If you enable CUDA for local models, build `llama.cpp` with CUDA first and reconfigure CMake accordingly.
 
 ---
 
