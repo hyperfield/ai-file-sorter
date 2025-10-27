@@ -88,3 +88,33 @@ void MainAppHelpActions::show_about(QWidget* parent)
 
     dialog.exec();
 }
+
+void MainAppHelpActions::show_agpl_info(QWidget* parent)
+{
+    QDialog dialog(parent);
+    dialog.setWindowTitle(QObject::tr("About the AGPL License"));
+    dialog.resize(520, 320);
+
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* summary = new QLabel(QObject::tr(
+        "AI File Sorter is distributed under the GNU Affero General Public License v3.0."
+        "<br><br>"
+        "You can access the full source code at "
+        "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+        "<br><br>"
+        "A full copy of the license is provided with this application and available online at "
+        "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>."), &dialog);
+    summary->setTextFormat(Qt::RichText);
+    summary->setOpenExternalLinks(true);
+    summary->setWordWrap(true);
+    layout->addWidget(summary);
+
+    layout->addStretch(1);
+
+    auto* button_box = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    QObject::connect(button_box, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
+    layout->addWidget(button_box);
+
+    dialog.exec();
+}

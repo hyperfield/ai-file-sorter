@@ -224,6 +224,8 @@ void MainApp::setup_ui()
 
     setCentralWidget(central);
 
+    menuBar()->setNativeMenuBar(false);
+
     setup_menus();
     analysis_in_progress_ = false;
     status_is_ready_ = true;
@@ -243,6 +245,7 @@ void MainApp::setup_menus()
     file_menu = menuBar()->addMenu(QString());
     file_quit_action = file_menu->addAction(themed_icon("application-exit", QStyle::SP_DialogCloseButton), QString());
     file_quit_action->setShortcut(QKeySequence::Quit);
+    file_quit_action->setMenuRole(QAction::QuitRole);
     connect(file_quit_action, &QAction::triggered, qApp, &QApplication::quit);
 
     edit_menu = menuBar()->addMenu(QString());
@@ -285,6 +288,7 @@ void MainApp::setup_menus()
 
     settings_menu = menuBar()->addMenu(QString());
     toggle_llm_action = settings_menu->addAction(themed_icon("preferences-system", QStyle::SP_DialogApplyButton), QString());
+    toggle_llm_action->setMenuRole(QAction::PreferencesRole);
     connect(toggle_llm_action, &QAction::triggered, this, &MainApp::show_llm_selection_dialog);
 
     language_menu = settings_menu->addMenu(QString());
@@ -308,8 +312,24 @@ void MainApp::setup_menus()
     });
 
     help_menu = menuBar()->addMenu(QString());
+    if (help_menu && help_menu->menuAction()) {
+        help_menu->menuAction()->setMenuRole(QAction::NoRole);
+    }
     about_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+    about_action->setMenuRole(QAction::NoRole);
     connect(about_action, &QAction::triggered, this, &MainApp::on_about_activate);
+
+    about_qt_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+    about_qt_action->setMenuRole(QAction::NoRole);
+    connect(about_qt_action, &QAction::triggered, this, [this]() {
+        QMessageBox::aboutQt(this);
+    });
+
+    about_agpl_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+    about_agpl_action->setMenuRole(QAction::NoRole);
+    connect(about_agpl_action, &QAction::triggered, this, [this]() {
+        MainAppHelpActions::show_agpl_info(this);
+    });
 }
 
 
@@ -595,10 +615,20 @@ void MainApp::retranslate_ui()
         french_action->setText(tr("&French"));
     }
     if (help_menu) {
-        help_menu->setTitle(tr("&Help"));
+        const QString help_title = tr("&Help") + QChar(0x00A0);
+        help_menu->setTitle(help_title);
+        if (QAction* help_action = help_menu->menuAction()) {
+            help_action->setText(help_title);
+        }
     }
     if (about_action) {
-        about_action->setText(tr("&About"));
+        about_action->setText(tr("&About AI File Sorter"));
+    }
+    if (about_qt_action) {
+        about_qt_action->setText(tr("About &Qt"));
+    }
+    if (about_agpl_action) {
+        about_agpl_action->setText(tr("About &AGPL"));
     }
     if (file_explorer_dock) {
         file_explorer_dock->setWindowTitle(tr("File Explorer"));
