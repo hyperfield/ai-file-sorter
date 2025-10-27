@@ -224,8 +224,6 @@ void MainApp::setup_ui()
 
     setCentralWidget(central);
 
-    menuBar()->setNativeMenuBar(false);
-
     setup_menus();
     analysis_in_progress_ = false;
     status_is_ready_ = true;
@@ -288,7 +286,6 @@ void MainApp::setup_menus()
 
     settings_menu = menuBar()->addMenu(QString());
     toggle_llm_action = settings_menu->addAction(themed_icon("preferences-system", QStyle::SP_DialogApplyButton), QString());
-    toggle_llm_action->setMenuRole(QAction::PreferencesRole);
     connect(toggle_llm_action, &QAction::triggered, this, &MainApp::show_llm_selection_dialog);
 
     language_menu = settings_menu->addMenu(QString());
@@ -313,7 +310,7 @@ void MainApp::setup_menus()
 
     help_menu = menuBar()->addMenu(QString());
     if (help_menu && help_menu->menuAction()) {
-        help_menu->menuAction()->setMenuRole(QAction::NoRole);
+        help_menu->menuAction()->setMenuRole(QAction::ApplicationSpecificRole);
     }
     about_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
     about_action->setMenuRole(QAction::NoRole);
@@ -615,7 +612,7 @@ void MainApp::retranslate_ui()
         french_action->setText(tr("&French"));
     }
     if (help_menu) {
-        const QString help_title = tr("&Help") + QChar(0x00A0);
+        const QString help_title = QString(QChar(0x200B)) + tr("&Help");
         help_menu->setTitle(help_title);
         if (QAction* help_action = help_menu->menuAction()) {
             help_action->setText(help_title);
