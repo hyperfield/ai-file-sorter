@@ -46,6 +46,24 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("&French"), QStringLiteral("&Français")},
     {QStringLiteral("&Help"), QStringLiteral("&Aide")},
     {QStringLiteral("&About"), QStringLiteral("À propos")},
+    {QStringLiteral("&About AI File Sorter"), QStringLiteral("À propos d'AI File Sorter")},
+    {QStringLiteral("About &Qt"), QStringLiteral("À propos de &Qt")},
+    {QStringLiteral("About &AGPL"), QStringLiteral("À propos de l'&AGPL")},
+    {QStringLiteral("About the AGPL License"), QStringLiteral("À propos de la licence AGPL")},
+    {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "You can access the full source code at "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "A full copy of the license is provided with this application and available online at "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>."),
+     QStringLiteral("AI File Sorter est distribué sous la licence GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "Vous pouvez accéder au code source complet sur "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "Une copie complète de la licence est fournie avec cette application et disponible en ligne sur "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
     {QStringLiteral("Review Categorization"), QStringLiteral("Vérifier la catégorisation")},
     {QStringLiteral("Select all"), QStringLiteral("Tout sélectionner")},
     {QStringLiteral("Move"), QStringLiteral("Déplacer")},

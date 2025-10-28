@@ -95,4 +95,11 @@ todos_md/
 # Ignore llama headers (generated or from external)
 app/include/llama/*.h
 
+# R & D stage
+/assets/
+/docs/
+/scripts/
+!app/scripts/
+/tools/
+
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
