@@ -227,8 +227,12 @@ void LLMDownloader::notify_download_complete()
 void LLMDownloader::setup_common_curl_options(CURL* curl)
 {
 #ifdef _WIN32
-    std::string cert_path = std::filesystem::current_path().string() + "\\certs\\cacert.pem";
-    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.c_str());
+    try {
+        const auto cert_path = Utils::ensure_ca_bundle();
+        curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
+    } catch (const std::exception& ex) {
+        throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
+    }
 #endif
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());

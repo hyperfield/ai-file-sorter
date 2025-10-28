@@ -1,8 +1,10 @@
 #include "Updater.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 #include "app_version.hpp"
 #include <curl/curl.h>
 #include <cstdio>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #ifdef _WIN32
@@ -215,9 +217,13 @@ std::string Updater::fetch_update_metadata() const {
     std::string response_string;
 
     #ifdef _WIN32
-        std::string cert_path = std::filesystem::current_path().string() + "\\certs\\cacert.pem";
-        std::cout << "Resolved cert path: " << cert_path << std::endl;
-        curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.c_str());
+        try {
+            const auto cert_path = Utils::ensure_ca_bundle();
+            curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
+        } catch (const std::exception& ex) {
+            curl_easy_cleanup(curl);
+            throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
+        }
     #endif
 
     curl_easy_setopt(curl, CURLOPT_URL, update_spec_file_url.c_str());

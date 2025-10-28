@@ -71,7 +71,7 @@ std::string Settings::define_config_path()
     std::string AppName = "AIFileSorter";
 #ifdef _WIN32
     char appDataPath[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
         return std::string(appDataPath) + "\\" + AppName + "\\config.ini";
     }
 #elif defined(__APPLE__)

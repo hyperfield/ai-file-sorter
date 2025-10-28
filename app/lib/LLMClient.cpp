@@ -71,8 +71,13 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     }
 
     #ifdef _WIN32
-        std::string cert_path = std::filesystem::current_path().string() + "\\certs\\cacert.pem";
-        curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.c_str());
+        try {
+            const auto cert_path = Utils::ensure_ca_bundle();
+            curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
+        } catch (const std::exception& ex) {
+            curl_easy_cleanup(curl);
+            throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
+        }
     #endif
     curl_easy_setopt(curl, CURLOPT_URL, api_url.c_str());
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
