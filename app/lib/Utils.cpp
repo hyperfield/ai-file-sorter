@@ -11,8 +11,11 @@
 #include <system_error>
 #include <vector>
 #include <optional>
+#include <mutex>
 #include <QCoreApplication>
 #include <QMetaObject>
+#include <QFile>
+#include <QString>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 
@@ -104,7 +107,7 @@ std::string Utils::get_executable_path()
 {
 #ifdef _WIN32
     char result[MAX_PATH];
-    GetModuleFileName(NULL, result, MAX_PATH);
+    GetModuleFileNameA(NULL, result, MAX_PATH);
     return std::string(result);
 #elif __linux__
     char result[PATH_MAX];
@@ -121,6 +124,59 @@ std::string Utils::get_executable_path()
 #else
     throw std::runtime_error("Unsupported platform");
 #endif
+}
+
+
+std::filesystem::path Utils::ensure_ca_bundle() {
+    static std::once_flag init_flag;
+    static std::filesystem::path cached_path;
+    static std::exception_ptr init_error;
+
+    std::call_once(init_flag, []() {
+        try {
+            std::filesystem::path exe_path = std::filesystem::path(get_executable_path());
+            std::filesystem::path cert_dir = exe_path.parent_path() / "certs";
+            std::filesystem::path cert_file = cert_dir / "cacert.pem";
+
+            bool needs_write = true;
+            if (std::filesystem::exists(cert_file)) {
+                std::error_code ec;
+                auto size = std::filesystem::file_size(cert_file, ec);
+                needs_write = ec ? true : (size == 0);
+            }
+
+            if (needs_write) {
+                ensure_directory_exists(cert_dir.string());
+
+                QFile resource(QStringLiteral(":/net/quicknode/AIFileSorter/certs/cacert.pem"));
+                if (!resource.open(QIODevice::ReadOnly)) {
+                    throw std::runtime_error("Failed to open embedded CA bundle resource");
+                }
+                const QByteArray data = resource.readAll();
+                resource.close();
+
+                QFile output(QString::fromStdString(cert_file.string()));
+                if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                    throw std::runtime_error("Failed to create CA bundle file at " + cert_file.string());
+                }
+                if (output.write(data) != data.size()) {
+                    output.close();
+                    throw std::runtime_error("Failed to write CA bundle file at " + cert_file.string());
+                }
+                output.close();
+            }
+
+            cached_path = cert_file;
+        } catch (...) {
+            init_error = std::current_exception();
+        }
+    });
+
+    if (init_error) {
+        std::rethrow_exception(init_error);
+    }
+
+    return cached_path;
 }
 
 

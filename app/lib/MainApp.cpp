@@ -1150,7 +1150,29 @@ MainApp::categorize_file(ILLMClient& llm, const std::string& item_name,
     try {
         std::string category_subcategory;
 
-        const int timeout_seconds = using_local_llm ? 60 : 10;
+        int timeout_seconds = using_local_llm ? 60 : 10;
+        const char* timeout_env = std::getenv(
+            using_local_llm ? "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT"
+                            : "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT");
+        if (timeout_env && *timeout_env) {
+            try {
+                int parsed = std::stoi(timeout_env);
+                if (parsed > 0) {
+                    timeout_seconds = parsed;
+                } else if (core_logger) {
+                    core_logger->warn("Ignoring non-positive LLM timeout '{}'", timeout_env);
+                }
+            } catch (const std::exception& ex) {
+                if (core_logger) {
+                    core_logger->warn("Failed to parse LLM timeout '{}': {}", timeout_env, ex.what());
+                }
+            }
+        }
+        if (core_logger) {
+            core_logger->debug("Using {} LLM timeout of {} second(s)",
+                               using_local_llm ? "local" : "remote",
+                               timeout_seconds);
+        }
         category_subcategory = categorize_with_timeout(
             llm, item_name, item_path, file_type, timeout_seconds);
 

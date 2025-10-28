@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <cstddef>
+#include <filesystem>
 
 
 class Utils {
@@ -43,6 +44,7 @@ public:
     static int get_installed_cuda_runtime_version();
     static std::string get_cudart_dll_name();
     static std::string abbreviate_user_path(const std::string& path);
+    static std::filesystem::path ensure_ca_bundle();
 
 private:
     static int get_ngl(int vram_mb);
