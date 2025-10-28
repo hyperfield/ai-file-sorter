@@ -5,5 +5,6 @@
     <file>images/app_icon_128.png</file>
     <file>images/icon_512x512.png</file>
     <file>.env</file>
+    <file>certs/cacert.pem</file>
   </qresource>
 </RCC>
