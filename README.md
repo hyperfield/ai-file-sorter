@@ -197,13 +197,13 @@ Option A - CMake + vcpkg (recommended)
     - Otherwise use the directory where you cloned vcpkg.
 4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` if you have a CUDA toolkit configured, otherwise leave it off (default is CPU-only). The script installs OpenBLAS and cURL via vcpkg automatically if they are missing:
    ```powershell
-   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
+   app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
    ```
    This script produces the `llama.dll`/`ggml*.dll` set under `app\lib\precompiled` which the GUI links against.
 5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\bin` is immediately runnable:
    ```powershell
     # If script execution is blocked, run:  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-    pwsh .\app\build_windows.ps1 -VcpkgRoot "C:\dev\vcpkg"
+    app\build_windows.ps1 -Configuration Release -VcpkgRoot C:\dev\vcpkg
     ```
     `-VcpkgRoot` is optional if you set `VCPKG_ROOT`/`VPKG_ROOT` or have `vcpkg`/`vpkg` on `PATH`.
     The executable and all required Qt/third-party DLLs are placed in `app\bin`. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
@@ -222,7 +222,7 @@ Option B - CMake + Qt online installer
    This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
 3. Configure CMake to see Qt (adapt `CMAKE_PREFIX_PATH` to your Qt install):
     ```powershell
-    $env:VCPKG_ROOT = "C:\path\to\vcpkg"
+    $env:VCPKG_ROOT = "C:\path\to\vcpkg" (e.g., `C:\dev\vcpkg`)
     $qt = "C:\Qt\6.6.3\msvc2019_64"  # example
     cmake -S app -B build -G "Ninja" `
       -DCMAKE_PREFIX_PATH=$qt `
@@ -232,7 +232,7 @@ Option B - CMake + Qt online installer
    ```
 
 Notes
-- To rebuild from scratch, run `pwsh .\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
+- To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
 - If you enable CUDA for local models, build `llama.cpp` with CUDA first and reconfigure CMake accordingly.
