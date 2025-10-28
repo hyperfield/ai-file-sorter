@@ -195,18 +195,21 @@ Option A - CMake + vcpkg (recommended)
       Split-Path -Parent (Get-Command vcpkg).Source
       ```
     - Otherwise use the directory where you cloned vcpkg.
-4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` if you have a CUDA toolkit configured, otherwise leave it off (default is CPU-only). The script installs OpenBLAS and cURL via vcpkg automatically if they are missing:
+4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` if you have a CUDA toolkit configured, otherwise leave it off (default is CPU-only):
    ```powershell
    app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
    ```
    This script produces the `llama.dll`/`ggml*.dll` set under `app\lib\precompiled` which the GUI links against.
-5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\bin` is immediately runnable:
+5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
    ```powershell
-    # If script execution is blocked, run:  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-    app\build_windows.ps1 -Configuration Release -VcpkgRoot C:\dev\vcpkg
-    ```
-    `-VcpkgRoot` is optional if you set `VCPKG_ROOT`/`VPKG_ROOT` or have `vcpkg`/`vpkg` on `PATH`.
-    The executable and all required Qt/third-party DLLs are placed in `app\bin`. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
+   # One-time per shell if script execution is blocked:
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+   app\build_windows.ps1 -Configuration Release -VcpkgRoot C:\dev\vcpkg
+   ```
+   - Replace `C:\dev\vcpkg` with the path where you cloned vcpkg; it must contain `scripts\buildsystems\vcpkg.cmake`.
+   - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
+   - The executable and required Qt/third-party DLLs are placed in `app\build-windows\Release`. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
 
 Option B - CMake + Qt online installer
 

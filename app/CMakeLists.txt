@@ -15,7 +15,7 @@ endif()
 # Qt6
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
-# Third‑party deps (resolved best via vcpkg on Windows)
+# Third-party deps (resolved best via vcpkg on Windows)
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(SQLite3 REQUIRED)
@@ -226,6 +226,35 @@ if(WIN32)
 endif()
 
 if(WIN32)
+    find_program(POWERSHELL_EXECUTABLE NAMES pwsh pwsh.exe powershell powershell.exe)
+    if(NOT POWERSHELL_EXECUTABLE)
+        message(FATAL_ERROR "PowerShell is required to generate Windows resources")
+    endif()
+
+    set(APP_ICON_BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_256x256.png")
+    set(APP_ICON_ICO "${CMAKE_CURRENT_BINARY_DIR}/generated/app_icon.ico")
+    add_custom_command(OUTPUT "${APP_ICON_ICO}"
+        COMMAND "${POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_icon.ps1" -BasePng "${APP_ICON_BASE}" -Ico "${APP_ICON_ICO}"
+        DEPENDS "${APP_ICON_BASE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_icon.ps1"
+        COMMENT "Generating Windows icon"
+        VERBATIM
+    )
+    set(APP_ICON_RC "${CMAKE_CURRENT_BINARY_DIR}/generated/app_icon.rc")
+    file(TO_NATIVE_PATH "${APP_ICON_ICO}" APP_ICON_ICO_NATIVE_TEMP)
+    string(REPLACE "\\" "\\\\" APP_ICON_ICO_NATIVE "${APP_ICON_ICO_NATIVE_TEMP}")
+    set(APP_ICON_PATH "${APP_ICON_ICO_NATIVE}")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/app_icon.rc.in"
+        "${APP_ICON_RC}"
+        @ONLY
+    )
+    set_source_files_properties("${APP_ICON_ICO}" PROPERTIES GENERATED TRUE)
+    add_custom_target(app_icon_resource ALL DEPENDS "${APP_ICON_ICO}")
+    add_dependencies(aifilesorter app_icon_resource)
+    add_dependencies(StartAiFileSorter app_icon_resource)
+    target_sources(aifilesorter PRIVATE "${APP_ICON_RC}")
+    target_sources(StartAiFileSorter PRIVATE "${APP_ICON_RC}")
+
     set(PRECOMPILED_CPU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cpu")
     set(PRECOMPILED_CUDA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cuda")
 
@@ -252,3 +281,4 @@ if(WIN32)
     #     message(WARNING "Expected ${_precompiled_libopenblas} to exist. Run app/scripts/build_llama_windows.ps1 to stage GGML artifacts.")
     # endif()
 endif()
+
