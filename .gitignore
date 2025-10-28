@@ -102,4 +102,8 @@ app/include/llama/*.h
 !app/scripts/
 /tools/
 
+# Build artifacts
+
+build-windows/
+
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
