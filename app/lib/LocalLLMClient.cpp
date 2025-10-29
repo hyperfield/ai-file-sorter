@@ -98,6 +98,7 @@ struct MetalDeviceInfo {
     }
 };
 
+#if defined(GGML_USE_METAL)
 MetalDeviceInfo query_primary_gpu_device() {
     MetalDeviceInfo info;
 
@@ -126,6 +127,7 @@ MetalDeviceInfo query_primary_gpu_device() {
 
     return info;
 }
+#endif // defined(GGML_USE_METAL)
 
 std::optional<int32_t> extract_block_count(const std::string & model_path) {
     std::ifstream file(model_path, std::ios::binary);
@@ -230,6 +232,7 @@ struct AutoGpuLayerEstimation {
     std::string reason;
 };
 
+#if defined(GGML_USE_METAL)
 AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_path,
                                                      const MetalDeviceInfo & device_info) {
     AutoGpuLayerEstimation result;
@@ -290,6 +293,7 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
 
     return result;
 }
+#endif // defined(GGML_USE_METAL)
 
 AutoGpuLayerEstimation estimate_gpu_layers_for_cuda(const std::string & model_path,
                                                     const Utils::CudaMemoryInfo & memory_info) {
