@@ -52,6 +52,7 @@ bin/
 # Scripts
 reset_key_4_github.sh
 create_macos_bundle.sh
+create_dmg.sh
 
 # References
 # includePaths.txt
@@ -106,5 +107,6 @@ app/include/llama/*.h
 # Build artifacts
 
 build-windows/
+dist/
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
