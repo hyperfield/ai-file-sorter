@@ -113,6 +113,24 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 ### Linux
 
+#### Prebuilt Debian/Ubuntu package
+
+1. **Install runtime prerequisites** (Qt6, networking, database, math libraries):
+   ```bash
+   sudo apt update && sudo apt install -y \
+     libqt6widgets6 libqt6gui6 libqt6core6 libqt6dbus6 \
+     libcurl4 libjsoncpp25 libfmt8 libopenblas0-pthread
+   ```
+   Ensure that the Qt platform plugins are installed (on Ubuntu 22.04 this is provided by `qt6-wayland`).
+   GPU acceleration additionally requires an NVIDIA driver with the matching CUDA runtime (`nvidia-cuda-toolkit` or the vendor packages).
+2. **Install the package**
+   ```bash
+   sudo apt install ./aifilesorter_1.0.0_amd64.deb
+   ```
+   Using `apt install` (rather than `dpkg -i`) ensures any missing dependencies listed above are installed automatically.
+
+#### Build from source
+
 1. **Install dependencies**
    - Debian / Ubuntu:
      ```bash
@@ -143,7 +161,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 4. **Compile the application**
    ```bash
    cd app
-   make
+   make -j4
    ```
    The binary is produced at `app/bin/aifilesorter`.
 5. **Install system-wide (optional)**
