@@ -41,11 +41,12 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
 ### [1.0.0] - 2026-02-18
 
 - Migrated the entire desktop UI from GTK/Glade to a native Qt6 interface.
-- Replaced GLib/GIO resource usage with Qt resources and modernized build pipeline.
+- Added selection boxes for files in the categorization review dialog.
 - Added internatioinalization framework and the French translation for the user interface.
 - Added refreshed menu icons, mnemonic behaviour, and persistent File Explorer settings.
 - Simplified cross-platform builds (Linux/macOS) around Qt6; retired the MSYS2/GTK toolchain.
-- Optimzed and clean up the code.
+- Optimized and cleaned up the code. Fixed error-prone areas.
+- Modernized the build pipeline. Introduced CMake for compilation on Windows.
 
 ### [0.9.7] - 2025-10-19
 
