@@ -324,6 +324,21 @@ void LLMSelectionDialog::start_download()
             QMetaObject::invokeMethod(this, [this, text]() {
                 set_status_message(QString::fromStdString(text));
             }, Qt::QueuedConnection);
+        },
+        [this](const std::string& error_text) {
+            QMetaObject::invokeMethod(this, [this, error_text]() {
+                is_downloading = false;
+                progress_bar->setVisible(false);
+                download_button->setEnabled(true);
+
+                const QString error = QString::fromStdString(error_text);
+                if (error.compare(QStringLiteral("Download cancelled"), Qt::CaseInsensitive) == 0) {
+                    set_status_message(tr("Download cancelled."));
+                } else {
+                    set_status_message(tr("Download error: %1").arg(error));
+                }
+                button_box->button(QDialogButtonBox::Ok)->setEnabled(false);
+            }, Qt::QueuedConnection);
         });
 }
 

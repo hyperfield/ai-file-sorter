@@ -37,14 +37,19 @@ void log_core(spdlog::level::level_enum level, const char* fmt, Args&&... args) 
     #include <dlfcn.h>
     #include <limits.h>
     #include <unistd.h>
+    #include <netdb.h>
+    #include <sys/socket.h>
 #elif __APPLE__
     #include <dlfcn.h>
     #include <mach-o/dyld.h>
     #include <limits.h>
+    #include <netdb.h>
+    #include <sys/socket.h>
 #endif
 #include <iostream>
 #include <Types.hpp>
 #include <cstddef>
+#include <stdexcept>
 
 // Shortcuts for loading libraries on different OSes
 #ifdef _WIN32
@@ -84,8 +89,15 @@ bool Utils::is_network_available()
     DWORD flags;
     return InternetGetConnectedState(&flags, 0);
 #else
-    int result = system("ping -c 1 google.com > /dev/null 2>&1");
-    return result == 0;
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    addrinfo* result = nullptr;
+    const int rc = getaddrinfo("www.google.com", "80", &hints, &result);
+    if (result) {
+        freeaddrinfo(result);
+    }
+    return rc == 0;
 #endif
 }
 
@@ -178,12 +190,35 @@ bool Utils::is_valid_directory(const char *path)
 
 
 std::vector<unsigned char> Utils::hex_to_vector(const std::string& hex) {
-    std::vector<unsigned char> data;
-    for (size_t i = 0; i < hex.length(); i += 2) {
-        unsigned char byte = static_cast<unsigned char>(
-            std::stoi(hex.substr(i, 2), nullptr, 16));
-        data.push_back(byte);
+    auto hex_value = [](char c) -> int {
+        if (c >= '0' && c <= '9') {
+            return c - '0';
+        }
+        if (c >= 'a' && c <= 'f') {
+            return 10 + (c - 'a');
+        }
+        if (c >= 'A' && c <= 'F') {
+            return 10 + (c - 'A');
+        }
+        return -1;
+    };
+
+    if (hex.size() % 2 != 0) {
+        throw std::invalid_argument("Hex string must have even length");
     }
+
+    std::vector<unsigned char> data;
+    data.reserve(hex.size() / 2);
+
+    for (std::size_t i = 0; i < hex.size(); i += 2) {
+        const int hi = hex_value(hex[i]);
+        const int lo = hex_value(hex[i + 1]);
+        if (hi < 0 || lo < 0) {
+            throw std::invalid_argument("Hex string contains invalid characters");
+        }
+        data.push_back(static_cast<unsigned char>((hi << 4) | lo));
+    }
+
     return data;
 }
 
@@ -600,4 +635,3 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
 
     return sanitized.empty() ? fs_path.filename().generic_string() : sanitized;
 }
-

@@ -1,5 +1,6 @@
 #include "LLMDownloader.hpp"
 #include "Utils.hpp"
+#include "Logger.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <curl/curl.h>
@@ -89,7 +90,7 @@ int LLMDownloader::progress_func(void* clientp, curl_off_t dltotal, curl_off_t d
 {
     auto* self = static_cast<LLMDownloader*>(clientp);
 
-    if (self->cancel_requested) {
+    if (self->cancel_requested.load(std::memory_order_relaxed)) {
         return 1;
     }
 
@@ -152,22 +153,32 @@ size_t LLMDownloader::header_callback(char* buffer, size_t size, size_t nitems, 
 
 void LLMDownloader::start_download(std::function<void(double)> progress_cb,
                                    std::function<void()> on_complete_cb,
-                                   std::function<void(const std::string&)> on_status_text)
+                                   std::function<void(const std::string&)> on_status_text,
+                                   std::function<void(const std::string&)> on_error_cb)
 {
     if (download_thread.joinable()) {
         download_thread.join();
     }
 
-    cancel_requested = false;
+    cancel_requested.store(false, std::memory_order_relaxed);
     this->progress_callback = std::move(progress_cb);
     this->on_download_complete = std::move(on_complete_cb);
     this->on_status_text = std::move(on_status_text);
+    this->on_download_error = std::move(on_error_cb);
 
     download_thread = std::thread([this]() {
         try {
             perform_download();
         } catch (const std::exception& ex) {
-            // std::cerr << "[start_download] Exception: " << ex.what() << std::endl;
+            if (auto logger = Logger::get_logger("core_logger")) {
+                logger->error("LLM download failed: {}", ex.what());
+            }
+            if (this->on_status_text) {
+                this->on_status_text(std::string("Download error: ") + ex.what());
+            }
+            if (this->on_download_error) {
+                this->on_download_error(ex.what());
+            }
         }
     });
 }
@@ -201,7 +212,14 @@ void LLMDownloader::perform_download()
     curl_easy_cleanup(curl);
 
     if (res != CURLE_OK) {
-        cancel_requested = false;
+        cancel_requested.store(false, std::memory_order_relaxed);
+        if (res == CURLE_ABORTED_BY_CALLBACK) {
+            if (on_download_error) {
+                on_download_error("Download cancelled");
+            }
+        } else {
+            throw std::runtime_error(std::string("Download failed: ") + curl_easy_strerror(res));
+        }
     } else {
         mark_download_resumable();
         notify_download_complete();
@@ -307,7 +325,17 @@ bool LLMDownloader::is_download_resumable() const
     auto len_it = curl_headers.find("content-length");
 
     bool ranges = (it != curl_headers.end() && it->second == "bytes");
-    bool has_length = (len_it != curl_headers.end() && std::stoll(len_it->second) > 0);
+    bool has_length = false;
+    if (len_it != curl_headers.end()) {
+        try {
+            has_length = std::stoll(len_it->second) > 0;
+        } catch (const std::exception& ex) {
+            if (auto logger = Logger::get_logger("core_logger")) {
+                logger->warn("Invalid Content-Length header '{}': {}", len_it->second, ex.what());
+            }
+            has_length = false;
+        }
+    }
 
     return ranges && has_length;
 }
@@ -365,7 +393,7 @@ LLMDownloader::DownloadStatus LLMDownloader::get_download_status() const {
 void LLMDownloader::cancel_download()
 {
     std::lock_guard<std::mutex> lock(mutex);
-    cancel_requested = true;
+    cancel_requested.store(true, std::memory_order_relaxed);
 }
 
 

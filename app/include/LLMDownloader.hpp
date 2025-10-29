@@ -18,7 +18,8 @@ public:
     bool is_inited();
     void start_download(std::function<void(double)> progress_cb,
                         std::function<void()> on_complete_cb,
-                        std::function<void(const std::string &)> on_status_text);
+                        std::function<void(const std::string &)> on_status_text,
+                        std::function<void(const std::string &)> on_error_cb);
     void try_resume_download();
     bool is_download_resumable() const;
     bool is_download_complete() const;
@@ -56,6 +57,7 @@ private:
     std::function<void(double)> progress_callback;
     std::function<void()> on_download_complete;
     std::function<void(const std::string&)> on_status_text;
+    std::function<void(const std::string&)> on_download_error;
 
     bool resumable{false};
     long long real_content_length{0};

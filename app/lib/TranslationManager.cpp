@@ -74,7 +74,10 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("Moved"), QStringLiteral("Déplacé")},
     {QStringLiteral("Skipped"), QStringLiteral("Ignoré")},
     {QStringLiteral("Analyzing Files"), QStringLiteral("Analyse des fichiers")},
-    {QStringLiteral("Stop Analysis"), QStringLiteral("Arrêter l'analyse")}
+    {QStringLiteral("Stop Analysis"), QStringLiteral("Arrêter l'analyse")},
+    {QStringLiteral("Download complete."), QStringLiteral("Téléchargement terminé.")},
+    {QStringLiteral("Download cancelled."), QStringLiteral("Téléchargement annulé.")},
+    {QStringLiteral("Download error: %1"), QStringLiteral("Erreur de téléchargement : %1")}
 };
 
 } // namespace
