@@ -54,6 +54,7 @@ private:
     void apply_select_all(bool checked);
     void on_item_changed(QStandardItem* item);
     void update_select_all_state();
+    void update_type_icon(QStandardItem* item);
     void retranslate_ui();
     void apply_status_text(QStandardItem* item) const;
     RowStatus status_from_item(const QStandardItem* item) const;

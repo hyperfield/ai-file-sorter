@@ -5,6 +5,8 @@
 #include "MovableCategorizedFile.hpp"
 
 #include <QAbstractItemView>
+#include <QApplication>
+#include <QStyle>
 #include <QBrush>
 #include <QCheckBox>
 #include <QCloseEvent>
@@ -73,6 +75,8 @@ void CategorizationDialog::setup_ui()
     table_view->setColumnHidden(2, false);
     table_view->setColumnHidden(4, !show_subcategory_column);
     table_view->setColumnWidth(0, 70);
+    table_view->setIconSize(QSize(16, 16));
+    table_view->setColumnWidth(2, table_view->iconSize().width() + 12);
     layout->addWidget(table_view, 1);
 
     auto* button_layout = new QHBoxLayout();
@@ -97,9 +101,26 @@ void CategorizationDialog::setup_ui()
 }
 
 
+namespace {
+QIcon type_icon(const QString& code)
+{
+    if (auto* style = QApplication::style()) {
+        return code == QStringLiteral("D")
+                   ? style->standardIcon(QStyle::SP_DirIcon)
+                   : style->standardIcon(QStyle::SP_FileIcon);
+    }
+    return {};
+}
+}
+
 void CategorizationDialog::populate_model()
 {
     model->removeRows(0, model->rowCount());
+
+    const int type_col_width = table_view ? table_view->iconSize().width() + 12 : 28;
+    if (table_view) {
+        table_view->setColumnWidth(2, type_col_width);
+    }
 
     updating_select_all = true;
 
@@ -115,9 +136,11 @@ void CategorizationDialog::populate_model()
         file_item->setEditable(false);
         file_item->setData(QString::fromStdString(file.file_path), Qt::UserRole + 1);
 
-        auto* type_item = new QStandardItem(file.type == FileType::Directory ? tr("Directory") : tr("File"));
+        auto* type_item = new QStandardItem;
         type_item->setEditable(false);
         type_item->setData(file.type == FileType::Directory ? QStringLiteral("D") : QStringLiteral("F"), Qt::UserRole);
+        type_item->setTextAlignment(Qt::AlignCenter);
+        update_type_icon(type_item);
 
         auto* category_item = new QStandardItem(QString::fromStdString(file.category));
         category_item->setEditable(true);
@@ -139,6 +162,17 @@ void CategorizationDialog::populate_model()
     table_view->setColumnHidden(4, !show_subcategory_column);
     table_view->resizeColumnsToContents();
     update_select_all_state();
+}
+
+void CategorizationDialog::update_type_icon(QStandardItem* item)
+{
+    if (!item) {
+        return;
+    }
+
+    const QString code = item->data(Qt::UserRole).toString();
+    item->setIcon(type_icon(code));
+    item->setText(QString());
 }
 
 
@@ -355,12 +389,8 @@ void CategorizationDialog::retranslate_ui()
 
         for (int row = 0; row < model->rowCount(); ++row) {
             if (auto* type_item = model->item(row, 2)) {
-                const QString code = type_item->data(Qt::UserRole).toString();
-                if (code == QStringLiteral("D")) {
-                    type_item->setText(tr("Directory"));
-                } else if (code == QStringLiteral("F")) {
-                    type_item->setText(tr("File"));
-                }
+                update_type_icon(type_item);
+                type_item->setTextAlignment(Qt::AlignCenter);
             }
             if (auto* status_item = model->item(row, 5)) {
                 apply_status_text(status_item);
