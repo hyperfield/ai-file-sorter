@@ -101,6 +101,7 @@ app/include/llama/*.h
 /scripts/
 !app/scripts/
 /tools/
+/reports/
 
 # Build artifacts
 
