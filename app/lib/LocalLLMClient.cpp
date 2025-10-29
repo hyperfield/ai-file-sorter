@@ -27,11 +27,11 @@
 #endif
 
 #if defined(_WIN32)
-static void set_env_var(const char *key, const char *value) {
+[[maybe_unused]] static void set_env_var(const char *key, const char *value) {
     _putenv_s(key, value);
 }
 #else
-static void set_env_var(const char *key, const char *value) {
+[[maybe_unused]] static void set_env_var(const char *key, const char *value) {
     setenv(key, value, 1);
 }
 #endif
@@ -295,8 +295,8 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
 }
 #endif // defined(GGML_USE_METAL)
 
-AutoGpuLayerEstimation estimate_gpu_layers_for_cuda(const std::string & model_path,
-                                                    const Utils::CudaMemoryInfo & memory_info) {
+[[maybe_unused]] AutoGpuLayerEstimation estimate_gpu_layers_for_cuda(const std::string & model_path,
+                                                                     const Utils::CudaMemoryInfo & memory_info) {
     AutoGpuLayerEstimation result;
 
     if (!memory_info.valid()) {

@@ -38,7 +38,6 @@ private:
     void set_status_message(const QString& message);
     std::string current_download_env_var() const;
 
-    Settings& settings;
     LLMChoice selected_choice{LLMChoice::Unset};
 
     QRadioButton* remote_radio{nullptr};

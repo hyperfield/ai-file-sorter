@@ -31,8 +31,7 @@ QString format_markup_label(const QString& title, const QString& value, const QS
 
 
 LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
-    : QDialog(parent),
-      settings(settings)
+    : QDialog(parent)
 {
     setWindowTitle(tr("Choose LLM Mode"));
     setModal(true);
