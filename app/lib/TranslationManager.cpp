@@ -41,6 +41,7 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("File Explorer"), QStringLiteral("Explorateur de fichiers")},
     {QStringLiteral("&Settings"), QStringLiteral("&Paramètres")},
     {QStringLiteral("Select &LLM…"), QStringLiteral("Sélectionner le &LLM…")},
+    {QStringLiteral("Run &consistency pass"), QStringLiteral("Lancer le &signalement de cohérence")},
     {QStringLiteral("&Language"), QStringLiteral("&Langue")},
     {QStringLiteral("&English"), QStringLiteral("&Anglais")},
     {QStringLiteral("&French"), QStringLiteral("&Français")},

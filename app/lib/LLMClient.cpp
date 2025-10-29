@@ -190,3 +190,30 @@ std::string LLMClient::make_payload(const std::string& file_name,
     
     return json_payload;
 }
+
+std::string LLMClient::make_generic_payload(const std::string& system_prompt,
+                                            const std::string& user_prompt,
+                                            int max_tokens) const
+{
+    std::ostringstream payload;
+    payload << "{\"model\": \"gpt-4o-mini\",";
+    payload << "\"messages\": [";
+    payload << "{\"role\": \"system\", \"content\": \""
+            << escape_json(system_prompt) << "\"},";
+    payload << "{\"role\": \"user\", \"content\": \""
+            << escape_json(user_prompt) << "\"}]";
+    if (max_tokens > 0) {
+        payload << ",\"max_tokens\": " << max_tokens;
+    }
+    payload << "}";
+    return payload.str();
+}
+
+std::string LLMClient::complete_prompt(const std::string& prompt,
+                                       int max_tokens)
+{
+    static const std::string kSystem =
+        "You are a precise assistant that returns well-formed JSON responses.";
+    std::string json_payload = make_generic_payload(kSystem, prompt, max_tokens);
+    return send_api_request(json_payload);
+}

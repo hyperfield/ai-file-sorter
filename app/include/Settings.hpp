@@ -32,6 +32,9 @@ public:
     std::string get_sort_folder() const;
     void set_sort_folder(const std::string &path);
 
+    bool get_consistency_pass_enabled() const;
+    void set_consistency_pass_enabled(bool value);
+
     std::string define_config_path();
     std::string get_config_dir();
 
@@ -56,6 +59,7 @@ private:
     std::string skipped_version;
     bool show_file_explorer{true};
     Language language{Language::English};
+    bool consistency_pass_enabled{false};
 };
 
 #endif

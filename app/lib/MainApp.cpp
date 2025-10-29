@@ -60,8 +60,17 @@
 #include <sstream>
 #include <thread>
 #include <unordered_set>
+#include <unordered_map>
 #include <utility>
 #include <vector>
+
+#ifdef _WIN32
+#include <json/json.h>
+#elif __APPLE__
+#include <json/json.h>
+#else
+#include <jsoncpp/json/json.h>
+#endif
 
 #include <fmt/format.h>
 #include <LocalLLMClient.hpp>
@@ -288,6 +297,13 @@ void MainApp::setup_menus()
     toggle_llm_action = settings_menu->addAction(themed_icon("preferences-system", QStyle::SP_DialogApplyButton), QString());
     connect(toggle_llm_action, &QAction::triggered, this, &MainApp::show_llm_selection_dialog);
 
+    // Consistency pass temporarily disabled for v1
+    // consistency_pass_action = settings_menu->addAction(QString());
+    // consistency_pass_action->setCheckable(true);
+    // connect(consistency_pass_action, &QAction::toggled, this, [this](bool checked) {
+    //     settings.set_consistency_pass_enabled(checked);
+    // });
+
     language_menu = settings_menu->addMenu(QString());
     language_group = new QActionGroup(this);
     language_group->setExclusive(true);
@@ -383,6 +399,9 @@ void MainApp::setup_file_explorer()
     if (file_explorer_menu_action) {
         file_explorer_menu_action->setChecked(show_explorer);
     }
+    // if (consistency_pass_action) {
+    //     consistency_pass_action->setChecked(settings.get_consistency_pass_enabled());
+    // }
     file_explorer_dock->setVisible(show_explorer);
     update_results_view_mode();
 }
@@ -518,6 +537,9 @@ void MainApp::sync_ui_to_settings()
     if (file_explorer_menu_action) {
         settings.set_show_file_explorer(file_explorer_menu_action->isChecked());
     }
+    // if (consistency_pass_action) {
+    //     settings.set_consistency_pass_enabled(consistency_pass_action->isChecked());
+    // }
     if (language_group) {
         if (QAction* checked = language_group->checkedAction()) {
             settings.set_language(static_cast<Language>(checked->data().toInt()));
@@ -607,6 +629,9 @@ void MainApp::retranslate_ui()
     }
     if (toggle_llm_action) {
         toggle_llm_action->setText(tr("Select &LLM…"));
+    }
+    if (consistency_pass_action) {
+        consistency_pass_action->setText(tr("Run &consistency pass"));
     }
     if (language_menu) {
         language_menu->setTitle(tr("&Language"));
@@ -988,6 +1013,11 @@ void MainApp::perform_analysis()
             new_files_with_categories.begin(),
             new_files_with_categories.end());
 
+        // Consistency pass temporarily disabled
+        // if (settings.get_consistency_pass_enabled()) {
+        //     run_consistency_pass();
+        // }
+
         new_files_to_sort = compute_files_to_sort();
         core_logger->debug("{} file(s) queued for sorting after analysis.",
                            new_files_to_sort.size());
@@ -1277,6 +1307,243 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
 
     return std::make_unique<LocalLLMClient>(
         Utils::make_default_path_to_file_from_download_url(env_url));
+}
+
+
+std::string MainApp::make_item_key(const CategorizedFile& item)
+{
+    std::filesystem::path path(item.file_path);
+    path /= item.file_name;
+    return path.generic_string();
+}
+
+
+std::string MainApp::build_consistency_prompt(const std::vector<const CategorizedFile*>& chunk,
+                                              const std::vector<std::pair<std::string, std::string>>& taxonomy) const
+{
+    Json::Value taxonomy_json(Json::arrayValue);
+    for (const auto& entry : taxonomy) {
+        Json::Value obj;
+        obj["category"] = entry.first;
+        obj["subcategory"] = entry.second;
+        taxonomy_json.append(obj);
+    }
+
+    Json::Value items(Json::arrayValue);
+    for (const auto* item : chunk) {
+        if (!item) {
+            continue;
+        }
+        Json::Value obj;
+        obj["id"] = make_item_key(*item);
+        obj["file"] = item->file_name;
+        obj["category"] = item->category;
+        obj["subcategory"] = item->subcategory;
+        items.append(obj);
+    }
+
+    Json::StreamWriterBuilder builder;
+    builder["indentation"] = "";
+    const std::string taxonomy_str = Json::writeString(builder, taxonomy_json);
+    const std::string items_str = Json::writeString(builder, items);
+
+    std::ostringstream prompt;
+    prompt << "You are a taxonomy normalization assistant.\n";
+    prompt << "Your task is to review existing (category, subcategory) assignments for files and make them consistent.\n";
+    prompt << "Guidelines:\n";
+    prompt << "1. Prefer using the known taxonomy entries when they closely match.\n";
+    prompt << "2. Merge near-duplicate labels (e.g. 'Docs' vs 'Documents'), but do not collapse distinct concepts.\n";
+    prompt << "3. Preserve the intent of each file. If a category/subcategory already looks appropriate, keep it.\n";
+    prompt << "4. Always provide both category and subcategory strings. If a subcategory is not needed, repeat the category.\n";
+    prompt << "5. Output JSON only, no prose.\n\n";
+    prompt << "Known taxonomy entries (JSON array): " << taxonomy_str << "\n";
+    prompt << "Items to harmonize (JSON array): " << items_str << "\n";
+    prompt << "Return a JSON object with the following structure: {\"harmonized\": [{\"id\": string, \"category\": string, \"subcategory\": string}, ...]}";
+    prompt << "\nMatch each output object to the corresponding input by id and keep the order identical.";
+
+    return prompt.str();
+}
+
+
+void MainApp::apply_consistency_response(const std::string& response,
+                                          std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+                                          std::unordered_map<std::string, CategorizedFile*>& new_items_by_key)
+{
+    if (response.empty()) {
+        return;
+    }
+
+    Json::CharReaderBuilder reader;
+    Json::Value root;
+    std::string errors;
+    std::istringstream stream(response);
+    if (!Json::parseFromStream(reader, stream, &root, &errors)) {
+        if (core_logger) {
+            core_logger->warn("Consistency pass JSON parse failed: {}", errors);
+            core_logger->warn("Consistency pass raw response ({} chars):\n{}", response.size(), response);
+        }
+        return;
+    }
+
+    const Json::Value* harmonized = nullptr;
+    if (root.isObject() && root.isMember("harmonized")) {
+        harmonized = &root["harmonized"];
+    } else if (root.isArray()) {
+        harmonized = &root;
+    }
+
+    if (!harmonized || !harmonized->isArray()) {
+        if (core_logger) {
+            core_logger->warn("Consistency pass response missing 'harmonized' array");
+        }
+        return;
+    }
+
+    auto trim = [](std::string value) {
+        const char* ws = " \t\n\r\f\v";
+        const auto start = value.find_first_not_of(ws);
+        const auto end = value.find_last_not_of(ws);
+        if (start == std::string::npos || end == std::string::npos) {
+            return std::string();
+        }
+        return value.substr(start, end - start + 1);
+    };
+
+    for (const auto& entry : *harmonized) {
+        if (!entry.isObject()) {
+            continue;
+        }
+        const std::string id = entry.get("id", "").asString();
+        if (id.empty()) {
+            continue;
+        }
+        auto it = items_by_key.find(id);
+        if (it == items_by_key.end() || !it->second) {
+            continue;
+        }
+
+        std::string category = trim(entry.get("category", it->second->category).asString());
+        std::string subcategory = trim(entry.get("subcategory", it->second->subcategory).asString());
+        if (category.empty()) {
+            category = it->second->category;
+        }
+        if (subcategory.empty()) {
+            subcategory = category;
+        }
+
+        DatabaseManager::ResolvedCategory resolved =
+            db_manager.resolve_category(category, subcategory);
+
+        bool changed = (resolved.category != it->second->category) ||
+                       (resolved.subcategory != it->second->subcategory);
+        it->second->category = resolved.category;
+        it->second->subcategory = resolved.subcategory;
+        it->second->taxonomy_id = resolved.taxonomy_id;
+
+        db_manager.insert_or_update_file_with_categorization(
+            it->second->file_name,
+            it->second->type == FileType::File ? "F" : "D",
+            it->second->file_path,
+            resolved);
+
+        if (auto new_it = new_items_by_key.find(id); new_it != new_items_by_key.end() && new_it->second) {
+            new_it->second->category = resolved.category;
+            new_it->second->subcategory = resolved.subcategory;
+            new_it->second->taxonomy_id = resolved.taxonomy_id;
+        }
+
+        if (changed) {
+            const std::string message = fmt::format("[CONSISTENCY] {} -> {} / {}",
+                                                    it->second->file_name,
+                                                    resolved.category,
+                                                    resolved.subcategory);
+            run_on_ui([this, message]() {
+                if (progress_dialog) {
+                    progress_dialog->append_text(message);
+                }
+            });
+        }
+    }
+}
+
+
+void MainApp::run_consistency_pass()
+{
+    if (stop_analysis.load()) {
+        return;
+    }
+    if (already_categorized_files.empty()) {
+        return;
+    }
+
+    std::unique_ptr<ILLMClient> llm;
+    try {
+        llm = make_llm_client();
+    } catch (const std::exception& ex) {
+        if (core_logger) {
+            core_logger->warn("Failed to create LLM client for consistency pass: {}", ex.what());
+        }
+        return;
+    }
+    if (!llm) {
+        return;
+    }
+
+    const auto taxonomy = db_manager.get_taxonomy_snapshot(150);
+
+    std::unordered_map<std::string, CategorizedFile*> items_by_key;
+    items_by_key.reserve(already_categorized_files.size());
+    for (auto& item : already_categorized_files) {
+        items_by_key[make_item_key(item)] = &item;
+    }
+
+    std::unordered_map<std::string, CategorizedFile*> new_items_by_key;
+    new_items_by_key.reserve(new_files_with_categories.size());
+    for (auto& item : new_files_with_categories) {
+        new_items_by_key[make_item_key(item)] = &item;
+    }
+
+    std::vector<const CategorizedFile*> chunk;
+    chunk.reserve(10);
+
+    for (size_t index = 0; index < already_categorized_files.size(); ++index) {
+        if (stop_analysis.load()) {
+            break;
+        }
+
+        chunk.push_back(&already_categorized_files[index]);
+        bool should_flush = chunk.size() == 10 || index + 1 == already_categorized_files.size();
+        if (!should_flush) {
+            continue;
+        }
+
+        if (core_logger) {
+            core_logger->info("[CONSISTENCY] Processing chunk {}-{} of {}", index + 1 - chunk.size() + 1, index + 1, already_categorized_files.size());
+            for (const auto* item : chunk) {
+                if (!item) continue;
+                core_logger->info("  [BEFORE] {} -> {} / {}", item->file_name, item->category, item->subcategory);
+            }
+        }
+
+        const std::string prompt = build_consistency_prompt(chunk, taxonomy);
+        try {
+            const std::string response = llm->complete_prompt(prompt, 512);
+            apply_consistency_response(response, items_by_key, new_items_by_key);
+        } catch (const std::exception& ex) {
+            if (core_logger) {
+                core_logger->warn("Consistency pass chunk failed: {}", ex.what());
+            }
+        }
+
+        if (core_logger) {
+            for (const auto* item : chunk) {
+                if (!item) continue;
+                core_logger->info("  [AFTER] {} -> {} / {}", item->file_name, item->category, item->subcategory);
+            }
+        }
+
+        chunk.clear();
+    }
 }
 
 

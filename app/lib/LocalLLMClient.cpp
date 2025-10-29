@@ -735,6 +735,14 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
 }
 
 
+std::string LocalLLMClient::complete_prompt(const std::string& prompt,
+                                            int max_tokens)
+{
+    const int capped = max_tokens > 0 ? max_tokens : 256;
+    return generate_response(prompt, capped);
+}
+
+
 std::string LocalLLMClient::sanitize_output(std::string& output) {
     output.erase(0, output.find_first_not_of(" \t\n\r\f\v"));
     output.erase(output.find_last_not_of(" \t\n\r\f\v") + 1);

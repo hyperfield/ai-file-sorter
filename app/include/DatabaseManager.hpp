@@ -34,6 +34,8 @@ public:
     std::vector<std::string>
         get_categorization_from_db(const std::string& file_name, const FileType file_type);
     void increment_taxonomy_frequency(int taxonomy_id);
+    std::vector<std::pair<std::string, std::string>>
+        get_taxonomy_snapshot(std::size_t max_entries) const;
 
 private:
     struct TaxonomyEntry {
