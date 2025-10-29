@@ -7,7 +7,9 @@
 
 #include <QApplication>
 #include <QDialog>
+#include <QGuiApplication>
 #include <QSplashScreen>
+#include <QPainter>
 #include <QPixmap>
 #include <QSize>
 #include <QElapsedTimer>
@@ -56,6 +58,9 @@ int main(int argc, char **argv) {
         std::string locale_path = Utils::get_executable_path() + "/locale";
         bindtextdomain("net.quicknode.AIFileSorter", locale_path.c_str());
 
+        QCoreApplication::setApplicationName(QStringLiteral("QN AI File Sorter"));
+        QGuiApplication::setApplicationDisplayName(QStringLiteral("QN AI File Sorter"));
+
         QApplication app(argc, argv);
 
         QPixmap splash_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/icon_512x512.png"));
@@ -63,11 +68,26 @@ int main(int argc, char **argv) {
             splash_pix = QPixmap(256, 256);
             splash_pix.fill(Qt::black);
         }
-        QPixmap scaled_splash = splash_pix.scaled(QSize(320, 320), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        QSplashScreen splash(scaled_splash);
+        const QSize base_size = QSize(320, 320);
+        const QSize padded_size = QSize(static_cast<int>(base_size.width() * 1.2),
+                                        static_cast<int>(base_size.height() * 1.1));
+
+        QPixmap scaled_splash = splash_pix.scaled(base_size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        QPixmap splash_canvas(padded_size);
+        splash_canvas.fill(QColor(QStringLiteral("#f5e6d3"))); // matte beige background
+
+        QPainter painter(&splash_canvas);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+        const QPoint centered_icon((padded_size.width() - scaled_splash.width()) / 2,
+                                   (padded_size.height() - scaled_splash.height()) / 2 - 10);
+        painter.drawPixmap(centered_icon, scaled_splash);
+        painter.end();
+
+        QSplashScreen splash(splash_canvas);
         splash.setWindowFlag(Qt::WindowStaysOnTopHint);
-        const QString splash_text = QStringLiteral("AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
-        splash.showMessage(splash_text, Qt::AlignBottom | Qt::AlignHCenter, Qt::white);
+        const QString splash_text = QStringLiteral("QN AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
+        splash.showMessage(splash_text, Qt::AlignBottom | Qt::AlignHCenter, Qt::black);
         splash.show();
         QElapsedTimer splash_timer;
         splash_timer.start();
