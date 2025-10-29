@@ -150,7 +150,7 @@ void MainApp::shutdown()
 
 void MainApp::setup_ui()
 {
-    setWindowTitle(QStringLiteral("QN AI File Sorter"));
+    setWindowTitle(QStringLiteral("AI File Sorter"));
     resize(1000, 800);
 
     QWidget* central = new QWidget(this);
@@ -355,7 +355,7 @@ void MainApp::setup_file_explorer()
     file_system_model = new QFileSystemModel(file_explorer_dock);
     const QString root_path = QDir::rootPath();
     file_system_model->setRootPath(root_path);
-    file_system_model->setFilter(QDir::AllDirs | QDir::NoDotAndDotDot);
+    file_system_model->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Drives | QDir::AllDirs);
 
     file_explorer_view = new QTreeView(file_explorer_dock);
     file_explorer_view->setModel(file_system_model);
@@ -549,7 +549,7 @@ void MainApp::sync_ui_to_settings()
 
 void MainApp::retranslate_ui()
 {
-    setWindowTitle(QStringLiteral("QN AI File Sorter"));
+    setWindowTitle(QStringLiteral("AI File Sorter"));
 
     if (path_label) {
         path_label->setText(tr("Folder:"));

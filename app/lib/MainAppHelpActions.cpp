@@ -13,7 +13,7 @@
 void MainAppHelpActions::show_about(QWidget* parent)
 {
     QDialog dialog(parent);
-    dialog.setWindowTitle(QObject::tr("About QN AI File Sorter"));
+    dialog.setWindowTitle(QObject::tr("About AI File Sorter"));
     dialog.resize(600, 420);
 
     auto* layout = new QVBoxLayout(&dialog);
@@ -32,7 +32,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
         about_layout->addWidget(logo_label);
     }
 
-    auto* program_name = new QLabel(QStringLiteral("<h2>QN AI File Sorter</h2>"), about_tab);
+    auto* program_name = new QLabel(QStringLiteral("<h2>AI File Sorter</h2>"), about_tab);
     program_name->setAlignment(Qt::AlignHCenter);
     about_layout->addWidget(program_name);
 

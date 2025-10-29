@@ -58,8 +58,8 @@ int main(int argc, char **argv) {
         std::string locale_path = Utils::get_executable_path() + "/locale";
         bindtextdomain("net.quicknode.AIFileSorter", locale_path.c_str());
 
-        QCoreApplication::setApplicationName(QStringLiteral("QN AI File Sorter"));
-        QGuiApplication::setApplicationDisplayName(QStringLiteral("QN AI File Sorter"));
+        QCoreApplication::setApplicationName(QStringLiteral("AI File Sorter"));
+        QGuiApplication::setApplicationDisplayName(QStringLiteral("AI File Sorter"));
 
         QApplication app(argc, argv);
 
@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
 
         QSplashScreen splash(splash_canvas);
         splash.setWindowFlag(Qt::WindowStaysOnTopHint);
-        const QString splash_text = QStringLiteral("QN AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
+        const QString splash_text = QStringLiteral("AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
         splash.showMessage(splash_text, Qt::AlignBottom | Qt::AlignHCenter, Qt::black);
         splash.show();
         QElapsedTimer splash_timer;
