@@ -337,12 +337,18 @@ void MainApp::setup_file_explorer()
     addDockWidget(Qt::LeftDockWidgetArea, file_explorer_dock);
 
     file_system_model = new QFileSystemModel(file_explorer_dock);
-    file_system_model->setRootPath(QDir::homePath());
+    const QString root_path = QDir::rootPath();
+    file_system_model->setRootPath(root_path);
     file_system_model->setFilter(QDir::AllDirs | QDir::NoDotAndDotDot);
 
     file_explorer_view = new QTreeView(file_explorer_dock);
     file_explorer_view->setModel(file_system_model);
-    file_explorer_view->setRootIndex(file_system_model->index(QDir::homePath()));
+    file_explorer_view->setRootIndex(file_system_model->index(root_path));
+    const QModelIndex home_index = file_system_model->index(QDir::homePath());
+    if (home_index.isValid()) {
+        file_explorer_view->setCurrentIndex(home_index);
+        file_explorer_view->scrollTo(home_index);
+    }
     file_explorer_view->setHeaderHidden(false);
     file_explorer_view->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     file_explorer_view->setColumnHidden(1, true);
