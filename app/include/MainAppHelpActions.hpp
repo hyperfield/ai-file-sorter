@@ -1,12 +1,12 @@
-#ifndef MAIN_APP_ABOUT_HPP
-#define MAIN_APP_ABOUT_HPP
+#ifndef MAIN_APP_HELP_ACTIONS_HPP
+#define MAIN_APP_HELP_ACTIONS_HPP
 
-#include <gtk/gtk.h>
+class QWidget;
 
 class MainAppHelpActions {
 public:
-    static void show_about(GtkWindow *parent);
-    static void on_tab_switched(GtkNotebook *notebook, GtkWidget *page, guint page_num, gpointer user_data);
+    static void show_about(QWidget* parent);
+    static void show_agpl_info(QWidget* parent);
 };
 
-#endif
+#endif // MAIN_APP_HELP_ACTIONS_HPP

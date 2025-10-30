@@ -10,6 +10,7 @@
 *.lo
 *.o
 *.obj
+obj/
 
 # Precompiled Headers
 *.gch
@@ -50,6 +51,9 @@ bin/
 
 # Scripts
 reset_key_4_github.sh
+create_macos_bundle.sh
+create_dmg.sh
+package_deb.sh
 
 # References
 # includePaths.txt
@@ -68,6 +72,9 @@ vcpkg_installed/
 
 # Local History for Visual Studio Code
 .history/
+
+# Cache directories
+.cache/
 
 # Built Visual Studio Code Extensions
 *.vsix
@@ -89,5 +96,18 @@ todos_md/
 
 # Ignore llama headers (generated or from external)
 app/include/llama/*.h
+
+# R & D stage
+/assets/
+/docs/
+/scripts/
+!app/scripts/
+/tools/
+/reports/
+
+# Build artifacts
+
+build-windows/
+dist/
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode

@@ -1,8 +1,13 @@
-#include <gtk/gtk.h>
+#ifndef DIALOGUTILS_HPP
+#define DIALOGUTILS_HPP
+
 #include <string>
 
+class QWidget;
 
 class DialogUtils {
 public:
-    static void show_error_dialog(GtkWindow *parent, const std::string &message);
+    static void show_error_dialog(QWidget* parent, const std::string& message);
 };
+
+#endif // DIALOGUTILS_HPP

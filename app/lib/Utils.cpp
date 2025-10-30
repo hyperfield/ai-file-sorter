@@ -5,10 +5,17 @@
 #include <cstring>  // for memset
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <stdlib.h>
 #include <string>
+#include <system_error>
 #include <vector>
-#include <glibmm/fileutils.h>
+#include <optional>
+#include <mutex>
+#include <QCoreApplication>
+#include <QMetaObject>
+#include <QFile>
+#include <QString>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 
@@ -30,27 +37,19 @@ void log_core(spdlog::level::level_enum level, const char* fmt, Args&&... args) 
     #include <dlfcn.h>
     #include <limits.h>
     #include <unistd.h>
+    #include <netdb.h>
+    #include <sys/socket.h>
 #elif __APPLE__
     #include <dlfcn.h>
     #include <mach-o/dyld.h>
     #include <limits.h>
+    #include <netdb.h>
+    #include <sys/socket.h>
 #endif
 #include <iostream>
 #include <Types.hpp>
 #include <cstddef>
-
-// For OpenCL dynamic library loading
-typedef unsigned int cl_uint;
-typedef int cl_int;
-typedef size_t cl_device_type;
-typedef struct _cl_platform_id* cl_platform_id;
-typedef struct _cl_device_id* cl_device_id;
-
-// These constants are normally defined in cl.h
-constexpr cl_int CL_SUCCESS = 0;
-constexpr cl_device_type CL_DEVICE_TYPE_ALL = 0xFFFFFFFF;
-constexpr cl_uint CL_DEVICE_NAME = 0x102B;
-
+#include <stdexcept>
 
 // Shortcuts for loading libraries on different OSes
 #ifdef _WIN32
@@ -90,8 +89,15 @@ bool Utils::is_network_available()
     DWORD flags;
     return InternetGetConnectedState(&flags, 0);
 #else
-    int result = system("ping -c 1 google.com > /dev/null 2>&1");
-    return result == 0;
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    addrinfo* result = nullptr;
+    const int rc = getaddrinfo("www.google.com", "80", &hints, &result);
+    if (result) {
+        freeaddrinfo(result);
+    }
+    return rc == 0;
 #endif
 }
 
@@ -100,7 +106,7 @@ std::string Utils::get_executable_path()
 {
 #ifdef _WIN32
     char result[MAX_PATH];
-    GetModuleFileName(NULL, result, MAX_PATH);
+    GetModuleFileNameA(NULL, result, MAX_PATH);
     return std::string(result);
 #elif __linux__
     char result[PATH_MAX];
@@ -120,19 +126,99 @@ std::string Utils::get_executable_path()
 }
 
 
+std::filesystem::path Utils::ensure_ca_bundle() {
+    static std::once_flag init_flag;
+    static std::filesystem::path cached_path;
+    static std::exception_ptr init_error;
+
+    std::call_once(init_flag, []() {
+        try {
+            std::filesystem::path exe_path = std::filesystem::path(get_executable_path());
+            std::filesystem::path cert_dir = exe_path.parent_path() / "certs";
+            std::filesystem::path cert_file = cert_dir / "cacert.pem";
+
+            bool needs_write = true;
+            if (std::filesystem::exists(cert_file)) {
+                std::error_code ec;
+                auto size = std::filesystem::file_size(cert_file, ec);
+                needs_write = ec ? true : (size == 0);
+            }
+
+            if (needs_write) {
+                ensure_directory_exists(cert_dir.string());
+
+                QFile resource(QStringLiteral(":/net/quicknode/AIFileSorter/certs/cacert.pem"));
+                if (!resource.open(QIODevice::ReadOnly)) {
+                    throw std::runtime_error("Failed to open embedded CA bundle resource");
+                }
+                const QByteArray data = resource.readAll();
+                resource.close();
+
+                QFile output(QString::fromStdString(cert_file.string()));
+                if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                    throw std::runtime_error("Failed to create CA bundle file at " + cert_file.string());
+                }
+                if (output.write(data) != data.size()) {
+                    output.close();
+                    throw std::runtime_error("Failed to write CA bundle file at " + cert_file.string());
+                }
+                output.close();
+            }
+
+            cached_path = cert_file;
+        } catch (...) {
+            init_error = std::current_exception();
+        }
+    });
+
+    if (init_error) {
+        std::rethrow_exception(init_error);
+    }
+
+    return cached_path;
+}
+
+
 bool Utils::is_valid_directory(const char *path)
 {
-    return g_file_test(path, G_FILE_TEST_IS_DIR);
+    if (!path || *path == '\0') {
+        return false;
+    }
+    std::error_code ec;
+    return std::filesystem::is_directory(std::filesystem::path(path), ec);
 }
 
 
 std::vector<unsigned char> Utils::hex_to_vector(const std::string& hex) {
-    std::vector<unsigned char> data;
-    for (size_t i = 0; i < hex.length(); i += 2) {
-        unsigned char byte = static_cast<unsigned char>(
-            std::stoi(hex.substr(i, 2), nullptr, 16));
-        data.push_back(byte);
+    auto hex_value = [](char c) -> int {
+        if (c >= '0' && c <= '9') {
+            return c - '0';
+        }
+        if (c >= 'a' && c <= 'f') {
+            return 10 + (c - 'a');
+        }
+        if (c >= 'A' && c <= 'F') {
+            return 10 + (c - 'A');
+        }
+        return -1;
+    };
+
+    if (hex.size() % 2 != 0) {
+        throw std::invalid_argument("Hex string must have even length");
     }
+
+    std::vector<unsigned char> data;
+    data.reserve(hex.size() / 2);
+
+    for (std::size_t i = 0; i < hex.size(); i += 2) {
+        const int hi = hex_value(hex[i]);
+        const int lo = hex_value(hex[i + 1]);
+        if (hi < 0 || lo < 0) {
+            throw std::invalid_argument("Hex string contains invalid characters");
+        }
+        data.push_back(static_cast<unsigned char>((hi << 4) | lo));
+    }
+
     return data;
 }
 
@@ -206,7 +292,7 @@ int Utils::get_ngl(int vram_mb) {
 }
 
 
-int Utils::determine_ngl_cuda() {
+std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
 #ifdef _WIN32
     std::string dllName = get_cudart_dll_name();
     LibraryHandle lib = loadLibrary(dllName.c_str());
@@ -219,7 +305,7 @@ int Utils::determine_ngl_cuda() {
 
     if (!lib) {
         log_core(spdlog::level::err, "Failed to load CUDA runtime library.");
-        return 0;
+        return std::nullopt;
     }
 
     using cudaMemGetInfo_t = int (*)(size_t*, size_t*);
@@ -231,7 +317,7 @@ int Utils::determine_ngl_cuda() {
     if (!cudaMemGetInfo) {
         log_core(spdlog::level::err, "Failed to resolve required CUDA runtime symbols.");
         closeLibrary(lib);
-        return 0;
+        return std::nullopt;
     }
 
     size_t free_bytes = 0;
@@ -259,23 +345,47 @@ int Utils::determine_ngl_cuda() {
 
     closeLibrary(lib);
 
-    size_t usable_bytes = (free_bytes > 0) ? free_bytes : total_bytes;
-    int vram_mb = static_cast<int>(usable_bytes / (1024 * 1024));
+    if (free_bytes == 0 && total_bytes == 0) {
+        log_core(spdlog::level::warn, "CUDA memory metrics unavailable (both free and total bytes are zero).");
+        return std::nullopt;
+    }
 
+    CudaMemoryInfo info;
+    info.free_bytes = free_bytes;
+    info.total_bytes = total_bytes;
+    return info;
+}
+
+
+int Utils::compute_ngl_from_cuda_memory(const CudaMemoryInfo& info) {
+    size_t usable_bytes = (info.free_bytes > 0) ? info.free_bytes : info.total_bytes;
+    if (usable_bytes == 0) {
+        return 0;
+    }
+    int vram_mb = static_cast<int>(usable_bytes / (1024 * 1024));
     return get_ngl(vram_mb);
+}
+
+
+int Utils::determine_ngl_cuda() {
+    auto info = query_cuda_memory();
+    if (!info.has_value()) {
+        return 0;
+    }
+
+    return compute_ngl_from_cuda_memory(*info);
 }
 
 
 template <typename Func>
 void Utils::run_on_main_thread(Func&& func)
 {
-    auto* task = new std::function<void()>(std::forward<Func>(func));
-    g_idle_add([](gpointer data) -> gboolean {
-        auto* f = static_cast<std::function<void()>*>(data);
-        (*f)();
-        delete f;
-        return G_SOURCE_REMOVE;
-    }, task);
+    auto task = std::make_shared<std::function<void()>>(std::forward<Func>(func));
+    if (auto* app = QCoreApplication::instance()) {
+        QMetaObject::invokeMethod(app, [task]() { (*task)(); }, Qt::QueuedConnection);
+    } else {
+        (*task)();
+    }
 }
 
 
@@ -524,57 +634,4 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
     }
 
     return sanitized.empty() ? fs_path.filename().generic_string() : sanitized;
-}
-
-
-bool Utils::is_opencl_available(std::vector<std::string>* device_names)
-{
-#ifdef _WIN32
-    LibraryHandle handle = loadLibrary("OpenCL.dll");
-#else
-    LibraryHandle handle = loadLibrary("libOpenCL.so");
-#endif
-
-    if (!handle) return false;
-
-    using clGetPlatformIDs_t = cl_int (*)(cl_uint, cl_platform_id*, cl_uint*);
-    using clGetDeviceIDs_t = cl_int (*)(cl_platform_id, cl_device_type, cl_uint, cl_device_id*, cl_uint*);
-    using clGetDeviceInfo_t = cl_int (*)(cl_device_id, cl_uint, size_t, void*, size_t*);
-
-    auto clGetPlatformIDs = reinterpret_cast<clGetPlatformIDs_t>(getSymbol(handle, "clGetPlatformIDs"));
-    auto clGetDeviceIDs = reinterpret_cast<clGetDeviceIDs_t>(getSymbol(handle, "clGetDeviceIDs"));
-    auto clGetDeviceInfo = reinterpret_cast<clGetDeviceInfo_t>(getSymbol(handle, "clGetDeviceInfo"));
-
-    if (!clGetPlatformIDs || !clGetDeviceIDs || !clGetDeviceInfo) {
-        closeLibrary(handle);
-        return false;
-    }
-
-    cl_platform_id platform;
-    cl_uint num_platforms = 0;
-    if (clGetPlatformIDs(1, &platform, &num_platforms) != CL_SUCCESS || num_platforms == 0) {
-        closeLibrary(handle);
-        return false;
-    }
-
-    cl_device_id devices[4];
-    cl_uint num_devices = 0;
-    if (clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 4, devices,
-                       &num_devices) !=CL_SUCCESS || num_devices == 0) {
-        closeLibrary(handle);
-        return false;
-    }
-
-    if (device_names) {
-        for (cl_uint i = 0; i < num_devices; ++i) {
-            char name[256];
-            if (clGetDeviceInfo(devices[i], CL_DEVICE_NAME, sizeof(name),
-                name, nullptr) == CL_SUCCESS) {
-                device_names->emplace_back(name);
-            }
-        }
-    }
-
-    closeLibrary(handle);
-    return true;
 }

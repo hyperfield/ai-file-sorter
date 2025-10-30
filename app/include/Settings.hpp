@@ -3,6 +3,7 @@
 
 #include <IniConfig.hpp>
 #include <Types.hpp>
+#include <Language.hpp>
 #include <string>
 #include <filesystem>
 
@@ -31,11 +32,18 @@ public:
     std::string get_sort_folder() const;
     void set_sort_folder(const std::string &path);
 
+    bool get_consistency_pass_enabled() const;
+    void set_consistency_pass_enabled(bool value);
+
     std::string define_config_path();
     std::string get_config_dir();
 
     void set_skipped_version(const std::string &version);
     std::string get_skipped_version();
+    void set_show_file_explorer(bool value);
+    bool get_show_file_explorer() const;
+    Language get_language() const;
+    void set_language(Language value);
 
 private:
     std::string config_path;
@@ -46,9 +54,12 @@ private:
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;
-    const char *default_sort_folder;
+    std::string default_sort_folder;
     std::string sort_folder;
     std::string skipped_version;
+    bool show_file_explorer{true};
+    Language language{Language::English};
+    bool consistency_pass_enabled{false};
 };
 
 #endif

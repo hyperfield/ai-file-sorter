@@ -1,45 +1,81 @@
-#include "DatabaseManager.hpp"
-#include <gtk/gtk.h>
+#ifndef CATEGORIZATIONDIALOG_HPP
+#define CATEGORIZATIONDIALOG_HPP
+
+#include "Types.hpp"
+
+#include <QDialog>
+#include <QStandardItemModel>
+
+#include <memory>
+#include <tuple>
+#include <vector>
 #include <spdlog/logger.h>
 
+class DatabaseManager;
+class QCloseEvent;
+class QEvent;
+class QPushButton;
+class QTableView;
+class QCheckBox;
+class QStandardItem;
 
-class CategorizationDialog
+class CategorizationDialog : public QDialog
 {
 public:
-    CategorizationDialog(DatabaseManager* db_manager, gboolean show_subcategory_col);
-    ~CategorizationDialog();
+    CategorizationDialog(DatabaseManager* db_manager,
+                         bool show_subcategory_col,
+                         QWidget* parent = nullptr);
 
     bool is_dialog_valid() const;
-    void show();
     void show_results(const std::vector<CategorizedFile>& categorized_files);
-    void on_confirm_and_sort_button_clicked();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+    void changeEvent(QEvent* event) override;
 
 private:
-    GtkDialog *dialog;
-    GtkButton *confirm_button;
-    GtkButton *continue_button;
-    GtkButton *close_button;
-    GtkTreeView *treeview;
-    GtkListStore *liststore;
-    GtkBuilder *builder;
-    const char* categorization_db;
+    enum class RowStatus {
+        None = 0,
+        Moved,
+        Skipped,
+        NotSelected
+    };
+
+    static constexpr int kStatusRole = Qt::UserRole + 100;
+
+    void setup_ui();
+    void populate_model();
+    void record_categorization_to_db();
+    void on_confirm_and_sort_button_clicked();
+    void on_continue_later_button_clicked();
+    void show_close_button();
+    void update_status_column(int row, bool success, bool attempted = true);
+    void on_select_all_toggled(bool checked);
+    void apply_select_all(bool checked);
+    void on_item_changed(QStandardItem* item);
+    void update_select_all_state();
+    void update_type_icon(QStandardItem* item);
+    void retranslate_ui();
+    void apply_status_text(QStandardItem* item) const;
+    RowStatus status_from_item(const QStandardItem* item) const;
+    std::vector<std::tuple<bool, std::string, std::string, std::string, std::string>> get_rows() const;
+
     DatabaseManager* db_manager;
+    bool show_subcategory_column;
     std::vector<CategorizedFile> categorized_files;
-    GtkTreeViewColumn* subcategory_column;
-    gboolean show_subcategory_col;
+
     std::shared_ptr<spdlog::logger> core_logger;
     std::shared_ptr<spdlog::logger> db_logger;
     std::shared_ptr<spdlog::logger> ui_logger;
 
-    void on_confirm_button_clicked();
-    void on_continue_later_button_clicked();
-    void setup_treeview_columns();
-    void on_category_cell_edited(GtkCellRendererText *cell, gchar *path_string, gchar *new_text, GtkListStore *liststore);
-    void on_subcategory_cell_edited(GtkCellRendererText *cell, gchar *path_string, gchar *new_text, GtkListStore *liststore);
-    void record_categorization_to_db();
-    void on_category_edited(GtkCellRendererText *renderer, gchar *path, gchar *new_text, GtkTreeView *treeview);
-    void setup_close_button();
-    void show_close_button();
-    std::vector<std::tuple<std::string, std::string, std::string, std::string>> get_categorized_files_from_treeview();
-    gboolean on_dialog_close(GtkWidget *widget, GdkEvent *event, gpointer user_data);
+    QTableView* table_view{nullptr};
+    QStandardItemModel* model{nullptr};
+    QPushButton* confirm_button{nullptr};
+    QPushButton* continue_button{nullptr};
+    QPushButton* close_button{nullptr};
+    QCheckBox* select_all_checkbox{nullptr};
+
+    bool updating_select_all{false};
 };
+
+#endif // CATEGORIZATIONDIALOG_HPP

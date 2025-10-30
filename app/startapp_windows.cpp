@@ -1,176 +1,163 @@
-#include <cstdio>
-#include <iostream>
+#include <QApplication>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+#include <QDebug>
+#include <QMessageBox>
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <QLibrary>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QByteArray>
+#include <QObject>
+#include <QStringList>
+
 #include <cstdlib>
-#include <shlobj.h>
-#include <string>
+
 #include <windows.h>
-#include <vector>
 
-#include <gtk/gtk.h>
+namespace {
 
-
-typedef unsigned int cl_uint;
-typedef int cl_int;
-typedef void* cl_platform_id;
-typedef void* cl_device_id;
-
-#define CL_SUCCESS 0
-#define CL_DEVICE_TYPE_ALL 0xFFFFFFFF
-
-
-std::wstring utf8ToUtf16(const std::string& str) {
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
-    std::wstring wstr(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wstr[0], size_needed);
-    return wstr;
+bool tryLoadLibrary(const QString& name) {
+    QLibrary lib(name);
+    const bool loaded = lib.load();
+    if (loaded) {
+        lib.unload();
+    }
+    return loaded;
 }
-
 
 bool isCudaAvailable() {
-    for (int i = 9; i <= 20; ++i) {
-        std::string dllName = "cudart64_" + std::to_string(i) + ".dll";
-        HMODULE lib = LoadLibraryA(dllName.c_str());
-        if (lib) {
-            FreeLibrary(lib);
+    for (int version = 9; version <= 20; ++version) {
+        const QString runtime = QStringLiteral("cudart64_%1").arg(version);
+        if (tryLoadLibrary(runtime)) {
             return true;
         }
     }
     return false;
 }
-
 
 bool isNvidiaDriverAvailable() {
-    const char* dlls[] = {
-        "nvml.dll",
-        "nvcuda.dll",
-        "nvapi64.dll"
+    static const QStringList driverCandidates = {
+        QStringLiteral("nvml"),
+        QStringLiteral("nvcuda"),
+        QStringLiteral("nvapi64")
     };
 
-    for (const auto& dll : dlls) {
-        HMODULE lib = LoadLibraryA(dll);
-        if (lib) {
-            FreeLibrary(lib);
+    for (const QString& dll : driverCandidates) {
+        if (tryLoadLibrary(dll)) {
             return true;
         }
     }
     return false;
 }
 
-
-std::string getExecutableDirectory() {
-    WCHAR buffer[MAX_PATH];
-    GetModuleFileNameW(NULL, buffer, MAX_PATH);
-    std::wstring wpath(buffer);
-    size_t pos = wpath.find_last_of(L"\\/");
-    std::wstring dir = wpath.substr(0, pos);
-    return std::string(dir.begin(), dir.end());
-}
-
-
-void addToPath(const std::string& directory) {
-    char* pathEnv = nullptr;
-    size_t requiredSize = 0;
-
-    getenv_s(&requiredSize, nullptr, 0, "PATH");
-    if (requiredSize == 0) {
-        std::fprintf(stderr, "Failed to retrieve PATH environment variable.\n");
+void appendToProcessPath(const QString& directory) {
+    if (directory.isEmpty()) {
         return;
     }
 
-    pathEnv = new char[requiredSize];
-    getenv_s(&requiredSize, pathEnv, requiredSize, "PATH");
-
-    std::string newPath = std::string(pathEnv) + ";" + directory;
-    delete[] pathEnv;
-
-    // Update PATH in the current process
-    if (_putenv_s("PATH", newPath.c_str()) != 0) {
-        std::fprintf(stderr, "Failed to set PATH environment variable.\n");
-    } else {
-        std::cout << "Updated PATH: " << newPath << std::endl;
+    QByteArray path = qgetenv("PATH");
+    if (!path.isEmpty()) {
+        path.append(';');
     }
+    path.append(QDir::toNativeSeparators(directory).toUtf8());
+    qputenv("PATH", path);
+    qInfo().noquote() << "Added to PATH:" << QDir::toNativeSeparators(directory);
+    qInfo().noquote() << "Current PATH:" << QString::fromUtf8(qgetenv("PATH"));
 }
 
-
-void showCudaDownloadDialog(GtkWindow* parent = nullptr) {
-    GtkWidget* dialog = gtk_message_dialog_new(
-        parent,
-        GTK_DIALOG_MODAL,
-        GTK_MESSAGE_WARNING,
-        GTK_BUTTONS_NONE,
-        nullptr
-    );
-
-    gtk_window_set_title(GTK_WINDOW(dialog), "CUDA Toolkit Missing");
-
-    // Center the dialog on the screen (even if parent is null)
-    gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER);
-
-    // Set formatted primary and secondary text
-    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
-        "A compatible NVIDIA GPU was detected, but the CUDA Toolkit is missing.\n\n"
-        "CUDA is required for GPU acceleration in this application.\n\n"
-        "Would you like to download and install it now?"
-    );
-
-    gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
-        "<b>CUDA Toolkit Not Found</b>"
-    );
-
-    // Add "Download" and "Ignore" buttons
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Ignore (not recommended)", GTK_RESPONSE_CANCEL);
-    gtk_dialog_add_button(GTK_DIALOG(dialog), "_Download CUDA Toolkit", GTK_RESPONSE_OK);
-
-    // Set default response
-    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
-
-    // Run the dialog and capture response
-    gint result = gtk_dialog_run(GTK_DIALOG(dialog));
-    gtk_widget_destroy(dialog);
-
-    if (result == GTK_RESPONSE_OK) {
-        ShellExecuteA(nullptr, "open", "https://developer.nvidia.com/cuda-downloads", nullptr, nullptr, SW_SHOWNORMAL);
-        exit(EXIT_SUCCESS);
+void addDllSearchDirectory(const QString& directory) {
+    if (directory.isEmpty()) {
+        return;
     }
+
+    const std::wstring wideDir = QDir::toNativeSeparators(directory).toStdWString();
+    AddDllDirectory(wideDir.c_str());
 }
 
+bool promptCudaDownload() {
+    const auto response = QMessageBox::warning(
+        nullptr,
+        QObject::tr("CUDA Toolkit Missing"),
+        QObject::tr("A compatible NVIDIA GPU was detected, but the CUDA Toolkit is missing.\n\n"
+                    "CUDA is required for GPU acceleration in this application.\n\n"
+                    "Would you like to download and install it now?"),
+        QMessageBox::Ok | QMessageBox::Cancel,
+        QMessageBox::Ok);
 
-void launchMainApp() {
-    std::string exePath = "AI File Sorter.exe";
-    if (WinExec(exePath.c_str(), SW_SHOW) < 32) {
-        std::fprintf(stderr, "Failed to launch the application.\n");
+    if (response == QMessageBox::Ok) {
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://developer.nvidia.com/cuda-downloads")));
+        return true;
     }
+    return false;
 }
 
+bool launchMainExecutable(const QString& executablePath) {
+    QFileInfo exeInfo(executablePath);
+    if (!exeInfo.exists()) {
+        return false;
+    }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-                   LPSTR lpCmdLine, int nCmdShow)
-{
-    std::string exeDir = getExecutableDirectory();
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("PATH"), QString::fromUtf8(qgetenv("PATH")));
 
-    if (!SetCurrentDirectoryA(exeDir.c_str())) {
-        std::fprintf(stderr, "Failed to set current directory: %s\n", exeDir.c_str());
+    QProcess process;
+    process.setProcessEnvironment(environment);
+
+    return QProcess::startDetached(executablePath, {}, exeInfo.absolutePath());
+}
+
+QString resolveExecutableName(const QString& baseDir) {
+    const QStringList candidates = {
+        QStringLiteral("aifilesorter.exe"),
+        QStringLiteral("AI File Sorter.exe")
+    };
+
+    for (const QString& candidate : candidates) {
+        const QString fullPath = QDir(baseDir).filePath(candidate);
+        if (QFileInfo::exists(fullPath)) {
+            return fullPath;
+        }
+    }
+
+    return QDir(baseDir).filePath(candidates.front());
+}
+
+} // namespace
+
+int main(int argc, char* argv[]) {
+    QApplication app(argc, argv);
+    app.setQuitOnLastWindowClosed(false);
+
+    const QString exeDir = QCoreApplication::applicationDirPath();
+    QDir::setCurrent(exeDir);
+
+    const bool hasCuda = isCudaAvailable();
+    const bool hasNvidiaDriver = isNvidiaDriverAvailable();
+
+    if (hasNvidiaDriver && !hasCuda) {
+        if (promptCudaDownload()) {
+            return EXIT_SUCCESS;
+        }
+    }
+
+    const QString ggmlVariant = (hasCuda && hasNvidiaDriver)
+        ? QStringLiteral("wcuda")
+        : QStringLiteral("wocuda");
+
+    const QString ggmlPath = QDir(exeDir).filePath(QStringLiteral("lib/ggml/%1").arg(ggmlVariant));
+    appendToProcessPath(ggmlPath);
+    addDllSearchDirectory(ggmlPath);
+
+    const QString mainExecutable = resolveExecutableName(exeDir);
+    if (!launchMainExecutable(mainExecutable)) {
+        QMessageBox::critical(nullptr,
+            QObject::tr("Launch Failed"),
+            QObject::tr("Failed to launch the main application executable:\n%1").arg(mainExecutable));
         return EXIT_FAILURE;
     }
 
-    std::string dllPath = exeDir + "\\lib";
-    addToPath(dllPath);
-
-    bool hasCuda = isCudaAvailable();
-    bool hasNvidiaDriver = isNvidiaDriverAvailable();
-
-    if (hasNvidiaDriver && !hasCuda) {
-        gtk_init(nullptr, nullptr);
-        showCudaDownloadDialog();
-    }
-
-    std::string folderName;
-    folderName += hasCuda && hasNvidiaDriver ? "wcuda" : "wocuda";
-
-    std::string ggmlPath = exeDir + "\\lib\\ggml\\" + folderName;
-    addToPath(ggmlPath);
-    AddDllDirectory(utf8ToUtf16(ggmlPath).c_str());
-
-    launchMainApp();
     return EXIT_SUCCESS;
 }

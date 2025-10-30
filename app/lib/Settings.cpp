@@ -1,10 +1,12 @@
 #include "Settings.hpp"
 #include "Types.hpp"
 #include "Logger.hpp"
+#include "Language.hpp"
 #include <filesystem>
 #include <cstdio>
 #include <iostream>
-#include <glib.h>
+#include <QStandardPaths>
+#include <QString>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 #ifdef _WIN32
@@ -45,11 +47,22 @@ Settings::Settings()
     } catch (const std::filesystem::filesystem_error &e) {
         settings_log(spdlog::level::err, "Error creating configuration directory: {}", e.what());
     }
-    this->default_sort_folder = g_get_user_special_dir(G_USER_DIRECTORY_DOWNLOAD);
-    if (!this->default_sort_folder) {
-        this->default_sort_folder = g_get_home_dir();
+
+    QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (!downloads.isEmpty()) {
+        default_sort_folder = downloads.toStdString();
+    } else {
+        QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+        if (!home.isEmpty()) {
+            default_sort_folder = home.toStdString();
+        }
     }
-    this->sort_folder = this->default_sort_folder;
+
+    if (default_sort_folder.empty()) {
+        default_sort_folder = std::filesystem::current_path().string();
+    }
+
+    sort_folder = default_sort_folder;
 }
 
 
@@ -58,7 +71,7 @@ std::string Settings::define_config_path()
     std::string AppName = "AIFileSorter";
 #ifdef _WIN32
     char appDataPath[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
         return std::string(appDataPath) + "\\" + AppName + "\\config.ini";
     }
 #elif defined(__APPLE__)
@@ -79,7 +92,7 @@ std::string Settings::get_config_dir()
 bool Settings::load()
 {
     if (!config.load(config_path)) {
-        sort_folder = default_sort_folder ? default_sort_folder : "/";
+        sort_folder = default_sort_folder.empty() ? std::string("/") : default_sort_folder;
         return false;
     }
 
@@ -92,8 +105,12 @@ bool Settings::load()
     use_subcategories = config.getValue("Settings", "UseSubcategories", "false") == "true";
     categorize_files = config.getValue("Settings", "CategorizeFiles", "true") == "true";
     categorize_directories = config.getValue("Settings", "CategorizeDirectories", "false") == "true";
-    sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder ? default_sort_folder : "/");
+    sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
+    show_file_explorer = config.getValue("Settings", "ShowFileExplorer", "true") == "true";
+    consistency_pass_enabled = config.getValue("Settings", "ConsistencyPass", "false") == "true";
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
+    const std::string language_value = config.getValue("Settings", "Language", "English");
+    language = languageFromString(QString::fromStdString(language_value));
 
     return true;
 }
@@ -119,6 +136,10 @@ bool Settings::save()
     if (!skipped_version.empty()) {
         config.setValue("Settings", "SkippedVersion", skipped_version);
     }
+
+    config.setValue("Settings", "ShowFileExplorer", show_file_explorer ? "true" : "false");
+    config.setValue("Settings", "ConsistencyPass", consistency_pass_enabled ? "true" : "false");
+    config.setValue("Settings", "Language", languageToString(language).toStdString());
 
     return config.save(config_path);
 }
@@ -188,6 +209,16 @@ void Settings::set_sort_folder(const std::string &path)
     this->sort_folder = path;
 }
 
+bool Settings::get_consistency_pass_enabled() const
+{
+    return consistency_pass_enabled;
+}
+
+void Settings::set_consistency_pass_enabled(bool value)
+{
+    consistency_pass_enabled = value;
+}
+
 
 void Settings::set_skipped_version(const std::string &version) {
     skipped_version = version;
@@ -197,4 +228,28 @@ void Settings::set_skipped_version(const std::string &version) {
 std::string Settings::get_skipped_version()
 {
     return skipped_version;
+}
+
+
+void Settings::set_show_file_explorer(bool value)
+{
+    show_file_explorer = value;
+}
+
+
+bool Settings::get_show_file_explorer() const
+{
+    return show_file_explorer;
+}
+
+
+Language Settings::get_language() const
+{
+    return language;
+}
+
+
+void Settings::set_language(Language value)
+{
+    language = value;
 }

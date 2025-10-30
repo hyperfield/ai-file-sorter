@@ -1,67 +1,74 @@
 #include "MainAppEditActions.hpp"
 
+#include <QClipboard>
+#include <QGuiApplication>
+#include <QLineEdit>
 
-void MainAppEditActions::on_paste(GtkEntry* path_entry) {
-    GtkEditable* editable = GTK_EDITABLE(path_entry);
-    gchar* clipboard_text = gtk_clipboard_wait_for_text(gtk_clipboard_get(GDK_SELECTION_CLIPBOARD));
-
-    if (clipboard_text) {
-        gint cursor_pos = gtk_editable_get_position(editable);
-        gtk_editable_insert_text(editable, clipboard_text, -1, &cursor_pos);
-        g_free(clipboard_text);
-    }
-}
-
-
-void MainAppEditActions::on_copy(GtkEntry* path_entry) {
-    GtkEditable* editable = GTK_EDITABLE(path_entry);
-    gchar* selected_text = get_and_delete_selection(editable, FALSE);
-
-    if (selected_text) {
-        copy_to_clipboard(selected_text);
-        g_free(selected_text);
-    }
-}
-
-
-void MainAppEditActions::on_cut(GtkEntry* path_entry) {
-    GtkEditable* editable = GTK_EDITABLE(path_entry);
-    gchar* selected_text = get_and_delete_selection(editable, TRUE); // Explicitly pass TRUE
-
-    if (selected_text) {
-        copy_to_clipboard(selected_text);
-        g_free(selected_text);
-    }
-}
-
-
-void MainAppEditActions::on_delete(GtkEntry* path_entry) {
-    GtkEditable* editable = GTK_EDITABLE(path_entry);
-    get_and_delete_selection(editable, TRUE); // Explicitly pass TRUE to delete the selection
-}
-
-
-void MainAppEditActions::copy_to_clipboard(const gchar* text)
+void MainAppEditActions::on_paste(QLineEdit* line_edit)
 {
-    if (text) {
-        gtk_clipboard_set_text(gtk_clipboard_get(GDK_SELECTION_CLIPBOARD), text, -1);
+    if (!line_edit) {
+        return;
+    }
+    const QString clipboard_text = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
+    if (!clipboard_text.isEmpty()) {
+        line_edit->insert(clipboard_text);
     }
 }
 
 
-gchar* MainAppEditActions::get_and_delete_selection(GtkEditable* editable, gboolean delete_selection = TRUE)
+void MainAppEditActions::on_copy(QLineEdit* line_edit)
 {
-    gint start, end;
+    if (!line_edit) {
+        return;
+    }
+    const QString selected_text = get_selection(line_edit, false);
+    if (!selected_text.isEmpty()) {
+        copy_to_clipboard(selected_text);
+    }
+}
 
-    if (gtk_editable_get_selection_bounds(editable, &start, &end)) {
-        gchar* selected_text = gtk_editable_get_chars(editable, start, end);
 
-        if (delete_selection) {
-            gtk_editable_delete_text(editable, start, end);
-        }
+void MainAppEditActions::on_cut(QLineEdit* line_edit)
+{
+    if (!line_edit) {
+        return;
+    }
+    const QString selected_text = get_selection(line_edit, true);
+    if (!selected_text.isEmpty()) {
+        copy_to_clipboard(selected_text);
+    }
+}
 
-        return selected_text; // Caller must free this
+
+void MainAppEditActions::on_delete(QLineEdit* line_edit)
+{
+    if (!line_edit) {
+        return;
+    }
+    get_selection(line_edit, true);
+}
+
+
+void MainAppEditActions::copy_to_clipboard(const QString& text)
+{
+    QGuiApplication::clipboard()->setText(text, QClipboard::Clipboard);
+}
+
+
+QString MainAppEditActions::get_selection(QLineEdit* line_edit, bool delete_selection)
+{
+    if (!line_edit) {
+        return {};
     }
 
-    return nullptr; // No selection
+    const QString selected_text = line_edit->selectedText();
+    if (selected_text.isEmpty()) {
+        return {};
+    }
+
+    if (delete_selection) {
+        line_edit->insert(QString());
+    }
+
+    return selected_text;
 }
