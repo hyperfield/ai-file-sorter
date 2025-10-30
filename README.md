@@ -7,7 +7,7 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
 
 [![Download ai-file-sorter](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 
-![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-1.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-2.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-3.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-4.png)
+![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-1.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-2.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-3.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-4.png) ![AI File Sorter Screenshot](screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](screenshots/categorization-dialog-macos.png)
 
 ---
 
@@ -295,7 +295,7 @@ Before compiling the app:
     SECRET_KEY=your-generated-32-byte-secret-key
     ```
 
-4. Run the `compile.sh` script in the same directory to generate the executable `obfuscate_encrypt`.
+4. Run the `compile.sh` (or `compile_mac.sh`) script in the same directory to generate the executable `obfuscate_encrypt`.
  due 
 5. Execute `obfuscate_encrypt` to generate:
    - Obfuscated Key part 1
