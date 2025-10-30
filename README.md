@@ -7,13 +7,13 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
 
 [![Download ai-file-sorter](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 
-![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-1.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-2.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-3.png) ![AI File Sorter Screenshot](screenshots/AI-File-Sorter_screenshot-4.png) ![AI File Sorter Screenshot](screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](screenshots/categorization-dialog-macos.png)
+![AI File Sorter Screenshot](screenshots/aifs-main-window-win.png) ![AI File Sorter Screenshot](screenshots/aifs-progress-dialog-win.png) ![AI File Sorter Screenshot](screenshots/aifs-review-dialog-win.png) ![AI File Sorter Screenshot](screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](screenshots/categorization-dialog-macos.png)
 
 ---
 
 - [AI File Sorter](#ai-file-sorter)
   - [Changelog](#changelog)
-    - [[1.0.0] - 2026-02-18](#100---2026-02-18)
+    - [[1.0.0] - 2026-02-18](#100---2025-10-30)
     - [[0.9.7] - 2025-10-19](#097---2025-10-19)
     - [[0.9.3] - 2025-09-22](#093---2025-09-22)
     - [[0.9.2] - 2025-08-06](#092---2025-08-06)
@@ -38,7 +38,7 @@ AI File Sorter is a powerful, cross-platform desktop application that automates 
 
 ## Changelog
 
-### [1.0.0] - 2026-02-18
+### [1.0.0] - 2025-10-30
 
 - Migrated the entire desktop UI from GTK/Glade to a native Qt6 interface.
 - Added selection boxes for files in the categorization review dialog.
