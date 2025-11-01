@@ -44,6 +44,8 @@ public:
     static std::string get_cudart_dll_name();
     static std::string abbreviate_user_path(const std::string& path);
     static std::filesystem::path ensure_ca_bundle();
+    static std::string path_to_utf8(const std::filesystem::path& path);
+    static std::filesystem::path utf8_to_path(const std::string& utf8_path);
 
 private:
     static int get_ngl(int vram_mb);

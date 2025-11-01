@@ -2,11 +2,13 @@
 #include "Types.hpp"
 #include "Logger.hpp"
 #include "Language.hpp"
+#include "Utils.hpp"
 #include <filesystem>
 #include <cstdio>
 #include <iostream>
 #include <QStandardPaths>
 #include <QString>
+#include <QByteArray>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 #ifdef _WIN32
@@ -48,18 +50,23 @@ Settings::Settings()
         settings_log(spdlog::level::err, "Error creating configuration directory: {}", e.what());
     }
 
+    auto to_utf8 = [](const QString& value) -> std::string {
+        const QByteArray bytes = value.toUtf8();
+        return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+    };
+
     QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
     if (!downloads.isEmpty()) {
-        default_sort_folder = downloads.toStdString();
+        default_sort_folder = to_utf8(downloads);
     } else {
         QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
         if (!home.isEmpty()) {
-            default_sort_folder = home.toStdString();
+            default_sort_folder = to_utf8(home);
         }
     }
 
     if (default_sort_folder.empty()) {
-        default_sort_folder = std::filesystem::current_path().string();
+        default_sort_folder = Utils::path_to_utf8(std::filesystem::current_path());
     }
 
     sort_folder = default_sort_folder;

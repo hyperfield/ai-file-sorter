@@ -179,6 +179,73 @@ std::filesystem::path Utils::ensure_ca_bundle() {
 }
 
 
+std::string Utils::path_to_utf8(const std::filesystem::path& path) {
+#ifdef _WIN32
+    if (path.empty()) {
+        return {};
+    }
+
+    const std::wstring native = path.native();
+    if (native.empty()) {
+        return {};
+    }
+
+    const int required = WideCharToMultiByte(
+        CP_UTF8, 0, native.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (required <= 0) {
+        throw std::system_error(
+            std::error_code(GetLastError(), std::system_category()),
+            "WideCharToMultiByte failed while converting path to UTF-8");
+    }
+
+    std::string buffer(static_cast<std::size_t>(required - 1), '\0');
+    const int written = WideCharToMultiByte(
+        CP_UTF8, 0, native.c_str(), -1, buffer.data(), required, nullptr, nullptr);
+    if (written <= 0) {
+        throw std::system_error(
+            std::error_code(GetLastError(), std::system_category()),
+            "WideCharToMultiByte failed while converting path to UTF-8");
+    }
+
+    buffer.resize(static_cast<std::size_t>(written - 1));
+    return buffer;
+#else
+    return path.generic_string();
+#endif
+}
+
+
+std::filesystem::path Utils::utf8_to_path(const std::string& utf8_path) {
+#ifdef _WIN32
+    if (utf8_path.empty()) {
+        return {};
+    }
+
+    const int required = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, utf8_path.c_str(), -1, nullptr, 0);
+    if (required <= 0) {
+        throw std::system_error(
+            std::error_code(GetLastError(), std::system_category()),
+            "MultiByteToWideChar failed while converting UTF-8 to path");
+    }
+
+    std::wstring buffer(static_cast<std::size_t>(required - 1), L'\0');
+    const int written = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, utf8_path.c_str(), -1, buffer.data(), required);
+    if (written <= 0) {
+        throw std::system_error(
+            std::error_code(GetLastError(), std::system_category()),
+            "MultiByteToWideChar failed while converting UTF-8 to path");
+    }
+
+    buffer.resize(static_cast<std::size_t>(written - 1));
+    return std::filesystem::path(buffer);
+#else
+    return std::filesystem::path(utf8_path);
+#endif
+}
+
+
 bool Utils::is_valid_directory(const char *path)
 {
     if (!path || *path == '\0') {
@@ -583,20 +650,41 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
         return "";
     }
 
-    std::filesystem::path fs_path(path);
-    std::string generic_path = fs_path.generic_string();
+    auto to_forward_slashes = [](std::string value) {
+        std::replace(value.begin(), value.end(), '\\', '/');
+        return value;
+    };
+
+    std::filesystem::path fs_path;
+    try {
+        fs_path = Utils::utf8_to_path(path);
+    } catch (const std::exception&) {
+        std::string fallback = to_forward_slashes(path);
+        while (!fallback.empty() && (fallback.front() == '/' || fallback.front() == '\\')) {
+            fallback.erase(fallback.begin());
+        }
+        return fallback;
+    }
+
+    const std::filesystem::path normalized = fs_path.lexically_normal();
+    std::string generic_path = to_forward_slashes(Utils::path_to_utf8(normalized));
 
     std::vector<std::string> prefixes;
 
-    if (const char* home = std::getenv("HOME")) {
-        std::filesystem::path home_path(home);
-        prefixes.push_back(home_path.generic_string());
-    }
+    auto append_prefix = [&](const char* candidate) {
+        if (!candidate || *candidate == '\0') {
+            return;
+        }
+        try {
+            prefixes.push_back(to_forward_slashes(
+                Utils::path_to_utf8(Utils::utf8_to_path(candidate))));
+        } catch (const std::exception&) {
+            prefixes.push_back(to_forward_slashes(std::string(candidate)));
+        }
+    };
 
-    if (const char* userprofile = std::getenv("USERPROFILE")) {
-        std::filesystem::path profile_path(userprofile);
-        prefixes.push_back(profile_path.generic_string());
-    }
+    append_prefix(std::getenv("HOME"));
+    append_prefix(std::getenv("USERPROFILE"));
 
     // Add common Windows-style prefix if not already covered
     if (prefixes.empty() && Utils::is_os_windows()) {
@@ -633,5 +721,9 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
         sanitized.erase(sanitized.begin());
     }
 
-    return sanitized.empty() ? fs_path.filename().generic_string() : sanitized;
+    if (!sanitized.empty()) {
+        return sanitized;
+    }
+
+    return to_forward_slashes(Utils::path_to_utf8(normalized.filename()));
 }

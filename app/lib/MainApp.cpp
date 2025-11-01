@@ -26,6 +26,7 @@
 #include <QFileSystemModel>
 #include <QHeaderView>
 #include <QKeySequence>
+#include <QByteArray>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -533,7 +534,8 @@ void MainApp::sync_ui_to_settings()
     settings.set_use_subcategories(use_subcategories_checkbox->isChecked());
     settings.set_categorize_files(categorize_files_checkbox->isChecked());
     settings.set_categorize_directories(categorize_directories_checkbox->isChecked());
-    settings.set_sort_folder(path_entry->text().toStdString());
+    const QByteArray folder_bytes = path_entry->text().toUtf8();
+    settings.set_sort_folder(std::string(folder_bytes.constData(), static_cast<std::size_t>(folder_bytes.size())));
     if (file_explorer_menu_action) {
         settings.set_show_file_explorer(file_explorer_menu_action->isChecked());
     }
@@ -1145,7 +1147,8 @@ std::optional<CategorizedFile> MainApp::categorize_single_file(
     };
 
     try {
-        const std::string dir_path = std::filesystem::path(entry.full_path).parent_path().string();
+        const std::filesystem::path entry_path = Utils::utf8_to_path(entry.full_path);
+        const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
         const std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
 
         DatabaseManager::ResolvedCategory resolved =
@@ -1631,7 +1634,8 @@ std::vector<CategorizedFile> MainApp::compute_files_to_sort()
 
 std::string MainApp::get_folder_path() const
 {
-    return path_entry->text().toStdString();
+    const QByteArray bytes = path_entry->text().toUtf8();
+    return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
 
 
