@@ -29,6 +29,81 @@ void log_core(spdlog::level::level_enum level, const char* fmt, Args&&... args) 
         std::fprintf(stderr, "%s\n", message.c_str());
     }
 }
+
+std::string to_forward_slashes(std::string value) {
+    std::replace(value.begin(), value.end(), '\\', '/');
+    return value;
+}
+
+std::string trim_leading_separators(std::string value) {
+    auto is_separator = [](char ch) {
+        return ch == '/' || ch == '\\';
+    };
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(),
+        [&](char ch) { return !is_separator(ch); }));
+    return value;
+}
+
+std::optional<std::filesystem::path> try_utf8_to_path(const std::string& value) {
+    try {
+        return Utils::utf8_to_path(value);
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+}
+
+std::vector<std::string> collect_user_prefixes() {
+    std::vector<std::string> prefixes;
+
+    auto append = [&](const char* candidate) {
+        if (!candidate || *candidate == '\0') {
+            return;
+        }
+        const std::string raw(candidate);
+        if (auto converted = try_utf8_to_path(raw)) {
+            prefixes.push_back(to_forward_slashes(Utils::path_to_utf8(*converted)));
+        } else {
+            prefixes.push_back(to_forward_slashes(raw));
+        }
+    };
+
+    append(std::getenv("HOME"));
+    append(std::getenv("USERPROFILE"));
+
+    if (prefixes.empty() && Utils::is_os_windows()) {
+        if (const char* username = std::getenv("USERNAME")) {
+            prefixes.emplace_back(std::string("C:/Users/") + username);
+        }
+    }
+
+    return prefixes;
+}
+
+std::optional<std::string> strip_prefix(const std::string& path,
+                                        const std::vector<std::string>& prefixes) {
+    for (const auto& original_prefix : prefixes) {
+        if (original_prefix.empty()) {
+            continue;
+        }
+        std::string prefix = original_prefix;
+        if (prefix.back() != '/') {
+            prefix.push_back('/');
+        }
+        if (path.size() < prefix.size()) {
+            continue;
+        }
+        if (!std::equal(prefix.begin(), prefix.end(), path.begin())) {
+            continue;
+        }
+
+        std::string trimmed = trim_leading_separators(path.substr(prefix.size()));
+        if (!trimmed.empty()) {
+            return trimmed;
+        }
+    }
+
+    return std::nullopt;
+}
 }
 #ifdef _WIN32
     #include <windows.h>
@@ -650,77 +725,20 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
         return "";
     }
 
-    auto to_forward_slashes = [](std::string value) {
-        std::replace(value.begin(), value.end(), '\\', '/');
-        return value;
-    };
-
-    std::filesystem::path fs_path;
-    try {
-        fs_path = Utils::utf8_to_path(path);
-    } catch (const std::exception&) {
-        std::string fallback = to_forward_slashes(path);
-        while (!fallback.empty() && (fallback.front() == '/' || fallback.front() == '\\')) {
-            fallback.erase(fallback.begin());
-        }
-        return fallback;
+    const auto fs_path = try_utf8_to_path(path);
+    if (!fs_path) {
+        return trim_leading_separators(to_forward_slashes(path));
     }
 
-    const std::filesystem::path normalized = fs_path.lexically_normal();
-    std::string generic_path = to_forward_slashes(Utils::path_to_utf8(normalized));
+    const std::filesystem::path normalized = fs_path->lexically_normal();
+    const std::string generic_path = to_forward_slashes(Utils::path_to_utf8(normalized));
 
-    std::vector<std::string> prefixes;
-
-    auto append_prefix = [&](const char* candidate) {
-        if (!candidate || *candidate == '\0') {
-            return;
-        }
-        try {
-            prefixes.push_back(to_forward_slashes(
-                Utils::path_to_utf8(Utils::utf8_to_path(candidate))));
-        } catch (const std::exception&) {
-            prefixes.push_back(to_forward_slashes(std::string(candidate)));
-        }
-    };
-
-    append_prefix(std::getenv("HOME"));
-    append_prefix(std::getenv("USERPROFILE"));
-
-    // Add common Windows-style prefix if not already covered
-    if (prefixes.empty() && Utils::is_os_windows()) {
-        if (const char* username = std::getenv("USERNAME")) {
-            std::string win_prefix = std::string("C:/Users/") + username;
-            prefixes.push_back(win_prefix);
-        }
+    const std::vector<std::string> prefixes = collect_user_prefixes();
+    if (auto trimmed = strip_prefix(generic_path, prefixes)) {
+        return *trimmed;
     }
 
-    for (auto prefix : prefixes) {
-        if (prefix.empty()) {
-            continue;
-        }
-        if (prefix.back() != '/') {
-            prefix += '/';
-        }
-
-        if (generic_path.size() >= prefix.size()) {
-            if (std::equal(prefix.begin(), prefix.end(), generic_path.begin())) {
-                std::string trimmed = generic_path.substr(prefix.size());
-                while (!trimmed.empty() && trimmed.front() == '/') {
-                    trimmed.erase(trimmed.begin());
-                }
-                if (!trimmed.empty()) {
-                    return trimmed;
-                }
-            }
-        }
-    }
-
-    // If no prefix matched or trimming resulted in empty string, fall back to removing leading separator.
-    std::string sanitized = generic_path;
-    while (!sanitized.empty() && (sanitized.front() == '/' || sanitized.front() == '\\')) {
-        sanitized.erase(sanitized.begin());
-    }
-
+    const std::string sanitized = trim_leading_separators(generic_path);
     if (!sanitized.empty()) {
         return sanitized;
     }
