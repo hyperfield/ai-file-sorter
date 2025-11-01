@@ -124,6 +124,11 @@ private:
         const FileType file_type,
         int timeout_seconds);
     std::unique_ptr<ILLMClient> make_llm_client();
+    bool ensure_remote_credentials_available(std::string* error_message = nullptr);
+    void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
+                                       const std::string& reason);
+    void notify_recategorization_reset(const CategorizedFile& entry,
+                                       const std::string& reason);
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;

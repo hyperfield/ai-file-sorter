@@ -552,6 +552,93 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     return success;
 }
 
+bool DatabaseManager::remove_file_categorization(const std::string& dir_path,
+                                                 const std::string& file_name,
+                                                 const FileType file_type) {
+    if (!db) {
+        return false;
+    }
+
+    const char* sql =
+        "DELETE FROM file_categorization WHERE dir_path = ? AND file_name = ? AND file_type = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare delete categorization statement: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    const std::string type_str = (file_type == FileType::File) ? "F" : "D";
+
+    sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, file_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, type_str.c_str(), -1, SQLITE_TRANSIENT);
+
+    const bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    if (!success) {
+        db_log(spdlog::level::err, "Failed to delete cached categorization for '{}': {}", file_name, sqlite3_errmsg(db));
+    }
+
+    sqlite3_finalize(stmt);
+    return success;
+}
+
+std::vector<CategorizedFile>
+DatabaseManager::remove_empty_categorizations(const std::string& dir_path) {
+    std::vector<CategorizedFile> removed;
+    if (!db) {
+        return removed;
+    }
+
+    const char* sql = R"(
+        SELECT file_name, file_type, IFNULL(category, ''), IFNULL(subcategory, ''), taxonomy_id
+        FROM file_categorization
+        WHERE dir_path = ?
+          AND (category IS NULL OR TRIM(category) = '' OR subcategory IS NULL OR TRIM(subcategory) = '');
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare empty categorization query: {}", sqlite3_errmsg(db));
+        return removed;
+    }
+
+    if (sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to bind directory path for empty categorization query: {}", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return removed;
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char* type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* category = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char* subcategory = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+
+        std::string file_name = name ? name : "";
+        std::string type_str = type ? type : "";
+        FileType entry_type = (type_str == "D") ? FileType::Directory : FileType::File;
+
+        int taxonomy_id = 0;
+        if (sqlite3_column_type(stmt, 4) != SQLITE_NULL) {
+            taxonomy_id = sqlite3_column_int(stmt, 4);
+        }
+
+        removed.push_back({dir_path,
+                           file_name,
+                           entry_type,
+                           category ? category : "",
+                           subcategory ? subcategory : "",
+                           taxonomy_id});
+    }
+
+    sqlite3_finalize(stmt);
+    for (const auto& entry : removed) {
+        remove_file_categorization(entry.file_path, entry.file_name, entry.type);
+    }
+    return removed;
+}
+
 void DatabaseManager::increment_taxonomy_frequency(int taxonomy_id) {
     if (!db || taxonomy_id <= 0) return;
 
@@ -593,6 +680,13 @@ DatabaseManager::get_categorized_files(const std::string &directory_path) {
         return categorized_files;
     }
 
+    auto trim_copy = [](std::string value) {
+        auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+        value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
+        value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
+        return value;
+    };
+
     while (sqlite3_step(stmtcat) == SQLITE_ROW) {
         const char *file_dir_path = reinterpret_cast<const char *>(sqlite3_column_text(stmtcat, 0));
         const char *file_name = reinterpret_cast<const char *>(sqlite3_column_text(stmtcat, 1));
@@ -605,6 +699,10 @@ DatabaseManager::get_categorized_files(const std::string &directory_path) {
         std::string type_str = file_type ? file_type : "";
         std::string cat = category ? category : "";
         std::string subcat = subcategory ? subcategory : "";
+
+        if (trim_copy(cat).empty() || trim_copy(subcat).empty()) {
+            continue;
+        }
 
         int taxonomy_id = 0;
         if (sqlite3_column_type(stmtcat, 5) != SQLITE_NULL) {

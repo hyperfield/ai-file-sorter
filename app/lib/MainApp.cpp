@@ -58,6 +58,8 @@
 #include <cstdlib>
 #include <exception>
 #include <optional>
+#include <functional>
+#include <memory>
 #include <sstream>
 #include <thread>
 #include <unordered_set>
@@ -103,6 +105,138 @@ std::tuple<std::string, std::string> split_category_subcategory(const std::strin
     };
 
     return {trim(category), trim(subcategory)};
+}
+
+const Json::Value* parse_consistency_response(const std::string& response,
+                                              Json::Value& root,
+                                              const std::shared_ptr<spdlog::logger>& logger)
+{
+    Json::CharReaderBuilder reader;
+    std::string errors;
+    std::istringstream stream(response);
+    if (!Json::parseFromStream(reader, stream, &root, &errors)) {
+        if (logger) {
+            logger->warn("Consistency pass JSON parse failed: {}", errors);
+            logger->warn("Consistency pass raw response ({} chars):\n{}", response.size(), response);
+        }
+        return nullptr;
+    }
+
+    if (root.isObject() && root.isMember("harmonized")) {
+        const Json::Value& harmonized = root["harmonized"];
+        if (harmonized.isArray()) {
+            return &harmonized;
+        }
+    }
+
+    if (root.isArray()) {
+        return &root;
+    }
+
+    if (logger) {
+        logger->warn("Consistency pass response missing 'harmonized' array");
+    }
+    return nullptr;
+}
+
+std::string trim_whitespace(std::string value) {
+    const char* ws = " \t\n\r\f\v";
+    const auto start = value.find_first_not_of(ws);
+    if (start == std::string::npos) {
+        return {};
+    }
+    const auto end = value.find_last_not_of(ws);
+    return value.substr(start, end - start + 1);
+}
+
+struct HarmonizedUpdate {
+    std::string id;
+    CategorizedFile* target{nullptr};
+    std::string category;
+    std::string subcategory;
+};
+
+std::optional<HarmonizedUpdate> extract_harmonized_update(
+    const Json::Value& entry,
+    std::unordered_map<std::string, CategorizedFile*>& items_by_key)
+{
+    if (!entry.isObject()) {
+        return std::nullopt;
+    }
+
+    const std::string id = entry.get("id", "").asString();
+    if (id.empty()) {
+        return std::nullopt;
+    }
+
+    auto it = items_by_key.find(id);
+    if (it == items_by_key.end() || !it->second) {
+        return std::nullopt;
+    }
+
+    auto trim_or_fallback = [](const Json::Value& parent,
+                               const char* key,
+                               const std::string& fallback) {
+        if (!parent.isMember(key)) {
+            return fallback;
+        }
+        std::string candidate = parent[key].asString();
+        if (candidate.empty()) {
+            return fallback;
+        }
+        candidate = trim_whitespace(std::move(candidate));
+        return candidate.empty() ? fallback : candidate;
+    };
+
+    CategorizedFile* target = it->second;
+    std::string category = trim_or_fallback(entry, "category", target->category);
+    if (category.empty()) {
+        category = target->category;
+    }
+
+    std::string subcategory = trim_or_fallback(entry, "subcategory", target->subcategory);
+    if (subcategory.empty()) {
+        subcategory = category;
+    }
+
+    return HarmonizedUpdate{id, target, std::move(category), std::move(subcategory)};
+}
+
+void apply_harmonized_update(
+    const HarmonizedUpdate& update,
+    DatabaseManager& db_manager,
+    std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+    const std::function<void(const std::string&)>& progress_sink)
+{
+    DatabaseManager::ResolvedCategory resolved =
+        db_manager.resolve_category(update.category, update.subcategory);
+
+    bool changed = (resolved.category != update.target->category) ||
+                   (resolved.subcategory != update.target->subcategory);
+
+    update.target->category = resolved.category;
+    update.target->subcategory = resolved.subcategory;
+    update.target->taxonomy_id = resolved.taxonomy_id;
+
+    db_manager.insert_or_update_file_with_categorization(
+        update.target->file_name,
+        update.target->type == FileType::File ? "F" : "D",
+        update.target->file_path,
+        resolved);
+
+    if (auto new_it = new_items_by_key.find(update.id); new_it != new_items_by_key.end() && new_it->second) {
+        new_it->second->category = resolved.category;
+        new_it->second->subcategory = resolved.subcategory;
+        new_it->second->taxonomy_id = resolved.taxonomy_id;
+    }
+
+    if (changed) {
+        const std::string message = fmt::format("[CONSISTENCY] {} -> {} / {}",
+                                                update.target->file_name,
+                                                resolved.category,
+                                                resolved.subcategory);
+        progress_sink(message);
+    }
 }
 
 } // namespace
@@ -741,6 +875,18 @@ void MainApp::on_analyze_clicked()
         return;
     }
 
+    if (!using_local_llm) {
+        std::string credential_error;
+        if (!ensure_remote_credentials_available(&credential_error)) {
+            if (!credential_error.empty()) {
+                show_error_dialog(credential_error);
+            } else {
+                show_error_dialog("Remote model credentials are missing or invalid. Please configure your API key and try again.");
+            }
+            return;
+        }
+    }
+
     stop_analysis = false;
     update_analyze_button_state(true);
 
@@ -936,6 +1082,26 @@ void MainApp::perform_analysis()
     }
 
     try {
+        const std::vector<CategorizedFile> cleared =
+            db_manager.remove_empty_categorizations(directory_path);
+        if (!cleared.empty()) {
+            if (core_logger) {
+                core_logger->warn("Cleared {} cached categorization entr{} with empty values for '{}'",
+                                  cleared.size(),
+                                  cleared.size() == 1 ? "y" : "ies",
+                                  directory_path);
+                for (const auto& entry : cleared) {
+                    core_logger->warn("  - {}", entry.file_name);
+                }
+            }
+            std::string reason =
+                "Cached category was empty. The item will be analyzed again.";
+            if (!using_local_llm) {
+                reason += " Configure your remote API key before analyzing.";
+            }
+            notify_recategorization_reset(cleared, reason);
+        }
+
         already_categorized_files = db_manager.get_categorized_files(directory_path);
 
         if (!already_categorized_files.empty()) {
@@ -1156,6 +1322,17 @@ std::optional<CategorizedFile> MainApp::categorize_single_file(
 
         if (resolved.category.empty() || resolved.subcategory.empty()) {
             core_logger->warn("Categorization for '{}' returned empty category/subcategory.", entry.file_name);
+            db_manager.remove_file_categorization(dir_path, entry.file_name, entry.type);
+            CategorizedFile placeholder{dir_path,
+                                        entry.file_name,
+                                        entry.type,
+                                        resolved.category,
+                                        resolved.subcategory,
+                                        resolved.taxonomy_id};
+            const std::string reason = using_local_llm
+                ? "Categorization returned no result. The item will be processed again."
+                : "Categorization returned no result. Configure your remote API key and try again.";
+            notify_recategorization_reset(placeholder, reason);
             return std::nullopt;
         }
 
@@ -1186,25 +1363,35 @@ MainApp::categorize_file(ILLMClient& llm, const std::string& item_name,
         const std::string& category = categorization[0];
         const std::string& subcategory = categorization[1];
 
-        auto resolved = db_manager.resolve_category(category, subcategory);
-        std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
-        std::string path_display = item_path.empty() ? "-" : item_path;
+        const std::string trimmed_category = trim_whitespace(category);
+        const std::string trimmed_subcategory = trim_whitespace(subcategory);
+        if (trimmed_category.empty() || trimmed_subcategory.empty()) {
+            if (core_logger) {
+                core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
+            }
+        } else {
+            auto resolved = db_manager.resolve_category(category, subcategory);
+            std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
+            std::string path_display = item_path.empty() ? "-" : item_path;
 
-        std::string message = fmt::format(
-            "[CACHE] {}\n    Category : {}\n    Subcat   : {}\n    Path     : {}",
-            item_name, resolved.category, sub, path_display);
-        report_progress(message);
-        return resolved;
+            std::string message = fmt::format(
+                "[CACHE] {}\n    Category : {}\n    Subcat   : {}\n    Path     : {}",
+                item_name, resolved.category, sub, path_display);
+            report_progress(message);
+            return resolved;
+        }
     }
 
     if (!using_local_llm) {
         const char* env_pc = std::getenv("ENV_PC");
         const char* env_rr = std::getenv("ENV_RR");
 
-        std::string key;
         try {
             CryptoManager crypto(env_pc, env_rr);
-            key = crypto.reconstruct();
+            const std::string key = crypto.reconstruct();
+            if (key.empty()) {
+                throw std::runtime_error("Reconstructed API key was empty");
+            }
         } catch (const std::exception& ex) {
             std::string err_msg = fmt::format("[CRYPTO] {} ({})", item_name, ex.what());
             report_progress(err_msg);
@@ -1312,6 +1499,63 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         Utils::make_default_path_to_file_from_download_url(env_url));
 }
 
+bool MainApp::ensure_remote_credentials_available(std::string* error_message)
+{
+    if (using_local_llm) {
+        return true;
+    }
+
+    const char* env_pc = std::getenv("ENV_PC");
+    const char* env_rr = std::getenv("ENV_RR");
+
+    try {
+        CryptoManager crypto(env_pc, env_rr);
+        const std::string key = crypto.reconstruct();
+        if (key.empty()) {
+            throw std::runtime_error("Reconstructed API key was empty");
+        }
+        return true;
+    } catch (const std::exception& ex) {
+        if (core_logger) {
+            core_logger->error("Remote LLM credentials unavailable: {}", ex.what());
+        }
+        if (error_message) {
+            *error_message = "Remote model credentials are missing or invalid. "
+                             "Please configure your API key and try again.";
+        }
+        return false;
+    }
+}
+
+void MainApp::notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
+                                            const std::string& reason)
+{
+    if (entries.empty()) {
+        return;
+    }
+
+    auto shared_entries = std::make_shared<std::vector<CategorizedFile>>(entries);
+    auto shared_reason = std::make_shared<std::string>(reason);
+
+    run_on_ui([this, shared_entries, shared_reason]() {
+        if (!progress_dialog) {
+            return;
+        }
+        for (const auto& entry : *shared_entries) {
+            progress_dialog->append_text(
+                fmt::format("[WARN] {} will be re-categorized: {}",
+                            entry.file_name,
+                            *shared_reason));
+        }
+    });
+}
+
+void MainApp::notify_recategorization_reset(const CategorizedFile& entry,
+                                            const std::string& reason)
+{
+    notify_recategorization_reset(std::vector<CategorizedFile>{entry}, reason);
+}
+
 
 std::string MainApp::make_item_key(const CategorizedFile& item)
 {
@@ -1376,95 +1620,23 @@ void MainApp::apply_consistency_response(const std::string& response,
         return;
     }
 
-    Json::CharReaderBuilder reader;
     Json::Value root;
-    std::string errors;
-    std::istringstream stream(response);
-    if (!Json::parseFromStream(reader, stream, &root, &errors)) {
-        if (core_logger) {
-            core_logger->warn("Consistency pass JSON parse failed: {}", errors);
-            core_logger->warn("Consistency pass raw response ({} chars):\n{}", response.size(), response);
-        }
+    const Json::Value* harmonized = parse_consistency_response(response, root, core_logger);
+    if (!harmonized) {
         return;
     }
 
-    const Json::Value* harmonized = nullptr;
-    if (root.isObject() && root.isMember("harmonized")) {
-        harmonized = &root["harmonized"];
-    } else if (root.isArray()) {
-        harmonized = &root;
-    }
-
-    if (!harmonized || !harmonized->isArray()) {
-        if (core_logger) {
-            core_logger->warn("Consistency pass response missing 'harmonized' array");
-        }
-        return;
-    }
-
-    auto trim = [](std::string value) {
-        const char* ws = " \t\n\r\f\v";
-        const auto start = value.find_first_not_of(ws);
-        const auto end = value.find_last_not_of(ws);
-        if (start == std::string::npos || end == std::string::npos) {
-            return std::string();
-        }
-        return value.substr(start, end - start + 1);
+    auto progress_sink = [this](const std::string& message) {
+        run_on_ui([this, message]() {
+            if (progress_dialog) {
+                progress_dialog->append_text(message);
+            }
+        });
     };
 
     for (const auto& entry : *harmonized) {
-        if (!entry.isObject()) {
-            continue;
-        }
-        const std::string id = entry.get("id", "").asString();
-        if (id.empty()) {
-            continue;
-        }
-        auto it = items_by_key.find(id);
-        if (it == items_by_key.end() || !it->second) {
-            continue;
-        }
-
-        std::string category = trim(entry.get("category", it->second->category).asString());
-        std::string subcategory = trim(entry.get("subcategory", it->second->subcategory).asString());
-        if (category.empty()) {
-            category = it->second->category;
-        }
-        if (subcategory.empty()) {
-            subcategory = category;
-        }
-
-        DatabaseManager::ResolvedCategory resolved =
-            db_manager.resolve_category(category, subcategory);
-
-        bool changed = (resolved.category != it->second->category) ||
-                       (resolved.subcategory != it->second->subcategory);
-        it->second->category = resolved.category;
-        it->second->subcategory = resolved.subcategory;
-        it->second->taxonomy_id = resolved.taxonomy_id;
-
-        db_manager.insert_or_update_file_with_categorization(
-            it->second->file_name,
-            it->second->type == FileType::File ? "F" : "D",
-            it->second->file_path,
-            resolved);
-
-        if (auto new_it = new_items_by_key.find(id); new_it != new_items_by_key.end() && new_it->second) {
-            new_it->second->category = resolved.category;
-            new_it->second->subcategory = resolved.subcategory;
-            new_it->second->taxonomy_id = resolved.taxonomy_id;
-        }
-
-        if (changed) {
-            const std::string message = fmt::format("[CONSISTENCY] {} -> {} / {}",
-                                                    it->second->file_name,
-                                                    resolved.category,
-                                                    resolved.subcategory);
-            run_on_ui([this, message]() {
-                if (progress_dialog) {
-                    progress_dialog->append_text(message);
-                }
-            });
+        if (auto update = extract_harmonized_update(entry, items_by_key)) {
+            apply_harmonized_update(*update, db_manager, new_items_by_key, progress_sink);
         }
     }
 }

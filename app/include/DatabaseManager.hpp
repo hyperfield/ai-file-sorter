@@ -28,6 +28,10 @@ public:
                                                    const std::string& dir_path,
                                                    const ResolvedCategory& resolved);
     std::vector<std::string> get_dir_contents_from_db(const std::string &dir_path);
+    bool remove_file_categorization(const std::string& dir_path,
+                                    const std::string& file_name,
+                                    const FileType file_type);
+    std::vector<CategorizedFile> remove_empty_categorizations(const std::string& dir_path);
 
     std::vector<CategorizedFile> get_categorized_files(const std::string &directory_path);
 
