@@ -13,6 +13,7 @@
 #include "TranslationManager.hpp"
 #include "Utils.hpp"
 #include "Types.hpp"
+#include "MainAppUiBuilder.hpp"
 
 #include <QAction>
 #include <QActionGroup>
@@ -256,7 +257,8 @@ MainApp::MainApp(Settings& settings, QWidget* parent)
         using_local_llm = true;
     }
 
-    setup_ui();
+    MainAppUiBuilder ui_builder;
+    ui_builder.build(*this);
     retranslate_ui();
     setup_file_explorer();
     connect_signals();
@@ -280,204 +282,6 @@ void MainApp::shutdown()
 {
     stop_running_analysis();
     save_settings();
-}
-
-
-void MainApp::setup_ui()
-{
-    setWindowTitle(QStringLiteral("AI File Sorter"));
-    resize(1000, 800);
-
-    QWidget* central = new QWidget(this);
-    auto* main_layout = new QVBoxLayout(central);
-    main_layout->setContentsMargins(12, 12, 12, 12);
-    main_layout->setSpacing(8);
-
-    // Path selection row
-    auto* path_layout = new QHBoxLayout();
-    path_label = new QLabel(central);
-    path_entry = new QLineEdit(central);
-    browse_button = new QPushButton(central);
-    path_layout->addWidget(path_label);
-    path_layout->addWidget(path_entry, 1);
-    path_layout->addWidget(browse_button);
-    main_layout->addLayout(path_layout);
-
-    // Options
-    auto* options_layout = new QHBoxLayout();
-    use_subcategories_checkbox = new QCheckBox(central);
-    categorize_files_checkbox = new QCheckBox(central);
-    categorize_directories_checkbox = new QCheckBox(central);
-    categorize_files_checkbox->setChecked(true);
-    options_layout->addWidget(use_subcategories_checkbox);
-    options_layout->addWidget(categorize_files_checkbox);
-    options_layout->addWidget(categorize_directories_checkbox);
-    options_layout->addStretch(1);
-    main_layout->addLayout(options_layout);
-
-    // Analyze button
-    analyze_button = new QPushButton(central);
-    QIcon analyze_icon = QIcon::fromTheme(QStringLiteral("sparkle"));
-    if (analyze_icon.isNull()) {
-        analyze_icon = QIcon::fromTheme(QStringLiteral("applications-education"));
-    }
-    if (analyze_icon.isNull()) {
-        analyze_icon = style()->standardIcon(QStyle::SP_MediaPlay);
-    }
-    analyze_button->setIcon(analyze_icon);
-    analyze_button->setIconSize(QSize(20, 20));
-    analyze_button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
-    analyze_button->setMinimumWidth(160);
-    auto* analyze_layout = new QHBoxLayout();
-    analyze_layout->addStretch();
-    analyze_layout->addWidget(analyze_button);
-    analyze_layout->addStretch();
-    main_layout->addLayout(analyze_layout);
-
-    // Tree view for quick summary
-    tree_model = new QStandardItemModel(0, 5, this);
-
-    results_stack = new QStackedWidget(central);
-
-    tree_view = new QTreeView(results_stack);
-    tree_view->setModel(tree_model);
-    tree_view->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tree_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tree_view->header()->setSectionResizeMode(QHeaderView::Stretch);
-    tree_view->setUniformRowHeights(true);
-    tree_view_page_index_ = results_stack->addWidget(tree_view);
-
-    folder_contents_model = new QFileSystemModel(results_stack);
-    folder_contents_model->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot);
-    folder_contents_model->setRootPath(QDir::homePath());
-
-    folder_contents_view = new QTreeView(results_stack);
-    folder_contents_view->setModel(folder_contents_model);
-    folder_contents_view->setRootIndex(folder_contents_model->index(QDir::homePath()));
-    folder_contents_view->setSelectionBehavior(QAbstractItemView::SelectRows);
-    folder_contents_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    folder_contents_view->setRootIsDecorated(false);
-    folder_contents_view->setUniformRowHeights(true);
-    folder_contents_view->setSortingEnabled(true);
-    folder_contents_view->sortByColumn(0, Qt::AscendingOrder);
-    folder_contents_view->setAlternatingRowColors(true);
-    folder_view_page_index_ = results_stack->addWidget(folder_contents_view);
-
-    results_stack->setCurrentIndex(tree_view_page_index_);
-    main_layout->addWidget(results_stack, 1);
-
-    setCentralWidget(central);
-
-    setup_menus();
-    analysis_in_progress_ = false;
-    status_is_ready_ = true;
-}
-
-
-void MainApp::setup_menus()
-{
-    auto themed_icon = [this](const char* name, QStyle::StandardPixmap fallback) {
-        QIcon icon = QIcon::fromTheme(QString::fromLatin1(name));
-        if (icon.isNull()) {
-            icon = style()->standardIcon(fallback);
-        }
-        return icon;
-    };
-
-    file_menu = menuBar()->addMenu(QString());
-    file_quit_action = file_menu->addAction(themed_icon("application-exit", QStyle::SP_DialogCloseButton), QString());
-    file_quit_action->setShortcut(QKeySequence::Quit);
-    file_quit_action->setMenuRole(QAction::QuitRole);
-    connect(file_quit_action, &QAction::triggered, qApp, &QApplication::quit);
-
-    edit_menu = menuBar()->addMenu(QString());
-    copy_action = edit_menu->addAction(themed_icon("edit-copy", QStyle::SP_FileDialogContentsView), QString());
-    connect(copy_action, &QAction::triggered, this, [this]() {
-        MainAppEditActions::on_copy(path_entry);
-    });
-    copy_action->setShortcut(QKeySequence::Copy);
-
-    cut_action = edit_menu->addAction(themed_icon("edit-cut", QStyle::SP_FileDialogDetailedView), QString());
-    connect(cut_action, &QAction::triggered, this, [this]() {
-        MainAppEditActions::on_cut(path_entry);
-    });
-    cut_action->setShortcut(QKeySequence::Cut);
-
-    paste_action = edit_menu->addAction(themed_icon("edit-paste", QStyle::SP_FileDialogListView), QString());
-    connect(paste_action, &QAction::triggered, this, [this]() {
-        MainAppEditActions::on_paste(path_entry);
-    });
-    paste_action->setShortcut(QKeySequence::Paste);
-
-    delete_action = edit_menu->addAction(themed_icon("edit-delete", QStyle::SP_TrashIcon), QString());
-    connect(delete_action, &QAction::triggered, this, [this]() {
-        MainAppEditActions::on_delete(path_entry);
-    });
-    delete_action->setShortcut(QKeySequence::Delete);
-
-    view_menu = menuBar()->addMenu(QString());
-    toggle_explorer_action = view_menu->addAction(themed_icon("system-file-manager", QStyle::SP_DirOpenIcon), QString());
-    toggle_explorer_action->setCheckable(true);
-    toggle_explorer_action->setChecked(settings.get_show_file_explorer());
-    connect(toggle_explorer_action, &QAction::toggled, this, [this](bool checked) {
-        if (file_explorer_dock) {
-            file_explorer_dock->setVisible(checked);
-        }
-        settings.set_show_file_explorer(checked);
-        update_results_view_mode();
-    });
-    file_explorer_menu_action = toggle_explorer_action;
-
-    settings_menu = menuBar()->addMenu(QString());
-    toggle_llm_action = settings_menu->addAction(themed_icon("preferences-system", QStyle::SP_DialogApplyButton), QString());
-    connect(toggle_llm_action, &QAction::triggered, this, &MainApp::show_llm_selection_dialog);
-
-    // Consistency pass temporarily disabled for v1
-    // consistency_pass_action = settings_menu->addAction(QString());
-    // consistency_pass_action->setCheckable(true);
-    // connect(consistency_pass_action, &QAction::toggled, this, [this](bool checked) {
-    //     settings.set_consistency_pass_enabled(checked);
-    // });
-
-    language_menu = settings_menu->addMenu(QString());
-    language_group = new QActionGroup(this);
-    language_group->setExclusive(true);
-    english_action = language_menu->addAction(QString());
-    english_action->setCheckable(true);
-    english_action->setData(static_cast<int>(Language::English));
-    language_group->addAction(english_action);
-    french_action = language_menu->addAction(QString());
-    french_action->setCheckable(true);
-    french_action->setData(static_cast<int>(Language::French));
-    language_group->addAction(french_action);
-
-    connect(language_group, &QActionGroup::triggered, this, [this](QAction* action) {
-        if (!action) {
-            return;
-        }
-        const Language chosen = static_cast<Language>(action->data().toInt());
-        on_language_selected(chosen);
-    });
-
-    help_menu = menuBar()->addMenu(QString());
-    if (help_menu && help_menu->menuAction()) {
-        help_menu->menuAction()->setMenuRole(QAction::ApplicationSpecificRole);
-    }
-    about_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
-    about_action->setMenuRole(QAction::NoRole);
-    connect(about_action, &QAction::triggered, this, &MainApp::on_about_activate);
-
-    about_qt_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
-    about_qt_action->setMenuRole(QAction::NoRole);
-    connect(about_qt_action, &QAction::triggered, this, [this]() {
-        QMessageBox::aboutQt(this);
-    });
-
-    about_agpl_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
-    about_agpl_action->setMenuRole(QAction::NoRole);
-    connect(about_agpl_action, &QAction::triggered, this, [this]() {
-        MainAppHelpActions::show_agpl_info(this);
-    });
 }
 
 

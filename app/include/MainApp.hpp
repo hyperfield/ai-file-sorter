@@ -38,6 +38,7 @@ class QStackedWidget;
 class QWidget;
 class QLabel;
 class QEvent;
+class MainAppUiBuilder;
 
 struct CategorizedFile;
 struct FileEntry;
@@ -64,8 +65,6 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
-    void setup_ui();
-    void setup_menus();
     void setup_file_explorer();
     void connect_signals();
     void connect_edit_actions();
@@ -132,6 +131,8 @@ private:
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
+
+    friend class MainAppUiBuilder;
 
     Settings& settings;
     DatabaseManager db_manager;
