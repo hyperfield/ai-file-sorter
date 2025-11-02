@@ -5,6 +5,7 @@
 #include "CategorizationProgressDialog.hpp"
 #include "DatabaseManager.hpp"
 #include "CategorizationService.hpp"
+#include "ConsistencyPassService.hpp"
 #include "FileScanner.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
@@ -98,12 +99,6 @@ private:
     void show_llm_selection_dialog();
     void on_about_activate();
     void run_consistency_pass();
-    std::string build_consistency_prompt(const std::vector<const CategorizedFile*>& chunk,
-                                         const std::vector<std::pair<std::string, std::string>>& taxonomy) const;
-    void apply_consistency_response(const std::string& response,
-                                    std::unordered_map<std::string, CategorizedFile*>& items_by_key,
-                                    std::unordered_map<std::string, CategorizedFile*>& new_items_by_key);
-    static std::string make_item_key(const CategorizedFile& item);
 
     std::unordered_set<std::string> extract_file_names(
         const std::vector<CategorizedFile>& categorized_files);
@@ -177,6 +172,7 @@ private:
     std::shared_ptr<spdlog::logger> core_logger;
     std::shared_ptr<spdlog::logger> ui_logger;
     CategorizationService categorization_service;
+    ConsistencyPassService consistency_pass_service;
 
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;
