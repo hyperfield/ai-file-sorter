@@ -3,7 +3,7 @@
 
 [![Version](https://badgen.net/badge/version/1.0.0/green)](#)
 
-AI File Sorter is a powerful, cross-platform desktop application that automates file organization. Featuring AI integration and a modern Qt6 interface, it categorizes and sorts files and folders based on their names and extensions. The app intelligently assigns categories and, optionally, subcategories, which you can review and edit before confirming. Once approved, the necessary folders are created, and your files are sorted accordingly. The app uses local (LLaMa, Mistral) and remote (ChatGPT 4o-mini) LLMs for this task, depending on your choice.
+AI File Sorter is a powerful, cross-platform desktop application that automates file organization. Featuring AI integration and a modern Qt6 interface, it categorizes and sorts files and folders based on their names and extensions. The app intelligently assigns categories and, optionally, subcategories, which you can review and edit before confirming. Once approved, the necessary folders are created, and your files are sorted accordingly. The app uses local (LLaMa, Mistral) and remote (ChatGPT 4o-mini) LLMs for this task, depending on your choice. It uses a taxonomy-based system, so the more files you sort, the more consistent and accurate the categories become over time. It essentially builds up a smarter internal reference for your file types and naming patterns. Also, file content-based sorting for some file types is coming up as well.
 
 [![Download ai-file-sorter](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 
