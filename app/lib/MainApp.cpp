@@ -78,7 +78,8 @@ MainApp::MainApp(Settings& settings, QWidget* parent)
       core_logger(Logger::get_logger("core_logger")),
       ui_logger(Logger::get_logger("ui_logger")),
       categorization_service(settings, db_manager, core_logger),
-      consistency_pass_service(db_manager, core_logger)
+      consistency_pass_service(db_manager, core_logger),
+      results_coordinator(dirscanner)
 {
     TranslationManager::instance().initialize(qApp);
     TranslationManager::instance().set_language(settings.get_language());
@@ -764,9 +765,8 @@ void MainApp::perform_analysis()
             });
         }
 
-        const std::unordered_set<std::string> cached_file_names = extract_file_names(already_categorized_files);
-
-        files_to_categorize = find_files_to_categorize(directory_path, cached_file_names);
+        const auto cached_file_names = results_coordinator.extract_file_names(already_categorized_files);
+        files_to_categorize = results_coordinator.find_files_to_categorize(directory_path, file_scan_options, cached_file_names);
         core_logger->debug("Found {} item(s) pending categorization in '{}'.",
                            files_to_categorize.size(), directory_path);
 
@@ -809,7 +809,11 @@ void MainApp::perform_analysis()
             using_local_llm,
             stop_analysis,
             [this](const std::string& message) {
-                report_progress(message);
+                run_on_ui([this, message]() {
+                    if (progress_dialog) {
+                        progress_dialog->append_text(message);
+                    }
+                });
             },
             [this](const FileEntry& entry) {
                 run_on_ui([this, entry]() {
@@ -839,7 +843,8 @@ void MainApp::perform_analysis()
         //     run_consistency_pass();
         // }
 
-        new_files_to_sort = compute_files_to_sort();
+        const auto actual_files = results_coordinator.list_directory(get_folder_path(), file_scan_options);
+        new_files_to_sort = results_coordinator.compute_files_to_sort(get_folder_path(), file_scan_options, actual_files, already_categorized_files);
         core_logger->debug("{} file(s) queued for sorting after analysis.",
                            new_files_to_sort.size());
 
@@ -877,6 +882,13 @@ void MainApp::run_consistency_pass()
         progress_sink);
 }
 
+void MainApp::request_stop_analysis()
+{
+    stop_analysis = true;
+    statusBar()->showMessage(tr("Cancelling analysis…"), 4000);
+    status_is_ready_ = false;
+}
+
 
 void MainApp::stop_running_analysis()
 {
@@ -908,38 +920,6 @@ void MainApp::show_llm_selection_dialog()
 void MainApp::on_about_activate()
 {
     MainAppHelpActions::show_about(this);
-}
-
-
-std::unordered_set<std::string> MainApp::extract_file_names(
-    const std::vector<CategorizedFile>& categorized_files)
-{
-    std::unordered_set<std::string> file_names;
-    for (const auto& file : categorized_files) {
-        file_names.insert(file.file_name);
-    }
-    return file_names;
-}
-
-
-std::vector<FileEntry> MainApp::find_files_to_categorize(
-    const std::string& directory_path,
-    const std::unordered_set<std::string>& cached_files)
-{
-    std::vector<FileEntry> actual_files =
-        dirscanner.get_directory_entries(directory_path, file_scan_options);
-    core_logger->debug("Directory '{}' has {} actual item(s); {} cached entry name(s) loaded.",
-                       directory_path, actual_files.size(), cached_files.size());
-
-    std::vector<FileEntry> found_files;
-    for (const auto& entry : actual_files) {
-        if (!cached_files.contains(entry.file_name)) {
-            found_files.push_back(entry);
-        }
-    }
-
-    core_logger->debug("{} item(s) require categorization after cache comparison.", found_files.size());
-    return found_files;
 }
 
 
@@ -1023,57 +1003,6 @@ void MainApp::report_progress(const std::string& message)
             progress_dialog->append_text(message);
         }
     });
-}
-
-
-void MainApp::request_stop_analysis()
-{
-    stop_analysis = true;
-    statusBar()->showMessage(tr("Cancelling analysis…"), 4000);
-    status_is_ready_ = false;
-}
-
-
-std::vector<FileEntry> MainApp::get_actual_files(const std::string& directory_path)
-{
-    core_logger->info("Getting actual files from directory {}", directory_path);
-
-    std::vector<FileEntry> actual_files =
-        dirscanner.get_directory_entries(directory_path, FileScanOptions::Files | FileScanOptions::Directories);
-
-    core_logger->info("Actual files found: {}", static_cast<int>(actual_files.size()));
-    for (const auto& entry : actual_files) {
-        core_logger->info("File: {}, Path: {}", entry.file_name, entry.full_path);
-    }
-
-    return actual_files;
-}
-
-
-std::vector<CategorizedFile> MainApp::compute_files_to_sort()
-{
-    std::vector<CategorizedFile> files_to_sort;
-
-    const std::vector<FileEntry> actual_files =
-        dirscanner.get_directory_entries(get_folder_path(), file_scan_options);
-    core_logger->debug("Computing files to sort. {} entries currently in directory.", actual_files.size());
-
-    for (const auto& entry : actual_files) {
-        const auto it = std::find_if(
-            already_categorized_files.begin(),
-            already_categorized_files.end(),
-            [&entry](const CategorizedFile& categorized_file) {
-                return categorized_file.file_name == entry.file_name
-                       && categorized_file.type == entry.type;
-            });
-
-        if (it != already_categorized_files.end()) {
-            files_to_sort.push_back(*it);
-        }
-    }
-
-    core_logger->info("{} file(s) ready for move after reconciliation.", files_to_sort.size());
-    return files_to_sort;
 }
 
 

@@ -6,6 +6,7 @@
 #include "DatabaseManager.hpp"
 #include "CategorizationService.hpp"
 #include "ConsistencyPassService.hpp"
+#include "ResultsCoordinator.hpp"
 #include "FileScanner.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
@@ -59,8 +60,6 @@ public:
     void report_progress(const std::string& message);
     void request_stop_analysis();
 
-    std::vector<FileEntry> get_actual_files(const std::string& directory_path);
-    std::vector<CategorizedFile> compute_files_to_sort();
     std::string get_folder_path() const;
 
 protected:
@@ -100,11 +99,6 @@ private:
     void on_about_activate();
     void run_consistency_pass();
 
-    std::unordered_set<std::string> extract_file_names(
-        const std::vector<CategorizedFile>& categorized_files);
-    std::vector<FileEntry> find_files_to_categorize(
-        const std::string& directory_path,
-        const std::unordered_set<std::string>& cached_files);
     std::unique_ptr<ILLMClient> make_llm_client();
     void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
                                        const std::string& reason);
@@ -173,6 +167,7 @@ private:
     std::shared_ptr<spdlog::logger> ui_logger;
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
+    ResultsCoordinator results_coordinator;
 
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;

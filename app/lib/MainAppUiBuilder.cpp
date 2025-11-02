@@ -123,47 +123,52 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
 }
 
 void MainAppUiBuilder::build_menus(MainApp& app) {
-    auto themed_icon = [&app](const char* name, QStyle::StandardPixmap fallback) {
-        QIcon icon = QIcon::fromTheme(QString::fromLatin1(name));
-        if (icon.isNull()) {
-            icon = app.style()->standardIcon(fallback);
-        }
-        return icon;
-    };
+    build_file_menu(app);
+    build_edit_menu(app);
+    build_view_menu(app);
+    build_settings_menu(app);
+    build_help_menu(app);
+}
 
+void MainAppUiBuilder::build_file_menu(MainApp& app) {
     app.file_menu = app.menuBar()->addMenu(QString());
-    app.file_quit_action = app.file_menu->addAction(themed_icon("application-exit", QStyle::SP_DialogCloseButton), QString());
+    app.file_quit_action = app.file_menu->addAction(icon_for(app, "application-exit", QStyle::SP_DialogCloseButton), QString());
     app.file_quit_action->setShortcut(QKeySequence::Quit);
     app.file_quit_action->setMenuRole(QAction::QuitRole);
     QObject::connect(app.file_quit_action, &QAction::triggered, qApp, &QApplication::quit);
+}
 
+void MainAppUiBuilder::build_edit_menu(MainApp& app) {
     app.edit_menu = app.menuBar()->addMenu(QString());
-    app.copy_action = app.edit_menu->addAction(themed_icon("edit-copy", QStyle::SP_FileDialogContentsView), QString());
+
+    app.copy_action = app.edit_menu->addAction(icon_for(app, "edit-copy", QStyle::SP_FileDialogContentsView), QString());
     QObject::connect(app.copy_action, &QAction::triggered, &app, [&app]() {
         MainAppEditActions::on_copy(app.path_entry);
     });
     app.copy_action->setShortcut(QKeySequence::Copy);
 
-    app.cut_action = app.edit_menu->addAction(themed_icon("edit-cut", QStyle::SP_FileDialogDetailedView), QString());
+    app.cut_action = app.edit_menu->addAction(icon_for(app, "edit-cut", QStyle::SP_FileDialogDetailedView), QString());
     QObject::connect(app.cut_action, &QAction::triggered, &app, [&app]() {
         MainAppEditActions::on_cut(app.path_entry);
     });
     app.cut_action->setShortcut(QKeySequence::Cut);
 
-    app.paste_action = app.edit_menu->addAction(themed_icon("edit-paste", QStyle::SP_FileDialogListView), QString());
+    app.paste_action = app.edit_menu->addAction(icon_for(app, "edit-paste", QStyle::SP_FileDialogListView), QString());
     QObject::connect(app.paste_action, &QAction::triggered, &app, [&app]() {
         MainAppEditActions::on_paste(app.path_entry);
     });
     app.paste_action->setShortcut(QKeySequence::Paste);
 
-    app.delete_action = app.edit_menu->addAction(themed_icon("edit-delete", QStyle::SP_TrashIcon), QString());
+    app.delete_action = app.edit_menu->addAction(icon_for(app, "edit-delete", QStyle::SP_TrashIcon), QString());
     QObject::connect(app.delete_action, &QAction::triggered, &app, [&app]() {
         MainAppEditActions::on_delete(app.path_entry);
     });
     app.delete_action->setShortcut(QKeySequence::Delete);
+}
 
+void MainAppUiBuilder::build_view_menu(MainApp& app) {
     app.view_menu = app.menuBar()->addMenu(QString());
-    app.toggle_explorer_action = app.view_menu->addAction(themed_icon("system-file-manager", QStyle::SP_DirOpenIcon), QString());
+    app.toggle_explorer_action = app.view_menu->addAction(icon_for(app, "system-file-manager", QStyle::SP_DirOpenIcon), QString());
     app.toggle_explorer_action->setCheckable(true);
     app.toggle_explorer_action->setChecked(app.settings.get_show_file_explorer());
     QObject::connect(app.toggle_explorer_action, &QAction::toggled, &app, [&app](bool checked) {
@@ -174,18 +179,22 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
         app.update_results_view_mode();
     });
     app.file_explorer_menu_action = app.toggle_explorer_action;
+}
 
+void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.settings_menu = app.menuBar()->addMenu(QString());
-    app.toggle_llm_action = app.settings_menu->addAction(themed_icon("preferences-system", QStyle::SP_DialogApplyButton), QString());
+    app.toggle_llm_action = app.settings_menu->addAction(icon_for(app, "preferences-system", QStyle::SP_DialogApplyButton), QString());
     QObject::connect(app.toggle_llm_action, &QAction::triggered, &app, &MainApp::show_llm_selection_dialog);
 
     app.language_menu = app.settings_menu->addMenu(QString());
     app.language_group = new QActionGroup(&app);
     app.language_group->setExclusive(true);
+
     app.english_action = app.language_menu->addAction(QString());
     app.english_action->setCheckable(true);
     app.english_action->setData(static_cast<int>(Language::English));
     app.language_group->addAction(app.english_action);
+
     app.french_action = app.language_menu->addAction(QString());
     app.french_action->setCheckable(true);
     app.french_action->setData(static_cast<int>(Language::French));
@@ -198,24 +207,35 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
         const Language chosen = static_cast<Language>(action->data().toInt());
         app.on_language_selected(chosen);
     });
+}
 
+void MainAppUiBuilder::build_help_menu(MainApp& app) {
     app.help_menu = app.menuBar()->addMenu(QString());
     if (app.help_menu && app.help_menu->menuAction()) {
         app.help_menu->menuAction()->setMenuRole(QAction::ApplicationSpecificRole);
     }
-    app.about_action = app.help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+
+    app.about_action = app.help_menu->addAction(icon_for(app, "help-about", QStyle::SP_MessageBoxInformation), QString());
     app.about_action->setMenuRole(QAction::NoRole);
     QObject::connect(app.about_action, &QAction::triggered, &app, &MainApp::on_about_activate);
 
-    app.about_qt_action = app.help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+    app.about_qt_action = app.help_menu->addAction(icon_for(app, "help-about", QStyle::SP_MessageBoxInformation), QString());
     app.about_qt_action->setMenuRole(QAction::NoRole);
     QObject::connect(app.about_qt_action, &QAction::triggered, &app, [&app]() {
         QMessageBox::aboutQt(&app);
     });
 
-    app.about_agpl_action = app.help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+    app.about_agpl_action = app.help_menu->addAction(icon_for(app, "help-about", QStyle::SP_MessageBoxInformation), QString());
     app.about_agpl_action->setMenuRole(QAction::NoRole);
     QObject::connect(app.about_agpl_action, &QAction::triggered, &app, [&app]() {
         MainAppHelpActions::show_agpl_info(&app);
     });
+}
+
+QIcon MainAppUiBuilder::icon_for(MainApp& app, const char* name, QStyle::StandardPixmap fallback) {
+    QIcon icon = QIcon::fromTheme(QString::fromLatin1(name));
+    if (icon.isNull()) {
+        icon = app.style()->standardIcon(fallback);
+    }
+    return icon;
 }
