@@ -1,7 +1,6 @@
 #include "MainApp.hpp"
 
 #include "CategorizationSession.hpp"
-#include "CryptoManager.hpp"
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
 #include "LLMClient.hpp"
@@ -54,7 +53,6 @@
 
 #include <chrono>
 #include <filesystem>
-#include <future>
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
@@ -82,30 +80,7 @@
 using namespace std::chrono_literals;
 
 namespace {
-
-std::tuple<std::string, std::string> split_category_subcategory(const std::string& input)
-{
-    const std::string delimiter = " : ";
-
-    auto pos = input.find(delimiter);
-    if (pos == std::string::npos) {
-        return {input, ""};
-    }
-
-    std::string category = input.substr(0, pos);
-    std::string subcategory = input.substr(pos + delimiter.size());
-
-    auto trim = [](std::string value) {
-        const char* whitespace = " \t\n\r\f\v";
-        size_t start = value.find_first_not_of(whitespace);
-        size_t end = value.find_last_not_of(whitespace);
-        if (start == std::string::npos || end == std::string::npos) {
-            return std::string();
-        }
-        return value.substr(start, end - start + 1);
-    };
-
-    return {trim(category), trim(subcategory)};
+// Intentionally empty for helper utilities defined in this translation unit.
 }
 
 const Json::Value* parse_consistency_response(const std::string& response,
@@ -248,7 +223,8 @@ MainApp::MainApp(Settings& settings, QWidget* parent)
       settings(settings),
       db_manager(settings.get_config_dir()),
       core_logger(Logger::get_logger("core_logger")),
-      ui_logger(Logger::get_logger("ui_logger"))
+      ui_logger(Logger::get_logger("ui_logger")),
+      categorization_service(settings, db_manager, core_logger)
 {
     TranslationManager::instance().initialize(qApp);
     TranslationManager::instance().set_language(settings.get_language());
@@ -681,12 +657,10 @@ void MainApp::on_analyze_clicked()
 
     if (!using_local_llm) {
         std::string credential_error;
-        if (!ensure_remote_credentials_available(&credential_error)) {
-            if (!credential_error.empty()) {
-                show_error_dialog(credential_error);
-            } else {
-                show_error_dialog("Remote model credentials are missing or invalid. Please configure your API key and try again.");
-            }
+        if (!categorization_service.ensure_remote_credentials(&credential_error)) {
+            show_error_dialog(credential_error.empty()
+                                  ? "Remote model credentials are missing or invalid. Please configure your API key and try again."
+                                  : credential_error);
             return;
         }
     }
@@ -887,7 +861,7 @@ void MainApp::perform_analysis()
 
     try {
         const std::vector<CategorizedFile> cleared =
-            db_manager.remove_empty_categorizations(directory_path);
+            categorization_service.prune_empty_cached_entries(directory_path);
         if (!cleared.empty()) {
             if (core_logger) {
                 core_logger->warn("Cleared {} cached categorization entr{} with empty values for '{}'",
@@ -906,7 +880,7 @@ void MainApp::perform_analysis()
             notify_recategorization_reset(cleared, reason);
         }
 
-        already_categorized_files = db_manager.get_categorized_files(directory_path);
+        already_categorized_files = categorization_service.load_cached_entries(directory_path);
 
         if (!already_categorized_files.empty()) {
             run_on_ui([this]() {
@@ -976,7 +950,28 @@ void MainApp::perform_analysis()
             }
         });
 
-        new_files_with_categories = categorize_files(files_to_categorize);
+        new_files_with_categories = categorization_service.categorize_entries(
+            files_to_categorize,
+            using_local_llm,
+            stop_analysis,
+            [this](const std::string& message) {
+                report_progress(message);
+            },
+            [this](const FileEntry& entry) {
+                run_on_ui([this, entry]() {
+                    if (progress_dialog) {
+                        progress_dialog->append_text(
+                            fmt::format("[SORT] {} ({})", entry.file_name,
+                                        entry.type == FileType::Directory ? "directory" : "file"));
+                    }
+                });
+            },
+            [this](const CategorizedFile& entry, const std::string& reason) {
+                notify_recategorization_reset(entry, reason);
+            },
+            [this]() {
+                return make_llm_client();
+            });
         core_logger->info("Categorization produced {} new record(s).",
                           new_files_with_categories.size());
 
@@ -1071,218 +1066,6 @@ std::vector<FileEntry> MainApp::find_files_to_categorize(
 }
 
 
-std::vector<CategorizedFile> MainApp::categorize_files(const std::vector<FileEntry>& files)
-{
-    std::vector<CategorizedFile> categorized;
-    if (files.empty()) {
-        return categorized;
-    }
-
-    auto llm = make_llm_client();
-    if (!llm) {
-        throw std::runtime_error("Failed to create LLM client.");
-    }
-
-    for (const auto& entry : files) {
-        if (stop_analysis.load()) {
-            break;
-        }
-
-        run_on_ui([this, entry]() {
-            if (progress_dialog) {
-                progress_dialog->append_text(
-                    fmt::format("[SORT] {} ({})", entry.file_name,
-                                entry.type == FileType::Directory ? "directory" : "file"));
-            }
-        });
-
-        if (auto categorized_file = categorize_single_file(*llm, entry)) {
-            categorized.push_back(*categorized_file);
-        }
-    }
-
-    return categorized;
-}
-
-
-std::optional<CategorizedFile> MainApp::categorize_single_file(
-    ILLMClient& llm, const FileEntry& entry)
-{
-    auto report = [this](const std::string& message) {
-        run_on_ui([this, message]() {
-            if (progress_dialog) {
-                progress_dialog->append_text(message);
-            }
-        });
-    };
-
-    try {
-        const std::filesystem::path entry_path = Utils::utf8_to_path(entry.full_path);
-        const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
-        const std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
-
-        DatabaseManager::ResolvedCategory resolved =
-            categorize_file(llm, entry.file_name, abbreviated_path, entry.type, report);
-
-        if (resolved.category.empty() || resolved.subcategory.empty()) {
-            core_logger->warn("Categorization for '{}' returned empty category/subcategory.", entry.file_name);
-            db_manager.remove_file_categorization(dir_path, entry.file_name, entry.type);
-            CategorizedFile placeholder{dir_path,
-                                        entry.file_name,
-                                        entry.type,
-                                        resolved.category,
-                                        resolved.subcategory,
-                                        resolved.taxonomy_id};
-            const std::string reason = using_local_llm
-                ? "Categorization returned no result. The item will be processed again."
-                : "Categorization returned no result. Configure your remote API key and try again.";
-            notify_recategorization_reset(placeholder, reason);
-            return std::nullopt;
-        }
-
-        core_logger->info("Categorized '{}' as '{} / {}'.", entry.file_name, resolved.category,
-                          resolved.subcategory.empty() ? "<none>" : resolved.subcategory);
-
-        return CategorizedFile{dir_path, entry.file_name, entry.type,
-                               resolved.category, resolved.subcategory, resolved.taxonomy_id};
-    } catch (const std::exception& ex) {
-        const std::string error_message = fmt::format("Error categorizing file '{}': {}", entry.file_name, ex.what());
-        run_on_ui([this, error_message]() {
-            show_error_dialog(error_message);
-        });
-        core_logger->error("{}", error_message);
-        return std::nullopt;
-    }
-}
-
-
-DatabaseManager::ResolvedCategory
-MainApp::categorize_file(ILLMClient& llm, const std::string& item_name,
-                         const std::string& item_path,
-                         const FileType file_type,
-                         const std::function<void(const std::string&)>& report_progress)
-{
-    auto categorization = db_manager.get_categorization_from_db(item_name, file_type);
-    if (categorization.size() >= 2) {
-        const std::string& category = categorization[0];
-        const std::string& subcategory = categorization[1];
-
-        const std::string trimmed_category = trim_whitespace(category);
-        const std::string trimmed_subcategory = trim_whitespace(subcategory);
-        if (trimmed_category.empty() || trimmed_subcategory.empty()) {
-            if (core_logger) {
-                core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
-            }
-        } else {
-            auto resolved = db_manager.resolve_category(category, subcategory);
-            std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
-            std::string path_display = item_path.empty() ? "-" : item_path;
-
-            std::string message = fmt::format(
-                "[CACHE] {}\n    Category : {}\n    Subcat   : {}\n    Path     : {}",
-                item_name, resolved.category, sub, path_display);
-            report_progress(message);
-            return resolved;
-        }
-    }
-
-    if (!using_local_llm) {
-        const char* env_pc = std::getenv("ENV_PC");
-        const char* env_rr = std::getenv("ENV_RR");
-
-        try {
-            CryptoManager crypto(env_pc, env_rr);
-            const std::string key = crypto.reconstruct();
-            if (key.empty()) {
-                throw std::runtime_error("Reconstructed API key was empty");
-            }
-        } catch (const std::exception& ex) {
-            std::string err_msg = fmt::format("[CRYPTO] {} ({})", item_name, ex.what());
-            report_progress(err_msg);
-            core_logger->error("{}", err_msg);
-            return DatabaseManager::ResolvedCategory{-1, "", ""};
-        }
-    }
-
-    try {
-        std::string category_subcategory;
-
-        int timeout_seconds = using_local_llm ? 60 : 10;
-        const char* timeout_env = std::getenv(
-            using_local_llm ? "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT"
-                            : "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT");
-        if (timeout_env && *timeout_env) {
-            try {
-                int parsed = std::stoi(timeout_env);
-                if (parsed > 0) {
-                    timeout_seconds = parsed;
-                } else if (core_logger) {
-                    core_logger->warn("Ignoring non-positive LLM timeout '{}'", timeout_env);
-                }
-            } catch (const std::exception& ex) {
-                if (core_logger) {
-                    core_logger->warn("Failed to parse LLM timeout '{}': {}", timeout_env, ex.what());
-                }
-            }
-        }
-        if (core_logger) {
-            core_logger->debug("Using {} LLM timeout of {} second(s)",
-                               using_local_llm ? "local" : "remote",
-                               timeout_seconds);
-        }
-        category_subcategory = categorize_with_timeout(
-            llm, item_name, item_path, file_type, timeout_seconds);
-
-        auto [category, subcategory] = split_category_subcategory(category_subcategory);
-        auto resolved = db_manager.resolve_category(category, subcategory);
-
-        std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
-        std::string path_display = item_path.empty() ? "-" : item_path;
-
-        std::string message = fmt::format(
-            "[AI] {}\n    Category : {}\n    Subcat   : {}\n    Path     : {}",
-            item_name, resolved.category, sub, path_display);
-        report_progress(message);
-
-        return resolved;
-    } catch (const std::exception& ex) {
-        std::string err_msg = fmt::format("[LLM-ERROR] {} ({})", item_name, ex.what());
-        report_progress(err_msg);
-        core_logger->error("LLM error while categorizing '{}': {}", item_name, ex.what());
-        throw;
-    }
-}
-
-
-std::string MainApp::categorize_with_timeout(
-    ILLMClient& llm, const std::string& item_name,
-    const std::string& item_path,
-    const FileType file_type,
-    int timeout_seconds)
-{
-    std::promise<std::string> promise;
-    std::future<std::string> future = promise.get_future();
-
-    std::thread([&llm, &promise, item_name, item_path, file_type]() mutable {
-        try {
-            promise.set_value(llm.categorize_file(item_name, item_path, file_type));
-        } catch (...) {
-            try {
-                promise.set_exception(std::current_exception());
-            } catch (...) {
-                // no-op
-            }
-        }
-    }).detach();
-
-    if (future.wait_for(std::chrono::seconds(timeout_seconds)) == std::future_status::timeout) {
-        throw std::runtime_error("Timed out waiting for LLM response");
-    }
-
-    return future.get();
-}
-
-
 std::unique_ptr<ILLMClient> MainApp::make_llm_client()
 {
     if (settings.get_llm_choice() == LLMChoice::Remote) {
@@ -1301,34 +1084,6 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
 
     return std::make_unique<LocalLLMClient>(
         Utils::make_default_path_to_file_from_download_url(env_url));
-}
-
-bool MainApp::ensure_remote_credentials_available(std::string* error_message)
-{
-    if (using_local_llm) {
-        return true;
-    }
-
-    const char* env_pc = std::getenv("ENV_PC");
-    const char* env_rr = std::getenv("ENV_RR");
-
-    try {
-        CryptoManager crypto(env_pc, env_rr);
-        const std::string key = crypto.reconstruct();
-        if (key.empty()) {
-            throw std::runtime_error("Reconstructed API key was empty");
-        }
-        return true;
-    } catch (const std::exception& ex) {
-        if (core_logger) {
-            core_logger->error("Remote LLM credentials unavailable: {}", ex.what());
-        }
-        if (error_message) {
-            *error_message = "Remote model credentials are missing or invalid. "
-                             "Please configure your API key and try again.";
-        }
-        return false;
-    }
 }
 
 void MainApp::notify_recategorization_reset(const std::vector<CategorizedFile>& entries,

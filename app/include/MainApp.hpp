@@ -4,6 +4,7 @@
 #include "CategorizationDialog.hpp"
 #include "CategorizationProgressDialog.hpp"
 #include "DatabaseManager.hpp"
+#include "CategorizationService.hpp"
 #include "FileScanner.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
@@ -109,21 +110,7 @@ private:
     std::vector<FileEntry> find_files_to_categorize(
         const std::string& directory_path,
         const std::unordered_set<std::string>& cached_files);
-    std::vector<CategorizedFile> categorize_files(const std::vector<FileEntry>& files);
-    std::optional<CategorizedFile> categorize_single_file(
-        ILLMClient& llm, const FileEntry& entry);
-    DatabaseManager::ResolvedCategory categorize_file(
-        ILLMClient& llm, const std::string& item_name,
-        const std::string& item_path,
-        const FileType file_type,
-        const std::function<void(const std::string&)>& report_progress);
-    std::string categorize_with_timeout(
-        ILLMClient& llm, const std::string& item_name,
-        const std::string& item_path,
-        const FileType file_type,
-        int timeout_seconds);
     std::unique_ptr<ILLMClient> make_llm_client();
-    bool ensure_remote_credentials_available(std::string* error_message = nullptr);
     void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
                                        const std::string& reason);
     void notify_recategorization_reset(const CategorizedFile& entry,
@@ -189,6 +176,7 @@ private:
 
     std::shared_ptr<spdlog::logger> core_logger;
     std::shared_ptr<spdlog::logger> ui_logger;
+    CategorizationService categorization_service;
 
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;
