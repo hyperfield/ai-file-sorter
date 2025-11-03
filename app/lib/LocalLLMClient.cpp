@@ -137,7 +137,12 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
 
     constexpr std::size_t kScanBytes = 8 * 1024 * 1024; // first 8 MiB should contain metadata
     std::vector<char> buffer(kScanBytes);
-    file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    const std::streamsize to_read = static_cast<std::streamsize>(buffer.size());
+    file.read(buffer.data(), to_read);
+    if (file.bad()) {
+        return std::nullopt;
+    }
+
     const std::size_t bytes_read = static_cast<std::size_t>(file.gcount());
     if (bytes_read == 0) {
         return std::nullopt;
@@ -396,10 +401,10 @@ void llama_debug_logger(enum ggml_log_level level, const char *text, void *user_
 bool llama_logs_enabled_from_env()
 {
     const char* env = std::getenv("AI_FILE_SORTER_LLAMA_LOGS");
-    if (!env || std::strlen(env) == 0) {
+    if (!env || env[0] == '\0') {
         env = std::getenv("LLAMA_CPP_DEBUG_LOGS");
     }
-    if (!env || std::strlen(env) == 0) {
+    if (!env || env[0] == '\0') {
         return false;
     }
 

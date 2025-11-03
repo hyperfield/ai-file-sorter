@@ -221,7 +221,7 @@ Option A - CMake + vcpkg (recommended)
 1. Install prerequisites:
    - Visual Studio 2022 with Desktop C++ workload
    - CMake 3.21+ (Visual Studio ships a recent version)
-   - vcpkg: https://github.com/microsoft/vcpkg (clone and bootstrap)
+   - vcpkg: <https://github.com/microsoft/vcpkg> (clone and bootstrap)
 2. Clone repo and submodules:
    ```powershell
    git clone https://github.com/hyperfield/ai-file-sorter.git

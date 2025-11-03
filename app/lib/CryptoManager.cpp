@@ -116,11 +116,13 @@ std::string CryptoManager::aes256_decrypt(const std::vector<unsigned char>& ciph
             throw std::runtime_error("Decryption initialization failed.");
         }
 
+        int len = 0;
         if (EVP_DecryptUpdate(ctx, plaintext.data(), &len, ciphertext.data() + sizeof(iv), ciphertext.size() - sizeof(iv)) != 1) {
             throw std::runtime_error("Decryption failed.");
         }
         plaintext_len += len;
 
+        len = 0;
         if (EVP_DecryptFinal_ex(ctx, plaintext.data() + plaintext_len, &len) != 1) {
             throw std::runtime_error("Final decryption step failed.");
         }

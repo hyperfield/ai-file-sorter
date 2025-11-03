@@ -94,7 +94,7 @@ function Invoke-Vcpkg {
     }
 }
 
-function Ensure-VcpkgPackage {
+function Confirm-VcpkgPackage {
     param(
         [string]$HeaderCheckPath,
         [string]$LibraryCheckPath,
@@ -113,12 +113,12 @@ function Ensure-VcpkgPackage {
 # $openBlasIncludeSub = Join-Path $openBlasInclude "openblas"
 # $openBlasLib = Join-Path $vcpkgRoot "installed\$triplet\lib\openblas.lib"
 # $openBlasDll = Join-Path $vcpkgRoot "installed\$triplet\bin\openblas.dll"
-# Ensure-VcpkgPackage -HeaderCheckPath (Join-Path $openBlasIncludeSub "cblas.h") -LibraryCheckPath $openBlasLib -PackageName "openblas"
+# Confirm-VcpkgPackage -HeaderCheckPath (Join-Path $openBlasIncludeSub "cblas.h") -LibraryCheckPath $openBlasLib -PackageName "openblas"
 
 $curlInclude = Join-Path $vcpkgRoot "installed\$triplet\include"
 $curlLib = Join-Path $vcpkgRoot "installed\$triplet\lib\libcurl.lib"
 $curlDll = Join-Path $vcpkgRoot "installed\$triplet\bin\libcurl.dll"
-Ensure-VcpkgPackage -HeaderCheckPath (Join-Path $curlInclude "curl\curl.h") -LibraryCheckPath $curlLib -PackageName "curl"
+Confirm-VcpkgPackage -HeaderCheckPath (Join-Path $curlInclude "curl\curl.h") -LibraryCheckPath $curlLib -PackageName "curl"
 
 # Write-Host "Using OpenBLAS include: $openBlasInclude"
 # Write-Host "Using OpenBLAS lib: $openBlasLib"

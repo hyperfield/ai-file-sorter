@@ -15,16 +15,19 @@ struct UpdateInfo
     std::string min_version;
     std::string download_url;
     std::string release_notes_url;
-    bool is_required;
+    bool is_required{false};
 
     UpdateInfo() = default;
     UpdateInfo(const std::string& current_version,
                const std::string& min_version,
                const std::string& download,
-               const std::string& notes)
+               const std::string& notes,
+               bool is_required = false)
         : current_version(current_version),
           min_version(min_version),
-          download_url(download) {}
+          download_url(download),
+          release_notes_url(notes),
+          is_required(is_required) {}
 };
 
 

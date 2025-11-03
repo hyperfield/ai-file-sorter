@@ -20,7 +20,7 @@
 
 namespace {
 
-std::string trim_whitespace(std::string value) {
+std::string trim_whitespace(const std::string& value) {
     const char* whitespace = " \t\n\r\f\v";
     const auto start = value.find_first_not_of(whitespace);
     const auto end = value.find_last_not_of(whitespace);
