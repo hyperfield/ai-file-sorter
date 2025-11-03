@@ -99,7 +99,7 @@ std::string CryptoManager::aes256_decrypt(const std::vector<unsigned char>& ciph
 
     // Output buffer
     std::vector<unsigned char> plaintext(ciphertext.size());
-    int len = 0, plaintext_len = 0;
+    int plaintext_len = 0;
 
     // Create and initialize the context
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -121,7 +121,7 @@ std::string CryptoManager::aes256_decrypt(const std::vector<unsigned char>& ciph
         }
         plaintext_len += len;
 
-        if (EVP_DecryptFinal_ex(ctx, plaintext.data() + len, &len) != 1) {
+        if (EVP_DecryptFinal_ex(ctx, plaintext.data() + plaintext_len, &len) != 1) {
             throw std::runtime_error("Final decryption step failed.");
         }
         plaintext_len += len;
