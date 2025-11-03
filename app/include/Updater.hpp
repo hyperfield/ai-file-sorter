@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 
+class QWidget;
 
 struct UpdateInfo
 {
@@ -43,6 +44,8 @@ private:
     std::string fetch_update_metadata() const;
     Version string_to_Version(const std::string &version_str);
     void display_update_dialog(bool is_required=false);
+    void show_required_update_dialog(const UpdateInfo& info, QWidget* parent) const;
+    void show_optional_update_dialog(const UpdateInfo& info, QWidget* parent) const;
     bool is_update_available();
     bool is_update_required();
     bool is_update_skipped();

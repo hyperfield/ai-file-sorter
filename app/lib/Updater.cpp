@@ -63,6 +63,14 @@ void configure_tls(CURL* curl)
     (void)curl;
 #endif
 }
+
+void open_download_url(const std::string& url)
+{
+    const QUrl qurl(QString::fromStdString(url));
+    if (!QDesktopServices::openUrl(qurl)) {
+        updater_log(spdlog::level::err, "Failed to open URL: {}", url);
+    }
+}
 }
 
 
@@ -176,32 +184,37 @@ void Updater::display_update_dialog(bool is_required) {
     QWidget* parent = QApplication::activeWindow();
     const auto& info = update_info.value();
 
-    auto open_download = [&info]() {
-        const QUrl url(QString::fromStdString(info.download_url));
-        if (!QDesktopServices::openUrl(url)) {
-            updater_log(spdlog::level::err, "Failed to open URL: {}", info.download_url);
-        }
-    };
-
     if (is_required) {
-        QMessageBox box(parent);
-        box.setIcon(QMessageBox::Warning);
-        box.setWindowTitle(QObject::tr("Required Update Available"));
-        box.setText(QObject::tr("A required update is available. Please update to continue.\nIf you choose to quit, the application will close."));
-        QPushButton* update_now = box.addButton(QObject::tr("Update Now"), QMessageBox::AcceptRole);
-        QPushButton* quit_button = box.addButton(QObject::tr("Quit"), QMessageBox::RejectRole);
-        box.setDefaultButton(update_now);
-        box.exec();
-
-        if (box.clickedButton() == update_now) {
-            open_download();
-            QApplication::quit();
-        } else if (box.clickedButton() == quit_button) {
-            QApplication::quit();
-        }
+        show_required_update_dialog(info, parent);
         return;
     }
 
+    show_optional_update_dialog(info, parent);
+}
+
+
+void Updater::show_required_update_dialog(const UpdateInfo& info, QWidget* parent) const
+{
+    QMessageBox box(parent);
+    box.setIcon(QMessageBox::Warning);
+    box.setWindowTitle(QObject::tr("Required Update Available"));
+    box.setText(QObject::tr("A required update is available. Please update to continue.\nIf you choose to quit, the application will close."));
+    QPushButton* update_now = box.addButton(QObject::tr("Update Now"), QMessageBox::AcceptRole);
+    QPushButton* quit_button = box.addButton(QObject::tr("Quit"), QMessageBox::RejectRole);
+    box.setDefaultButton(update_now);
+    box.exec();
+
+    if (box.clickedButton() == update_now) {
+        open_download_url(info.download_url);
+        QApplication::quit();
+    } else if (box.clickedButton() == quit_button) {
+        QApplication::quit();
+    }
+}
+
+
+void Updater::show_optional_update_dialog(const UpdateInfo& info, QWidget* parent) const
+{
     QMessageBox box(parent);
     box.setIcon(QMessageBox::Information);
     box.setWindowTitle(QObject::tr("Optional Update Available"));
@@ -213,7 +226,7 @@ void Updater::display_update_dialog(bool is_required) {
     box.exec();
 
     if (box.clickedButton() == update_now) {
-        open_download();
+        open_download_url(info.download_url);
     } else if (box.clickedButton() == skip_button) {
         settings.set_skipped_version(info.current_version);
         if (!settings.save()) {
