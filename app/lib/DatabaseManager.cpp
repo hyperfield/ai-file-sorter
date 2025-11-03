@@ -11,7 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include <glib.h>
 #include <sqlite3.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
@@ -687,6 +686,22 @@ std::vector<std::string> DatabaseManager::get_dir_contents_from_db(const std::st
     }
     sqlite3_finalize(stmt);
     return results;
+}
+
+std::vector<std::pair<std::string, std::string>> DatabaseManager::get_taxonomy_snapshot(std::size_t max_entries) const
+{
+    std::vector<std::pair<std::string, std::string>> snapshot;
+    if (max_entries == 0) {
+        max_entries = taxonomy_entries.size();
+    }
+    snapshot.reserve(std::min(max_entries, taxonomy_entries.size()));
+    for (const auto& entry : taxonomy_entries) {
+        if (snapshot.size() >= max_entries) {
+            break;
+        }
+        snapshot.emplace_back(entry.category, entry.subcategory);
+    }
+    return snapshot;
 }
 
 std::string DatabaseManager::get_cached_category(const std::string &file_name) {

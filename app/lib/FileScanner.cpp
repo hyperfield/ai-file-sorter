@@ -1,10 +1,10 @@
 #include "FileScanner.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 #include <algorithm>
 #include <iostream>
 #include <filesystem>
 #include <unordered_set>
-#include <gtk/gtk.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -25,16 +25,18 @@ FileScanner::get_directory_entries(const std::string &directory_path,
     }
 
     try {
-        for (const auto &entry : fs::directory_iterator(directory_path)) {
-            std::string full_path = entry.path().string();
-            std::string file_name = entry.path().filename().string();
-            bool is_hidden = is_file_hidden(full_path);
+        const fs::path scan_path = Utils::utf8_to_path(directory_path);
+        for (const auto &entry : fs::directory_iterator(scan_path)) {
+            const fs::path& entry_path = entry.path();
+            std::string full_path = Utils::path_to_utf8(entry_path);
+            std::string file_name = Utils::path_to_utf8(entry_path.filename());
+            bool is_hidden = is_file_hidden(entry_path);
             bool should_add = false;
             FileType file_type;
 
             if (is_junk_file(file_name)) continue;
 
-            if (is_file_bundle(entry)) {
+            if (is_file_bundle(entry_path)) {
                 if (has_flag(options, FileScanOptions::Files) &&
                     (has_flag(options, FileScanOptions::HiddenFiles) || !is_hidden)) {
                     file_type = FileType::File;
@@ -105,7 +107,7 @@ bool FileScanner::is_file_bundle(const fs::path& path) {
     };
     if (!fs::is_directory(path)) return false;
 
-    std::string ext = path.extension().string();
+    std::string ext = Utils::path_to_utf8(path.extension());
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
     return bundle_extensions.contains(ext);

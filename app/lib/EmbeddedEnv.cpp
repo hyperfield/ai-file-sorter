@@ -1,11 +1,14 @@
 #include "EmbeddedEnv.hpp"
 #include "Logger.hpp"
-#include <glib.h>
+
+#include <QFile>
+#include <QIODevice>
+#include <QByteArray>
+#include <QString>
+
 #include <sstream>
 #include <cstdlib>
 #include <stdexcept>
-#include <gio/gio.h>
-extern GResource *resources_get_resource();
 
 
 EmbeddedEnv::EmbeddedEnv(const std::string& resource_path)
@@ -31,27 +34,18 @@ void EmbeddedEnv::load_env() {
 
 std::string EmbeddedEnv::extract_env_content()
 {
-    GError* error = NULL;
-    GBytes* env_bytes = g_resources_lookup_data(resource_path_.c_str(), G_RESOURCE_LOOKUP_FLAGS_NONE, &error);
-
-    if (!env_bytes) {
-        std::string error_message = "Failed to load embedded .env file from resource: " + resource_path_;
-        if (error) {
-            error_message += " - " + std::string(error->message);
-            g_error_free(error);
-        }
+    QFile file(QString::fromStdString(resource_path_));
+    if (!file.open(QIODevice::ReadOnly)) {
+        const std::string error_message =
+            "Failed to load embedded .env file from resource: " + resource_path_;
         if (auto logger = Logger::get_logger("core_logger")) {
             logger->error("{}", error_message);
         }
         throw std::runtime_error(error_message);
     }
 
-    gsize size;
-    const gchar* env_data = static_cast<const gchar*>(g_bytes_get_data(env_bytes, &size));
-    std::string env_content(env_data, size);
-    g_bytes_unref(env_bytes);
-
-    return env_content;
+    const QByteArray data = file.readAll();
+    return std::string(data.constData(), static_cast<std::size_t>(data.size()));
 }
 
 

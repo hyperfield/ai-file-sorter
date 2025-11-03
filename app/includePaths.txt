@@ -1,27 +1,12 @@
 # Useful, for example, for VS Code
 
 ${workspaceFolder}/**
-/usr/include/gtk-3.0
-/usr/include/glib-2.0
-/usr/include/gtkmm-3.0
-/usr/include/glibmm-2.4
-/usr/include/sigc++-2.0
-/usr/lib/x86_64-linux-gnu/glibmm-2.4/include
-/usr/lib/x86_64-linux-gnu/sigc++-2.0/include
-/usr/lib/x86_64-linux-gnu/gtkmm-3.0/include
-/usr/lib/x86_64-linux-gnu/gdkmm-3.0/include
-/usr/lib/x86_64-linux-gnu/pangomm-1.4/include
-/usr/include/pangomm-1.4
-/usr/include/pango-1.0
-/usr/include/cairomm-1.0
-/usr/include/cairo
-/usr/include/freetype2
-/usr/include/atkmm-1.6
-/usr/lib/x86_64-linux-gnu/atkmm-1.6/include
-/usr/include/gdkmm-3.0
-/usr/include/giomm-2.4
-/usr/lib/x86_64-linux-gnu/giomm-2.4/include
-/usr/include/gdk-pixbuf-2.0
-/usr/lib/x86_64-linux-gnu/glib-2.0/include
-/usr/include/harfbuzz
-/usr/include/atk-1.0
+/usr/include/qt
+/usr/include/qt/QtCore
+/usr/include/qt/QtGui
+/usr/include/qt/QtWidgets
+/usr/include/x86_64-linux-gnu/qt6
+/usr/include/x86_64-linux-gnu/qt6/QtCore
+/usr/include/x86_64-linux-gnu/qt6/QtGui
+/usr/include/x86_64-linux-gnu/qt6/QtWidgets
+/usr/lib/x86_64-linux-gnu/qt6/mkspecs

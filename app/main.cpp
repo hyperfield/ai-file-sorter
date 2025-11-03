@@ -1,20 +1,25 @@
 #include "EmbeddedEnv.hpp"
 #include "Logger.hpp"
-#include "LLMSelectionDialog.hpp"
 #include "MainApp.hpp"
 #include "Utils.hpp"
-#include <gio/gio.h>
+#include "LLMSelectionDialog.hpp"
+#include <app_version.hpp>
+
+#include <QApplication>
+#include <QDialog>
+#include <QGuiApplication>
+#include <QSplashScreen>
+#include <QPainter>
+#include <QPixmap>
+#include <QSize>
+#include <QElapsedTimer>
+#include <QTimer>
+
+#include <curl/curl.h>
 #include <locale.h>
 #include <libintl.h>
-#include <iostream>
 #include <cstdio>
-#include <curl/curl.h>
-
-#ifdef __linux__
-        #include <X11/Xlib.h>
-#endif
-
-extern GResource *resources_get_resource();
+#include <iostream>
 
 
 bool initialize_loggers()
@@ -38,31 +43,62 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     curl_global_init(CURL_GLOBAL_DEFAULT);
+    struct CurlCleanup {
+        ~CurlCleanup() { curl_global_cleanup(); }
+    } curl_cleanup;
 
     #ifdef _WIN32
         _putenv("GSETTINGS_SCHEMA_DIR=schemas");
     #endif
 
-    #ifdef __linux__
-        XInitThreads();
-    #endif
-
     try {
-        g_resources_register(resources_get_resource());
-        EmbeddedEnv env_loader("/net/quicknode/AIFileSorter/.env");
+        EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
         env_loader.load_env();
         setlocale(LC_ALL, "");
         std::string locale_path = Utils::get_executable_path() + "/locale";
         bindtextdomain("net.quicknode.AIFileSorter", locale_path.c_str());
 
-        gtk_init(&argc, &argv);
+        QCoreApplication::setApplicationName(QStringLiteral("AI File Sorter"));
+        QGuiApplication::setApplicationDisplayName(QStringLiteral("AI File Sorter"));
+
+        QApplication app(argc, argv);
+
+        QPixmap splash_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/icon_512x512.png"));
+        if (splash_pix.isNull()) {
+            splash_pix = QPixmap(256, 256);
+            splash_pix.fill(Qt::black);
+        }
+        const QSize base_size = QSize(320, 320);
+        const QSize padded_size = QSize(static_cast<int>(base_size.width() * 1.2),
+                                        static_cast<int>(base_size.height() * 1.1));
+
+        QPixmap scaled_splash = splash_pix.scaled(base_size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        QPixmap splash_canvas(padded_size);
+        splash_canvas.fill(QColor(QStringLiteral("#f5e6d3"))); // matte beige background
+
+        QPainter painter(&splash_canvas);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+        const QPoint centered_icon((padded_size.width() - scaled_splash.width()) / 2,
+                                   (padded_size.height() - scaled_splash.height()) / 2 - 10);
+        painter.drawPixmap(centered_icon, scaled_splash);
+        painter.end();
+
+        QSplashScreen splash(splash_canvas);
+        splash.setWindowFlag(Qt::WindowStaysOnTopHint);
+        const QString splash_text = QStringLiteral("AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
+        splash.showMessage(splash_text, Qt::AlignBottom | Qt::AlignHCenter, Qt::black);
+        splash.show();
+        QElapsedTimer splash_timer;
+        splash_timer.start();
+        app.processEvents();
 
         Settings settings;
         settings.load();
 
         if (settings.get_llm_choice() == LLMChoice::Unset) {
             LLMSelectionDialog llm_dialog(settings);
-            if (llm_dialog.run() != GTK_RESPONSE_OK) {
+            if (llm_dialog.exec() != QDialog::Accepted) {
                 return EXIT_SUCCESS;
             }
 
@@ -70,15 +106,32 @@ int main(int argc, char **argv) {
             settings.save();
         }
 
-        MainApp* main_app = new MainApp(argc, argv, settings);
-        main_app->run();
-        main_app->shutdown();
-        delete main_app;
+        MainApp main_app(settings);
+        main_app.run();
 
+        constexpr qint64 minimum_duration_ms = 3300;
+        const qint64 elapsed_ms = splash_timer.elapsed();
+        if (elapsed_ms < minimum_duration_ms) {
+            const int remaining_ms = static_cast<int>(minimum_duration_ms - elapsed_ms);
+            QTimer::singleShot(remaining_ms, &splash, [&splash, &main_app]() {
+                splash.finish(&main_app);
+            });
+        } else {
+            splash.finish(&main_app);
+        }
+
+        int result = app.exec();
+        if (splash.isVisible()) {
+            splash.finish(&main_app);
+        }
+        main_app.shutdown();
+        return result;
     } catch (const std::exception& ex) {
-        g_critical("Error: %s", ex.what());
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->critical("Error: {}", ex.what());
+        } else {
+            std::fprintf(stderr, "Error: %s\n", ex.what());
+        }
         return EXIT_FAILURE;
     }
-
-    return EXIT_SUCCESS;
 }

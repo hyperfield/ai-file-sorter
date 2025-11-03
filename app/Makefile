@@ -4,25 +4,31 @@ UNAME := $(shell uname | cut -d'-' -f1)
 BIN_DIR := ./bin
 OBJ_DIR := ./obj
 SRC_DIR := ./lib
-RESOURCES = resources/resources.c
 
 ifeq ($(UNAME), Linux)
     PLATFORM := Linux
     CXXFLAGS += -DLINUX
-    TARGET := $(BIN_DIR)/aifilesorter
+    TARGET := $(BIN_DIR)/aifilesorter-bin
     INSTALL_DIR := /usr/local/bin
     INSTALL_LIB_DIR := /usr/local/lib/aifilesorter
 	LD_CONF_FILE := /etc/ld.so.conf.d/aifilesorter.conf
 
-	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lX11 -pthread
-	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled'
-	LDFLAGS += -Wl,-rpath-link=./lib/precompiled
+    # --- Qt6 setup ---
+    QT_INCLUDE_BASE ?= /usr/include/x86_64-linux-gnu/qt6
+    QT_LIB_BASE     ?= /usr/lib/x86_64-linux-gnu
+    CXXFLAGS += -I$(QT_INCLUDE_BASE) -I$(QT_INCLUDE_BASE)/QtCore -I$(QT_INCLUDE_BASE)/QtGui -I$(QT_INCLUDE_BASE)/QtWidgets
+    LDFLAGS  += -L$(QT_LIB_BASE) -lQt6Widgets -lQt6Gui -lQt6Core
 
+    # --- Other dependencies ---
+	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lX11 -pthread
+	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled/cpu/bin'
+	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin
 
 else ifeq ($(UNAME), Darwin)
-    export PATH := /opt/homebrew/opt/curl/bin:$(PATH)
+    PATH := /opt/homebrew/opt/qt/bin:/opt/homebrew/opt/curl/bin:$(PATH)
+    export PATH
 
-    export PKG_CONFIG_PATH := /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig:/opt/homebrew/opt/expat/lib/pkgconfig:$(PKG_CONFIG_PATH)
+    export PKG_CONFIG_PATH := /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig:/opt/homebrew/opt/expat/lib/pkgconfig:/opt/homebrew/opt/qt/lib/pkgconfig:$(PKG_CONFIG_PATH)
 
     export LDFLAGS += -L/opt/homebrew/opt/libffi/lib
     export CPPFLAGS += -I/opt/homebrew/opt/libffi/include
@@ -37,31 +43,59 @@ else ifeq ($(UNAME), Darwin)
     SPDLOG_PATH := $(shell if [ "$(IS_APPLE_SILICON)" = "1" ]; then echo "/opt/homebrew/include"; else echo "/usr/local/include"; fi)
     CXXFLAGS += -I$(SPDLOG_PATH)
 
-    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -pthread
-	LDFLAGS += -framework Metal -framework Foundation
-    LDFLAGS += -Wl,-rpath,@loader_path/lib
-
-
-else ifeq ($(UNAME), MINGW64_NT)
-    PLATFORM := Windows (64-bit)
-    CXXFLAGS += -DWINDOWS
-    TARGET := $(BIN_DIR)/AiFileSorter.exe
-	INSTALL_DIR := "C:/Program Files/Ai File Sorter"
-    WINDRES = windres
-    RC_FILE = resources/exe_icon.rc
-    RC_OBJ = resources/exe_icon.o
-
-    LDFLAGS += -mwindows -lwininet -ljsoncpp -lcrypto -lcurl -lspdlog -lsqlite3 -lssl -lfmt -lllama -lggml
+    PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
+ifeq ($(strip $(PKG_CONFIG)),)
+$(error pkg-config is required to locate Qt6 frameworks on macOS. Please install it (e.g. brew install pkg-config))
 endif
+
+    QT_PACKAGES := Qt6Widgets Qt6Gui Qt6Core
+    QT_CXXFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --cflags $(QT_PACKAGES))
+    QT_LDFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --libs $(QT_PACKAGES))
+ifeq ($(strip $(QT_CXXFLAGS)),)
+$(error Could not retrieve Qt6 flags via pkg-config. Ensure Qt6 is installed (brew install qt) and PKG_CONFIG_PATH includes its pkgconfig directory.)
+endif
+    CXXFLAGS += $(QT_CXXFLAGS)
+    LDFLAGS += $(QT_LDFLAGS)
+
+    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lintl -pthread
+	LDFLAGS += -framework Metal -framework Foundation
+    LDFLAGS += -Wl,-rpath,@loader_path/lib -Wl,-rpath,@loader_path/../lib/precompiled
+
+
+endif
+
+WRAPPED_BINARY := $(notdir $(TARGET))
 
 # Compiler and flags
 CXX = g++
-CXXFLAGS += -std=c++20 -Wall $(shell pkg-config --cflags gtkmm-3.0)
-CXXFLAGS += -O2
-
-LDFLAGS += $(shell pkg-config --libs gtkmm-3.0)
+CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
 INCLUDE_DIRS = -I./include -I./include/llama
-LIB_DIRS = -L./lib/precompiled
+LIB_DIRS =
+ifeq ($(UNAME), Linux)
+LIB_DIRS += -L./lib/precompiled/cpu/bin
+else
+LIB_DIRS += -L./lib/precompiled
+endif
+ifeq ($(UNAME), Darwin)
+LIB_DIRS += -L/opt/homebrew/lib
+endif
+
+QRC_FILE := resources/app.qrc
+QRC_CPP := $(OBJ_DIR)/qrc_app.cpp
+QRC_OBJ := $(OBJ_DIR)/qrc_app.o
+
+ifndef RCC
+RCC := $(shell command -v qt6-rcc 2>/dev/null)
+ifeq ($(strip $(RCC)),)
+RCC := $(shell command -v rcc 2>/dev/null)
+endif
+ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /opt/homebrew/opt/qt/bin/qt6-rcc)
+endif
+endif
+ifeq ($(strip $(RCC)),)
+$(error Could not find Qt resource compiler (qt6-rcc or rcc))
+endif
 
 # Source files
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
@@ -73,9 +107,12 @@ OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
 all: $(TARGET)
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
-$(TARGET): $(OBJS) $(RC_OBJ)
+$(TARGET): $(OBJS) $(QRC_OBJ)
 	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(RESOURCES) $(LIB_DIRS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIB_DIRS) $(LDFLAGS)
+ifeq ($(PLATFORM), Linux)
+	@$(MAKE) create_run_wrapper
+endif
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	mkdir -p $(OBJ_DIR)
@@ -85,29 +122,150 @@ $(OBJ_DIR)/main.o: main.cpp
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
-# Windows resource compilation
-ifeq ($(PLATFORM), Windows (64-bit))
-$(RC_OBJ): $(RC_FILE)
-	$(WINDRES) -i $< -o $@
-endif
+$(QRC_CPP): $(QRC_FILE)
+	mkdir -p $(OBJ_DIR)
+	$(RCC) -o $@ $<
+
+$(QRC_OBJ): $(QRC_CPP)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR) $(RC_OBJ)
+	rm -rf $(OBJ_DIR) $(BIN_DIR)
+
+create_run_wrapper:
+	@mkdir -p $(BIN_DIR)
+	@{ \
+		echo '#!/bin/sh'; \
+		echo 'SCRIPT_DIR="$$(cd "$$(dirname "$$0")" && pwd)"'; \
+		echo 'APP_DIR="$$(cd "$$SCRIPT_DIR/.." && pwd)"'; \
+		echo 'CPU_LIB_DIR="$$APP_DIR/lib/precompiled/cpu/bin"'; \
+		echo 'CUDA_LIB_DIR="$$APP_DIR/lib/precompiled/cuda/bin"'; \
+		echo 'PLATFORM_CANDIDATES="/usr/lib/x86_64-linux-gnu/qt6/plugins /usr/lib/qt6/plugins /lib/x86_64-linux-gnu/qt6/plugins"'; \
+		echo ''; \
+		echo 'select_cuda_dir() {'; \
+		echo '    if [ -d "$$CUDA_LIB_DIR" ]; then'; \
+		echo '        if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q libcudart; then'; \
+		echo '            echo "$$CUDA_LIB_DIR"'; \
+		echo '            return'; \
+		echo '        fi'; \
+		echo '        for candidate in /usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*; do'; \
+		echo '            if [ "$$candidate" = "/usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*" ]; then'; \
+		echo '                break'; \
+		echo '            fi'; \
+		echo '            if [ -e "$$candidate" ]; then'; \
+		echo '                echo "$$CUDA_LIB_DIR"'; \
+		echo '                return'; \
+		echo '            fi'; \
+		echo '        done'; \
+		echo '    fi'; \
+		echo '    echo ""'; \
+		echo '}'; \
+		echo ''; \
+		echo 'SELECTED_DIR="$$(select_cuda_dir)"'; \
+		echo 'LIB_PATH="$$CPU_LIB_DIR"'; \
+		echo 'if [ -n "$$SELECTED_DIR" ] && [ -d "$$SELECTED_DIR" ] && [ "$$SELECTED_DIR" != "$$CPU_LIB_DIR" ]; then'; \
+		echo '    LIB_PATH="$$SELECTED_DIR:$$LIB_PATH"'; \
+		echo 'fi'; \
+		echo 'if [ -n "$$LD_LIBRARY_PATH" ]; then'; \
+		echo '    export LD_LIBRARY_PATH="$$LIB_PATH:$$LD_LIBRARY_PATH"'; \
+		echo 'else'; \
+		echo '    export LD_LIBRARY_PATH="$$LIB_PATH"'; \
+		echo 'fi'; \
+		echo ''; \
+		echo 'if [ -z "$$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then'; \
+		echo '    for candidate in $$PLATFORM_CANDIDATES; do'; \
+		echo '        if [ -d "$$candidate/platforms" ]; then'; \
+		echo '            export QT_QPA_PLATFORM_PLUGIN_PATH="$$candidate/platforms"'; \
+		echo '            break'; \
+		echo '        fi'; \
+		echo '    done'; \
+		echo 'fi'; \
+		echo 'if [ -n "$$QT_QPA_PLATFORM_PLUGIN_PATH" ] && [ ! -f "$$QT_QPA_PLATFORM_PLUGIN_PATH/libqxcb.so" ]; then'; \
+		echo '    if [ -n "$$WAYLAND_DISPLAY" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ]; then'; \
+		echo '        export QT_QPA_PLATFORM="wayland"'; \
+		echo '    else'; \
+		echo '        echo "Qt xcb platform plugin (libqxcb.so) not found in $$QT_QPA_PLATFORM_PLUGIN_PATH ($$QT_QPA_PLATFORM_PLUGIN_PATH)." >&2'; \
+		echo '        echo "Install a Qt 6 XCB platform plugin or run under a Wayland session." >&2'; \
+		echo '        exit 1'; \
+		echo '    fi'; \
+		echo 'fi'; \
+		echo ''; \
+		echo 'exec "$$SCRIPT_DIR/'"$(WRAPPED_BINARY)"'" "$$@"'; \
+	} > $(BIN_DIR)/run_aifilesorter.sh
+	@chmod 755 $(BIN_DIR)/run_aifilesorter.sh
 
 install: $(TARGET)
 ifeq ($(PLATFORM), Linux)
-	@echo "Installing binary to $(INSTALL_DIR)..."
+	@echo "Installing runtime payload into $(INSTALL_LIB_DIR)..."
+	mkdir -p $(INSTALL_LIB_DIR)/bin
+	mkdir -p $(INSTALL_LIB_DIR)/lib
+	cp $(TARGET) $(INSTALL_LIB_DIR)/bin/$(WRAPPED_BINARY)
+	rm -rf $(INSTALL_LIB_DIR)/lib/precompiled
+	cp -a lib/precompiled $(INSTALL_LIB_DIR)/lib/
+	if [ -f resources/certs/cacert.pem ]; then \
+		mkdir -p $(INSTALL_LIB_DIR)/certs; \
+		cp resources/certs/cacert.pem $(INSTALL_LIB_DIR)/certs/cacert.pem; \
+	fi
+	@echo "Installing launcher script to $(INSTALL_DIR)..."
 	mkdir -p $(INSTALL_DIR)
-	cp $(TARGET) $(INSTALL_DIR)/aifilesorter
-
-	@echo "Installing libraries to $(INSTALL_LIB_DIR)..."
-	mkdir -p $(INSTALL_LIB_DIR)
-	cp lib/precompiled/*.so $(INSTALL_LIB_DIR)
-
-	@echo "Registering library path with ldconfig..."
-	echo "$(INSTALL_LIB_DIR)" > $(LD_CONF_FILE)
-	ldconfig
-
+	@{ \
+		echo '#!/bin/sh'; \
+		echo 'APP_DIR="'$(INSTALL_LIB_DIR)'"'; \
+		echo 'CPU_LIB_DIR="$$APP_DIR/lib/precompiled/cpu/bin"'; \
+		echo 'CUDA_LIB_DIR="$$APP_DIR/lib/precompiled/cuda/bin"'; \
+		echo 'PLATFORM_CANDIDATES="/usr/lib/x86_64-linux-gnu/qt6/plugins /usr/lib/qt6/plugins /lib/x86_64-linux-gnu/qt6/plugins"'; \
+		echo ''; \
+		echo 'select_cuda_dir() {'; \
+		echo '    if [ -d "$$CUDA_LIB_DIR" ]; then'; \
+		echo '        if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q libcudart; then'; \
+		echo '            echo "$$CUDA_LIB_DIR"'; \
+		echo '            return'; \
+		echo '        fi'; \
+		echo '        for candidate in /usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*; do'; \
+		echo '            if [ "$$candidate" = "/usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*" ]; then'; \
+		echo '                break'; \
+		echo '            fi'; \
+		echo '            if [ -e "$$candidate" ]; then'; \
+		echo '                echo "$$CUDA_LIB_DIR"'; \
+		echo '                return'; \
+		echo '            fi'; \
+		echo '        done'; \
+		echo '    fi'; \
+		echo '    echo ""'; \
+		echo '}'; \
+		echo ''; \
+		echo 'SELECTED_DIR="$$(select_cuda_dir)"'; \
+		echo 'LIB_PATH="$$CPU_LIB_DIR"'; \
+		echo 'if [ -n "$$SELECTED_DIR" ] && [ -d "$$SELECTED_DIR" ] && [ "$$SELECTED_DIR" != "$$CPU_LIB_DIR" ]; then'; \
+		echo '    LIB_PATH="$$SELECTED_DIR:$$LIB_PATH"'; \
+		echo 'fi'; \
+		echo 'if [ -n "$$LD_LIBRARY_PATH" ]; then'; \
+		echo '    export LD_LIBRARY_PATH="$$LIB_PATH:$$LD_LIBRARY_PATH"'; \
+		echo 'else'; \
+		echo '    export LD_LIBRARY_PATH="$$LIB_PATH"'; \
+		echo 'fi'; \
+		echo ''; \
+		echo 'if [ -z "$$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then'; \
+		echo '    for candidate in $$PLATFORM_CANDIDATES; do'; \
+		echo '        if [ -d "$$candidate/platforms" ]; then'; \
+		echo '            export QT_QPA_PLATFORM_PLUGIN_PATH="$$candidate/platforms"'; \
+		echo '            break'; \
+		echo '        fi'; \
+		echo '    done'; \
+		echo 'fi'; \
+		echo 'if [ -n "$$QT_QPA_PLATFORM_PLUGIN_PATH" ] && [ ! -f "$$QT_QPA_PLATFORM_PLUGIN_PATH/libqxcb.so" ]; then'; \
+		echo '    if [ -n "$$WAYLAND_DISPLAY" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ]; then'; \
+		echo '        export QT_QPA_PLATFORM="wayland"'; \
+		echo '    else'; \
+		echo '        echo "Qt xcb platform plugin (libqxcb.so) not found in $$QT_QPA_PLATFORM_PLUGIN_PATH ($$QT_QPA_PLATFORM_PLUGIN_PATH)." >&2'; \
+		echo '        echo "Install a Qt 6 XCB platform plugin or run under a Wayland session." >&2'; \
+		echo '        exit 1'; \
+		echo '    fi'; \
+		echo 'fi'; \
+		echo ''; \
+		echo 'exec "$$APP_DIR/bin/'"$(WRAPPED_BINARY)"'" "$$@"'; \
+	} > $(INSTALL_DIR)/aifilesorter
+	chmod 755 $(INSTALL_DIR)/aifilesorter
 	@echo "Installation complete."
 
 else ifeq ($(PLATFORM), MacOS)
@@ -128,37 +286,6 @@ else ifeq ($(PLATFORM), MacOS)
 	install_name_tool -add_rpath $(INSTALL_LIB_DIR) $(INSTALL_DIR)/aifilesorter
 
 	@echo "macOS installation complete."
-
-else ifeq ($(PLATFORM), Windows (64-bit))
-	mkdir -p $(INSTALL_DIR)/certs
-	mkdir -p $(INSTALL_DIR)/share
-
-	cp -v $(TARGET) $(INSTALL_DIR)/
-	cp -v ./lib/precompiled/*.dll $(INSTALL_DIR)/
-	cp -v "C:/msys64/mingw64/bin/gdbus.exe" $(INSTALL_DIR)/
-
-	$(foreach dll, \
-		libcairo-2 libfribidi-0 libharfbuzz-0 libpango-1.0-0 libssl-3-x64 \
-		libcairo-gobject-2 libgcc_s_seh-1 libiconv-2 libpangocairo-1.0-0 \
-		libstdc++-6 libcrypto-3-x64 libgdk-3-0 libgdk_pixbuf-2.0-0 libgfortran-5 \
-		libidn2-0 libpangoft2-1.0-0 libgio-2.0-0 libintl-8 libgomp-1 libzstd \
-		libjbig-0 libwebp-7 libthai-0 libtiff-6 libcurl-4 libdatrie-1 \
-		libgiomm-2.4-1 libjpeg-8 libpcre2-8-0 libpangowin32-1.0-0 libunistring-5 \
-		libdeflate libepoxy-0 libglib-2.0-0 libjsoncpp-26 libpng16-16 libwinpthread-1 \
-		libLerc libexpat-1 libglibmm-2.4-1 liblzma-5 libpsl-5 libatk-1.0-0 libffi-8 \
-		libgmodule-2.0-0 libnghttp2-14 libsharpyuv-0 libbrotlicommon libfmt-11 \
-		libgobject-2.0-0 libnghttp3-9 libsigc-2.0-0 zlib1 libbrotlidec libfontconfig-1 \
-		libgraphite2 libopenblas libngtcp2-16 libsqlite3-0 libbz2-1 libfreetype-6 \
-		libgtk-3-0 libngtcp2_crypto_ossl-0 libquadmath-0 libssh2-1 libpixman-1-0, \
-		cp -v "C:/msys64/mingw64/bin/$(dll).dll" $(INSTALL_DIR)/;)
-
-	cp -v "C:/msys64/usr/ssl/cert.pem" $(INSTALL_DIR)/certs/cacert.pem
-	cp -vr "C:/msys64/mingw64/lib/gdk-pixbuf-2.0/" $(INSTALL_DIR)/gdk-pixbuf-2.0
-	cp -vr "C:/msys64/mingw64/share/glib-2.0/schemas/" $(INSTALL_DIR)/schemas
-	cp -vr "C:/msys64/mingw64/share/icons/" $(INSTALL_DIR)/share/icons
-	cp -vr "C:/msys64/mingw64/share/themes/" $(INSTALL_DIR)/share/themes
-
-	glib-compile-schemas $(INSTALL_DIR)/schemas
 endif
 
 uninstall:
@@ -187,6 +314,7 @@ ifeq ($(PLATFORM), Linux)
 			echo "Keeping downloaded models."; \
 		fi'
 
+
 else ifeq ($(PLATFORM), MacOS)
 	@echo "Uninstalling aifilesorter binary and libraries on macOS..."
 
@@ -211,7 +339,4 @@ else ifeq ($(PLATFORM), MacOS)
 	else \
 		echo "Keeping downloaded models."; \
 	fi
-
-else ifeq ($(PLATFORM), Windows (64-bit))
-	rm -rf $(INSTALL_DIR)
 endif

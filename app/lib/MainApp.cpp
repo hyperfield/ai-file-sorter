@@ -1,98 +1,486 @@
 #include "MainApp.hpp"
+
 #include "CategorizationSession.hpp"
 #include "CryptoManager.hpp"
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
-#include "FileScanner.hpp"
 #include "LLMClient.hpp"
 #include "LLMSelectionDialog.hpp"
 #include "Logger.hpp"
 #include "MainAppEditActions.hpp"
 #include "MainAppHelpActions.hpp"
 #include "Updater.hpp"
+#include "TranslationManager.hpp"
 #include "Utils.hpp"
 #include "Types.hpp"
+
+#include <QAction>
+#include <QActionGroup>
+#include <QApplication>
+#include <QCheckBox>
+#include <QCloseEvent>
+#include <QDockWidget>
+#include <QHBoxLayout>
+#include <QAbstractItemView>
+#include <QFileDialog>
+#include <QFileSystemModel>
+#include <QHeaderView>
+#include <QKeySequence>
+#include <QByteArray>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMenu>
+#include <QMenuBar>
+#include <QMessageBox>
+#include <QMetaObject>
+#include <QSignalBlocker>
+#include <QPushButton>
+#include <QStandardItem>
+#include <QStandardItemModel>
+#include <QCoreApplication>
+#include <QStringList>
+#include <QStatusBar>
+#include <QTreeView>
+#include <QVBoxLayout>
+#include <QSizePolicy>
+#include <QDialog>
+#include <QWidget>
+#include <QIcon>
+#include <QDir>
+#include <QStyle>
+#include <QEvent>
+#include <QStackedWidget>
 
 #include <chrono>
 #include <filesystem>
 #include <future>
-#include <iostream>
-#include <gtk/gtk.h>
-#include <gtk/gtkfilechooser.h>
-#include <gtk/gtkwidget.h>
-#include <gtk/gtkentry.h>
-#include <gtk/gtkdialog.h>
-#include <gobject/gsignal.h>
-#include <gtkmm/builder.h>
-#include <gtkmm/dialog.h>
-#include <gtkmm/treeview.h>
-#include <gtkmm/liststore.h>
-#include <glibmm/fileutils.h>
-#include <string>
+#include <algorithm>
+#include <cstdlib>
+#include <exception>
+#include <optional>
 #include <sstream>
 #include <thread>
 #include <unordered_set>
+#include <unordered_map>
+#include <utility>
 #include <vector>
+
+#ifdef _WIN32
+#include <json/json.h>
+#elif __APPLE__
+#include <json/json.h>
+#else
+#include <jsoncpp/json/json.h>
+#endif
+
 #include <fmt/format.h>
 #include <LocalLLMClient.hpp>
 
-extern GResource *resources_get_resource();
+using namespace std::chrono_literals;
+
+namespace {
+
+std::tuple<std::string, std::string> split_category_subcategory(const std::string& input)
+{
+    const std::string delimiter = " : ";
+
+    auto pos = input.find(delimiter);
+    if (pos == std::string::npos) {
+        return {input, ""};
+    }
+
+    std::string category = input.substr(0, pos);
+    std::string subcategory = input.substr(pos + delimiter.size());
+
+    auto trim = [](std::string value) {
+        const char* whitespace = " \t\n\r\f\v";
+        size_t start = value.find_first_not_of(whitespace);
+        size_t end = value.find_last_not_of(whitespace);
+        if (start == std::string::npos || end == std::string::npos) {
+            return std::string();
+        }
+        return value.substr(start, end - start + 1);
+    };
+
+    return {trim(category), trim(subcategory)};
+}
+
+} // namespace
 
 
-MainApp::MainApp(int argc, char **argv, Settings& settings)
-    : builder(nullptr),
+MainApp::MainApp(Settings& settings, QWidget* parent)
+    : QMainWindow(parent),
       settings(settings),
       db_manager(settings.get_config_dir()),
-      categorization_dialog(nullptr),
-      use_subcategories_checkbox(nullptr), 
-      categorize_files_checkbox(nullptr), 
-      categorize_directories_checkbox(nullptr),
       core_logger(Logger::get_logger("core_logger")),
-      ui_logger(Logger::get_logger("ui_logger")),
-      file_scan_options(FileScanOptions::None)
+      ui_logger(Logger::get_logger("ui_logger"))
 {
+    TranslationManager::instance().initialize(qApp);
+    TranslationManager::instance().set_language(settings.get_language());
+
     if (settings.get_llm_choice() != LLMChoice::Remote) {
         using_local_llm = true;
     }
 
-    stop_analysis = false;
-
-    gtk_app = create_app();
-    g_signal_connect(gtk_app, "activate", G_CALLBACK(on_activate_wrapper), this);
-    g_application_run(G_APPLICATION(gtk_app), argc, argv);
-    g_object_unref(gtk_app);
+    setup_ui();
+    retranslate_ui();
+    setup_file_explorer();
+    connect_signals();
+    connect_edit_actions();
+    start_updater();
+    load_settings();
+    set_app_icon();
 }
 
 
-GtkApplication* MainApp::create_app()
+MainApp::~MainApp() = default;
+
+
+void MainApp::run()
 {
-    #if GLIB_CHECK_VERSION(2, 74, 0)
-        return gtk_application_new("net.quicknode.AIFileSorter", G_APPLICATION_DEFAULT_FLAGS);
-    #else
-        return gtk_application_new("net.quicknode.AIFileSorter", G_APPLICATION_FLAGS_NONE);
-    #endif
+    show();
 }
 
 
-void MainApp::on_activate_wrapper(GtkApplication *gtk_app, gpointer user_data)
+void MainApp::shutdown()
 {
-    MainApp *self = static_cast<MainApp*>(user_data);
-    self->on_activate();
-}
-
-
-void MainApp::on_quit()
-{
+    stop_running_analysis();
     save_settings();
-    g_application_quit(G_APPLICATION(gtk_app));
 }
 
 
-void MainApp::load_settings() {
+void MainApp::setup_ui()
+{
+    setWindowTitle(QStringLiteral("AI File Sorter"));
+    resize(1000, 800);
+
+    QWidget* central = new QWidget(this);
+    auto* main_layout = new QVBoxLayout(central);
+    main_layout->setContentsMargins(12, 12, 12, 12);
+    main_layout->setSpacing(8);
+
+    // Path selection row
+    auto* path_layout = new QHBoxLayout();
+    path_label = new QLabel(central);
+    path_entry = new QLineEdit(central);
+    browse_button = new QPushButton(central);
+    path_layout->addWidget(path_label);
+    path_layout->addWidget(path_entry, 1);
+    path_layout->addWidget(browse_button);
+    main_layout->addLayout(path_layout);
+
+    // Options
+    auto* options_layout = new QHBoxLayout();
+    use_subcategories_checkbox = new QCheckBox(central);
+    categorize_files_checkbox = new QCheckBox(central);
+    categorize_directories_checkbox = new QCheckBox(central);
+    categorize_files_checkbox->setChecked(true);
+    options_layout->addWidget(use_subcategories_checkbox);
+    options_layout->addWidget(categorize_files_checkbox);
+    options_layout->addWidget(categorize_directories_checkbox);
+    options_layout->addStretch(1);
+    main_layout->addLayout(options_layout);
+
+    // Analyze button
+    analyze_button = new QPushButton(central);
+    QIcon analyze_icon = QIcon::fromTheme(QStringLiteral("sparkle"));
+    if (analyze_icon.isNull()) {
+        analyze_icon = QIcon::fromTheme(QStringLiteral("applications-education"));
+    }
+    if (analyze_icon.isNull()) {
+        analyze_icon = style()->standardIcon(QStyle::SP_MediaPlay);
+    }
+    analyze_button->setIcon(analyze_icon);
+    analyze_button->setIconSize(QSize(20, 20));
+    analyze_button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+    analyze_button->setMinimumWidth(160);
+    auto* analyze_layout = new QHBoxLayout();
+    analyze_layout->addStretch();
+    analyze_layout->addWidget(analyze_button);
+    analyze_layout->addStretch();
+    main_layout->addLayout(analyze_layout);
+
+    // Tree view for quick summary
+    tree_model = new QStandardItemModel(0, 5, this);
+
+    results_stack = new QStackedWidget(central);
+
+    tree_view = new QTreeView(results_stack);
+    tree_view->setModel(tree_model);
+    tree_view->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tree_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tree_view->header()->setSectionResizeMode(QHeaderView::Stretch);
+    tree_view->setUniformRowHeights(true);
+    tree_view_page_index_ = results_stack->addWidget(tree_view);
+
+    folder_contents_model = new QFileSystemModel(results_stack);
+    folder_contents_model->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot);
+    folder_contents_model->setRootPath(QDir::homePath());
+
+    folder_contents_view = new QTreeView(results_stack);
+    folder_contents_view->setModel(folder_contents_model);
+    folder_contents_view->setRootIndex(folder_contents_model->index(QDir::homePath()));
+    folder_contents_view->setSelectionBehavior(QAbstractItemView::SelectRows);
+    folder_contents_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    folder_contents_view->setRootIsDecorated(false);
+    folder_contents_view->setUniformRowHeights(true);
+    folder_contents_view->setSortingEnabled(true);
+    folder_contents_view->sortByColumn(0, Qt::AscendingOrder);
+    folder_contents_view->setAlternatingRowColors(true);
+    folder_view_page_index_ = results_stack->addWidget(folder_contents_view);
+
+    results_stack->setCurrentIndex(tree_view_page_index_);
+    main_layout->addWidget(results_stack, 1);
+
+    setCentralWidget(central);
+
+    setup_menus();
+    analysis_in_progress_ = false;
+    status_is_ready_ = true;
+}
+
+
+void MainApp::setup_menus()
+{
+    auto themed_icon = [this](const char* name, QStyle::StandardPixmap fallback) {
+        QIcon icon = QIcon::fromTheme(QString::fromLatin1(name));
+        if (icon.isNull()) {
+            icon = style()->standardIcon(fallback);
+        }
+        return icon;
+    };
+
+    file_menu = menuBar()->addMenu(QString());
+    file_quit_action = file_menu->addAction(themed_icon("application-exit", QStyle::SP_DialogCloseButton), QString());
+    file_quit_action->setShortcut(QKeySequence::Quit);
+    file_quit_action->setMenuRole(QAction::QuitRole);
+    connect(file_quit_action, &QAction::triggered, qApp, &QApplication::quit);
+
+    edit_menu = menuBar()->addMenu(QString());
+    copy_action = edit_menu->addAction(themed_icon("edit-copy", QStyle::SP_FileDialogContentsView), QString());
+    connect(copy_action, &QAction::triggered, this, [this]() {
+        MainAppEditActions::on_copy(path_entry);
+    });
+    copy_action->setShortcut(QKeySequence::Copy);
+
+    cut_action = edit_menu->addAction(themed_icon("edit-cut", QStyle::SP_FileDialogDetailedView), QString());
+    connect(cut_action, &QAction::triggered, this, [this]() {
+        MainAppEditActions::on_cut(path_entry);
+    });
+    cut_action->setShortcut(QKeySequence::Cut);
+
+    paste_action = edit_menu->addAction(themed_icon("edit-paste", QStyle::SP_FileDialogListView), QString());
+    connect(paste_action, &QAction::triggered, this, [this]() {
+        MainAppEditActions::on_paste(path_entry);
+    });
+    paste_action->setShortcut(QKeySequence::Paste);
+
+    delete_action = edit_menu->addAction(themed_icon("edit-delete", QStyle::SP_TrashIcon), QString());
+    connect(delete_action, &QAction::triggered, this, [this]() {
+        MainAppEditActions::on_delete(path_entry);
+    });
+    delete_action->setShortcut(QKeySequence::Delete);
+
+    view_menu = menuBar()->addMenu(QString());
+    toggle_explorer_action = view_menu->addAction(themed_icon("system-file-manager", QStyle::SP_DirOpenIcon), QString());
+    toggle_explorer_action->setCheckable(true);
+    toggle_explorer_action->setChecked(settings.get_show_file_explorer());
+    connect(toggle_explorer_action, &QAction::toggled, this, [this](bool checked) {
+        if (file_explorer_dock) {
+            file_explorer_dock->setVisible(checked);
+        }
+        settings.set_show_file_explorer(checked);
+        update_results_view_mode();
+    });
+    file_explorer_menu_action = toggle_explorer_action;
+
+    settings_menu = menuBar()->addMenu(QString());
+    toggle_llm_action = settings_menu->addAction(themed_icon("preferences-system", QStyle::SP_DialogApplyButton), QString());
+    connect(toggle_llm_action, &QAction::triggered, this, &MainApp::show_llm_selection_dialog);
+
+    // Consistency pass temporarily disabled for v1
+    // consistency_pass_action = settings_menu->addAction(QString());
+    // consistency_pass_action->setCheckable(true);
+    // connect(consistency_pass_action, &QAction::toggled, this, [this](bool checked) {
+    //     settings.set_consistency_pass_enabled(checked);
+    // });
+
+    language_menu = settings_menu->addMenu(QString());
+    language_group = new QActionGroup(this);
+    language_group->setExclusive(true);
+    english_action = language_menu->addAction(QString());
+    english_action->setCheckable(true);
+    english_action->setData(static_cast<int>(Language::English));
+    language_group->addAction(english_action);
+    french_action = language_menu->addAction(QString());
+    french_action->setCheckable(true);
+    french_action->setData(static_cast<int>(Language::French));
+    language_group->addAction(french_action);
+
+    connect(language_group, &QActionGroup::triggered, this, [this](QAction* action) {
+        if (!action) {
+            return;
+        }
+        const Language chosen = static_cast<Language>(action->data().toInt());
+        on_language_selected(chosen);
+    });
+
+    help_menu = menuBar()->addMenu(QString());
+    if (help_menu && help_menu->menuAction()) {
+        help_menu->menuAction()->setMenuRole(QAction::ApplicationSpecificRole);
+    }
+    about_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+    about_action->setMenuRole(QAction::NoRole);
+    connect(about_action, &QAction::triggered, this, &MainApp::on_about_activate);
+
+    about_qt_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+    about_qt_action->setMenuRole(QAction::NoRole);
+    connect(about_qt_action, &QAction::triggered, this, [this]() {
+        QMessageBox::aboutQt(this);
+    });
+
+    about_agpl_action = help_menu->addAction(themed_icon("help-about", QStyle::SP_MessageBoxInformation), QString());
+    about_agpl_action->setMenuRole(QAction::NoRole);
+    connect(about_agpl_action, &QAction::triggered, this, [this]() {
+        MainAppHelpActions::show_agpl_info(this);
+    });
+}
+
+
+void MainApp::setup_file_explorer()
+{
+    file_explorer_dock = new QDockWidget(tr("File Explorer"), this);
+    file_explorer_dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    addDockWidget(Qt::LeftDockWidgetArea, file_explorer_dock);
+
+    file_system_model = new QFileSystemModel(file_explorer_dock);
+    const QString root_path = QDir::rootPath();
+    file_system_model->setRootPath(root_path);
+    file_system_model->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Drives | QDir::AllDirs);
+
+    file_explorer_view = new QTreeView(file_explorer_dock);
+    file_explorer_view->setModel(file_system_model);
+    file_explorer_view->setRootIndex(file_system_model->index(root_path));
+    const QModelIndex home_index = file_system_model->index(QDir::homePath());
+    if (home_index.isValid()) {
+        file_explorer_view->setCurrentIndex(home_index);
+        file_explorer_view->scrollTo(home_index);
+    }
+    file_explorer_view->setHeaderHidden(false);
+    file_explorer_view->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    file_explorer_view->setColumnHidden(1, true);
+    file_explorer_view->setColumnHidden(2, true);
+    file_explorer_view->setColumnHidden(3, true);
+
+    connect(file_explorer_view, &QTreeView::doubleClicked, this, [this](const QModelIndex& index) {
+        if (!file_system_model->isDir(index)) {
+            return;
+        }
+        on_directory_selected(file_system_model->filePath(index));
+    });
+
+    connect(file_explorer_view->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, [this](const QModelIndex& current, const QModelIndex&) {
+                if (!file_system_model) {
+                    return;
+                }
+                if (!current.isValid() || !file_system_model->isDir(current)) {
+                    return;
+                }
+                update_folder_contents(file_system_model->filePath(current));
+            });
+
+    connect(file_explorer_dock, &QDockWidget::visibilityChanged, this, [this](bool) {
+        update_results_view_mode();
+    });
+
+    file_explorer_dock->setWidget(file_explorer_view);
+
+    const bool show_explorer = settings.get_show_file_explorer();
+    if (file_explorer_menu_action) {
+        file_explorer_menu_action->setChecked(show_explorer);
+    }
+    // if (consistency_pass_action) {
+    //     consistency_pass_action->setChecked(settings.get_consistency_pass_enabled());
+    // }
+    file_explorer_dock->setVisible(show_explorer);
+    update_results_view_mode();
+}
+
+
+void MainApp::connect_signals()
+{
+    connect(analyze_button, &QPushButton::clicked, this, &MainApp::on_analyze_clicked);
+    connect(browse_button, &QPushButton::clicked, this, [this]() {
+        const QString directory = QFileDialog::getExistingDirectory(this, tr("Select Directory"), path_entry->text());
+        if (!directory.isEmpty()) {
+            on_directory_selected(directory);
+        }
+    });
+
+    connect(path_entry, &QLineEdit::returnPressed, this, [this]() {
+        const QString folder = path_entry->text();
+        if (QDir(folder).exists()) {
+            statusBar()->showMessage(tr("Set folder to %1").arg(folder), 3000);
+            status_is_ready_ = false;
+        } else {
+            show_error_dialog(ERR_INVALID_PATH);
+        }
+    });
+
+    connect(use_subcategories_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+        settings.set_use_subcategories(checked);
+    });
+
+    connect(categorize_files_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+        ensure_one_checkbox_active(categorize_files_checkbox);
+        update_file_scan_option(FileScanOptions::Files, checked);
+        settings.set_categorize_files(checked);
+    });
+
+    connect(categorize_directories_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+        ensure_one_checkbox_active(categorize_directories_checkbox);
+        update_file_scan_option(FileScanOptions::Directories, checked);
+        settings.set_categorize_directories(checked);
+    });
+}
+
+
+void MainApp::connect_edit_actions()
+{
+    path_entry->setContextMenuPolicy(Qt::DefaultContextMenu);
+}
+
+
+void MainApp::start_updater()
+{
+    auto* updater = new Updater(settings);
+    updater->begin();
+}
+
+
+void MainApp::set_app_icon()
+{
+    const QString icon_path = QStringLiteral(":/net/quicknode/AIFileSorter/images/app_icon_128.png");
+    QIcon icon(icon_path);
+    if (icon.isNull()) {
+        icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png"));
+    }
+    if (!icon.isNull()) {
+        QApplication::setWindowIcon(icon);
+        setWindowIcon(icon);
+    }
+}
+
+
+void MainApp::load_settings()
+{
     if (!settings.load()) {
         core_logger->info("Failed to load settings, using defaults.");
     }
+    TranslationManager::instance().set_language(settings.get_language());
     sync_settings_to_ui();
+    retranslate_ui();
 }
 
 
@@ -103,96 +491,311 @@ void MainApp::save_settings()
 }
 
 
-void MainApp::initialize_checkboxes()
+void MainApp::sync_settings_to_ui()
 {
-    use_subcategories_checkbox = GTK_CHECK_BUTTON(gtk_builder_get_object(builder, "use_subcategories_checkbox"));
-    categorize_files_checkbox = GTK_CHECK_BUTTON(gtk_builder_get_object(builder, "categorize_files_checkbox"));
-    categorize_directories_checkbox = GTK_CHECK_BUTTON(gtk_builder_get_object(builder, "categorize_directories_checkbox"));
+    use_subcategories_checkbox->setChecked(settings.get_use_subcategories());
+    categorize_files_checkbox->setChecked(settings.get_categorize_files());
+    categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
 
-    if (!use_subcategories_checkbox || !categorize_files_checkbox || !categorize_directories_checkbox) {
-        g_critical("Failed to load one or more checkboxes.");
-        return;
+    const std::string sort_folder = settings.get_sort_folder();
+    path_entry->setText(QString::fromStdString(sort_folder));
+
+    if (QDir(QString::fromStdString(sort_folder)).exists()) {
+        statusBar()->showMessage(tr("Loaded folder %1").arg(QString::fromStdString(sort_folder)), 3000);
+        status_is_ready_ = false;
+        update_folder_contents(QString::fromStdString(sort_folder));
+    } else if (!sort_folder.empty()) {
+        core_logger->warn("Sort folder path is invalid: {}", sort_folder);
     }
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(categorize_files_checkbox))) {
+    file_scan_options = FileScanOptions::None;
+    if (settings.get_categorize_files()) {
         file_scan_options = file_scan_options | FileScanOptions::Files;
     }
-
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(categorize_directories_checkbox))) {
+    if (settings.get_categorize_directories()) {
         file_scan_options = file_scan_options | FileScanOptions::Directories;
     }
 
-    data_for_files = new CheckboxData{this, categorize_directories_checkbox};
-    data_for_directories = new CheckboxData{this, categorize_files_checkbox};
+    const bool show_explorer = settings.get_show_file_explorer();
+    if (file_explorer_dock) {
+        file_explorer_dock->setVisible(show_explorer);
+    }
+    if (file_explorer_menu_action) {
+        file_explorer_menu_action->setChecked(show_explorer);
+    }
+    update_results_view_mode();
 
-    g_signal_connect(categorize_files_checkbox, "toggled", G_CALLBACK(MainApp::on_checkbox_toggled), data_for_files);
-    g_signal_connect(categorize_directories_checkbox, "toggled", G_CALLBACK(MainApp::on_checkbox_toggled), data_for_directories);
+    update_language_checks();
 }
 
 
 void MainApp::sync_ui_to_settings()
 {
-    const char* entry_text = gtk_entry_get_text(path_entry);
-    settings.set_use_subcategories(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(use_subcategories_checkbox)));
-    settings.set_categorize_files(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(categorize_files_checkbox)));
-    settings.set_categorize_directories(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(categorize_directories_checkbox)));
-    settings.set_sort_folder(entry_text);
+    settings.set_use_subcategories(use_subcategories_checkbox->isChecked());
+    settings.set_categorize_files(categorize_files_checkbox->isChecked());
+    settings.set_categorize_directories(categorize_directories_checkbox->isChecked());
+    const QByteArray folder_bytes = path_entry->text().toUtf8();
+    settings.set_sort_folder(std::string(folder_bytes.constData(), static_cast<std::size_t>(folder_bytes.size())));
+    if (file_explorer_menu_action) {
+        settings.set_show_file_explorer(file_explorer_menu_action->isChecked());
+    }
+    // if (consistency_pass_action) {
+    //     settings.set_consistency_pass_enabled(consistency_pass_action->isChecked());
+    // }
+    if (language_group) {
+        if (QAction* checked = language_group->checkedAction()) {
+            settings.set_language(static_cast<Language>(checked->data().toInt()));
+        }
+    }
 }
 
-
-void MainApp::sync_settings_to_ui()
+void MainApp::retranslate_ui()
 {
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(use_subcategories_checkbox), settings.get_use_subcategories());
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(categorize_files_checkbox), settings.get_categorize_files());
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(categorize_directories_checkbox), settings.get_categorize_directories());
+    setWindowTitle(QStringLiteral("AI File Sorter"));
 
-    const std::string& sort_folder = settings.get_sort_folder();
-
-    gtk_entry_set_text(GTK_ENTRY(path_entry), sort_folder.c_str());
-
-    if (g_file_test(sort_folder.c_str(), G_FILE_TEST_IS_DIR)) {
-        gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(file_chooser), sort_folder.c_str());
-    } else {
-        g_warning("Sort folder path is invalid: %s", sort_folder.c_str());
+    if (path_label) {
+        path_label->setText(tr("Folder:"));
     }
-
+    if (browse_button) {
+        browse_button->setText(tr("Browse…"));
+    }
     if (use_subcategories_checkbox) {
-        gboolean is_checked = settings.get_use_subcategories();
-        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(use_subcategories_checkbox), is_checked);
+        use_subcategories_checkbox->setText(tr("Use subcategories"));
+    }
+    if (categorize_files_checkbox) {
+        categorize_files_checkbox->setText(tr("Categorize files"));
+    }
+    if (categorize_directories_checkbox) {
+        categorize_directories_checkbox->setText(tr("Categorize directories"));
+    }
+    if (analyze_button) {
+        analyze_button->setText(analysis_in_progress_ ? tr("Stop analyzing") : tr("Analyze folder"));
+    }
+
+    if (tree_model) {
+        tree_model->setHorizontalHeaderLabels(QStringList{
+            tr("File"),
+            tr("Type"),
+            tr("Category"),
+            tr("Subcategory"),
+            tr("Status")
+        });
+
+        for (int row = 0; row < tree_model->rowCount(); ++row) {
+            if (auto* type_item = tree_model->item(row, 1)) {
+                const QString type_code = type_item->data(Qt::UserRole).toString();
+                if (type_code == QStringLiteral("D")) {
+                    type_item->setText(tr("Directory"));
+                } else if (type_code == QStringLiteral("F")) {
+                    type_item->setText(tr("File"));
+                }
+            }
+            if (auto* status_item = tree_model->item(row, 4)) {
+                const QString status_code = status_item->data(Qt::UserRole).toString();
+                if (status_code == QStringLiteral("ready")) {
+                    status_item->setText(tr("Ready"));
+                }
+            }
+        }
+    }
+
+    if (file_menu) {
+        file_menu->setTitle(tr("&File"));
+    }
+    if (file_quit_action) {
+        file_quit_action->setText(tr("&Quit"));
+    }
+    if (edit_menu) {
+        edit_menu->setTitle(tr("&Edit"));
+    }
+    if (copy_action) {
+        copy_action->setText(tr("&Copy"));
+    }
+    if (cut_action) {
+        cut_action->setText(tr("Cu&t"));
+    }
+    if (paste_action) {
+        paste_action->setText(tr("&Paste"));
+    }
+    if (delete_action) {
+        delete_action->setText(tr("&Delete"));
+    }
+    if (view_menu) {
+        view_menu->setTitle(tr("&View"));
+    }
+    if (toggle_explorer_action) {
+        toggle_explorer_action->setText(tr("File &Explorer"));
+    }
+    if (settings_menu) {
+        settings_menu->setTitle(tr("&Settings"));
+    }
+    if (toggle_llm_action) {
+        toggle_llm_action->setText(tr("Select &LLM…"));
+    }
+    if (consistency_pass_action) {
+        consistency_pass_action->setText(tr("Run &consistency pass"));
+    }
+    if (language_menu) {
+        language_menu->setTitle(tr("&Language"));
+    }
+    if (english_action) {
+        english_action->setText(tr("&English"));
+    }
+    if (french_action) {
+        french_action->setText(tr("&French"));
+    }
+    if (help_menu) {
+        const QString help_title = QString(QChar(0x200B)) + tr("&Help");
+        help_menu->setTitle(help_title);
+        if (QAction* help_action = help_menu->menuAction()) {
+            help_action->setText(help_title);
+        }
+    }
+    if (about_action) {
+        about_action->setText(tr("&About AI File Sorter"));
+    }
+    if (about_qt_action) {
+        about_qt_action->setText(tr("About &Qt"));
+    }
+    if (about_agpl_action) {
+        about_agpl_action->setText(tr("About &AGPL"));
+    }
+    if (file_explorer_dock) {
+        file_explorer_dock->setWindowTitle(tr("File Explorer"));
+    }
+
+    if (analysis_in_progress_) {
+        if (stop_analysis.load()) {
+            statusBar()->showMessage(tr("Cancelling analysis…"), 4000);
+        } else {
+            statusBar()->showMessage(tr("Analyzing…"));
+        }
+    } else if (status_is_ready_) {
+        statusBar()->showMessage(tr("Ready"));
+    }
+
+    update_language_checks();
+}
+
+void MainApp::update_language_checks()
+{
+    if (!language_group) {
+        return;
+    }
+
+    Language configured = settings.get_language();
+    if (configured != Language::English && configured != Language::French) {
+        configured = Language::English;
+        settings.set_language(configured);
+    }
+
+    QSignalBlocker blocker(language_group);
+    if (english_action) {
+        english_action->setChecked(configured == Language::English);
+    }
+    if (french_action) {
+        french_action->setChecked(configured == Language::French);
+    }
+}
+
+void MainApp::on_language_selected(Language language)
+{
+    settings.set_language(language);
+    TranslationManager::instance().set_language(language);
+    update_language_checks();
+    retranslate_ui();
+
+    if (categorization_dialog) {
+        QCoreApplication::postEvent(
+            categorization_dialog.get(),
+            new QEvent(QEvent::LanguageChange));
+    }
+    if (progress_dialog) {
+        QCoreApplication::postEvent(
+            progress_dialog.get(),
+            new QEvent(QEvent::LanguageChange));
     }
 }
 
 
-void MainApp::on_checkbox_toggled(GtkCheckButton* checkbox, gpointer user_data)
+void MainApp::on_analyze_clicked()
 {
-    CheckboxData* data = static_cast<CheckboxData*>(user_data);
-    MainApp* app = data->app;
-    GtkCheckButton* other_checkbox = data->other_checkbox;
+    if (analyze_thread.joinable()) {
+        stop_running_analysis();
+        update_analyze_button_state(false);
+        statusBar()->showMessage(tr("Analysis cancelled"), 4000);
+        status_is_ready_ = false;
+        return;
+    }
 
-    app->ensure_one_checkbox(checkbox, other_checkbox);
+    const std::string folder_path = get_folder_path();
+    if (!Utils::is_valid_directory(folder_path.c_str())) {
+        show_error_dialog(ERR_INVALID_PATH);
+        core_logger->warn("User supplied invalid directory '{}'", folder_path);
+        return;
+    }
 
-    FileScanOptions option = (checkbox == app->categorize_files_checkbox)
-                             ? FileScanOptions::Files : FileScanOptions::Directories;
+    if (!Utils::is_network_available()) {
+        show_error_dialog(ERR_NO_INTERNET_CONNECTION);
+        core_logger->warn("Network unavailable when attempting to analyze '{}'", folder_path);
+        return;
+    }
 
-    app->update_file_scan_options(option, gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbox)));
-    app->update_checkbox_settings(checkbox);
+    stop_analysis = false;
+    update_analyze_button_state(true);
+
+    const bool show_subcategory = use_subcategories_checkbox->isChecked();
+    progress_dialog = std::make_unique<CategorizationProgressDialog>(this, this, show_subcategory);
+    progress_dialog->show();
+
+    analyze_thread = std::thread([this]() {
+        try {
+            perform_analysis();
+        } catch (const std::exception& ex) {
+            core_logger->error("Exception during analysis: {}", ex.what());
+            run_on_ui([this, message = std::string("Analysis error: ") + ex.what()]() {
+                handle_analysis_failure(message);
+            });
+        }
+    });
 }
 
 
-void MainApp::ensure_one_checkbox(GtkCheckButton* checkbox, GtkCheckButton* other_checkbox)
+void MainApp::on_directory_selected(const QString& path)
 {
-    bool is_checkbox_active = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbox));
-    bool is_other_checkbox_active = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(other_checkbox));
+    path_entry->setText(path);
+    statusBar()->showMessage(tr("Folder selected: %1").arg(path), 3000);
+    status_is_ready_ = false;
 
-    if (!is_checkbox_active && !is_other_checkbox_active) {
-        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(other_checkbox), TRUE);
+    if (file_system_model && file_explorer_view) {
+        const QModelIndex index = file_system_model->index(path);
+        if (index.isValid()) {
+            file_explorer_view->setCurrentIndex(index);
+        }
+    }
+
+    update_folder_contents(path);
+}
+
+
+void MainApp::ensure_one_checkbox_active(QCheckBox* changed_checkbox)
+{
+    if (!categorize_files_checkbox || !categorize_directories_checkbox) {
+        return;
+    }
+
+    if (!categorize_files_checkbox->isChecked() && !categorize_directories_checkbox->isChecked()) {
+        QCheckBox* other = (changed_checkbox == categorize_files_checkbox)
+                               ? categorize_directories_checkbox
+                               : categorize_files_checkbox;
+        other->setChecked(true);
     }
 }
 
 
-void MainApp::update_file_scan_options(FileScanOptions option, bool is_active)
+void MainApp::update_file_scan_option(FileScanOptions option, bool enabled)
 {
-    if (is_active) {
+    if (enabled) {
         file_scan_options = file_scan_options | option;
     } else {
         file_scan_options = file_scan_options & ~option;
@@ -200,77 +803,135 @@ void MainApp::update_file_scan_options(FileScanOptions option, bool is_active)
 }
 
 
-void MainApp::update_checkbox_settings(GtkCheckButton* checkbox)
+void MainApp::update_analyze_button_state(bool analyzing)
 {
-    if (checkbox == categorize_files_checkbox) {
-        settings.set_categorize_files(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbox)));
+    analysis_in_progress_ = analyzing;
+    if (analyzing) {
+        analyze_button->setText(tr("Stop analyzing"));
+        statusBar()->showMessage(tr("Analyzing…"));
+        status_is_ready_ = false;
     } else {
-        settings.set_categorize_directories(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbox)));
+        analyze_button->setText(tr("Analyze folder"));
+        statusBar()->showMessage(tr("Ready"));
+        status_is_ready_ = true;
+    }
+}
+
+void MainApp::update_results_view_mode()
+{
+    if (!results_stack) {
+        return;
+    }
+
+    const bool explorer_visible = file_explorer_dock && file_explorer_dock->isVisible();
+    const int target_index = explorer_visible ? folder_view_page_index_ : tree_view_page_index_;
+    if (target_index >= 0 && target_index < results_stack->count()) {
+        results_stack->setCurrentIndex(target_index);
+    }
+
+    if (explorer_visible && path_entry) {
+        update_folder_contents(path_entry->text());
+    }
+}
+
+void MainApp::update_folder_contents(const QString& directory)
+{
+    if (!folder_contents_model || !folder_contents_view || directory.isEmpty()) {
+        return;
+    }
+
+    QDir dir(directory);
+    if (!dir.exists()) {
+        return;
+    }
+
+    const QModelIndex new_root = folder_contents_model->setRootPath(directory);
+    folder_contents_view->setRootIndex(new_root);
+    folder_contents_view->scrollTo(new_root, QAbstractItemView::PositionAtTop);
+
+    for (int col = 0; col < folder_contents_model->columnCount(); ++col) {
+        folder_contents_view->resizeColumnToContents(col);
     }
 }
 
 
-std::unordered_set<std::string> MainApp::extract_file_names(
-    const std::vector<CategorizedFile>& categorized_files)
+void MainApp::handle_analysis_finished()
 {
-    std::unordered_set<std::string> file_names;
-    for (const auto& [file_path, file_name, file_type, category, subcategory, taxonomy_id] : categorized_files) {
-        file_names.insert(file_name);
-    }
-    return file_names;
-}
-
-
-gboolean MainApp::update_ui_after_analysis()
-{
-    stop_analysis = false;
-    gtk_button_set_label(analyze_button, "Analyze folder");
-    core_logger->info("Updating UI after analysis. {} file(s) ready for review.", new_files_to_sort.size());
-
-    if (new_files_to_sort.empty()) {
-        DialogUtils::show_error_dialog(GTK_WINDOW(this->main_window), ERR_NO_FILES_TO_CATEGORIZE);
-        core_logger->warn("Analysis completed for '{}' but no files were eligible for sorting.",
-                          get_folder_path());
-
-        if (analyze_thread.joinable()) {
-            analyze_thread.join();
-        }
-
-        return FALSE;
-    }
-
-    show_results_dialog(new_files_to_sort);
+    update_analyze_button_state(false);
 
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
 
-    return FALSE;
+    if (progress_dialog) {
+        progress_dialog->hide();
+        progress_dialog.reset();
+    }
+
+    stop_analysis = false;
+
+    if (new_files_to_sort.empty()) {
+        handle_no_files_to_sort();
+        return;
+    }
+
+    populate_tree_view(new_files_to_sort);
+    show_results_dialog(new_files_to_sort);
+}
+
+
+void MainApp::handle_analysis_failure(const std::string& message)
+{
+    update_analyze_button_state(false);
+    if (analyze_thread.joinable()) {
+        analyze_thread.join();
+    }
+    if (progress_dialog) {
+        progress_dialog->hide();
+        progress_dialog.reset();
+    }
+    stop_analysis = false;
+    show_error_dialog(message);
+}
+
+
+void MainApp::handle_no_files_to_sort()
+{
+    show_error_dialog(ERR_NO_FILES_TO_CATEGORIZE);
+}
+
+
+void MainApp::populate_tree_view(const std::vector<CategorizedFile>& files)
+{
+    tree_model->removeRows(0, tree_model->rowCount());
+
+    for (const auto& file : files) {
+        QList<QStandardItem*> row;
+        auto* file_item = new QStandardItem(QString::fromStdString(file.file_name));
+        auto* type_item = new QStandardItem(file.type == FileType::Directory ? tr("Directory") : tr("File"));
+        type_item->setData(file.type == FileType::Directory ? QStringLiteral("D") : QStringLiteral("F"), Qt::UserRole);
+        auto* category_item = new QStandardItem(QString::fromStdString(file.category));
+        auto* subcategory_item = new QStandardItem(QString::fromStdString(file.subcategory));
+        auto* status_item = new QStandardItem(tr("Ready"));
+        status_item->setData(QStringLiteral("ready"), Qt::UserRole);
+        row << file_item << type_item << category_item << subcategory_item << status_item;
+        tree_model->appendRow(row);
+    }
 }
 
 
 void MainApp::perform_analysis()
 {
-    std::string directory_path = get_folder_path();
-    if (directory_path.empty()) {
-        core_logger->error("Attempted to perform analysis with an empty directory path.");
-        g_idle_add([](gpointer user_data) -> gboolean {
-            MainApp* app = static_cast<MainApp*>(user_data);
-            DialogUtils::show_error_dialog(GTK_WINDOW(app->main_window), "No folder path provided.");
-            return G_SOURCE_REMOVE;
-        }, this);        
-        return;
-    }
-
+    const std::string directory_path = get_folder_path();
     core_logger->info("Starting analysis for directory '{}'", directory_path);
 
-    g_idle_add([](gpointer user_data) -> gboolean {
-        MainApp* app = static_cast<MainApp*>(user_data);
-        app->progress_dialog->append_text(fmt::format("[SCAN] Exploring {}", app->get_folder_path()));
-        return G_SOURCE_REMOVE;
-    }, this);
+    run_on_ui([this, directory_path]() {
+        if (progress_dialog) {
+            progress_dialog->append_text(fmt::format("[SCAN] Exploring {}", directory_path));
+        }
+    });
 
-    if (stop_analysis) {
+    if (stop_analysis.load()) {
         return;
     }
 
@@ -278,199 +939,160 @@ void MainApp::perform_analysis()
         already_categorized_files = db_manager.get_categorized_files(directory_path);
 
         if (!already_categorized_files.empty()) {
-            g_idle_add([](gpointer user_data) -> gboolean {
-                MainApp* app = static_cast<MainApp*>(user_data);
-                app->progress_dialog->append_text("[ARCHIVE] Already categorized highlights:");
-                return G_SOURCE_REMOVE;
-            }, this);
+            run_on_ui([this]() {
+                if (progress_dialog) {
+                    progress_dialog->append_text("[ARCHIVE] Already categorized highlights:");
+                }
+            });
         }
 
         for (const auto& file_entry : already_categorized_files) {
-            auto context = std::make_unique<AnalysisContext>(
-                                                                this,
-                                                                file_entry.file_name,
-                                                                file_entry.type,
-                                                                file_entry.category,
-                                                                file_entry.subcategory
-                                                            );
+            if (stop_analysis.load()) {
+                return;
+            }
+            const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
+            const std::string sub = file_entry.subcategory.empty() ? "-" : file_entry.subcategory;
+            const std::string message = fmt::format(
+                "  - [{}] {} -> {} / {}",
+                symbol,
+                file_entry.file_name,
+                file_entry.category,
+                sub);
 
-            g_idle_add([](gpointer user_data) -> gboolean {
-                auto ctx = std::unique_ptr<AnalysisContext>(static_cast<AnalysisContext*>(user_data));
-                const char* symbol = ctx->file_type == FileType::Directory ? "DIR" : "FILE";
-                std::string sub = ctx->subcategory.empty() ? "-" : ctx->subcategory;
-                ctx->app->progress_dialog->append_text(
-                    fmt::format("  - [{}] {} -> {} / {}", symbol, ctx->file_name, ctx->category, sub));
-                return G_SOURCE_REMOVE;
-            }, context.release());
+            run_on_ui([this, message]() {
+                if (progress_dialog) {
+                    progress_dialog->append_text(message);
+                }
+            });
         }
 
-        std::unordered_set<std::string> cached_file_names = extract_file_names(already_categorized_files);
-        
-        if (stop_analysis) {
-            return;
-        }
+        const std::unordered_set<std::string> cached_file_names = extract_file_names(already_categorized_files);
 
         files_to_categorize = find_files_to_categorize(directory_path, cached_file_names);
         core_logger->debug("Found {} item(s) pending categorization in '{}'.",
                            files_to_categorize.size(), directory_path);
 
-        if (!files_to_categorize.empty()) {
-            g_idle_add([](gpointer user_data) -> gboolean {
-                MainApp* app = static_cast<MainApp*>(user_data);
-                app->progress_dialog->append_text("[QUEUE] Items waiting for categorization:");
-                return G_SOURCE_REMOVE;
-            }, this);
-        } else {
-            g_idle_add([](gpointer user_data) -> gboolean {
-                MainApp* app = static_cast<MainApp*>(user_data);
-                app->progress_dialog->append_text("[DONE] No files to categorize.");
-                return G_SOURCE_REMOVE;
-            }, this);
-        }
+        run_on_ui([this]() {
+            if (!progress_dialog) {
+                return;
+            }
+            if (!files_to_categorize.empty()) {
+                progress_dialog->append_text("[QUEUE] Items waiting for categorization:");
+            } else {
+                progress_dialog->append_text("[DONE] No files to categorize.");
+            }
+        });
 
         for (const auto& file_entry : files_to_categorize) {
-            auto* context = new AnalysisContext(
-                                                this,
-                                                file_entry.file_name,
-                                                file_entry.type,
-                                                "",  // No category
-                                                ""   // No subcategory
-                                                );
-
-            g_idle_add([](gpointer user_data) -> gboolean {
-                auto* ctx = static_cast<AnalysisContext*>(user_data);
-                const char* symbol = ctx->file_type == FileType::Directory ? "DIR" : "FILE";
-                ctx->app->progress_dialog->append_text(
-                    fmt::format("  - [{}] {}", symbol, ctx->file_name));
-                delete ctx;
-                return G_SOURCE_REMOVE;
-            }, context);
+            if (stop_analysis.load()) {
+                return;
+            }
+            run_on_ui([this, file_entry]() {
+                if (!progress_dialog) {
+                    return;
+                }
+                const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
+                progress_dialog->append_text(fmt::format("  - [{}] {}", symbol, file_entry.file_name));
+            });
         }
 
-        if (stop_analysis) {
+        if (stop_analysis.load()) {
             return;
         }
 
-        g_idle_add([](gpointer user_data) -> gboolean {
-            MainApp* app = static_cast<MainApp*>(user_data);
-            app->progress_dialog->append_text("[PROCESS] Letting the AI do its magic...");
-            return G_SOURCE_REMOVE;
-        }, this);
+        run_on_ui([this]() {
+            if (progress_dialog) {
+                progress_dialog->append_text("[PROCESS] Letting the AI do its magic...");
+            }
+        });
 
-        this->new_files_with_categories = categorize_files(files_to_categorize);
+        new_files_with_categories = categorize_files(files_to_categorize);
         core_logger->info("Categorization produced {} new record(s).",
                           new_files_with_categories.size());
 
-        this->already_categorized_files.insert(
+        already_categorized_files.insert(
             already_categorized_files.end(),
             new_files_with_categories.begin(),
-            new_files_with_categories.end()
-        );
+            new_files_with_categories.end());
 
-        this->new_files_to_sort = compute_files_to_sort();
+        // Consistency pass temporarily disabled
+        // if (settings.get_consistency_pass_enabled()) {
+        //     run_consistency_pass();
+        // }
+
+        new_files_to_sort = compute_files_to_sort();
         core_logger->debug("{} file(s) queued for sorting after analysis.",
                            new_files_to_sort.size());
 
-        g_idle_add([](gpointer user_data) -> gboolean {
-            MainApp* app = static_cast<MainApp*>(user_data);
-
-            if (app->progress_dialog) {
-                app->progress_dialog->hide();
-                delete app->progress_dialog;
-                app->progress_dialog = nullptr;
-            }
-
-            return app->update_ui_after_analysis();
-        }, this);
+        run_on_ui([this]() {
+            handle_analysis_finished();
+        });
     } catch (const std::exception& ex) {
-        DialogUtils::show_error_dialog(GTK_WINDOW(this->main_window), "Analysis Error: " + std::string(ex.what()));
         core_logger->error("Exception during analysis: {}", ex.what());
+        run_on_ui([this, message = std::string("Analysis error: ") + ex.what()]() {
+            handle_analysis_failure(message);
+        });
     }
 }
 
 
-std::vector<FileEntry>
-MainApp::get_actual_files(const std::string& directory_path)
+void MainApp::stop_running_analysis()
 {
-    core_logger->info("Getting actual files from directory {}", directory_path);
-
-    std::vector<FileEntry> actual_files =
-        dirscanner.get_directory_entries(directory_path, FileScanOptions::Files | FileScanOptions::Directories);
-    
-    core_logger->info("Actual files found: {}", static_cast<int>(actual_files.size()));
-
-    for (const auto& [full_file_path, file_name, file_type] : actual_files) {
-        core_logger->info("File: {}, Path: {}", file_name, full_file_path);
+    stop_analysis = true;
+    if (analyze_thread.joinable()) {
+        analyze_thread.join();
     }
-
-    return actual_files;
+    if (progress_dialog) {
+        progress_dialog->hide();
+        progress_dialog.reset();
+    }
 }
 
 
-void MainApp::on_analyze_button_clicked(GtkButton *button, gpointer main_app_instance)
+void MainApp::show_llm_selection_dialog()
 {
-    MainApp *app = static_cast<MainApp*>(main_app_instance);
-
-    const char *folder_path = gtk_entry_get_text(app->path_entry);
-    app->core_logger->info("Analyze action triggered for '{}'", folder_path);
-    if (!Utils::is_valid_directory(folder_path)) {
-        DialogUtils::show_error_dialog(GTK_WINDOW(app->main_window), ERR_INVALID_PATH);
-        app->core_logger->warn("User supplied invalid directory '{}'", folder_path);
-        return;
-    }
-
-    if (!Utils::is_network_available()) {
-        DialogUtils::show_error_dialog(GTK_WINDOW(app->main_window), ERR_NO_INTERNET_CONNECTION);
-        app->core_logger->warn("Network unavailable when attempting to analyze '{}'", folder_path);
-        return;
-    }
-
-    if (app->analyze_thread.joinable()) {
-        app->stop_analysis = true;
-        app->analyze_thread.join();
-        gtk_button_set_label(button, "Analyze folder");
-        app->core_logger->info("Existing analysis cancelled for '{}'", folder_path);
-        return;
-    }
-
-    app->stop_analysis = false;
-    gtk_button_set_label(button, "Stop Analyzing");
-    app->core_logger->info("Launching analysis thread for '{}'", folder_path);
-
-    g_idle_add([](gpointer user_data) -> gboolean {
-        MainApp* app = static_cast<MainApp*>(user_data);
-        gboolean show_subcategory_col = gtk_toggle_button_get_active(
-            GTK_TOGGLE_BUTTON(app->use_subcategories_checkbox));
-        app->progress_dialog = new CategorizationProgressDialog(
-            GTK_WINDOW(app->main_window),
-            app, show_subcategory_col);
-        app->progress_dialog->show();
-        return G_SOURCE_REMOVE;
-    }, app);
-
-    app->analyze_thread = std::thread([app]() {
-        try {
-            app->perform_analysis();
-        } catch (const std::exception &ex) {
-            app->core_logger->error("Exception during analysis: {}", ex.what());
+    try {
+        auto dialog = std::make_unique<LLMSelectionDialog>(settings, this);
+        if (dialog->exec() == QDialog::Accepted) {
+            settings.set_llm_choice(dialog->get_selected_llm_choice());
+            settings.save();
         }
-    });
+    } catch (const std::exception& ex) {
+        show_error_dialog(fmt::format("LLM selection error: {}", ex.what()));
+    }
 }
 
 
-std::vector<FileEntry>
-MainApp::find_files_to_categorize(const std::string& directory_path,
-                                  const std::unordered_set<std::string>& cached_files)
+void MainApp::on_about_activate()
+{
+    MainAppHelpActions::show_about(this);
+}
+
+
+std::unordered_set<std::string> MainApp::extract_file_names(
+    const std::vector<CategorizedFile>& categorized_files)
+{
+    std::unordered_set<std::string> file_names;
+    for (const auto& file : categorized_files) {
+        file_names.insert(file.file_name);
+    }
+    return file_names;
+}
+
+
+std::vector<FileEntry> MainApp::find_files_to_categorize(
+    const std::string& directory_path,
+    const std::unordered_set<std::string>& cached_files)
 {
     std::vector<FileEntry> actual_files =
         dirscanner.get_directory_entries(directory_path, file_scan_options);
     core_logger->debug("Directory '{}' has {} actual item(s); {} cached entry name(s) loaded.",
                        directory_path, actual_files.size(), cached_files.size());
-    std::vector<FileEntry> found_files;
 
-    for (const auto &[full_file_path, file_name, file_type] : actual_files) {
-        if (!cached_files.contains(file_name)) {
-            found_files.push_back({full_file_path, file_name, file_type});
+    std::vector<FileEntry> found_files;
+    for (const auto& entry : actual_files) {
+        if (!cached_files.contains(entry.file_name)) {
+            found_files.push_back(entry);
         }
     }
 
@@ -479,125 +1101,58 @@ MainApp::find_files_to_categorize(const std::string& directory_path,
 }
 
 
-std::vector<CategorizedFile> MainApp::compute_files_to_sort()
+std::vector<CategorizedFile> MainApp::categorize_files(const std::vector<FileEntry>& files)
 {
-    std::vector<CategorizedFile> files_to_sort;
-    
-    // Get current files in the directory (full path and name)
-    std::vector<FileEntry> actual_files = dirscanner.get_directory_entries(
-                                              get_folder_path(), file_scan_options
-                                              );
-    core_logger->debug("Computing files to sort. {} entries currently in directory.", actual_files.size());
-    
-    for (const auto &[full_file_path, file_name, file_type] : actual_files) {
-        // Search for each file in already_categorized_files to get its category data
-        auto it = std::find_if(
-            already_categorized_files.begin(), 
-            already_categorized_files.end(),
-            [&file_name, &file_type](const CategorizedFile& categorized_file) {
-                return categorized_file.file_name == file_name && categorized_file.type == file_type;
+    std::vector<CategorizedFile> categorized;
+    if (files.empty()) {
+        return categorized;
+    }
+
+    auto llm = make_llm_client();
+    if (!llm) {
+        throw std::runtime_error("Failed to create LLM client.");
+    }
+
+    for (const auto& entry : files) {
+        if (stop_analysis.load()) {
+            break;
+        }
+
+        run_on_ui([this, entry]() {
+            if (progress_dialog) {
+                progress_dialog->append_text(
+                    fmt::format("[SORT] {} ({})", entry.file_name,
+                                entry.type == FileType::Directory ? "directory" : "file"));
             }
-        );
+        });
 
-        if (it != already_categorized_files.end()) {
-            // Add files that are found in already_categorized_files with full metadata
-            files_to_sort.push_back(*it);
+        if (auto categorized_file = categorize_single_file(*llm, entry)) {
+            categorized.push_back(*categorized_file);
         }
     }
 
-    core_logger->info("{} file(s) ready for move after reconciliation.", files_to_sort.size());
-    return files_to_sort;
-}
-
-
-std::string MainApp::get_folder_path()
-{
-    if (!GTK_IS_ENTRY(path_entry)) {
-        core_logger->error("Path entry widget is missing or invalid.");
-        return "";
-    }
-
-    const char *folder_path = gtk_entry_get_text(path_entry);
-    return std::string(folder_path);
-}
-
-
-std::tuple<std::string, std::string> split_category_subcategory(const std::string& input)
-{
-    std::string delimiter = " : ";
-    size_t colon_pos = input.find(delimiter);
-    if (colon_pos != std::string::npos) {
-        std::string category = input.substr(0, colon_pos);
-        std::string subcategory = input.substr(colon_pos + delimiter.length());
-        return std::make_tuple(category, subcategory);
-    } else {
-        return std::make_tuple(input, "");
-    }
-}
-
-
-void MainApp::report_progress(const std::string& message) {
-    std::string formatted = message;
-    if (!formatted.empty() && formatted.front() == '\n') {
-        formatted.erase(formatted.begin());
-    }
-    if (!formatted.empty() && formatted.back() != '\n') {
-        formatted.push_back('\n');
-    }
-    auto progress_data = std::make_unique<
-        std::pair<MainApp*, std::string>>(this, formatted);
-    g_idle_add([](gpointer user_data) -> gboolean {
-        auto progress_data = std::unique_ptr<std::pair<MainApp*, std::string>>(
-            static_cast<std::pair<MainApp*, std::string>*>(user_data));
-        if (progress_data->first->progress_dialog) {
-            progress_data->first->progress_dialog->append_text(
-                progress_data->second);
-        }
-        return G_SOURCE_REMOVE;
-    }, progress_data.release());
-}
-
-
-std::unique_ptr<ILLMClient> MainApp::make_llm_client() {
-    if (settings.get_llm_choice() == LLMChoice::Remote) {
-        CategorizationSession categorization_session;
-        return std::make_unique<LLMClient>(
-            categorization_session.create_llm_client());
-    }
-
-    const char* env_var = settings.get_llm_choice() == LLMChoice::Local_3b
-        ? "LOCAL_LLM_3B_DOWNLOAD_URL"
-        : "LOCAL_LLM_7B_DOWNLOAD_URL";
-
-    std::string url = std::getenv(env_var);
-    return std::make_unique<LocalLLMClient>(
-        Utils::make_default_path_to_file_from_download_url(url));
+    return categorized;
 }
 
 
 std::optional<CategorizedFile> MainApp::categorize_single_file(
-    ILLMClient& llm,
-    const FileEntry& entry
-) {
-    if (stop_analysis) return std::nullopt;
+    ILLMClient& llm, const FileEntry& entry)
+{
+    auto report = [this](const std::string& message) {
+        run_on_ui([this, message]() {
+            if (progress_dialog) {
+                progress_dialog->append_text(message);
+            }
+        });
+    };
 
     try {
-        std::string dir_path = std::filesystem::path(entry.full_path)
-                                                .parent_path().string();
-        std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
-        if (!abbreviated_path.empty()) {
-            core_logger->debug("Submitting '{}' (type {}) for categorization. Full path: '{}'",
-                               entry.file_name, to_string(entry.type), abbreviated_path);
-        } else {
-            core_logger->debug("Submitting '{}' (type {}) for categorization.", entry.file_name,
-                               to_string(entry.type));
-        }
+        const std::filesystem::path entry_path = Utils::utf8_to_path(entry.full_path);
+        const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
+        const std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
 
-        auto resolved = categorize_file(
-            llm, entry.file_name, abbreviated_path, entry.type,
-            [this](const std::string& msg) {
-                report_progress(msg);
-            });
+        DatabaseManager::ResolvedCategory resolved =
+            categorize_file(llm, entry.file_name, abbreviated_path, entry.type, report);
 
         if (resolved.category.empty() || resolved.subcategory.empty()) {
             core_logger->warn("Categorization for '{}' returned empty category/subcategory.", entry.file_name);
@@ -606,65 +1161,16 @@ std::optional<CategorizedFile> MainApp::categorize_single_file(
 
         core_logger->info("Categorized '{}' as '{} / {}'.", entry.file_name, resolved.category,
                           resolved.subcategory.empty() ? "<none>" : resolved.subcategory);
+
         return CategorizedFile{dir_path, entry.file_name, entry.type,
                                resolved.category, resolved.subcategory, resolved.taxonomy_id};
     } catch (const std::exception& ex) {
-        std::string error_message = "Error categorizing file \"" +
-            entry.file_name + "\": " + ex.what();
-        DialogUtils::show_error_dialog(GTK_WINDOW(
-            this->main_window), error_message);
+        const std::string error_message = fmt::format("Error categorizing file '{}': {}", entry.file_name, ex.what());
+        run_on_ui([this, error_message]() {
+            show_error_dialog(error_message);
+        });
         core_logger->error("{}", error_message);
         return std::nullopt;
-    }
-}
-
-
-std::vector<CategorizedFile> MainApp::categorize_files(
-    const std::vector<FileEntry>& items)
-{
-    std::unique_ptr<ILLMClient> llm = make_llm_client();
-    std::vector<CategorizedFile> categorized_items;
-    core_logger->info("Beginning categorization for {} item(s).", items.size());
-
-    for (const auto& entry : items) {
-        auto result = categorize_single_file(*llm, entry);
-        if (!result.has_value()) break;
-        categorized_items.push_back(std::move(result.value()));
-    }
-
-    core_logger->info("Finished categorization. {} item(s) processed successfully.",
-                      categorized_items.size());
-    return categorized_items;
-}
-
-
-std::string MainApp::categorize_with_timeout(
-    ILLMClient& llm, const std::string& item_name,
-    const std::string& item_path,
-    const FileType file_type, int timeout_seconds)
-{
-    core_logger->debug("Issuing categorize request for '{}' ({}) with timeout {}s.",
-                       item_name, to_string(file_type), timeout_seconds);
-    std::promise<std::string> promise;
-    std::future<std::string> future = promise.get_future();
-
-    std::thread([&llm, promise = std::move(promise), item_name,
-                item_path, file_type]()mutable {
-        try {
-            std::string result = llm.categorize_file(item_name, item_path, file_type);
-            promise.set_value(result);
-        } catch (const std::exception& e) {
-            promise.set_exception(std::current_exception());
-        }
-    }).detach();
-
-    // Wait for result
-    if (future.wait_for(std::chrono::seconds(timeout_seconds)) ==
-        std::future_status::ready) {
-        return future.get();
-    } else {
-        throw std::runtime_error(
-            "Network timeout: LLM response took too long.");
     }
 }
 
@@ -675,16 +1181,12 @@ MainApp::categorize_file(ILLMClient& llm, const std::string& item_name,
                          const FileType file_type,
                          const std::function<void(const std::string&)>& report_progress)
 {
-    // Check the local database with the item name and type
     auto categorization = db_manager.get_categorization_from_db(item_name, file_type);
     if (categorization.size() >= 2) {
-        std::string category = categorization[0];
-        std::string subcategory = categorization[1];
+        const std::string& category = categorization[0];
+        const std::string& subcategory = categorization[1];
 
         auto resolved = db_manager.resolve_category(category, subcategory);
-        core_logger->info("Found in local DB: {} - Category: {}, Subcategory: {}", item_name,
-                          resolved.category, resolved.subcategory);
-
         std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
         std::string path_display = item_path.empty() ? "-" : item_path;
 
@@ -713,25 +1215,34 @@ MainApp::categorize_file(ILLMClient& llm, const std::string& item_name,
 
     try {
         std::string category_subcategory;
-        try {
-            if (using_local_llm) {
-                // Wait 30 seconds if using a local LLM
-                category_subcategory = categorize_with_timeout(
-                    llm, item_name, item_path, file_type, 60);
-            } else {
-                category_subcategory = categorize_with_timeout(
-                    llm, item_name, item_path, file_type, 10);
+
+        int timeout_seconds = using_local_llm ? 60 : 10;
+        const char* timeout_env = std::getenv(
+            using_local_llm ? "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT"
+                            : "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT");
+        if (timeout_env && *timeout_env) {
+            try {
+                int parsed = std::stoi(timeout_env);
+                if (parsed > 0) {
+                    timeout_seconds = parsed;
+                } else if (core_logger) {
+                    core_logger->warn("Ignoring non-positive LLM timeout '{}'", timeout_env);
+                }
+            } catch (const std::exception& ex) {
+                if (core_logger) {
+                    core_logger->warn("Failed to parse LLM timeout '{}': {}", timeout_env, ex.what());
+                }
             }
-        } catch (const std::exception& ex) {
-            std::string timeout_message = fmt::format("[TIMEOUT] {} ({})", item_name, ex.what());
-            report_progress(timeout_message);
-            core_logger->warn("Categorization timeout/error for '{}': {}", item_name, ex.what());
-            return DatabaseManager::ResolvedCategory{-1, "", ""};
         }
+        if (core_logger) {
+            core_logger->debug("Using {} LLM timeout of {} second(s)",
+                               using_local_llm ? "local" : "remote",
+                               timeout_seconds);
+        }
+        category_subcategory = categorize_with_timeout(
+            llm, item_name, item_path, file_type, timeout_seconds);
 
-        auto [category, subcategory] =
-            split_category_subcategory(category_subcategory);
-
+        auto [category, subcategory] = split_category_subcategory(category_subcategory);
         auto resolved = db_manager.resolve_category(category, subcategory);
 
         std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
@@ -752,382 +1263,406 @@ MainApp::categorize_file(ILLMClient& llm, const std::string& item_name,
 }
 
 
+std::string MainApp::categorize_with_timeout(
+    ILLMClient& llm, const std::string& item_name,
+    const std::string& item_path,
+    const FileType file_type,
+    int timeout_seconds)
+{
+    std::promise<std::string> promise;
+    std::future<std::string> future = promise.get_future();
+
+    std::thread([&llm, &promise, item_name, item_path, file_type]() mutable {
+        try {
+            promise.set_value(llm.categorize_file(item_name, item_path, file_type));
+        } catch (...) {
+            try {
+                promise.set_exception(std::current_exception());
+            } catch (...) {
+                // no-op
+            }
+        }
+    }).detach();
+
+    if (future.wait_for(std::chrono::seconds(timeout_seconds)) == std::future_status::timeout) {
+        throw std::runtime_error("Timed out waiting for LLM response");
+    }
+
+    return future.get();
+}
+
+
+std::unique_ptr<ILLMClient> MainApp::make_llm_client()
+{
+    if (settings.get_llm_choice() == LLMChoice::Remote) {
+        CategorizationSession session;
+        return std::make_unique<LLMClient>(session.create_llm_client());
+    }
+
+    const char* env_var = settings.get_llm_choice() == LLMChoice::Local_3b
+        ? "LOCAL_LLM_3B_DOWNLOAD_URL"
+        : "LOCAL_LLM_7B_DOWNLOAD_URL";
+
+    const char* env_url = std::getenv(env_var);
+    if (!env_url) {
+        throw std::runtime_error("Required environment variable for selected model is not set");
+    }
+
+    return std::make_unique<LocalLLMClient>(
+        Utils::make_default_path_to_file_from_download_url(env_url));
+}
+
+
+std::string MainApp::make_item_key(const CategorizedFile& item)
+{
+    std::filesystem::path path(item.file_path);
+    path /= item.file_name;
+    return path.generic_string();
+}
+
+
+std::string MainApp::build_consistency_prompt(const std::vector<const CategorizedFile*>& chunk,
+                                              const std::vector<std::pair<std::string, std::string>>& taxonomy) const
+{
+    Json::Value taxonomy_json(Json::arrayValue);
+    for (const auto& entry : taxonomy) {
+        Json::Value obj;
+        obj["category"] = entry.first;
+        obj["subcategory"] = entry.second;
+        taxonomy_json.append(obj);
+    }
+
+    Json::Value items(Json::arrayValue);
+    for (const auto* item : chunk) {
+        if (!item) {
+            continue;
+        }
+        Json::Value obj;
+        obj["id"] = make_item_key(*item);
+        obj["file"] = item->file_name;
+        obj["category"] = item->category;
+        obj["subcategory"] = item->subcategory;
+        items.append(obj);
+    }
+
+    Json::StreamWriterBuilder builder;
+    builder["indentation"] = "";
+    const std::string taxonomy_str = Json::writeString(builder, taxonomy_json);
+    const std::string items_str = Json::writeString(builder, items);
+
+    std::ostringstream prompt;
+    prompt << "You are a taxonomy normalization assistant.\n";
+    prompt << "Your task is to review existing (category, subcategory) assignments for files and make them consistent.\n";
+    prompt << "Guidelines:\n";
+    prompt << "1. Prefer using the known taxonomy entries when they closely match.\n";
+    prompt << "2. Merge near-duplicate labels (e.g. 'Docs' vs 'Documents'), but do not collapse distinct concepts.\n";
+    prompt << "3. Preserve the intent of each file. If a category/subcategory already looks appropriate, keep it.\n";
+    prompt << "4. Always provide both category and subcategory strings. If a subcategory is not needed, repeat the category.\n";
+    prompt << "5. Output JSON only, no prose.\n\n";
+    prompt << "Known taxonomy entries (JSON array): " << taxonomy_str << "\n";
+    prompt << "Items to harmonize (JSON array): " << items_str << "\n";
+    prompt << "Return a JSON object with the following structure: {\"harmonized\": [{\"id\": string, \"category\": string, \"subcategory\": string}, ...]}";
+    prompt << "\nMatch each output object to the corresponding input by id and keep the order identical.";
+
+    return prompt.str();
+}
+
+
+void MainApp::apply_consistency_response(const std::string& response,
+                                          std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+                                          std::unordered_map<std::string, CategorizedFile*>& new_items_by_key)
+{
+    if (response.empty()) {
+        return;
+    }
+
+    Json::CharReaderBuilder reader;
+    Json::Value root;
+    std::string errors;
+    std::istringstream stream(response);
+    if (!Json::parseFromStream(reader, stream, &root, &errors)) {
+        if (core_logger) {
+            core_logger->warn("Consistency pass JSON parse failed: {}", errors);
+            core_logger->warn("Consistency pass raw response ({} chars):\n{}", response.size(), response);
+        }
+        return;
+    }
+
+    const Json::Value* harmonized = nullptr;
+    if (root.isObject() && root.isMember("harmonized")) {
+        harmonized = &root["harmonized"];
+    } else if (root.isArray()) {
+        harmonized = &root;
+    }
+
+    if (!harmonized || !harmonized->isArray()) {
+        if (core_logger) {
+            core_logger->warn("Consistency pass response missing 'harmonized' array");
+        }
+        return;
+    }
+
+    auto trim = [](std::string value) {
+        const char* ws = " \t\n\r\f\v";
+        const auto start = value.find_first_not_of(ws);
+        const auto end = value.find_last_not_of(ws);
+        if (start == std::string::npos || end == std::string::npos) {
+            return std::string();
+        }
+        return value.substr(start, end - start + 1);
+    };
+
+    for (const auto& entry : *harmonized) {
+        if (!entry.isObject()) {
+            continue;
+        }
+        const std::string id = entry.get("id", "").asString();
+        if (id.empty()) {
+            continue;
+        }
+        auto it = items_by_key.find(id);
+        if (it == items_by_key.end() || !it->second) {
+            continue;
+        }
+
+        std::string category = trim(entry.get("category", it->second->category).asString());
+        std::string subcategory = trim(entry.get("subcategory", it->second->subcategory).asString());
+        if (category.empty()) {
+            category = it->second->category;
+        }
+        if (subcategory.empty()) {
+            subcategory = category;
+        }
+
+        DatabaseManager::ResolvedCategory resolved =
+            db_manager.resolve_category(category, subcategory);
+
+        bool changed = (resolved.category != it->second->category) ||
+                       (resolved.subcategory != it->second->subcategory);
+        it->second->category = resolved.category;
+        it->second->subcategory = resolved.subcategory;
+        it->second->taxonomy_id = resolved.taxonomy_id;
+
+        db_manager.insert_or_update_file_with_categorization(
+            it->second->file_name,
+            it->second->type == FileType::File ? "F" : "D",
+            it->second->file_path,
+            resolved);
+
+        if (auto new_it = new_items_by_key.find(id); new_it != new_items_by_key.end() && new_it->second) {
+            new_it->second->category = resolved.category;
+            new_it->second->subcategory = resolved.subcategory;
+            new_it->second->taxonomy_id = resolved.taxonomy_id;
+        }
+
+        if (changed) {
+            const std::string message = fmt::format("[CONSISTENCY] {} -> {} / {}",
+                                                    it->second->file_name,
+                                                    resolved.category,
+                                                    resolved.subcategory);
+            run_on_ui([this, message]() {
+                if (progress_dialog) {
+                    progress_dialog->append_text(message);
+                }
+            });
+        }
+    }
+}
+
+
+void MainApp::run_consistency_pass()
+{
+    if (stop_analysis.load()) {
+        return;
+    }
+    if (already_categorized_files.empty()) {
+        return;
+    }
+
+    std::unique_ptr<ILLMClient> llm;
+    try {
+        llm = make_llm_client();
+    } catch (const std::exception& ex) {
+        if (core_logger) {
+            core_logger->warn("Failed to create LLM client for consistency pass: {}", ex.what());
+        }
+        return;
+    }
+    if (!llm) {
+        return;
+    }
+
+    const auto taxonomy = db_manager.get_taxonomy_snapshot(150);
+
+    std::unordered_map<std::string, CategorizedFile*> items_by_key;
+    items_by_key.reserve(already_categorized_files.size());
+    for (auto& item : already_categorized_files) {
+        items_by_key[make_item_key(item)] = &item;
+    }
+
+    std::unordered_map<std::string, CategorizedFile*> new_items_by_key;
+    new_items_by_key.reserve(new_files_with_categories.size());
+    for (auto& item : new_files_with_categories) {
+        new_items_by_key[make_item_key(item)] = &item;
+    }
+
+    std::vector<const CategorizedFile*> chunk;
+    chunk.reserve(10);
+
+    for (size_t index = 0; index < already_categorized_files.size(); ++index) {
+        if (stop_analysis.load()) {
+            break;
+        }
+
+        chunk.push_back(&already_categorized_files[index]);
+        bool should_flush = chunk.size() == 10 || index + 1 == already_categorized_files.size();
+        if (!should_flush) {
+            continue;
+        }
+
+        if (core_logger) {
+            core_logger->info("[CONSISTENCY] Processing chunk {}-{} of {}", index + 1 - chunk.size() + 1, index + 1, already_categorized_files.size());
+            for (const auto* item : chunk) {
+                if (!item) continue;
+                core_logger->info("  [BEFORE] {} -> {} / {}", item->file_name, item->category, item->subcategory);
+            }
+        }
+
+        const std::string prompt = build_consistency_prompt(chunk, taxonomy);
+        try {
+            const std::string response = llm->complete_prompt(prompt, 512);
+            apply_consistency_response(response, items_by_key, new_items_by_key);
+        } catch (const std::exception& ex) {
+            if (core_logger) {
+                core_logger->warn("Consistency pass chunk failed: {}", ex.what());
+            }
+        }
+
+        if (core_logger) {
+            for (const auto* item : chunk) {
+                if (!item) continue;
+                core_logger->info("  [AFTER] {} -> {} / {}", item->file_name, item->category, item->subcategory);
+            }
+        }
+
+        chunk.clear();
+    }
+}
+
+
 void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
 {
     try {
-        delete categorization_dialog;
-        gboolean show_subcategory_col = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(use_subcategories_checkbox));
-        categorization_dialog = new CategorizationDialog(&db_manager, show_subcategory_col);
-        this->categorization_dialog->show_results(results);
-    } catch (const std::runtime_error &ex) {
-        ui_logger->error("Error: {}", ex.what());;
+        const bool show_subcategory = use_subcategories_checkbox->isChecked();
+        categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, this);
+        categorization_dialog->show_results(results);
+    } catch (const std::exception& ex) {
+        if (ui_logger) {
+            ui_logger->error("Error showing results dialog: {}", ex.what());
+        }
+        show_error_dialog(fmt::format("Failed to show results dialog: {}", ex.what()));
     }
 }
 
 
-void MainApp::on_file_chooser_response(GtkDialog *dialog, gint response, gpointer user_data) {
-    MainApp *app = static_cast<MainApp *>(user_data);
-
-    if (response == GTK_RESPONSE_ACCEPT) {
-        GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
-        char *folder_path = gtk_file_chooser_get_filename(chooser);
-        gtk_entry_set_text(GTK_ENTRY(app->path_entry), folder_path);
-        gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(app->file_chooser), folder_path);
-        g_free(folder_path);
-    }
-
-    gtk_widget_destroy(GTK_WIDGET(dialog));
-}
-
-
-void MainApp::on_browse_button_clicked(GtkButton *button, gpointer user_data) {
-    MainApp *app = static_cast<MainApp *>(user_data);
-
-    GtkWidget *dialog;
-    GtkWidget *window = gtk_widget_get_toplevel(GTK_WIDGET(button));
-
-    dialog = gtk_file_chooser_dialog_new("Select Directory",
-                                         GTK_WINDOW(window),
-                                         GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
-                                         "_Cancel", GTK_RESPONSE_CANCEL,
-                                         "_Open", GTK_RESPONSE_ACCEPT,
-                                         NULL);
-
-    g_signal_connect(dialog, "response", G_CALLBACK(MainApp::on_file_chooser_response), app);
-
-    gtk_widget_show(dialog);
-}
-
-
-void MainApp::setup_menu_item_file_explorer()
+void MainApp::show_error_dialog(const std::string& message)
 {
-    GtkWidget *check_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "view-file-explorer"));
-    GtkWidget *icon_image = gtk_image_new_from_icon_name("document-open", GTK_ICON_SIZE_MENU);
-    GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-
-    gtk_box_pack_start(GTK_BOX(hbox), icon_image, FALSE, FALSE, 0);
-
-    GtkWidget *label = gtk_label_new("File Explorer");
-    gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, FALSE, 0);
-
-    GtkWidget *existing_child = gtk_bin_get_child(GTK_BIN(check_menu_item));
-    gtk_container_remove(GTK_CONTAINER(check_menu_item), existing_child);
-
-    gtk_container_add(GTK_CONTAINER(check_menu_item), hbox);
-
-    gtk_widget_show_all(check_menu_item);
+    DialogUtils::show_error_dialog(this, message);
 }
 
 
-void MainApp::on_directory_selected(GtkFileChooser *file_chooser, gpointer user_data)
+void MainApp::report_progress(const std::string& message)
 {
-    MainApp *app = static_cast<MainApp *>(user_data);
-    char *selected_dir = gtk_file_chooser_get_filename(file_chooser);
-
-    if (selected_dir != nullptr) {
-        gtk_entry_set_text(app->path_entry, selected_dir);
-        g_free(selected_dir);
-    }
+    run_on_ui([this, message]() {
+        if (progress_dialog) {
+            progress_dialog->append_text(message);
+        }
+    });
 }
 
 
-void MainApp::on_toggle_file_explorer(GtkCheckMenuItem *menu_item, GtkWidget *directory_browser)
+void MainApp::request_stop_analysis()
 {
-    gboolean active = gtk_check_menu_item_get_active(menu_item);
-    GtkWindow *main_window = GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(directory_browser)));
-
-    int width, height;
-    gtk_window_get_size(main_window, &width, &height);
-
-    const int height_adjustment = gtk_widget_get_allocated_height(directory_browser);
-
-    if (active) {
-        gtk_widget_show(directory_browser);
-        gtk_window_resize(main_window, width, height + height_adjustment);
-    } else {
-        gtk_widget_hide(directory_browser);
-        gtk_window_resize(main_window, width, height - height_adjustment);
-    }
+    stop_analysis = true;
+    statusBar()->showMessage(tr("Cancelling analysis…"), 4000);
+    status_is_ready_ = false;
 }
 
 
-void MainApp::on_path_entry_activate(GtkEntry *path_entry, gpointer user_data)
+std::vector<FileEntry> MainApp::get_actual_files(const std::string& directory_path)
 {
-    MainApp *app = static_cast<MainApp *>(user_data);
-    const char *folder_path = gtk_entry_get_text(app->path_entry);
+    core_logger->info("Getting actual files from directory {}", directory_path);
 
-    if (g_file_test(folder_path, G_FILE_TEST_IS_DIR)) {
-        gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(app->file_chooser), folder_path);
-    } else {
-        DialogUtils::show_error_dialog(GTK_WINDOW(app->main_window), ERR_INVALID_PATH);
+    std::vector<FileEntry> actual_files =
+        dirscanner.get_directory_entries(directory_path, FileScanOptions::Files | FileScanOptions::Directories);
+
+    core_logger->info("Actual files found: {}", static_cast<int>(actual_files.size()));
+    for (const auto& entry : actual_files) {
+        core_logger->info("File: {}, Path: {}", entry.file_name, entry.full_path);
     }
+
+    return actual_files;
 }
 
 
-void MainApp::on_activate()
+std::vector<CategorizedFile> MainApp::compute_files_to_sort()
 {
-    try {
-        initialize_builder();
-        setup_main_window();
-        initialize_ui_components();
-        start_updater();
-    } catch (const std::exception &e) {
-        ui_logger->critical("Exception in MainApp::on_activate: {}", e.what());
+    std::vector<CategorizedFile> files_to_sort;
+
+    const std::vector<FileEntry> actual_files =
+        dirscanner.get_directory_entries(get_folder_path(), file_scan_options);
+    core_logger->debug("Computing files to sort. {} entries currently in directory.", actual_files.size());
+
+    for (const auto& entry : actual_files) {
+        const auto it = std::find_if(
+            already_categorized_files.begin(),
+            already_categorized_files.end(),
+            [&entry](const CategorizedFile& categorized_file) {
+                return categorized_file.file_name == entry.file_name
+                       && categorized_file.type == entry.type;
+            });
+
+        if (it != already_categorized_files.end()) {
+            files_to_sort.push_back(*it);
+        }
     }
+
+    core_logger->info("{} file(s) ready for move after reconciliation.", files_to_sort.size());
+    return files_to_sort;
 }
 
 
-void MainApp::initialize_builder()
+std::string MainApp::get_folder_path() const
 {
-    builder = gtk_builder_new();
-    if (!builder) {
-        ui_logger->critical("Failed to initialize GtkBuilder.");
-        throw std::runtime_error("GtkBuilder initialization failed.");
-    }
-    GError *error = NULL;
-    if (!gtk_builder_add_from_resource(builder, "/net/quicknode/AIFileSorter/ui/main_window.glade", &error)) {
-        ui_logger->critical("Failed to load resource: {}", error->message);
-        g_error_free(error);
-        g_object_unref(builder);
-        throw std::runtime_error("Resource loading failed.");
-    }
+    const QByteArray bytes = path_entry->text().toUtf8();
+    return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
 
 
-void MainApp::setup_main_window()
+void MainApp::run_on_ui(std::function<void()> func)
 {
-    main_window = GTK_WIDGET(gtk_builder_get_object(builder, "main_window"));
-    if (!main_window) {
-        ui_logger->critical("Failed to load 'main_window'.");
-        throw std::runtime_error("Failed to load 'main_window'.");
-    }
-
-    gtk_window_set_application(GTK_WINDOW(main_window), GTK_APPLICATION(gtk_app));
-    set_app_icon();
-    gtk_widget_show_all(main_window);
+    QMetaObject::invokeMethod(
+        this,
+        [fn = std::move(func)]() mutable {
+            if (fn) {
+                fn();
+            }
+        },
+        Qt::QueuedConnection);
 }
 
-
-void MainApp::initialize_ui_components()
+void MainApp::changeEvent(QEvent* event)
 {
-    initialize_checkboxes();
-    gboolean show_subcategory_col = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(use_subcategories_checkbox));
-    categorization_dialog = new CategorizationDialog(&db_manager, show_subcategory_col);
-    connect_ui_signals();
-    setup_menu_item_file_explorer();
-    load_settings();
+    QMainWindow::changeEvent(event);
+    if (event && event->type() == QEvent::LanguageChange) {
+        retranslate_ui();
+    }
 }
 
 
-void MainApp::start_updater()
+void MainApp::closeEvent(QCloseEvent* event)
 {
-    Updater* updater = new Updater(settings);
-    updater->begin();
-}
-
-
-void MainApp::set_app_icon()
-{
-    GError *error = NULL;
-    GdkPixbuf *pixbuf_icon = gdk_pixbuf_new_from_resource("/net/quicknode/AIFileSorter/images/app_icon_128.png", &error);
-    
-    if (!pixbuf_icon) {
-        ui_logger->critical("Failed to load the app icon resource: {}", error->message);
-        g_clear_error(&error);
-    } else {
-        gtk_window_set_icon(GTK_WINDOW(main_window), pixbuf_icon);
-
-        // Debugging: Check the reference count before unref
-        g_object_ref(pixbuf_icon);  // Increase ref count to check
-        gsize ref_count = G_OBJECT(pixbuf_icon)->ref_count;
-        ui_logger->debug("Pixbuf ref count before unref: {}", ref_count);
-
-        g_object_unref(pixbuf_icon);
-    }
-}
-
-
-void MainApp::on_about_activate()
-{
-    MainAppHelpActions::show_about(GTK_WINDOW(main_window));
-}
-
-
-void MainApp::on_donate_activate()
-{
-    const std::string donation_url = "https://filesorter.app/donate";
-
-    #ifdef __linux__
-        const std::string command = "xdg-open " + donation_url;
-    #elif _WIN32
-        const std::string command = "start " + donation_url;
-    #elif __APPLE__
-        const std::string command = "open " + donation_url;
-    #else
-        core_logger->warn("Unsupported platform for opening URLs");
-        return;
-    #endif
-
-    int result = std::system(command.c_str());
-    if (result != 0) {
-        core_logger->error("Failed to open the donation URL: {}", donation_url);
-    }
-}
-
-
-void MainApp::connect_ui_signals()
-{
-    // File > Quit
-    GtkWidget* file_quit_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "file-quit"));
-    g_signal_connect(file_quit_menu_item, "activate", G_CALLBACK(+[](GtkWidget*, gpointer user_data) {
-        static_cast<MainApp*>(user_data)->on_quit();
-    }), this);
-
-    // Window close (delete-event)
-    g_signal_connect(main_window, "delete-event", G_CALLBACK(+[](GtkWidget*, GdkEvent*, gpointer user_data) -> gboolean {
-        static_cast<MainApp*>(user_data)->on_quit();
-        return FALSE;
-    }), this);
-
-    // File chooser and path entry
-    file_chooser = GTK_FILE_CHOOSER_WIDGET(gtk_builder_get_object(builder, "directory_browser"));
-    if (file_chooser) {
-        g_signal_connect(file_chooser, "selection-changed", G_CALLBACK(&MainApp::on_directory_selected), this);
-    } else {
-        g_critical("Failed to load 'directory_browser'.");
-    }
-
-    path_entry = GTK_ENTRY(gtk_builder_get_object(builder, "path_entry"));
-    if (path_entry) {
-        g_signal_connect(path_entry, "activate", G_CALLBACK(MainApp::on_path_entry_activate), this);
-    } else {
-        g_critical("Failed to load 'path_entry'.");
-    }
-
-    // View > File Explorer
-    GtkCheckMenuItem *view_file_explorer = GTK_CHECK_MENU_ITEM(gtk_builder_get_object(builder, "view-file-explorer"));
-    GtkWidget *directory_browser = GTK_WIDGET(gtk_builder_get_object(builder, "directory_browser"));
-    if (view_file_explorer && directory_browser) {
-        g_signal_connect(view_file_explorer, "toggled", G_CALLBACK(on_toggle_file_explorer), directory_browser);
-    } else {
-        g_critical("Failed to load 'view-file-explorer' or 'directory_browser'.");
-    }
-
-    // Settings > Toggle LLM
-    GtkWidget* toggle_llm_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "menu-toggle-llm"));
-    g_signal_connect(toggle_llm_menu_item, "activate", G_CALLBACK(+[](GtkMenuItem*, gpointer user_data) {
-        MainApp* app = static_cast<MainApp*>(user_data);
-        app->show_llm_selection_dialog();
-    }), this);
-
-    // Browse button
-    GtkWidget *browse_button = GTK_WIDGET(gtk_builder_get_object(builder, "browse_button"));
-    if (browse_button && path_entry) {
-        g_signal_connect(browse_button, "clicked", G_CALLBACK(MainApp::on_browse_button_clicked), this);
-    } else {
-        g_critical("Failed to load 'browse_button'.");
-    }
-
-    // Analyze button
-    analyze_button = GTK_BUTTON(gtk_builder_get_object(builder, "analyze_button"));
-    if (analyze_button) {
-        g_signal_connect(analyze_button, "clicked", G_CALLBACK(on_analyze_button_clicked), this);
-    } else {
-        g_critical("Failed to load 'analyze_button'.");
-    }
-
-    // Edit > Paste, Copy, Cut, Delete
-    GtkWidget *edit_paste_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "edit-paste"));
-    GtkWidget *edit_copy_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "edit-copy"));
-    GtkWidget *edit_cut_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "edit-cut"));
-    GtkWidget *edit_delete_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "edit-delete"));
-
-    g_signal_connect(edit_paste_menu_item, "activate", G_CALLBACK(+[](GtkWidget*, gpointer user_data) {
-        MainAppEditActions::on_paste(GTK_ENTRY(user_data));
-    }), path_entry);
-
-    g_signal_connect(edit_copy_menu_item, "activate", G_CALLBACK(+[](GtkWidget*, gpointer user_data) {
-        MainAppEditActions::on_copy(GTK_ENTRY(user_data));
-    }), path_entry);
-
-    g_signal_connect(edit_cut_menu_item, "activate", G_CALLBACK(+[](GtkWidget*, gpointer user_data) {
-        MainAppEditActions::on_cut(GTK_ENTRY(user_data));
-    }), path_entry);
-
-    g_signal_connect(edit_delete_menu_item, "activate", G_CALLBACK(+[](GtkWidget*, gpointer user_data) {
-        MainAppEditActions::on_delete(GTK_ENTRY(user_data));
-    }), path_entry);
-
-    // Help > About
-    GtkWidget* help_about_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "help-about"));
-    if (!help_about_menu_item) {
-        g_error("Failed to get 'help-about' menu item from UI file.");
-    }
-    g_signal_connect(help_about_menu_item, "activate", G_CALLBACK(+[](GtkWidget*, gpointer user_data) {
-        MainApp* self = static_cast<MainApp*>(user_data);
-        self->on_about_activate();
-    }), this);
-
-    // Help > Donate
-    // GtkWidget* help_donate_menu_item = GTK_WIDGET(gtk_builder_get_object(builder, "help-donate"));
-    // if (!help_donate_menu_item) {
-    //     g_error("Failed to get 'help-donate' menu item from UI file.");
-    // }
-    // g_signal_connect(help_donate_menu_item, "activate", G_CALLBACK(+[](GtkWidget*, gpointer user_data) {
-    //     MainApp* self = static_cast<MainApp*>(user_data);
-    //     self->on_donate_activate();
-    // }), this);
-}
-
-
-void MainApp::show_llm_selection_dialog() {
-    auto dialog = std::make_unique<LLMSelectionDialog>(settings);
-    gtk_window_set_transient_for(GTK_WINDOW(dialog->get_widget()), GTK_WINDOW(main_window));
-    gtk_window_set_modal(GTK_WINDOW(dialog->get_widget()), TRUE);
-    gtk_widget_show_all(dialog->get_widget());
-
-    int response = gtk_dialog_run(GTK_DIALOG(dialog->get_widget()));
-
-    if (response == GTK_RESPONSE_OK) {
-        settings.set_llm_choice(dialog->get_selected_llm_choice());
-        settings.save();
-    }
-}
-
-
-void MainApp::run()
-{
-    // Nothing needed here for now, the app runs with gtk_application_run
-}
-
-
-void MainApp::shutdown()
-{
-    if (analyze_thread.joinable()) {
-        stop_analysis = true;
-        analyze_thread.join();
-    }
-
-    g_signal_handlers_disconnect_by_data(categorize_files_checkbox, this);
-    g_signal_handlers_disconnect_by_data(categorize_directories_checkbox, this);
-
-    delete categorization_dialog;
-    delete data_for_files;
-    delete data_for_directories;
-
-    if (categorize_files_checkbox) {
-        g_object_unref(categorize_files_checkbox);
-        categorize_files_checkbox = nullptr;
-    }
-    
-    if (categorize_directories_checkbox) {
-        g_object_unref(categorize_directories_checkbox);
-        categorize_directories_checkbox = nullptr;
-    }
-}
-
-
-MainApp::~MainApp()
-{
-    // FcFini();
+    stop_running_analysis();
+    save_settings();
+    QMainWindow::closeEvent(event);
 }

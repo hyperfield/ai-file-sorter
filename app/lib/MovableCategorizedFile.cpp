@@ -3,7 +3,6 @@
 #include "Logger.hpp"
 #include <filesystem>
 #include <cstdio>
-#include <gtk/gtk.h>
 
 
 MovableCategorizedFile::MovableCategorizedFile(
@@ -23,9 +22,10 @@ MovableCategorizedFile::MovableCategorizedFile(
         throw std::runtime_error("Invalid path component in CategorizedFile constructor.");
     }
 
-    category_path = std::filesystem::path(dir_path) / category;
-    subcategory_path = category_path / subcategory;
-    destination_path = subcategory_path / file_name;
+    const std::filesystem::path base_dir = Utils::utf8_to_path(dir_path);
+    category_path = base_dir / Utils::utf8_to_path(category);
+    subcategory_path = category_path / Utils::utf8_to_path(subcategory);
+    destination_path = subcategory_path / Utils::utf8_to_path(file_name);
 }
 
 
@@ -50,17 +50,22 @@ void MovableCategorizedFile::create_cat_dirs(bool use_subcategory)
 bool MovableCategorizedFile::move_file(bool use_subcategory)
 {
     std::filesystem::path categorized_path;
+    const std::filesystem::path base_dir = Utils::utf8_to_path(dir_path);
+    const std::filesystem::path category_segment = Utils::utf8_to_path(category);
+    const std::filesystem::path subcategory_segment = Utils::utf8_to_path(subcategory);
+    const std::filesystem::path file_segment = Utils::utf8_to_path(file_name);
+
     if (use_subcategory) {
-        categorized_path = std::filesystem::path(dir_path) / category / subcategory;
+        categorized_path = base_dir / category_segment / subcategory_segment;
     } else {
-        categorized_path = std::filesystem::path(dir_path) / category;
+        categorized_path = base_dir / category_segment;
     }
-    std::filesystem::path destination_path = categorized_path / file_name;
-    std::filesystem::path source_path = std::filesystem::path(dir_path) / file_name;
+    std::filesystem::path destination_path = categorized_path / file_segment;
+    std::filesystem::path source_path = base_dir / file_segment;
 
     if (!std::filesystem::exists(source_path)) {
         if (auto logger = Logger::get_logger("core_logger")) {
-            logger->warn("Source file missing when moving '{}': {}", file_name, source_path.string());
+            logger->warn("Source file missing when moving '{}': {}", file_name, Utils::path_to_utf8(source_path));
         }
         return false;
     }
@@ -69,18 +74,18 @@ bool MovableCategorizedFile::move_file(bool use_subcategory)
         try {
             std::filesystem::rename(source_path, destination_path);
             if (auto logger = Logger::get_logger("core_logger")) {
-                logger->info("Moved '{}' to '{}'", source_path.string(), destination_path.string());
+                logger->info("Moved '{}' to '{}'", Utils::path_to_utf8(source_path), Utils::path_to_utf8(destination_path));
             }
             return true;
         } catch (const std::filesystem::filesystem_error& e) {
             if (auto logger = Logger::get_logger("core_logger")) {
-                logger->error("Failed to move '{}' to '{}': {}", source_path.string(), destination_path.string(), e.what());
+                logger->error("Failed to move '{}' to '{}': {}", Utils::path_to_utf8(source_path), Utils::path_to_utf8(destination_path), e.what());
             }
             return false;
         }
     } else {
         if (auto logger = Logger::get_logger("core_logger")) {
-            logger->info("Destination already contains '{}'; skipping move", destination_path.string());
+            logger->info("Destination already contains '{}'; skipping move", Utils::path_to_utf8(destination_path));
         }
         return false;
     }
@@ -89,19 +94,19 @@ bool MovableCategorizedFile::move_file(bool use_subcategory)
 
 std::string MovableCategorizedFile::get_subcategory_path() const
 {
-    return subcategory_path.string();
+    return Utils::path_to_utf8(subcategory_path);
 }
 
 
 std::string MovableCategorizedFile::get_category_path() const
 {
-    return category_path.string();
+    return Utils::path_to_utf8(category_path);
 }
 
 
 std::string MovableCategorizedFile::get_destination_path() const
 {
-    return destination_path.string();
+    return Utils::path_to_utf8(destination_path);
 }
 
 
