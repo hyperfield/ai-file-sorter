@@ -241,8 +241,10 @@ void Updater::show_optional_update_dialog(const UpdateInfo& info, QWidget* paren
 
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
-    return size * nmemb;
+    const auto total = size * nmemb;
+    auto* buffer = static_cast<std::string*>(userp);
+    buffer->append(static_cast<const char*>(contents), total);
+    return total;
 }
 
 

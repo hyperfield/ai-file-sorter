@@ -108,7 +108,11 @@ std::string CryptoManager::aes256_decrypt(const std::vector<unsigned char>& ciph
     }
 
     try {
-        if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, (unsigned char*)key.data(), iv) != 1) {
+        if (EVP_DecryptInit_ex(ctx,
+                               EVP_aes_256_cbc(),
+                               nullptr,
+                               reinterpret_cast<const unsigned char*>(key.data()),
+                               iv) != 1) {
             throw std::runtime_error("Decryption initialization failed.");
         }
 

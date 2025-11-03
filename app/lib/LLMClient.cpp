@@ -39,7 +39,7 @@ std::string escape_json(const std::string& input) {
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *response)
 {
     size_t totalSize = size * nmemb;
-    response->append((char *)contents, totalSize);
+    response->append(static_cast<const char*>(contents), totalSize);
     return totalSize;
 }
 

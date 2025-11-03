@@ -190,12 +190,20 @@ std::vector<unsigned char> aes256_encrypt(const std::string& plaintext, const st
 
     try {
         // Initialize encryption operation
-        if (EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, (unsigned char*)key.data(), iv) != 1) {
+        if (EVP_EncryptInit_ex(ctx,
+                               EVP_aes_256_cbc(),
+                               nullptr,
+                               reinterpret_cast<const unsigned char*>(key.data()),
+                               iv) != 1) {
             throw std::runtime_error("Encryption initialization failed.");
         }
 
         // Encrypt the plaintext
-        if (EVP_EncryptUpdate(ctx, ciphertext.data(), &len, (unsigned char*)plaintext.data(), plaintext.size()) != 1) {
+        if (EVP_EncryptUpdate(ctx,
+                              ciphertext.data(),
+                              &len,
+                              reinterpret_cast<const unsigned char*>(plaintext.data()),
+                              static_cast<int>(plaintext.size())) != 1) {
             throw std::runtime_error("Encryption failed.");
         }
         ciphertext_len += len;
@@ -243,7 +251,11 @@ std::string aes256_decrypt(const std::vector<unsigned char>& ciphertext, const s
 
     try {
         // Initialize decryption operation
-        if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, (unsigned char*)key.data(), iv) != 1) {
+        if (EVP_DecryptInit_ex(ctx,
+                               EVP_aes_256_cbc(),
+                               nullptr,
+                               reinterpret_cast<const unsigned char*>(key.data()),
+                               iv) != 1) {
             throw std::runtime_error("Decryption initialization failed.");
         }
 
