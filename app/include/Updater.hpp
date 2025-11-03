@@ -31,7 +31,7 @@ struct UpdateInfo
 class Updater
 {
 public:
-    Updater(Settings& settings);
+    explicit Updater(Settings& settings);
     ~Updater();
     void begin();
 

@@ -7,7 +7,7 @@
 
 class LLMClient : public ILLMClient {
 public:
-    LLMClient(const std::string &api_key);
+    explicit LLMClient(const std::string &api_key);
     ~LLMClient() override;
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,

@@ -13,7 +13,7 @@
 class LLMDownloader
 {
 public:
-    LLMDownloader(const std::string& download_url);
+    explicit LLMDownloader(const std::string& download_url);
     void init_if_needed();
     bool is_inited();
     void start_download(std::function<void(double)> progress_cb,

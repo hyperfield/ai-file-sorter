@@ -10,7 +10,7 @@
 
 class DatabaseManager {
 public:
-    DatabaseManager(std::string config_dir);
+    explicit DatabaseManager(std::string config_dir);
     ~DatabaseManager();
 
     bool is_file_already_categorized(const std::string &file_name);
