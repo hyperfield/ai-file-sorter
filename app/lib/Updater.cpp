@@ -37,6 +37,32 @@ void updater_log(spdlog::level::level_enum level, const char* fmt, Args&&... arg
         std::fprintf(stderr, "%s\n", message.c_str());
     }
 }
+
+void throw_for_http_status(long http_code)
+{
+    if (http_code == 401) {
+        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
+    }
+    if (http_code == 403) {
+        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
+    }
+    if (http_code >= 500) {
+        throw std::runtime_error("Server Error: The server returned an error. Status code: " + std::to_string(http_code));
+    }
+    if (http_code >= 400) {
+        throw std::runtime_error("Client Error: The server returned an error. Status code: " + std::to_string(http_code));
+    }
+}
+
+void configure_tls(CURL* curl)
+{
+#if defined(_WIN32)
+    const auto cert_path = Utils::ensure_ca_bundle();
+    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
+#else
+    (void)curl;
+#endif
+}
 }
 
 
@@ -216,15 +242,12 @@ std::string Updater::fetch_update_metadata() const {
     CURLcode res;
     std::string response_string;
 
-    #ifdef _WIN32
-        try {
-            const auto cert_path = Utils::ensure_ca_bundle();
-            curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-        } catch (const std::exception& ex) {
-            curl_easy_cleanup(curl);
-            throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
-        }
-    #endif
+    try {
+        configure_tls(curl);
+    } catch (const std::exception& ex) {
+        curl_easy_cleanup(curl);
+        throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
+    }
 
     curl_easy_setopt(curl, CURLOPT_URL, update_spec_file_url.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
@@ -252,15 +275,7 @@ std::string Updater::fetch_update_metadata() const {
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
 
-    if (http_code == 401) {
-        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
-    } else if (http_code == 403) {
-        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
-    } else if (http_code >= 500) {
-        throw std::runtime_error("Server Error: The server returned an error. Status code: " + std::to_string(http_code));
-    } else if (http_code >= 400) {
-        throw std::runtime_error("Client Error: The server returned an error. Status code: " + std::to_string(http_code));
-    }
+    throw_for_http_status(http_code);
 
     return response_string;
 }

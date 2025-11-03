@@ -4,6 +4,75 @@
 #include <filesystem>
 #include <cstdio>
 
+namespace {
+template <typename Callable>
+void with_core_logger(Callable callable)
+{
+    if (auto logger = Logger::get_logger("core_logger")) {
+        callable(*logger);
+    }
+}
+}
+
+MovableCategorizedFile::MovePaths
+MovableCategorizedFile::build_move_paths(bool use_subcategory) const
+{
+    const std::filesystem::path base_dir = Utils::utf8_to_path(dir_path);
+    const std::filesystem::path category_segment = Utils::utf8_to_path(category);
+    const std::filesystem::path subcategory_segment = Utils::utf8_to_path(subcategory);
+    const std::filesystem::path file_segment = Utils::utf8_to_path(file_name);
+
+    const std::filesystem::path categorized_root = use_subcategory
+        ? base_dir / category_segment / subcategory_segment
+        : base_dir / category_segment;
+
+    return MovePaths{
+        base_dir / file_segment,
+        categorized_root / file_segment
+    };
+}
+
+bool MovableCategorizedFile::source_is_available(const std::filesystem::path& source_path) const
+{
+    if (std::filesystem::exists(source_path)) {
+        return true;
+    }
+
+    with_core_logger([&](auto& logger) {
+        logger.warn("Source file missing when moving '{}': {}", file_name, Utils::path_to_utf8(source_path));
+    });
+    return false;
+}
+
+bool MovableCategorizedFile::destination_is_available(const std::filesystem::path& destination_path) const
+{
+    if (!std::filesystem::exists(destination_path)) {
+        return true;
+    }
+
+    with_core_logger([&](auto& logger) {
+        logger.info("Destination already contains '{}'; skipping move", Utils::path_to_utf8(destination_path));
+    });
+    return false;
+}
+
+bool MovableCategorizedFile::perform_move(const std::filesystem::path& source_path,
+                                          const std::filesystem::path& destination_path) const
+{
+    try {
+        std::filesystem::rename(source_path, destination_path);
+        with_core_logger([&](auto& logger) {
+            logger.info("Moved '{}' to '{}'", Utils::path_to_utf8(source_path), Utils::path_to_utf8(destination_path));
+        });
+        return true;
+    } catch (const std::filesystem::filesystem_error& e) {
+        with_core_logger([&](auto& logger) {
+            logger.error("Failed to move '{}' to '{}': {}", Utils::path_to_utf8(source_path), Utils::path_to_utf8(destination_path), e.what());
+        });
+        return false;
+    }
+}
+
 
 MovableCategorizedFile::MovableCategorizedFile(
     const std::string& dir_path, const std::string& cat, const std::string& subcat,
@@ -49,46 +118,17 @@ void MovableCategorizedFile::create_cat_dirs(bool use_subcategory)
 
 bool MovableCategorizedFile::move_file(bool use_subcategory)
 {
-    std::filesystem::path categorized_path;
-    const std::filesystem::path base_dir = Utils::utf8_to_path(dir_path);
-    const std::filesystem::path category_segment = Utils::utf8_to_path(category);
-    const std::filesystem::path subcategory_segment = Utils::utf8_to_path(subcategory);
-    const std::filesystem::path file_segment = Utils::utf8_to_path(file_name);
+    const MovePaths paths = build_move_paths(use_subcategory);
 
-    if (use_subcategory) {
-        categorized_path = base_dir / category_segment / subcategory_segment;
-    } else {
-        categorized_path = base_dir / category_segment;
-    }
-    std::filesystem::path destination_path = categorized_path / file_segment;
-    std::filesystem::path source_path = base_dir / file_segment;
-
-    if (!std::filesystem::exists(source_path)) {
-        if (auto logger = Logger::get_logger("core_logger")) {
-            logger->warn("Source file missing when moving '{}': {}", file_name, Utils::path_to_utf8(source_path));
-        }
+    if (!source_is_available(paths.source)) {
         return false;
     }
 
-    if (!std::filesystem::exists(destination_path)) {
-        try {
-            std::filesystem::rename(source_path, destination_path);
-            if (auto logger = Logger::get_logger("core_logger")) {
-                logger->info("Moved '{}' to '{}'", Utils::path_to_utf8(source_path), Utils::path_to_utf8(destination_path));
-            }
-            return true;
-        } catch (const std::filesystem::filesystem_error& e) {
-            if (auto logger = Logger::get_logger("core_logger")) {
-                logger->error("Failed to move '{}' to '{}': {}", Utils::path_to_utf8(source_path), Utils::path_to_utf8(destination_path), e.what());
-            }
-            return false;
-        }
-    } else {
-        if (auto logger = Logger::get_logger("core_logger")) {
-            logger->info("Destination already contains '{}'; skipping move", Utils::path_to_utf8(destination_path));
-        }
+    if (!destination_is_available(paths.destination)) {
         return false;
     }
+
+    return perform_move(paths.source, paths.destination);
 }
 
 

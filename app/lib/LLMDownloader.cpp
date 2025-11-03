@@ -306,38 +306,59 @@ FILE* LLMDownloader::open_output_file(long resume_offset) const
 }
 
 
-bool LLMDownloader::is_download_resumable() const
+bool LLMDownloader::has_existing_partial_download() const
 {
     try {
-        if (!std::filesystem::exists(download_destination) ||
-            std::filesystem::file_size(download_destination) == 0)
-        {
+        if (!std::filesystem::exists(download_destination)) {
             return false;
         }
+        return std::filesystem::file_size(download_destination) > 0;
     } catch (const std::filesystem::filesystem_error& e) {
-        // Log or handle error
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("Unable to inspect download destination '{}': {}", download_destination, e.what());
+        }
+        return false;
+    }
+}
+
+
+bool LLMDownloader::has_valid_content_length(const std::string& value) const
+{
+    try {
+        return std::stoll(value) > 0;
+    } catch (const std::exception& ex) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("Invalid Content-Length header '{}': {}", value, ex.what());
+        }
+        return false;
+    }
+}
+
+
+bool LLMDownloader::server_supports_resume_locked() const
+{
+    const auto ranges_it = curl_headers.find("accept-ranges");
+    if (ranges_it == curl_headers.end() || ranges_it->second != "bytes") {
+        return false;
+    }
+
+    const auto length_it = curl_headers.find("content-length");
+    if (length_it == curl_headers.end()) {
+        return false;
+    }
+
+    return has_valid_content_length(length_it->second);
+}
+
+
+bool LLMDownloader::is_download_resumable() const
+{
+    if (!has_existing_partial_download()) {
         return false;
     }
 
     std::lock_guard<std::mutex> lock(mutex);
-
-    auto it = curl_headers.find("accept-ranges");
-    auto len_it = curl_headers.find("content-length");
-
-    bool ranges = (it != curl_headers.end() && it->second == "bytes");
-    bool has_length = false;
-    if (len_it != curl_headers.end()) {
-        try {
-            has_length = std::stoll(len_it->second) > 0;
-        } catch (const std::exception& ex) {
-            if (auto logger = Logger::get_logger("core_logger")) {
-                logger->warn("Invalid Content-Length header '{}': {}", len_it->second, ex.what());
-            }
-            has_length = false;
-        }
-    }
-
-    return ranges && has_length;
+    return server_supports_resume_locked();
 }
 
 

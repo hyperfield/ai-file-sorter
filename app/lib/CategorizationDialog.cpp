@@ -364,18 +364,16 @@ void CategorizationDialog::retranslate_ui()
 {
     setWindowTitle(tr("Review Categorization"));
 
-    if (select_all_checkbox) {
-        select_all_checkbox->setText(tr("Select all"));
-    }
-    if (confirm_button) {
-        confirm_button->setText(tr("Confirm and Sort"));
-    }
-    if (continue_button) {
-        continue_button->setText(tr("Continue Later"));
-    }
-    if (close_button) {
-        close_button->setText(tr("Close"));
-    }
+    const auto set_text_if = [](auto* widget, const QString& text) {
+        if (widget) {
+            widget->setText(text);
+        }
+    };
+
+    set_text_if(select_all_checkbox, tr("Select all"));
+    set_text_if(confirm_button, tr("Confirm and Sort"));
+    set_text_if(continue_button, tr("Continue Later"));
+    set_text_if(close_button, tr("Close"));
 
     if (model) {
         model->setHorizontalHeaderLabels(QStringList{

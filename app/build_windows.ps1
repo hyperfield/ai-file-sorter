@@ -110,7 +110,7 @@ if (-not (Test-Path $toolchainFile)) {
 }
 
 if ($Clean -and (Test-Path $buildDir)) {
-    Write-Host "Removing existing build directory '$buildDir'..."
+    Write-Output "Removing existing build directory '$buildDir'..."
     Remove-Item -Recurse -Force $buildDir
 }
 
@@ -152,11 +152,11 @@ if ($Generator -eq "Ninja" -or $Generator -eq "Ninja Multi-Config") {
     $configureArgs += "x64"
 }
 
-Write-Host "Configuring project (generator: $Generator, configuration: $Configuration)..."
+Write-Output "Configuring project (generator: $Generator, configuration: $Configuration)..."
 
-Write-Host "`n==== CMake Configure Command ===="
-Write-Host "cmake $($configureArgs -join ' ')"
-Write-Host "=================================`n"
+Write-Output "`n==== CMake Configure Command ===="
+Write-Output "cmake $($configureArgs -join ' ')"
+Write-Output "=================================`n"
 
 & $cmakeExe @configureArgs
 if ($LASTEXITCODE -ne 0) {
@@ -165,7 +165,7 @@ if ($LASTEXITCODE -ne 0) {
 
 $buildArgs = @("--build", $buildDir, "--config", $Configuration)
 
-Write-Host "Building..."
+Write-Output "Building..."
 & $cmakeExe @buildArgs
 if ($LASTEXITCODE -ne 0) {
     throw "cmake build failed."
@@ -191,7 +191,7 @@ if (-not $outputExe) {
     Write-Warning "Expected executable was not found in standard locations. Reported path may not exist: $outputExe"
 }
 
-Write-Host "`nBuild complete. Executable located at: $outputExe"
+Write-Output "`nBuild complete. Executable located at: $outputExe"
 
 $outputDir = Split-Path -Parent $outputExe
 $precompiledCpuBin = Join-Path $appDir "lib/precompiled/cpu/bin"
@@ -237,7 +237,7 @@ foreach ($destDir in @($destWocuda, $destWcuda)) {
 #     $sourceLib = if (Test-Path $precompiledLibOpenBlas) { $precompiledLibOpenBlas } else { $precompiledOpenBlas }
 #     $destLibOpen = Join-Path $outputDir "openblas.dll"
 #     $destLibPrefixed = Join-Path $outputDir "libopenblas.dll"
-#     Write-Host "Staging OpenBLAS runtime from $sourceLib to $outputDir"
+#     Write-Output "Staging OpenBLAS runtime from $sourceLib to $outputDir"
 #     Copy-Item $sourceLib -Destination $destLibOpen -Force
 #     Copy-Item $sourceLib -Destination $destLibPrefixed -Force
 # } else {
@@ -265,7 +265,7 @@ if (-not $SkipDeploy) {
             }
         }
         if ($windeploy) {
-            Write-Host "Running windeployqt to stage Qt/runtime DLLs..."
+            Write-Output "Running windeployqt to stage Qt/runtime DLLs..."
             & $windeploy --no-translations "${outputExe}"
             if ($LASTEXITCODE -ne 0) {
                 throw "windeployqt failed with exit code $LASTEXITCODE"
@@ -277,5 +277,5 @@ if (-not $SkipDeploy) {
         Write-Warning "Skipping runtime deployment; windeployqt is only available on Windows."
     }
 } else {
-    Write-Host "Skipping windeployqt step (per -SkipDeploy)."
+    Write-Output "Skipping windeployqt step (per -SkipDeploy)."
 }

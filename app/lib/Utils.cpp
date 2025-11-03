@@ -330,21 +330,34 @@ bool Utils::is_valid_directory(const char *path)
     return std::filesystem::is_directory(std::filesystem::path(path), ec);
 }
 
+namespace {
+int hex_char_value(char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+        return 10 + (c - 'a');
+    }
+    if (c >= 'A' && c <= 'F') {
+        return 10 + (c - 'A');
+    }
+    return -1;
+}
+
+unsigned char combine_hex_pair(char high, char low)
+{
+    const int hi = hex_char_value(high);
+    const int lo = hex_char_value(low);
+    if (hi < 0 || lo < 0) {
+        throw std::invalid_argument("Hex string contains invalid characters");
+    }
+    return static_cast<unsigned char>((hi << 4) | lo);
+}
+}
+
 
 std::vector<unsigned char> Utils::hex_to_vector(const std::string& hex) {
-    auto hex_value = [](char c) -> int {
-        if (c >= '0' && c <= '9') {
-            return c - '0';
-        }
-        if (c >= 'a' && c <= 'f') {
-            return 10 + (c - 'a');
-        }
-        if (c >= 'A' && c <= 'F') {
-            return 10 + (c - 'A');
-        }
-        return -1;
-    };
-
     if (hex.size() % 2 != 0) {
         throw std::invalid_argument("Hex string must have even length");
     }
@@ -353,12 +366,7 @@ std::vector<unsigned char> Utils::hex_to_vector(const std::string& hex) {
     data.reserve(hex.size() / 2);
 
     for (std::size_t i = 0; i < hex.size(); i += 2) {
-        const int hi = hex_value(hex[i]);
-        const int lo = hex_value(hex[i + 1]);
-        if (hi < 0 || lo < 0) {
-            throw std::invalid_argument("Hex string contains invalid characters");
-        }
-        data.push_back(static_cast<unsigned char>((hi << 4) | lo));
+        data.push_back(combine_hex_pair(hex[i], hex[i + 1]));
     }
 
     return data;
