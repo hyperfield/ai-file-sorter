@@ -3,7 +3,10 @@
 #include "ILLMClient.hpp"
 #include "Types.hpp"
 #include "llama.h"
+#include <memory>
 #include <string>
+
+namespace spdlog { class logger; }
 
 class LocalLLMClient : public ILLMClient {
 public:
@@ -22,6 +25,11 @@ public:
 
 private:
     void load_model_if_needed();
+    void configure_llama_logging(const std::shared_ptr<spdlog::logger>& logger) const;
+    llama_model_params prepare_model_params(const std::shared_ptr<spdlog::logger>& logger);
+    void load_model_or_throw(const llama_model_params& model_params,
+                             const std::shared_ptr<spdlog::logger>& logger);
+    void configure_context(int context_length, const llama_model_params& model_params);
 
     std::string model_path;
     llama_model* model;
