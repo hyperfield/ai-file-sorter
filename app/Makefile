@@ -69,6 +69,8 @@ WRAPPED_BINARY := $(notdir $(TARGET))
 # Compiler and flags
 CXX = g++
 CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
+# Suppress GCC 13 fmt bigint false positives
+CXXFLAGS += -Wno-array-bounds -Wno-stringop-overflow -Wno-stringop-overread
 INCLUDE_DIRS = -I./include -I./include/llama
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
@@ -86,6 +88,9 @@ QRC_OBJ := $(OBJ_DIR)/qrc_app.o
 
 ifndef RCC
 RCC := $(shell command -v qt6-rcc 2>/dev/null)
+ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /usr/lib/qt6/libexec/rcc)
+endif
 ifeq ($(strip $(RCC)),)
 RCC := $(shell command -v rcc 2>/dev/null)
 endif
