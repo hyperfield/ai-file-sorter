@@ -326,8 +326,19 @@ bool Utils::is_valid_directory(const char *path)
     if (!path || *path == '\0') {
         return false;
     }
+#ifdef _WIN32
+    std::filesystem::path fs_path;
+    try {
+        fs_path = utf8_to_path(path);
+    } catch (const std::exception&) {
+        return false;
+    }
+#else
+    std::filesystem::path fs_path(path);
+#endif
+
     std::error_code ec;
-    return std::filesystem::is_directory(std::filesystem::path(path), ec);
+    return std::filesystem::is_directory(fs_path, ec);
 }
 
 namespace {

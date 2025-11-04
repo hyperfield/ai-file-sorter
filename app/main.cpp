@@ -85,7 +85,6 @@ int main(int argc, char **argv) {
         painter.end();
 
         QSplashScreen splash(splash_canvas);
-        splash.setWindowFlag(Qt::WindowStaysOnTopHint);
         const QString splash_text = QStringLiteral("AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
         splash.showMessage(splash_text, Qt::AlignBottom | Qt::AlignHCenter, Qt::black);
         splash.show();
