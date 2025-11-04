@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Version](https://badgen.net/badge/version/1.0.0/green)](#)
+[![Version](https://badgen.net/badge/version/1.0.5/blue)](#)
 
 AI File Sorter is a powerful, cross-platform desktop application that automates file organization with the help of AI.  
 
@@ -137,7 +137,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 1. **Install runtime prerequisites** (Qt6, networking, database, math libraries):
    ```bash
    sudo apt update && sudo apt install -y \
-    libqt6widgets6 libcurl4 libjsoncpp25 libfmt8 libopenblas0-pthread
+     libqt6widgets6 libcurl4 libjsoncpp25 libfmt9 libopenblas0-pthread
    ```
    Ensure that the Qt platform plugins are installed (on Ubuntu 22.04 this is provided by `qt6-wayland`).
    GPU acceleration additionally requires an NVIDIA driver with the matching CUDA runtime (`nvidia-cuda-toolkit` or the vendor packages).

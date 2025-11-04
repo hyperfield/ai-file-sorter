@@ -111,3 +111,7 @@ build-windows/
 dist/
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
