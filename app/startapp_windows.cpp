@@ -19,6 +19,41 @@
 
 namespace {
 
+bool enableSecureDllSearch()
+{
+#if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0602
+    return SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS) != 0;
+#else
+    // Only available on Windows 7+ with KB2533623. Try to enable if present.
+    typedef BOOL (WINAPI *SetDefaultDllDirectoriesFunc)(DWORD);
+    if (const HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll")) {
+        if (const auto fn = reinterpret_cast<SetDefaultDllDirectoriesFunc>(
+                GetProcAddress(kernel32, "SetDefaultDllDirectories"))) {
+            return fn(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS) != 0;
+        }
+    }
+    return false;
+#endif
+}
+
+void addDllDirectoryChecked(const QString& directory)
+{
+    if (directory.isEmpty()) {
+        return;
+    }
+    const std::wstring wideDir = QDir::toNativeSeparators(directory).toStdWString();
+    if (AddDllDirectory(wideDir.c_str()) == nullptr) {
+        qWarning().noquote()
+            << "AddDllDirectory failed for"
+            << QDir::toNativeSeparators(directory)
+            << "- error" << GetLastError();
+    } else {
+        qInfo().noquote()
+            << "Registered DLL directory"
+            << QDir::toNativeSeparators(directory);
+    }
+}
+
 bool tryLoadLibrary(const QString& name) {
     QLibrary lib(name);
     const bool loaded = lib.load();
@@ -66,15 +101,6 @@ void appendToProcessPath(const QString& directory) {
     qputenv("PATH", path);
     qInfo().noquote() << "Added to PATH:" << QDir::toNativeSeparators(directory);
     qInfo().noquote() << "Current PATH:" << QString::fromUtf8(qgetenv("PATH"));
-}
-
-void addDllSearchDirectory(const QString& directory) {
-    if (directory.isEmpty()) {
-        return;
-    }
-
-    const std::wstring wideDir = QDir::toNativeSeparators(directory).toStdWString();
-    AddDllDirectory(wideDir.c_str());
 }
 
 bool promptCudaDownload() {
@@ -143,13 +169,33 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    const bool secureSearchEnabled = enableSecureDllSearch();
+    if (!secureSearchEnabled) {
+        qWarning() << "SetDefaultDllDirectories unavailable; relying on PATH order for DLL resolution.";
+    }
+
     const QString ggmlVariant = (hasCuda && hasNvidiaDriver)
         ? QStringLiteral("wcuda")
         : QStringLiteral("wocuda");
-
     const QString ggmlPath = QDir(exeDir).filePath(QStringLiteral("lib/ggml/%1").arg(ggmlVariant));
     appendToProcessPath(ggmlPath);
-    addDllSearchDirectory(ggmlPath);
+    if (secureSearchEnabled) {
+        addDllDirectoryChecked(ggmlPath);
+    }
+
+    // Include other runtime directories so Qt/OpenSSL/etc can be found.
+    const QStringList additionalDllRoots = {
+        QDir(exeDir).filePath(QStringLiteral("lib/precompiled/cpu/bin")),
+        QDir(exeDir).filePath(QStringLiteral("lib/precompiled/cuda/bin")),
+        QDir(exeDir).filePath(QStringLiteral("bin")),
+        exeDir
+    };
+    for (const QString& dir : additionalDllRoots) {
+        appendToProcessPath(dir);
+        if (secureSearchEnabled) {
+            addDllDirectoryChecked(dir);
+        }
+    }
 
     const QString mainExecutable = resolveExecutableName(exeDir);
     if (!launchMainExecutable(mainExecutable)) {
