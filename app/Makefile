@@ -69,6 +69,8 @@ WRAPPED_BINARY := $(notdir $(TARGET))
 # Compiler and flags
 CXX = g++
 CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
+# Suppress false positives from fmt/Qt headers (see GCC 13 + fmt bigint warnings)
+CXXFLAGS += -Wno-array-bounds
 INCLUDE_DIRS = -I./include -I./include/llama
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
@@ -91,6 +93,9 @@ RCC := $(shell command -v rcc 2>/dev/null)
 endif
 ifeq ($(strip $(RCC)),)
 RCC := $(wildcard /opt/homebrew/opt/qt/bin/qt6-rcc)
+endif
+ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /usr/lib/qt6/libexec/rcc)
 endif
 endif
 ifeq ($(strip $(RCC)),)

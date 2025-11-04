@@ -152,14 +152,14 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 1. **Install dependencies**
    - Debian / Ubuntu:
      ```bash
-     sudo apt update && sudo apt install -y \\
-       build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \\
-       libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
+    sudo apt update && sudo apt install -y \
+      build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
+      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
      ```
    - Fedora / RHEL:
      ```bash
-     sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \\
-       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
+    sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
+      libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
      ```
    - Arch / Manjaro:
      ```bash
