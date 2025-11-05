@@ -381,18 +381,16 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 ## Credits
 
 - Curl: <https://github.com/curl/curl>
-- Gtk+3: <https://gitlab.gnome.org/GNOME/gtk>
 - Dotenv: <https://github.com/motdotla/dotenv>
 - git-scm: <https://git-scm.com>
 - Hugging Face: <https://huggingface.co>
 - JSONCPP: <https://github.com/open-source-parsers/jsoncpp>
 - LLaMa: <https://www.llama.com>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
-- Minstral AI: <https://mistral.ai>
-- MSYS2: <https://www.msys2.org>
+- Mistral AI: <https://mistral.ai>
 - OpenAI: <https://platform.openai.com/docs/overview>
 - OpenSSL: <https://github.com/openssl/openssl>
-- SoftPedia: <https://www.softpedia.com/get/File-managers/AI-File-Sorter.shtml>
+- Qt: <https://www.qt.io/>
 - spdlog: <https://github.com/gabime/spdlog>
 
 ## License
