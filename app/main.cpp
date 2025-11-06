@@ -16,6 +16,8 @@
 
 #include <functional>
 #include <algorithm>
+#include <vector>
+#include <cstring>
 #include <QPainter>
 
 #include <curl/curl.h>
@@ -64,7 +66,20 @@ int main(int argc, char **argv) {
         QCoreApplication::setApplicationName(QStringLiteral("AI File Sorter"));
         QGuiApplication::setApplicationDisplayName(QStringLiteral("AI File Sorter"));
 
-        QApplication app(argc, argv);
+        bool development_mode = false;
+        std::vector<char*> filtered_args;
+        filtered_args.reserve(static_cast<size_t>(argc) + 1);
+        for (int i = 0; i < argc; ++i) {
+            if (i > 0 && std::strcmp(argv[i], "--development") == 0) {
+                development_mode = true;
+                continue;
+            }
+            filtered_args.push_back(argv[i]);
+        }
+        filtered_args.push_back(nullptr);
+        int qt_argc = static_cast<int>(filtered_args.size()) - 1;
+
+        QApplication app(qt_argc, filtered_args.data());
 
         QPixmap splash_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/icon_512x512.png"));
         if (splash_pix.isNull()) {
@@ -123,7 +138,7 @@ int main(int argc, char **argv) {
             settings.save();
         }
 
-        MainApp main_app(settings);
+        MainApp main_app(settings, development_mode);
         splash_target_widget = &main_app;
 
         constexpr int splash_duration_ms = 3000;

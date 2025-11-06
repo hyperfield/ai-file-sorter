@@ -127,6 +127,9 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
     build_edit_menu(app);
     build_view_menu(app);
     build_settings_menu(app);
+    if (app.is_development_mode()) {
+        build_development_menu(app);
+    }
     build_help_menu(app);
 }
 
@@ -207,6 +210,15 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
         const Language chosen = static_cast<Language>(action->data().toInt());
         app.on_language_selected(chosen);
     });
+}
+
+void MainAppUiBuilder::build_development_menu(MainApp& app) {
+    app.development_menu = app.menuBar()->addMenu(QString());
+    app.development_settings_menu = app.development_menu->addMenu(QString());
+    app.development_prompt_logging_action = app.development_settings_menu->addAction(QString());
+    app.development_prompt_logging_action->setCheckable(true);
+    app.development_prompt_logging_action->setChecked(app.development_prompt_logging_enabled_);
+    QObject::connect(app.development_prompt_logging_action, &QAction::toggled, &app, &MainApp::handle_development_prompt_logging);
 }
 
 void MainAppUiBuilder::build_help_menu(MainApp& app) {

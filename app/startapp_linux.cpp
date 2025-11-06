@@ -39,7 +39,7 @@ bool isCudaInstalled() {
 
 extern char **environ;
 
-void launchMainApp(const std::string& exeDir, const std::string& libPath) {
+void launchMainApp(const std::string& exeDir, const std::string& libPath, int argc, char** argv) {
     std::string exePath = exeDir + "/bin/aifilesorter";
 
     if (access(exePath.c_str(), X_OK) != 0) {
@@ -74,10 +74,21 @@ void launchMainApp(const std::string& exeDir, const std::string& libPath) {
     }
     envp.push_back(nullptr);
 
-    // Args
-    const char* argv[] = { exePath.c_str(), nullptr };
+    std::vector<std::string> arg_storage;
+    arg_storage.push_back(exePath);
+    for (int i = 1; i < argc; ++i) {
+        if (argv[i]) {
+            arg_storage.emplace_back(argv[i]);
+        }
+    }
+    std::vector<char*> argv_ptrs;
+    argv_ptrs.reserve(arg_storage.size() + 1);
+    for (auto& arg : arg_storage) {
+        argv_ptrs.push_back(arg.data());
+    }
+    argv_ptrs.push_back(nullptr);
 
-    execve(exePath.c_str(), const_cast<char* const*>(argv), envp.data());
+    execve(exePath.c_str(), argv_ptrs.data(), envp.data());
 
     std::fprintf(stderr, "execve failed\n");
     perror("execve failed");
@@ -85,7 +96,7 @@ void launchMainApp(const std::string& exeDir, const std::string& libPath) {
 }
 
 
-int main() {
+int main(int argc, char* argv[]) {
     std::string exeDir = getExecutableDirectory();
     std::string baseLibDir = exeDir + "/lib";
     std::string ggmlSubdir;
@@ -99,6 +110,6 @@ int main() {
     }
 
     std::string fullLdPath = ggmlSubdir + ":" + baseLibDir;
-    launchMainApp(exeDir, fullLdPath);
+    launchMainApp(exeDir, fullLdPath, argc, argv);
     return 0;
 }

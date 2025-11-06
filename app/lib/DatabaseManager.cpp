@@ -38,6 +38,22 @@ bool is_duplicate_column_error(const char *error_msg) {
     });
     return message.find("duplicate column name") != std::string::npos;
 }
+
+std::string to_lower_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+std::string extract_extension_lower(const std::string& file_name) {
+    const auto pos = file_name.find_last_of('.');
+    if (pos == std::string::npos || pos + 1 >= file_name.size()) {
+        return std::string();
+    }
+    std::string ext = file_name.substr(pos);
+    return to_lower_copy(ext);
+}
 } // namespace
 
 DatabaseManager::DatabaseManager(std::string config_dir)
@@ -800,6 +816,83 @@ std::vector<std::pair<std::string, std::string>> DatabaseManager::get_taxonomy_s
         snapshot.emplace_back(entry.category, entry.subcategory);
     }
     return snapshot;
+}
+
+std::vector<std::pair<std::string, std::string>>
+DatabaseManager::get_recent_categories_for_extension(const std::string& extension,
+                                                     FileType file_type,
+                                                     std::size_t limit) const
+{
+    std::vector<std::pair<std::string, std::string>> results;
+    if (!db || limit == 0) {
+        return results;
+    }
+
+    sqlite3_stmt* stmt = nullptr;
+    const char* sql =
+        "SELECT file_name, category, subcategory FROM file_categorization "
+        "WHERE file_type = ? ORDER BY timestamp DESC LIMIT ?";
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::warn,
+               "Failed to prepare recent category lookup: {}",
+               sqlite3_errmsg(db));
+        return results;
+    }
+
+    const std::string type_code(1, file_type == FileType::File ? 'F' : 'D');
+    sqlite3_bind_text(stmt, 1, type_code.c_str(), -1, SQLITE_TRANSIENT);
+    const std::size_t fetch_limit = std::max<std::size_t>(limit * 5, limit);
+    sqlite3_bind_int(stmt, 2, static_cast<int>(fetch_limit));
+
+    const std::string normalized_extension = to_lower_copy(extension);
+    const bool has_extension = !normalized_extension.empty();
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* file_name_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char* category_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* subcategory_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+
+        std::string file_name = file_name_text ? file_name_text : "";
+        if (file_name.empty()) {
+            continue;
+        }
+
+        const std::string candidate_extension = extract_extension_lower(file_name);
+        if (has_extension) {
+            if (candidate_extension != normalized_extension) {
+                continue;
+            }
+        } else if (!candidate_extension.empty()) {
+            continue;
+        }
+
+        std::string category = category_text ? category_text : "";
+        std::string subcategory = subcategory_text ? subcategory_text : "";
+        if (category.empty()) {
+            continue;
+        }
+
+        std::pair<std::string, std::string> candidate{category, subcategory};
+        bool duplicate = false;
+        for (const auto& existing : results) {
+            if (existing.first == candidate.first && existing.second == candidate.second) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate) {
+            continue;
+        }
+
+        results.push_back(std::move(candidate));
+        if (results.size() >= limit) {
+            break;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return results;
 }
 
 std::string DatabaseManager::get_cached_category(const std::string &file_name) {

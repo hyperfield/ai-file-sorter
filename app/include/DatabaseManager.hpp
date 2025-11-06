@@ -40,6 +40,10 @@ public:
     void increment_taxonomy_frequency(int taxonomy_id);
     std::vector<std::pair<std::string, std::string>>
         get_taxonomy_snapshot(std::size_t max_entries) const;
+    std::vector<std::pair<std::string, std::string>>
+        get_recent_categories_for_extension(const std::string& extension,
+                                            FileType file_type,
+                                            std::size_t limit) const;
 
 private:
     struct TaxonomyEntry {

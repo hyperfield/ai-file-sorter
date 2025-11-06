@@ -22,6 +22,8 @@ public:
     ConsistencyPassService(DatabaseManager& db_manager,
                            std::shared_ptr<spdlog::logger> logger);
 
+    void set_prompt_logging_enabled(bool enabled);
+
     void run(std::vector<CategorizedFile>& categorized_files,
              std::vector<CategorizedFile>& newly_categorized_files,
              std::function<std::unique_ptr<ILLMClient>()> llm_factory,
@@ -31,6 +33,7 @@ public:
 private:
     DatabaseManager& db_manager;
     std::shared_ptr<spdlog::logger> logger;
+    mutable bool prompt_logging_enabled{false};
 };
 
 #endif

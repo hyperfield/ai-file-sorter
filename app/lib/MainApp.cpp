@@ -71,7 +71,7 @@
 
 using namespace std::chrono_literals;
 
-MainApp::MainApp(Settings& settings, QWidget* parent)
+MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
     : QMainWindow(parent),
       settings(settings),
       db_manager(settings.get_config_dir()),
@@ -79,7 +79,9 @@ MainApp::MainApp(Settings& settings, QWidget* parent)
       ui_logger(Logger::get_logger("ui_logger")),
       categorization_service(settings, db_manager, core_logger),
       consistency_pass_service(db_manager, core_logger),
-      results_coordinator(dirscanner)
+      results_coordinator(dirscanner),
+      development_mode_(development_mode),
+      development_prompt_logging_enabled_(development_mode ? settings.get_development_prompt_logging() : false)
 {
     TranslationManager::instance().initialize(qApp);
     TranslationManager::instance().set_language(settings.get_language());
@@ -247,6 +249,12 @@ void MainApp::load_settings()
     if (!settings.load()) {
         core_logger->info("Failed to load settings, using defaults.");
     }
+    if (development_mode_) {
+        development_prompt_logging_enabled_ = settings.get_development_prompt_logging();
+    } else {
+        development_prompt_logging_enabled_ = false;
+    }
+    apply_development_logging();
     TranslationManager::instance().set_language(settings.get_language());
     sync_settings_to_ui();
     retranslate_ui();
@@ -294,6 +302,11 @@ void MainApp::sync_settings_to_ui()
     }
     update_results_view_mode();
 
+    if (development_mode_ && development_prompt_logging_action) {
+        QSignalBlocker blocker(development_prompt_logging_action);
+        development_prompt_logging_action->setChecked(development_prompt_logging_enabled_);
+    }
+
     update_language_checks();
 }
 
@@ -310,6 +323,12 @@ void MainApp::sync_ui_to_settings()
     }
     if (consistency_pass_action) {
         settings.set_consistency_pass_enabled(consistency_pass_action->isChecked());
+    }
+    if (development_mode_ && development_prompt_logging_action) {
+        const bool checked = development_prompt_logging_action->isChecked();
+        development_prompt_logging_enabled_ = checked;
+        settings.set_development_prompt_logging(checked);
+        apply_development_logging();
     }
     if (language_group) {
         if (QAction* checked = language_group->checkedAction()) {
@@ -400,6 +419,15 @@ void MainApp::retranslate_ui()
     }
     if (toggle_llm_action) {
         toggle_llm_action->setText(tr("Select &LLM…"));
+    }
+    if (development_menu) {
+        development_menu->setTitle(tr("&Development"));
+    }
+    if (development_settings_menu) {
+        development_settings_menu->setTitle(tr("&Settings"));
+    }
+    if (development_prompt_logging_action) {
+        development_prompt_logging_action->setText(tr("Log prompts and responses to stdout"));
     }
     if (consistency_pass_action) {
         consistency_pass_action->setText(tr("Run &consistency pass"));
@@ -884,6 +912,23 @@ void MainApp::run_consistency_pass()
         progress_sink);
 }
 
+void MainApp::handle_development_prompt_logging(bool checked)
+{
+    if (!development_mode_) {
+        if (development_prompt_logging_action) {
+            QSignalBlocker blocker(development_prompt_logging_action);
+            development_prompt_logging_action->setChecked(false);
+        }
+        development_prompt_logging_enabled_ = false;
+        apply_development_logging();
+        return;
+    }
+
+    development_prompt_logging_enabled_ = checked;
+    settings.set_development_prompt_logging(checked);
+    apply_development_logging();
+}
+
 void MainApp::request_stop_analysis()
 {
     stop_analysis = true;
@@ -924,12 +969,24 @@ void MainApp::on_about_activate()
     MainAppHelpActions::show_about(this);
 }
 
+bool MainApp::should_log_prompts() const
+{
+    return development_mode_ && development_prompt_logging_enabled_;
+}
+
+void MainApp::apply_development_logging()
+{
+    consistency_pass_service.set_prompt_logging_enabled(should_log_prompts());
+}
+
 
 std::unique_ptr<ILLMClient> MainApp::make_llm_client()
 {
     if (settings.get_llm_choice() == LLMChoice::Remote) {
         CategorizationSession session;
-        return std::make_unique<LLMClient>(session.create_llm_client());
+        auto client = std::make_unique<LLMClient>(session.create_llm_client());
+        client->set_prompt_logging_enabled(should_log_prompts());
+        return client;
     }
 
     const char* env_var = settings.get_llm_choice() == LLMChoice::Local_3b
@@ -941,8 +998,10 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         throw std::runtime_error("Required environment variable for selected model is not set");
     }
 
-    return std::make_unique<LocalLLMClient>(
+    auto client = std::make_unique<LocalLLMClient>(
         Utils::make_default_path_to_file_from_download_url(env_url));
+    client->set_prompt_logging_enabled(should_log_prompts());
+    return client;
 }
 
 void MainApp::notify_recategorization_reset(const std::vector<CategorizedFile>& entries,

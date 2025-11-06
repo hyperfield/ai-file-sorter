@@ -120,7 +120,7 @@ bool promptCudaDownload() {
     return false;
 }
 
-bool launchMainExecutable(const QString& executablePath) {
+bool launchMainExecutable(const QString& executablePath, const QStringList& arguments) {
     QFileInfo exeInfo(executablePath);
     if (!exeInfo.exists()) {
         return false;
@@ -132,7 +132,7 @@ bool launchMainExecutable(const QString& executablePath) {
     QProcess process;
     process.setProcessEnvironment(environment);
 
-    return QProcess::startDetached(executablePath, {}, exeInfo.absolutePath());
+    return QProcess::startDetached(executablePath, arguments, exeInfo.absolutePath());
 }
 
 QString resolveExecutableName(const QString& baseDir) {
@@ -197,8 +197,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    QStringList forwardedArgs;
+    for (int i = 1; i < argc; ++i) {
+        forwardedArgs.append(QString::fromLocal8Bit(argv[i]));
+    }
+
     const QString mainExecutable = resolveExecutableName(exeDir);
-    if (!launchMainExecutable(mainExecutable)) {
+    if (!launchMainExecutable(mainExecutable, forwardedArgs)) {
         QMessageBox::critical(nullptr,
             QObject::tr("Launch Failed"),
             QObject::tr("Failed to launch the main application executable:\n%1").arg(mainExecutable));

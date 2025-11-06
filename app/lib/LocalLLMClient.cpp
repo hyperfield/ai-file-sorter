@@ -612,7 +612,8 @@ void LocalLLMClient::configure_context(int context_length, const llama_model_par
 
 std::string LocalLLMClient::make_prompt(const std::string& file_name,
                                         const std::string& file_path,
-                                        FileType file_type)
+                                        FileType file_type,
+                                        const std::string& consistency_context)
 {
     std::ostringstream user_section;
     if (!file_path.empty()) {
@@ -623,6 +624,10 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
     std::string prompt = (file_type == FileType::File)
         ? "\nCategorize this file:\n" + user_section.str()
         : "\nCategorize the directory:\n" + user_section.str();
+
+    if (!consistency_context.empty()) {
+        prompt += "\n" + consistency_context + "\n";
+    }
 
     std::string instruction = R"(<|begin_of_text|><|start_header_id|>system<|end_header_id|>
     You are a file categorization assistant. You must always follow the exact format. If the file is an installer, determine the type of software it installs. Base your answer on the filename, extension, and any directory context provided. The output must be:
@@ -750,7 +755,8 @@ std::string LocalLLMClient::generate_response(const std::string &prompt,
 
 std::string LocalLLMClient::categorize_file(const std::string& file_name,
                                             const std::string& file_path,
-                                            FileType file_type)
+                                            FileType file_type,
+                                            const std::string& consistency_context)
 {
     if (auto logger = Logger::get_logger("core_logger")) {
         if (!file_path.empty()) {
@@ -760,8 +766,15 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
             logger->debug("Requesting local categorization for '{}' ({})", file_name, to_string(file_type));
         }
     }
-    std::string prompt = make_prompt(file_name, file_path, file_type);
-    return generate_response(prompt, 64, true);
+    std::string prompt = make_prompt(file_name, file_path, file_type, consistency_context);
+    if (prompt_logging_enabled) {
+        std::cout << "\n[DEV][PROMPT] Categorization request\n" << prompt << "\n";
+    }
+    std::string response = generate_response(prompt, 64, true);
+    if (prompt_logging_enabled) {
+        std::cout << "[DEV][RESPONSE] Categorization reply\n" << response << "\n";
+    }
+    return response;
 }
 
 
@@ -804,4 +817,9 @@ LocalLLMClient::~LocalLLMClient() {
         logger->debug("Destroying LocalLLMClient for model '{}'", model_path);
     }
     if (model) llama_model_free(model);
+}
+
+void LocalLLMClient::set_prompt_logging_enabled(bool enabled)
+{
+    prompt_logging_enabled = enabled;
 }

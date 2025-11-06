@@ -49,7 +49,7 @@ struct FileEntry;
 class MainApp : public QMainWindow
 {
 public:
-    explicit MainApp(Settings& settings, QWidget* parent = nullptr);
+    explicit MainApp(Settings& settings, bool development_mode, QWidget* parent = nullptr);
     ~MainApp() override;
 
     void run();
@@ -61,6 +61,7 @@ public:
     void request_stop_analysis();
 
     std::string get_folder_path() const;
+    bool is_development_mode() const { return development_mode_; }
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -98,6 +99,7 @@ private:
     void show_llm_selection_dialog();
     void on_about_activate();
     void run_consistency_pass();
+    void handle_development_prompt_logging(bool checked);
 
     std::unique_ptr<ILLMClient> make_llm_client();
     void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
@@ -143,6 +145,8 @@ private:
     QMenu* edit_menu{nullptr};
     QMenu* view_menu{nullptr};
     QMenu* settings_menu{nullptr};
+    QMenu* development_menu{nullptr};
+    QMenu* development_settings_menu{nullptr};
     QMenu* language_menu{nullptr};
     QMenu* help_menu{nullptr};
     QAction* file_quit_action{nullptr};
@@ -152,6 +156,7 @@ private:
     QAction* delete_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
+    QAction* development_prompt_logging_action{nullptr};
     QAction* consistency_pass_action{nullptr};
     QActionGroup* language_group{nullptr};
     QAction* english_action{nullptr};
@@ -168,12 +173,16 @@ private:
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
     ResultsCoordinator results_coordinator;
+    bool development_mode_{false};
+    bool development_prompt_logging_enabled_{false};
 
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;
     std::atomic<bool> stop_analysis{false};
     bool analysis_in_progress_{false};
     bool status_is_ready_{true};
+    bool should_log_prompts() const;
+    void apply_development_logging();
 };
 
 #endif // MAINAPP_HPP

@@ -5,10 +5,12 @@
 #include "DatabaseManager.hpp"
 
 #include <atomic>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class Settings;
@@ -39,13 +41,18 @@ public:
         std::function<std::unique_ptr<ILLMClient>()> llm_factory) const;
 
 private:
+    using CategoryPair = std::pair<std::string, std::string>;
+    using HintHistory = std::deque<CategoryPair>;
+    using SessionHistoryMap = std::unordered_map<std::string, HintHistory>;
+
     DatabaseManager::ResolvedCategory categorize_with_cache(
         ILLMClient& llm,
         bool is_local_llm,
         const std::string& item_name,
         const std::string& item_path,
         FileType file_type,
-        const ProgressCallback& progress_callback) const;
+        const ProgressCallback& progress_callback,
+        const std::string& consistency_context) const;
 
     std::optional<CategorizedFile> categorize_single_entry(
         ILLMClient& llm,
@@ -53,14 +60,28 @@ private:
         const FileEntry& entry,
         std::atomic<bool>& stop_flag,
         const ProgressCallback& progress_callback,
-        const RecategorizationCallback& recategorization_callback) const;
+        const RecategorizationCallback& recategorization_callback,
+        SessionHistoryMap& session_history) const;
 
     std::string run_llm_with_timeout(
         ILLMClient& llm,
         const std::string& item_name,
         const std::string& item_path,
         FileType file_type,
-        bool is_local_llm) const;
+        bool is_local_llm,
+        const std::string& consistency_context) const;
+
+    std::vector<CategoryPair> collect_consistency_hints(
+        const std::string& signature,
+        const SessionHistoryMap& session_history,
+        const std::string& extension,
+        FileType file_type) const;
+
+    static std::string make_file_signature(FileType file_type, const std::string& extension);
+    static std::string extract_extension(const std::string& file_name);
+    static bool append_unique_hint(std::vector<CategoryPair>& target, const CategoryPair& candidate);
+    static void record_session_assignment(HintHistory& history, const CategoryPair& assignment);
+    std::string format_hint_block(const std::vector<CategoryPair>& hints) const;
 
     Settings& settings;
     DatabaseManager& db_manager;

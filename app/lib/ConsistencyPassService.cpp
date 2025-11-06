@@ -400,6 +400,11 @@ ConsistencyPassService::ConsistencyPassService(DatabaseManager& db_manager,
 {
 }
 
+void ConsistencyPassService::set_prompt_logging_enabled(bool enabled)
+{
+    prompt_logging_enabled = enabled;
+}
+
 void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files,
                                  std::vector<CategorizedFile>& newly_categorized_files,
                                  std::function<std::unique_ptr<ILLMClient>()> llm_factory,
@@ -464,10 +469,14 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
         }
 
         const std::string prompt = build_consistency_prompt(chunk, taxonomy);
-        std::cout << "\n[CONSISTENCY PROMPT]\n" << prompt << "\n";
+        if (prompt_logging_enabled) {
+            std::cout << "\n[CONSISTENCY PROMPT]\n" << prompt << "\n";
+        }
         try {
             const std::string response = llm->complete_prompt(prompt, 512);
-            std::cout << "[CONSISTENCY RESPONSE]\n" << response << "\n";
+            if (prompt_logging_enabled) {
+                std::cout << "[CONSISTENCY RESPONSE]\n" << response << "\n";
+            }
 
             Json::Value root;
             if (const Json::Value* harmonized = parse_consistency_response(response, root, logger)) {

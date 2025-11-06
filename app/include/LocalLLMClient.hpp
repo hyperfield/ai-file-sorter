@@ -15,13 +15,16 @@ public:
 
     std::string make_prompt(const std::string& file_name,
                             const std::string& file_path,
-                            FileType file_type);
+                            FileType file_type,
+                            const std::string& consistency_context);
     std::string generate_response(const std::string &prompt, int n_predict, bool apply_sanitizer = true);
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,
-                                FileType file_type) override;
+                                FileType file_type,
+                                const std::string& consistency_context) override;
     std::string complete_prompt(const std::string& prompt,
                                 int max_tokens) override;
+    void set_prompt_logging_enabled(bool enabled) override;
 
 private:
     void load_model_if_needed();
@@ -38,4 +41,5 @@ private:
     llama_sampler* smpl;
     std::string sanitize_output(std::string &output);
     llama_context_params ctx_params;
+    bool prompt_logging_enabled{false};
 };
