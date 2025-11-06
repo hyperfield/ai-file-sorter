@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Version](https://badgen.net/badge/version/1.0.5/blue)](#)
+[![Version](https://badgen.net/badge/version/1.1.0/blue)](#)
 
 AI File Sorter is a powerful, cross-platform desktop application that automates file organization with the help of AI.  
 
