@@ -14,7 +14,9 @@
 #include <jsoncpp/json/json.h>
 #endif
 
+#include <algorithm>
 #include <filesystem>
+#include <iostream>
 #include <optional>
 #include <sstream>
 
@@ -48,24 +50,6 @@ std::string build_consistency_prompt(
         taxonomy_json.append(obj);
     }
 
-    Json::Value items(Json::arrayValue);
-    for (const auto* item : chunk) {
-        if (!item) {
-            continue;
-        }
-        Json::Value obj;
-        obj["id"] = make_item_key(*item);
-        obj["file"] = item->file_name;
-        obj["category"] = item->category;
-        obj["subcategory"] = item->subcategory;
-        items.append(obj);
-    }
-
-    Json::StreamWriterBuilder builder;
-    builder["indentation"] = "";
-    const std::string taxonomy_str = Json::writeString(builder, taxonomy_json);
-    const std::string items_str = Json::writeString(builder, items);
-
     std::ostringstream prompt;
     prompt << "You are a taxonomy normalization assistant.\n";
     prompt << "Your task is to review existing (category, subcategory) assignments for files and make them consistent.\n";
@@ -73,47 +57,95 @@ std::string build_consistency_prompt(
     prompt << "1. Prefer using the known taxonomy entries when they closely match.\n";
     prompt << "2. Merge near-duplicate labels (e.g. 'Docs' vs 'Documents'), but do not collapse distinct concepts.\n";
     prompt << "3. Preserve the intent of each file. If a category/subcategory already looks appropriate, keep it.\n";
-    prompt << "4. Always provide both category and subcategory strings. If a subcategory is not needed, repeat the category.\n";
-    prompt << "5. Output JSON only, no prose.\n\n";
-    prompt << "Known taxonomy entries (JSON array): " << taxonomy_str << "\n";
-    prompt << "Items to harmonize (JSON array): " << items_str << "\n";
-    prompt << "Return a JSON object with the following structure: {\"harmonized\": [{\"id\": string, \"category\": string, \"subcategory\": string}, ...]}";
-    prompt << "\nMatch each output object to the corresponding input by id and keep the order identical.";
+    prompt << "4. Always provide both category and subcategory strings.\n";
+    prompt << "5. Respond with one line per item using the exact format: <id> => <Category> : <Subcategory>.\n";
+    prompt << "6. The <id> must be copied verbatim from the list below (full path). No other text may appear before it.\n";
+    prompt << "7. Keep the output order identical to the input and finish by writing END on its own line. No other prose.\n\n";
+
+    Json::StreamWriterBuilder builder;
+    builder["indentation"] = "";
+    const std::string taxonomy_str = Json::writeString(builder, taxonomy_json);
+    prompt << "Known taxonomy entries (JSON array): " << taxonomy_str << "\n\n";
+
+    prompt << "Items to harmonize (follow the input order in your response):\n";
+    for (const auto* item : chunk) {
+        if (!item) {
+            continue;
+        }
+        prompt << "- id: " << make_item_key(*item)
+               << ", file: " << item->file_name
+               << ", current: " << item->category << " / " << item->subcategory << "\n";
+    }
+
+    prompt << "Example response lines:\n";
+    prompt << "/home/user/Downloads/setup.exe => Applications : Installers\n";
+    prompt << "/home/user/Documents/taxes.pdf => Documents : Tax forms\n";
+    prompt << "END";
 
     return prompt.str();
 }
 
-const Json::Value* parse_consistency_response(
+bool parse_structured_lines(
     const std::string& response,
     Json::Value& root,
     const std::shared_ptr<spdlog::logger>& logger)
 {
-    Json::CharReaderBuilder reader;
-    std::string errors;
+    Json::Value harmonized(Json::arrayValue);
     std::istringstream stream(response);
-    if (!Json::parseFromStream(reader, stream, &root, &errors)) {
+    std::string raw_line;
+    size_t line_number = 0;
+
+    while (std::getline(stream, raw_line)) {
+        ++line_number;
+        std::string line = trim_whitespace(raw_line);
+        if (line.empty()) {
+            continue;
+        }
+        if (line == "END") {
+            break;
+        }
+
+        const auto arrow_pos = line.find("=>");
+        if (arrow_pos == std::string::npos) {
+            continue;
+        }
+
+        std::string id = trim_whitespace(line.substr(0, arrow_pos));
+        std::string remainder = trim_whitespace(line.substr(arrow_pos + 2));
+        const auto colon_pos = remainder.find(':');
+        if (colon_pos == std::string::npos) {
+            continue;
+        }
+
+        std::string category = trim_whitespace(remainder.substr(0, colon_pos));
+        std::string subcategory = trim_whitespace(remainder.substr(colon_pos + 1));
+        if (subcategory.empty()) {
+            subcategory = category;
+        }
+
+        if (id.empty() || category.empty()) {
+            if (logger) {
+                logger->warn("Consistency pass skipped malformed line {}: '{}'", line_number, raw_line);
+            }
+            continue;
+        }
+
+        Json::Value obj(Json::objectValue);
+        obj["id"] = id;
+        obj["category"] = category;
+        obj["subcategory"] = subcategory;
+        harmonized.append(obj);
+    }
+
+    if (harmonized.empty()) {
         if (logger) {
-            logger->warn("Consistency pass JSON parse failed: {}", errors);
-            logger->warn("Consistency pass raw response ({} chars):\n{}", response.size(), response);
+            logger->warn("Consistency pass parsed zero harmonized entries from line-based response");
         }
-        return nullptr;
+        return false;
     }
 
-    if (root.isObject() && root.isMember("harmonized")) {
-        const Json::Value& harmonized = root["harmonized"];
-        if (harmonized.isArray()) {
-            return &harmonized;
-        }
-    }
-
-    if (root.isArray()) {
-        return &root;
-    }
-
-    if (logger) {
-        logger->warn("Consistency pass response missing 'harmonized' array");
-    }
-    return nullptr;
+    root = harmonized;
+    return true;
 }
 
 struct HarmonizedUpdate {
@@ -216,6 +248,149 @@ void apply_harmonized_update(
     }
 }
 
+const Json::Value* parse_consistency_response(
+    const std::string& response,
+    Json::Value& root,
+    const std::shared_ptr<spdlog::logger>& logger)
+{
+    Json::CharReaderBuilder reader;
+    std::string errors;
+    std::istringstream stream(response);
+    if (!Json::parseFromStream(reader, stream, &root, &errors)) {
+        if (logger) {
+            logger->warn("Consistency pass JSON parse failed: {}", errors);
+            logger->warn("Consistency pass raw response ({} chars):\n{}", response.size(), response);
+        }
+        if (parse_structured_lines(response, root, logger)) {
+            return &root;
+        }
+        return nullptr;
+    }
+
+    if (root.isObject() && root.isMember("harmonized")) {
+        const Json::Value& harmonized = root["harmonized"];
+        if (harmonized.isArray()) {
+            return &harmonized;
+        }
+    }
+
+    if (root.isArray()) {
+        return &root;
+    }
+
+    if (logger) {
+        logger->warn("Consistency pass response missing 'harmonized' array");
+    }
+
+    if (parse_structured_lines(response, root, logger)) {
+        return &root;
+    }
+    return nullptr;
+}
+
+std::vector<std::pair<std::string, std::string>> parse_ordered_category_lines(
+    const std::string& response,
+    const std::shared_ptr<spdlog::logger>& logger)
+{
+    std::vector<std::pair<std::string, std::string>> ordered;
+    std::istringstream stream(response);
+    std::string raw_line;
+    size_t line_number = 0;
+
+    while (std::getline(stream, raw_line)) {
+        ++line_number;
+        std::string line = trim_whitespace(raw_line);
+        if (line.empty()) {
+            continue;
+        }
+        if (line == "END") {
+            break;
+        }
+        while (!line.empty() && (line.front() == '-' || line.front() == '*')) {
+            line.erase(line.begin());
+            line = trim_whitespace(line);
+        }
+
+        const auto colon_pos = line.find(':');
+        if (colon_pos == std::string::npos) {
+            continue;
+        }
+
+        std::string lhs = trim_whitespace(line.substr(0, colon_pos));
+        std::string rhs = trim_whitespace(line.substr(colon_pos + 1));
+        const auto arrow_pos = rhs.find("=>");
+        if (arrow_pos != std::string::npos) {
+            rhs = trim_whitespace(rhs.substr(0, arrow_pos));
+        }
+
+        std::string category;
+        std::string subcategory;
+        const auto slash_pos = lhs.find('/');
+        if (slash_pos != std::string::npos) {
+            category = trim_whitespace(lhs.substr(0, slash_pos));
+            subcategory = trim_whitespace(lhs.substr(slash_pos + 1));
+        } else {
+            category = lhs;
+        }
+
+        if (subcategory.empty()) {
+            subcategory = rhs;
+        }
+        if (subcategory.empty()) {
+            subcategory = category;
+        }
+
+        if (category.empty()) {
+            if (logger) {
+                logger->warn("Consistency pass fallback skipped malformed line {}: '{}'", line_number, raw_line);
+            }
+            continue;
+        }
+
+        ordered.emplace_back(std::move(category), std::move(subcategory));
+    }
+
+    if (ordered.empty() && logger) {
+        logger->warn("Consistency pass fallback parsing produced no entries");
+    }
+
+    return ordered;
+}
+
+bool apply_ordered_fallback(
+    const std::string& response,
+    const std::vector<const CategorizedFile*>& chunk,
+    std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+    DatabaseManager& db_manager,
+    std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+    const ConsistencyPassService::ProgressCallback& progress_callback,
+    const std::shared_ptr<spdlog::logger>& logger)
+{
+    const auto ordered = parse_ordered_category_lines(response, logger);
+    if (ordered.empty()) {
+        return false;
+    }
+
+    const size_t limit = std::min(chunk.size(), ordered.size());
+    bool applied = false;
+    for (size_t index = 0; index < limit; ++index) {
+        if (!chunk[index]) {
+            continue;
+        }
+        Json::Value entry(Json::objectValue);
+        entry["id"] = make_item_key(*chunk[index]);
+        entry["category"] = ordered[index].first;
+        entry["subcategory"] = ordered[index].second;
+        if (auto update = extract_harmonized_update(entry, items_by_key, logger)) {
+            apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
+            applied = true;
+        }
+    }
+
+    return applied;
+}
+
+
 } // namespace
 
 ConsistencyPassService::ConsistencyPassService(DatabaseManager& db_manager,
@@ -289,14 +464,28 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
         }
 
         const std::string prompt = build_consistency_prompt(chunk, taxonomy);
+        std::cout << "\n[CONSISTENCY PROMPT]\n" << prompt << "\n";
         try {
             const std::string response = llm->complete_prompt(prompt, 512);
+            std::cout << "[CONSISTENCY RESPONSE]\n" << response << "\n";
 
             Json::Value root;
             if (const Json::Value* harmonized = parse_consistency_response(response, root, logger)) {
                 for (const auto& entry : *harmonized) {
                     if (auto update = extract_harmonized_update(entry, items_by_key, logger)) {
                         apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
+                    }
+                }
+            } else {
+                if (!apply_ordered_fallback(response,
+                                             chunk,
+                                             items_by_key,
+                                             db_manager,
+                                             new_items_by_key,
+                                             progress_callback,
+                                             logger)) {
+                    if (logger) {
+                        logger->warn("Consistency pass could not interpret response; skipping chunk");
                     }
                 }
             }

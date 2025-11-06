@@ -16,7 +16,7 @@ public:
     std::string make_prompt(const std::string& file_name,
                             const std::string& file_path,
                             FileType file_type);
-    std::string generate_response(const std::string &prompt, int n_predict);
+    std::string generate_response(const std::string &prompt, int n_predict, bool apply_sanitizer = true);
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,
                                 FileType file_type) override;

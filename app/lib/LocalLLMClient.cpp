@@ -641,7 +641,8 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
 
 
 std::string LocalLLMClient::generate_response(const std::string &prompt,
-                                              int n_predict)
+                                              int n_predict,
+                                              bool apply_sanitizer)
 {
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
@@ -740,7 +741,10 @@ std::string LocalLLMClient::generate_response(const std::string &prompt,
         logger->debug("Generation complete, produced {} character(s)", output.size());
     }
 
-    return sanitize_output(output);
+    if (apply_sanitizer) {
+        return sanitize_output(output);
+    }
+    return output;
 }
 
 
@@ -757,7 +761,7 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
         }
     }
     std::string prompt = make_prompt(file_name, file_path, file_type);
-    return generate_response(prompt, 64);
+    return generate_response(prompt, 64, true);
 }
 
 
@@ -765,7 +769,7 @@ std::string LocalLLMClient::complete_prompt(const std::string& prompt,
                                             int max_tokens)
 {
     const int capped = max_tokens > 0 ? max_tokens : 256;
-    return generate_response(prompt, capped);
+    return generate_response(prompt, capped, false);
 }
 
 

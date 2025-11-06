@@ -169,9 +169,9 @@ void MainApp::setup_file_explorer()
     if (file_explorer_menu_action) {
         file_explorer_menu_action->setChecked(show_explorer);
     }
-    // if (consistency_pass_action) {
-    //     consistency_pass_action->setChecked(settings.get_consistency_pass_enabled());
-    // }
+    if (consistency_pass_action) {
+        consistency_pass_action->setChecked(settings.get_consistency_pass_enabled());
+    }
     file_explorer_dock->setVisible(show_explorer);
     update_results_view_mode();
 }
@@ -308,9 +308,9 @@ void MainApp::sync_ui_to_settings()
     if (file_explorer_menu_action) {
         settings.set_show_file_explorer(file_explorer_menu_action->isChecked());
     }
-    // if (consistency_pass_action) {
-    //     settings.set_consistency_pass_enabled(consistency_pass_action->isChecked());
-    // }
+    if (consistency_pass_action) {
+        settings.set_consistency_pass_enabled(consistency_pass_action->isChecked());
+    }
     if (language_group) {
         if (QAction* checked = language_group->checkedAction()) {
             settings.set_language(static_cast<Language>(checked->data().toInt()));
@@ -838,10 +838,12 @@ void MainApp::perform_analysis()
             new_files_with_categories.begin(),
             new_files_with_categories.end());
 
-        // Consistency pass temporarily disabled
-        // if (settings.get_consistency_pass_enabled()) {
-        //     run_consistency_pass();
-        // }
+        // Consistency pass prototype work in progress; skip in production builds.
+        if (false) {
+            if (settings.get_consistency_pass_enabled()) {
+                run_consistency_pass();
+            }
+        }
 
         const auto actual_files = results_coordinator.list_directory(get_folder_path(), file_scan_options);
         new_files_to_sort = results_coordinator.compute_files_to_sort(get_folder_path(), file_scan_options, actual_files, already_categorized_files);
