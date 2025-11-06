@@ -22,17 +22,20 @@ constexpr const char* kLocalTimeoutEnv = "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT";
 constexpr const char* kRemoteTimeoutEnv = "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT";
 constexpr size_t kMaxConsistencyHints = 5;
 
+std::string trim_whitespace(const std::string& value);
+std::string sanitize_label(const std::string& value);
+
 std::pair<std::string, std::string> split_category_subcategory(const std::string& input) {
     const std::string delimiter = " : ";
 
     const auto pos = input.find(delimiter);
     if (pos == std::string::npos) {
-        return {input, ""};
+        return {sanitize_label(input), ""};
     }
 
     auto category = input.substr(0, pos);
     auto subcategory = input.substr(pos + delimiter.size());
-    return {category, subcategory};
+    return {sanitize_label(category), sanitize_label(subcategory)};
 }
 
 std::string trim_whitespace(const std::string& value) {
@@ -43,6 +46,15 @@ std::string trim_whitespace(const std::string& value) {
         return std::string();
     }
     return value.substr(start, end - start + 1);
+}
+
+std::string sanitize_label(const std::string& value) {
+    std::string trimmed = trim_whitespace(value);
+    const auto slash_pos = trimmed.find('/');
+    if (slash_pos != std::string::npos) {
+        trimmed = trimmed.substr(0, slash_pos);
+    }
+    return trim_whitespace(trimmed);
 }
 }
 
@@ -147,18 +159,15 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
 {
     const auto cached = db_manager.get_categorization_from_db(item_name, file_type);
     if (cached.size() >= 2) {
-        const std::string& cached_category = cached[0];
-        const std::string& cached_subcategory = cached[1];
+        const std::string sanitized_category = sanitize_label(cached[0]);
+        const std::string sanitized_subcategory = sanitize_label(cached[1]);
 
-        const std::string trimmed_category = trim_whitespace(cached_category);
-        const std::string trimmed_subcategory = trim_whitespace(cached_subcategory);
-
-        if (trimmed_category.empty() || trimmed_subcategory.empty()) {
+        if (sanitized_category.empty() || sanitized_subcategory.empty()) {
             if (core_logger) {
                 core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
             }
         } else {
-            auto resolved = db_manager.resolve_category(cached_category, cached_subcategory);
+            auto resolved = db_manager.resolve_category(sanitized_category, sanitized_subcategory);
             const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
             const std::string path_display = item_path.empty() ? "-" : item_path;
 
@@ -399,7 +408,7 @@ std::string CategorizationService::extract_extension(const std::string& file_nam
 
 bool CategorizationService::append_unique_hint(std::vector<CategoryPair>& target, const CategoryPair& candidate)
 {
-    CategoryPair normalized{trim_whitespace(candidate.first), trim_whitespace(candidate.second)};
+    CategoryPair normalized{sanitize_label(candidate.first), sanitize_label(candidate.second)};
     if (normalized.first.empty()) {
         return false;
     }
@@ -417,7 +426,7 @@ bool CategorizationService::append_unique_hint(std::vector<CategoryPair>& target
 
 void CategorizationService::record_session_assignment(HintHistory& history, const CategoryPair& assignment)
 {
-    CategoryPair normalized{trim_whitespace(assignment.first), trim_whitespace(assignment.second)};
+    CategoryPair normalized{sanitize_label(assignment.first), sanitize_label(assignment.second)};
     if (normalized.first.empty()) {
         return;
     }
