@@ -1,0 +1,160 @@
+#!/bin/sh
+@APP_DIR_DECLARATION@
+CPU_LIB_DIR="$APP_DIR/lib/precompiled/cpu/bin"
+CUDA_LIB_DIR="$APP_DIR/lib/precompiled/cuda/bin"
+VULKAN_LIB_DIR="$APP_DIR/lib/precompiled/vulkan/bin"
+PLATFORM_CANDIDATES="/usr/lib/x86_64-linux-gnu/qt6/plugins /usr/lib/qt6/plugins /lib/x86_64-linux-gnu/qt6/plugins"
+
+select_cuda_dir() {
+    if [ -d "$CUDA_LIB_DIR" ]; then
+        if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q libcudart; then
+            echo "$CUDA_LIB_DIR"
+            return
+        fi
+        for candidate in /usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*; do
+            [ "$candidate" = "/usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*" ] && break
+            if [ -e "$candidate" ]; then
+                echo "$CUDA_LIB_DIR"
+                return
+            fi
+        done
+    fi
+    echo ""
+}
+
+select_vulkan_dir() {
+    if [ -d "$VULKAN_LIB_DIR" ]; then
+        if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q libvulkan; then
+            echo "$VULKAN_LIB_DIR"
+            return
+        fi
+        for candidate in /usr/lib/x86_64-linux-gnu/libvulkan.so* /usr/lib/libvulkan.so* /lib/x86_64-linux-gnu/libvulkan.so*; do
+            [ "$candidate" = "/usr/lib/x86_64-linux-gnu/libvulkan.so*" ] && break
+            if [ -e "$candidate" ]; then
+                echo "$VULKAN_LIB_DIR"
+                return
+            fi
+        done
+    fi
+    echo ""
+}
+
+CUDA_OVERRIDE=""
+VULKAN_OVERRIDE=""
+for arg in "$@"; do
+    case "$arg" in
+        --cuda=on) CUDA_OVERRIDE="on" ;;
+        --cuda=off) CUDA_OVERRIDE="off" ;;
+        --vulkan=on) VULKAN_OVERRIDE="on" ;;
+        --vulkan=off) VULKAN_OVERRIDE="off" ;;
+    esac
+done
+
+if [ "$CUDA_OVERRIDE" = "on" ] && [ "$VULKAN_OVERRIDE" = "on" ]; then
+    echo "Cannot force both CUDA and Vulkan simultaneously." >&2
+    exit 1
+fi
+
+SELECTED_CUDA_DIR="$(select_cuda_dir)"
+SELECTED_VK_DIR="$(select_vulkan_dir)"
+
+USE_CUDA=0
+USE_VULKAN=0
+GPU_BACKEND="cpu"
+GGML_VARIANT="wocuda"
+LLAMA_DEVICE=""
+if [ -n "$SELECTED_CUDA_DIR" ]; then
+    USE_CUDA=1
+elif [ -n "$SELECTED_VK_DIR" ]; then
+    USE_VULKAN=1
+fi
+
+if [ "$CUDA_OVERRIDE" = "on" ]; then
+    if [ -n "$SELECTED_CUDA_DIR" ]; then
+        USE_CUDA=1
+        USE_VULKAN=0
+    else
+        echo "Warning: CUDA forced but not detected; falling back." >&2
+        USE_CUDA=0
+    fi
+elif [ "$CUDA_OVERRIDE" = "off" ]; then
+    USE_CUDA=0
+fi
+
+if [ "$VULKAN_OVERRIDE" = "on" ]; then
+    if [ -n "$SELECTED_VK_DIR" ]; then
+        USE_VULKAN=1
+        if [ "$CUDA_OVERRIDE" != "off" ]; then
+            USE_CUDA=0
+        fi
+    else
+        echo "Warning: Vulkan forced but not detected; falling back." >&2
+        USE_VULKAN=0
+    fi
+elif [ "$VULKAN_OVERRIDE" = "off" ]; then
+    USE_VULKAN=0
+fi
+
+if [ $USE_CUDA -eq 0 ] && [ $USE_VULKAN -eq 0 ] && [ -n "$SELECTED_VK_DIR" ]; then
+    USE_VULKAN=1
+fi
+
+if [ $USE_CUDA -eq 1 ]; then
+    echo "Using CUDA backend." >&2
+    unset GGML_DISABLE_CUDA
+    GPU_BACKEND="cuda"
+    GGML_VARIANT="wcuda"
+    LLAMA_DEVICE="cuda"
+elif [ $USE_VULKAN -eq 1 ]; then
+    echo "Using Vulkan backend." >&2
+    export GGML_DISABLE_CUDA=1
+    GPU_BACKEND="vulkan"
+    GGML_VARIANT="wvulkan"
+    LLAMA_DEVICE="vulkan"
+else
+    echo "Using CPU backend." >&2
+    export GGML_DISABLE_CUDA=1
+    GPU_BACKEND="cpu"
+    GGML_VARIANT="wocuda"
+    LLAMA_DEVICE=""
+fi
+
+export AI_FILE_SORTER_GPU_BACKEND="$GPU_BACKEND"
+export AI_FILE_SORTER_GGML_DIR="$APP_DIR/lib/ggml/$GGML_VARIANT"
+if [ -n "$LLAMA_DEVICE" ]; then
+    export LLAMA_ARG_DEVICE="$LLAMA_DEVICE"
+else
+    unset LLAMA_ARG_DEVICE
+fi
+
+LIB_PATH="$CPU_LIB_DIR"
+if [ $USE_CUDA -eq 1 ] && [ -n "$SELECTED_CUDA_DIR" ]; then
+    LIB_PATH="$SELECTED_CUDA_DIR:$LIB_PATH"
+elif [ $USE_VULKAN -eq 1 ] && [ -n "$SELECTED_VK_DIR" ]; then
+    LIB_PATH="$SELECTED_VK_DIR:$LIB_PATH"
+fi
+if [ -n "$LD_LIBRARY_PATH" ]; then
+    export LD_LIBRARY_PATH="$LIB_PATH:$LD_LIBRARY_PATH"
+else
+    export LD_LIBRARY_PATH="$LIB_PATH"
+fi
+
+if [ -z "$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then
+    for candidate in $PLATFORM_CANDIDATES; do
+        if [ -d "$candidate/platforms" ]; then
+            export QT_QPA_PLATFORM_PLUGIN_PATH="$candidate/platforms"
+            break
+        fi
+    done
+fi
+if [ -n "$QT_QPA_PLATFORM_PLUGIN_PATH" ] && [ ! -f "$QT_QPA_PLATFORM_PLUGIN_PATH/libqxcb.so" ]; then
+    if [ -n "$WAYLAND_DISPLAY" ] || [ "$XDG_SESSION_TYPE" = "wayland" ]; then
+        export QT_QPA_PLATFORM="wayland"
+    else
+        echo "Qt xcb platform plugin (libqxcb.so) not found in $QT_QPA_PLATFORM_PLUGIN_PATH ($QT_QPA_PLATFORM_PLUGIN_PATH)." >&2
+        echo "Install a Qt 6 XCB platform plugin or run under a Wayland session." >&2
+        exit 1
+    fi
+fi
+
+exec "$APP_DIR/bin/@WRAPPED_BINARY@" "$@"

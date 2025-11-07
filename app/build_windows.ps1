@@ -196,13 +196,15 @@ Write-Output "`nBuild complete. Executable located at: $outputExe"
 $outputDir = Split-Path -Parent $outputExe
 $precompiledCpuBin = Join-Path $appDir "lib/precompiled/cpu/bin"
 $precompiledCudaBin = Join-Path $appDir "lib/precompiled/cuda/bin"
+$precompiledVulkanBin = Join-Path $appDir "lib/precompiled/vulkan/bin"
 $precompiledLibOpenBlas = Join-Path $precompiledCpuBin "libopenblas.dll"
 $precompiledOpenBlas = Join-Path $precompiledCpuBin "openblas.dll"
 
 $destWocuda = Join-Path $outputDir "lib/ggml/wocuda"
 $destWcuda = Join-Path $outputDir "lib/ggml/wcuda"
+$destWvulkan = Join-Path $outputDir "lib/ggml/wvulkan"
 
-foreach ($destDir in @($destWocuda, $destWcuda)) {
+foreach ($destDir in @($destWocuda, $destWcuda, $destWvulkan)) {
     if (-not (Test-Path $destDir)) {
         New-Item -ItemType Directory -Path $destDir -Force | Out-Null
     }
@@ -222,8 +224,15 @@ if (Test-Path $precompiledCudaBin) {
             Copy-Item $_.FullName -Destination $destWcuda -Force
         }
 }
+if (Test-Path $precompiledVulkanBin) {
+    Get-ChildItem -Path $precompiledVulkanBin -Filter "*.dll" -File -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            if ($_.Name -ieq "libcurl.dll") { return }
+            Copy-Item $_.FullName -Destination $destWvulkan -Force
+        }
+}
 
-foreach ($destDir in @($destWocuda, $destWcuda)) {
+foreach ($destDir in @($destWocuda, $destWcuda, $destWvulkan)) {
     if (Test-Path $destDir) {
         Get-ChildItem -Path $destDir -Filter "*.lib" -File -Recurse -ErrorAction SilentlyContinue |
             Remove-Item -Force

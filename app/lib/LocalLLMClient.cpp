@@ -2,6 +2,8 @@
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "llama.h"
+#include "ggml-backend.h"
+#include "ggml-backend.h"
 #include <string>
 #include <vector>
 #include <cctype>
@@ -20,6 +22,8 @@
 #include <optional>
 #include <cmath>
 #include <fstream>
+#include <string_view>
+#include <string>
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -75,6 +79,95 @@ std::string gpu_layers_to_string(int value) {
         return "auto (-1)";
     }
     return std::to_string(value);
+}
+
+bool case_insensitive_contains(std::string_view text, std::string_view needle) {
+    if (needle.empty()) {
+        return true;
+    }
+
+    std::string text_lower(text);
+    std::string needle_lower(needle);
+    std::transform(text_lower.begin(), text_lower.end(), text_lower.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    std::transform(needle_lower.begin(), needle_lower.end(), needle_lower.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return text_lower.find(needle_lower) != std::string::npos;
+}
+
+void load_ggml_backends_once(const std::shared_ptr<spdlog::logger>& logger) {
+    static bool loaded = false;
+    if (loaded) {
+        return;
+    }
+
+    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+    if (ggml_dir && ggml_dir[0] != '\0') {
+        if (logger) {
+            logger->info("Loading ggml backends from '{}'", ggml_dir);
+        }
+        ggml_backend_load_all_from_path(ggml_dir);
+    } else {
+        ggml_backend_load_all();
+    }
+
+    loaded = true;
+}
+
+struct BackendMemoryInfo {
+    Utils::CudaMemoryInfo memory;
+    bool is_integrated = false;
+    std::string name;
+};
+
+std::optional<BackendMemoryInfo> query_backend_memory_metrics(std::string_view backend_name) {
+    const size_t device_count = ggml_backend_dev_count();
+    BackendMemoryInfo best{};
+    bool found = false;
+
+    for (size_t i = 0; i < device_count; ++i) {
+        auto * device = ggml_backend_dev_get(i);
+        if (!device) {
+            continue;
+        }
+        const auto type = ggml_backend_dev_type(device);
+        if (type != GGML_BACKEND_DEVICE_TYPE_GPU && type != GGML_BACKEND_DEVICE_TYPE_IGPU) {
+            continue;
+        }
+
+        auto * reg = ggml_backend_dev_backend_reg(device);
+        const char * name = reg ? ggml_backend_reg_name(reg) : nullptr;
+        if (!backend_name.empty()) {
+            if (!name || !case_insensitive_contains(name, backend_name)) {
+                continue;
+            }
+        }
+
+        size_t free_bytes = 0;
+        size_t total_bytes = 0;
+        ggml_backend_dev_memory(device, &free_bytes, &total_bytes);
+        if (free_bytes == 0 && total_bytes == 0) {
+            continue;
+        }
+
+        BackendMemoryInfo info;
+        info.memory.free_bytes = free_bytes;
+        info.memory.total_bytes = (total_bytes != 0) ? total_bytes : free_bytes;
+        info.is_integrated = (type == GGML_BACKEND_DEVICE_TYPE_IGPU);
+        info.name = name ? name : "";
+
+        if (!found || info.memory.total_bytes > best.memory.total_bytes) {
+            best = info;
+            found = true;
+        }
+    }
+
+    if (found) {
+        return best;
+    }
+    return std::nullopt;
 }
 
 int resolve_context_length() {
@@ -383,6 +476,34 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
     return result;
 }
 
+enum class PreferredBackend {
+    Auto,
+    Cpu,
+    Cuda,
+    Vulkan
+};
+
+PreferredBackend detect_preferred_backend() {
+    const char* env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
+    if (!env || *env == '\0') {
+        return PreferredBackend::Auto;
+    }
+    std::string value(env);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    if (value == "cuda") {
+        return PreferredBackend::Cuda;
+    }
+    if (value == "vulkan") {
+        return PreferredBackend::Vulkan;
+    }
+    if (value == "cpu") {
+        return PreferredBackend::Cpu;
+    }
+    return PreferredBackend::Auto;
+}
+
 } // namespace
 
 
@@ -425,11 +546,10 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
     }
 
     configure_llama_logging(logger);
+    load_ggml_backends_once(logger);
 
     const int context_length = std::clamp(resolve_context_length(), 512, 8192);
     llama_model_params model_params = prepare_model_params(logger);
-
-    ggml_backend_load_all();
 
     if (logger) {
         logger->info("Configured context length {} token(s) for local LLM", context_length);
@@ -483,6 +603,100 @@ llama_model_params LocalLLMClient::prepare_model_params(const std::shared_ptr<sp
 
     model_params.n_gpu_layers = gpu_layers;
 #else
+    const PreferredBackend backend_pref = detect_preferred_backend();
+    auto log_backend_choice = [&logger](const std::string& msg) {
+        if (logger) {
+            logger->info("{}", msg);
+        }
+    };
+    const char* disable_env = std::getenv("GGML_DISABLE_CUDA");
+    const bool cuda_forced_off = disable_env && disable_env[0] != '\0' && disable_env[0] != '0';
+
+    if (backend_pref == PreferredBackend::Cpu) {
+        model_params.n_gpu_layers = 0;
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        log_backend_choice("GPU backend disabled via AI_FILE_SORTER_GPU_BACKEND=cpu");
+        return model_params;
+    }
+
+    if (backend_pref == PreferredBackend::Vulkan) {
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        const int override_layers = resolve_gpu_layer_override();
+        if (override_layers <= 0 && override_layers != INT_MIN) {
+            model_params.n_gpu_layers = 0;
+            log_backend_choice("Vulkan backend requested but AI_FILE_SORTER_N_GPU_LAYERS <= 0; using CPU instead.");
+            return model_params;
+        }
+
+        if (override_layers > 0) {
+            model_params.n_gpu_layers = override_layers;
+            if (logger) {
+                logger->info("Using Vulkan backend with explicit n_gpu_layers override={}",
+                             gpu_layers_to_string(override_layers));
+            }
+            return model_params;
+        }
+
+    auto vk_memory = query_backend_memory_metrics("vulkan");
+    if (vk_memory.has_value()) {
+        Utils::CudaMemoryInfo adjusted = vk_memory->memory;
+        if (vk_memory->is_integrated) {
+            constexpr size_t igpu_cap_bytes = static_cast<size_t>(4ULL) * 1024ULL * 1024ULL * 1024ULL; // 4 GiB
+            adjusted.free_bytes = std::min(adjusted.free_bytes, igpu_cap_bytes);
+            adjusted.total_bytes = std::min(adjusted.total_bytes, igpu_cap_bytes);
+            if (logger) {
+                const double to_mib = 1024.0 * 1024.0;
+                logger->info("Vulkan device reported as integrated GPU; capping usable memory to {:.1f} MiB",
+                             igpu_cap_bytes / to_mib);
+            }
+        }
+
+        const auto estimation = estimate_gpu_layers_for_cuda(model_path, adjusted);
+        if (estimation.layers > 0) {
+            model_params.n_gpu_layers = estimation.layers;
+            if (logger) {
+                const double to_mib = 1024.0 * 1024.0;
+                const char* device_label = vk_memory->name.empty() ? "Vulkan device" : vk_memory->name.c_str();
+                logger->info(
+                    "{} total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
+                    device_label,
+                    adjusted.total_bytes / to_mib,
+                    adjusted.free_bytes / to_mib,
+                    gpu_layers_to_string(model_params.n_gpu_layers),
+                    estimation.reason.empty() ? "auto-estimated" : estimation.reason
+                );
+            }
+            } else {
+                model_params.n_gpu_layers = -1;
+                if (logger) {
+                    logger->warn(
+                        "Vulkan estimator could not determine n_gpu_layers ({}); leaving llama.cpp auto (-1).",
+                        estimation.reason.empty() ? "no detail" : estimation.reason
+                    );
+                }
+            }
+        } else {
+            model_params.n_gpu_layers = -1;
+            if (logger) {
+                logger->warn("Vulkan backend memory metrics unavailable; leaving n_gpu_layers to llama.cpp auto (-1).");
+            }
+        }
+
+        return model_params;
+    }
+
+    if (cuda_forced_off) {
+        model_params.n_gpu_layers = 0;
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        if (logger) {
+            logger->info("CUDA disabled via GGML_DISABLE_CUDA environment override.");
+            if (backend_pref == PreferredBackend::Cuda) {
+                logger->warn("AI_FILE_SORTER_GPU_BACKEND=cuda but GGML_DISABLE_CUDA forces CPU fallback.");
+            }
+        }
+        return model_params;
+    }
+
     const bool cuda_available = Utils::is_cuda_available();
     if (!cuda_available) {
         set_env_var("GGML_DISABLE_CUDA", "1");

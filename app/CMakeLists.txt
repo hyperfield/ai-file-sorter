@@ -257,17 +257,22 @@ if(WIN32)
 
     set(PRECOMPILED_CPU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cpu")
     set(PRECOMPILED_CUDA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cuda")
+    set(PRECOMPILED_VULKAN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/vulkan")
 
     add_custom_command(TARGET aifilesorter POST_BUILD
         # COMMAND ${CMAKE_COMMAND} -E remove -f "$<TARGET_FILE_DIR:aifilesorter>/openblas.dll"
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${PRECOMPILED_CPU_ROOT}"
             "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${PRECOMPILED_CUDA_ROOT}"
             "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${PRECOMPILED_VULKAN_ROOT}"
+            "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
     )
 
     # set(_precompiled_libopenblas "${PRECOMPILED_CPU_ROOT}/bin/libopenblas.dll")
@@ -281,4 +286,3 @@ if(WIN32)
     #     message(WARNING "Expected ${_precompiled_libopenblas} to exist. Run app/scripts/build_llama_windows.ps1 to stage GGML artifacts.")
     # endif()
 endif()
-

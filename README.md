@@ -121,6 +121,7 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **Optional GPU backends**: CUDA 12.x for NVIDIA cards, or a Vulkan 1.2+ driver for AMD/NVIDIA/Intel GPUs. If neither is present, the app falls back to CPU/OpenBLAS automatically.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **OpenAI API Key** (optional): Required only when using the remote ChatGPT workflow.
 
