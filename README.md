@@ -3,6 +3,10 @@
 
 [![Version](https://badgen.net/badge/version/1.1.0/blue)](#)
 
+<p align="center">
+  <img src="app/resources/images/icon_256x256.png" alt="AI File Sorter logo" width="128" height="128">
+</p>
+
 AI File Sorter is a powerful, cross-platform desktop application that automates file organization with the help of AI.  
 
 It helps tidy up cluttered folders like Downloads, external drives, or NAS storage by automatically categorizing files based on their names, extensions, directory context, and taxonomy.  
@@ -166,17 +170,18 @@ File categorization with local LLMs is completely free of charge. If you prefer 
      ```bash
      sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog
      ```
-     Optional CUDA support also requires the distro CUDA packages.
+     Optional GPU acceleration also requires the distro CUDA packages (for NVIDIA) or a Vulkan 1.2+ driver/runtime (for AMD/Intel/NVIDIA).
 2. **Clone the repository**
    ```bash
    git clone https://github.com/hyperfield/ai-file-sorter.git
    cd ai-file-sorter
    git submodule update --init --recursive --remote
    ```
-3. **Build the llama runtime** (add `cuda=on` if you have a CUDA toolchain)
+3. **Build the llama runtime** (choose exactly one accelerator flag per run)
    ```bash
-   ./app/scripts/build_llama_linux.sh [cuda=on|cuda=off]
+   ./app/scripts/build_llama_linux.sh [cuda=on|off] [vulkan=on|off]
    ```
+   Use `cuda=on` when the NVIDIA CUDA toolkit is present, `vulkan=on` when your Mesa/driver stack exposes Vulkan 1.2+, or leave both off for a CPU/OpenBLAS-only build. (The script errors out if both accelerators are requested simultaneously.) For Vulkan builds, install the vendor driver or Mesa packages that provide `vulkaninfo` (e.g. `sudo apt install mesa-vulkan-drivers vulkan-tools`) and verify `vulkaninfo` succeeds before running the script; the generated libraries are staged under `app/lib/precompiled/vulkan` and `app/lib/ggml/wvulkan`.
 4. **Compile the application**
    ```bash
    cd app
@@ -235,11 +240,12 @@ Option A - CMake + vcpkg (recommended)
       Split-Path -Parent (Get-Command vcpkg).Source
       ```
     - Otherwise use the directory where you cloned vcpkg.
-4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` if you have a CUDA toolkit configured, otherwise leave it off (default is CPU-only):
+4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` for NVIDIA, `vulkan=on` for a Vulkan 1.2+ GPU, or leave both off for a CPU-only build (only one backend can be enabled at a time):
    ```powershell
-   app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
+   app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [vcpkgroot=C:\dev\vcpkg]
    ```
    This script produces the `llama.dll`/`ggml*.dll` set under `app\lib\precompiled` which the GUI links against.
+   For Vulkan builds, install the latest LunarG Vulkan SDK or your GPU vendor's Vulkan 1.2+ driver and confirm `vulkaninfo` works inside the Developer PowerShell before invoking the script; the Vulkan artifacts are copied to `lib\precompiled\vulkan` and `lib\ggml\wvulkan`.
 5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
    ```powershell
    # One-time per shell if script execution is blocked:
@@ -260,7 +266,7 @@ Option B - CMake + Qt online installer
    - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext
 2. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
    ```powershell
-   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
+   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [vcpkgroot=C:\dev\vcpkg]
    ```
    This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
 3. Configure CMake to see Qt (adapt `CMAKE_PREFIX_PATH` to your Qt install):
@@ -278,7 +284,16 @@ Notes
 - To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
-- If you enable CUDA for local models, build `llama.cpp` with CUDA first and reconfigure CMake accordingly.
+- If you enable CUDA or Vulkan for local models, build `llama.cpp` with the matching backend first (only one per build) and reconfigure CMake accordingly.
+
+### Selecting a backend at runtime
+
+Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and the Windows starter accept the following optional flags:
+
+- `--cuda={on|off}` – force-enable or disable the CUDA backend.
+- `--vulkan={on|off}` – force-enable or disable the Vulkan backend.
+
+When no flags are provided the app auto-detects available runtimes in priority order (CUDA → Vulkan → CPU). Use the flags to skip a backend (`--cuda=off`) or to test a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected.
 
 ---
 
