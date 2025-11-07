@@ -457,6 +457,9 @@ void MainApp::retranslate_ui()
     if (about_agpl_action) {
         about_agpl_action->setText(tr("About &AGPL"));
     }
+    if (support_project_action) {
+        support_project_action->setText(tr("&Support Project"));
+    }
     if (file_explorer_dock) {
         file_explorer_dock->setWindowTitle(tr("File Explorer"));
     }

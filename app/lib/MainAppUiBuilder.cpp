@@ -242,6 +242,12 @@ void MainAppUiBuilder::build_help_menu(MainApp& app) {
     QObject::connect(app.about_agpl_action, &QAction::triggered, &app, [&app]() {
         MainAppHelpActions::show_agpl_info(&app);
     });
+
+    app.support_project_action = app.help_menu->addAction(icon_for(app, "help-donate", QStyle::SP_DialogHelpButton), QString());
+    app.support_project_action->setMenuRole(QAction::NoRole);
+    QObject::connect(app.support_project_action, &QAction::triggered, &app, []() {
+        MainAppHelpActions::open_support_page();
+    });
 }
 
 QIcon MainAppUiBuilder::icon_for(MainApp& app, const char* name, QStyle::StandardPixmap fallback) {
