@@ -61,6 +61,10 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 
 ## Changelog
 
+### [1.1.0] - 2025-11-08
+
+
+
 ### [1.0.0] - 2025-10-30
 
 - Migrated the entire desktop UI from GTK/Glade to a native Qt6 interface.

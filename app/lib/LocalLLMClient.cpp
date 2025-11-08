@@ -81,6 +81,58 @@ std::string gpu_layers_to_string(int value) {
     return std::to_string(value);
 }
 
+int resolve_context_length() {
+    int parsed = 0;
+    if (try_parse_env_int("AI_FILE_SORTER_CTX_TOKENS", parsed) && parsed > 0) {
+        return parsed;
+    }
+    if (try_parse_env_int("LLAMA_CPP_MAX_CONTEXT", parsed) && parsed > 0) {
+        return parsed;
+    }
+    return 2048;
+}
+
+struct MetalDeviceInfo {
+    size_t total_bytes = 0;
+    size_t free_bytes = 0;
+    std::string name;
+
+    bool valid() const {
+        return total_bytes > 0;
+    }
+};
+
+#if defined(GGML_USE_METAL)
+MetalDeviceInfo query_primary_gpu_device() {
+    MetalDeviceInfo info;
+
+#if defined(__APPLE__)
+    uint64_t memsize = 0;
+    size_t len = sizeof(memsize);
+    if (sysctlbyname("hw.memsize", &memsize, &len, nullptr, 0) == 0) {
+        info.total_bytes = static_cast<size_t>(memsize);
+    }
+
+    mach_port_t host_port = mach_host_self();
+    vm_size_t page_size = 0;
+    if (host_port != MACH_PORT_NULL && host_page_size(host_port, &page_size) == KERN_SUCCESS) {
+        vm_statistics64_data_t vm_stat {};
+        mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
+        if (host_statistics64(host_port, HOST_VM_INFO64,
+                              reinterpret_cast<host_info64_t>(&vm_stat), &count) == KERN_SUCCESS) {
+            const uint64_t free_pages = static_cast<uint64_t>(vm_stat.free_count) +
+                                        static_cast<uint64_t>(vm_stat.inactive_count);
+            info.free_bytes = static_cast<size_t>(free_pages * static_cast<uint64_t>(page_size));
+        }
+    }
+
+    info.name = "Metal (system memory)";
+#endif
+
+    return info;
+}
+#endif // defined(GGML_USE_METAL)
+
 bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     if (needle.empty()) {
         return true;
@@ -169,59 +221,6 @@ std::optional<BackendMemoryInfo> query_backend_memory_metrics(std::string_view b
     }
     return std::nullopt;
 }
-
-int resolve_context_length() {
-    int parsed = 0;
-    if (try_parse_env_int("AI_FILE_SORTER_CTX_TOKENS", parsed) && parsed > 0) {
-        return parsed;
-    }
-    if (try_parse_env_int("LLAMA_CPP_MAX_CONTEXT", parsed) && parsed > 0) {
-        return parsed;
-    }
-    return 2048;
-}
-
-struct MetalDeviceInfo {
-    size_t total_bytes = 0;
-    size_t free_bytes = 0;
-    std::string name;
-
-    bool valid() const {
-        return total_bytes > 0;
-    }
-};
-
-#if defined(GGML_USE_METAL)
-MetalDeviceInfo query_primary_gpu_device() {
-    MetalDeviceInfo info;
-
-#if defined(__APPLE__)
-    uint64_t memsize = 0;
-    size_t len = sizeof(memsize);
-    if (sysctlbyname("hw.memsize", &memsize, &len, nullptr, 0) == 0) {
-        info.total_bytes = static_cast<size_t>(memsize);
-    }
-
-    mach_port_t host_port = mach_host_self();
-    vm_size_t page_size = 0;
-    if (host_port != MACH_PORT_NULL && host_page_size(host_port, &page_size) == KERN_SUCCESS) {
-        vm_statistics64_data_t vm_stat {};
-        mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
-        if (host_statistics64(host_port, HOST_VM_INFO64,
-                              reinterpret_cast<host_info64_t>(&vm_stat), &count) == KERN_SUCCESS) {
-            const uint64_t free_pages = static_cast<uint64_t>(vm_stat.free_count) +
-                                        static_cast<uint64_t>(vm_stat.inactive_count);
-            info.free_bytes = static_cast<size_t>(free_pages * static_cast<uint64_t>(page_size));
-        }
-    }
-
-    info.name = "Metal (system memory)";
-#endif
-
-    return info;
-}
-#endif // defined(GGML_USE_METAL)
-
 std::optional<int32_t> extract_block_count(const std::string & model_path) {
     std::ifstream file(model_path, std::ios::binary);
     if (!file) {
@@ -504,6 +503,229 @@ PreferredBackend detect_preferred_backend() {
     return PreferredBackend::Auto;
 }
 
+#ifdef GGML_USE_METAL
+int determine_metal_layers(const std::string& model_path,
+                           const std::shared_ptr<spdlog::logger>& logger) {
+    int gpu_layers = resolve_gpu_layer_override();
+    if (gpu_layers == INT_MIN) {
+        const MetalDeviceInfo device_info = query_primary_gpu_device();
+        const auto estimation = estimate_gpu_layers_for_metal(model_path, device_info);
+
+        gpu_layers = (estimation.layers >= 0) ? estimation.layers : -1;
+
+        if (logger) {
+            const double to_mib = 1024.0 * 1024.0;
+            logger->info(
+                "Metal device '{}' total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
+                device_info.name.empty() ? "GPU" : device_info.name,
+                device_info.total_bytes / to_mib,
+                device_info.free_bytes / to_mib,
+                gpu_layers_to_string(gpu_layers),
+                estimation.reason
+            );
+        }
+    } else if (logger) {
+        logger->info("Using Metal backend with explicit n_gpu_layers override={}",
+                     gpu_layers_to_string(gpu_layers));
+    }
+
+    return gpu_layers;
+}
+#else
+bool apply_cpu_backend(llama_model_params& params,
+                       PreferredBackend backend_pref,
+                       const std::shared_ptr<spdlog::logger>& logger) {
+    if (backend_pref != PreferredBackend::Cpu) {
+        return false;
+    }
+    params.n_gpu_layers = 0;
+    set_env_var("GGML_DISABLE_CUDA", "1");
+    if (logger) {
+        logger->info("GPU backend disabled via AI_FILE_SORTER_GPU_BACKEND=cpu");
+    }
+    return true;
+}
+
+bool apply_vulkan_backend(const std::string& model_path,
+                          llama_model_params& params,
+                          const std::shared_ptr<spdlog::logger>& logger) {
+    set_env_var("GGML_DISABLE_CUDA", "1");
+    const int override_layers = resolve_gpu_layer_override();
+    if (override_layers != INT_MIN) {
+        if (override_layers <= 0) {
+            params.n_gpu_layers = 0;
+            if (logger) {
+                logger->info("Vulkan backend requested but AI_FILE_SORTER_N_GPU_LAYERS <= 0; using CPU instead.");
+            }
+            return true;
+        }
+        params.n_gpu_layers = override_layers;
+        if (logger) {
+            logger->info("Using Vulkan backend with explicit n_gpu_layers override={}",
+                         gpu_layers_to_string(override_layers));
+        }
+        return true;
+    }
+
+    auto vk_memory = query_backend_memory_metrics("vulkan");
+    if (!vk_memory.has_value()) {
+        params.n_gpu_layers = -1;
+        if (logger) {
+            logger->warn("Vulkan backend memory metrics unavailable; leaving n_gpu_layers to llama.cpp auto (-1).");
+        }
+        return true;
+    }
+
+    Utils::CudaMemoryInfo adjusted = vk_memory->memory;
+    if (vk_memory->is_integrated) {
+        constexpr size_t igpu_cap_bytes = static_cast<size_t>(4ULL) * 1024ULL * 1024ULL * 1024ULL; // 4 GiB
+        adjusted.free_bytes = std::min(adjusted.free_bytes, igpu_cap_bytes);
+        adjusted.total_bytes = std::min(adjusted.total_bytes, igpu_cap_bytes);
+        if (logger) {
+            const double to_mib = 1024.0 * 1024.0;
+            logger->info("Vulkan device reported as integrated GPU; capping usable memory to {:.1f} MiB",
+                         igpu_cap_bytes / to_mib);
+        }
+    }
+
+    const auto estimation = estimate_gpu_layers_for_cuda(model_path, adjusted);
+    if (estimation.layers > 0) {
+        params.n_gpu_layers = estimation.layers;
+        if (logger) {
+            const double to_mib = 1024.0 * 1024.0;
+            const char* device_label = vk_memory->name.empty() ? "Vulkan device" : vk_memory->name.c_str();
+            logger->info(
+                "{} total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
+                device_label,
+                adjusted.total_bytes / to_mib,
+                adjusted.free_bytes / to_mib,
+                gpu_layers_to_string(params.n_gpu_layers),
+                estimation.reason.empty() ? "auto-estimated" : estimation.reason
+            );
+        }
+    } else {
+        params.n_gpu_layers = -1;
+        if (logger) {
+            logger->warn(
+                "Vulkan estimator could not determine n_gpu_layers ({}); leaving llama.cpp auto (-1).",
+                estimation.reason.empty() ? "no detail" : estimation.reason
+            );
+        }
+    }
+
+    return true;
+}
+
+bool handle_cuda_forced_off(bool cuda_forced_off,
+                            PreferredBackend backend_pref,
+                            llama_model_params& params,
+                            const std::shared_ptr<spdlog::logger>& logger) {
+    if (!cuda_forced_off) {
+        return false;
+    }
+    params.n_gpu_layers = 0;
+    set_env_var("GGML_DISABLE_CUDA", "1");
+    if (logger) {
+        logger->info("CUDA disabled via GGML_DISABLE_CUDA environment override.");
+        if (backend_pref == PreferredBackend::Cuda) {
+            logger->warn("AI_FILE_SORTER_GPU_BACKEND=cuda but GGML_DISABLE_CUDA forces CPU fallback.");
+        }
+    }
+    return true;
+}
+
+void configure_cuda_backend(const std::string& model_path,
+                            llama_model_params& params,
+                            const std::shared_ptr<spdlog::logger>& logger) {
+    const bool cuda_available = Utils::is_cuda_available();
+    if (!cuda_available) {
+        params.n_gpu_layers = 0;
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        printf("model_params.n_gpu_layers: %d\n", params.n_gpu_layers);
+        if (logger) {
+            logger->info("CUDA backend unavailable; using CPU backend");
+        }
+        std::cout << "No supported GPU backend detected. Running on CPU.\n";
+        return;
+    }
+
+    const int override_layers = resolve_gpu_layer_override();
+    if (override_layers != INT_MIN) {
+        if (override_layers <= 0) {
+            params.n_gpu_layers = 0;
+            set_env_var("GGML_DISABLE_CUDA", "1");
+            if (logger) {
+                logger->info("CUDA disabled via override (AI_FILE_SORTER_N_GPU_LAYERS={})",
+                             override_layers);
+            }
+        } else {
+            params.n_gpu_layers = override_layers;
+            if (logger) {
+                logger->info("Using explicit CUDA n_gpu_layers override {}",
+                             gpu_layers_to_string(override_layers));
+            }
+            std::cout << "ngl override: " << params.n_gpu_layers << std::endl;
+        }
+        return;
+    }
+
+    int ngl = 0;
+    int heuristic_from_info = 0;
+    AutoGpuLayerEstimation estimation{};
+    std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
+
+    if (cuda_info.has_value()) {
+        estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
+        heuristic_from_info = Utils::compute_ngl_from_cuda_memory(*cuda_info);
+
+        int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
+        if (heuristic_from_info > 0) {
+            candidate_layers = std::max(candidate_layers, heuristic_from_info);
+        }
+        ngl = candidate_layers;
+
+        if (estimation.layers > 0 && logger && estimation.layers != candidate_layers) {
+            logger->info("CUDA estimator suggested {} layers, but heuristic floor kept {}",
+                         estimation.layers, candidate_layers);
+        }
+
+        if (logger) {
+            const double to_mib = 1024.0 * 1024.0;
+            logger->info(
+                "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
+                cuda_info->total_bytes / to_mib,
+                cuda_info->free_bytes / to_mib,
+                gpu_layers_to_string(estimation.layers),
+                gpu_layers_to_string(heuristic_from_info),
+                gpu_layers_to_string(ngl),
+                estimation.reason.empty() ? "no estimation detail" : estimation.reason
+            );
+        }
+    } else if (logger) {
+        logger->warn("Unable to query CUDA memory information, falling back to heuristic");
+    }
+
+    if (ngl <= 0) {
+        ngl = (heuristic_from_info > 0)
+            ? heuristic_from_info
+            : Utils::determine_ngl_cuda();
+        if (logger && ngl > 0) {
+            logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
+                         gpu_layers_to_string(ngl));
+        }
+    }
+
+    if (ngl > 0) {
+        params.n_gpu_layers = ngl;
+        std::cout << "ngl: " << params.n_gpu_layers << std::endl;
+    } else {
+        params.n_gpu_layers = 0;
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        std::cout << "CUDA not usable, falling back to CPU.\n";
+    }
+}
+#endif
+
 } // namespace
 
 
@@ -578,212 +800,26 @@ llama_model_params LocalLLMClient::prepare_model_params(const std::shared_ptr<sp
     llama_model_params model_params = llama_model_default_params();
 
 #ifdef GGML_USE_METAL
-    int gpu_layers = resolve_gpu_layer_override();
-    if (gpu_layers == INT_MIN) {
-        const MetalDeviceInfo device_info = query_primary_gpu_device();
-        const auto estimation = estimate_gpu_layers_for_metal(model_path, device_info);
-
-        gpu_layers = (estimation.layers >= 0) ? estimation.layers : -1;
-
-        if (logger) {
-            const double to_mib = 1024.0 * 1024.0;
-            logger->info(
-                "Metal device '{}' total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
-                device_info.name.empty() ? "GPU" : device_info.name,
-                device_info.total_bytes / to_mib,
-                device_info.free_bytes / to_mib,
-                gpu_layers_to_string(gpu_layers),
-                estimation.reason
-            );
-        }
-    } else if (logger) {
-        logger->info("Using Metal backend with explicit n_gpu_layers override={}",
-                     gpu_layers_to_string(gpu_layers));
-    }
-
-    model_params.n_gpu_layers = gpu_layers;
+    model_params.n_gpu_layers = determine_metal_layers(model_path, logger);
 #else
     const PreferredBackend backend_pref = detect_preferred_backend();
-    auto log_backend_choice = [&logger](const std::string& msg) {
-        if (logger) {
-            logger->info("{}", msg);
-        }
-    };
     const char* disable_env = std::getenv("GGML_DISABLE_CUDA");
     const bool cuda_forced_off = disable_env && disable_env[0] != '\0' && disable_env[0] != '0';
 
-    if (backend_pref == PreferredBackend::Cpu) {
-        model_params.n_gpu_layers = 0;
-        set_env_var("GGML_DISABLE_CUDA", "1");
-        log_backend_choice("GPU backend disabled via AI_FILE_SORTER_GPU_BACKEND=cpu");
+    if (apply_cpu_backend(model_params, backend_pref, logger)) {
         return model_params;
     }
 
     if (backend_pref == PreferredBackend::Vulkan) {
-        set_env_var("GGML_DISABLE_CUDA", "1");
-        const int override_layers = resolve_gpu_layer_override();
-        if (override_layers <= 0 && override_layers != INT_MIN) {
-            model_params.n_gpu_layers = 0;
-            log_backend_choice("Vulkan backend requested but AI_FILE_SORTER_N_GPU_LAYERS <= 0; using CPU instead.");
-            return model_params;
-        }
-
-        if (override_layers > 0) {
-            model_params.n_gpu_layers = override_layers;
-            if (logger) {
-                logger->info("Using Vulkan backend with explicit n_gpu_layers override={}",
-                             gpu_layers_to_string(override_layers));
-            }
-            return model_params;
-        }
-
-    auto vk_memory = query_backend_memory_metrics("vulkan");
-    if (vk_memory.has_value()) {
-        Utils::CudaMemoryInfo adjusted = vk_memory->memory;
-        if (vk_memory->is_integrated) {
-            constexpr size_t igpu_cap_bytes = static_cast<size_t>(4ULL) * 1024ULL * 1024ULL * 1024ULL; // 4 GiB
-            adjusted.free_bytes = std::min(adjusted.free_bytes, igpu_cap_bytes);
-            adjusted.total_bytes = std::min(adjusted.total_bytes, igpu_cap_bytes);
-            if (logger) {
-                const double to_mib = 1024.0 * 1024.0;
-                logger->info("Vulkan device reported as integrated GPU; capping usable memory to {:.1f} MiB",
-                             igpu_cap_bytes / to_mib);
-            }
-        }
-
-        const auto estimation = estimate_gpu_layers_for_cuda(model_path, adjusted);
-        if (estimation.layers > 0) {
-            model_params.n_gpu_layers = estimation.layers;
-            if (logger) {
-                const double to_mib = 1024.0 * 1024.0;
-                const char* device_label = vk_memory->name.empty() ? "Vulkan device" : vk_memory->name.c_str();
-                logger->info(
-                    "{} total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
-                    device_label,
-                    adjusted.total_bytes / to_mib,
-                    adjusted.free_bytes / to_mib,
-                    gpu_layers_to_string(model_params.n_gpu_layers),
-                    estimation.reason.empty() ? "auto-estimated" : estimation.reason
-                );
-            }
-            } else {
-                model_params.n_gpu_layers = -1;
-                if (logger) {
-                    logger->warn(
-                        "Vulkan estimator could not determine n_gpu_layers ({}); leaving llama.cpp auto (-1).",
-                        estimation.reason.empty() ? "no detail" : estimation.reason
-                    );
-                }
-            }
-        } else {
-            model_params.n_gpu_layers = -1;
-            if (logger) {
-                logger->warn("Vulkan backend memory metrics unavailable; leaving n_gpu_layers to llama.cpp auto (-1).");
-            }
-        }
-
+        apply_vulkan_backend(model_path, model_params, logger);
         return model_params;
     }
 
-    if (cuda_forced_off) {
-        model_params.n_gpu_layers = 0;
-        set_env_var("GGML_DISABLE_CUDA", "1");
-        if (logger) {
-            logger->info("CUDA disabled via GGML_DISABLE_CUDA environment override.");
-            if (backend_pref == PreferredBackend::Cuda) {
-                logger->warn("AI_FILE_SORTER_GPU_BACKEND=cuda but GGML_DISABLE_CUDA forces CPU fallback.");
-            }
-        }
+    if (handle_cuda_forced_off(cuda_forced_off, backend_pref, model_params, logger)) {
         return model_params;
     }
 
-    const bool cuda_available = Utils::is_cuda_available();
-    if (!cuda_available) {
-        set_env_var("GGML_DISABLE_CUDA", "1");
-    }
-
-    if (cuda_available) {
-        const int override_layers = resolve_gpu_layer_override();
-        if (override_layers != INT_MIN) {
-            if (override_layers <= 0) {
-                model_params.n_gpu_layers = 0;
-                set_env_var("GGML_DISABLE_CUDA", "1");
-                if (logger) {
-                    logger->info("CUDA disabled via override (AI_FILE_SORTER_N_GPU_LAYERS={})",
-                                 override_layers);
-                }
-            } else {
-                model_params.n_gpu_layers = override_layers;
-                if (logger) {
-                    logger->info("Using explicit CUDA n_gpu_layers override {}",
-                                 gpu_layers_to_string(override_layers));
-                }
-                std::cout << "ngl override: " << model_params.n_gpu_layers << std::endl;
-            }
-        } else {
-            int ngl = 0;
-            int heuristic_from_info = 0;
-            AutoGpuLayerEstimation estimation{};
-            std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
-
-            if (cuda_info.has_value()) {
-                estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
-                heuristic_from_info = Utils::compute_ngl_from_cuda_memory(*cuda_info);
-
-                int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
-                if (heuristic_from_info > 0) {
-                    candidate_layers = std::max(candidate_layers, heuristic_from_info);
-                }
-                ngl = candidate_layers;
-
-                if (estimation.layers > 0 && logger && estimation.layers != candidate_layers) {
-                    logger->info("CUDA estimator suggested {} layers, but heuristic floor kept {}",
-                                 estimation.layers, candidate_layers);
-                }
-
-                if (logger) {
-                    const double to_mib = 1024.0 * 1024.0;
-                    logger->info(
-                        "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
-                        cuda_info->total_bytes / to_mib,
-                        cuda_info->free_bytes / to_mib,
-                        gpu_layers_to_string(estimation.layers),
-                        gpu_layers_to_string(heuristic_from_info),
-                        gpu_layers_to_string(ngl),
-                        estimation.reason.empty() ? "no estimation detail" : estimation.reason
-                    );
-                }
-            } else if (logger) {
-                logger->warn("Unable to query CUDA memory information, falling back to heuristic");
-            }
-
-            if (ngl <= 0) {
-                ngl = (heuristic_from_info > 0)
-                    ? heuristic_from_info
-                    : Utils::determine_ngl_cuda();
-                if (logger && ngl > 0) {
-                    logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
-                                 gpu_layers_to_string(ngl));
-                }
-            }
-
-            if (ngl > 0) {
-                model_params.n_gpu_layers = ngl;
-                std::cout << "ngl: " << model_params.n_gpu_layers << std::endl;
-            } else {
-                model_params.n_gpu_layers = 0;
-                set_env_var("GGML_DISABLE_CUDA", "1");
-                std::cout << "CUDA not usable, falling back to CPU.\n";
-            }
-        }
-    } else {
-        model_params.n_gpu_layers = 0;
-        printf("model_params.n_gpu_layers: %d\n", model_params.n_gpu_layers);
-        if (logger) {
-            logger->info("CUDA backend unavailable; using CPU backend");
-        }
-        std::cout << "No supported GPU backend detected. Running on CPU.\n";
-    }
+    configure_cuda_backend(model_path, model_params, logger);
 #endif
 
     return model_params;

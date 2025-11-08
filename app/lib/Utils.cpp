@@ -590,43 +590,54 @@ std::string Utils::make_default_path_to_file_from_download_url(std::string url)
 }
 
 
+namespace {
+using cudaGetDeviceCount_t = int (*)(int*);
+using cudaSetDevice_t = int (*)(int);
+using cudaMemGetInfo_t = int (*)(size_t*, size_t*);
+
+LibraryHandle open_cuda_runtime() {
+#ifdef _WIN32
+    std::string dllName = Utils::get_cudart_dll_name();
+    if (dllName.empty()) {
+        log_core(spdlog::level::warn, "[CUDA] DLL name is empty — likely failed to get CUDA version.");
+        return nullptr;
+    }
+    LibraryHandle handle = loadLibrary(dllName.c_str());
+    log_core(spdlog::level::info, "[CUDA] Trying to load: {} => {}", dllName, handle ? "Success" : "Failure");
+    return handle;
+#else
+    return loadLibrary("libcudart.so");
+#endif
+}
+
+bool resolve_cuda_symbols(LibraryHandle handle,
+                          cudaGetDeviceCount_t& get_device_count,
+                          cudaSetDevice_t& set_device,
+                          cudaMemGetInfo_t& mem_get_info) {
+    get_device_count = reinterpret_cast<cudaGetDeviceCount_t>(getSymbol(handle, "cudaGetDeviceCount"));
+    set_device = reinterpret_cast<cudaSetDevice_t>(getSymbol(handle, "cudaSetDevice"));
+    mem_get_info = reinterpret_cast<cudaMemGetInfo_t>(getSymbol(handle, "cudaMemGetInfo"));
+
+    log_core(spdlog::level::info, "[CUDA] Lookup cudaGetDeviceCount symbol: {}",
+             get_device_count ? "Found" : "Not Found");
+
+    return get_device_count && set_device && mem_get_info;
+}
+} // namespace
+
 bool Utils::is_cuda_available() {
     log_core(spdlog::level::info, "[CUDA] Checking CUDA availability...");
 
-#ifdef _WIN32
-    std::string dllName = get_cudart_dll_name();
-
-    if (dllName.empty()) {
-        log_core(spdlog::level::warn, "[CUDA] DLL name is empty — likely failed to get CUDA version.");
-        return false;
-    }
-
-    LibraryHandle handle = loadLibrary(dllName.c_str());
-    log_core(spdlog::level::info, "[CUDA] Trying to load: {} => {}", dllName, handle ? "Success" : "Failure");
-#else
-    LibraryHandle handle = loadLibrary("libcudart.so");
-#endif
-
+    LibraryHandle handle = open_cuda_runtime();
     if (!handle) {
         log_core(spdlog::level::warn, "[CUDA] Failed to load CUDA runtime library.");
         return false;
     }
 
-    typedef int (*cudaGetDeviceCount_t)(int*);
-    typedef int (*cudaSetDevice_t)(int);
-    typedef int (*cudaMemGetInfo_t)(size_t*, size_t*);
-
-    auto cudaGetDeviceCount = reinterpret_cast<cudaGetDeviceCount_t>(
-        getSymbol(handle, "cudaGetDeviceCount"));
-    auto cudaSetDevice = reinterpret_cast<cudaSetDevice_t>(
-        getSymbol(handle, "cudaSetDevice"));
-    auto cudaMemGetInfo = reinterpret_cast<cudaMemGetInfo_t>(
-        getSymbol(handle, "cudaMemGetInfo"));
-
-    log_core(spdlog::level::info, "[CUDA] Lookup cudaGetDeviceCount symbol: {}",
-             cudaGetDeviceCount ? "Found" : "Not Found");
-
-    if (!cudaGetDeviceCount || !cudaSetDevice || !cudaMemGetInfo) {
+    cudaGetDeviceCount_t cudaGetDeviceCount = nullptr;
+    cudaSetDevice_t cudaSetDevice = nullptr;
+    cudaMemGetInfo_t cudaMemGetInfo = nullptr;
+    if (!resolve_cuda_symbols(handle, cudaGetDeviceCount, cudaSetDevice, cudaMemGetInfo)) {
         closeLibrary(handle);
         return false;
     }
@@ -635,19 +646,15 @@ bool Utils::is_cuda_available() {
     int status = cudaGetDeviceCount(&count);
     log_core(spdlog::level::info, "[CUDA] cudaGetDeviceCount returned status: {}, device count: {}", status, count);
 
-    if (status != 0) {
-        log_core(spdlog::level::warn, "[CUDA] CUDA error: {} from cudaGetDeviceCount", status);
-        closeLibrary(handle);
-        return false;
-    }
-    if (count == 0) {
-        log_core(spdlog::level::warn, "[CUDA] No CUDA devices found");
+    if (status != 0 || count == 0) {
+        log_core(spdlog::level::warn,
+                 status != 0 ? "[CUDA] CUDA error: {} from cudaGetDeviceCount" : "[CUDA] No CUDA devices found",
+                 status);
         closeLibrary(handle);
         return false;
     }
 
-    int set_status = cudaSetDevice(0);
-    if (set_status != 0) {
+    if (int set_status = cudaSetDevice(0); set_status != 0) {
         log_core(spdlog::level::warn, "[CUDA] Failed to set CUDA device 0 (error {})", set_status);
         closeLibrary(handle);
         return false;
@@ -655,8 +662,7 @@ bool Utils::is_cuda_available() {
 
     size_t free_bytes = 0;
     size_t total_bytes = 0;
-    int mem_status = cudaMemGetInfo(&free_bytes, &total_bytes);
-    if (mem_status != 0) {
+    if (int mem_status = cudaMemGetInfo(&free_bytes, &total_bytes); mem_status != 0) {
         log_core(spdlog::level::warn, "[CUDA] cudaMemGetInfo failed (error {})", mem_status);
         closeLibrary(handle);
         return false;
