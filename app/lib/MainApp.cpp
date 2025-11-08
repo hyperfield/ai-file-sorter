@@ -227,18 +227,7 @@ void MainApp::setup_file_explorer()
                     on_directory_selected(path, true);
                 }
             });
-    file_explorer_view->setExpandsOnDoubleClick(false);
-    auto toggle_directory_expansion = [this](const QModelIndex& index) {
-        if (!file_system_model || !index.isValid()) {
-            return;
-        }
-        if (!file_system_model->isDir(index)) {
-            return;
-        }
-        file_explorer_view->setExpanded(index, !file_explorer_view->isExpanded(index));
-    };
-    connect(file_explorer_view, &QTreeView::doubleClicked, this, toggle_directory_expansion);
-    connect(file_explorer_view, &QTreeView::activated, this, toggle_directory_expansion);
+    file_explorer_view->setExpandsOnDoubleClick(true);
 
     connect(file_explorer_dock, &QDockWidget::visibilityChanged, this, [this](bool) {
         update_results_view_mode();
