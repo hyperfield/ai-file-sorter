@@ -66,6 +66,7 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 - Added support for Vulkan. This means that many non-Nvidia graphics cards are now supported for compute acceleration.
 - Bug fixes and stability improvements.
 - Expanded test coverage.
+- Code optimization refactors.
 
 ### [1.0.0] - 2025-10-30
 

@@ -27,4 +27,15 @@ using CudaMemoryProbe = std::function<std::optional<Utils::CudaMemoryInfo>()>;
 void set_cuda_memory_probe(CudaMemoryProbe probe);
 void reset_cuda_memory_probe();
 
+struct CategorizationMoveInfo {
+    bool show_subcategory_folders;
+    std::string category;
+    std::string subcategory;
+    std::string file_name;
+};
+
+using CategorizationMoveProbe = std::function<void(const CategorizationMoveInfo&)>;
+void set_categorization_move_probe(CategorizationMoveProbe probe);
+void reset_categorization_move_probe();
+
 } // namespace TestHooks

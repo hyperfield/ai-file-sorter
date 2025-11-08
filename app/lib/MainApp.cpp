@@ -222,6 +222,9 @@ void MainApp::connect_signals()
 
     connect(use_subcategories_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
         settings.set_use_subcategories(checked);
+        if (categorization_dialog) {
+            categorization_dialog->set_show_subcategory_column(checked);
+        }
     });
 
     connect(categorize_files_checkbox, &QCheckBox::toggled, this, [this](bool checked) {

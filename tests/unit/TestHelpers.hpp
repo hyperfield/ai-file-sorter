@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 #include <cstring>
+#include <QApplication>
 
 inline std::string make_unique_token(std::string_view prefix) {
     static std::atomic<uint64_t> counter{0};
@@ -131,4 +132,17 @@ public:
 
 private:
     std::filesystem::path path_;
+};
+
+class QtAppContext {
+public:
+    QtAppContext() {
+        if (!QApplication::instance()) {
+            static int argc = 1;
+            static char arg0[] = "tests";
+            static char* argv[] = {arg0, nullptr};
+            static QApplication* app = new QApplication(argc, argv);
+            Q_UNUSED(app);
+        }
+    }
 };

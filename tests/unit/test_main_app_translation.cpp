@@ -1,27 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
-#include <QApplication>
 #include "MainApp.hpp"
 #include "MainAppTestAccess.hpp"
 #include "TestHelpers.hpp"
 #include "TranslationManager.hpp"
 #include "Language.hpp"
-
-namespace {
-
-class QtAppContext {
-public:
-    QtAppContext() {
-        if (!QApplication::instance()) {
-            static int argc = 1;
-            static char arg0[] = "tests";
-            static char* argv[] = {arg0, nullptr};
-            static QApplication* app = new QApplication(argc, argv);
-            Q_UNUSED(app);
-        }
-    }
-};
-
-} // namespace
 
 TEST_CASE("MainApp retranslate reflects language changes") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");

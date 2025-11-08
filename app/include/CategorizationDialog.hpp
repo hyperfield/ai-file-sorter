@@ -26,6 +26,14 @@ public:
                          bool show_subcategory_col,
                          QWidget* parent = nullptr);
 
+    void set_show_subcategory_column(bool enabled);
+    bool show_subcategory_column_enabled() const { return show_subcategory_column; }
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    void test_set_entries(const std::vector<CategorizedFile>& files);
+    void test_trigger_confirm();
+#endif
+
     bool is_dialog_valid() const;
     void show_results(const std::vector<CategorizedFile>& categorized_files);
 
@@ -59,6 +67,8 @@ private:
     void apply_status_text(QStandardItem* item) const;
     RowStatus status_from_item(const QStandardItem* item) const;
     std::vector<std::tuple<bool, std::string, std::string, std::string, std::string>> get_rows() const;
+    void on_show_subcategories_toggled(bool checked);
+    void apply_subcategory_visibility();
 
     DatabaseManager* db_manager;
     bool show_subcategory_column;
@@ -74,6 +84,7 @@ private:
     QPushButton* continue_button{nullptr};
     QPushButton* close_button{nullptr};
     QCheckBox* select_all_checkbox{nullptr};
+    QCheckBox* show_subcategories_checkbox{nullptr};
 
     bool updating_select_all{false};
 };

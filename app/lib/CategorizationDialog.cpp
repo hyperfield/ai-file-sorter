@@ -3,6 +3,7 @@
 #include "DatabaseManager.hpp"
 #include "Logger.hpp"
 #include "MovableCategorizedFile.hpp"
+#include "TestHooks.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -24,6 +25,27 @@
 #include <fmt/format.h>
 
 #include <filesystem>
+
+namespace {
+
+TestHooks::CategorizationMoveProbe& move_probe_slot() {
+    static TestHooks::CategorizationMoveProbe probe;
+    return probe;
+}
+
+} // namespace
+
+namespace TestHooks {
+
+void set_categorization_move_probe(CategorizationMoveProbe probe) {
+    move_probe_slot() = std::move(probe);
+}
+
+void reset_categorization_move_probe() {
+    move_probe_slot() = CategorizationMoveProbe{};
+}
+
+} // namespace TestHooks
 
 CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
                                            bool show_subcategory_col,
@@ -63,6 +85,10 @@ void CategorizationDialog::setup_ui()
     select_all_checkbox->setChecked(true);
     layout->addWidget(select_all_checkbox);
 
+    show_subcategories_checkbox = new QCheckBox(this);
+    show_subcategories_checkbox->setChecked(show_subcategory_column);
+    layout->addWidget(show_subcategories_checkbox);
+
     model = new QStandardItemModel(this);
     model->setColumnCount(6);
 
@@ -98,6 +124,8 @@ void CategorizationDialog::setup_ui()
     connect(close_button, &QPushButton::clicked, this, &CategorizationDialog::accept);
     connect(select_all_checkbox, &QCheckBox::toggled, this, &CategorizationDialog::on_select_all_toggled);
     connect(model, &QStandardItemModel::itemChanged, this, &CategorizationDialog::on_item_changed);
+    connect(show_subcategories_checkbox, &QCheckBox::toggled,
+            this, &CategorizationDialog::on_show_subcategories_toggled);
 }
 
 
@@ -159,7 +187,7 @@ void CategorizationDialog::populate_model()
     }
 
     updating_select_all = false;
-    table_view->setColumnHidden(4, !show_subcategory_column);
+    apply_subcategory_visibility();
     table_view->resizeColumnsToContents();
     update_select_all_state();
 }
@@ -258,8 +286,21 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
             ++row_index;
             continue;
         }
+        const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
+
+        if (auto& probe = move_probe_slot()) {
+            probe(TestHooks::CategorizationMoveInfo{
+                show_subcategory_column,
+                category,
+                effective_subcategory,
+                file_name
+            });
+            update_status_column(row_index, true);
+            ++row_index;
+            continue;
+        }
+
         try {
-            const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
             MovableCategorizedFile categorized_file(
                 base_dir, category, effective_subcategory,
                 file_name, file_type);
@@ -360,6 +401,19 @@ void CategorizationDialog::apply_select_all(bool checked)
     update_select_all_state();
 }
 
+void CategorizationDialog::on_show_subcategories_toggled(bool checked)
+{
+    show_subcategory_column = checked;
+    apply_subcategory_visibility();
+}
+
+void CategorizationDialog::apply_subcategory_visibility()
+{
+    if (table_view) {
+        table_view->setColumnHidden(4, !show_subcategory_column);
+    }
+}
+
 void CategorizationDialog::retranslate_ui()
 {
     setWindowTitle(tr("Review Categorization"));
@@ -371,6 +425,7 @@ void CategorizationDialog::retranslate_ui()
     };
 
     set_text_if(select_all_checkbox, tr("Select all"));
+    set_text_if(show_subcategories_checkbox, tr("Create subcategory folders"));
     set_text_if(confirm_button, tr("Confirm and Sort"));
     set_text_if(continue_button, tr("Continue Later"));
     set_text_if(close_button, tr("Close"));
@@ -491,3 +546,25 @@ void CategorizationDialog::closeEvent(QCloseEvent* event)
     record_categorization_to_db();
     QDialog::closeEvent(event);
 }
+void CategorizationDialog::set_show_subcategory_column(bool enabled)
+{
+    if (show_subcategory_column == enabled) {
+        return;
+    }
+    show_subcategory_column = enabled;
+    if (show_subcategories_checkbox) {
+        QSignalBlocker blocker(show_subcategories_checkbox);
+        show_subcategories_checkbox->setChecked(enabled);
+    }
+    apply_subcategory_visibility();
+}
+#ifdef AI_FILE_SORTER_TEST_BUILD
+void CategorizationDialog::test_set_entries(const std::vector<CategorizedFile>& files) {
+    categorized_files = files;
+    populate_model();
+}
+
+void CategorizationDialog::test_trigger_confirm() {
+    on_confirm_and_sort_button_clicked();
+}
+#endif
