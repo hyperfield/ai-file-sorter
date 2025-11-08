@@ -14,11 +14,25 @@ fi
 PRECOMPILED_ROOT_DIR="$SCRIPT_DIR/../lib/precompiled"
 HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 
-# Determine CUDA setting from first argument (default OFF)
+# Parse optional arguments (cuda=on/off, vulkan=on/off)
 CUDASWITCH="OFF"
-if [[ "${1,,}" == "cuda=on" ]]; then
-    CUDASWITCH="ON"
+VULKANSWITCH="OFF"
+for arg in "$@"; do
+    case "${arg,,}" in
+        cuda=on) CUDASWITCH="ON" ;;
+        cuda=off) CUDASWITCH="OFF" ;;
+        vulkan=on) VULKANSWITCH="ON" ;;
+        vulkan=off) VULKANSWITCH="OFF" ;;
+    esac
+done
+
+if [[ "$CUDASWITCH" == "ON" && "$VULKANSWITCH" == "ON" ]]; then
+    echo "Cannot enable both CUDA and Vulkan simultaneously. Choose one backend."
+    exit 1
 fi
+
+echo "CUDA support: $CUDASWITCH"
+echo "VULKAN support: $VULKANSWITCH"
 
 # Enter llama.cpp directory and build
 cd "$LLAMA_DIR"
@@ -28,39 +42,58 @@ mkdir -p build
 # Compile shared libs:
 echo "Inside script: CC=$CC, CXX=$CXX"
 
-cmake -S . -B build -DGGML_CUDA=$CUDASWITCH \
-      -DGGML_OPENCL=OFF \
-      -DGGML_BLAS=ON \
-      -DGGML_BLAS_VENDOR=OpenBLAS \
-      -DBUILD_SHARED_LIBS=ON \
-      -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-10 \
-      -DGGML_NATIVE=OFF \
-      -DCMAKE_C_FLAGS="-mavx2 -mfma" \
-      -DCMAKE_CXX_FLAGS="-mavx2 -mfma"
+cmake_args=(
+    -DGGML_CUDA=$CUDASWITCH
+    -DGGML_VULKAN=$VULKANSWITCH
+    -DGGML_OPENCL=OFF
+    -DGGML_BLAS=ON
+    -DGGML_BLAS_VENDOR=OpenBLAS
+    -DBUILD_SHARED_LIBS=ON
+    -DGGML_NATIVE=OFF
+    -DCMAKE_C_FLAGS="-mavx2 -mfma"
+    -DCMAKE_CXX_FLAGS="-mavx2 -mfma"
+)
 
+if [[ "$CUDASWITCH" == "ON" ]]; then
+    cmake_args+=( -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-10 )
+fi
+
+cmake -S . -B build "${cmake_args[@]}"
 cmake --build build --config Release -- -j$(nproc)
 
 VARIANT="cpu"
 if [[ "$CUDASWITCH" == "ON" ]]; then
     VARIANT="cuda"
+elif [[ "$VULKANSWITCH" == "ON" ]]; then
+    VARIANT="vulkan"
 fi
 
 VARIANT_ROOT="$PRECOMPILED_ROOT_DIR/$VARIANT"
 VARIANT_BIN="$VARIANT_ROOT/bin"
 VARIANT_LIB="$VARIANT_ROOT/lib"
+GGML_RUNTIME_ROOT="$SCRIPT_DIR/../lib/ggml"
+RUNTIME_SUBDIR="wocuda"
+if [[ "$VARIANT" == "cuda" ]]; then
+    RUNTIME_SUBDIR="wcuda"
+elif [[ "$VARIANT" == "vulkan" ]]; then
+    RUNTIME_SUBDIR="wvulkan"
+fi
+RUNTIME_DIR="$GGML_RUNTIME_ROOT/$RUNTIME_SUBDIR"
 
-rm -rf "$VARIANT_BIN" "$VARIANT_LIB"
-mkdir -p "$VARIANT_BIN" "$VARIANT_LIB"
+rm -rf "$VARIANT_BIN" "$VARIANT_LIB" "$RUNTIME_DIR"
+mkdir -p "$VARIANT_BIN" "$VARIANT_LIB" "$RUNTIME_DIR"
 
 shopt -s nullglob
 for so in build/bin/*.so build/bin/*.so.*; do
     cp -P "$so" "$VARIANT_BIN/"
+    cp -P "$so" "$RUNTIME_DIR/"
 done
 for lib in build/lib/*.a; do
     cp "$lib" "$VARIANT_LIB/"
 done
 for so in build/lib/*.so build/lib/*.so.*; do
     cp -P "$so" "$VARIANT_LIB/"
+    cp -P "$so" "$RUNTIME_DIR/"
 done
 shopt -u nullglob
 

@@ -4,6 +4,9 @@
 #include "CategorizationDialog.hpp"
 #include "CategorizationProgressDialog.hpp"
 #include "DatabaseManager.hpp"
+#include "CategorizationService.hpp"
+#include "ConsistencyPassService.hpp"
+#include "ResultsCoordinator.hpp"
 #include "FileScanner.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
@@ -38,14 +41,19 @@ class QStackedWidget;
 class QWidget;
 class QLabel;
 class QEvent;
+class MainAppUiBuilder;
 
 struct CategorizedFile;
 struct FileEntry;
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+class MainAppTestAccess;
+#endif
+
 class MainApp : public QMainWindow
 {
 public:
-    explicit MainApp(Settings& settings, QWidget* parent = nullptr);
+    explicit MainApp(Settings& settings, bool development_mode, QWidget* parent = nullptr);
     ~MainApp() override;
 
     void run();
@@ -56,16 +64,13 @@ public:
     void report_progress(const std::string& message);
     void request_stop_analysis();
 
-    std::vector<FileEntry> get_actual_files(const std::string& directory_path);
-    std::vector<CategorizedFile> compute_files_to_sort();
     std::string get_folder_path() const;
+    bool is_development_mode() const { return development_mode_; }
 
 protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
-    void setup_ui();
-    void setup_menus();
     void setup_file_explorer();
     void connect_signals();
     void connect_edit_actions();
@@ -77,6 +82,11 @@ private:
     void sync_settings_to_ui();
     void sync_ui_to_settings();
     void retranslate_ui();
+    void translate_window_title();
+    void translate_primary_controls();
+    void translate_tree_view_labels();
+    void translate_menus_and_actions();
+    void translate_status_messages();
     void update_language_checks();
     void on_language_selected(Language language);
 
@@ -87,6 +97,7 @@ private:
     void update_analyze_button_state(bool analyzing);
     void update_results_view_mode();
     void update_folder_contents(const QString& directory);
+    void focus_file_explorer_on_path(const QString& path);
 
     void handle_analysis_finished();
     void handle_analysis_failure(const std::string& message);
@@ -98,35 +109,21 @@ private:
     void show_llm_selection_dialog();
     void on_about_activate();
     void run_consistency_pass();
-    std::string build_consistency_prompt(const std::vector<const CategorizedFile*>& chunk,
-                                         const std::vector<std::pair<std::string, std::string>>& taxonomy) const;
-    void apply_consistency_response(const std::string& response,
-                                    std::unordered_map<std::string, CategorizedFile*>& items_by_key,
-                                    std::unordered_map<std::string, CategorizedFile*>& new_items_by_key);
-    static std::string make_item_key(const CategorizedFile& item);
+    void handle_development_prompt_logging(bool checked);
 
-    std::unordered_set<std::string> extract_file_names(
-        const std::vector<CategorizedFile>& categorized_files);
-    std::vector<FileEntry> find_files_to_categorize(
-        const std::string& directory_path,
-        const std::unordered_set<std::string>& cached_files);
-    std::vector<CategorizedFile> categorize_files(const std::vector<FileEntry>& files);
-    std::optional<CategorizedFile> categorize_single_file(
-        ILLMClient& llm, const FileEntry& entry);
-    DatabaseManager::ResolvedCategory categorize_file(
-        ILLMClient& llm, const std::string& item_name,
-        const std::string& item_path,
-        const FileType file_type,
-        const std::function<void(const std::string&)>& report_progress);
-    std::string categorize_with_timeout(
-        ILLMClient& llm, const std::string& item_name,
-        const std::string& item_path,
-        const FileType file_type,
-        int timeout_seconds);
     std::unique_ptr<ILLMClient> make_llm_client();
+    void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
+                                       const std::string& reason);
+    void notify_recategorization_reset(const CategorizedFile& entry,
+                                       const std::string& reason);
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
+
+    friend class MainAppUiBuilder;
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend class MainAppTestAccess;
+#endif
 
     Settings& settings;
     DatabaseManager db_manager;
@@ -161,6 +158,8 @@ private:
     QMenu* edit_menu{nullptr};
     QMenu* view_menu{nullptr};
     QMenu* settings_menu{nullptr};
+    QMenu* development_menu{nullptr};
+    QMenu* development_settings_menu{nullptr};
     QMenu* language_menu{nullptr};
     QMenu* help_menu{nullptr};
     QAction* file_quit_action{nullptr};
@@ -170,6 +169,7 @@ private:
     QAction* delete_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
+    QAction* development_prompt_logging_action{nullptr};
     QAction* consistency_pass_action{nullptr};
     QActionGroup* language_group{nullptr};
     QAction* english_action{nullptr};
@@ -177,18 +177,28 @@ private:
     QAction* about_action{nullptr};
     QAction* about_qt_action{nullptr};
     QAction* about_agpl_action{nullptr};
+    QAction* support_project_action{nullptr};
 
     std::unique_ptr<CategorizationDialog> categorization_dialog;
     std::unique_ptr<CategorizationProgressDialog> progress_dialog;
 
     std::shared_ptr<spdlog::logger> core_logger;
     std::shared_ptr<spdlog::logger> ui_logger;
+    CategorizationService categorization_service;
+    ConsistencyPassService consistency_pass_service;
+    ResultsCoordinator results_coordinator;
+    bool development_mode_{false};
+    bool development_prompt_logging_enabled_{false};
 
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;
     std::atomic<bool> stop_analysis{false};
     bool analysis_in_progress_{false};
     bool status_is_ready_{true};
+    bool suppress_explorer_sync_{false};
+    bool suppress_folder_view_sync_{false};
+    bool should_log_prompts() const;
+    void apply_development_logging();
 };
 
 #endif // MAINAPP_HPP

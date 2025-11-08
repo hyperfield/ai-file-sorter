@@ -39,7 +39,7 @@ std::string escape_json(const std::string& input) {
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *response)
 {
     size_t totalSize = size * nmemb;
-    response->append((char *)contents, totalSize);
+    response->append(static_cast<const char*>(contents), totalSize);
     return totalSize;
 }
 
@@ -49,6 +49,12 @@ LLMClient::LLMClient(const std::string &api_key) : api_key(api_key)
 
 
 LLMClient::~LLMClient() = default;
+
+
+void LLMClient::set_prompt_logging_enabled(bool enabled)
+{
+    prompt_logging_enabled = enabled;
+}
 
 
 std::string LLMClient::send_api_request(std::string json_payload) {
@@ -136,7 +142,8 @@ std::string LLMClient::send_api_request(std::string json_payload) {
 
 std::string LLMClient::categorize_file(const std::string& file_name,
                                        const std::string& file_path,
-                                       FileType file_type)
+                                       FileType file_type,
+                                       const std::string& consistency_context)
 {
     if (auto logger = Logger::get_logger("core_logger")) {
         if (!file_path.empty()) {
@@ -146,15 +153,26 @@ std::string LLMClient::categorize_file(const std::string& file_name,
             logger->debug("Requesting remote categorization for '{}' ({})", file_name, to_string(file_type));
         }
     }
-    std::string json_payload = make_payload(file_name, file_path, file_type);
+    std::string json_payload = make_payload(file_name, file_path, file_type, consistency_context);
 
-    return send_api_request(json_payload);
+    if (prompt_logging_enabled && !last_prompt.empty()) {
+        std::cout << "\n[DEV][PROMPT] Categorization request\n" << last_prompt << "\n";
+    }
+
+    std::string category = send_api_request(json_payload);
+
+    if (prompt_logging_enabled) {
+        std::cout << "[DEV][RESPONSE] Categorization reply\n" << category << "\n";
+    }
+
+    return category;
 }
 
 
 std::string LLMClient::make_payload(const std::string& file_name,
                                     const std::string& file_path,
-                                    const FileType file_type)
+                                    const FileType file_type,
+                                    const std::string& consistency_context)
 {
     std::string prompt;
     std::string sanitized_path = file_path;
@@ -176,6 +194,11 @@ std::string LLMClient::make_payload(const std::string& file_name,
         }
     }
 
+    if (!consistency_context.empty()) {
+        prompt += "\n\n" + consistency_context;
+    }
+
+    last_prompt = prompt;
     std::string escaped_prompt = escape_json(prompt);
 
     std::string json_payload = R"(

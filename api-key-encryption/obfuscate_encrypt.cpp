@@ -180,7 +180,7 @@ std::vector<unsigned char> aes256_encrypt(const std::string& plaintext, const st
 
     // Output buffer
     std::vector<unsigned char> ciphertext(plaintext.size() + EVP_MAX_BLOCK_LENGTH);
-    int len = 0, ciphertext_len = 0;
+    int ciphertext_len = 0;
 
     // Create and initialize the context
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -190,18 +190,27 @@ std::vector<unsigned char> aes256_encrypt(const std::string& plaintext, const st
 
     try {
         // Initialize encryption operation
-        if (EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, (unsigned char*)key.data(), iv) != 1) {
+        if (EVP_EncryptInit_ex(ctx,
+                               EVP_aes_256_cbc(),
+                               nullptr,
+                               reinterpret_cast<const unsigned char*>(key.data()),
+                               iv) != 1) {
             throw std::runtime_error("Encryption initialization failed.");
         }
 
         // Encrypt the plaintext
-        if (EVP_EncryptUpdate(ctx, ciphertext.data(), &len, (unsigned char*)plaintext.data(), plaintext.size()) != 1) {
+        int len = 0;
+        if (EVP_EncryptUpdate(ctx,
+                              ciphertext.data(),
+                              &len,
+                              reinterpret_cast<const unsigned char*>(plaintext.data()),
+                              static_cast<int>(plaintext.size())) != 1) {
             throw std::runtime_error("Encryption failed.");
         }
         ciphertext_len += len;
 
         // Finalize encryption
-        if (EVP_EncryptFinal_ex(ctx, ciphertext.data() + len, &len) != 1) {
+        if (EVP_EncryptFinal_ex(ctx, ciphertext.data() + ciphertext_len, &len) != 1) {
             throw std::runtime_error("Final encryption step failed.");
         }
         ciphertext_len += len;
@@ -233,7 +242,7 @@ std::string aes256_decrypt(const std::vector<unsigned char>& ciphertext, const s
 
     // Output buffer
     std::vector<unsigned char> plaintext(ciphertext.size());
-    int len = 0, plaintext_len = 0;
+    int plaintext_len = 0;
 
     // Create and initialize the context
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -243,18 +252,23 @@ std::string aes256_decrypt(const std::vector<unsigned char>& ciphertext, const s
 
     try {
         // Initialize decryption operation
-        if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, (unsigned char*)key.data(), iv) != 1) {
+        if (EVP_DecryptInit_ex(ctx,
+                               EVP_aes_256_cbc(),
+                               nullptr,
+                               reinterpret_cast<const unsigned char*>(key.data()),
+                               iv) != 1) {
             throw std::runtime_error("Decryption initialization failed.");
         }
 
         // Decrypt the ciphertext
+        int len = 0;
         if (EVP_DecryptUpdate(ctx, plaintext.data(), &len, ciphertext.data() + sizeof(iv), ciphertext.size() - sizeof(iv)) != 1) {
             throw std::runtime_error("Decryption failed.");
         }
         plaintext_len += len;
 
         // Finalize decryption
-        if (EVP_DecryptFinal_ex(ctx, plaintext.data() + len, &len) != 1) {
+        if (EVP_DecryptFinal_ex(ctx, plaintext.data() + plaintext_len, &len) != 1) {
             throw std::runtime_error("Final decryption step failed.");
         }
         plaintext_len += len;

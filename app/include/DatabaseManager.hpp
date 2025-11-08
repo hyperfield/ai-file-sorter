@@ -10,7 +10,7 @@
 
 class DatabaseManager {
 public:
-    DatabaseManager(std::string config_dir);
+    explicit DatabaseManager(std::string config_dir);
     ~DatabaseManager();
 
     bool is_file_already_categorized(const std::string &file_name);
@@ -28,6 +28,10 @@ public:
                                                    const std::string& dir_path,
                                                    const ResolvedCategory& resolved);
     std::vector<std::string> get_dir_contents_from_db(const std::string &dir_path);
+    bool remove_file_categorization(const std::string& dir_path,
+                                    const std::string& file_name,
+                                    const FileType file_type);
+    std::vector<CategorizedFile> remove_empty_categorizations(const std::string& dir_path);
 
     std::vector<CategorizedFile> get_categorized_files(const std::string &directory_path);
 
@@ -36,6 +40,10 @@ public:
     void increment_taxonomy_frequency(int taxonomy_id);
     std::vector<std::pair<std::string, std::string>>
         get_taxonomy_snapshot(std::size_t max_entries) const;
+    std::vector<std::pair<std::string, std::string>>
+        get_recent_categories_for_extension(const std::string& extension,
+                                            FileType file_type,
+                                            std::size_t limit) const;
 
 private:
     struct TaxonomyEntry {

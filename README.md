@@ -1,8 +1,11 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Version](https://badgen.net/badge/version/1.0.0/green)](#)
+[![Version](https://badgen.net/badge/version/1.1.0/blue)](#)
 
+<p align="center">
+  <img src="app/resources/images/icon_256x256.png" alt="AI File Sorter logo" width="128" height="128">
+</p>
 AI File Sorter is a powerful, cross-platform desktop application that automates file organization with the help of AI.  
 
 It helps tidy up cluttered folders like Downloads, external drives, or NAS storage by automatically categorizing files based on their names, extensions, directory context, and taxonomy.  
@@ -32,6 +35,7 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 
 - [AI File Sorter](#ai-file-sorter)
   - [Changelog](#changelog)
+    - [[1.1.0] - 2025-11-08](#110---2025-11-08)
     - [[1.0.0] - 2025-10-30](#100---2025-10-30)
     - [[0.9.7] - 2025-10-19](#097---2025-10-19)
     - [[0.9.3] - 2025-09-22](#093---2025-09-22)
@@ -56,6 +60,15 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 ---
 
 ## Changelog
+
+### [1.1.0] - 2025-11-08
+
+- New feature: Support for Vulkan. This means that many non-Nvidia graphics cards (GPUs) are now supported for compute acceleration during local LLM inference.
+- New feature: Toggle subcategories in the categorization review dialog.
+- New feature: Undo the recent file sort (move) action.
+- Fixes: Bug fixes and stability improvements.
+- Added a CTest-integrated test suite. Expanded test coverage.
+- Code optimization refactors.
 
 ### [1.0.0] - 2025-10-30
 
@@ -121,6 +134,7 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **Optional GPU backends**: CUDA 12.x for NVIDIA cards, or a Vulkan 1.2+ driver for AMD/NVIDIA/Intel GPUs. If neither is present, the app falls back to CPU/OpenBLAS automatically.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **OpenAI API Key** (optional): Required only when using the remote ChatGPT workflow.
 
@@ -137,7 +151,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 1. **Install runtime prerequisites** (Qt6, networking, database, math libraries):
    ```bash
    sudo apt update && sudo apt install -y \
-     libqt6widgets6 libcurl4 libjsoncpp25 libfmt8 libopenblas0-pthread
+     libqt6widgets6 libcurl4 libjsoncpp25 libfmt9 libopenblas0-pthread
    ```
    Ensure that the Qt platform plugins are installed (on Ubuntu 22.04 this is provided by `qt6-wayland`).
    GPU acceleration additionally requires an NVIDIA driver with the matching CUDA runtime (`nvidia-cuda-toolkit` or the vendor packages).
@@ -165,17 +179,18 @@ File categorization with local LLMs is completely free of charge. If you prefer 
      ```bash
      sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog
      ```
-     Optional CUDA support also requires the distro CUDA packages.
+     Optional GPU acceleration also requires the distro CUDA packages (for NVIDIA) or a Vulkan 1.2+ driver/runtime (for AMD/Intel/NVIDIA).
 2. **Clone the repository**
    ```bash
    git clone https://github.com/hyperfield/ai-file-sorter.git
    cd ai-file-sorter
    git submodule update --init --recursive --remote
    ```
-3. **Build the llama runtime** (add `cuda=on` if you have a CUDA toolchain)
+3. **Build the llama runtime** (choose exactly one accelerator flag per run)
    ```bash
-   ./app/scripts/build_llama_linux.sh [cuda=on|cuda=off]
+   ./app/scripts/build_llama_linux.sh [cuda=on|off] [vulkan=on|off]
    ```
+   Use `cuda=on` when the NVIDIA CUDA toolkit is present, `vulkan=on` when your Mesa/driver stack exposes Vulkan 1.2+, or leave both off for a CPU/OpenBLAS-only build. (The script errors out if both accelerators are requested simultaneously.) For Vulkan builds, install the vendor driver or Mesa packages that provide `vulkaninfo` (e.g. `sudo apt install mesa-vulkan-drivers vulkan-tools`) and verify `vulkaninfo` succeeds before running the script; the generated libraries are staged under `app/lib/precompiled/vulkan` and `app/lib/ggml/wvulkan`.
 4. **Compile the application**
    ```bash
    cd app
@@ -221,7 +236,7 @@ Option A - CMake + vcpkg (recommended)
 1. Install prerequisites:
    - Visual Studio 2022 with Desktop C++ workload
    - CMake 3.21+ (Visual Studio ships a recent version)
-   - vcpkg: https://github.com/microsoft/vcpkg (clone and bootstrap)
+   - vcpkg: <https://github.com/microsoft/vcpkg> (clone and bootstrap)
 2. Clone repo and submodules:
    ```powershell
    git clone https://github.com/hyperfield/ai-file-sorter.git
@@ -234,11 +249,12 @@ Option A - CMake + vcpkg (recommended)
       Split-Path -Parent (Get-Command vcpkg).Source
       ```
     - Otherwise use the directory where you cloned vcpkg.
-4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` if you have a CUDA toolkit configured, otherwise leave it off (default is CPU-only):
+4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` for NVIDIA, `vulkan=on` for a Vulkan 1.2+ GPU, or leave both off for a CPU-only build (only one backend can be enabled at a time):
    ```powershell
-   app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
+   app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [vcpkgroot=C:\dev\vcpkg]
    ```
    This script produces the `llama.dll`/`ggml*.dll` set under `app\lib\precompiled` which the GUI links against.
+   For Vulkan builds, install the latest LunarG Vulkan SDK or your GPU vendor's Vulkan 1.2+ driver and confirm `vulkaninfo` works inside the Developer PowerShell before invoking the script; the Vulkan artifacts are copied to `lib\precompiled\vulkan` and `lib\ggml\wvulkan`.
 5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
    ```powershell
    # One-time per shell if script execution is blocked:
@@ -259,14 +275,14 @@ Option B - CMake + Qt online installer
    - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext
 2. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
    ```powershell
-   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vcpkgroot=C:\dev\vcpkg]
+   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [vcpkgroot=C:\dev\vcpkg]
    ```
    This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
 3. Configure CMake to see Qt (adapt `CMAKE_PREFIX_PATH` to your Qt install):
     ```powershell
     $env:VCPKG_ROOT = "C:\path\to\vcpkg" (e.g., `C:\dev\vcpkg`)
     $qt = "C:\Qt\6.6.3\msvc2019_64"  # example
-    cmake -S app -B build -G "Ninja" `
+    cmake -S . -B build -G "Ninja" `
       -DCMAKE_PREFIX_PATH=$qt `
      -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
      -DVCPKG_TARGET_TRIPLET=x64-windows
@@ -277,7 +293,34 @@ Notes
 - To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
-- If you enable CUDA for local models, build `llama.cpp` with CUDA first and reconfigure CMake accordingly.
+- If you enable CUDA or Vulkan for local models, build `llama.cpp` with the matching backend first (only one per build) and reconfigure CMake accordingly.
+
+### Running tests
+
+Catch2-based unit tests are optional. Enable them via CMake:
+
+```bash
+cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
+cmake --build build-tests
+ctest --test-dir build-tests
+```
+
+On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
+
+```powershell
+app\build_windows.ps1 -Configuration Release -BuildTests -RunTests
+```
+
+The current suite (under `tests/unit`) focuses on core utilities; expand it as new functionality gains coverage.
+
+### Selecting a backend at runtime
+
+Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and the Windows starter accept the following optional flags:
+
+- `--cuda={on|off}` – force-enable or disable the CUDA backend.
+- `--vulkan={on|off}` – force-enable or disable the Vulkan backend.
+
+When no flags are provided the app auto-detects available runtimes in priority order (CUDA → Vulkan → CPU). Use the flags to skip a backend (`--cuda=off`) or to test a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected.
 
 ---
 
@@ -381,18 +424,16 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 ## Credits
 
 - Curl: <https://github.com/curl/curl>
-- Gtk+3: <https://gitlab.gnome.org/GNOME/gtk>
 - Dotenv: <https://github.com/motdotla/dotenv>
 - git-scm: <https://git-scm.com>
 - Hugging Face: <https://huggingface.co>
 - JSONCPP: <https://github.com/open-source-parsers/jsoncpp>
 - LLaMa: <https://www.llama.com>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
-- Minstral AI: <https://mistral.ai>
-- MSYS2: <https://www.msys2.org>
+- Mistral AI: <https://mistral.ai>
 - OpenAI: <https://platform.openai.com/docs/overview>
 - OpenSSL: <https://github.com/openssl/openssl>
-- SoftPedia: <https://www.softpedia.com/get/File-managers/AI-File-Sorter.shtml>
+- Qt: <https://www.qt.io/>
 - spdlog: <https://github.com/gabime/spdlog>
 
 ## License

@@ -24,45 +24,42 @@ FileScanner::get_directory_entries(const std::string &directory_path,
         logger->debug("Scanning directory '{}' with options mask {}", directory_path, static_cast<int>(options));
     }
 
+    const bool include_files = has_flag(options, FileScanOptions::Files);
+    const bool include_directories = has_flag(options, FileScanOptions::Directories);
+    const bool include_hidden = has_flag(options, FileScanOptions::HiddenFiles);
+
     try {
         const fs::path scan_path = Utils::utf8_to_path(directory_path);
         for (const auto &entry : fs::directory_iterator(scan_path)) {
             const fs::path& entry_path = entry.path();
             std::string full_path = Utils::path_to_utf8(entry_path);
             std::string file_name = Utils::path_to_utf8(entry_path.filename());
-            bool is_hidden = is_file_hidden(entry_path);
-            bool should_add = false;
+            const bool is_hidden = is_file_hidden(entry_path);
+
+            if (is_junk_file(file_name)) {
+                continue;
+            }
+            if (is_hidden && !include_hidden) {
+                if (logger) {
+                    logger->trace("Skipping hidden entry '{}'", full_path);
+                }
+                continue;
+            }
+
             FileType file_type;
+            const bool bundle = is_file_bundle(entry_path);
+            const bool is_file = bundle || fs::is_regular_file(entry);
+            const bool is_directory = !bundle && fs::is_directory(entry);
 
-            if (is_junk_file(file_name)) continue;
-
-            if (is_file_bundle(entry_path)) {
-                if (has_flag(options, FileScanOptions::Files) &&
-                    (has_flag(options, FileScanOptions::HiddenFiles) || !is_hidden)) {
-                    file_type = FileType::File;
-                    should_add = true;
-                }
-            }
-            else if (fs::is_regular_file(entry)) {
-                if (has_flag(options, FileScanOptions::Files) &&
-                    (has_flag(options, FileScanOptions::HiddenFiles) || !is_hidden)) {
-                    file_type = FileType::File;
-                    should_add = true;
-                }
-            }
-            else if (fs::is_directory(entry)) {
-                if (has_flag(options, FileScanOptions::Directories) &&
-                    (has_flag(options, FileScanOptions::HiddenFiles) || !is_hidden)) {
-                    file_type = FileType::Directory;
-                    should_add = true;
-                }
+            if (include_files && is_file) {
+                file_type = FileType::File;
+            } else if (include_directories && is_directory) {
+                file_type = FileType::Directory;
+            } else {
+                continue;
             }
 
-            if (should_add) {
-                file_paths_and_names.push_back({full_path, file_name, file_type});
-            } else if (logger && is_hidden && !has_flag(options, FileScanOptions::HiddenFiles)) {
-                logger->trace("Skipping hidden entry '{}'", full_path);
-            }
+            file_paths_and_names.push_back({full_path, file_name, file_type});
         }
     } catch (const fs::filesystem_error& ex) {
         if (logger) {

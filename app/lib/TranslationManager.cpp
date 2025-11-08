@@ -41,6 +41,8 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("File Explorer"), QStringLiteral("Explorateur de fichiers")},
     {QStringLiteral("&Settings"), QStringLiteral("&Paramètres")},
     {QStringLiteral("Select &LLM…"), QStringLiteral("Sélectionner le &LLM…")},
+    {QStringLiteral("&Development"), QStringLiteral("&Développement")},
+    {QStringLiteral("Log prompts and responses to stdout"), QStringLiteral("Journaliser les invites et réponses dans stdout")},
     {QStringLiteral("Run &consistency pass"), QStringLiteral("Lancer le &signalement de cohérence")},
     {QStringLiteral("&Language"), QStringLiteral("&Langue")},
     {QStringLiteral("&English"), QStringLiteral("&Anglais")},
@@ -50,6 +52,7 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("&About AI File Sorter"), QStringLiteral("À propos d'AI File Sorter")},
     {QStringLiteral("About &Qt"), QStringLiteral("À propos de &Qt")},
     {QStringLiteral("About &AGPL"), QStringLiteral("À propos de l'&AGPL")},
+    {QStringLiteral("&Support Project"), QStringLiteral("&Soutenir le projet")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("À propos de la licence AGPL")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"

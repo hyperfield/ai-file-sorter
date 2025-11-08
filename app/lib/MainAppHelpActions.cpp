@@ -9,6 +9,8 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QString>
+#include <QDesktopServices>
+#include <QUrl>
 
 void MainAppHelpActions::show_about(QWidget* parent)
 {
@@ -117,4 +119,10 @@ void MainAppHelpActions::show_agpl_info(QWidget* parent)
     layout->addWidget(button_box);
 
     dialog.exec();
+}
+
+void MainAppHelpActions::open_support_page()
+{
+    const QUrl donation_url(QStringLiteral("https://filesorter.app/donate"));
+    QDesktopServices::openUrl(donation_url);
 }

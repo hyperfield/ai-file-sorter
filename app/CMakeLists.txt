@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
+
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -19,16 +21,31 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(SQLite3 REQUIRED)
-find_package(JsonCpp REQUIRED CONFIG)
+# JsonCpp may not ship a CMake config on some distros (e.g. Ubuntu). Try
+# config mode first, then fall back to pkg-config.
+find_package(JsonCpp CONFIG QUIET)
+if(NOT JsonCpp_FOUND)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(JSONCPP REQUIRED jsoncpp)
+    add_library(JsonCpp::JsonCpp INTERFACE IMPORTED)
+    target_include_directories(JsonCpp::JsonCpp INTERFACE ${JSONCPP_INCLUDE_DIRS})
+    target_link_directories(JsonCpp::JsonCpp INTERFACE ${JSONCPP_LIBRARY_DIRS})
+    target_link_libraries(JsonCpp::JsonCpp INTERFACE ${JSONCPP_LINK_LIBRARIES})
+else()
+    if(NOT TARGET JsonCpp::JsonCpp)
+        add_library(JsonCpp::JsonCpp INTERFACE IMPORTED)
+    endif()
+endif()
 find_package(fmt REQUIRED CONFIG)
 find_package(spdlog REQUIRED CONFIG)
 find_package(Intl REQUIRED) # libintl/gettext
 
 # Sources
-file(GLOB APP_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
+set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+file(GLOB APP_LIB_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
+set(APP_SOURCES ${APP_MAIN_SOURCE} ${APP_LIB_SOURCES})
 
 # Executable (GUI on Windows)
 if(WIN32)
@@ -257,17 +274,22 @@ if(WIN32)
 
     set(PRECOMPILED_CPU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cpu")
     set(PRECOMPILED_CUDA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cuda")
+    set(PRECOMPILED_VULKAN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/vulkan")
 
     add_custom_command(TARGET aifilesorter POST_BUILD
         # COMMAND ${CMAKE_COMMAND} -E remove -f "$<TARGET_FILE_DIR:aifilesorter>/openblas.dll"
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${PRECOMPILED_CPU_ROOT}"
             "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${PRECOMPILED_CUDA_ROOT}"
             "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${PRECOMPILED_VULKAN_ROOT}"
+            "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
     )
 
     # set(_precompiled_libopenblas "${PRECOMPILED_CPU_ROOT}/bin/libopenblas.dll")
@@ -282,3 +304,55 @@ if(WIN32)
     # endif()
 endif()
 
+if(AI_FILE_SORTER_BUILD_TESTS)
+    include(CTest)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/../external/Catch2 ${CMAKE_BINARY_DIR}/catch2-build)
+
+    add_executable(ai_file_sorter_tests
+        ${APP_LIB_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
+    )
+
+    target_include_directories(ai_file_sorter_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
+    )
+
+    target_link_libraries(ai_file_sorter_tests PRIVATE
+        Catch2::Catch2WithMain
+        Qt6::Core
+        Qt6::Widgets
+        CURL::libcurl
+        OpenSSL::SSL OpenSSL::Crypto
+        SQLite::SQLite3
+        JsonCpp::JsonCpp
+        spdlog::spdlog
+        fmt::fmt
+        Intl::Intl
+        llama
+    )
+
+    target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1)
+
+    if(WIN32)
+        target_link_libraries(ai_file_sorter_tests PRIVATE ggml ggml_base ggml_cpu)
+    endif()
+
+    if(BUILD_TESTING)
+        add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)
+    endif()
+
+    add_test(
+        NAME integration_run_all
+        COMMAND ${CMAKE_COMMAND} -E env bash ${CMAKE_SOURCE_DIR}/../tests/run_all_tests.sh
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
+    )
+    set_tests_properties(integration_run_all PROPERTIES
+        PASS_REGULAR_EXPRESSION "All tests completed successfully."
+    )
+endif()

@@ -35,6 +35,9 @@ public:
     bool get_consistency_pass_enabled() const;
     void set_consistency_pass_enabled(bool value);
 
+    bool get_development_prompt_logging() const;
+    void set_development_prompt_logging(bool value);
+
     std::string define_config_path();
     std::string get_config_dir();
 
@@ -60,6 +63,7 @@ private:
     bool show_file_explorer{true};
     Language language{Language::English};
     bool consistency_pass_enabled{false};
+    bool development_prompt_logging{false};
 };
 
 #endif

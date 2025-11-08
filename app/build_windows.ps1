@@ -4,7 +4,9 @@ param(
     [string]$Configuration = "Release",
     [switch]$Clean,
     [string]$Generator,
-    [switch]$SkipDeploy
+    [switch]$SkipDeploy,
+    [switch]$BuildTests,
+    [switch]$RunTests
 )
 
 $ErrorActionPreference = "Stop"
@@ -110,7 +112,7 @@ if (-not (Test-Path $toolchainFile)) {
 }
 
 if ($Clean -and (Test-Path $buildDir)) {
-    Write-Host "Removing existing build directory '$buildDir'..."
+    Write-Output "Removing existing build directory '$buildDir'..."
     Remove-Item -Recurse -Force $buildDir
 }
 
@@ -136,6 +138,13 @@ $configureArgs += @("-G", $Generator)
 $configureArgs += "-DCMAKE_TOOLCHAIN_FILE=`"$toolchainFile`""
 $configureArgs += "-DVCPKG_TARGET_TRIPLET=x64-windows"
 $configureArgs += "-DVCPKG_MANIFEST_DIR=`"$appDir`""
+if ($RunTests) {
+    $BuildTests = $true
+}
+
+if ($BuildTests) {
+    $configureArgs += "-DAI_FILE_SORTER_BUILD_TESTS=ON"
+}
 
 if ($cmakeVersionMatch.Success) {
     $cmakeMajorMinor = "$cmakeMajor.$cmakeMinor"
@@ -152,11 +161,11 @@ if ($Generator -eq "Ninja" -or $Generator -eq "Ninja Multi-Config") {
     $configureArgs += "x64"
 }
 
-Write-Host "Configuring project (generator: $Generator, configuration: $Configuration)..."
+Write-Output "Configuring project (generator: $Generator, configuration: $Configuration)..."
 
-Write-Host "`n==== CMake Configure Command ===="
-Write-Host "cmake $($configureArgs -join ' ')"
-Write-Host "=================================`n"
+Write-Output "`n==== CMake Configure Command ===="
+Write-Output "cmake $($configureArgs -join ' ')"
+Write-Output "=================================`n"
 
 & $cmakeExe @configureArgs
 if ($LASTEXITCODE -ne 0) {
@@ -165,10 +174,33 @@ if ($LASTEXITCODE -ne 0) {
 
 $buildArgs = @("--build", $buildDir, "--config", $Configuration)
 
-Write-Host "Building..."
+Write-Output "Building..."
 & $cmakeExe @buildArgs
 if ($LASTEXITCODE -ne 0) {
     throw "cmake build failed."
+}
+
+if ($BuildTests) {
+    Write-Output "Building unit tests..."
+    $testBuildArgs = @("--build", $buildDir, "--config", $Configuration, "--target", "ai_file_sorter_tests")
+    & $cmakeExe @testBuildArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to build unit tests."
+    }
+    if ($RunTests) {
+        $ctestExe = Join-Path (Split-Path $cmakeExe) "ctest.exe"
+        if (-not (Test-Path $ctestExe)) {
+            $ctestExe = "ctest"
+        }
+        Push-Location $buildDir
+        Write-Output "Running ctest..."
+        & $ctestExe "-C" $Configuration "--output-on-failure"
+        $ctestExit = $LASTEXITCODE
+        Pop-Location
+        if ($ctestExit -ne 0) {
+            throw "ctest reported failures."
+        }
+    }
 }
 
 $binDir = Join-Path $appDir "bin"
@@ -191,18 +223,20 @@ if (-not $outputExe) {
     Write-Warning "Expected executable was not found in standard locations. Reported path may not exist: $outputExe"
 }
 
-Write-Host "`nBuild complete. Executable located at: $outputExe"
+Write-Output "`nBuild complete. Executable located at: $outputExe"
 
 $outputDir = Split-Path -Parent $outputExe
 $precompiledCpuBin = Join-Path $appDir "lib/precompiled/cpu/bin"
 $precompiledCudaBin = Join-Path $appDir "lib/precompiled/cuda/bin"
+$precompiledVulkanBin = Join-Path $appDir "lib/precompiled/vulkan/bin"
 $precompiledLibOpenBlas = Join-Path $precompiledCpuBin "libopenblas.dll"
 $precompiledOpenBlas = Join-Path $precompiledCpuBin "openblas.dll"
 
 $destWocuda = Join-Path $outputDir "lib/ggml/wocuda"
 $destWcuda = Join-Path $outputDir "lib/ggml/wcuda"
+$destWvulkan = Join-Path $outputDir "lib/ggml/wvulkan"
 
-foreach ($destDir in @($destWocuda, $destWcuda)) {
+foreach ($destDir in @($destWocuda, $destWcuda, $destWvulkan)) {
     if (-not (Test-Path $destDir)) {
         New-Item -ItemType Directory -Path $destDir -Force | Out-Null
     }
@@ -222,8 +256,15 @@ if (Test-Path $precompiledCudaBin) {
             Copy-Item $_.FullName -Destination $destWcuda -Force
         }
 }
+if (Test-Path $precompiledVulkanBin) {
+    Get-ChildItem -Path $precompiledVulkanBin -Filter "*.dll" -File -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            if ($_.Name -ieq "libcurl.dll") { return }
+            Copy-Item $_.FullName -Destination $destWvulkan -Force
+        }
+}
 
-foreach ($destDir in @($destWocuda, $destWcuda)) {
+foreach ($destDir in @($destWocuda, $destWcuda, $destWvulkan)) {
     if (Test-Path $destDir) {
         Get-ChildItem -Path $destDir -Filter "*.lib" -File -Recurse -ErrorAction SilentlyContinue |
             Remove-Item -Force
@@ -237,7 +278,7 @@ foreach ($destDir in @($destWocuda, $destWcuda)) {
 #     $sourceLib = if (Test-Path $precompiledLibOpenBlas) { $precompiledLibOpenBlas } else { $precompiledOpenBlas }
 #     $destLibOpen = Join-Path $outputDir "openblas.dll"
 #     $destLibPrefixed = Join-Path $outputDir "libopenblas.dll"
-#     Write-Host "Staging OpenBLAS runtime from $sourceLib to $outputDir"
+#     Write-Output "Staging OpenBLAS runtime from $sourceLib to $outputDir"
 #     Copy-Item $sourceLib -Destination $destLibOpen -Force
 #     Copy-Item $sourceLib -Destination $destLibPrefixed -Force
 # } else {
@@ -265,7 +306,7 @@ if (-not $SkipDeploy) {
             }
         }
         if ($windeploy) {
-            Write-Host "Running windeployqt to stage Qt/runtime DLLs..."
+            Write-Output "Running windeployqt to stage Qt/runtime DLLs..."
             & $windeploy --no-translations "${outputExe}"
             if ($LASTEXITCODE -ne 0) {
                 throw "windeployqt failed with exit code $LASTEXITCODE"
@@ -277,5 +318,5 @@ if (-not $SkipDeploy) {
         Write-Warning "Skipping runtime deployment; windeployqt is only available on Windows."
     }
 } else {
-    Write-Host "Skipping windeployqt step (per -SkipDeploy)."
+    Write-Output "Skipping windeployqt step (per -SkipDeploy)."
 }

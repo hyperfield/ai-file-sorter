@@ -37,6 +37,40 @@ void updater_log(spdlog::level::level_enum level, const char* fmt, Args&&... arg
         std::fprintf(stderr, "%s\n", message.c_str());
     }
 }
+
+void throw_for_http_status(long http_code)
+{
+    if (http_code == 401) {
+        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
+    }
+    if (http_code == 403) {
+        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
+    }
+    if (http_code >= 500) {
+        throw std::runtime_error("Server Error: The server returned an error. Status code: " + std::to_string(http_code));
+    }
+    if (http_code >= 400) {
+        throw std::runtime_error("Client Error: The server returned an error. Status code: " + std::to_string(http_code));
+    }
+}
+
+void configure_tls(CURL* curl)
+{
+#if defined(_WIN32)
+    const auto cert_path = Utils::ensure_ca_bundle();
+    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
+#else
+    (void)curl;
+#endif
+}
+
+void open_download_url(const std::string& url)
+{
+    const QUrl qurl(QString::fromStdString(url));
+    if (!QDesktopServices::openUrl(qurl)) {
+        updater_log(spdlog::level::err, "Failed to open URL: {}", url);
+    }
+}
 }
 
 
@@ -150,32 +184,37 @@ void Updater::display_update_dialog(bool is_required) {
     QWidget* parent = QApplication::activeWindow();
     const auto& info = update_info.value();
 
-    auto open_download = [&info]() {
-        const QUrl url(QString::fromStdString(info.download_url));
-        if (!QDesktopServices::openUrl(url)) {
-            updater_log(spdlog::level::err, "Failed to open URL: {}", info.download_url);
-        }
-    };
-
     if (is_required) {
-        QMessageBox box(parent);
-        box.setIcon(QMessageBox::Warning);
-        box.setWindowTitle(QObject::tr("Required Update Available"));
-        box.setText(QObject::tr("A required update is available. Please update to continue.\nIf you choose to quit, the application will close."));
-        QPushButton* update_now = box.addButton(QObject::tr("Update Now"), QMessageBox::AcceptRole);
-        QPushButton* quit_button = box.addButton(QObject::tr("Quit"), QMessageBox::RejectRole);
-        box.setDefaultButton(update_now);
-        box.exec();
-
-        if (box.clickedButton() == update_now) {
-            open_download();
-            QApplication::quit();
-        } else if (box.clickedButton() == quit_button) {
-            QApplication::quit();
-        }
+        show_required_update_dialog(info, parent);
         return;
     }
 
+    show_optional_update_dialog(info, parent);
+}
+
+
+void Updater::show_required_update_dialog(const UpdateInfo& info, QWidget* parent) const
+{
+    QMessageBox box(parent);
+    box.setIcon(QMessageBox::Warning);
+    box.setWindowTitle(QObject::tr("Required Update Available"));
+    box.setText(QObject::tr("A required update is available. Please update to continue.\nIf you choose to quit, the application will close."));
+    QPushButton* update_now = box.addButton(QObject::tr("Update Now"), QMessageBox::AcceptRole);
+    QPushButton* quit_button = box.addButton(QObject::tr("Quit"), QMessageBox::RejectRole);
+    box.setDefaultButton(update_now);
+    box.exec();
+
+    if (box.clickedButton() == update_now) {
+        open_download_url(info.download_url);
+        QApplication::quit();
+    } else if (box.clickedButton() == quit_button) {
+        QApplication::quit();
+    }
+}
+
+
+void Updater::show_optional_update_dialog(const UpdateInfo& info, QWidget* parent) const
+{
     QMessageBox box(parent);
     box.setIcon(QMessageBox::Information);
     box.setWindowTitle(QObject::tr("Optional Update Available"));
@@ -187,7 +226,7 @@ void Updater::display_update_dialog(bool is_required) {
     box.exec();
 
     if (box.clickedButton() == update_now) {
-        open_download();
+        open_download_url(info.download_url);
     } else if (box.clickedButton() == skip_button) {
         settings.set_skipped_version(info.current_version);
         if (!settings.save()) {
@@ -202,8 +241,10 @@ void Updater::display_update_dialog(bool is_required) {
 
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
-    return size * nmemb;
+    const auto total = size * nmemb;
+    auto* buffer = static_cast<std::string*>(userp);
+    buffer->append(static_cast<const char*>(contents), total);
+    return total;
 }
 
 
@@ -216,15 +257,12 @@ std::string Updater::fetch_update_metadata() const {
     CURLcode res;
     std::string response_string;
 
-    #ifdef _WIN32
-        try {
-            const auto cert_path = Utils::ensure_ca_bundle();
-            curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-        } catch (const std::exception& ex) {
-            curl_easy_cleanup(curl);
-            throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
-        }
-    #endif
+    try {
+        configure_tls(curl);
+    } catch (const std::exception& ex) {
+        curl_easy_cleanup(curl);
+        throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
+    }
 
     curl_easy_setopt(curl, CURLOPT_URL, update_spec_file_url.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
@@ -252,15 +290,7 @@ std::string Updater::fetch_update_metadata() const {
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
 
-    if (http_code == 401) {
-        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
-    } else if (http_code == 403) {
-        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
-    } else if (http_code >= 500) {
-        throw std::runtime_error("Server Error: The server returned an error. Status code: " + std::to_string(http_code));
-    } else if (http_code >= 400) {
-        throw std::runtime_error("Client Error: The server returned an error. Status code: " + std::to_string(http_code));
-    }
+    throw_for_http_status(http_code);
 
     return response_string;
 }

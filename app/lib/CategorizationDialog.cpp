@@ -3,6 +3,8 @@
 #include "DatabaseManager.hpp"
 #include "Logger.hpp"
 #include "MovableCategorizedFile.hpp"
+#include "TestHooks.hpp"
+#include "Utils.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -24,6 +26,27 @@
 #include <fmt/format.h>
 
 #include <filesystem>
+
+namespace {
+
+TestHooks::CategorizationMoveProbe& move_probe_slot() {
+    static TestHooks::CategorizationMoveProbe probe;
+    return probe;
+}
+
+} // namespace
+
+namespace TestHooks {
+
+void set_categorization_move_probe(CategorizationMoveProbe probe) {
+    move_probe_slot() = std::move(probe);
+}
+
+void reset_categorization_move_probe() {
+    move_probe_slot() = CategorizationMoveProbe{};
+}
+
+} // namespace TestHooks
 
 CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
                                            bool show_subcategory_col,
@@ -50,6 +73,11 @@ bool CategorizationDialog::is_dialog_valid() const
 void CategorizationDialog::show_results(const std::vector<CategorizedFile>& files)
 {
     categorized_files = files;
+    clear_move_history();
+    if (undo_button) {
+        undo_button->setEnabled(false);
+        undo_button->setVisible(false);
+    }
     populate_model();
     exec();
 }
@@ -62,6 +90,10 @@ void CategorizationDialog::setup_ui()
     select_all_checkbox = new QCheckBox(this);
     select_all_checkbox->setChecked(true);
     layout->addWidget(select_all_checkbox);
+
+    show_subcategories_checkbox = new QCheckBox(this);
+    show_subcategories_checkbox->setChecked(show_subcategory_column);
+    layout->addWidget(show_subcategories_checkbox);
 
     model = new QStandardItemModel(this);
     model->setColumnCount(6);
@@ -84,11 +116,15 @@ void CategorizationDialog::setup_ui()
 
     confirm_button = new QPushButton(this);
     continue_button = new QPushButton(this);
+    undo_button = new QPushButton(this);
+    undo_button->setEnabled(false);
+    undo_button->setVisible(false);
     close_button = new QPushButton(this);
     close_button->setVisible(false);
 
     button_layout->addWidget(confirm_button);
     button_layout->addWidget(continue_button);
+    button_layout->addWidget(undo_button);
     button_layout->addWidget(close_button);
 
     layout->addLayout(button_layout);
@@ -96,8 +132,11 @@ void CategorizationDialog::setup_ui()
     connect(confirm_button, &QPushButton::clicked, this, &CategorizationDialog::on_confirm_and_sort_button_clicked);
     connect(continue_button, &QPushButton::clicked, this, &CategorizationDialog::on_continue_later_button_clicked);
     connect(close_button, &QPushButton::clicked, this, &CategorizationDialog::accept);
+    connect(undo_button, &QPushButton::clicked, this, &CategorizationDialog::on_undo_button_clicked);
     connect(select_all_checkbox, &QCheckBox::toggled, this, &CategorizationDialog::on_select_all_toggled);
     connect(model, &QStandardItemModel::itemChanged, this, &CategorizationDialog::on_item_changed);
+    connect(show_subcategories_checkbox, &QCheckBox::toggled,
+            this, &CategorizationDialog::on_show_subcategories_toggled);
 }
 
 
@@ -159,7 +198,7 @@ void CategorizationDialog::populate_model()
     }
 
     updating_select_all = false;
-    table_view->setColumnHidden(4, !show_subcategory_column);
+    apply_subcategory_visibility();
     table_view->resizeColumnsToContents();
     update_select_all_state();
 }
@@ -250,6 +289,12 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
     const std::string base_dir = categorized_files.front().file_path;
     auto rows = get_rows();
 
+    clear_move_history();
+    if (undo_button) {
+        undo_button->setEnabled(false);
+        undo_button->setVisible(false);
+    }
+
     std::vector<std::string> files_not_moved;
     int row_index = 0;
     for (const auto& [selected, file_name, file_type, category, subcategory] : rows) {
@@ -258,11 +303,26 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
             ++row_index;
             continue;
         }
+        const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
+
+        if (auto& probe = move_probe_slot()) {
+            probe(TestHooks::CategorizationMoveInfo{
+                show_subcategory_column,
+                category,
+                effective_subcategory,
+                file_name
+            });
+            update_status_column(row_index, true);
+            ++row_index;
+            continue;
+        }
+
         try {
-            const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
             MovableCategorizedFile categorized_file(
                 base_dir, category, effective_subcategory,
                 file_name, file_type);
+
+            const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
 
             categorized_file.create_cat_dirs(show_subcategory_column);
             bool moved = categorized_file.move_file(show_subcategory_column);
@@ -273,6 +333,9 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
                 if (core_logger) {
                     core_logger->warn("File {} already exists in the destination.", file_name);
                 }
+            }
+            if (moved) {
+                record_move_for_undo(row_index, preview_paths.source, preview_paths.destination);
             }
         } catch (const std::exception& ex) {
             update_status_column(row_index, false);
@@ -292,6 +355,11 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
         ui_logger->info("Categorization complete. Unmoved files: {}", files_not_moved.size());
     }
 
+    if (!move_history_.empty() && undo_button) {
+        undo_button->setVisible(true);
+        undo_button->setEnabled(true);
+    }
+
     show_close_button();
 }
 
@@ -300,6 +368,21 @@ void CategorizationDialog::on_continue_later_button_clicked()
 {
     record_categorization_to_db();
     accept();
+}
+
+void CategorizationDialog::on_undo_button_clicked()
+{
+    if (!undo_move_history()) {
+        return;
+    }
+
+    update_status_after_undo();
+    restore_action_buttons();
+    clear_move_history();
+    if (undo_button) {
+        undo_button->setEnabled(false);
+        undo_button->setVisible(false);
+    }
 }
 
 
@@ -313,6 +396,19 @@ void CategorizationDialog::show_close_button()
     }
     if (close_button) {
         close_button->setVisible(true);
+    }
+}
+
+void CategorizationDialog::restore_action_buttons()
+{
+    if (confirm_button) {
+        confirm_button->setVisible(true);
+    }
+    if (continue_button) {
+        continue_button->setVisible(true);
+    }
+    if (close_button) {
+        close_button->setVisible(false);
     }
 }
 
@@ -347,6 +443,86 @@ void CategorizationDialog::on_select_all_toggled(bool checked)
     apply_select_all(checked);
 }
 
+void CategorizationDialog::record_move_for_undo(int row, const std::string& source, const std::string& destination)
+{
+    move_history_.push_back(MoveRecord{row, source, destination});
+}
+
+void CategorizationDialog::remove_empty_parent_directories(const std::string& destination)
+{
+    std::filesystem::path dest_path = Utils::utf8_to_path(destination);
+    auto parent = dest_path.parent_path();
+    while (!parent.empty()) {
+        std::error_code ec;
+        if (!std::filesystem::exists(parent)) {
+            parent = parent.parent_path();
+            continue;
+        }
+        if (std::filesystem::is_directory(parent) &&
+            std::filesystem::is_empty(parent, ec) && !ec) {
+            std::filesystem::remove(parent, ec);
+            parent = parent.parent_path();
+        } else {
+            break;
+        }
+    }
+}
+
+bool CategorizationDialog::move_file_back(const std::string& source, const std::string& destination)
+{
+    std::error_code ec;
+    auto destination_path = Utils::utf8_to_path(destination);
+    auto source_path = Utils::utf8_to_path(source);
+
+    if (!std::filesystem::exists(destination_path)) {
+        if (core_logger) {
+            core_logger->warn("Undo skipped; destination '{}' missing", destination);
+        }
+        return false;
+    }
+
+    std::filesystem::create_directories(source_path.parent_path(), ec);
+
+    try {
+        std::filesystem::rename(destination_path, source_path);
+    } catch (const std::filesystem::filesystem_error& ex) {
+        if (core_logger) {
+            core_logger->error("Undo move failed '{}' -> '{}': {}", destination, source, ex.what());
+        }
+        return false;
+    }
+
+    remove_empty_parent_directories(destination);
+    return true;
+}
+
+bool CategorizationDialog::undo_move_history()
+{
+    if (move_history_.empty()) {
+        return false;
+    }
+
+    bool any_success = false;
+    for (auto it = move_history_.rbegin(); it != move_history_.rend(); ++it) {
+        if (move_file_back(it->source_path, it->destination_path)) {
+            any_success = true;
+        }
+    }
+
+    if (any_success && core_logger) {
+        core_logger->info("Undo completed for {} moved file(s)", move_history_.size());
+    }
+
+    return any_success;
+}
+
+void CategorizationDialog::update_status_after_undo()
+{
+    for (const auto& record : move_history_) {
+        update_status_column(record.row_index, false, false);
+    }
+}
+
 
 void CategorizationDialog::apply_select_all(bool checked)
 {
@@ -360,22 +536,40 @@ void CategorizationDialog::apply_select_all(bool checked)
     update_select_all_state();
 }
 
+void CategorizationDialog::on_show_subcategories_toggled(bool checked)
+{
+    show_subcategory_column = checked;
+    apply_subcategory_visibility();
+}
+
+void CategorizationDialog::apply_subcategory_visibility()
+{
+    if (table_view) {
+        table_view->setColumnHidden(4, !show_subcategory_column);
+    }
+}
+
+void CategorizationDialog::clear_move_history()
+{
+    move_history_.clear();
+}
+
 void CategorizationDialog::retranslate_ui()
 {
     setWindowTitle(tr("Review Categorization"));
 
-    if (select_all_checkbox) {
-        select_all_checkbox->setText(tr("Select all"));
-    }
-    if (confirm_button) {
-        confirm_button->setText(tr("Confirm and Sort"));
-    }
-    if (continue_button) {
-        continue_button->setText(tr("Continue Later"));
-    }
-    if (close_button) {
-        close_button->setText(tr("Close"));
-    }
+    const auto set_text_if = [](auto* widget, const QString& text) {
+        if (widget) {
+            widget->setText(text);
+        }
+    };
+
+    set_text_if(select_all_checkbox, tr("Select all"));
+    set_text_if(show_subcategories_checkbox, tr("Create subcategory folders"));
+    set_text_if(confirm_button, tr("Confirm and Sort"));
+    set_text_if(continue_button, tr("Continue Later"));
+    set_text_if(undo_button, tr("Undo this change"));
+    set_text_if(close_button, tr("Close"));
 
     if (model) {
         model->setHorizontalHeaderLabels(QStringList{
@@ -493,3 +687,33 @@ void CategorizationDialog::closeEvent(QCloseEvent* event)
     record_categorization_to_db();
     QDialog::closeEvent(event);
 }
+void CategorizationDialog::set_show_subcategory_column(bool enabled)
+{
+    if (show_subcategory_column == enabled) {
+        return;
+    }
+    show_subcategory_column = enabled;
+    if (show_subcategories_checkbox) {
+        QSignalBlocker blocker(show_subcategories_checkbox);
+        show_subcategories_checkbox->setChecked(enabled);
+    }
+    apply_subcategory_visibility();
+}
+#ifdef AI_FILE_SORTER_TEST_BUILD
+void CategorizationDialog::test_set_entries(const std::vector<CategorizedFile>& files) {
+    categorized_files = files;
+    populate_model();
+}
+
+void CategorizationDialog::test_trigger_confirm() {
+    on_confirm_and_sort_button_clicked();
+}
+
+void CategorizationDialog::test_trigger_undo() {
+    on_undo_button_clicked();
+}
+
+bool CategorizationDialog::test_undo_enabled() const {
+    return undo_button && undo_button->isEnabled();
+}
+#endif

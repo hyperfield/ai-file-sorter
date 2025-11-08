@@ -115,6 +115,7 @@ bool Settings::load()
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = config.getValue("Settings", "ShowFileExplorer", "true") == "true";
     consistency_pass_enabled = config.getValue("Settings", "ConsistencyPass", "false") == "true";
+    development_prompt_logging = config.getValue("Settings", "DevelopmentPromptLogging", "false") == "true";
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
     const std::string language_value = config.getValue("Settings", "Language", "English");
     language = languageFromString(QString::fromStdString(language_value));
@@ -146,6 +147,7 @@ bool Settings::save()
 
     config.setValue("Settings", "ShowFileExplorer", show_file_explorer ? "true" : "false");
     config.setValue("Settings", "ConsistencyPass", consistency_pass_enabled ? "true" : "false");
+    config.setValue("Settings", "DevelopmentPromptLogging", development_prompt_logging ? "true" : "false");
     config.setValue("Settings", "Language", languageToString(language).toStdString());
 
     return config.save(config_path);
@@ -224,6 +226,16 @@ bool Settings::get_consistency_pass_enabled() const
 void Settings::set_consistency_pass_enabled(bool value)
 {
     consistency_pass_enabled = value;
+}
+
+bool Settings::get_development_prompt_logging() const
+{
+    return development_prompt_logging;
+}
+
+void Settings::set_development_prompt_logging(bool value)
+{
+    development_prompt_logging = value;
 }
 
 

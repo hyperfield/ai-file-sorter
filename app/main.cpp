@@ -9,11 +9,16 @@
 #include <QDialog>
 #include <QGuiApplication>
 #include <QSplashScreen>
-#include <QPainter>
 #include <QPixmap>
 #include <QSize>
 #include <QElapsedTimer>
 #include <QTimer>
+
+#include <functional>
+#include <algorithm>
+#include <vector>
+#include <cstring>
+#include <QPainter>
 
 #include <curl/curl.h>
 #include <locale.h>
@@ -61,7 +66,20 @@ int main(int argc, char **argv) {
         QCoreApplication::setApplicationName(QStringLiteral("AI File Sorter"));
         QGuiApplication::setApplicationDisplayName(QStringLiteral("AI File Sorter"));
 
-        QApplication app(argc, argv);
+        bool development_mode = false;
+        std::vector<char*> filtered_args;
+        filtered_args.reserve(static_cast<size_t>(argc) + 1);
+        for (int i = 0; i < argc; ++i) {
+            if (i > 0 && std::strcmp(argv[i], "--development") == 0) {
+                development_mode = true;
+                continue;
+            }
+            filtered_args.push_back(argv[i]);
+        }
+        filtered_args.push_back(nullptr);
+        int qt_argc = static_cast<int>(filtered_args.size()) - 1;
+
+        QApplication app(qt_argc, filtered_args.data());
 
         QPixmap splash_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/icon_512x512.png"));
         if (splash_pix.isNull()) {
@@ -86,12 +104,25 @@ int main(int argc, char **argv) {
 
         QSplashScreen splash(splash_canvas);
         splash.setWindowFlag(Qt::WindowStaysOnTopHint);
+        splash.setWindowFlag(Qt::SplashScreen);
         const QString splash_text = QStringLiteral("AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
         splash.showMessage(splash_text, Qt::AlignBottom | Qt::AlignHCenter, Qt::black);
         splash.show();
+        splash.raise();
+        splash.activateWindow();
         QElapsedTimer splash_timer;
         splash_timer.start();
         app.processEvents();
+
+        bool splash_finished = false;
+        QWidget* splash_target_widget = nullptr;
+        std::function<void()> finishSplash = [&]() {
+            if (!splash_finished) {
+                splash.finish(splash_target_widget);
+                splash_finished = true;
+            }
+        };
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, &splash, finishSplash);
 
         Settings settings;
         settings.load();
@@ -99,6 +130,7 @@ int main(int argc, char **argv) {
         if (settings.get_llm_choice() == LLMChoice::Unset) {
             LLMSelectionDialog llm_dialog(settings);
             if (llm_dialog.exec() != QDialog::Accepted) {
+                finishSplash();
                 return EXIT_SUCCESS;
             }
 
@@ -106,24 +138,23 @@ int main(int argc, char **argv) {
             settings.save();
         }
 
-        MainApp main_app(settings);
+        MainApp main_app(settings, development_mode);
+        splash_target_widget = &main_app;
+
+        constexpr int splash_duration_ms = 3000;
+        const qint64 elapsed_ms = splash_timer.elapsed();
+        const int remaining_ms = std::max(0, splash_duration_ms - static_cast<int>(elapsed_ms));
+        splash.raise();
+        splash.activateWindow();
+        QTimer::singleShot(0, [&splash]() {
+            splash.raise();
+            splash.activateWindow();
+        });
+        QTimer::singleShot(remaining_ms, &splash, finishSplash);
         main_app.run();
 
-        constexpr qint64 minimum_duration_ms = 3300;
-        const qint64 elapsed_ms = splash_timer.elapsed();
-        if (elapsed_ms < minimum_duration_ms) {
-            const int remaining_ms = static_cast<int>(minimum_duration_ms - elapsed_ms);
-            QTimer::singleShot(remaining_ms, &splash, [&splash, &main_app]() {
-                splash.finish(&main_app);
-            });
-        } else {
-            splash.finish(&main_app);
-        }
-
         int result = app.exec();
-        if (splash.isVisible()) {
-            splash.finish(&main_app);
-        }
+        finishSplash();
         main_app.shutdown();
         return result;
     } catch (const std::exception& ex) {

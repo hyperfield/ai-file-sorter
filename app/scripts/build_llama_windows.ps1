@@ -2,16 +2,24 @@ $ErrorActionPreference = "Stop"
 
 # --- Parse optional arguments ---
 $useCuda = "OFF"
+$useVulkan = "OFF"
 $vcpkgRootArg = $null
 foreach ($arg in $args) {
     if ($arg -match "^cuda=(on|off)$") {
         $useCuda = $Matches[1].ToUpper()
+    } elseif ($arg -match "^vulkan=(on|off)$") {
+        $useVulkan = $Matches[1].ToUpper()
     } elseif ($arg -match "^vcpkgroot=(.+)$") {
         $vcpkgRootArg = $Matches[1]
     }
 }
 
+if ($useCuda -eq "ON" -and $useVulkan -eq "ON") {
+    throw "Cannot enable both CUDA and Vulkan simultaneously. Choose only one backend."
+}
+
 Write-Host "`nCUDA Support: $useCuda`n"
+Write-Host "Vulkan Support: $useVulkan`n"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $llamaDir = Join-Path $scriptDir "..\include\external\llama.cpp"
@@ -94,7 +102,7 @@ function Invoke-Vcpkg {
     }
 }
 
-function Ensure-VcpkgPackage {
+function Confirm-VcpkgPackage {
     param(
         [string]$HeaderCheckPath,
         [string]$LibraryCheckPath,
@@ -113,12 +121,12 @@ function Ensure-VcpkgPackage {
 # $openBlasIncludeSub = Join-Path $openBlasInclude "openblas"
 # $openBlasLib = Join-Path $vcpkgRoot "installed\$triplet\lib\openblas.lib"
 # $openBlasDll = Join-Path $vcpkgRoot "installed\$triplet\bin\openblas.dll"
-# Ensure-VcpkgPackage -HeaderCheckPath (Join-Path $openBlasIncludeSub "cblas.h") -LibraryCheckPath $openBlasLib -PackageName "openblas"
+# Confirm-VcpkgPackage -HeaderCheckPath (Join-Path $openBlasIncludeSub "cblas.h") -LibraryCheckPath $openBlasLib -PackageName "openblas"
 
 $curlInclude = Join-Path $vcpkgRoot "installed\$triplet\include"
 $curlLib = Join-Path $vcpkgRoot "installed\$triplet\lib\libcurl.lib"
 $curlDll = Join-Path $vcpkgRoot "installed\$triplet\bin\libcurl.dll"
-Ensure-VcpkgPackage -HeaderCheckPath (Join-Path $curlInclude "curl\curl.h") -LibraryCheckPath $curlLib -PackageName "curl"
+Confirm-VcpkgPackage -HeaderCheckPath (Join-Path $curlInclude "curl\curl.h") -LibraryCheckPath $curlLib -PackageName "curl"
 
 # Write-Host "Using OpenBLAS include: $openBlasInclude"
 # Write-Host "Using OpenBLAS lib: $openBlasLib"
@@ -140,7 +148,7 @@ $cmakeArgs = @(
     # Temporarily keep BLAS disabled while OpenBLAS is removed.
     "-DGGML_BLAS=OFF",
     "-DGGML_OPENCL=OFF",
-    "-DGGML_VULKAN=OFF",
+    "-DGGML_VULKAN=$useVulkan",
     "-DGGML_SYCL=OFF",
     "-DGGML_HIP=OFF",
     "-DGGML_KLEIDIAI=OFF",
@@ -170,8 +178,15 @@ if ($useCuda -eq "ON") {
 Pop-Location
 
 # --- Clean and repopulate precompiled outputs ---
-$variant = if ($useCuda -eq "ON") { "cuda" } else { "cpu" }
-$runtimeSubdir = if ($useCuda -eq "ON") { "wcuda" } else { "wocuda" }
+$variant = "cpu"
+$runtimeSubdir = "wocuda"
+if ($useCuda -eq "ON") {
+    $variant = "cuda"
+    $runtimeSubdir = "wcuda"
+} elseif ($useVulkan -eq "ON") {
+    $variant = "vulkan"
+    $runtimeSubdir = "wvulkan"
+}
 $variantRoot = Join-Path $precompiledRootDir $variant
 $variantBin = Join-Path $variantRoot "bin"
 $variantLib = Join-Path $variantRoot "lib"
@@ -185,25 +200,20 @@ foreach ($dir in @($variantBin, $variantLib, $runtimeDir)) {
 }
 
 $releaseBin = Join-Path $llamaDir "build\bin\Release"
-$dllList = @("llama.dll", "ggml.dll", "ggml-base.dll", "ggml-cpu.dll")
-$optionalDlls = @("ggml-blas.dll", "ggml-openblas.dll")
-foreach ($maybeDll in $optionalDlls) {
-    $candidate = Join-Path $releaseBin $maybeDll
-    if (Test-Path $candidate) {
-        $dllList += $maybeDll
-    }
+$dllList = @()
+if (Test-Path $releaseBin) {
+    $dllList = Get-ChildItem -Path $releaseBin -Filter "*.dll" -File | Select-Object -ExpandProperty Name
 }
-if ($useCuda -eq "ON") {
-    $dllList += "ggml-cuda.dll"
+if (-not $dllList -or $dllList.Count -eq 0) {
+    throw "No DLLs were produced in $releaseBin."
 }
 
 foreach ($dll in $dllList) {
     $src = Join-Path $releaseBin $dll
-    if (-not (Test-Path $src)) {
-        throw "Expected DLL '$dll' not found at $src"
-    }
     Copy-Item $src -Destination $variantBin -Force
-    Copy-Item $src -Destination $runtimeDir -Force
+    if ($dll -ne "libcurl.dll") {
+        Copy-Item $src -Destination $runtimeDir -Force
+    }
 }
 
 # if (Test-Path $openBlasDll) {

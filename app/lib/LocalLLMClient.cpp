@@ -1,7 +1,11 @@
 #include "LocalLLMClient.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
+#include "TestHooks.hpp"
+#include "LocalLLMTestAccess.hpp"
 #include "llama.h"
+#include "ggml-backend.h"
+#include "ggml-backend.h"
 #include <string>
 #include <vector>
 #include <cctype>
@@ -20,6 +24,8 @@
 #include <optional>
 #include <cmath>
 #include <fstream>
+#include <string_view>
+#include <string>
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -129,6 +135,120 @@ MetalDeviceInfo query_primary_gpu_device() {
 }
 #endif // defined(GGML_USE_METAL)
 
+bool case_insensitive_contains(std::string_view text, std::string_view needle) {
+    if (needle.empty()) {
+        return true;
+    }
+
+    std::string text_lower(text);
+    std::string needle_lower(needle);
+    std::transform(text_lower.begin(), text_lower.end(), text_lower.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    std::transform(needle_lower.begin(), needle_lower.end(), needle_lower.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return text_lower.find(needle_lower) != std::string::npos;
+}
+
+void load_ggml_backends_once(const std::shared_ptr<spdlog::logger>& logger) {
+    static bool loaded = false;
+    if (loaded) {
+        return;
+    }
+
+    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+    if (ggml_dir && ggml_dir[0] != '\0') {
+        if (logger) {
+            logger->info("Loading ggml backends from '{}'", ggml_dir);
+        }
+        ggml_backend_load_all_from_path(ggml_dir);
+    } else {
+        ggml_backend_load_all();
+    }
+
+    loaded = true;
+}
+
+using BackendMemoryInfo = TestHooks::BackendMemoryInfo;
+
+using BackendMemoryProbe = TestHooks::BackendMemoryProbe;
+
+BackendMemoryProbe& backend_memory_probe_slot() {
+    static BackendMemoryProbe probe;
+    return probe;
+}
+
+std::optional<BackendMemoryInfo> query_backend_memory_metrics_impl(std::string_view backend_name) {
+    const size_t device_count = ggml_backend_dev_count();
+    BackendMemoryInfo best{};
+    bool found = false;
+
+    for (size_t i = 0; i < device_count; ++i) {
+        auto * device = ggml_backend_dev_get(i);
+        if (!device) {
+            continue;
+        }
+        const auto type = ggml_backend_dev_type(device);
+        if (type != GGML_BACKEND_DEVICE_TYPE_GPU && type != GGML_BACKEND_DEVICE_TYPE_IGPU) {
+            continue;
+        }
+
+        auto * reg = ggml_backend_dev_backend_reg(device);
+        const char * name = reg ? ggml_backend_reg_name(reg) : nullptr;
+        if (!backend_name.empty()) {
+            if (!name || !case_insensitive_contains(name, backend_name)) {
+                continue;
+            }
+        }
+
+        size_t free_bytes = 0;
+        size_t total_bytes = 0;
+        ggml_backend_dev_memory(device, &free_bytes, &total_bytes);
+        if (free_bytes == 0 && total_bytes == 0) {
+            continue;
+        }
+
+        BackendMemoryInfo info;
+        info.memory.free_bytes = free_bytes;
+        info.memory.total_bytes = (total_bytes != 0) ? total_bytes : free_bytes;
+        info.is_integrated = (type == GGML_BACKEND_DEVICE_TYPE_IGPU);
+        info.name = name ? name : "";
+
+        if (!found || info.memory.total_bytes > best.memory.total_bytes) {
+            best = info;
+            found = true;
+        }
+    }
+
+    if (found) {
+        return best;
+    }
+    return std::nullopt;
+}
+
+std::optional<BackendMemoryInfo> resolve_backend_memory(std::string_view backend_name) {
+    if (auto& probe = backend_memory_probe_slot()) {
+        return probe(backend_name);
+    }
+    return query_backend_memory_metrics_impl(backend_name);
+}
+
+} // namespace
+
+namespace TestHooks {
+
+void set_backend_memory_probe(BackendMemoryProbe probe) {
+    backend_memory_probe_slot() = std::move(probe);
+}
+
+void reset_backend_memory_probe() {
+    backend_memory_probe_slot() = BackendMemoryProbe{};
+}
+
+} // namespace TestHooks
+
+namespace {
 std::optional<int32_t> extract_block_count(const std::string & model_path) {
     std::ifstream file(model_path, std::ios::binary);
     if (!file) {
@@ -137,7 +257,19 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
 
     constexpr std::size_t kScanBytes = 8 * 1024 * 1024; // first 8 MiB should contain metadata
     std::vector<char> buffer(kScanBytes);
-    file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+
+    std::streamsize to_read = static_cast<std::streamsize>(buffer.size());
+    std::error_code size_ec;
+    const auto file_size = std::filesystem::file_size(model_path, size_ec);
+    if (!size_ec) {
+        to_read = static_cast<std::streamsize>(std::min<std::uintmax_t>(file_size, buffer.size()));
+    }
+
+    file.read(buffer.data(), to_read);
+    if (file.bad()) {
+        return std::nullopt;
+    }
+
     const std::size_t bytes_read = static_cast<std::size_t>(file.gcount());
     if (bytes_read == 0) {
         return std::nullopt;
@@ -378,81 +510,43 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
     return result;
 }
 
-} // namespace
+enum class PreferredBackend {
+    Auto,
+    Cpu,
+    Cuda,
+    Vulkan
+};
 
-
-void silent_logger(enum ggml_log_level, const char *, void *) {}
-
-
-void llama_debug_logger(enum ggml_log_level level, const char *text, void *user_data) {
-    if (auto logger = Logger::get_logger("core_logger")) {
-        logger->log(level >= GGML_LOG_LEVEL_ERROR ? spdlog::level::err : spdlog::level::debug,
-                    "[llama.cpp] {}", text);
-    } else {
-        std::fprintf(stderr, "[llama.cpp] %s", text);
+PreferredBackend detect_preferred_backend() {
+    const char* env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
+    if (!env || *env == '\0') {
+        return PreferredBackend::Auto;
     }
+    std::string value(env);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    if (value == "cuda") {
+        return PreferredBackend::Cuda;
+    }
+    if (value == "vulkan") {
+        return PreferredBackend::Vulkan;
+    }
+    if (value == "cpu") {
+        return PreferredBackend::Cpu;
+    }
+    return PreferredBackend::Auto;
 }
 
-
-LocalLLMClient::LocalLLMClient(const std::string& model_path)
-    : model_path(model_path)
-{
-    auto logger = Logger::get_logger("core_logger");
-    if (logger) {
-        logger->info("Initializing local LLM client with model '{}'", model_path);
-    }
-
-    auto should_enable_llama_logs = []() {
-        const char * env = std::getenv("AI_FILE_SORTER_LLAMA_LOGS");
-        if (!env || std::strlen(env) == 0) {
-            env = std::getenv("LLAMA_CPP_DEBUG_LOGS");
-        }
-        if (!env || std::strlen(env) == 0) {
-            return false;
-        }
-        std::string value{env};
-        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-            return static_cast<char>(std::tolower(c));
-        });
-        return value != "0" && value != "false" && value != "off" && value != "no";
-    };
-
-    if (should_enable_llama_logs()) {
-        llama_log_set(llama_debug_logger, nullptr);
-        if (logger) {
-            logger->info("Enabled detailed llama.cpp logging via environment configuration");
-        }
-    } else {
-        llama_log_set(silent_logger, nullptr);
-    }
-
-    bool cuda_available = false;
 #ifdef GGML_USE_METAL
-    (void)cuda_available;
-#else
-    cuda_available = Utils::is_cuda_available();
-    if (!cuda_available) {
-        set_env_var("GGML_DISABLE_CUDA", "1");
-    }
-#endif
-
-    ggml_backend_load_all();
-
-
-    llama_model_params model_params = llama_model_default_params();
-    const int context_length = std::clamp(resolve_context_length(), 512, 8192);
-
-#ifdef GGML_USE_METAL
+int determine_metal_layers(const std::string& model_path,
+                           const std::shared_ptr<spdlog::logger>& logger) {
     int gpu_layers = resolve_gpu_layer_override();
     if (gpu_layers == INT_MIN) {
         const MetalDeviceInfo device_info = query_primary_gpu_device();
         const auto estimation = estimate_gpu_layers_for_metal(model_path, device_info);
 
-        if (estimation.layers >= 0) {
-            gpu_layers = estimation.layers;
-        } else {
-            gpu_layers = -1; // fall back to llama.cpp defaults
-        }
+        gpu_layers = (estimation.layers >= 0) ? estimation.layers : -1;
 
         if (logger) {
             const double to_mib = 1024.0 * 1024.0;
@@ -470,95 +564,369 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
                      gpu_layers_to_string(gpu_layers));
     }
 
-    model_params.n_gpu_layers = gpu_layers;
+    return gpu_layers;
+}
 #else
-    if (cuda_available) {
-        int override_layers = resolve_gpu_layer_override();
-        if (override_layers != INT_MIN) {
-            if (override_layers <= 0) {
-                model_params.n_gpu_layers = 0;
-                set_env_var("GGML_DISABLE_CUDA", "1");
-                if (logger) {
-                    logger->info("CUDA disabled via override (AI_FILE_SORTER_N_GPU_LAYERS={})", override_layers);
-                }
-            } else {
-                model_params.n_gpu_layers = override_layers;
-                if (logger) {
-                    logger->info("Using explicit CUDA n_gpu_layers override {}", gpu_layers_to_string(override_layers));
-                }
-                std::cout << "ngl override: " << model_params.n_gpu_layers << std::endl;
-            }
-        } else {
-            int ngl = 0;
-            std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
-            AutoGpuLayerEstimation estimation{};
-            int heuristic_from_info = 0;
-            if (cuda_info.has_value()) {
-                estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
-                heuristic_from_info = Utils::compute_ngl_from_cuda_memory(*cuda_info);
+bool apply_cpu_backend(llama_model_params& params,
+                       PreferredBackend backend_pref,
+                       const std::shared_ptr<spdlog::logger>& logger) {
+    if (backend_pref != PreferredBackend::Cpu) {
+        return false;
+    }
+    params.n_gpu_layers = 0;
+    set_env_var("GGML_DISABLE_CUDA", "1");
+    if (logger) {
+        logger->info("GPU backend disabled via AI_FILE_SORTER_GPU_BACKEND=cpu");
+    }
+    return true;
+}
 
-                int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
-                if (heuristic_from_info > 0) {
-                    candidate_layers = std::max(candidate_layers, heuristic_from_info);
-                }
-                ngl = candidate_layers;
-
-                if (estimation.layers > 0) {
-                    if (logger && estimation.layers != candidate_layers) {
-                        logger->info("CUDA estimator suggested {} layers, but heuristic floor kept {}",
-                                     estimation.layers, candidate_layers);
-                    }
-                }
-                if (logger) {
-                    const double to_mib = 1024.0 * 1024.0;
-                    logger->info(
-                        "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
-                        cuda_info->total_bytes / to_mib,
-                        cuda_info->free_bytes / to_mib,
-                        gpu_layers_to_string(estimation.layers),
-                        gpu_layers_to_string(heuristic_from_info),
-                        gpu_layers_to_string(ngl),
-                        estimation.reason.empty() ? "no estimation detail" : estimation.reason
-                    );
-                }
-            } else if (logger) {
-                logger->warn("Unable to query CUDA memory information, falling back to heuristic");
+bool apply_vulkan_backend(const std::string& model_path,
+                          llama_model_params& params,
+                          const std::shared_ptr<spdlog::logger>& logger) {
+    set_env_var("GGML_DISABLE_CUDA", "1");
+    const int override_layers = resolve_gpu_layer_override();
+    if (override_layers != INT_MIN) {
+        if (override_layers <= 0) {
+            params.n_gpu_layers = 0;
+            if (logger) {
+                logger->info("Vulkan backend requested but AI_FILE_SORTER_N_GPU_LAYERS <= 0; using CPU instead.");
             }
+            return true;
+        }
+        params.n_gpu_layers = override_layers;
+        if (logger) {
+            logger->info("Using Vulkan backend with explicit n_gpu_layers override={}",
+                         gpu_layers_to_string(override_layers));
+        }
+        return true;
+    }
 
-            if (ngl <= 0) {
-                ngl = (heuristic_from_info > 0)
-                    ? heuristic_from_info
-                    : Utils::determine_ngl_cuda();
-                if (logger && ngl > 0) {
-                    logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
-                                 gpu_layers_to_string(ngl));
-                }
-            }
+    auto vk_memory = resolve_backend_memory("vulkan");
+    if (!vk_memory.has_value()) {
+        params.n_gpu_layers = -1;
+        if (logger) {
+            logger->warn("Vulkan backend memory metrics unavailable; leaving n_gpu_layers to llama.cpp auto (-1).");
+        }
+        return true;
+    }
 
-            if (ngl > 0) {
-                model_params.n_gpu_layers = ngl;
-                std::cout << "ngl: " << model_params.n_gpu_layers << std::endl;
-            } else {
-                model_params.n_gpu_layers = 0;
-                set_env_var("GGML_DISABLE_CUDA", "1");
-                std::cout << "CUDA not usable, falling back to CPU.\n";
-            }
+    Utils::CudaMemoryInfo adjusted = vk_memory->memory;
+    if (vk_memory->is_integrated) {
+        constexpr size_t igpu_cap_bytes = static_cast<size_t>(4ULL) * 1024ULL * 1024ULL * 1024ULL; // 4 GiB
+        adjusted.free_bytes = std::min(adjusted.free_bytes, igpu_cap_bytes);
+        adjusted.total_bytes = std::min(adjusted.total_bytes, igpu_cap_bytes);
+        if (logger) {
+            const double to_mib = 1024.0 * 1024.0;
+            logger->info("Vulkan device reported as integrated GPU; capping usable memory to {:.1f} MiB",
+                         igpu_cap_bytes / to_mib);
+        }
+    }
+
+    const auto estimation = estimate_gpu_layers_for_cuda(model_path, adjusted);
+    if (estimation.layers > 0) {
+        params.n_gpu_layers = estimation.layers;
+        if (logger) {
+            const double to_mib = 1024.0 * 1024.0;
+            const char* device_label = vk_memory->name.empty() ? "Vulkan device" : vk_memory->name.c_str();
+            logger->info(
+                "{} total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
+                device_label,
+                adjusted.total_bytes / to_mib,
+                adjusted.free_bytes / to_mib,
+                gpu_layers_to_string(params.n_gpu_layers),
+                estimation.reason.empty() ? "auto-estimated" : estimation.reason
+            );
         }
     } else {
-        model_params.n_gpu_layers = 0;
-        printf("model_params.n_gpu_layers: %d\n",
-            model_params.n_gpu_layers);
+        params.n_gpu_layers = -1;
+        if (logger) {
+            logger->warn(
+                "Vulkan estimator could not determine n_gpu_layers ({}); leaving llama.cpp auto (-1).",
+                estimation.reason.empty() ? "no detail" : estimation.reason
+            );
+        }
+    }
+
+    return true;
+}
+
+bool handle_cuda_forced_off(bool cuda_forced_off,
+                            PreferredBackend backend_pref,
+                            llama_model_params& params,
+                            const std::shared_ptr<spdlog::logger>& logger) {
+    if (!cuda_forced_off) {
+        return false;
+    }
+    params.n_gpu_layers = 0;
+    set_env_var("GGML_DISABLE_CUDA", "1");
+    if (logger) {
+        logger->info("CUDA disabled via GGML_DISABLE_CUDA environment override.");
+        if (backend_pref == PreferredBackend::Cuda) {
+            logger->warn("AI_FILE_SORTER_GPU_BACKEND=cuda but GGML_DISABLE_CUDA forces CPU fallback.");
+        }
+    }
+    return true;
+}
+
+void configure_cuda_backend(const std::string& model_path,
+                            llama_model_params& params,
+                            const std::shared_ptr<spdlog::logger>& logger) {
+    const bool cuda_available = Utils::is_cuda_available();
+    if (!cuda_available) {
+        params.n_gpu_layers = 0;
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        printf("model_params.n_gpu_layers: %d\n", params.n_gpu_layers);
         if (logger) {
             logger->info("CUDA backend unavailable; using CPU backend");
         }
         std::cout << "No supported GPU backend detected. Running on CPU.\n";
+        return;
     }
+
+    const int override_layers = resolve_gpu_layer_override();
+    if (override_layers != INT_MIN) {
+        if (override_layers <= 0) {
+            params.n_gpu_layers = 0;
+            set_env_var("GGML_DISABLE_CUDA", "1");
+            if (logger) {
+                logger->info("CUDA disabled via override (AI_FILE_SORTER_N_GPU_LAYERS={})",
+                             override_layers);
+            }
+        } else {
+            params.n_gpu_layers = override_layers;
+            if (logger) {
+                logger->info("Using explicit CUDA n_gpu_layers override {}",
+                             gpu_layers_to_string(override_layers));
+            }
+            std::cout << "ngl override: " << params.n_gpu_layers << std::endl;
+        }
+        return;
+    }
+
+    int ngl = 0;
+    int heuristic_from_info = 0;
+    AutoGpuLayerEstimation estimation{};
+    std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
+
+    if (cuda_info.has_value()) {
+        estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
+        heuristic_from_info = Utils::compute_ngl_from_cuda_memory(*cuda_info);
+
+        int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
+        if (heuristic_from_info > 0) {
+            candidate_layers = std::max(candidate_layers, heuristic_from_info);
+        }
+        ngl = candidate_layers;
+
+        if (estimation.layers > 0 && logger && estimation.layers != candidate_layers) {
+            logger->info("CUDA estimator suggested {} layers, but heuristic floor kept {}",
+                         estimation.layers, candidate_layers);
+        }
+
+        if (logger) {
+            const double to_mib = 1024.0 * 1024.0;
+            logger->info(
+                "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
+                cuda_info->total_bytes / to_mib,
+                cuda_info->free_bytes / to_mib,
+                gpu_layers_to_string(estimation.layers),
+                gpu_layers_to_string(heuristic_from_info),
+                gpu_layers_to_string(ngl),
+                estimation.reason.empty() ? "no estimation detail" : estimation.reason
+            );
+        }
+    } else if (logger) {
+        logger->warn("Unable to query CUDA memory information, falling back to heuristic");
+    }
+
+    if (ngl <= 0) {
+        ngl = (heuristic_from_info > 0)
+            ? heuristic_from_info
+            : Utils::determine_ngl_cuda();
+        if (logger && ngl > 0) {
+            logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
+                         gpu_layers_to_string(ngl));
+        }
+    }
+
+    if (ngl > 0) {
+        params.n_gpu_layers = ngl;
+        std::cout << "ngl: " << params.n_gpu_layers << std::endl;
+    } else {
+        params.n_gpu_layers = 0;
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        std::cout << "CUDA not usable, falling back to CPU.\n";
+    }
+}
 #endif
+
+} // namespace
+
+
+void silent_logger(enum ggml_log_level, const char *, void *) {}
+
+
+void llama_debug_logger(enum ggml_log_level level, const char *text, void *user_data) {
+    if (auto logger = Logger::get_logger("core_logger")) {
+        logger->log(level >= GGML_LOG_LEVEL_ERROR ? spdlog::level::err : spdlog::level::debug,
+                    "[llama.cpp] {}", text);
+    } else {
+        std::fprintf(stderr, "[llama.cpp] %s", text);
+    }
+}
+
+bool llama_logs_enabled_from_env()
+{
+    const char* env = std::getenv("AI_FILE_SORTER_LLAMA_LOGS");
+    if (!env || env[0] == '\0') {
+        env = std::getenv("LLAMA_CPP_DEBUG_LOGS");
+    }
+    if (!env || env[0] == '\0') {
+        return false;
+    }
+
+    std::string value{env};
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value != "0" && value != "false" && value != "off" && value != "no";
+}
+
+
+LocalLLMClient::LocalLLMClient(const std::string& model_path)
+    : model_path(model_path)
+{
+    auto logger = Logger::get_logger("core_logger");
+    if (logger) {
+        logger->info("Initializing local LLM client with model '{}'", model_path);
+    }
+
+    configure_llama_logging(logger);
+    load_ggml_backends_once(logger);
+
+    const int context_length = std::clamp(resolve_context_length(), 512, 8192);
+    llama_model_params model_params = prepare_model_params(logger);
 
     if (logger) {
         logger->info("Configured context length {} token(s) for local LLM", context_length);
     }
 
+    load_model_or_throw(model_params, logger);
+    configure_context(context_length, model_params);
+}
+
+
+void LocalLLMClient::configure_llama_logging(const std::shared_ptr<spdlog::logger>& logger) const
+{
+    if (llama_logs_enabled_from_env()) {
+        llama_log_set(llama_debug_logger, nullptr);
+        if (logger) {
+            logger->info("Enabled detailed llama.cpp logging via environment configuration");
+        }
+    } else {
+        llama_log_set(silent_logger, nullptr);
+    }
+}
+
+
+llama_model_params build_model_params_for_path(const std::string& model_path,
+                                               const std::shared_ptr<spdlog::logger>& logger) {
+    llama_model_params model_params = llama_model_default_params();
+
+#ifdef GGML_USE_METAL
+    model_params.n_gpu_layers = determine_metal_layers(model_path, logger);
+#else
+    const PreferredBackend backend_pref = detect_preferred_backend();
+    const char* disable_env = std::getenv("GGML_DISABLE_CUDA");
+    const bool cuda_forced_off = disable_env && disable_env[0] != '\0' && disable_env[0] != '0';
+
+    if (apply_cpu_backend(model_params, backend_pref, logger)) {
+        return model_params;
+    }
+
+    if (backend_pref == PreferredBackend::Vulkan) {
+        apply_vulkan_backend(model_path, model_params, logger);
+        return model_params;
+    }
+
+    if (handle_cuda_forced_off(cuda_forced_off, backend_pref, model_params, logger)) {
+        return model_params;
+    }
+
+    configure_cuda_backend(model_path, model_params, logger);
+#endif
+
+    return model_params;
+}
+
+llama_model_params LocalLLMClient::prepare_model_params(const std::shared_ptr<spdlog::logger>& logger)
+{
+    return build_model_params_for_path(model_path, logger);
+}
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+namespace {
+
+PreferredBackend to_internal_backend(LocalLLMTestAccess::BackendPreference preference) {
+    switch (preference) {
+        case LocalLLMTestAccess::BackendPreference::Cpu: return PreferredBackend::Cpu;
+        case LocalLLMTestAccess::BackendPreference::Cuda: return PreferredBackend::Cuda;
+        case LocalLLMTestAccess::BackendPreference::Vulkan: return PreferredBackend::Vulkan;
+        case LocalLLMTestAccess::BackendPreference::Auto:
+        default:
+            return PreferredBackend::Auto;
+    }
+}
+
+LocalLLMTestAccess::BackendPreference to_external_backend(PreferredBackend preference) {
+    switch (preference) {
+        case PreferredBackend::Cpu: return LocalLLMTestAccess::BackendPreference::Cpu;
+        case PreferredBackend::Cuda: return LocalLLMTestAccess::BackendPreference::Cuda;
+        case PreferredBackend::Vulkan: return LocalLLMTestAccess::BackendPreference::Vulkan;
+        case PreferredBackend::Auto:
+        default:
+            return LocalLLMTestAccess::BackendPreference::Auto;
+    }
+}
+
+} // namespace
+
+namespace LocalLLMTestAccess {
+
+BackendPreference detect_preferred_backend() {
+    return to_external_backend(::detect_preferred_backend());
+}
+
+bool apply_cpu_backend(llama_model_params& params, BackendPreference preference) {
+    return ::apply_cpu_backend(params, to_internal_backend(preference), nullptr);
+}
+
+bool apply_vulkan_backend(const std::string& model_path, llama_model_params& params) {
+    return ::apply_vulkan_backend(model_path, params, nullptr);
+}
+
+bool handle_cuda_forced_off(bool cuda_forced_off,
+                            BackendPreference preference,
+                            llama_model_params& params) {
+    return ::handle_cuda_forced_off(cuda_forced_off, to_internal_backend(preference), params, nullptr);
+}
+
+void configure_cuda_backend(const std::string& model_path, llama_model_params& params) {
+    ::configure_cuda_backend(model_path, params, nullptr);
+}
+
+llama_model_params prepare_model_params_for_testing(const std::string& model_path) {
+    return ::build_model_params_for_path(model_path, nullptr);
+}
+
+} // namespace LocalLLMTestAccess
+#endif // AI_FILE_SORTER_TEST_BUILD
+
+
+void LocalLLMClient::load_model_or_throw(const llama_model_params& model_params,
+                                         const std::shared_ptr<spdlog::logger>& logger)
+{
     model = llama_model_load_from_file(model_path.c_str(), model_params);
     if (!model) {
         if (logger) {
@@ -572,7 +940,11 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
     }
 
     vocab = llama_model_get_vocab(model);
+}
 
+
+void LocalLLMClient::configure_context(int context_length, const llama_model_params& model_params)
+{
     ctx_params = llama_context_default_params();
     ctx_params.n_ctx = context_length;
     ctx_params.n_batch = context_length;
@@ -580,13 +952,16 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
     if (model_params.n_gpu_layers != 0) {
         ctx_params.offload_kqv = true;
     }
+#else
+    (void)model_params;
 #endif
 }
 
 
 std::string LocalLLMClient::make_prompt(const std::string& file_name,
                                         const std::string& file_path,
-                                        FileType file_type)
+                                        FileType file_type,
+                                        const std::string& consistency_context)
 {
     std::ostringstream user_section;
     if (!file_path.empty()) {
@@ -597,6 +972,10 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
     std::string prompt = (file_type == FileType::File)
         ? "\nCategorize this file:\n" + user_section.str()
         : "\nCategorize the directory:\n" + user_section.str();
+
+    if (!consistency_context.empty()) {
+        prompt += "\n" + consistency_context + "\n";
+    }
 
     std::string instruction = R"(<|begin_of_text|><|start_header_id|>system<|end_header_id|>
     You are a file categorization assistant. You must always follow the exact format. If the file is an installer, determine the type of software it installs. Base your answer on the filename, extension, and any directory context provided. The output must be:
@@ -615,7 +994,8 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
 
 
 std::string LocalLLMClient::generate_response(const std::string &prompt,
-                                              int n_predict)
+                                              int n_predict,
+                                              bool apply_sanitizer)
 {
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
@@ -714,13 +1094,17 @@ std::string LocalLLMClient::generate_response(const std::string &prompt,
         logger->debug("Generation complete, produced {} character(s)", output.size());
     }
 
-    return sanitize_output(output);
+    if (apply_sanitizer) {
+        return sanitize_output(output);
+    }
+    return output;
 }
 
 
 std::string LocalLLMClient::categorize_file(const std::string& file_name,
                                             const std::string& file_path,
-                                            FileType file_type)
+                                            FileType file_type,
+                                            const std::string& consistency_context)
 {
     if (auto logger = Logger::get_logger("core_logger")) {
         if (!file_path.empty()) {
@@ -730,8 +1114,15 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
             logger->debug("Requesting local categorization for '{}' ({})", file_name, to_string(file_type));
         }
     }
-    std::string prompt = make_prompt(file_name, file_path, file_type);
-    return generate_response(prompt, 64);
+    std::string prompt = make_prompt(file_name, file_path, file_type, consistency_context);
+    if (prompt_logging_enabled) {
+        std::cout << "\n[DEV][PROMPT] Categorization request\n" << prompt << "\n";
+    }
+    std::string response = generate_response(prompt, 64, true);
+    if (prompt_logging_enabled) {
+        std::cout << "[DEV][RESPONSE] Categorization reply\n" << response << "\n";
+    }
+    return response;
 }
 
 
@@ -739,7 +1130,7 @@ std::string LocalLLMClient::complete_prompt(const std::string& prompt,
                                             int max_tokens)
 {
     const int capped = max_tokens > 0 ? max_tokens : 256;
-    return generate_response(prompt, capped);
+    return generate_response(prompt, capped, false);
 }
 
 
@@ -774,4 +1165,9 @@ LocalLLMClient::~LocalLLMClient() {
         logger->debug("Destroying LocalLLMClient for model '{}'", model_path);
     }
     if (model) llama_model_free(model);
+}
+
+void LocalLLMClient::set_prompt_logging_enabled(bool enabled)
+{
+    prompt_logging_enabled = enabled;
 }

@@ -20,7 +20,7 @@ ifeq ($(UNAME), Linux)
     LDFLAGS  += -L$(QT_LIB_BASE) -lQt6Widgets -lQt6Gui -lQt6Core
 
     # --- Other dependencies ---
-	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lX11 -pthread
+	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lX11 -pthread
 	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled/cpu/bin'
 	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin
 
@@ -57,7 +57,7 @@ endif
     CXXFLAGS += $(QT_CXXFLAGS)
     LDFLAGS += $(QT_LDFLAGS)
 
-    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lintl -pthread
+    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lintl -pthread
 	LDFLAGS += -framework Metal -framework Foundation
     LDFLAGS += -Wl,-rpath,@loader_path/lib -Wl,-rpath,@loader_path/../lib/precompiled
 
@@ -69,8 +69,8 @@ WRAPPED_BINARY := $(notdir $(TARGET))
 # Compiler and flags
 CXX = g++
 CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
-# Suppress false positives from fmt/Qt headers (see GCC 13 + fmt bigint warnings)
-CXXFLAGS += -Wno-array-bounds
+# Suppress GCC 13 fmt/Qt false positives
+CXXFLAGS += -Wno-array-bounds -Wno-stringop-overflow -Wno-stringop-overread
 INCLUDE_DIRS = -I./include -I./include/llama
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
@@ -88,6 +88,9 @@ QRC_OBJ := $(OBJ_DIR)/qrc_app.o
 
 ifndef RCC
 RCC := $(shell command -v qt6-rcc 2>/dev/null)
+ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /usr/lib/qt6/libexec/rcc)
+endif
 ifeq ($(strip $(RCC)),)
 RCC := $(shell command -v rcc 2>/dev/null)
 endif
@@ -139,64 +142,10 @@ clean:
 
 create_run_wrapper:
 	@mkdir -p $(BIN_DIR)
-	@{ \
-		echo '#!/bin/sh'; \
-		echo 'SCRIPT_DIR="$$(cd "$$(dirname "$$0")" && pwd)"'; \
-		echo 'APP_DIR="$$(cd "$$SCRIPT_DIR/.." && pwd)"'; \
-		echo 'CPU_LIB_DIR="$$APP_DIR/lib/precompiled/cpu/bin"'; \
-		echo 'CUDA_LIB_DIR="$$APP_DIR/lib/precompiled/cuda/bin"'; \
-		echo 'PLATFORM_CANDIDATES="/usr/lib/x86_64-linux-gnu/qt6/plugins /usr/lib/qt6/plugins /lib/x86_64-linux-gnu/qt6/plugins"'; \
-		echo ''; \
-		echo 'select_cuda_dir() {'; \
-		echo '    if [ -d "$$CUDA_LIB_DIR" ]; then'; \
-		echo '        if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q libcudart; then'; \
-		echo '            echo "$$CUDA_LIB_DIR"'; \
-		echo '            return'; \
-		echo '        fi'; \
-		echo '        for candidate in /usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*; do'; \
-		echo '            if [ "$$candidate" = "/usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*" ]; then'; \
-		echo '                break'; \
-		echo '            fi'; \
-		echo '            if [ -e "$$candidate" ]; then'; \
-		echo '                echo "$$CUDA_LIB_DIR"'; \
-		echo '                return'; \
-		echo '            fi'; \
-		echo '        done'; \
-		echo '    fi'; \
-		echo '    echo ""'; \
-		echo '}'; \
-		echo ''; \
-		echo 'SELECTED_DIR="$$(select_cuda_dir)"'; \
-		echo 'LIB_PATH="$$CPU_LIB_DIR"'; \
-		echo 'if [ -n "$$SELECTED_DIR" ] && [ -d "$$SELECTED_DIR" ] && [ "$$SELECTED_DIR" != "$$CPU_LIB_DIR" ]; then'; \
-		echo '    LIB_PATH="$$SELECTED_DIR:$$LIB_PATH"'; \
-		echo 'fi'; \
-		echo 'if [ -n "$$LD_LIBRARY_PATH" ]; then'; \
-		echo '    export LD_LIBRARY_PATH="$$LIB_PATH:$$LD_LIBRARY_PATH"'; \
-		echo 'else'; \
-		echo '    export LD_LIBRARY_PATH="$$LIB_PATH"'; \
-		echo 'fi'; \
-		echo ''; \
-		echo 'if [ -z "$$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then'; \
-		echo '    for candidate in $$PLATFORM_CANDIDATES; do'; \
-		echo '        if [ -d "$$candidate/platforms" ]; then'; \
-		echo '            export QT_QPA_PLATFORM_PLUGIN_PATH="$$candidate/platforms"'; \
-		echo '            break'; \
-		echo '        fi'; \
-		echo '    done'; \
-		echo 'fi'; \
-		echo 'if [ -n "$$QT_QPA_PLATFORM_PLUGIN_PATH" ] && [ ! -f "$$QT_QPA_PLATFORM_PLUGIN_PATH/libqxcb.so" ]; then'; \
-		echo '    if [ -n "$$WAYLAND_DISPLAY" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ]; then'; \
-		echo '        export QT_QPA_PLATFORM="wayland"'; \
-		echo '    else'; \
-		echo '        echo "Qt xcb platform plugin (libqxcb.so) not found in $$QT_QPA_PLATFORM_PLUGIN_PATH ($$QT_QPA_PLATFORM_PLUGIN_PATH)." >&2'; \
-		echo '        echo "Install a Qt 6 XCB platform plugin or run under a Wayland session." >&2'; \
-		echo '        exit 1'; \
-		echo '    fi'; \
-		echo 'fi'; \
-		echo ''; \
-		echo 'exec "$$SCRIPT_DIR/'"$(WRAPPED_BINARY)"'" "$$@"'; \
-	} > $(BIN_DIR)/run_aifilesorter.sh
+	@python3 scripts/gen_run_wrapper.py \
+		--mode dev \
+		--binary '$(WRAPPED_BINARY)' \
+		--output '$(BIN_DIR)/run_aifilesorter.sh'
 	@chmod 755 $(BIN_DIR)/run_aifilesorter.sh
 
 install: $(TARGET)
@@ -213,64 +162,12 @@ ifeq ($(PLATFORM), Linux)
 	fi
 	@echo "Installing launcher script to $(INSTALL_DIR)..."
 	mkdir -p $(INSTALL_DIR)
-	@{ \
-		echo '#!/bin/sh'; \
-		echo 'APP_DIR="'$(INSTALL_LIB_DIR)'"'; \
-		echo 'CPU_LIB_DIR="$$APP_DIR/lib/precompiled/cpu/bin"'; \
-		echo 'CUDA_LIB_DIR="$$APP_DIR/lib/precompiled/cuda/bin"'; \
-		echo 'PLATFORM_CANDIDATES="/usr/lib/x86_64-linux-gnu/qt6/plugins /usr/lib/qt6/plugins /lib/x86_64-linux-gnu/qt6/plugins"'; \
-		echo ''; \
-		echo 'select_cuda_dir() {'; \
-		echo '    if [ -d "$$CUDA_LIB_DIR" ]; then'; \
-		echo '        if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q libcudart; then'; \
-		echo '            echo "$$CUDA_LIB_DIR"'; \
-		echo '            return'; \
-		echo '        fi'; \
-		echo '        for candidate in /usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*; do'; \
-		echo '            if [ "$$candidate" = "/usr/local/cuda*/targets/x86_64-linux/lib/libcudart.so*" ]; then'; \
-		echo '                break'; \
-		echo '            fi'; \
-		echo '            if [ -e "$$candidate" ]; then'; \
-		echo '                echo "$$CUDA_LIB_DIR"'; \
-		echo '                return'; \
-		echo '            fi'; \
-		echo '        done'; \
-		echo '    fi'; \
-		echo '    echo ""'; \
-		echo '}'; \
-		echo ''; \
-		echo 'SELECTED_DIR="$$(select_cuda_dir)"'; \
-		echo 'LIB_PATH="$$CPU_LIB_DIR"'; \
-		echo 'if [ -n "$$SELECTED_DIR" ] && [ -d "$$SELECTED_DIR" ] && [ "$$SELECTED_DIR" != "$$CPU_LIB_DIR" ]; then'; \
-		echo '    LIB_PATH="$$SELECTED_DIR:$$LIB_PATH"'; \
-		echo 'fi'; \
-		echo 'if [ -n "$$LD_LIBRARY_PATH" ]; then'; \
-		echo '    export LD_LIBRARY_PATH="$$LIB_PATH:$$LD_LIBRARY_PATH"'; \
-		echo 'else'; \
-		echo '    export LD_LIBRARY_PATH="$$LIB_PATH"'; \
-		echo 'fi'; \
-		echo ''; \
-		echo 'if [ -z "$$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then'; \
-		echo '    for candidate in $$PLATFORM_CANDIDATES; do'; \
-		echo '        if [ -d "$$candidate/platforms" ]; then'; \
-		echo '            export QT_QPA_PLATFORM_PLUGIN_PATH="$$candidate/platforms"'; \
-		echo '            break'; \
-		echo '        fi'; \
-		echo '    done'; \
-		echo 'fi'; \
-		echo 'if [ -n "$$QT_QPA_PLATFORM_PLUGIN_PATH" ] && [ ! -f "$$QT_QPA_PLATFORM_PLUGIN_PATH/libqxcb.so" ]; then'; \
-		echo '    if [ -n "$$WAYLAND_DISPLAY" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ]; then'; \
-		echo '        export QT_QPA_PLATFORM="wayland"'; \
-		echo '    else'; \
-		echo '        echo "Qt xcb platform plugin (libqxcb.so) not found in $$QT_QPA_PLATFORM_PLUGIN_PATH ($$QT_QPA_PLATFORM_PLUGIN_PATH)." >&2'; \
-		echo '        echo "Install a Qt 6 XCB platform plugin or run under a Wayland session." >&2'; \
-		echo '        exit 1'; \
-		echo '    fi'; \
-		echo 'fi'; \
-		echo ''; \
-		echo 'exec "$$APP_DIR/bin/'"$(WRAPPED_BINARY)"'" "$$@"'; \
-	} > $(INSTALL_DIR)/aifilesorter
-	chmod 755 $(INSTALL_DIR)/aifilesorter
+	@python3 scripts/gen_run_wrapper.py \
+		--mode install \
+		--install-app-dir '$(INSTALL_LIB_DIR)' \
+		--binary '$(WRAPPED_BINARY)' \
+		--output '$(INSTALL_DIR)/run_aifilesorter.sh'
+	chmod 755 $(INSTALL_DIR)/run_aifilesorter.sh
 	@echo "Installation complete."
 
 else ifeq ($(PLATFORM), MacOS)

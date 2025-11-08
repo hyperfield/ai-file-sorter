@@ -13,7 +13,7 @@
 class LLMDownloader
 {
 public:
-    LLMDownloader(const std::string& download_url);
+    explicit LLMDownloader(const std::string& download_url);
     void init_if_needed();
     bool is_inited();
     void start_download(std::function<void(double)> progress_cb,
@@ -79,6 +79,9 @@ private:
     void setup_download_curl_options(CURL *curl, FILE *fp, long resume_offset);
     long determine_resume_offset() const;
     FILE *open_output_file(long resume_offset) const;
+    bool has_existing_partial_download() const;
+    bool server_supports_resume_locked() const;
+    bool has_valid_content_length(const std::string& value) const;
 
     std::atomic<bool> cancel_requested{false};
     long resume_offset = 0;
