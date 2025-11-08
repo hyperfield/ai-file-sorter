@@ -255,7 +255,7 @@ std::optional<BackendMemoryInfo> query_backend_memory_metrics_impl(std::string_v
     return std::nullopt;
 }
 
-std::optional<BackendMemoryInfo> resolve_backend_memory(std::string_view backend_name) {
+[[maybe_unused]] std::optional<BackendMemoryInfo> resolve_backend_memory(std::string_view backend_name) {
     if (auto& probe = backend_memory_probe_slot()) {
         return probe(backend_name);
     }
@@ -545,7 +545,7 @@ enum class PreferredBackend {
     Vulkan
 };
 
-PreferredBackend detect_preferred_backend() {
+[[maybe_unused]] PreferredBackend detect_preferred_backend() {
     const char* env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
     if (!env || *env == '\0') {
         return PreferredBackend::Auto;
