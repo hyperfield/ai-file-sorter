@@ -115,9 +115,9 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 
 ## Features
 
-- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or a
-                                 remote LLM (ChatGPT), depending on your preference.
+- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or a remote LLM (ChatGPT), depending on your preference.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
+  **Robust Categorization Algorithm**: Consistency across categories is supported by taxonomy and heuristics.
   **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
