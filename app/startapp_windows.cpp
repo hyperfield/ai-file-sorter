@@ -19,6 +19,23 @@
 
 namespace {
 
+enum class BackendOverride {
+    None,
+    ForceOn,
+    ForceOff
+};
+
+BackendOverride parseBackendOverride(QString value) {
+    value = value.trimmed().toLower();
+    if (value == QLatin1String("on")) {
+        return BackendOverride::ForceOn;
+    }
+    if (value == QLatin1String("off")) {
+        return BackendOverride::ForceOff;
+    }
+    return BackendOverride::None;
+}
+
 bool enableSecureDllSearch()
 {
 #if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0602
@@ -192,22 +209,18 @@ int main(int argc, char* argv[]) {
         qWarning() << "SetDefaultDllDirectories unavailable; relying on PATH order for DLL resolution.";
     }
 
-    bool forceCuda; bool cudaOverride = false;
-    bool forceVulkan; bool vulkanOverride = false;
+    BackendOverride cudaOverride = BackendOverride::None;
+    BackendOverride vulkanOverride = BackendOverride::None;
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromLocal8Bit(argv[i]);
         if (arg.startsWith("--cuda=")) {
-            QString value = arg.mid(7);
-            if (value == "on") { forceCuda = true; cudaOverride = true; }
-            else if (value == "off") { forceCuda = false; cudaOverride = true; }
+            cudaOverride = parseBackendOverride(arg.mid(7));
         } else if (arg.startsWith("--vulkan=")) {
-            QString value = arg.mid(9);
-            if (value == "on") { forceVulkan = true; vulkanOverride = true; }
-            else if (value == "off") { forceVulkan = false; vulkanOverride = true; }
+            vulkanOverride = parseBackendOverride(arg.mid(9));
         }
     }
 
-    if (cudaOverride && vulkanOverride && forceCuda && forceVulkan) {
+    if (cudaOverride == BackendOverride::ForceOn && vulkanOverride == BackendOverride::ForceOn) {
         QMessageBox::critical(nullptr, QObject::tr("Launch Error"), QObject::tr("Cannot enable both CUDA and Vulkan simultaneously."));
         return EXIT_FAILURE;
     }
@@ -217,20 +230,41 @@ int main(int argc, char* argv[]) {
     bool useCuda = cudaAvailable;
     bool useVulkan = !useCuda && vulkanAvailable;
 
-    if (cudaOverride) {
-        useCuda = forceCuda && cudaAvailable;
-        if (forceCuda && !cudaAvailable) {
+    if (cudaOverride == BackendOverride::ForceOn) {
+        if (cudaAvailable) {
+            useCuda = true;
+        } else {
             qWarning().noquote() << "CUDA forced but not detected; falling back.";
+            useCuda = false;
         }
+    } else if (cudaOverride == BackendOverride::ForceOff) {
+        useCuda = false;
     }
-    if (vulkanOverride) {
-        useVulkan = forceVulkan && vulkanAvailable;
-        if (forceVulkan && !vulkanAvailable) {
+
+    if (vulkanOverride == BackendOverride::ForceOn) {
+        if (vulkanAvailable) {
+            useVulkan = true;
+            if (cudaOverride != BackendOverride::ForceOn) {
+                useCuda = false;
+            }
+        } else {
             qWarning().noquote() << "Vulkan forced but not detected; falling back.";
+            useVulkan = false;
+        }
+    } else if (vulkanOverride == BackendOverride::ForceOff) {
+        useVulkan = false;
+    }
+
+    if (useCuda && useVulkan) {
+        if (cudaOverride == BackendOverride::ForceOn) {
+            useVulkan = false;
+        } else {
+            useCuda = false;
         }
     }
-    if (useCuda && useVulkan) {
-        useVulkan = false;
+
+    if (!useCuda && !useVulkan && vulkanAvailable && vulkanOverride != BackendOverride::ForceOff) {
+        useVulkan = true;
     }
 
     QString ggmlVariant;

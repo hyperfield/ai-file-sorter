@@ -4,6 +4,7 @@ $ErrorActionPreference = "Stop"
 $useCuda = "OFF"
 $useVulkan = "OFF"
 $vcpkgRootArg = $null
+$openBlasRootArg = $null
 foreach ($arg in $args) {
     if ($arg -match "^cuda=(on|off)$") {
         $useCuda = $Matches[1].ToUpper()
@@ -11,6 +12,8 @@ foreach ($arg in $args) {
         $useVulkan = $Matches[1].ToUpper()
     } elseif ($arg -match "^vcpkgroot=(.+)$") {
         $vcpkgRootArg = $Matches[1]
+    } elseif ($arg -match "^openblasroot=(.+)$") {
+        $openBlasRootArg = $Matches[1]
     }
 }
 
@@ -71,6 +74,24 @@ function Resolve-VcpkgRoot {
     return $null
 }
 
+$cpuOnlyBuild = ($useCuda -eq "OFF" -and $useVulkan -eq "OFF")
+
+function Resolve-OpenBlasRoot {
+    param([string]$Explicit)
+
+    $candidates = @()
+    if ($Explicit) { $candidates += $Explicit }
+    if ($env:OPENBLAS_ROOT) { $candidates += $env:OPENBLAS_ROOT }
+    $candidates += "C:\msys64\mingw64"
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path $candidate)) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+    return $null
+}
+
 $vcpkgRoot = Resolve-VcpkgRoot -Explicit $vcpkgRootArg
 if (-not $vcpkgRoot -or -not (Test-Path $vcpkgRoot)) {
     throw "Could not resolve a writable vcpkg root. Pass vcpkgroot=<path> (e.g. C:\dev\vcpkg) or set VCPKG_ROOT accordingly."
@@ -106,27 +127,116 @@ function Confirm-VcpkgPackage {
     param(
         [string]$HeaderCheckPath,
         [string]$LibraryCheckPath,
-        [string]$PackageName
+        [string]$PackageName,
+        [string[]]$AdditionalPaths = @()
     )
-    if (-not (Test-Path $HeaderCheckPath) -or -not (Test-Path $LibraryCheckPath)) {
+
+    $pathsToCheck = @()
+    if ($HeaderCheckPath) { $pathsToCheck += $HeaderCheckPath }
+    if ($LibraryCheckPath) { $pathsToCheck += $LibraryCheckPath }
+    foreach ($extraPath in $AdditionalPaths) {
+        if ($extraPath) { $pathsToCheck += $extraPath }
+    }
+
+    if ($pathsToCheck.Count -eq 0) {
+        throw "Confirm-VcpkgPackage was called for $PackageName with no paths to validate."
+    }
+
+    $needsInstall = $false
+    foreach ($candidate in $pathsToCheck) {
+        if (-not (Test-Path $candidate)) {
+            $needsInstall = $true
+            break
+        }
+    }
+
+    if ($needsInstall) {
         Write-Host "$PackageName not found. Installing via vcpkg ..."
         $pkgSpec = "${PackageName}:$triplet"
         Write-Host "Running: vcpkg install $pkgSpec"
         Invoke-Vcpkg -Subcommand "install" -PackageArgs @($pkgSpec)
     }
-}
 
-# NOTE: Temporarily disable OpenBLAS handling.
-# $openBlasInclude = Join-Path $vcpkgRoot "installed\$triplet\include"
-# $openBlasIncludeSub = Join-Path $openBlasInclude "openblas"
-# $openBlasLib = Join-Path $vcpkgRoot "installed\$triplet\lib\openblas.lib"
-# $openBlasDll = Join-Path $vcpkgRoot "installed\$triplet\bin\openblas.dll"
-# Confirm-VcpkgPackage -HeaderCheckPath (Join-Path $openBlasIncludeSub "cblas.h") -LibraryCheckPath $openBlasLib -PackageName "openblas"
+    foreach ($candidate in $pathsToCheck) {
+        if (-not (Test-Path $candidate)) {
+            throw "Expected $candidate from package $PackageName but the path is still missing."
+        }
+    }
+}
 
 $curlInclude = Join-Path $vcpkgRoot "installed\$triplet\include"
 $curlLib = Join-Path $vcpkgRoot "installed\$triplet\lib\libcurl.lib"
 $curlDll = Join-Path $vcpkgRoot "installed\$triplet\bin\libcurl.dll"
 Confirm-VcpkgPackage -HeaderCheckPath (Join-Path $curlInclude "curl\curl.h") -LibraryCheckPath $curlLib -PackageName "curl"
+
+$openBlasInclude = $null
+$openBlasLib = $null
+$openBlasDll = $null
+if ($cpuOnlyBuild) {
+    $openBlasRoot = Resolve-OpenBlasRoot -Explicit $openBlasRootArg
+    if (-not $openBlasRoot) {
+        throw "CPU-only builds require OpenBLAS from MSYS2/MinGW64. Pass openblasroot=<path> or set OPENBLAS_ROOT."
+    }
+
+    $openBlasInclude = Join-Path $openBlasRoot "include"
+    $openBlasHeader = Join-Path $openBlasInclude "openblas\cblas.h"
+    if (-not (Test-Path $openBlasHeader)) {
+        throw "Missing cblas.h under $openBlasInclude. Install OpenBLAS via MSYS2 (pacman -S mingw-w64-x86_64-openblas) or point openblasroot to a valid tree."
+    }
+
+    $openBlasLibCandidates = @(
+        Join-Path $openBlasRoot "lib\openblas.lib",
+        Join-Path $openBlasRoot "lib\libopenblas.lib",
+        Join-Path $openBlasRoot "lib\libopenblas.dll.a",
+        Join-Path $openBlasRoot "lib\libopenblas.a"
+    )
+    foreach ($candidate in $openBlasLibCandidates) {
+        if (Test-Path $candidate) {
+            $openBlasLib = $candidate
+            break
+        }
+    }
+    if (-not $openBlasLib) {
+        throw "Could not find an OpenBLAS import library under $openBlasRoot\lib."
+    }
+
+    $openBlasDllCandidates = @(
+        Join-Path $openBlasRoot "bin\libopenblas.dll",
+        Join-Path $openBlasRoot "bin\openblas.dll"
+    )
+    foreach ($candidate in $openBlasDllCandidates) {
+        if (Test-Path $candidate) {
+            $openBlasDll = $candidate
+            break
+        }
+    }
+    if (-not $openBlasDll) {
+        throw "Could not find the OpenBLAS runtime DLL (e.g. libopenblas.dll) under $openBlasRoot\bin."
+    }
+
+    Write-Host "Using OpenBLAS from $openBlasRoot"
+}
+
+$vulkanIncludeDir = $null
+$vulkanLibPath = $null
+$vulkanDllPath = $null
+$vulkanGlslcPath = $null
+$vulkanSdkRoot = $null
+if ($useVulkan -eq "ON") {
+    $vulkanIncludeDir = Join-Path $vcpkgRoot "installed\$triplet\include"
+    $vulkanHeaderPath = Join-Path $vulkanIncludeDir "vulkan\vulkan.h"
+    $vulkanLibPath = Join-Path $vcpkgRoot "installed\$triplet\lib\vulkan-1.lib"
+    $vulkanDllPath = Join-Path $vcpkgRoot "installed\$triplet\bin\vulkan-1.dll"
+    $shadercToolsDir = Join-Path $vcpkgRoot "installed\$triplet\tools\shaderc"
+    $vulkanGlslcPath = Join-Path $shadercToolsDir "glslc.exe"
+
+    Confirm-VcpkgPackage -HeaderCheckPath $vulkanHeaderPath -LibraryCheckPath $null -PackageName "vulkan-headers"
+    Confirm-VcpkgPackage -HeaderCheckPath $null -LibraryCheckPath $vulkanLibPath -PackageName "vulkan-loader" -AdditionalPaths @($vulkanDllPath)
+    Confirm-VcpkgPackage -HeaderCheckPath $null -LibraryCheckPath $null -PackageName "shaderc" -AdditionalPaths @($vulkanGlslcPath)
+
+    $vulkanSdkRoot = Join-Path $vcpkgRoot "installed\$triplet"
+    $env:VULKAN_SDK = $vulkanSdkRoot
+}
 
 # Write-Host "Using OpenBLAS include: $openBlasInclude"
 # Write-Host "Using OpenBLAS lib: $openBlasLib"
@@ -145,8 +255,6 @@ $cmakeArgs = @(
     "-DCURL_LIBRARY=`"$curlLib`"",
     "-DCURL_INCLUDE_DIR=`"$curlInclude`"",
     "-DBUILD_SHARED_LIBS=ON",
-    # Temporarily keep BLAS disabled while OpenBLAS is removed.
-    "-DGGML_BLAS=OFF",
     "-DGGML_OPENCL=OFF",
     "-DGGML_VULKAN=$useVulkan",
     "-DGGML_SYCL=OFF",
@@ -156,6 +264,21 @@ $cmakeArgs = @(
     "-DCMAKE_C_FLAGS=/arch:AVX2",
     "-DCMAKE_CXX_FLAGS=/arch:AVX2"
 )
+
+if ($cpuOnlyBuild) {
+    if (-not $openBlasInclude -or -not $openBlasLib) {
+        throw "OpenBLAS paths not initialized for the CPU-only build."
+    }
+    $cmakeArgs += @(
+        "-DGGML_BLAS=ON",
+        "-DGGML_BLAS_VENDOR=OpenBLAS",
+        "-DBLA_VENDOR=OpenBLAS",
+        "-DBLAS_INCLUDE_DIRS=`"$openBlasInclude`"",
+        "-DBLAS_LIBRARIES=`"$openBlasLib`""
+    )
+} else {
+    $cmakeArgs += "-DGGML_BLAS=OFF"
+}
 
 if ($useCuda -eq "ON") {
     $cudaRoot = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9"
@@ -170,6 +293,20 @@ if ($useCuda -eq "ON") {
     )
 } else {
     $cmakeArgs += "-DGGML_CUDA=OFF"
+}
+
+if ($useVulkan -eq "ON") {
+    if (-not $vulkanIncludeDir -or -not $vulkanLibPath -or -not $vulkanGlslcPath) {
+        throw "Vulkan paths were not initialized even though Vulkan support is enabled."
+    }
+    $cmakeArgs += @(
+        "-DVulkan_INCLUDE_DIR=`"$vulkanIncludeDir`"",
+        "-DVulkan_LIBRARY=`"$vulkanLibPath`"",
+        "-DVulkan_GLSLC_EXECUTABLE=`"$vulkanGlslcPath`""
+    )
+    if ($vulkanSdkRoot) {
+        $cmakeArgs += "-DVULKAN_SDK=`"$vulkanSdkRoot`""
+    }
 }
 
 & $cmakeExe -S . -B build @cmakeArgs
@@ -216,19 +353,24 @@ foreach ($dll in $dllList) {
     }
 }
 
-# if (Test-Path $openBlasDll) {
-#     $libOpenBlasName = "libopenblas.dll"
-#     Copy-Item $openBlasDll -Destination (Join-Path $variantBin $libOpenBlasName) -Force
-#     Copy-Item $openBlasDll -Destination (Join-Path $runtimeDir $libOpenBlasName) -Force
-#     foreach ($legacy in @((Join-Path $variantBin "openblas.dll"), (Join-Path $runtimeDir "openblas.dll"))) {
-#         if (Test-Path $legacy) {
-#             Remove-Item $legacy -Force
-#         }
-#     }
-# }
+if ($cpuOnlyBuild -and $openBlasDll -and (Test-Path $openBlasDll)) {
+    $libOpenBlasName = "libopenblas.dll"
+    Copy-Item $openBlasDll -Destination (Join-Path $variantBin $libOpenBlasName) -Force
+    Copy-Item $openBlasDll -Destination (Join-Path $runtimeDir $libOpenBlasName) -Force
+    foreach ($legacy in @((Join-Path $variantBin "openblas.dll"), (Join-Path $runtimeDir "openblas.dll"))) {
+        if (Test-Path $legacy) {
+            Remove-Item $legacy -Force
+        }
+    }
+}
 if (Test-Path $curlDll) {
     Copy-Item $curlDll -Destination $variantBin -Force
     Copy-Item $curlDll -Destination $runtimeDir -Force
+}
+
+if ($useVulkan -eq "ON" -and $vulkanDllPath -and (Test-Path $vulkanDllPath)) {
+    Copy-Item $vulkanDllPath -Destination $variantBin -Force
+    Copy-Item $vulkanDllPath -Destination $runtimeDir -Force
 }
 
 $importLibNames = @("llama.lib", "ggml.lib", "ggml-base.lib", "ggml-cpu.lib")
