@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
+
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -19,7 +21,21 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(SQLite3 REQUIRED)
-find_package(JsonCpp REQUIRED CONFIG)
+# JsonCpp may not ship a CMake config on some distros (e.g. Ubuntu). Try
+# config mode first, then fall back to pkg-config.
+find_package(JsonCpp CONFIG QUIET)
+if(NOT JsonCpp_FOUND)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(JSONCPP REQUIRED jsoncpp)
+    add_library(JsonCpp::JsonCpp INTERFACE IMPORTED)
+    target_include_directories(JsonCpp::JsonCpp INTERFACE ${JSONCPP_INCLUDE_DIRS})
+    target_link_directories(JsonCpp::JsonCpp INTERFACE ${JSONCPP_LIBRARY_DIRS})
+    target_link_libraries(JsonCpp::JsonCpp INTERFACE ${JSONCPP_LINK_LIBRARIES})
+else()
+    if(NOT TARGET JsonCpp::JsonCpp)
+        add_library(JsonCpp::JsonCpp INTERFACE IMPORTED)
+    endif()
+endif()
 find_package(fmt REQUIRED CONFIG)
 find_package(spdlog REQUIRED CONFIG)
 find_package(Intl REQUIRED) # libintl/gettext
@@ -285,4 +301,40 @@ if(WIN32)
     # else()
     #     message(WARNING "Expected ${_precompiled_libopenblas} to exist. Run app/scripts/build_llama_windows.ps1 to stage GGML artifacts.")
     # endif()
+endif()
+
+if(AI_FILE_SORTER_BUILD_TESTS)
+    include(CTest)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/../external/Catch2 ${CMAKE_BINARY_DIR}/catch2-build)
+
+    add_executable(ai_file_sorter_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
+    )
+
+    target_include_directories(ai_file_sorter_tests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+    )
+
+    target_link_libraries(ai_file_sorter_tests PRIVATE
+        Catch2::Catch2WithMain
+        Qt6::Core
+        spdlog::spdlog
+        fmt::fmt
+    )
+
+    if(BUILD_TESTING)
+        add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)
+    endif()
+
+    add_test(
+        NAME integration_run_all
+        COMMAND ${CMAKE_COMMAND} -E env bash ${CMAKE_SOURCE_DIR}/../tests/run_all_tests.sh
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
+    )
+    set_tests_properties(integration_run_all PROPERTIES
+        PASS_REGULAR_EXPRESSION "All tests completed successfully."
+    )
 endif()

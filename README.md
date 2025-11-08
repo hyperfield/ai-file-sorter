@@ -63,7 +63,9 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 
 ### [1.1.0] - 2025-11-08
 
-
+- Added support for Vulkan. This means that many non-Nvidia graphics cards are now supported for compute acceleration.
+- Bug fixes and stability improvements.
+- Expanded test coverage.
 
 ### [1.0.0] - 2025-10-30
 
@@ -277,7 +279,7 @@ Option B - CMake + Qt online installer
     ```powershell
     $env:VCPKG_ROOT = "C:\path\to\vcpkg" (e.g., `C:\dev\vcpkg`)
     $qt = "C:\Qt\6.6.3\msvc2019_64"  # example
-    cmake -S app -B build -G "Ninja" `
+    cmake -S . -B build -G "Ninja" `
       -DCMAKE_PREFIX_PATH=$qt `
      -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
      -DVCPKG_TARGET_TRIPLET=x64-windows
@@ -289,6 +291,24 @@ Notes
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
 - If you enable CUDA or Vulkan for local models, build `llama.cpp` with the matching backend first (only one per build) and reconfigure CMake accordingly.
+
+### Running tests
+
+Catch2-based unit tests are optional. Enable them via CMake:
+
+```bash
+cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
+cmake --build build-tests
+ctest --test-dir build-tests
+```
+
+On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
+
+```powershell
+app\build_windows.ps1 -Configuration Release -BuildTests -RunTests
+```
+
+The current suite (under `tests/unit`) focuses on core utilities; expand it as new functionality gains coverage.
 
 ### Selecting a backend at runtime
 

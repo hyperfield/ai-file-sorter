@@ -4,7 +4,9 @@ param(
     [string]$Configuration = "Release",
     [switch]$Clean,
     [string]$Generator,
-    [switch]$SkipDeploy
+    [switch]$SkipDeploy,
+    [switch]$BuildTests,
+    [switch]$RunTests
 )
 
 $ErrorActionPreference = "Stop"
@@ -136,6 +138,13 @@ $configureArgs += @("-G", $Generator)
 $configureArgs += "-DCMAKE_TOOLCHAIN_FILE=`"$toolchainFile`""
 $configureArgs += "-DVCPKG_TARGET_TRIPLET=x64-windows"
 $configureArgs += "-DVCPKG_MANIFEST_DIR=`"$appDir`""
+if ($RunTests) {
+    $BuildTests = $true
+}
+
+if ($BuildTests) {
+    $configureArgs += "-DAI_FILE_SORTER_BUILD_TESTS=ON"
+}
 
 if ($cmakeVersionMatch.Success) {
     $cmakeMajorMinor = "$cmakeMajor.$cmakeMinor"
@@ -169,6 +178,29 @@ Write-Output "Building..."
 & $cmakeExe @buildArgs
 if ($LASTEXITCODE -ne 0) {
     throw "cmake build failed."
+}
+
+if ($BuildTests) {
+    Write-Output "Building unit tests..."
+    $testBuildArgs = @("--build", $buildDir, "--config", $Configuration, "--target", "ai_file_sorter_tests")
+    & $cmakeExe @testBuildArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to build unit tests."
+    }
+    if ($RunTests) {
+        $ctestExe = Join-Path (Split-Path $cmakeExe) "ctest.exe"
+        if (-not (Test-Path $ctestExe)) {
+            $ctestExe = "ctest"
+        }
+        Push-Location $buildDir
+        Write-Output "Running ctest..."
+        & $ctestExe "-C" $Configuration "--output-on-failure"
+        $ctestExit = $LASTEXITCODE
+        Pop-Location
+        if ($ctestExit -ne 0) {
+            throw "ctest reported failures."
+        }
+    }
 }
 
 $binDir = Join-Path $appDir "bin"

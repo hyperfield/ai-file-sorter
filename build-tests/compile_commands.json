@@ -1,0 +1,252 @@
+[
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/cc -DGGML_COMMIT=\\\"ee09828cb\\\" -DGGML_SCHED_MAX_COPIES=4 -DGGML_VERSION=\\\"0.9.4-dirty\\\" -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wshadow -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes -Werror=implicit-int -Werror=implicit-function-declaration -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wdouble-promotion -std=gnu11 -o CMakeFiles/ggml-base.dir/ggml.c.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml.c",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml.c"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_COMMIT=\\\"ee09828cb\\\" -DGGML_SCHED_MAX_COPIES=4 -DGGML_VERSION=\\\"0.9.4-dirty\\\" -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++17 -o CMakeFiles/ggml-base.dir/ggml.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/cc -DGGML_COMMIT=\\\"ee09828cb\\\" -DGGML_SCHED_MAX_COPIES=4 -DGGML_VERSION=\\\"0.9.4-dirty\\\" -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wshadow -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes -Werror=implicit-int -Werror=implicit-function-declaration -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wdouble-promotion -std=gnu11 -o CMakeFiles/ggml-base.dir/ggml-alloc.c.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-alloc.c",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-alloc.c"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_COMMIT=\\\"ee09828cb\\\" -DGGML_SCHED_MAX_COPIES=4 -DGGML_VERSION=\\\"0.9.4-dirty\\\" -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++17 -o CMakeFiles/ggml-base.dir/ggml-backend.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-backend.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-backend.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_COMMIT=\\\"ee09828cb\\\" -DGGML_SCHED_MAX_COPIES=4 -DGGML_VERSION=\\\"0.9.4-dirty\\\" -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++17 -o CMakeFiles/ggml-base.dir/ggml-opt.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-opt.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-opt.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_COMMIT=\\\"ee09828cb\\\" -DGGML_SCHED_MAX_COPIES=4 -DGGML_VERSION=\\\"0.9.4-dirty\\\" -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++17 -o CMakeFiles/ggml-base.dir/ggml-threading.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-threading.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-threading.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/cc -DGGML_COMMIT=\\\"ee09828cb\\\" -DGGML_SCHED_MAX_COPIES=4 -DGGML_VERSION=\\\"0.9.4-dirty\\\" -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wshadow -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes -Werror=implicit-int -Werror=implicit-function-declaration -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wdouble-promotion -std=gnu11 -o CMakeFiles/ggml-base.dir/ggml-quants.c.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-quants.c",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-quants.c"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_COMMIT=\\\"ee09828cb\\\" -DGGML_SCHED_MAX_COPIES=4 -DGGML_VERSION=\\\"0.9.4-dirty\\\" -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++17 -o CMakeFiles/ggml-base.dir/gguf.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/gguf.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/gguf.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/cc -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wshadow -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes -Werror=implicit-int -Werror=implicit-function-declaration -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wdouble-promotion -march=native -fopenmp -std=gnu11 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.c.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/repack.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/repack.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/repack.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/hbm.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/hbm.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/hbm.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/cc -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wshadow -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes -Werror=implicit-int -Werror=implicit-function-declaration -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wdouble-promotion -march=native -fopenmp -std=gnu11 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/quants.c.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/quants.c",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/quants.c"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/traits.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/traits.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/traits.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/amx.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/amx/amx.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/amx/amx.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/mmq.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/amx/mmq.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/amx/mmq.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/binary-ops.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/binary-ops.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/binary-ops.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/unary-ops.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/unary-ops.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/unary-ops.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/vec.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/vec.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/vec.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/ops.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/ops.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/ops.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/llamafile/sgemm.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/llamafile/sgemm.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/llamafile/sgemm.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/cc -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wshadow -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes -Werror=implicit-int -Werror=implicit-function-declaration -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wdouble-promotion -march=native -fopenmp -std=gnu11 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/x86/quants.c.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/arch/x86/quants.c",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/arch/x86/quants.c"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU_REPACK -DGGML_USE_LLAMAFILE -DGGML_USE_OPENMP -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/.. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -march=native -fopenmp -std=c++17 -o CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/x86/repack.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/arch/x86/repack.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-cpu/arch/x86/repack.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/ggml/src",
+  "command": "/usr/bin/c++ -DGGML_SCHED_MAX_COPIES=4 -DGGML_USE_CPU -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++17 -o CMakeFiles/ggml.dir/ggml-backend-reg.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-backend-reg.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/ggml-backend-reg.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-adapter.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-adapter.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-adapter.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-arch.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-arch.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-arch.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-batch.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-batch.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-batch.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-chat.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-chat.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-chat.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-context.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-context.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-context.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-cparams.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-cparams.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-cparams.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-grammar.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-grammar.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-grammar.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-graph.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-graph.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-graph.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-hparams.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-hparams.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-hparams.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-impl.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-impl.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-impl.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-io.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-io.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-io.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-kv-cache.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-kv-cache.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-kv-cache.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-kv-cache-iswa.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-kv-cache-iswa.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-kv-cache-iswa.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-memory.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-memory.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-memory.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-memory-hybrid.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-memory-hybrid.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-memory-hybrid.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-memory-recurrent.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-memory-recurrent.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-memory-recurrent.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-mmap.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-mmap.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-mmap.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-model-loader.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-model-loader.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-model-loader.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-model-saver.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-model-saver.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-model-saver.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-model.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-model.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-model.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-quant.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-quant.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-quant.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-sampling.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-sampling.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-sampling.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/llama-vocab.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-vocab.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/llama-vocab.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/unicode-data.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/unicode-data.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/unicode-data.cpp"
+},
+{
+  "directory": "/home/evoid/projects/ai-file-sorter/build-tests/llama-build/src",
+  "command": "/usr/bin/c++ -DGGML_USE_CPU -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/. -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/../include -I/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/ggml/src/../include -O3 -DNDEBUG -Wmissing-declarations -Wmissing-noreturn -Wall -Wextra -Wpedantic -Wcast-qual -Wno-unused-function -Wno-array-bounds -Wextra-semi -std=c++20 -o CMakeFiles/llama.dir/unicode.cpp.o -c /home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/unicode.cpp",
+  "file": "/home/evoid/projects/ai-file-sorter/app/include/external/llama.cpp/src/unicode.cpp"
+}
+]

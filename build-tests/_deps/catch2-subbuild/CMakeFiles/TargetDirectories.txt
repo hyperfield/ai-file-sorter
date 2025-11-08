@@ -1,0 +1,3 @@
+/home/evoid/projects/ai-file-sorter/build-tests/_deps/catch2-subbuild/CMakeFiles/catch2-populate.dir
+/home/evoid/projects/ai-file-sorter/build-tests/_deps/catch2-subbuild/CMakeFiles/edit_cache.dir
+/home/evoid/projects/ai-file-sorter/build-tests/_deps/catch2-subbuild/CMakeFiles/rebuild_cache.dir

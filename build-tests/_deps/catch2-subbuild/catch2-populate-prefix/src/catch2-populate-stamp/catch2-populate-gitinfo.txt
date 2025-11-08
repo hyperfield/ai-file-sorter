@@ -1,0 +1,3 @@
+repository='https://github.com/catchorg/Catch2.git'
+module=''
+tag='origin'

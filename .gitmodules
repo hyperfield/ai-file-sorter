@@ -1,3 +1,6 @@
 [submodule "app/include/external/llama.cpp"]
 	path = app/include/external/llama.cpp
 	url = https://github.com/ggerganov/llama.cpp.git
+[submodule "external/Catch2"]
+	path = external/Catch2
+	url = https://github.com/catchorg/Catch2.git

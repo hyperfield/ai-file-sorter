@@ -1,0 +1,48 @@
+Start testing: Nov 08 12:15 CET
+----------------------------------------------------------
+1/2 Testing: ai_file_sorter_tests
+1/2 Test: ai_file_sorter_tests
+Command: "/home/evoid/projects/ai-file-sorter/build-tests/ai_file_sorter_tests"
+Directory: /home/evoid/projects/ai-file-sorter/build-tests
+"ai_file_sorter_tests" start time: Nov 08 12:15 CET
+Output:
+----------------------------------------------------------
+Randomness seeded to: 3747961019
+===============================================================================
+All tests passed (2 assertions in 2 test cases)
+
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"ai_file_sorter_tests" end time: Nov 08 12:15 CET
+"ai_file_sorter_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/2 Testing: integration_run_all
+2/2 Test: integration_run_all
+Command: "/usr/bin/cmake" "-E" "env" "bash" "/home/evoid/projects/ai-file-sorter/app/../tests/run_all_tests.sh"
+Directory: /home/evoid/projects/ai-file-sorter/app/..
+"integration_run_all" start time: Nov 08 12:15 CET
+Output:
+----------------------------------------------------------
+Running AI File Sorter test suite
+=================================
+
+>>> run_database_tests.sh
+Database manager cleanup test passed
+
+>>> run_translation_tests.sh
+Translation manager test passed
+
+All tests completed successfully.
+<end of output>
+Test time =   3.75 sec
+----------------------------------------------------------
+Test Pass Reason:
+Required regular expression found. Regex=[All tests completed successfully.]
+"integration_run_all" end time: Nov 08 12:15 CET
+"integration_run_all" time elapsed: 00:00:03
+----------------------------------------------------------
+
+End testing: Nov 08 12:15 CET

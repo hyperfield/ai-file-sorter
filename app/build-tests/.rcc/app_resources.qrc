@@ -1,0 +1,11 @@
+<RCC>
+  <qresource prefix="/net/quicknode/AIFileSorter">
+    <file alias=".env">/home/evoid/projects/ai-file-sorter/app/resources/.env</file>
+    <file alias="images/logo.png">/home/evoid/projects/ai-file-sorter/app/resources/images/logo.png</file>
+    <file alias="images/qn_logo.png">/home/evoid/projects/ai-file-sorter/app/resources/images/qn_logo.png</file>
+    <file alias="images/app_icon_128.png">/home/evoid/projects/ai-file-sorter/app/resources/images/app_icon_128.png</file>
+    <file alias="images/icon_512x512.png">/home/evoid/projects/ai-file-sorter/app/resources/images/icon_512x512.png</file>
+    <file alias="certs/cacert.pem">/home/evoid/projects/ai-file-sorter/app/resources/certs/cacert.pem</file>
+  </qresource>
+</RCC>
+
