@@ -53,6 +53,7 @@ class MainAppTestAccess;
 class MainApp : public QMainWindow
 {
 public:
+    enum class SupportPromptResult { Support, NotSure, CannotDonate };
     explicit MainApp(Settings& settings, bool development_mode, QWidget* parent = nullptr);
     ~MainApp() override;
 
@@ -91,7 +92,7 @@ private:
     void on_language_selected(Language language);
 
     void on_analyze_clicked();
-    void on_directory_selected(const QString& path);
+    void on_directory_selected(const QString& path, bool user_initiated = false);
     void ensure_one_checkbox_active(QCheckBox* changed_checkbox);
     void update_file_scan_option(FileScanOptions option, bool enabled);
     void update_analyze_button_state(bool analyzing);
@@ -110,6 +111,8 @@ private:
     void on_about_activate();
     void run_consistency_pass();
     void handle_development_prompt_logging(bool checked);
+    void record_categorized_metrics(int count);
+    SupportPromptResult show_support_prompt_dialog(int categorized_files);
 
     std::unique_ptr<ILLMClient> make_llm_client();
     void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
@@ -197,6 +200,7 @@ private:
     bool status_is_ready_{true};
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
+    bool donation_prompt_active_{false};
     bool should_log_prompts() const;
     void apply_development_logging();
 };

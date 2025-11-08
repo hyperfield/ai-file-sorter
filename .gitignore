@@ -104,6 +104,7 @@ app/include/llama/*.h
 !app/scripts/
 /tools/
 /reports/
+/logo-workdir-temp/
 
 # Build artifacts
 

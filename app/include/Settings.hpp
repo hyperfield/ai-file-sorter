@@ -47,6 +47,10 @@ public:
     bool get_show_file_explorer() const;
     Language get_language() const;
     void set_language(Language value);
+    int get_total_categorized_files() const;
+    void add_categorized_files(int count);
+    int get_next_support_prompt_threshold() const;
+    void set_next_support_prompt_threshold(int threshold);
 
 private:
     std::string config_path;
@@ -64,6 +68,8 @@ private:
     Language language{Language::English};
     bool consistency_pass_enabled{false};
     bool development_prompt_logging{false};
+    int categorized_file_count{0};
+    int next_support_prompt_threshold{100};
 };
 
 #endif

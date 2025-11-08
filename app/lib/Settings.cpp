@@ -11,6 +11,7 @@
 #include <QByteArray>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
+#include <algorithm>
 #ifdef _WIN32
     #include <shlobj.h>
     #include <windows.h>
@@ -25,6 +26,14 @@ void settings_log(spdlog::level::level_enum level, const char* fmt, Args&&... ar
         logger->log(level, "{}", message);
     } else {
         std::fprintf(stderr, "%s\n", message.c_str());
+    }
+}
+
+int parse_int_or(const std::string& value, int fallback) {
+    try {
+        return std::stoi(value);
+    } catch (...) {
+        return fallback;
     }
 }
 }
@@ -119,6 +128,11 @@ bool Settings::load()
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
     const std::string language_value = config.getValue("Settings", "Language", "English");
     language = languageFromString(QString::fromStdString(language_value));
+    categorized_file_count = parse_int_or(config.getValue("Settings", "CategorizedFileCount", "0"), 0);
+    next_support_prompt_threshold = parse_int_or(config.getValue("Settings", "SupportPromptThreshold", "100"), 100);
+    if (next_support_prompt_threshold < 100) {
+        next_support_prompt_threshold = 100;
+    }
 
     return true;
 }
@@ -149,6 +163,8 @@ bool Settings::save()
     config.setValue("Settings", "ConsistencyPass", consistency_pass_enabled ? "true" : "false");
     config.setValue("Settings", "DevelopmentPromptLogging", development_prompt_logging ? "true" : "false");
     config.setValue("Settings", "Language", languageToString(language).toStdString());
+    config.setValue("Settings", "CategorizedFileCount", std::to_string(categorized_file_count));
+    config.setValue("Settings", "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
 
     return config.save(config_path);
 }
@@ -271,4 +287,30 @@ Language Settings::get_language() const
 void Settings::set_language(Language value)
 {
     language = value;
+}
+
+int Settings::get_total_categorized_files() const
+{
+    return categorized_file_count;
+}
+
+void Settings::add_categorized_files(int count)
+{
+    if (count <= 0) {
+        return;
+    }
+    categorized_file_count += count;
+}
+
+int Settings::get_next_support_prompt_threshold() const
+{
+    return next_support_prompt_threshold;
+}
+
+void Settings::set_next_support_prompt_threshold(int threshold)
+{
+    if (threshold < 100) {
+        threshold = 100;
+    }
+    next_support_prompt_threshold = threshold;
 }

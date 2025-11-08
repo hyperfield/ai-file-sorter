@@ -74,6 +74,67 @@
 
 using namespace std::chrono_literals;
 
+namespace {
+
+void schedule_next_support_prompt(Settings& settings, int total_files, int increment) {
+    if (increment <= 0) {
+        increment = 100;
+    }
+    settings.set_next_support_prompt_threshold(total_files + increment);
+    settings.save();
+}
+
+void maybe_show_support_prompt(Settings& settings,
+                               bool& prompt_active,
+                               std::function<MainApp::SupportPromptResult(int)> show_prompt) {
+    if (prompt_active) {
+        return;
+    }
+
+    const int total = settings.get_total_categorized_files();
+    int threshold = settings.get_next_support_prompt_threshold();
+    if (threshold <= 0) {
+        const int base = std::max(total, 0);
+        threshold = ((base / 100) + 1) * 100;
+        settings.set_next_support_prompt_threshold(threshold);
+        settings.save();
+    }
+
+    if (total < threshold || total == 0) {
+        return;
+    }
+
+    prompt_active = true;
+    MainApp::SupportPromptResult result = MainApp::SupportPromptResult::NotSure;
+    if (show_prompt) {
+        result = show_prompt(total);
+    }
+    prompt_active = false;
+
+    int increment = 100;
+    if (result == MainApp::SupportPromptResult::Support ||
+        result == MainApp::SupportPromptResult::CannotDonate) {
+        increment = 500;
+    }
+
+    schedule_next_support_prompt(settings, total, increment);
+}
+
+void record_categorized_metrics_impl(Settings& settings,
+                                     bool& prompt_active,
+                                     int count,
+                                     std::function<MainApp::SupportPromptResult(int)> show_prompt) {
+    if (count <= 0) {
+        return;
+    }
+
+    settings.add_categorized_files(count);
+    settings.save();
+    maybe_show_support_prompt(settings, prompt_active, std::move(show_prompt));
+}
+
+} // namespace
+
 MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
     : QMainWindow(parent),
       settings(settings),
@@ -163,9 +224,21 @@ void MainApp::setup_file_explorer()
                 if (path_entry && path_entry->text() == path) {
                     update_folder_contents(path);
                 } else {
-                    on_directory_selected(path);
+                    on_directory_selected(path, true);
                 }
             });
+    file_explorer_view->setExpandsOnDoubleClick(false);
+    auto toggle_directory_expansion = [this](const QModelIndex& index) {
+        if (!file_system_model || !index.isValid()) {
+            return;
+        }
+        if (!file_system_model->isDir(index)) {
+            return;
+        }
+        file_explorer_view->setExpanded(index, !file_explorer_view->isExpanded(index));
+    };
+    connect(file_explorer_view, &QTreeView::doubleClicked, this, toggle_directory_expansion);
+    connect(file_explorer_view, &QTreeView::activated, this, toggle_directory_expansion);
 
     connect(file_explorer_dock, &QDockWidget::visibilityChanged, this, [this](bool) {
         update_results_view_mode();
@@ -216,7 +289,7 @@ void MainApp::connect_signals()
                     if (!folder_contents_model->isDir(current)) {
                         return;
                     }
-                    on_directory_selected(folder_contents_model->filePath(current));
+                    on_directory_selected(folder_contents_model->filePath(current), true);
                 });
     }
 
@@ -564,6 +637,32 @@ void MainAppTestAccess::trigger_retranslate(MainApp& app) {
     app.retranslate_ui();
 }
 
+void MainAppTestAccess::add_categorized_files(MainApp& app, int count) {
+    app.record_categorized_metrics(count);
+}
+
+void MainAppTestAccess::simulate_support_prompt(Settings& settings,
+                                                bool& prompt_state,
+                                                int count,
+                                                std::function<SimulatedSupportResult(int)> callback) {
+    auto convert = [cb = std::move(callback)](int total) -> MainApp::SupportPromptResult {
+        if (!cb) {
+            return MainApp::SupportPromptResult::NotSure;
+        }
+        switch (cb(total)) {
+            case SimulatedSupportResult::Support:
+                return MainApp::SupportPromptResult::Support;
+            case SimulatedSupportResult::CannotDonate:
+                return MainApp::SupportPromptResult::CannotDonate;
+            case SimulatedSupportResult::NotSure:
+            default:
+                return MainApp::SupportPromptResult::NotSure;
+        }
+    };
+
+    record_categorized_metrics_impl(settings, prompt_state, count, convert);
+}
+
 #endif // AI_FILE_SORTER_TEST_BUILD
 
 void MainApp::on_language_selected(Language language)
@@ -639,13 +738,15 @@ void MainApp::on_analyze_clicked()
 }
 
 
-void MainApp::on_directory_selected(const QString& path)
+void MainApp::on_directory_selected(const QString& path, bool user_initiated)
 {
     path_entry->setText(path);
     statusBar()->showMessage(tr("Folder selected: %1").arg(path), 3000);
     status_is_ready_ = false;
 
-    focus_file_explorer_on_path(path);
+    if (!user_initiated) {
+        focus_file_explorer_on_path(path);
+    }
 
     update_folder_contents(path);
 }
@@ -751,6 +852,47 @@ void MainApp::focus_file_explorer_on_path(const QString& path)
     file_explorer_view->scrollTo(index, QAbstractItemView::PositionAtCenter);
 
     suppress_explorer_sync_ = previous_suppress;
+}
+
+void MainApp::record_categorized_metrics(int count)
+{
+    record_categorized_metrics_impl(
+        settings,
+        donation_prompt_active_,
+        count,
+        [this](int total) { return show_support_prompt_dialog(total); });
+}
+
+MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files)
+{
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Information);
+    box.setWindowTitle(tr("Support AI File Sorter"));
+
+    const QString headline = tr("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you.")
+                                 .arg(total_files);
+    const QString details = tr("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+                               "If the app saves you time or brings value, please consider supporting it so it can keep improving.");
+
+    box.setText(headline);
+    box.setInformativeText(details);
+
+    auto* support_btn = box.addButton(tr("Support"), QMessageBox::AcceptRole);
+    auto* later_btn = box.addButton(tr("I'm not yet sure"), QMessageBox::RejectRole);
+    auto* cannot_btn = box.addButton(tr("I cannot donate"), QMessageBox::DestructiveRole);
+
+    box.setDefaultButton(later_btn);
+    box.exec();
+
+    const QAbstractButton* clicked = box.clickedButton();
+    if (clicked == support_btn) {
+        MainAppHelpActions::open_support_page();
+        return SupportPromptResult::Support;
+    }
+    if (clicked == cannot_btn) {
+        return SupportPromptResult::CannotDonate;
+    }
+    return SupportPromptResult::NotSure;
 }
 
 
@@ -1134,6 +1276,7 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, this);
         categorization_dialog->show_results(results);
+        record_categorized_metrics(static_cast<int>(results.size()));
     } catch (const std::exception& ex) {
         if (ui_logger) {
             ui_logger->error("Error showing results dialog: {}", ex.what());
