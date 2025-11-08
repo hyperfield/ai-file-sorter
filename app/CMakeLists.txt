@@ -310,12 +310,17 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     add_executable(ai_file_sorter_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/FileScanner.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/LocalLLMClient.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
     )
 
     target_include_directories(ai_file_sorter_tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
     )
 
     target_link_libraries(ai_file_sorter_tests PRIVATE
@@ -323,7 +328,14 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         Qt6::Core
         spdlog::spdlog
         fmt::fmt
+        llama
     )
+
+    target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1)
+
+    if(WIN32)
+        target_link_libraries(ai_file_sorter_tests PRIVATE ggml ggml_base ggml_cpu)
+    endif()
 
     if(BUILD_TESTING)
         add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)

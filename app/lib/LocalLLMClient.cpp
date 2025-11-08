@@ -2,6 +2,7 @@
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "TestHooks.hpp"
+#include "LocalLLMTestAccess.hpp"
 #include "llama.h"
 #include "ggml-backend.h"
 #include "ggml-backend.h"
@@ -822,8 +823,8 @@ void LocalLLMClient::configure_llama_logging(const std::shared_ptr<spdlog::logge
 }
 
 
-llama_model_params LocalLLMClient::prepare_model_params(const std::shared_ptr<spdlog::logger>& logger)
-{
+llama_model_params build_model_params_for_path(const std::string& model_path,
+                                               const std::shared_ptr<spdlog::logger>& logger) {
     llama_model_params model_params = llama_model_default_params();
 
 #ifdef GGML_USE_METAL
@@ -851,6 +852,69 @@ llama_model_params LocalLLMClient::prepare_model_params(const std::shared_ptr<sp
 
     return model_params;
 }
+
+llama_model_params LocalLLMClient::prepare_model_params(const std::shared_ptr<spdlog::logger>& logger)
+{
+    return build_model_params_for_path(model_path, logger);
+}
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+namespace {
+
+PreferredBackend to_internal_backend(LocalLLMTestAccess::BackendPreference preference) {
+    switch (preference) {
+        case LocalLLMTestAccess::BackendPreference::Cpu: return PreferredBackend::Cpu;
+        case LocalLLMTestAccess::BackendPreference::Cuda: return PreferredBackend::Cuda;
+        case LocalLLMTestAccess::BackendPreference::Vulkan: return PreferredBackend::Vulkan;
+        case LocalLLMTestAccess::BackendPreference::Auto:
+        default:
+            return PreferredBackend::Auto;
+    }
+}
+
+LocalLLMTestAccess::BackendPreference to_external_backend(PreferredBackend preference) {
+    switch (preference) {
+        case PreferredBackend::Cpu: return LocalLLMTestAccess::BackendPreference::Cpu;
+        case PreferredBackend::Cuda: return LocalLLMTestAccess::BackendPreference::Cuda;
+        case PreferredBackend::Vulkan: return LocalLLMTestAccess::BackendPreference::Vulkan;
+        case PreferredBackend::Auto:
+        default:
+            return LocalLLMTestAccess::BackendPreference::Auto;
+    }
+}
+
+} // namespace
+
+namespace LocalLLMTestAccess {
+
+BackendPreference detect_preferred_backend() {
+    return to_external_backend(::detect_preferred_backend());
+}
+
+bool apply_cpu_backend(llama_model_params& params, BackendPreference preference) {
+    return ::apply_cpu_backend(params, to_internal_backend(preference), nullptr);
+}
+
+bool apply_vulkan_backend(const std::string& model_path, llama_model_params& params) {
+    return ::apply_vulkan_backend(model_path, params, nullptr);
+}
+
+bool handle_cuda_forced_off(bool cuda_forced_off,
+                            BackendPreference preference,
+                            llama_model_params& params) {
+    return ::handle_cuda_forced_off(cuda_forced_off, to_internal_backend(preference), params, nullptr);
+}
+
+void configure_cuda_backend(const std::string& model_path, llama_model_params& params) {
+    ::configure_cuda_backend(model_path, params, nullptr);
+}
+
+llama_model_params prepare_model_params_for_testing(const std::string& model_path) {
+    return ::build_model_params_for_path(model_path, nullptr);
+}
+
+} // namespace LocalLLMTestAccess
+#endif // AI_FILE_SORTER_TEST_BUILD
 
 
 void LocalLLMClient::load_model_or_throw(const llama_model_params& model_params,
