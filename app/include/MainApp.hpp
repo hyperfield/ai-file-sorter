@@ -97,6 +97,7 @@ private:
     void update_analyze_button_state(bool analyzing);
     void update_results_view_mode();
     void update_folder_contents(const QString& directory);
+    void focus_file_explorer_on_path(const QString& path);
 
     void handle_analysis_finished();
     void handle_analysis_failure(const std::string& message);
@@ -194,6 +195,8 @@ private:
     std::atomic<bool> stop_analysis{false};
     bool analysis_in_progress_{false};
     bool status_is_ready_{true};
+    bool suppress_explorer_sync_{false};
+    bool suppress_folder_view_sync_{false};
     bool should_log_prompts() const;
     void apply_development_logging();
 };

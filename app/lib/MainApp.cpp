@@ -148,22 +148,23 @@ void MainApp::setup_file_explorer()
     file_explorer_view->setColumnHidden(2, true);
     file_explorer_view->setColumnHidden(3, true);
 
-    connect(file_explorer_view, &QTreeView::doubleClicked, this, [this](const QModelIndex& index) {
-        if (!file_system_model->isDir(index)) {
-            return;
-        }
-        on_directory_selected(file_system_model->filePath(index));
-    });
-
     connect(file_explorer_view->selectionModel(), &QItemSelectionModel::currentChanged,
             this, [this](const QModelIndex& current, const QModelIndex&) {
                 if (!file_system_model) {
                     return;
                 }
+                if (suppress_explorer_sync_) {
+                    return;
+                }
                 if (!current.isValid() || !file_system_model->isDir(current)) {
                     return;
                 }
-                update_folder_contents(file_system_model->filePath(current));
+                const QString path = file_system_model->filePath(current);
+                if (path_entry && path_entry->text() == path) {
+                    update_folder_contents(path);
+                } else {
+                    on_directory_selected(path);
+                }
             });
 
     connect(file_explorer_dock, &QDockWidget::visibilityChanged, this, [this](bool) {
@@ -197,12 +198,27 @@ void MainApp::connect_signals()
     connect(path_entry, &QLineEdit::returnPressed, this, [this]() {
         const QString folder = path_entry->text();
         if (QDir(folder).exists()) {
-            statusBar()->showMessage(tr("Set folder to %1").arg(folder), 3000);
-            status_is_ready_ = false;
+            on_directory_selected(folder);
         } else {
             show_error_dialog(ERR_INVALID_PATH);
         }
     });
+
+    if (folder_contents_view && folder_contents_model && folder_contents_view->selectionModel()) {
+        connect(folder_contents_view->selectionModel(), &QItemSelectionModel::currentChanged,
+                this, [this](const QModelIndex& current, const QModelIndex&) {
+                    if (suppress_folder_view_sync_) {
+                        return;
+                    }
+                    if (!folder_contents_model || !current.isValid()) {
+                        return;
+                    }
+                    if (!folder_contents_model->isDir(current)) {
+                        return;
+                    }
+                    on_directory_selected(folder_contents_model->filePath(current));
+                });
+    }
 
     connect(use_subcategories_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
         settings.set_use_subcategories(checked);
@@ -286,6 +302,7 @@ void MainApp::sync_settings_to_ui()
         statusBar()->showMessage(tr("Loaded folder %1").arg(QString::fromStdString(sort_folder)), 3000);
         status_is_ready_ = false;
         update_folder_contents(QString::fromStdString(sort_folder));
+        focus_file_explorer_on_path(QString::fromStdString(sort_folder));
     } else if (!sort_folder.empty()) {
         core_logger->warn("Sort folder path is invalid: {}", sort_folder);
     }
@@ -625,12 +642,7 @@ void MainApp::on_directory_selected(const QString& path)
     statusBar()->showMessage(tr("Folder selected: %1").arg(path), 3000);
     status_is_ready_ = false;
 
-    if (file_system_model && file_explorer_view) {
-        const QModelIndex index = file_system_model->index(path);
-        if (index.isValid()) {
-            file_explorer_view->setCurrentIndex(index);
-        }
-    }
+    focus_file_explorer_on_path(path);
 
     update_folder_contents(path);
 }
@@ -703,6 +715,9 @@ void MainApp::update_folder_contents(const QString& directory)
         return;
     }
 
+    const bool previous_flag = suppress_folder_view_sync_;
+    suppress_folder_view_sync_ = true;
+
     const QModelIndex new_root = folder_contents_model->setRootPath(directory);
     folder_contents_view->setRootIndex(new_root);
     folder_contents_view->scrollTo(new_root, QAbstractItemView::PositionAtTop);
@@ -710,6 +725,29 @@ void MainApp::update_folder_contents(const QString& directory)
     for (int col = 0; col < folder_contents_model->columnCount(); ++col) {
         folder_contents_view->resizeColumnToContents(col);
     }
+
+    suppress_folder_view_sync_ = previous_flag;
+}
+
+void MainApp::focus_file_explorer_on_path(const QString& path)
+{
+    if (!file_system_model || !file_explorer_view || path.isEmpty()) {
+        return;
+    }
+
+    const QModelIndex index = file_system_model->index(path);
+    if (!index.isValid()) {
+        return;
+    }
+
+    const bool previous_suppress = suppress_explorer_sync_;
+    suppress_explorer_sync_ = true;
+
+    file_explorer_view->setCurrentIndex(index);
+    file_explorer_view->expand(index);
+    file_explorer_view->scrollTo(index, QAbstractItemView::PositionAtCenter);
+
+    suppress_explorer_sync_ = previous_suppress;
 }
 
 
