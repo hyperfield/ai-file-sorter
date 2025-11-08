@@ -1,5 +1,6 @@
 #include "Utils.hpp"
 #include "Logger.hpp"
+#include "TestHooks.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>  // for memset
@@ -12,6 +13,7 @@
 #include <vector>
 #include <optional>
 #include <mutex>
+#include <functional>
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <QFile>
@@ -77,6 +79,16 @@ std::vector<std::string> collect_user_prefixes() {
     }
 
     return prefixes;
+}
+
+std::function<bool()>& cuda_availability_probe() {
+    static std::function<bool()> probe;
+    return probe;
+}
+
+std::function<std::optional<Utils::CudaMemoryInfo>()>& cuda_memory_probe() {
+    static std::function<std::optional<Utils::CudaMemoryInfo>()> probe;
+    return probe;
 }
 
 std::optional<std::string> strip_prefix(const std::string& path,
@@ -454,6 +466,9 @@ int Utils::get_ngl(int vram_mb) {
 
 
 std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
+    if (auto& probe = cuda_memory_probe()) {
+        return probe();
+    }
 #ifdef _WIN32
     std::string dllName = get_cudart_dll_name();
     LibraryHandle lib = loadLibrary(dllName.c_str());
@@ -628,6 +643,10 @@ bool resolve_cuda_symbols(LibraryHandle handle,
 bool Utils::is_cuda_available() {
     log_core(spdlog::level::info, "[CUDA] Checking CUDA availability...");
 
+    if (auto& probe = cuda_availability_probe()) {
+        return probe();
+    }
+
     LibraryHandle handle = open_cuda_runtime();
     if (!handle) {
         log_core(spdlog::level::warn, "[CUDA] Failed to load CUDA runtime library.");
@@ -673,6 +692,25 @@ bool Utils::is_cuda_available() {
     return true;
 }
 
+namespace TestHooks {
+
+void set_cuda_availability_probe(CudaAvailabilityProbe probe) {
+    cuda_availability_probe() = std::move(probe);
+}
+
+void reset_cuda_availability_probe() {
+    cuda_availability_probe() = CudaAvailabilityProbe{};
+}
+
+void set_cuda_memory_probe(CudaMemoryProbe probe) {
+    cuda_memory_probe() = std::move(probe);
+}
+
+void reset_cuda_memory_probe() {
+    cuda_memory_probe() = CudaMemoryProbe{};
+}
+
+} // namespace TestHooks
 
 #ifdef _WIN32
 int Utils::get_installed_cuda_runtime_version()

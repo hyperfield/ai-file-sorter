@@ -1,6 +1,7 @@
 #include "LocalLLMClient.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
+#include "TestHooks.hpp"
 #include "llama.h"
 #include "ggml-backend.h"
 #include "ggml-backend.h"
@@ -168,13 +169,16 @@ void load_ggml_backends_once(const std::shared_ptr<spdlog::logger>& logger) {
     loaded = true;
 }
 
-struct BackendMemoryInfo {
-    Utils::CudaMemoryInfo memory;
-    bool is_integrated = false;
-    std::string name;
-};
+using BackendMemoryInfo = TestHooks::BackendMemoryInfo;
 
-std::optional<BackendMemoryInfo> query_backend_memory_metrics(std::string_view backend_name) {
+using BackendMemoryProbe = TestHooks::BackendMemoryProbe;
+
+BackendMemoryProbe& backend_memory_probe_slot() {
+    static BackendMemoryProbe probe;
+    return probe;
+}
+
+std::optional<BackendMemoryInfo> query_backend_memory_metrics_impl(std::string_view backend_name) {
     const size_t device_count = ggml_backend_dev_count();
     BackendMemoryInfo best{};
     bool found = false;
@@ -221,6 +225,29 @@ std::optional<BackendMemoryInfo> query_backend_memory_metrics(std::string_view b
     }
     return std::nullopt;
 }
+
+std::optional<BackendMemoryInfo> resolve_backend_memory(std::string_view backend_name) {
+    if (auto& probe = backend_memory_probe_slot()) {
+        return probe(backend_name);
+    }
+    return query_backend_memory_metrics_impl(backend_name);
+}
+
+} // namespace
+
+namespace TestHooks {
+
+void set_backend_memory_probe(BackendMemoryProbe probe) {
+    backend_memory_probe_slot() = std::move(probe);
+}
+
+void reset_backend_memory_probe() {
+    backend_memory_probe_slot() = BackendMemoryProbe{};
+}
+
+} // namespace TestHooks
+
+namespace {
 std::optional<int32_t> extract_block_count(const std::string & model_path) {
     std::ifstream file(model_path, std::ios::binary);
     if (!file) {
@@ -567,7 +594,7 @@ bool apply_vulkan_backend(const std::string& model_path,
         return true;
     }
 
-    auto vk_memory = query_backend_memory_metrics("vulkan");
+    auto vk_memory = resolve_backend_memory("vulkan");
     if (!vk_memory.has_value()) {
         params.n_gpu_layers = -1;
         if (logger) {
