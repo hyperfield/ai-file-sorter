@@ -36,6 +36,7 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 
 - [AI File Sorter](#ai-file-sorter)
   - [Changelog](#changelog)
+    - [[1.1.0] - 2025-11-08](#110---2025-11-08)
     - [[1.0.0] - 2025-10-30](#100---2025-10-30)
     - [[0.9.7] - 2025-10-19](#097---2025-10-19)
     - [[0.9.3] - 2025-09-22](#093---2025-09-22)
