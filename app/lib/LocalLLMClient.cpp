@@ -26,6 +26,7 @@
 #include <fstream>
 #include <string_view>
 #include <string>
+#include <array>
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -151,6 +152,33 @@ bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     return text_lower.find(needle_lower) != std::string::npos;
 }
 
+bool is_probably_integrated_gpu(ggml_backend_dev_t device,
+                                enum ggml_backend_dev_type type) {
+#if defined(AI_FILE_SORTER_GGML_HAS_IGPU_ENUM)
+    (void) device;
+    return type == GGML_BACKEND_DEVICE_TYPE_IGPU;
+#else
+    (void) type;
+
+    const auto matches_hint = [](const char * value) {
+        if (!value || value[0] == '\0') {
+            return false;
+        }
+        constexpr std::array<std::string_view, 4> hints = {"integrated", "apu", "shared", "uma"};
+        const std::string_view view(value);
+        for (const std::string_view hint : hints) {
+            if (case_insensitive_contains(view, hint)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    return matches_hint(ggml_backend_dev_name(device)) ||
+           matches_hint(ggml_backend_dev_description(device));
+#endif
+}
+
 void load_ggml_backends_once(const std::shared_ptr<spdlog::logger>& logger) {
     static bool loaded = false;
     if (loaded) {
@@ -190,7 +218,7 @@ std::optional<BackendMemoryInfo> query_backend_memory_metrics_impl(std::string_v
             continue;
         }
         const auto type = ggml_backend_dev_type(device);
-        if (type != GGML_BACKEND_DEVICE_TYPE_GPU && type != GGML_BACKEND_DEVICE_TYPE_IGPU) {
+        if (type != GGML_BACKEND_DEVICE_TYPE_GPU) {
             continue;
         }
 
@@ -212,7 +240,7 @@ std::optional<BackendMemoryInfo> query_backend_memory_metrics_impl(std::string_v
         BackendMemoryInfo info;
         info.memory.free_bytes = free_bytes;
         info.memory.total_bytes = (total_bytes != 0) ? total_bytes : free_bytes;
-        info.is_integrated = (type == GGML_BACKEND_DEVICE_TYPE_IGPU);
+        info.is_integrated = is_probably_integrated_gpu(device, type);
         info.name = name ? name : "";
 
         if (!found || info.memory.total_bytes > best.memory.total_bytes) {

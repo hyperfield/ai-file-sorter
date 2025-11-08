@@ -69,8 +69,13 @@ WRAPPED_BINARY := $(notdir $(TARGET))
 # Compiler and flags
 CXX = g++
 CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
-# Suppress GCC 13 fmt/Qt false positives
+CXX_VERSION_INFO := $(shell $(CXX) --version 2>/dev/null)
+# Suppress GCC-only diagnostics; clang (macOS) does not support some of them
+ifneq (,$(findstring clang,$(CXX_VERSION_INFO)))
+CXXFLAGS += -Wno-array-bounds
+else
 CXXFLAGS += -Wno-array-bounds -Wno-stringop-overflow -Wno-stringop-overread
+endif
 INCLUDE_DIRS = -I./include -I./include/llama
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
