@@ -344,8 +344,21 @@ void MainApp::sync_ui_to_settings()
 
 void MainApp::retranslate_ui()
 {
-    setWindowTitle(QStringLiteral("AI File Sorter"));
+    translate_window_title();
+    translate_primary_controls();
+    translate_tree_view_labels();
+    translate_menus_and_actions();
+    translate_status_messages();
+    update_language_checks();
+}
 
+void MainApp::translate_window_title()
+{
+    setWindowTitle(QStringLiteral("AI File Sorter"));
+}
+
+void MainApp::translate_primary_controls()
+{
     if (path_label) {
         path_label->setText(tr("Folder:"));
     }
@@ -364,34 +377,42 @@ void MainApp::retranslate_ui()
     if (analyze_button) {
         analyze_button->setText(analysis_in_progress_ ? tr("Stop analyzing") : tr("Analyze folder"));
     }
+}
 
-    if (tree_model) {
-        tree_model->setHorizontalHeaderLabels(QStringList{
-            tr("File"),
-            tr("Type"),
-            tr("Category"),
-            tr("Subcategory"),
-            tr("Status")
-        });
+void MainApp::translate_tree_view_labels()
+{
+    if (!tree_model) {
+        return;
+    }
 
-        for (int row = 0; row < tree_model->rowCount(); ++row) {
-            if (auto* type_item = tree_model->item(row, 1)) {
-                const QString type_code = type_item->data(Qt::UserRole).toString();
-                if (type_code == QStringLiteral("D")) {
-                    type_item->setText(tr("Directory"));
-                } else if (type_code == QStringLiteral("F")) {
-                    type_item->setText(tr("File"));
-                }
+    tree_model->setHorizontalHeaderLabels(QStringList{
+        tr("File"),
+        tr("Type"),
+        tr("Category"),
+        tr("Subcategory"),
+        tr("Status")
+    });
+
+    for (int row = 0; row < tree_model->rowCount(); ++row) {
+        if (auto* type_item = tree_model->item(row, 1)) {
+            const QString type_code = type_item->data(Qt::UserRole).toString();
+            if (type_code == QStringLiteral("D")) {
+                type_item->setText(tr("Directory"));
+            } else if (type_code == QStringLiteral("F")) {
+                type_item->setText(tr("File"));
             }
-            if (auto* status_item = tree_model->item(row, 4)) {
-                const QString status_code = status_item->data(Qt::UserRole).toString();
-                if (status_code == QStringLiteral("ready")) {
-                    status_item->setText(tr("Ready"));
-                }
+        }
+        if (auto* status_item = tree_model->item(row, 4)) {
+            const QString status_code = status_item->data(Qt::UserRole).toString();
+            if (status_code == QStringLiteral("ready")) {
+                status_item->setText(tr("Ready"));
             }
         }
     }
+}
 
+void MainApp::translate_menus_and_actions()
+{
     if (file_menu) {
         file_menu->setTitle(tr("&File"));
     }
@@ -468,18 +489,24 @@ void MainApp::retranslate_ui()
     if (file_explorer_dock) {
         file_explorer_dock->setWindowTitle(tr("File Explorer"));
     }
+}
+
+void MainApp::translate_status_messages()
+{
+    auto* bar = statusBar();
+    if (!bar) {
+        return;
+    }
 
     if (analysis_in_progress_) {
         if (stop_analysis.load()) {
-            statusBar()->showMessage(tr("Cancelling analysis…"), 4000);
+            bar->showMessage(tr("Cancelling analysis…"), 4000);
         } else {
-            statusBar()->showMessage(tr("Analyzing…"));
+            bar->showMessage(tr("Analyzing…"));
         }
     } else if (status_is_ready_) {
-        statusBar()->showMessage(tr("Ready"));
+        bar->showMessage(tr("Ready"));
     }
-
-    update_language_checks();
 }
 
 void MainApp::update_language_checks()
