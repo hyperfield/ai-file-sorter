@@ -32,6 +32,8 @@ public:
 #ifdef AI_FILE_SORTER_TEST_BUILD
     void test_set_entries(const std::vector<CategorizedFile>& files);
     void test_trigger_confirm();
+    void test_trigger_undo();
+    bool test_undo_enabled() const;
 #endif
 
     bool is_dialog_valid() const;
@@ -56,7 +58,9 @@ private:
     void record_categorization_to_db();
     void on_confirm_and_sort_button_clicked();
     void on_continue_later_button_clicked();
+    void on_undo_button_clicked();
     void show_close_button();
+    void restore_action_buttons();
     void update_status_column(int row, bool success, bool attempted = true);
     void on_select_all_toggled(bool checked);
     void apply_select_all(bool checked);
@@ -69,6 +73,12 @@ private:
     std::vector<std::tuple<bool, std::string, std::string, std::string, std::string>> get_rows() const;
     void on_show_subcategories_toggled(bool checked);
     void apply_subcategory_visibility();
+    void clear_move_history();
+    void record_move_for_undo(int row, const std::string& source, const std::string& destination);
+    bool undo_move_history();
+    void update_status_after_undo();
+    bool move_file_back(const std::string& source, const std::string& destination);
+    void remove_empty_parent_directories(const std::string& destination);
 
     DatabaseManager* db_manager;
     bool show_subcategory_column;
@@ -85,6 +95,14 @@ private:
     QPushButton* close_button{nullptr};
     QCheckBox* select_all_checkbox{nullptr};
     QCheckBox* show_subcategories_checkbox{nullptr};
+    QPushButton* undo_button{nullptr};
+
+    struct MoveRecord {
+        int row_index;
+        std::string source_path;
+        std::string destination_path;
+    };
+    std::vector<MoveRecord> move_history_;
 
     bool updating_select_all{false};
 };

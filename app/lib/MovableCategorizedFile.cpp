@@ -131,6 +131,16 @@ bool MovableCategorizedFile::move_file(bool use_subcategory)
     return perform_move(paths.source, paths.destination);
 }
 
+MovableCategorizedFile::PreviewPaths
+MovableCategorizedFile::preview_move_paths(bool use_subcategory) const
+{
+    const MovePaths paths = build_move_paths(use_subcategory);
+    return PreviewPaths{
+        Utils::path_to_utf8(paths.source),
+        Utils::path_to_utf8(paths.destination)
+    };
+}
+
 
 std::string MovableCategorizedFile::get_subcategory_path() const
 {
