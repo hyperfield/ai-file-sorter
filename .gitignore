@@ -75,6 +75,8 @@ vcpkg_installed/
 
 # Cache directories
 .cache/
+.ccache*
+.codacy
 
 # Built Visual Studio Code Extensions
 *.vsix
