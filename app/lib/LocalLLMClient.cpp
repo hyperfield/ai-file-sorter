@@ -257,7 +257,14 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
 
     constexpr std::size_t kScanBytes = 8 * 1024 * 1024; // first 8 MiB should contain metadata
     std::vector<char> buffer(kScanBytes);
-    const std::streamsize to_read = static_cast<std::streamsize>(buffer.size());
+
+    std::streamsize to_read = static_cast<std::streamsize>(buffer.size());
+    std::error_code size_ec;
+    const auto file_size = std::filesystem::file_size(model_path, size_ec);
+    if (!size_ec) {
+        to_read = static_cast<std::streamsize>(std::min<std::uintmax_t>(file_size, buffer.size()));
+    }
+
     file.read(buffer.data(), to_read);
     if (file.bad()) {
         return std::nullopt;

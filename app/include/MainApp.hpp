@@ -46,6 +46,10 @@ class MainAppUiBuilder;
 struct CategorizedFile;
 struct FileEntry;
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+class MainAppTestAccess;
+#endif
+
 class MainApp : public QMainWindow
 {
 public:
@@ -111,6 +115,9 @@ private:
     void changeEvent(QEvent* event) override;
 
     friend class MainAppUiBuilder;
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend class MainAppTestAccess;
+#endif
 
     Settings& settings;
     DatabaseManager db_manager;

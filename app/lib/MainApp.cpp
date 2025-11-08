@@ -13,6 +13,9 @@
 #include "Utils.hpp"
 #include "Types.hpp"
 #include "MainAppUiBuilder.hpp"
+#ifdef AI_FILE_SORTER_TEST_BUILD
+#include "MainAppTestAccess.hpp"
+#endif
 
 #include <QAction>
 #include <QActionGroup>
@@ -96,7 +99,9 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
     setup_file_explorer();
     connect_signals();
     connect_edit_actions();
+#if !defined(AI_FILE_SORTER_TEST_BUILD)
     start_updater();
+#endif
     load_settings();
     set_app_icon();
 }
@@ -497,6 +502,22 @@ void MainApp::update_language_checks()
         french_action->setChecked(configured == Language::French);
     }
 }
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+
+QString MainAppTestAccess::analyze_button_text(const MainApp& app) {
+    return app.analyze_button ? app.analyze_button->text() : QString();
+}
+
+QString MainAppTestAccess::path_label_text(const MainApp& app) {
+    return app.path_label ? app.path_label->text() : QString();
+}
+
+void MainAppTestAccess::trigger_retranslate(MainApp& app) {
+    app.retranslate_ui();
+}
+
+#endif // AI_FILE_SORTER_TEST_BUILD
 
 void MainApp::on_language_selected(Language language)
 {

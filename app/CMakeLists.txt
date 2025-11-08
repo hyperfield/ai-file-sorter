@@ -41,10 +41,11 @@ find_package(spdlog REQUIRED CONFIG)
 find_package(Intl REQUIRED) # libintl/gettext
 
 # Sources
-file(GLOB APP_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
+set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+file(GLOB APP_LIB_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
+set(APP_SOURCES ${APP_MAIN_SOURCE} ${APP_LIB_SOURCES})
 
 # Executable (GUI on Windows)
 if(WIN32)
@@ -308,13 +309,11 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     add_subdirectory(${CMAKE_SOURCE_DIR}/../external/Catch2 ${CMAKE_BINARY_DIR}/catch2-build)
 
     add_executable(ai_file_sorter_tests
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/FileScanner.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/LocalLLMClient.cpp"
+        ${APP_LIB_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
     )
 
     target_include_directories(ai_file_sorter_tests PRIVATE
@@ -326,8 +325,14 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     target_link_libraries(ai_file_sorter_tests PRIVATE
         Catch2::Catch2WithMain
         Qt6::Core
+        Qt6::Widgets
+        CURL::libcurl
+        OpenSSL::SSL OpenSSL::Crypto
+        SQLite::SQLite3
+        JsonCpp::JsonCpp
         spdlog::spdlog
         fmt::fmt
+        Intl::Intl
         llama
     )
 
