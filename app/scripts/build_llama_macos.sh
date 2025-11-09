@@ -17,13 +17,47 @@ HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 ARCH=$(uname -m)
 echo "Building on architecture: $ARCH"
 
+# Decide whether to enable Metal. Apple Silicon machines benefit from it, but
+# most Intel Macs either lack usable Metal compute queues or expose 0 bytes of
+# GPU memory to ggml, which causes llama.cpp to fail the moment it tries to
+# initialize the backend. On Intel default to a CPU-only build; allow overrides
+# via LLAMA_MACOS_ENABLE_METAL=1.
+ENABLE_METAL=${LLAMA_MACOS_ENABLE_METAL:-auto}
+if [ "$ENABLE_METAL" = "auto" ]; then
+    if [ "$ARCH" = "arm64" ]; then
+        ENABLE_METAL=1
+    else
+        ENABLE_METAL=0
+    fi
+fi
+if [ "$ENABLE_METAL" != "0" ]; then
+    echo "Enabling Metal backend"
+    METAL_FLAG=ON
+else
+    echo "Disabling Metal backend (CPU-only build)"
+    METAL_FLAG=OFF
+fi
+
+# Ensure SDK paths and libc++ headers are available (especially on Intel Macs).
+if command -v xcrun >/dev/null 2>&1; then
+    SDKROOT="$(xcrun --sdk macosx --show-sdk-path 2>/dev/null)"
+    if [ -n "$SDKROOT" ]; then
+        export SDKROOT
+        export CFLAGS="${CFLAGS} -isysroot ${SDKROOT}"
+        export CXXFLAGS="${CXXFLAGS} -isysroot ${SDKROOT} -stdlib=libc++ -I${SDKROOT}/usr/include/c++/v1"
+        export LDFLAGS="${LDFLAGS} -isysroot ${SDKROOT}"
+        CMAKE_SYSROOT_ARG="-DCMAKE_OSX_SYSROOT=${SDKROOT}"
+    fi
+fi
+
 # Enter llama.cpp directory and build
 cd "$LLAMA_DIR"
 rm -rf build
 mkdir -p build
 cmake -S . -B build \
+  ${CMAKE_SYSROOT_ARG} \
   -DBUILD_SHARED_LIBS=ON \
-  -DGGML_METAL=ON \
+  -DGGML_METAL=${METAL_FLAG} \
   -DGGML_BLAS=ON -DGGML_BLAS_VENDOR=Accelerate \
   -DGGML_CUDA=OFF \
   -DGGML_OPENCL=OFF \

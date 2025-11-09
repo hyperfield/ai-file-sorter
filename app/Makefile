@@ -1,5 +1,6 @@
 # Detect platform
 UNAME := $(shell uname | cut -d'-' -f1)
+UNAME_M := $(shell uname -m)
 
 BIN_DIR := ./bin
 OBJ_DIR := ./obj
@@ -25,22 +26,35 @@ ifeq ($(UNAME), Linux)
 	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin
 
 else ifeq ($(UNAME), Darwin)
-    PATH := /opt/homebrew/opt/qt/bin:/opt/homebrew/opt/curl/bin:$(PATH)
+    IS_APPLE_SILICON := $(shell sysctl -n machdep.cpu.brand_string | grep -i "Apple" > /dev/null && echo 1 || echo 0)
+    DEFAULT_BREW_PREFIX := $(shell if [ "$(IS_APPLE_SILICON)" = "1" ]; then echo /opt/homebrew; else echo /usr/local; fi)
+    BREW_PREFIX := $(shell if command -v brew >/dev/null 2>&1; then brew --prefix; else echo $(DEFAULT_BREW_PREFIX); fi)
+    QT_PREFIX := $(BREW_PREFIX)/opt/qt
+    QTBASE_PREFIX := $(BREW_PREFIX)/opt/qtbase
+    CURL_PREFIX := $(BREW_PREFIX)/opt/curl
+    LIBFFI_PREFIX := $(BREW_PREFIX)/opt/libffi
+    EXPAT_PREFIX := $(BREW_PREFIX)/opt/expat
+    SDKROOT := $(shell xcrun --sdk macosx --show-sdk-path 2>/dev/null)
+
+    PATH := $(QTBASE_PREFIX)/share/qt/libexec:$(QT_PREFIX)/bin:$(CURL_PREFIX)/bin:$(PATH)
     export PATH
 
-    export PKG_CONFIG_PATH := /opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig:/opt/homebrew/opt/expat/lib/pkgconfig:/opt/homebrew/opt/qt/lib/pkgconfig:$(PKG_CONFIG_PATH)
+    export PKG_CONFIG_PATH := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
 
-    export LDFLAGS += -L/opt/homebrew/opt/libffi/lib
-    export CPPFLAGS += -I/opt/homebrew/opt/libffi/include
-
+    export LDFLAGS += -L$(LIBFFI_PREFIX)/lib
+    export CPPFLAGS += -I$(LIBFFI_PREFIX)/include
     PLATFORM := MacOS
     CXXFLAGS += -DMACOS -DENABLE_METAL -DGGML_USE_METAL -Wno-deprecated -Iinclude/llama
+    ifneq ($(strip $(SDKROOT)),)
+    export SDKROOT
+    CXXFLAGS += -isysroot $(SDKROOT) -stdlib=libc++ -I$(SDKROOT)/usr/include/c++/v1
+    LDFLAGS += -isysroot $(SDKROOT)
+    endif
     TARGET := $(BIN_DIR)/aifilesorter
     INSTALL_DIR := /usr/local/bin
 	INSTALL_LIB_DIR := /usr/local/lib
 
-    IS_APPLE_SILICON := $(shell sysctl -n machdep.cpu.brand_string | grep -i "Apple" > /dev/null && echo 1 || echo 0)
-    SPDLOG_PATH := $(shell if [ "$(IS_APPLE_SILICON)" = "1" ]; then echo "/opt/homebrew/include"; else echo "/usr/local/include"; fi)
+    SPDLOG_PATH := $(BREW_PREFIX)/include
     CXXFLAGS += -I$(SPDLOG_PATH)
 
     PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
@@ -67,7 +81,11 @@ endif
 WRAPPED_BINARY := $(notdir $(TARGET))
 
 # Compiler and flags
-CXX = g++
+ifeq ($(UNAME), Darwin)
+CXX := clang++
+else
+CXX := g++
+endif
 CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
 CXX_VERSION_INFO := $(shell $(CXX) --version 2>/dev/null)
 # Suppress GCC-only diagnostics; clang (macOS) does not support some of them
@@ -84,7 +102,7 @@ else
 LIB_DIRS += -L./lib/precompiled
 endif
 ifeq ($(UNAME), Darwin)
-LIB_DIRS += -L/opt/homebrew/lib
+LIB_DIRS += -L$(BREW_PREFIX)/lib
 endif
 
 QRC_FILE := resources/app.qrc
@@ -104,6 +122,12 @@ RCC := $(wildcard /opt/homebrew/opt/qt/bin/qt6-rcc)
 endif
 ifeq ($(strip $(RCC)),)
 RCC := $(wildcard /usr/lib/qt6/libexec/rcc)
+endif
+ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /opt/homebrew/opt/qtbase/share/qt/libexec/rcc)
+endif
+ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /usr/local/opt/qtbase/share/qt/libexec/rcc)
 endif
 endif
 ifeq ($(strip $(RCC)),)

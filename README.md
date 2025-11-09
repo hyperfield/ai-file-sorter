@@ -166,14 +166,14 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 1. **Install dependencies**
    - Debian / Ubuntu:
      ```bash
-    sudo apt update && sudo apt install -y \
-      build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
-      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
+     sudo apt update && sudo apt install -y \
+       build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
+       libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
      ```
    - Fedora / RHEL:
      ```bash
-    sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
-      libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
+     sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
+       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
      ```
    - Arch / Manjaro:
      ```bash
@@ -186,16 +186,17 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    cd ai-file-sorter
    git submodule update --init --recursive --remote
    ```
+   > **Submodule tip:** If you previously downloaded `llama.cpp` or Catch2 manually, remove or rename `app/include/external/llama.cpp` and `external/Catch2` before running the `git submodule` command. Git needs those directories to be empty so it can populate them with the tracked submodules.
 3. **Build the llama runtime variants** (run once per backend you plan to ship/test)
-  ```bash
-  # CPU / OpenBLAS
-  ./app/scripts/build_llama_linux.sh cuda=off vulkan=off
-  # CUDA (optional; requires NVIDIA driver + CUDA toolkit)
-  ./app/scripts/build_llama_linux.sh cuda=on vulkan=off
-  # Vulkan (optional; requires a working Vulkan 1.2+ stack, e.g. mesa-vulkan-drivers + vulkan-tools)
-  ./app/scripts/build_llama_linux.sh cuda=off vulkan=on
-  ```
-  Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick Vulkan when available, then CUDA, and otherwise stay on CPU—no CUDA-only dependency remains.
+   ```bash
+   # CPU / OpenBLAS
+   ./app/scripts/build_llama_linux.sh cuda=off vulkan=off
+   # CUDA (optional; requires NVIDIA driver + CUDA toolkit)
+   ./app/scripts/build_llama_linux.sh cuda=on vulkan=off
+   # Vulkan (optional; requires a working Vulkan 1.2+ stack, e.g. mesa-vulkan-drivers + vulkan-tools)
+   ./app/scripts/build_llama_linux.sh cuda=off vulkan=on
+   ```
+   Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick Vulkan when available, then CUDA, and otherwise stay on CPU—no CUDA-only dependency remains.
 4. **Compile the application**
    ```bash
    cd app
@@ -222,10 +223,10 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```
 4. **Clone the repository and submodules** (same commands as Linux).
 5. **Build the llama runtime (Metal-only on macOS)**
-  ```bash
-  ./app/scripts/build_llama_macos.sh
-  ```
-  The macOS helper already produces the Metal-enabled variant the app needs, so no extra GPU-specific invocations are required on this platform.
+   ```bash
+   ./app/scripts/build_llama_macos.sh
+   ```
+   The macOS helper already produces the Metal-enabled variant the app needs, so no extra GPU-specific invocations are required on this platform.
 6. **Compile the application**
    ```bash
    cd app
@@ -256,7 +257,7 @@ Option A - CMake + vcpkg (recommended)
       ```
     - Otherwise use the directory where you cloned vcpkg.
 4. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need:
-  ```powershell
+   ```powershell
   # CPU / OpenBLAS only
   app\scripts\build_llama_windows.ps1 cuda=off vulkan=off vcpkgroot=C:\dev\vcpkg
   # CUDA (requires matching NVIDIA toolkit/driver)
