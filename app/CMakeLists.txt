@@ -338,22 +338,33 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         llama
     )
 
-    target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1)
+    target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1 WIN32_LEAN_AND_MEAN NOMINMAX)
 
     if(WIN32)
         target_link_libraries(ai_file_sorter_tests PRIVATE ggml ggml_base ggml_cpu)
+        foreach(libName IN LISTS WIN_SYSTEM_LIBS)
+            string(TOUPPER "${libName}" upperLib)
+            set(varName "${upperLib}_LIBRARY")
+            if(DEFINED ${varName} AND ${varName})
+                target_link_libraries(ai_file_sorter_tests PRIVATE "${${varName}}")
+            else()
+                target_link_libraries(ai_file_sorter_tests PRIVATE ${libName})
+            endif()
+        endforeach()
     endif()
 
     if(BUILD_TESTING)
         add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)
     endif()
 
-    add_test(
-        NAME integration_run_all
-        COMMAND ${CMAKE_COMMAND} -E env bash ${CMAKE_SOURCE_DIR}/../tests/run_all_tests.sh
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
-    )
-    set_tests_properties(integration_run_all PROPERTIES
-        PASS_REGULAR_EXPRESSION "All tests completed successfully."
-    )
+    if(NOT WIN32)
+        add_test(
+            NAME integration_run_all
+            COMMAND ${CMAKE_COMMAND} -E env bash ${CMAKE_SOURCE_DIR}/../tests/run_all_tests.sh
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
+        )
+        set_tests_properties(integration_run_all PROPERTIES
+            PASS_REGULAR_EXPRESSION "All tests completed successfully."
+        )
+    endif()
 endif()

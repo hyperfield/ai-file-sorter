@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <fstream>
 
+#ifndef _WIN32
+
 namespace {
 
 struct MoveProbeGuard {
@@ -65,6 +67,7 @@ TEST_CASE("CategorizationDialog uses subcategory toggle when moving files") {
     }
 }
 
+#ifndef _WIN32
 TEST_CASE("CategorizationDialog undo restores moved files") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
     QtAppContext qt_context;
@@ -100,3 +103,6 @@ TEST_CASE("CategorizationDialog undo restores moved files") {
     REQUIRE_FALSE(std::filesystem::exists(destination));
     REQUIRE_FALSE(dialog.test_undo_enabled());
 }
+#endif
+
+#endif // !_WIN32

@@ -697,7 +697,7 @@ bool handle_cuda_forced_off(bool cuda_forced_off,
     return true;
 }
 
-void configure_cuda_backend(const std::string& model_path,
+bool configure_cuda_backend(const std::string& model_path,
                             llama_model_params& params,
                             const std::shared_ptr<spdlog::logger>& logger) {
     const bool cuda_available = Utils::is_cuda_available();
@@ -709,7 +709,7 @@ void configure_cuda_backend(const std::string& model_path,
             logger->info("CUDA backend unavailable; using CPU backend");
         }
         std::cout << "No supported GPU backend detected. Running on CPU.\n";
-        return;
+        return false;
     }
 
     const int override_layers = resolve_gpu_layer_override();
@@ -729,7 +729,7 @@ void configure_cuda_backend(const std::string& model_path,
             }
             std::cout << "ngl override: " << params.n_gpu_layers << std::endl;
         }
-        return;
+        return true;
     }
 
     int ngl = 0;
@@ -786,6 +786,7 @@ void configure_cuda_backend(const std::string& model_path,
         set_env_var("GGML_DISABLE_CUDA", "1");
         std::cout << "CUDA not usable, falling back to CPU.\n";
     }
+    return true;
 }
 #endif
 
@@ -882,7 +883,23 @@ llama_model_params build_model_params_for_path(const std::string& model_path,
         return model_params;
     }
 
-    configure_cuda_backend(model_path, model_params, logger);
+    const bool cudaConfigured = configure_cuda_backend(model_path, model_params, logger);
+    if (!cudaConfigured) {
+        if (logger) {
+            if (backend_pref == PreferredBackend::Cuda) {
+                logger->warn("CUDA backend explicitly requested but unavailable; attempting Vulkan fallback.");
+            } else {
+                logger->warn("CUDA backend unavailable; attempting Vulkan fallback.");
+            }
+        }
+        if (apply_vulkan_backend(model_path, model_params, logger)) {
+            return model_params;
+        }
+        if (logger) {
+            logger->warn("Vulkan fallback unavailable; using CPU backend.");
+        }
+        return model_params;
+    }
 #endif
 
     return model_params;
@@ -940,8 +957,8 @@ bool handle_cuda_forced_off(bool cuda_forced_off,
     return ::handle_cuda_forced_off(cuda_forced_off, to_internal_backend(preference), params, nullptr);
 }
 
-void configure_cuda_backend(const std::string& model_path, llama_model_params& params) {
-    ::configure_cuda_backend(model_path, params, nullptr);
+bool configure_cuda_backend(const std::string& model_path, llama_model_params& params) {
+    return ::configure_cuda_backend(model_path, params, nullptr);
 }
 
 llama_model_params prepare_model_params_for_testing(const std::string& model_path) {

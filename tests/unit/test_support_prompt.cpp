@@ -10,12 +10,14 @@ namespace {
 struct TestEnvironment {
     TempDir home_dir;
     EnvVarGuard home_guard;
+    EnvVarGuard config_guard;
     Settings settings;
     bool prompt_state{false};
 
     TestEnvironment()
         : home_dir(),
           home_guard("HOME", home_dir.path().string()),
+          config_guard("AI_FILE_SORTER_CONFIG_DIR", (home_dir.path() / ".config").string()),
           settings() {
         std::filesystem::create_directories(home_dir.path() / ".config" / "AIFileSorter");
         settings.load();

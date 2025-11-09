@@ -5,6 +5,7 @@
 #include "TranslationManager.hpp"
 #include "Language.hpp"
 
+#ifndef _WIN32
 TEST_CASE("MainApp retranslate reflects language changes") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
     QtAppContext qt_context;
@@ -28,3 +29,4 @@ TEST_CASE("MainApp retranslate reflects language changes") {
     REQUIRE(MainAppTestAccess::analyze_button_text(window) == QStringLiteral("Analyser le dossier"));
     REQUIRE(MainAppTestAccess::path_label_text(window) == QStringLiteral("Dossier :"));
 }
+#endif

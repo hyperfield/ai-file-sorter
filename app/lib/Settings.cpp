@@ -85,6 +85,10 @@ Settings::Settings()
 std::string Settings::define_config_path()
 {
     std::string AppName = "AIFileSorter";
+    if (const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR")) {
+        std::filesystem::path base = override_root;
+        return (base / AppName / "config.ini").string();
+    }
 #ifdef _WIN32
     char appDataPath[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {

@@ -21,7 +21,7 @@ bool apply_vulkan_backend(const std::string& model_path,
 bool handle_cuda_forced_off(bool cuda_forced_off,
                             BackendPreference preference,
                             llama_model_params& params);
-void configure_cuda_backend(const std::string& model_path,
+bool configure_cuda_backend(const std::string& model_path,
                             llama_model_params& params);
 llama_model_params prepare_model_params_for_testing(const std::string& model_path);
 

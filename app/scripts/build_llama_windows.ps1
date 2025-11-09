@@ -178,17 +178,18 @@ if ($cpuOnlyBuild) {
         throw "CPU-only builds require OpenBLAS from MSYS2/MinGW64. Pass openblasroot=<path> or set OPENBLAS_ROOT."
     }
 
-    $openBlasInclude = Join-Path $openBlasRoot "include"
-    $openBlasHeader = Join-Path $openBlasInclude "openblas\cblas.h"
+    $openBlasIncludeRoot = Join-Path $openBlasRoot "include"
+    $openBlasInclude = Join-Path $openBlasIncludeRoot "openblas"
+    $openBlasHeader = Join-Path $openBlasInclude "cblas.h"
     if (-not (Test-Path $openBlasHeader)) {
         throw "Missing cblas.h under $openBlasInclude. Install OpenBLAS via MSYS2 (pacman -S mingw-w64-x86_64-openblas) or point openblasroot to a valid tree."
     }
 
     $openBlasLibCandidates = @(
-        Join-Path $openBlasRoot "lib\openblas.lib",
-        Join-Path $openBlasRoot "lib\libopenblas.lib",
-        Join-Path $openBlasRoot "lib\libopenblas.dll.a",
-        Join-Path $openBlasRoot "lib\libopenblas.a"
+        (Join-Path $openBlasRoot "lib\openblas.lib")
+        (Join-Path $openBlasRoot "lib\libopenblas.lib")
+        (Join-Path $openBlasRoot "lib\libopenblas.dll.a")
+        (Join-Path $openBlasRoot "lib\libopenblas.a")
     )
     foreach ($candidate in $openBlasLibCandidates) {
         if (Test-Path $candidate) {
@@ -201,8 +202,8 @@ if ($cpuOnlyBuild) {
     }
 
     $openBlasDllCandidates = @(
-        Join-Path $openBlasRoot "bin\libopenblas.dll",
-        Join-Path $openBlasRoot "bin\openblas.dll"
+        (Join-Path $openBlasRoot "bin\libopenblas.dll")
+        (Join-Path $openBlasRoot "bin\openblas.dll")
     )
     foreach ($candidate in $openBlasDllCandidates) {
         if (Test-Path $candidate) {

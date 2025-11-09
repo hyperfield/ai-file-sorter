@@ -905,6 +905,11 @@ void MainApp::handle_analysis_finished()
         return;
     }
 
+    if (pending_categorized_count_ > 0) {
+        record_categorized_metrics(pending_categorized_count_);
+        pending_categorized_count_ = 0;
+    }
+
     populate_tree_view(new_files_to_sort);
     show_results_dialog(new_files_to_sort);
 }
@@ -927,6 +932,7 @@ void MainApp::handle_analysis_failure(const std::string& message)
 
 void MainApp::handle_no_files_to_sort()
 {
+    pending_categorized_count_ = 0;
     show_error_dialog(ERR_NO_FILES_TO_CATEGORIZE);
 }
 
@@ -1083,6 +1089,7 @@ void MainApp::perform_analysis()
             });
         core_logger->info("Categorization produced {} new record(s).",
                           new_files_with_categories.size());
+        pending_categorized_count_ = static_cast<int>(new_files_with_categories.size());
 
         already_categorized_files.insert(
             already_categorized_files.end(),
@@ -1265,7 +1272,6 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, this);
         categorization_dialog->show_results(results);
-        record_categorized_metrics(static_cast<int>(results.size()));
     } catch (const std::exception& ex) {
         if (ui_logger) {
             ui_logger->error("Error showing results dialog: {}", ex.what());

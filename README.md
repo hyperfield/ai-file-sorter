@@ -134,7 +134,7 @@ AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* an
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
-- **Optional GPU backends**: CUDA 12.x for NVIDIA cards, or a Vulkan 1.2+ driver for AMD/NVIDIA/Intel GPUs. If neither is present, the app falls back to CPU/OpenBLAS automatically.
+- **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **OpenAI API Key** (optional): Required only when using the remote ChatGPT workflow.
 
@@ -154,7 +154,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
      libqt6widgets6 libcurl4 libjsoncpp25 libfmt9 libopenblas0-pthread
    ```
    Ensure that the Qt platform plugins are installed (on Ubuntu 22.04 this is provided by `qt6-wayland`).
-   GPU acceleration additionally requires an NVIDIA driver with the matching CUDA runtime (`nvidia-cuda-toolkit` or the vendor packages).
+   GPU acceleration additionally requires either a working Vulkan 1.2+ stack (Mesa, AMD/Intel/NVIDIA drivers) or, for NVIDIA users, the matching CUDA runtime (`nvidia-cuda-toolkit` or vendor packages). The launcher automatically prefers Vulkan when both are present and falls back to CPU if neither is available.
 2. **Install the package**
    ```bash
    sudo apt install ./aifilesorter_1.0.0_amd64.deb
@@ -179,18 +179,23 @@ File categorization with local LLMs is completely free of charge. If you prefer 
      ```bash
      sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog
      ```
-     Optional GPU acceleration also requires the distro CUDA packages (for NVIDIA) or a Vulkan 1.2+ driver/runtime (for AMD/Intel/NVIDIA).
+     Optional GPU acceleration also requires either the distro Vulkan 1.2+ driver/runtime (Mesa, AMD, Intel, NVIDIA) or CUDA packages for NVIDIA cards. Install whichever stack you plan to use; the app will fall back to CPU automatically if none are detected.
 2. **Clone the repository**
    ```bash
    git clone https://github.com/hyperfield/ai-file-sorter.git
    cd ai-file-sorter
    git submodule update --init --recursive --remote
    ```
-3. **Build the llama runtime** (choose exactly one accelerator flag per run)
-   ```bash
-   ./app/scripts/build_llama_linux.sh [cuda=on|off] [vulkan=on|off]
-   ```
-   Use `cuda=on` when the NVIDIA CUDA toolkit is present, `vulkan=on` when your Mesa/driver stack exposes Vulkan 1.2+, or leave both off for a CPU/OpenBLAS-only build. (The script errors out if both accelerators are requested simultaneously.) For Vulkan builds, install the vendor driver or Mesa packages that provide `vulkaninfo` (e.g. `sudo apt install mesa-vulkan-drivers vulkan-tools`) and verify `vulkaninfo` succeeds before running the script; the generated libraries are staged under `app/lib/precompiled/vulkan` and `app/lib/ggml/wvulkan`.
+3. **Build the llama runtime variants** (run once per backend you plan to ship/test)
+  ```bash
+  # CPU / OpenBLAS
+  ./app/scripts/build_llama_linux.sh cuda=off vulkan=off
+  # CUDA (optional; requires NVIDIA driver + CUDA toolkit)
+  ./app/scripts/build_llama_linux.sh cuda=on vulkan=off
+  # Vulkan (optional; requires a working Vulkan 1.2+ stack, e.g. mesa-vulkan-drivers + vulkan-tools)
+  ./app/scripts/build_llama_linux.sh cuda=off vulkan=on
+  ```
+  Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick Vulkan when available, then CUDA, and otherwise stay on CPU—no CUDA-only dependency remains.
 4. **Compile the application**
    ```bash
    cd app
@@ -216,10 +221,11 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$PKG_CONFIG_PATH"
    ```
 4. **Clone the repository and submodules** (same commands as Linux).
-5. **Build the llama runtime**
-   ```bash
-   ./app/scripts/build_llama_macos.sh
-   ```
+5. **Build the llama runtime (Metal-only on macOS)**
+  ```bash
+  ./app/scripts/build_llama_macos.sh
+  ```
+  The macOS helper already produces the Metal-enabled variant the app needs, so no extra GPU-specific invocations are required on this platform.
 6. **Compile the application**
    ```bash
    cd app
@@ -249,12 +255,16 @@ Option A - CMake + vcpkg (recommended)
       Split-Path -Parent (Get-Command vcpkg).Source
       ```
     - Otherwise use the directory where you cloned vcpkg.
-4. Build the bundled `llama.cpp` runtime (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Pass `cuda=on` for NVIDIA, `vulkan=on` for a Vulkan 1.2+ GPU, or leave both off for a CPU-only build (only one backend can be enabled at a time):
-   ```powershell
-   app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [vcpkgroot=C:\dev\vcpkg]
-   ```
-   This script produces the `llama.dll`/`ggml*.dll` set under `app\lib\precompiled` which the GUI links against.
-   For Vulkan builds, install the latest LunarG Vulkan SDK or your GPU vendor's Vulkan 1.2+ driver and confirm `vulkaninfo` works inside the Developer PowerShell before invoking the script; the Vulkan artifacts are copied to `lib\precompiled\vulkan` and `lib\ggml\wvulkan`.
+4. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need:
+  ```powershell
+  # CPU / OpenBLAS only
+  app\scripts\build_llama_windows.ps1 cuda=off vulkan=off vcpkgroot=C:\dev\vcpkg
+  # CUDA (requires matching NVIDIA toolkit/driver)
+  app\scripts\build_llama_windows.ps1 cuda=on vulkan=off vcpkgroot=C:\dev\vcpkg
+  # Vulkan (requires LunarG Vulkan SDK or vendor Vulkan 1.2+ runtime)
+  app\scripts\build_llama_windows.ps1 cuda=off vulkan=on vcpkgroot=C:\dev\vcpkg
+  ```
+  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan>` and copies the runtime DLLs into `app\lib\ggml\w<variant>`. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. Supplying both Vulkan and (optionally) CUDA artifacts lets `StartAiFileSorter.exe` detect the best backend at launch—Vulkan is preferred, CUDA is used when Vulkan is missing, and CPU remains the fallback, so CUDA is not required.
 5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
    ```powershell
    # One-time per shell if script execution is blocked:
@@ -263,8 +273,10 @@ Option A - CMake + vcpkg (recommended)
    app\build_windows.ps1 -Configuration Release -VcpkgRoot C:\dev\vcpkg
    ```
    - Replace `C:\dev\vcpkg` with the path where you cloned vcpkg; it must contain `scripts\buildsystems\vcpkg.cmake`.
+   - Always launch the app via `StartAiFileSorter.exe`. This small bootstrapper configures the GGML/CUDA/Vulkan DLLs, auto-selects Vulkan → CUDA → CPU at runtime, and sets the environment before spawning `aifilesorter.exe`. Launching `aifilesorter.exe` directly now shows a reminder dialog; developers can bypass it (for debugging) by adding `--allow-direct-launch` when invoking the GUI manually.
    - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
    - The executable and required Qt/third-party DLLs are placed in `app\build-windows\Release`. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
+   - Pass `-Parallel <N>` to override the default “all cores” parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build … --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
 
 Option B - CMake + Qt online installer
 
@@ -293,7 +305,7 @@ Notes
 - To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
-- If you enable CUDA or Vulkan for local models, build `llama.cpp` with the matching backend first (only one per build) and reconfigure CMake accordingly.
+- If you plan to ship CUDA or Vulkan acceleration, run the `build_llama_*` helper for each backend you intend to include before configuring CMake so the libraries exist. The runtime can carry both and auto-select at launch, so CUDA remains optional.
 
 ### Running tests
 
@@ -320,7 +332,7 @@ Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and
 - `--cuda={on|off}` – force-enable or disable the CUDA backend.
 - `--vulkan={on|off}` – force-enable or disable the Vulkan backend.
 
-When no flags are provided the app auto-detects available runtimes in priority order (CUDA → Vulkan → CPU). Use the flags to skip a backend (`--cuda=off`) or to test a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected.
+When no flags are provided the app auto-detects available runtimes in priority order (Vulkan → CUDA → CPU). Use the flags to skip a backend (`--cuda=off` forces Vulkan/CPU even if CUDA is installed, `--vulkan=off` tests CUDA explicitly) or to validate a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected, and if neither GPU backend is detected the app automatically stays on CPU.
 
 ---
 

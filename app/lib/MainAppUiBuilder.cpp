@@ -25,6 +25,7 @@
 #include <QMessageBox>
 #include <QObject>
 #include <QPushButton>
+#include <QPainter>
 #include <QSize>
 #include <QSizePolicy>
 #include <QStackedWidget>
@@ -254,6 +255,21 @@ QIcon MainAppUiBuilder::icon_for(MainApp& app, const char* name, QStyle::Standar
     QIcon icon = QIcon::fromTheme(QString::fromLatin1(name));
     if (icon.isNull()) {
         icon = app.style()->standardIcon(fallback);
+    }
+    if (!icon.isNull()) {
+        const int targetSize = app.style()->pixelMetric(QStyle::PM_SmallIconSize);
+        if (targetSize > 0) {
+            QPixmap pixmap = icon.pixmap(targetSize, targetSize);
+            if (!pixmap.isNull()) {
+                const int padding = 3;
+                QPixmap padded(pixmap.width() + padding * 2, pixmap.height() + padding * 2);
+                padded.fill(Qt::transparent);
+                QPainter painter(&padded);
+                painter.drawPixmap(padding, padding, pixmap);
+                painter.end();
+                icon = QIcon(padded);
+            }
+        }
     }
     return icon;
 }

@@ -201,6 +201,7 @@ private:
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
     bool donation_prompt_active_{false};
+    int pending_categorized_count_{0};
     bool should_log_prompts() const;
     void apply_development_logging();
 };

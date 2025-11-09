@@ -6,7 +6,9 @@ param(
     [string]$Generator,
     [switch]$SkipDeploy,
     [switch]$BuildTests,
-    [switch]$RunTests
+    [switch]$RunTests,
+    [ValidateRange(1, 512)]
+    [int]$Parallel = [System.Environment]::ProcessorCount
 )
 
 $ErrorActionPreference = "Stop"
@@ -154,6 +156,10 @@ if ($cmakeVersionMatch.Success) {
     }
 }
 
+if ($Parallel -lt 1) {
+    $Parallel = [Math]::Max([System.Environment]::ProcessorCount, 1)
+}
+
 if ($Generator -eq "Ninja" -or $Generator -eq "Ninja Multi-Config") {
     $configureArgs += "-DCMAKE_BUILD_TYPE=$Configuration"
 } else {
@@ -162,6 +168,7 @@ if ($Generator -eq "Ninja" -or $Generator -eq "Ninja Multi-Config") {
 }
 
 Write-Output "Configuring project (generator: $Generator, configuration: $Configuration)..."
+Write-Output "Using $Parallel parallel job(s) for builds."
 
 Write-Output "`n==== CMake Configure Command ===="
 Write-Output "cmake $($configureArgs -join ' ')"
@@ -172,7 +179,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "cmake configure failed."
 }
 
-$buildArgs = @("--build", $buildDir, "--config", $Configuration)
+$buildArgs = @("--build", $buildDir, "--config", $Configuration, "--parallel", $Parallel)
 
 Write-Output "Building..."
 & $cmakeExe @buildArgs
@@ -182,7 +189,7 @@ if ($LASTEXITCODE -ne 0) {
 
 if ($BuildTests) {
     Write-Output "Building unit tests..."
-    $testBuildArgs = @("--build", $buildDir, "--config", $Configuration, "--target", "ai_file_sorter_tests")
+    $testBuildArgs = @("--build", $buildDir, "--config", $Configuration, "--target", "ai_file_sorter_tests", "--parallel", $Parallel)
     & $cmakeExe @testBuildArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to build unit tests."
@@ -194,7 +201,7 @@ if ($BuildTests) {
         }
         Push-Location $buildDir
         Write-Output "Running ctest..."
-        & $ctestExe "-C" $Configuration "--output-on-failure"
+        & $ctestExe "-C" $Configuration "--output-on-failure" "-j" $Parallel
         $ctestExit = $LASTEXITCODE
         Pop-Location
         if ($ctestExit -ne 0) {

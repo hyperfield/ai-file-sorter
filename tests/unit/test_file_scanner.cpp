@@ -3,6 +3,9 @@
 #include "TestHelpers.hpp"
 #include <fstream>
 #include <filesystem>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 static void write_file(const std::filesystem::path& path) {
     std::filesystem::create_directories(path.parent_path());
@@ -14,6 +17,13 @@ TEST_CASE("hidden files require explicit flag") {
     TempDir temp_dir;
     const auto hidden_file = temp_dir.path() / ".secret.txt";
     write_file(hidden_file);
+#ifdef _WIN32
+    auto current_attrs = GetFileAttributesW(hidden_file.c_str());
+    if (current_attrs == INVALID_FILE_ATTRIBUTES) {
+        FAIL("Failed to get attributes for hidden test file");
+    }
+    SetFileAttributesW(hidden_file.c_str(), current_attrs | FILE_ATTRIBUTE_HIDDEN);
+#endif
 
     FileScanner scanner;
     auto entries = scanner.get_directory_entries(temp_dir.path().string(),

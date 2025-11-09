@@ -25,6 +25,9 @@
 #include <libintl.h>
 #include <cstdio>
 #include <iostream>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 
 bool initialize_loggers()
@@ -44,6 +47,24 @@ bool initialize_loggers()
 
 
 int main(int argc, char **argv) {
+
+#ifdef _WIN32
+    bool allow_direct_launch = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--allow-direct-launch") == 0) {
+            allow_direct_launch = true;
+            break;
+        }
+    }
+    if (!allow_direct_launch) {
+        const wchar_t* message =
+            L"Please launch AI File Sorter by running StartAiFileSorter.exe.\n"
+            L"The starter configures GPU backends and runtime DLLs automatically.";
+        MessageBoxW(nullptr, message, L"AI File Sorter", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+        return EXIT_FAILURE;
+    }
+#endif
+
     if (!initialize_loggers()) {
         return EXIT_FAILURE;
     }
@@ -72,6 +93,8 @@ int main(int argc, char **argv) {
         for (int i = 0; i < argc; ++i) {
             if (i > 0 && std::strcmp(argv[i], "--development") == 0) {
                 development_mode = true;
+                continue;
+            } else if (i > 0 && std::strcmp(argv[i], "--allow-direct-launch") == 0) {
                 continue;
             }
             filtered_args.push_back(argv[i]);
