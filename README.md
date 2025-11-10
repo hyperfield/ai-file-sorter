@@ -6,15 +6,17 @@
 <p align="center">
   <img src="app/resources/images/icon_256x256.png" alt="AI File Sorter logo" width="128" height="128">
 </p>
-AI File Sorter is a powerful, cross-platform desktop application that automates file organization with the help of AI.  
+AI File Sorter is a powerful, cross-platform desktop application that automates file organization with the help of AI.
 
-It helps tidy up cluttered folders like Downloads, external drives, or NAS storage by automatically categorizing files based on their names, extensions, directory context, and taxonomy.  
+It helps tidy up cluttered folders like Downloads, external drives, or NAS storage by automatically categorizing files based on their names, extensions, directory context, taxonomy, and other heuristics for accuracy and consistency.
 
-It uses a **taxonomy-based system**, so the more files you sort, the more consistent and accurate the categories become over time. It essentially builds up a smarter internal reference for your file types and naming patterns. File content–based sorting for certain file types is also in development.  
+The app uses a **taxonomy-based system**, which essentially means that it builds up a smarter internal reference for your file types and naming patterns.
 
 The app intelligently assigns categories and optional subcategories, which you can review and adjust before confirming. Once approved, the necessary folders are created and your files are sorted automatically.  
 
 AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* and *Mistral 7B*, and does not require an internet connection unless you choose to use a remote model.
+
+File content–based sorting for certain file types is also in development.  
 
 ---
 
