@@ -19,6 +19,7 @@ struct CategorizedFile {
     std::string category;
     std::string subcategory;
     int taxonomy_id{0};
+    bool from_cache{false};
 };
 
 inline std::string to_string(FileType type) {

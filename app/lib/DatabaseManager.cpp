@@ -109,7 +109,9 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     }
 
     FileType file_type_enum = (type_str == "F") ? FileType::File : FileType::Directory;
-    return CategorizedFile{dir_path, name, file_type_enum, cat, subcat, taxonomy_id};
+    CategorizedFile entry{dir_path, name, file_type_enum, cat, subcat, taxonomy_id};
+    entry.from_cache = true;
+    return entry;
 }
 
 } // namespace

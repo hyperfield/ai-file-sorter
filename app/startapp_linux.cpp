@@ -6,7 +6,14 @@
 #include <string>
 #include <sys/stat.h>
 #include <vector>
+#include <optional>
 #include <dlfcn.h>
+
+enum class BackendSelection {
+    Cpu,
+    Cuda,
+    Vulkan
+};
 
 std::string getExecutableDirectory() {
     char result[PATH_MAX];

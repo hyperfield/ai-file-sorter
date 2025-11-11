@@ -23,6 +23,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QCloseEvent>
+#include <QDialogButtonBox>
 #include <QDockWidget>
 #include <QHBoxLayout>
 #include <QAbstractItemView>
@@ -808,6 +809,39 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     auto* later_btn = box.addButton(tr("I'm not yet sure"), QMessageBox::RejectRole);
     auto* cannot_btn = box.addButton(tr("I cannot donate"), QMessageBox::DestructiveRole);
 
+    const auto apply_button_style = [](QAbstractButton* button,
+                                       const QString& background,
+                                       const QString& hover) {
+        if (!button) {
+            return;
+        }
+        button->setStyleSheet(QStringLiteral(
+            "QPushButton {"
+            "  background-color: %1;"
+            "  color: white;"
+            "  padding: 6px 18px;"
+            "  border: none;"
+            "  border-radius: 14px;"
+            "  font-weight: 600;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: %2;"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: %2;"
+            "  opacity: 0.9;"
+            "}"
+        ).arg(background, hover));
+    };
+
+    apply_button_style(support_btn, QStringLiteral("#007aff"), QStringLiteral("#005ec7"));
+    apply_button_style(later_btn, QStringLiteral("#bdc3c7"), QStringLiteral("#95a5a6"));
+    apply_button_style(cannot_btn, QStringLiteral("#e74c3c"), QStringLiteral("#c0392b"));
+
+    if (auto* button_box = box.findChild<QDialogButtonBox*>()) {
+        button_box->setCenterButtons(true);
+    }
+
     box.setDefaultButton(later_btn);
     box.exec();
 
@@ -843,11 +877,6 @@ void MainApp::handle_analysis_finished()
         return;
     }
 
-    if (pending_categorized_count_ > 0) {
-        record_categorized_metrics(pending_categorized_count_);
-        pending_categorized_count_ = 0;
-    }
-
     populate_tree_view(new_files_to_sort);
     show_results_dialog(new_files_to_sort);
 }
@@ -870,7 +899,6 @@ void MainApp::handle_analysis_failure(const std::string& message)
 
 void MainApp::handle_no_files_to_sort()
 {
-    pending_categorized_count_ = 0;
     show_error_dialog(ERR_NO_FILES_TO_CATEGORIZE);
 }
 
@@ -1027,7 +1055,6 @@ void MainApp::perform_analysis()
             });
         core_logger->info("Categorization produced {} new record(s).",
                           new_files_with_categories.size());
-        pending_categorized_count_ = static_cast<int>(new_files_with_categories.size());
 
         already_categorized_files.insert(
             already_categorized_files.end(),
@@ -1210,6 +1237,14 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, this);
         categorization_dialog->show_results(results);
+
+        const int newly_analyzed = static_cast<int>(std::count_if(
+            results.begin(),
+            results.end(),
+            [](const CategorizedFile& file) { return !file.from_cache; }));
+        if (newly_analyzed > 0) {
+            record_categorized_metrics(newly_analyzed);
+        }
     } catch (const std::exception& ex) {
         if (ui_logger) {
             ui_logger->error("Error showing results dialog: {}", ex.what());
