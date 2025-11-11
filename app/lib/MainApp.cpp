@@ -13,6 +13,7 @@
 #include "Utils.hpp"
 #include "Types.hpp"
 #include "MainAppUiBuilder.hpp"
+#include "UiTranslator.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
 #include "MainAppTestAccess.hpp"
 #endif
@@ -41,7 +42,6 @@
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QCoreApplication>
-#include <QStringList>
 #include <QStatusBar>
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -156,6 +156,52 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
 
     MainAppUiBuilder ui_builder;
     ui_builder.build(*this);
+    UiTranslator::Dependencies translator_deps{
+        .window = *this,
+        .primary = UiTranslator::PrimaryControls{
+            path_label,
+            browse_button,
+            analyze_button,
+            use_subcategories_checkbox,
+            categorize_files_checkbox,
+            categorize_directories_checkbox},
+        .tree_model = tree_model,
+        .menus = UiTranslator::MenuControls{
+            file_menu,
+            edit_menu,
+            view_menu,
+            settings_menu,
+            development_menu,
+            development_settings_menu,
+            language_menu,
+            help_menu},
+        .actions = UiTranslator::ActionControls{
+            file_quit_action,
+            copy_action,
+            cut_action,
+            paste_action,
+            delete_action,
+            toggle_explorer_action,
+            toggle_llm_action,
+            development_prompt_logging_action,
+            consistency_pass_action,
+            english_action,
+            french_action,
+            about_action,
+            about_qt_action,
+            about_agpl_action,
+            support_project_action},
+        .language = UiTranslator::LanguageControls{
+            language_group,
+            english_action,
+            french_action},
+        .file_explorer_dock = file_explorer_dock,
+        .settings = settings,
+        .translator = [](const char* source) {
+            return MainApp::tr(source);
+        }
+    };
+    ui_translator_ = std::make_unique<UiTranslator>(translator_deps);
     retranslate_ui();
     setup_file_explorer();
     connect_signals();
@@ -394,7 +440,9 @@ void MainApp::sync_settings_to_ui()
         development_prompt_logging_action->setChecked(development_prompt_logging_enabled_);
     }
 
-    update_language_checks();
+    if (ui_translator_) {
+        ui_translator_->update_language_checks();
+    }
 }
 
 
@@ -426,190 +474,16 @@ void MainApp::sync_ui_to_settings()
 
 void MainApp::retranslate_ui()
 {
-    translate_window_title();
-    translate_primary_controls();
-    translate_tree_view_labels();
-    translate_menus_and_actions();
-    translate_status_messages();
-    update_language_checks();
-}
-
-void MainApp::translate_window_title()
-{
-    setWindowTitle(QStringLiteral("AI File Sorter"));
-}
-
-void MainApp::translate_primary_controls()
-{
-    if (path_label) {
-        path_label->setText(tr("Folder:"));
-    }
-    if (browse_button) {
-        browse_button->setText(tr("Browse…"));
-    }
-    if (use_subcategories_checkbox) {
-        use_subcategories_checkbox->setText(tr("Use subcategories"));
-    }
-    if (categorize_files_checkbox) {
-        categorize_files_checkbox->setText(tr("Categorize files"));
-    }
-    if (categorize_directories_checkbox) {
-        categorize_directories_checkbox->setText(tr("Categorize directories"));
-    }
-    if (analyze_button) {
-        analyze_button->setText(analysis_in_progress_ ? tr("Stop analyzing") : tr("Analyze folder"));
-    }
-}
-
-void MainApp::translate_tree_view_labels()
-{
-    if (!tree_model) {
+    if (!ui_translator_) {
         return;
     }
 
-    tree_model->setHorizontalHeaderLabels(QStringList{
-        tr("File"),
-        tr("Type"),
-        tr("Category"),
-        tr("Subcategory"),
-        tr("Status")
-    });
-
-    for (int row = 0; row < tree_model->rowCount(); ++row) {
-        if (auto* type_item = tree_model->item(row, 1)) {
-            const QString type_code = type_item->data(Qt::UserRole).toString();
-            if (type_code == QStringLiteral("D")) {
-                type_item->setText(tr("Directory"));
-            } else if (type_code == QStringLiteral("F")) {
-                type_item->setText(tr("File"));
-            }
-        }
-        if (auto* status_item = tree_model->item(row, 4)) {
-            const QString status_code = status_item->data(Qt::UserRole).toString();
-            if (status_code == QStringLiteral("ready")) {
-                status_item->setText(tr("Ready"));
-            }
-        }
-    }
-}
-
-void MainApp::translate_menus_and_actions()
-{
-    if (file_menu) {
-        file_menu->setTitle(tr("&File"));
-    }
-    if (file_quit_action) {
-        file_quit_action->setText(tr("&Quit"));
-    }
-    if (edit_menu) {
-        edit_menu->setTitle(tr("&Edit"));
-    }
-    if (copy_action) {
-        copy_action->setText(tr("&Copy"));
-    }
-    if (cut_action) {
-        cut_action->setText(tr("Cu&t"));
-    }
-    if (paste_action) {
-        paste_action->setText(tr("&Paste"));
-    }
-    if (delete_action) {
-        delete_action->setText(tr("&Delete"));
-    }
-    if (view_menu) {
-        view_menu->setTitle(tr("&View"));
-    }
-    if (toggle_explorer_action) {
-        toggle_explorer_action->setText(tr("File &Explorer"));
-    }
-    if (settings_menu) {
-        settings_menu->setTitle(tr("&Settings"));
-    }
-    if (toggle_llm_action) {
-        toggle_llm_action->setText(tr("Select &LLM…"));
-    }
-    if (development_menu) {
-        development_menu->setTitle(tr("&Development"));
-    }
-    if (development_settings_menu) {
-        development_settings_menu->setTitle(tr("&Settings"));
-    }
-    if (development_prompt_logging_action) {
-        development_prompt_logging_action->setText(tr("Log prompts and responses to stdout"));
-    }
-    if (consistency_pass_action) {
-        consistency_pass_action->setText(tr("Run &consistency pass"));
-    }
-    if (language_menu) {
-        language_menu->setTitle(tr("&Language"));
-    }
-    if (english_action) {
-        english_action->setText(tr("&English"));
-    }
-    if (french_action) {
-        french_action->setText(tr("&French"));
-    }
-    if (help_menu) {
-        const QString help_title = QString(QChar(0x200B)) + tr("&Help");
-        help_menu->setTitle(help_title);
-        if (QAction* help_action = help_menu->menuAction()) {
-            help_action->setText(help_title);
-        }
-    }
-    if (about_action) {
-        about_action->setText(tr("&About AI File Sorter"));
-    }
-    if (about_qt_action) {
-        about_qt_action->setText(tr("About &Qt"));
-    }
-    if (about_agpl_action) {
-        about_agpl_action->setText(tr("About &AGPL"));
-    }
-    if (support_project_action) {
-        support_project_action->setText(tr("&Support Project"));
-    }
-    if (file_explorer_dock) {
-        file_explorer_dock->setWindowTitle(tr("File Explorer"));
-    }
-}
-
-void MainApp::translate_status_messages()
-{
-    auto* bar = statusBar();
-    if (!bar) {
-        return;
-    }
-
-    if (analysis_in_progress_) {
-        if (stop_analysis.load()) {
-            bar->showMessage(tr("Cancelling analysis…"), 4000);
-        } else {
-            bar->showMessage(tr("Analyzing…"));
-        }
-    } else if (status_is_ready_) {
-        bar->showMessage(tr("Ready"));
-    }
-}
-
-void MainApp::update_language_checks()
-{
-    if (!language_group) {
-        return;
-    }
-
-    Language configured = settings.get_language();
-    if (configured != Language::English && configured != Language::French) {
-        configured = Language::English;
-        settings.set_language(configured);
-    }
-
-    QSignalBlocker blocker(language_group);
-    if (english_action) {
-        english_action->setChecked(configured == Language::English);
-    }
-    if (french_action) {
-        french_action->setChecked(configured == Language::French);
-    }
+    UiTranslator::State state{
+        .analysis_in_progress = analysis_in_progress_,
+        .stop_analysis_requested = stop_analysis.load(),
+        .status_is_ready = status_is_ready_
+    };
+    ui_translator_->retranslate_all(state);
 }
 
 #if defined(AI_FILE_SORTER_TEST_BUILD)
@@ -658,7 +532,9 @@ void MainApp::on_language_selected(Language language)
 {
     settings.set_language(language);
     TranslationManager::instance().set_language(language);
-    update_language_checks();
+    if (ui_translator_) {
+        ui_translator_->update_language_checks();
+    }
     retranslate_ui();
 
     if (categorization_dialog) {

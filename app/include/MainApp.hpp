@@ -42,6 +42,7 @@ class QWidget;
 class QLabel;
 class QEvent;
 class MainAppUiBuilder;
+class UiTranslator;
 
 struct CategorizedFile;
 struct FileEntry;
@@ -83,12 +84,6 @@ private:
     void sync_settings_to_ui();
     void sync_ui_to_settings();
     void retranslate_ui();
-    void translate_window_title();
-    void translate_primary_controls();
-    void translate_tree_view_labels();
-    void translate_menus_and_actions();
-    void translate_status_messages();
-    void update_language_checks();
     void on_language_selected(Language language);
 
     void on_analyze_clicked();
@@ -204,6 +199,8 @@ private:
     int pending_categorized_count_{0};
     bool should_log_prompts() const;
     void apply_development_logging();
+
+    std::unique_ptr<UiTranslator> ui_translator_;
 };
 
 #endif // MAINAPP_HPP
