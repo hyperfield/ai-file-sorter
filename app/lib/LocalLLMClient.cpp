@@ -542,6 +542,31 @@ bool compute_cuda_budget(const Utils::CudaMemoryInfo& memory_info,
     return true;
 }
 
+bool finalize_cuda_estimate(const LayerMetrics& metrics,
+                            const CudaBudget& budget,
+                            AutoGpuLayerEstimation& result)
+{
+    constexpr double overhead_factor = 1.08;
+    const double denominator = metrics.bytes_per_layer * overhead_factor;
+    if (denominator <= 0.0) {
+        result.layers = 0;
+        result.reason = "invalid CUDA layer parameters";
+        return false;
+    }
+
+    int32_t estimated_layers =
+        static_cast<int32_t>(std::floor(budget.budget_bytes / denominator));
+    if (estimated_layers <= 0) {
+        result.layers = 0;
+        result.reason = "insufficient CUDA memory budget";
+        return false;
+    }
+
+    result.layers = std::clamp<int32_t>(estimated_layers, 1, metrics.total_layers);
+    result.reason = "estimated from CUDA memory headroom";
+    return true;
+}
+
 } // namespace
 
 [[maybe_unused]] AutoGpuLayerEstimation estimate_gpu_layers_for_cuda(const std::string & model_path,
@@ -558,19 +583,10 @@ bool compute_cuda_budget(const Utils::CudaMemoryInfo& memory_info,
         return result;
     }
 
-    constexpr double overhead_factor = 1.08;
-    int32_t estimated_layers =
-        static_cast<int32_t>(std::floor(budget.budget_bytes / (metrics.bytes_per_layer * overhead_factor)));
-
-    if (estimated_layers <= 0) {
-        result.layers = 0;
-        result.reason = "insufficient CUDA memory budget";
+    if (!finalize_cuda_estimate(metrics, budget, result)) {
         return result;
     }
 
-    estimated_layers = std::clamp<int32_t>(estimated_layers, 1, metrics.total_layers);
-    result.layers = estimated_layers;
-    result.reason = "estimated from CUDA memory headroom";
     return result;
 }
 
@@ -733,93 +749,137 @@ bool handle_cuda_forced_off(bool cuda_forced_off,
     return true;
 }
 
+void disable_cuda_backend(llama_model_params& params,
+                          const std::shared_ptr<spdlog::logger>& logger,
+                          const std::string& reason)
+{
+    params.n_gpu_layers = 0;
+    set_env_var("GGML_DISABLE_CUDA", "1");
+    if (logger) {
+        logger->info("CUDA backend disabled: {}", reason);
+    }
+}
+
+bool ensure_cuda_available(llama_model_params& params,
+                           const std::shared_ptr<spdlog::logger>& logger)
+{
+    if (Utils::is_cuda_available()) {
+        return true;
+    }
+    disable_cuda_backend(params, logger, "CUDA backend unavailable; using CPU backend");
+    std::cout << "No supported GPU backend detected. Running on CPU.\n";
+    return false;
+}
+
+bool apply_ngl_override(int override_layers,
+                        llama_model_params& params,
+                        const std::shared_ptr<spdlog::logger>& logger)
+{
+    if (override_layers == INT_MIN) {
+        return false;
+    }
+
+    if (override_layers <= 0) {
+        disable_cuda_backend(
+            params,
+            logger,
+            fmt::format("AI_FILE_SORTER_N_GPU_LAYERS={} forcing CPU fallback", override_layers));
+        return true;
+    }
+
+    params.n_gpu_layers = override_layers;
+    if (logger) {
+        logger->info("Using explicit CUDA n_gpu_layers override {}",
+                     gpu_layers_to_string(override_layers));
+    }
+    std::cout << "ngl override: " << params.n_gpu_layers << std::endl;
+    return true;
+}
+
+struct NglEstimationResult {
+    int candidate_layers{0};
+    int heuristic_layers{0};
+};
+
+NglEstimationResult estimate_ngl_from_cuda_info(const std::string& model_path,
+                                               const std::shared_ptr<spdlog::logger>& logger)
+{
+    NglEstimationResult result;
+    AutoGpuLayerEstimation estimation{};
+    std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
+
+    if (!cuda_info.has_value()) {
+        if (logger) {
+            logger->warn("Unable to query CUDA memory information, falling back to heuristic");
+        }
+        return result;
+    }
+
+    estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
+    result.heuristic_layers = Utils::compute_ngl_from_cuda_memory(*cuda_info);
+
+    int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
+    if (result.heuristic_layers > 0) {
+        candidate_layers = std::max(candidate_layers, result.heuristic_layers);
+    }
+    result.candidate_layers = candidate_layers;
+
+    if (logger) {
+        if (estimation.layers > 0 && estimation.layers != candidate_layers) {
+            logger->info("CUDA estimator suggested {} layers, but heuristic floor kept {}",
+                         estimation.layers, candidate_layers);
+        }
+        const double to_mib = 1024.0 * 1024.0;
+        logger->info(
+            "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
+            cuda_info->total_bytes / to_mib,
+            cuda_info->free_bytes / to_mib,
+            gpu_layers_to_string(estimation.layers),
+            gpu_layers_to_string(result.heuristic_layers),
+            gpu_layers_to_string(candidate_layers),
+            estimation.reason.empty() ? "no estimation detail" : estimation.reason);
+    }
+
+    return result;
+}
+
+int fallback_ngl(int heuristic_layers, const std::shared_ptr<spdlog::logger>& logger)
+{
+    if (heuristic_layers > 0) {
+        return heuristic_layers;
+    }
+
+    const int fallback = Utils::determine_ngl_cuda();
+    if (fallback > 0 && logger) {
+        logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
+                     gpu_layers_to_string(fallback));
+    }
+    return fallback;
+}
+
 bool configure_cuda_backend(const std::string& model_path,
                             llama_model_params& params,
                             const std::shared_ptr<spdlog::logger>& logger) {
-    const bool cuda_available = Utils::is_cuda_available();
-    if (!cuda_available) {
-        params.n_gpu_layers = 0;
-        set_env_var("GGML_DISABLE_CUDA", "1");
-        printf("model_params.n_gpu_layers: %d\n", params.n_gpu_layers);
-        if (logger) {
-            logger->info("CUDA backend unavailable; using CPU backend");
-        }
-        std::cout << "No supported GPU backend detected. Running on CPU.\n";
+    if (!ensure_cuda_available(params, logger)) {
         return false;
     }
 
     const int override_layers = resolve_gpu_layer_override();
-    if (override_layers != INT_MIN) {
-        if (override_layers <= 0) {
-            params.n_gpu_layers = 0;
-            set_env_var("GGML_DISABLE_CUDA", "1");
-            if (logger) {
-                logger->info("CUDA disabled via override (AI_FILE_SORTER_N_GPU_LAYERS={})",
-                             override_layers);
-            }
-        } else {
-            params.n_gpu_layers = override_layers;
-            if (logger) {
-                logger->info("Using explicit CUDA n_gpu_layers override {}",
-                             gpu_layers_to_string(override_layers));
-            }
-            std::cout << "ngl override: " << params.n_gpu_layers << std::endl;
-        }
+    if (apply_ngl_override(override_layers, params, logger)) {
         return true;
     }
 
-    int ngl = 0;
-    int heuristic_from_info = 0;
-    AutoGpuLayerEstimation estimation{};
-    std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
-
-    if (cuda_info.has_value()) {
-        estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
-        heuristic_from_info = Utils::compute_ngl_from_cuda_memory(*cuda_info);
-
-        int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
-        if (heuristic_from_info > 0) {
-            candidate_layers = std::max(candidate_layers, heuristic_from_info);
-        }
-        ngl = candidate_layers;
-
-        if (estimation.layers > 0 && logger && estimation.layers != candidate_layers) {
-            logger->info("CUDA estimator suggested {} layers, but heuristic floor kept {}",
-                         estimation.layers, candidate_layers);
-        }
-
-        if (logger) {
-            const double to_mib = 1024.0 * 1024.0;
-            logger->info(
-                "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
-                cuda_info->total_bytes / to_mib,
-                cuda_info->free_bytes / to_mib,
-                gpu_layers_to_string(estimation.layers),
-                gpu_layers_to_string(heuristic_from_info),
-                gpu_layers_to_string(ngl),
-                estimation.reason.empty() ? "no estimation detail" : estimation.reason
-            );
-        }
-    } else if (logger) {
-        logger->warn("Unable to query CUDA memory information, falling back to heuristic");
-    }
-
+    const NglEstimationResult estimation = estimate_ngl_from_cuda_info(model_path, logger);
+    int ngl = estimation.candidate_layers;
     if (ngl <= 0) {
-        ngl = (heuristic_from_info > 0)
-            ? heuristic_from_info
-            : Utils::determine_ngl_cuda();
-        if (logger && ngl > 0) {
-            logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
-                         gpu_layers_to_string(ngl));
-        }
+        ngl = fallback_ngl(estimation.heuristic_layers, logger);
     }
 
     if (ngl > 0) {
         params.n_gpu_layers = ngl;
         std::cout << "ngl: " << params.n_gpu_layers << std::endl;
     } else {
-        params.n_gpu_layers = 0;
-        set_env_var("GGML_DISABLE_CUDA", "1");
+        disable_cuda_backend(params, logger, "CUDA not usable after estimation; falling back to CPU.");
         std::cout << "CUDA not usable, falling back to CPU.\n";
     }
     return true;
