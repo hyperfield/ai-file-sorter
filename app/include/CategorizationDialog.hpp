@@ -75,6 +75,13 @@ private:
     void apply_subcategory_visibility();
     void clear_move_history();
     void record_move_for_undo(int row, const std::string& source, const std::string& destination);
+    void handle_selected_row(int row_index,
+                             const std::string& file_name,
+                             const std::string& file_type,
+                             const std::string& category,
+                             const std::string& subcategory,
+                             const std::string& base_dir,
+                             std::vector<std::string>& files_not_moved);
     bool undo_move_history();
     void update_status_after_undo();
     bool move_file_back(const std::string& source, const std::string& destination);

@@ -303,47 +303,13 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
             ++row_index;
             continue;
         }
-        const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
-
-        if (auto& probe = move_probe_slot()) {
-            probe(TestHooks::CategorizationMoveInfo{
-                show_subcategory_column,
-                category,
-                effective_subcategory,
-                file_name
-            });
-            update_status_column(row_index, true);
-            ++row_index;
-            continue;
-        }
-
-        try {
-            MovableCategorizedFile categorized_file(
-                base_dir, category, effective_subcategory,
-                file_name, file_type);
-
-            const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
-
-            categorized_file.create_cat_dirs(show_subcategory_column);
-            bool moved = categorized_file.move_file(show_subcategory_column);
-            update_status_column(row_index, moved);
-
-            if (!moved) {
-                files_not_moved.push_back(file_name);
-                if (core_logger) {
-                    core_logger->warn("File {} already exists in the destination.", file_name);
-                }
-            }
-            if (moved) {
-                record_move_for_undo(row_index, preview_paths.source, preview_paths.destination);
-            }
-        } catch (const std::exception& ex) {
-            update_status_column(row_index, false);
-            files_not_moved.push_back(file_name);
-            if (core_logger) {
-                core_logger->error("Failed to move '{}': {}", file_name, ex.what());
-            }
-        }
+        handle_selected_row(row_index,
+                            file_name,
+                            file_type,
+                            category,
+                            subcategory,
+                            base_dir,
+                            files_not_moved);
         ++row_index;
     }
 
@@ -361,6 +327,55 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
     }
 
     show_close_button();
+}
+
+void CategorizationDialog::handle_selected_row(int row_index,
+                                               const std::string& file_name,
+                                               const std::string& file_type,
+                                               const std::string& category,
+                                               const std::string& subcategory,
+                                               const std::string& base_dir,
+                                               std::vector<std::string>& files_not_moved)
+{
+    const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
+
+    if (auto& probe = move_probe_slot()) {
+        probe(TestHooks::CategorizationMoveInfo{
+            show_subcategory_column,
+            category,
+            effective_subcategory,
+            file_name
+        });
+        update_status_column(row_index, true);
+        return;
+    }
+
+    try {
+        MovableCategorizedFile categorized_file(
+            base_dir, category, effective_subcategory,
+            file_name, file_type);
+
+        const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
+
+        categorized_file.create_cat_dirs(show_subcategory_column);
+        bool moved = categorized_file.move_file(show_subcategory_column);
+        update_status_column(row_index, moved);
+
+        if (!moved) {
+            files_not_moved.push_back(file_name);
+            if (core_logger) {
+                core_logger->warn("File {} already exists in the destination.", file_name);
+            }
+        } else {
+            record_move_for_undo(row_index, preview_paths.source, preview_paths.destination);
+        }
+    } catch (const std::exception& ex) {
+        update_status_column(row_index, false);
+        files_not_moved.push_back(file_name);
+        if (core_logger) {
+            core_logger->error("Failed to move '{}': {}", file_name, ex.what());
+        }
+    }
 }
 
 

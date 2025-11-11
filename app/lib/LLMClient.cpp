@@ -16,6 +16,14 @@
 #include <sstream>
 #include <string>
 
+// Helper function to write the response from curl into a string
+static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *response)
+{
+    size_t totalSize = size * nmemb;
+    response->append(static_cast<const char*>(contents), totalSize);
+    return totalSize;
+}
+
 namespace {
 std::string escape_json(const std::string& input) {
     std::string out;
@@ -102,6 +110,26 @@ CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
     return request;
 }
 
+void configure_request_payload(CurlRequest& request,
+                               const std::string& api_url,
+                               const std::string& payload,
+                               const std::string& api_key,
+                               std::string& response_buffer)
+{
+    curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
+    curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
+    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 5L);
+
+    request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
+    const std::string auth = "Authorization: Bearer " + api_key;
+    request.headers = curl_slist_append(request.headers, auth.c_str());
+    curl_easy_setopt(request.handle, CURLOPT_HTTPHEADER, request.headers);
+
+    curl_easy_setopt(request.handle, CURLOPT_POSTFIELDS, payload.c_str());
+    curl_easy_setopt(request.handle, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(request.handle, CURLOPT_WRITEDATA, &response_buffer);
+}
+
 long perform_request(CurlRequest& request, const std::shared_ptr<spdlog::logger>& logger)
 {
     const CURLcode res = curl_easy_perform(request.handle);
@@ -152,15 +180,6 @@ std::string parse_category_response(const std::string& payload,
 }
 
 
-// Helper function to write the response from curl into a string
-static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *response)
-{
-    size_t totalSize = size * nmemb;
-    response->append(static_cast<const char*>(contents), totalSize);
-    return totalSize;
-}
-
-
 LLMClient::LLMClient(const std::string &api_key) : api_key(api_key)
 {}
 
@@ -184,18 +203,7 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     }
 
     CurlRequest request = create_curl_request(logger);
-    curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
-    curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
-    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 5L);
-
-    request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
-    const std::string auth = "Authorization: Bearer " + api_key;
-    request.headers = curl_slist_append(request.headers, auth.c_str());
-    curl_easy_setopt(request.handle, CURLOPT_HTTPHEADER, request.headers);
-
-    curl_easy_setopt(request.handle, CURLOPT_POSTFIELDS, json_payload.c_str());
-    curl_easy_setopt(request.handle, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(request.handle, CURLOPT_WRITEDATA, &response_string);
+    configure_request_payload(request, api_url, json_payload, api_key, response_string);
 
     const long http_code = perform_request(request, logger);
     return parse_category_response(response_string, http_code, logger);

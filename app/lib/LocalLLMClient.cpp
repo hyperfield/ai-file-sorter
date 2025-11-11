@@ -992,9 +992,8 @@ llama_model_params build_model_params_for_path(const std::string& model_path,
                 logger->warn("CUDA backend unavailable; attempting Vulkan fallback.");
             }
         }
-        if (apply_vulkan_backend(model_path, model_params, logger)) {
-            return model_params;
-        }
+        apply_vulkan_backend(model_path, model_params, logger);
+        return model_params;
         if (logger) {
             logger->warn("Vulkan fallback unavailable; using CPU backend.");
         }
