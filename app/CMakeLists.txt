@@ -306,7 +306,19 @@ endif()
 
 if(AI_FILE_SORTER_BUILD_TESTS)
     include(CTest)
-    add_subdirectory(${CMAKE_SOURCE_DIR}/../external/Catch2 ${CMAKE_BINARY_DIR}/catch2-build)
+    set(_catch2_source_dir "${CMAKE_SOURCE_DIR}/../external/Catch2")
+    if(EXISTS "${_catch2_source_dir}/CMakeLists.txt")
+        add_subdirectory(${_catch2_source_dir} ${CMAKE_BINARY_DIR}/catch2-build)
+    else()
+        message(STATUS "Catch2 submodule not found, fetching via FetchContent")
+        include(FetchContent)
+        FetchContent_Declare(
+            Catch2
+            GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+            GIT_TAG v3.5.2
+        )
+        FetchContent_MakeAvailable(Catch2)
+    endif()
 
     add_executable(ai_file_sorter_tests
         ${APP_LIB_SOURCES}
@@ -314,6 +326,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_support_prompt.cpp"
     )

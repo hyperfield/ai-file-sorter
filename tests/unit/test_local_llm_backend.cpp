@@ -4,6 +4,8 @@
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
 
+#ifndef GGML_USE_METAL
+
 namespace {
 
 struct CudaProbeGuard {
@@ -111,3 +113,4 @@ TEST_CASE("Vulkan backend derives layer count from memory probe") {
     REQUIRE(params.n_gpu_layers > 0);
     REQUIRE(params.n_gpu_layers <= 48);
 }
+#endif // GGML_USE_METAL

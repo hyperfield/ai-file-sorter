@@ -910,7 +910,7 @@ llama_model_params LocalLLMClient::prepare_model_params(const std::shared_ptr<sp
     return build_model_params_for_path(model_path, logger);
 }
 
-#if defined(AI_FILE_SORTER_TEST_BUILD)
+#if defined(AI_FILE_SORTER_TEST_BUILD) && !defined(GGML_USE_METAL)
 namespace {
 
 PreferredBackend to_internal_backend(LocalLLMTestAccess::BackendPreference preference) {
@@ -966,7 +966,7 @@ llama_model_params prepare_model_params_for_testing(const std::string& model_pat
 }
 
 } // namespace LocalLLMTestAccess
-#endif // AI_FILE_SORTER_TEST_BUILD
+#endif // AI_FILE_SORTER_TEST_BUILD && !GGML_USE_METAL
 
 
 void LocalLLMClient::load_model_or_throw(const llama_model_params& model_params,

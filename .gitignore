@@ -107,6 +107,7 @@ app/include/llama/*.h
 /tools/
 /reports/
 /logo-workdir-temp/
+/Testing/
 
 # Build artifacts
 

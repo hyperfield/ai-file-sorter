@@ -16,7 +16,7 @@ The app intelligently assigns categories and optional subcategories, which you c
 
 AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* and *Mistral 7B*, and does not require an internet connection unless you choose to use a remote model.
 
-File content–based sorting for certain file types is also in development.  
+File content–based sorting for certain file types is also in development.
 
 ---
 
@@ -316,8 +316,8 @@ Catch2-based unit tests are optional. Enable them via CMake:
 
 ```bash
 cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
-cmake --build build-tests
-ctest --test-dir build-tests
+cmake --build build-tests --target ai_file_sorter_tests
+ctest --test-dir build-tests --output-on-failure
 ```
 
 On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
