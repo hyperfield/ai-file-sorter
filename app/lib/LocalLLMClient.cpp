@@ -455,75 +455,112 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
 }
 #endif // defined(GGML_USE_METAL)
 
-[[maybe_unused]] AutoGpuLayerEstimation estimate_gpu_layers_for_cuda(const std::string & model_path,
-                                                                     const Utils::CudaMemoryInfo & memory_info) {
-    AutoGpuLayerEstimation result;
+namespace {
 
-    if (!memory_info.valid()) {
-        result.layers = -1;
-        result.reason = "CUDA memory metrics unavailable";
-        return result;
-    }
+struct LayerMetrics {
+    int32_t total_layers{0};
+    double bytes_per_layer{0.0};
+};
 
+bool populate_layer_metrics(const std::string& model_path,
+                            AutoGpuLayerEstimation& result,
+                            LayerMetrics& metrics)
+{
     std::error_code ec;
     const auto file_size = std::filesystem::file_size(model_path, ec);
     if (ec) {
         result.layers = -1;
         result.reason = "model file size unavailable";
-        return result;
+        return false;
     }
 
     const auto block_count_opt = extract_block_count(model_path);
     if (!block_count_opt.has_value() || block_count_opt.value() <= 0) {
         result.layers = -1;
         result.reason = "model block count not found";
-        return result;
+        return false;
     }
 
-    const int32_t total_layers = block_count_opt.value();
-    const double bytes_per_layer =
-        static_cast<double>(file_size) / static_cast<double>(total_layers);
+    metrics.total_layers = block_count_opt.value();
+    metrics.bytes_per_layer =
+        static_cast<double>(file_size) / static_cast<double>(metrics.total_layers);
+    return true;
+}
 
-    double approx_free = static_cast<double>(memory_info.free_bytes);
+struct CudaBudget {
+    double approx_free{0.0};
+    double usable_total{0.0};
+    double budget_bytes{0.0};
+};
+
+bool compute_cuda_budget(const Utils::CudaMemoryInfo& memory_info,
+                         double bytes_per_layer,
+                         AutoGpuLayerEstimation& result,
+                         CudaBudget& budget)
+{
+    if (!memory_info.valid()) {
+        result.layers = -1;
+        result.reason = "CUDA memory metrics unavailable";
+        return false;
+    }
+
+    budget.approx_free = static_cast<double>(memory_info.free_bytes);
     double total_bytes = static_cast<double>(memory_info.total_bytes);
-
     if (total_bytes <= 0.0) {
-        total_bytes = approx_free;
+        total_bytes = budget.approx_free;
     }
 
-    const double usable_total = std::max(total_bytes, approx_free);
-    if (usable_total <= 0.0) {
+    budget.usable_total = std::max(total_bytes, budget.approx_free);
+    if (budget.usable_total <= 0.0) {
         result.layers = 0;
         result.reason = "CUDA memory metrics invalid";
-        return result;
+        return false;
     }
 
-    if (approx_free <= 0.0) {
-        approx_free = usable_total * 0.80;
-    } else if (approx_free > usable_total) {
-        approx_free = usable_total;
+    if (budget.approx_free <= 0.0) {
+        budget.approx_free = budget.usable_total * 0.80;
+    } else if (budget.approx_free > budget.usable_total) {
+        budget.approx_free = budget.usable_total;
     }
 
-    if (approx_free <= 0.0 || bytes_per_layer <= 0.0) {
+    if (budget.approx_free <= 0.0 || bytes_per_layer <= 0.0) {
         result.layers = 0;
         result.reason = "insufficient CUDA memory metrics";
-        return result;
+        return false;
     }
 
     const double safety_reserve =
-        std::max(usable_total * 0.05, 192.0 * 1024.0 * 1024.0); // keep at least 5% or 192 MiB free
-    double budget_bytes = approx_free - safety_reserve;
-    if (budget_bytes <= 0.0) {
-        budget_bytes = approx_free * 0.75;
+        std::max(budget.usable_total * 0.05, 192.0 * 1024.0 * 1024.0);
+    budget.budget_bytes = budget.approx_free - safety_reserve;
+    if (budget.budget_bytes <= 0.0) {
+        budget.budget_bytes = budget.approx_free * 0.75;
     }
 
-    const double max_budget = std::min(approx_free * 0.98, usable_total * 0.90);
-    const double min_budget = usable_total * 0.45;
-    budget_bytes = std::clamp(budget_bytes, min_budget, max_budget);
+    const double max_budget = std::min(budget.approx_free * 0.98, budget.usable_total * 0.90);
+    const double min_budget = budget.usable_total * 0.45;
+    budget.budget_bytes = std::clamp(budget.budget_bytes, min_budget, max_budget);
+    return true;
+}
+
+} // namespace
+
+[[maybe_unused]] AutoGpuLayerEstimation estimate_gpu_layers_for_cuda(const std::string & model_path,
+                                                                     const Utils::CudaMemoryInfo & memory_info) {
+    AutoGpuLayerEstimation result;
+
+    LayerMetrics metrics;
+    if (!populate_layer_metrics(model_path, result, metrics)) {
+        return result;
+    }
+
+    CudaBudget budget;
+    if (!compute_cuda_budget(memory_info, metrics.bytes_per_layer, result, budget)) {
+        return result;
+    }
 
     constexpr double overhead_factor = 1.08;
     int32_t estimated_layers =
-        static_cast<int32_t>(std::floor(budget_bytes / (bytes_per_layer * overhead_factor)));
+        static_cast<int32_t>(std::floor(budget.budget_bytes / (metrics.bytes_per_layer * overhead_factor)));
 
     if (estimated_layers <= 0) {
         result.layers = 0;
@@ -531,8 +568,7 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
         return result;
     }
 
-    estimated_layers = std::clamp<int32_t>(estimated_layers, 1, total_layers);
-
+    estimated_layers = std::clamp<int32_t>(estimated_layers, 1, metrics.total_layers);
     result.layers = estimated_layers;
     result.reason = "estimated from CUDA memory headroom";
     return result;
