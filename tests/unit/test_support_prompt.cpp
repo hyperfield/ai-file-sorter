@@ -72,3 +72,21 @@ TEST_CASE("Support prompt thresholds advance based on response") {
         run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::Support, 500);
     }
 }
+
+TEST_CASE("Zero categorized increments do not change totals or trigger prompts") {
+    TestEnvironment env;
+    bool callback_invoked = false;
+
+    MainAppTestAccess::simulate_support_prompt(
+        env.settings,
+        env.prompt_state,
+        0,
+        [&](int) {
+            callback_invoked = true;
+            return MainAppTestAccess::SimulatedSupportResult::NotSure;
+        });
+
+    CHECK(env.settings.get_total_categorized_files() == 0);
+    CHECK_FALSE(callback_invoked);
+    CHECK(env.settings.get_next_support_prompt_threshold() == 100);
+}
