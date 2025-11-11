@@ -32,6 +32,44 @@ std::string trim_whitespace(const std::string& value) {
     return value.substr(start, end - start + 1);
 }
 
+bool try_parse_harmonized_entry(const std::string& line,
+                                size_t line_number,
+                                const std::string& raw_line,
+                                Json::Value& entry,
+                                const std::shared_ptr<spdlog::logger>& logger)
+{
+    const auto arrow_pos = line.find("=>");
+    if (arrow_pos == std::string::npos) {
+        return false;
+    }
+
+    std::string id = trim_whitespace(line.substr(0, arrow_pos));
+    std::string remainder = trim_whitespace(line.substr(arrow_pos + 2));
+    const auto colon_pos = remainder.find(':');
+    if (colon_pos == std::string::npos) {
+        return false;
+    }
+
+    std::string category = trim_whitespace(remainder.substr(0, colon_pos));
+    std::string subcategory = trim_whitespace(remainder.substr(colon_pos + 1));
+    if (subcategory.empty()) {
+        subcategory = category;
+    }
+
+    if (id.empty() || category.empty()) {
+        if (logger) {
+            logger->warn("Consistency pass skipped malformed line {}: '{}'", line_number, raw_line);
+        }
+        return false;
+    }
+
+    entry = Json::Value(Json::objectValue);
+    entry["id"] = id;
+    entry["category"] = category;
+    entry["subcategory"] = subcategory;
+    return true;
+}
+
 std::string make_item_key(const CategorizedFile& item) {
     std::filesystem::path path(item.file_path);
     path /= item.file_name;
@@ -105,36 +143,10 @@ bool parse_structured_lines(
             break;
         }
 
-        const auto arrow_pos = line.find("=>");
-        if (arrow_pos == std::string::npos) {
-            continue;
+        Json::Value entry(Json::objectValue);
+        if (try_parse_harmonized_entry(line, line_number, raw_line, entry, logger)) {
+            harmonized.append(entry);
         }
-
-        std::string id = trim_whitespace(line.substr(0, arrow_pos));
-        std::string remainder = trim_whitespace(line.substr(arrow_pos + 2));
-        const auto colon_pos = remainder.find(':');
-        if (colon_pos == std::string::npos) {
-            continue;
-        }
-
-        std::string category = trim_whitespace(remainder.substr(0, colon_pos));
-        std::string subcategory = trim_whitespace(remainder.substr(colon_pos + 1));
-        if (subcategory.empty()) {
-            subcategory = category;
-        }
-
-        if (id.empty() || category.empty()) {
-            if (logger) {
-                logger->warn("Consistency pass skipped malformed line {}: '{}'", line_number, raw_line);
-            }
-            continue;
-        }
-
-        Json::Value obj(Json::objectValue);
-        obj["id"] = id;
-        obj["category"] = category;
-        obj["subcategory"] = subcategory;
-        harmonized.append(obj);
     }
 
     if (harmonized.empty()) {

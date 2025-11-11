@@ -232,35 +232,67 @@ void MainApp::shutdown()
 
 void MainApp::setup_file_explorer()
 {
+    create_file_explorer_dock();
+    setup_file_system_model();
+    setup_file_explorer_view();
+    connect_file_explorer_signals();
+    apply_file_explorer_preferences();
+}
+
+void MainApp::create_file_explorer_dock()
+{
     file_explorer_dock = new QDockWidget(tr("File Explorer"), this);
     file_explorer_dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     addDockWidget(Qt::LeftDockWidgetArea, file_explorer_dock);
+}
+
+void MainApp::setup_file_system_model()
+{
+    if (!file_explorer_dock) {
+        return;
+    }
 
     file_system_model = new QFileSystemModel(file_explorer_dock);
-    const QString root_path = QDir::rootPath();
-    file_system_model->setRootPath(root_path);
+    file_system_model->setRootPath(QDir::rootPath());
     file_system_model->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Drives | QDir::AllDirs);
+}
+
+void MainApp::setup_file_explorer_view()
+{
+    if (!file_explorer_dock || !file_system_model) {
+        return;
+    }
 
     file_explorer_view = new QTreeView(file_explorer_dock);
     file_explorer_view->setModel(file_system_model);
+    const QString root_path = file_system_model->rootPath();
     file_explorer_view->setRootIndex(file_system_model->index(root_path));
+
     const QModelIndex home_index = file_system_model->index(QDir::homePath());
     if (home_index.isValid()) {
         file_explorer_view->setCurrentIndex(home_index);
         file_explorer_view->scrollTo(home_index);
     }
+
     file_explorer_view->setHeaderHidden(false);
     file_explorer_view->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     file_explorer_view->setColumnHidden(1, true);
     file_explorer_view->setColumnHidden(2, true);
     file_explorer_view->setColumnHidden(3, true);
+    file_explorer_view->setExpandsOnDoubleClick(true);
+
+    file_explorer_dock->setWidget(file_explorer_view);
+}
+
+void MainApp::connect_file_explorer_signals()
+{
+    if (!file_explorer_view || !file_explorer_view->selectionModel()) {
+        return;
+    }
 
     connect(file_explorer_view->selectionModel(), &QItemSelectionModel::currentChanged,
             this, [this](const QModelIndex& current, const QModelIndex&) {
-                if (!file_system_model) {
-                    return;
-                }
-                if (suppress_explorer_sync_) {
+                if (!file_system_model || suppress_explorer_sync_) {
                     return;
                 }
                 if (!current.isValid() || !file_system_model->isDir(current)) {
@@ -273,13 +305,19 @@ void MainApp::setup_file_explorer()
                     on_directory_selected(path, true);
                 }
             });
-    file_explorer_view->setExpandsOnDoubleClick(true);
 
-    connect(file_explorer_dock, &QDockWidget::visibilityChanged, this, [this](bool) {
-        update_results_view_mode();
-    });
+    if (file_explorer_dock) {
+        connect(file_explorer_dock, &QDockWidget::visibilityChanged, this, [this](bool) {
+            update_results_view_mode();
+        });
+    }
+}
 
-    file_explorer_dock->setWidget(file_explorer_view);
+void MainApp::apply_file_explorer_preferences()
+{
+    if (!file_explorer_dock) {
+        return;
+    }
 
     const bool show_explorer = settings.get_show_file_explorer();
     if (file_explorer_menu_action) {
@@ -288,6 +326,7 @@ void MainApp::setup_file_explorer()
     if (consistency_pass_action) {
         consistency_pass_action->setChecked(settings.get_consistency_pass_enabled());
     }
+
     file_explorer_dock->setVisible(show_explorer);
     update_results_view_mode();
 }
@@ -402,22 +441,41 @@ void MainApp::save_settings()
 
 void MainApp::sync_settings_to_ui()
 {
+    restore_tree_settings();
+    restore_sort_folder_state();
+    restore_file_scan_options();
+    restore_file_explorer_visibility();
+    restore_development_preferences();
+
+    if (ui_translator_) {
+        ui_translator_->update_language_checks();
+    }
+}
+
+void MainApp::restore_tree_settings()
+{
     use_subcategories_checkbox->setChecked(settings.get_use_subcategories());
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
+}
 
-    const std::string sort_folder = settings.get_sort_folder();
-    path_entry->setText(QString::fromStdString(sort_folder));
+void MainApp::restore_sort_folder_state()
+{
+    const QString sort_folder = QString::fromStdString(settings.get_sort_folder());
+    path_entry->setText(sort_folder);
 
-    if (QDir(QString::fromStdString(sort_folder)).exists()) {
-        statusBar()->showMessage(tr("Loaded folder %1").arg(QString::fromStdString(sort_folder)), 3000);
+    if (!sort_folder.isEmpty() && QDir(sort_folder).exists()) {
+        statusBar()->showMessage(tr("Loaded folder %1").arg(sort_folder), 3000);
         status_is_ready_ = false;
-        update_folder_contents(QString::fromStdString(sort_folder));
-        focus_file_explorer_on_path(QString::fromStdString(sort_folder));
-    } else if (!sort_folder.empty()) {
-        core_logger->warn("Sort folder path is invalid: {}", sort_folder);
+        update_folder_contents(sort_folder);
+        focus_file_explorer_on_path(sort_folder);
+    } else if (!sort_folder.isEmpty()) {
+        core_logger->warn("Sort folder path is invalid: {}", sort_folder.toStdString());
     }
+}
 
+void MainApp::restore_file_scan_options()
+{
     file_scan_options = FileScanOptions::None;
     if (settings.get_categorize_files()) {
         file_scan_options = file_scan_options | FileScanOptions::Files;
@@ -425,7 +483,10 @@ void MainApp::sync_settings_to_ui()
     if (settings.get_categorize_directories()) {
         file_scan_options = file_scan_options | FileScanOptions::Directories;
     }
+}
 
+void MainApp::restore_file_explorer_visibility()
+{
     const bool show_explorer = settings.get_show_file_explorer();
     if (file_explorer_dock) {
         file_explorer_dock->setVisible(show_explorer);
@@ -434,15 +495,16 @@ void MainApp::sync_settings_to_ui()
         file_explorer_menu_action->setChecked(show_explorer);
     }
     update_results_view_mode();
+}
 
-    if (development_mode_ && development_prompt_logging_action) {
-        QSignalBlocker blocker(development_prompt_logging_action);
-        development_prompt_logging_action->setChecked(development_prompt_logging_enabled_);
+void MainApp::restore_development_preferences()
+{
+    if (!development_mode_ || !development_prompt_logging_action) {
+        return;
     }
 
-    if (ui_translator_) {
-        ui_translator_->update_language_checks();
-    }
+    QSignalBlocker blocker(development_prompt_logging_action);
+    development_prompt_logging_action->setChecked(development_prompt_logging_enabled_);
 }
 
 

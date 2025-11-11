@@ -74,6 +74,16 @@ protected:
 
 private:
     void setup_file_explorer();
+    void create_file_explorer_dock();
+    void setup_file_system_model();
+    void setup_file_explorer_view();
+    void connect_file_explorer_signals();
+    void apply_file_explorer_preferences();
+    void restore_tree_settings();
+    void restore_sort_folder_state();
+    void restore_file_scan_options();
+    void restore_file_explorer_visibility();
+    void restore_development_preferences();
     void connect_signals();
     void connect_edit_actions();
     void start_updater();
