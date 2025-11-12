@@ -63,10 +63,10 @@ USE_VULKAN=0
 GPU_BACKEND="cpu"
 GGML_VARIANT="wocuda"
 LLAMA_DEVICE=""
-if [ -n "$SELECTED_CUDA_DIR" ]; then
-    USE_CUDA=1
-elif [ -n "$SELECTED_VK_DIR" ]; then
+if [ -n "$SELECTED_VK_DIR" ]; then
     USE_VULKAN=1
+elif [ -n "$SELECTED_CUDA_DIR" ]; then
+    USE_CUDA=1
 fi
 
 if [ "$CUDA_OVERRIDE" = "on" ]; then
@@ -95,8 +95,12 @@ elif [ "$VULKAN_OVERRIDE" = "off" ]; then
     USE_VULKAN=0
 fi
 
-if [ $USE_CUDA -eq 0 ] && [ $USE_VULKAN -eq 0 ] && [ -n "$SELECTED_VK_DIR" ]; then
-    USE_VULKAN=1
+if [ $USE_CUDA -eq 0 ] && [ $USE_VULKAN -eq 0 ]; then
+    if [ -n "$SELECTED_VK_DIR" ]; then
+        USE_VULKAN=1
+    elif [ -n "$SELECTED_CUDA_DIR" ]; then
+        USE_CUDA=1
+    fi
 fi
 
 if [ $USE_CUDA -eq 1 ]; then
