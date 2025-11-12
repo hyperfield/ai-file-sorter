@@ -204,6 +204,7 @@ void MainApp::setup_file_explorer()
         file_explorer_view->scrollTo(home_index);
     }
     file_explorer_view->setHeaderHidden(false);
+    file_explorer_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
     file_explorer_view->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     file_explorer_view->setColumnHidden(1, true);
     file_explorer_view->setColumnHidden(2, true);
@@ -280,6 +281,7 @@ void MainApp::connect_signals()
                     }
                     on_directory_selected(folder_contents_model->filePath(current), true);
                 });
+        folder_contents_view->setExpandsOnDoubleClick(true);
     }
 
     connect(use_subcategories_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
