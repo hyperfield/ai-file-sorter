@@ -1,11 +1,20 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Version](https://badgen.net/badge/version/1.1.0/blue)](#)
+[![Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter)](#)
 
 <p align="center">
   <img src="app/resources/images/icon_256x256.png" alt="AI File Sorter logo" width="128" height="128">
 </p>
+
+<p align="center">
+  <img src="images/platform-logos/logo-vulkan.png" alt="Vulkan" width="160">
+  <img src="images/platform-logos/logo-cuda.png" alt="CUDA" width="160">
+  <img src="images/platform-logos/logo-windows.png" alt="Windows" width="160">
+  <img src="images/platform-logos/logo-macos.png" alt="macOS" width="160">
+  <img src="images/platform-logos/logo-linux.png" alt="Linux" width="160">
+</p>
+
 AI File Sorter is a powerful, cross-platform desktop application that automates file organization with the help of AI.
 
 It helps tidy up cluttered folders like Downloads, external drives, or NAS storage by automatically categorizing files based on their names, extensions, directory context, taxonomy, and other heuristics for accuracy and consistency.
@@ -31,7 +40,7 @@ File content–based sorting for certain file types is also in development.
 
 [![Download ai-file-sorter](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 
-![AI File Sorter Screenshot](screenshots/aifs-main-window-win.png) ![AI File Sorter Screenshot](screenshots/aifs-progress-dialog-win.png) ![AI File Sorter Screenshot](screenshots/aifs-review-dialog-win.png) ![AI File Sorter Screenshot](screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](screenshots/categorization-dialog-macos.png)
+![AI File Sorter Screenshot](images/screenshots/aifs-main-window-win.png) ![AI File Sorter Screenshot](images/screenshots/aifs-progress-dialog-win.png) ![AI File Sorter Screenshot](images/screenshots/aifs-review-dialog-win.png) ![AI File Sorter Screenshot](images/screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](images/screenshots/categorization-dialog-macos.png)
 
 ---
 
