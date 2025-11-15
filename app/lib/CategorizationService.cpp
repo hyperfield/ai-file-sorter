@@ -148,7 +148,58 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
     return categorized;
 }
 
-DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
+std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cached_categorization(
+    const std::string& item_name,
+    const std::string& item_path,
+    FileType file_type,
+    const ProgressCallback& progress_callback) const
+{
+    const auto cached = db_manager.get_categorization_from_db(item_name, file_type);
+    if (cached.size() < 2) {
+        return std::nullopt;
+    }
+
+    const std::string sanitized_category = sanitize_label(cached[0]);
+    const std::string sanitized_subcategory = sanitize_label(cached[1]);
+    if (sanitized_category.empty() || sanitized_subcategory.empty()) {
+        if (core_logger) {
+            core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
+        }
+        return std::nullopt;
+    }
+
+    auto resolved = db_manager.resolve_category(sanitized_category, sanitized_subcategory);
+    emit_progress_message(progress_callback, "CACHE", item_name, resolved, item_path);
+    return resolved;
+}
+
+bool CategorizationService::ensure_remote_credentials_for_request(
+    const std::string& item_name,
+    const ProgressCallback& progress_callback) const
+{
+    const char* env_pc = std::getenv("ENV_PC");
+    const char* env_rr = std::getenv("ENV_RR");
+
+    try {
+        CryptoManager crypto(env_pc, env_rr);
+        const std::string key = crypto.reconstruct();
+        if (key.empty()) {
+            throw std::runtime_error("Reconstructed API key was empty");
+        }
+        return true;
+    } catch (const std::exception& ex) {
+        const std::string err_msg = fmt::format("[CRYPTO] {} ({})", item_name, ex.what());
+        if (progress_callback) {
+            progress_callback(err_msg);
+        }
+        if (core_logger) {
+            core_logger->error("{}", err_msg);
+        }
+        return false;
+    }
+}
+
+DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
     ILLMClient& llm,
     bool is_local_llm,
     const std::string& item_name,
@@ -157,67 +208,13 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     const ProgressCallback& progress_callback,
     const std::string& consistency_context) const
 {
-    const auto cached = db_manager.get_categorization_from_db(item_name, file_type);
-    if (cached.size() >= 2) {
-        const std::string sanitized_category = sanitize_label(cached[0]);
-        const std::string sanitized_subcategory = sanitize_label(cached[1]);
-
-        if (sanitized_category.empty() || sanitized_subcategory.empty()) {
-            if (core_logger) {
-                core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
-            }
-        } else {
-            auto resolved = db_manager.resolve_category(sanitized_category, sanitized_subcategory);
-            const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
-            const std::string path_display = item_path.empty() ? "-" : item_path;
-
-            if (progress_callback) {
-                progress_callback(fmt::format(
-                    "[CACHE] {}\n    Category : {}\n    Subcat   : {}\n    Path     : {}",
-                    item_name, resolved.category, sub, path_display));
-            }
-            return resolved;
-        }
-    }
-
-    if (!is_local_llm) {
-        const char* env_pc = std::getenv("ENV_PC");
-        const char* env_rr = std::getenv("ENV_RR");
-
-        try {
-            CryptoManager crypto(env_pc, env_rr);
-            const std::string key = crypto.reconstruct();
-            if (key.empty()) {
-                throw std::runtime_error("Reconstructed API key was empty");
-            }
-        } catch (const std::exception& ex) {
-            const std::string err_msg = fmt::format("[CRYPTO] {} ({})", item_name, ex.what());
-            if (progress_callback) {
-                progress_callback(err_msg);
-            }
-            if (core_logger) {
-                core_logger->error("{}", err_msg);
-            }
-            return DatabaseManager::ResolvedCategory{-1, "", ""};
-        }
-    }
-
     try {
         const std::string category_subcategory =
             run_llm_with_timeout(llm, item_name, item_path, file_type, is_local_llm, consistency_context);
 
         auto [category, subcategory] = split_category_subcategory(category_subcategory);
         auto resolved = db_manager.resolve_category(category, subcategory);
-
-        const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
-        const std::string path_display = item_path.empty() ? "-" : item_path;
-
-        if (progress_callback) {
-            progress_callback(fmt::format(
-                "[AI] {}\n    Category : {}\n    Subcat   : {}\n    Path     : {}",
-                item_name, resolved.category, sub, path_display));
-        }
-
+        emit_progress_message(progress_callback, "AI", item_name, resolved, item_path);
         return resolved;
     } catch (const std::exception& ex) {
         const std::string err_msg = fmt::format("[LLM-ERROR] {} ({})", item_name, ex.what());
@@ -229,6 +226,49 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
         }
         throw;
     }
+}
+
+void CategorizationService::emit_progress_message(const ProgressCallback& progress_callback,
+                                                  std::string_view source,
+                                                  const std::string& item_name,
+                                                  const DatabaseManager::ResolvedCategory& resolved,
+                                                  const std::string& item_path) const
+{
+    if (!progress_callback) {
+        return;
+    }
+    const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
+    const std::string path_display = item_path.empty() ? "-" : item_path;
+
+    progress_callback(fmt::format(
+        "[{}] {}\n    Category : {}\n    Subcat   : {}\n    Path     : {}",
+        source, item_name, resolved.category, sub, path_display));
+}
+
+DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
+    ILLMClient& llm,
+    bool is_local_llm,
+    const std::string& item_name,
+    const std::string& item_path,
+    FileType file_type,
+    const ProgressCallback& progress_callback,
+    const std::string& consistency_context) const
+{
+    if (auto cached = try_cached_categorization(item_name, item_path, file_type, progress_callback)) {
+        return *cached;
+    }
+
+    if (!is_local_llm && !ensure_remote_credentials_for_request(item_name, progress_callback)) {
+        return DatabaseManager::ResolvedCategory{-1, "", ""};
+    }
+
+    return categorize_via_llm(llm,
+                              is_local_llm,
+                              item_name,
+                              item_path,
+                              file_type,
+                              progress_callback,
+                              consistency_context);
 }
 
 std::optional<CategorizedFile> CategorizationService::categorize_single_entry(

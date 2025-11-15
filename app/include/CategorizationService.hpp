@@ -10,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -71,11 +72,36 @@ private:
         bool is_local_llm,
         const std::string& consistency_context) const;
 
-    std::vector<CategoryPair> collect_consistency_hints(
+        std::vector<CategoryPair> collect_consistency_hints(
         const std::string& signature,
         const SessionHistoryMap& session_history,
         const std::string& extension,
         FileType file_type) const;
+
+    std::optional<DatabaseManager::ResolvedCategory> try_cached_categorization(
+        const std::string& item_name,
+        const std::string& item_path,
+        FileType file_type,
+        const ProgressCallback& progress_callback) const;
+
+    bool ensure_remote_credentials_for_request(
+        const std::string& item_name,
+        const ProgressCallback& progress_callback) const;
+
+    DatabaseManager::ResolvedCategory categorize_via_llm(
+        ILLMClient& llm,
+        bool is_local_llm,
+        const std::string& item_name,
+        const std::string& item_path,
+        FileType file_type,
+        const ProgressCallback& progress_callback,
+        const std::string& consistency_context) const;
+
+    void emit_progress_message(const ProgressCallback& progress_callback,
+                               std::string_view source,
+                               const std::string& item_name,
+                               const DatabaseManager::ResolvedCategory& resolved,
+                               const std::string& item_path) const;
 
     static std::string make_file_signature(FileType file_type, const std::string& extension);
     static std::string extract_extension(const std::string& file_name);

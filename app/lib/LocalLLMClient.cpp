@@ -207,6 +207,46 @@ BackendMemoryProbe& backend_memory_probe_slot() {
     return probe;
 }
 
+bool backend_name_matches(const char *name, std::string_view backend_name) {
+    if (backend_name.empty()) {
+        return true;
+    }
+    return name && case_insensitive_contains(name, backend_name);
+}
+
+std::optional<BackendMemoryInfo> build_backend_memory_info(ggml_backend_dev_t device,
+                                                           std::string_view backend_name) {
+    if (!device) {
+        return std::nullopt;
+    }
+
+    const auto type = ggml_backend_dev_type(device);
+    if (type != GGML_BACKEND_DEVICE_TYPE_GPU) {
+        return std::nullopt;
+    }
+
+    auto * reg = ggml_backend_dev_backend_reg(device);
+    const char * name = reg ? ggml_backend_reg_name(reg) : nullptr;
+    if (!backend_name_matches(name, backend_name)) {
+        return std::nullopt;
+    }
+
+    size_t free_bytes = 0;
+    size_t total_bytes = 0;
+    ggml_backend_dev_memory(device, &free_bytes, &total_bytes);
+    if (free_bytes == 0 && total_bytes == 0) {
+        return std::nullopt;
+    }
+
+    BackendMemoryInfo info;
+    info.memory.free_bytes = free_bytes;
+    info.memory.total_bytes = (total_bytes != 0) ? total_bytes : free_bytes;
+    info.is_integrated = is_probably_integrated_gpu(device, type);
+    info.name = name ? name : "";
+
+    return info;
+}
+
 std::optional<BackendMemoryInfo> query_backend_memory_metrics_impl(std::string_view backend_name) {
     const size_t device_count = ggml_backend_dev_count();
     BackendMemoryInfo best{};
@@ -214,37 +254,12 @@ std::optional<BackendMemoryInfo> query_backend_memory_metrics_impl(std::string_v
 
     for (size_t i = 0; i < device_count; ++i) {
         auto * device = ggml_backend_dev_get(i);
-        if (!device) {
+        const auto info = build_backend_memory_info(device, backend_name);
+        if (!info.has_value()) {
             continue;
         }
-        const auto type = ggml_backend_dev_type(device);
-        if (type != GGML_BACKEND_DEVICE_TYPE_GPU) {
-            continue;
-        }
-
-        auto * reg = ggml_backend_dev_backend_reg(device);
-        const char * name = reg ? ggml_backend_reg_name(reg) : nullptr;
-        if (!backend_name.empty()) {
-            if (!name || !case_insensitive_contains(name, backend_name)) {
-                continue;
-            }
-        }
-
-        size_t free_bytes = 0;
-        size_t total_bytes = 0;
-        ggml_backend_dev_memory(device, &free_bytes, &total_bytes);
-        if (free_bytes == 0 && total_bytes == 0) {
-            continue;
-        }
-
-        BackendMemoryInfo info;
-        info.memory.free_bytes = free_bytes;
-        info.memory.total_bytes = (total_bytes != 0) ? total_bytes : free_bytes;
-        info.is_integrated = is_probably_integrated_gpu(device, type);
-        info.name = name ? name : "";
-
-        if (!found || info.memory.total_bytes > best.memory.total_bytes) {
-            best = info;
+        if (!found || info->memory.total_bytes > best.memory.total_bytes) {
+            best = *info;
             found = true;
         }
     }
@@ -360,8 +375,12 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
         to_read = static_cast<std::streamsize>(std::min<std::uintmax_t>(file_size, buffer.size()));
     }
 
+    if (to_read <= 0 || static_cast<std::size_t>(to_read) > buffer.size()) {
+        return std::nullopt;
+    }
+
     file.read(buffer.data(), to_read);
-    if (file.bad()) {
+    if (!file && !file.eof()) {
         return std::nullopt;
     }
 

@@ -848,6 +848,45 @@ std::vector<std::pair<std::string, std::string>> DatabaseManager::get_taxonomy_s
     return snapshot;
 }
 
+bool DatabaseManager::is_duplicate_category(
+    const std::vector<std::pair<std::string, std::string>>& results,
+    const std::pair<std::string, std::string>& candidate)
+{
+    return std::any_of(results.begin(), results.end(), [&candidate](const auto& existing) {
+        return existing.first == candidate.first && existing.second == candidate.second;
+    });
+}
+
+std::optional<std::pair<std::string, std::string>> DatabaseManager::build_recent_category_candidate(
+    const char* file_name_text,
+    const char* category_text,
+    const char* subcategory_text,
+    const std::string& normalized_extension,
+    bool has_extension) const
+{
+    std::string file_name = file_name_text ? file_name_text : "";
+    if (file_name.empty()) {
+        return std::nullopt;
+    }
+
+    const std::string candidate_extension = extract_extension_lower(file_name);
+    if (has_extension) {
+        if (candidate_extension != normalized_extension) {
+            return std::nullopt;
+        }
+    } else if (!candidate_extension.empty()) {
+        return std::nullopt;
+    }
+
+    std::string category = category_text ? category_text : "";
+    if (category.empty()) {
+        return std::nullopt;
+    }
+
+    std::string subcategory = subcategory_text ? subcategory_text : "";
+    return std::make_pair(std::move(category), std::move(subcategory));
+}
+
 std::vector<std::pair<std::string, std::string>>
 DatabaseManager::get_recent_categories_for_extension(const std::string& extension,
                                                      FileType file_type,
@@ -883,39 +922,19 @@ DatabaseManager::get_recent_categories_for_extension(const std::string& extensio
         const char* category_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         const char* subcategory_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
 
-        std::string file_name = file_name_text ? file_name_text : "";
-        if (file_name.empty()) {
+        const auto candidate = build_recent_category_candidate(file_name_text,
+                                                               category_text,
+                                                               subcategory_text,
+                                                               normalized_extension,
+                                                               has_extension);
+        if (!candidate.has_value()) {
+            continue;
+        }
+        if (is_duplicate_category(results, *candidate)) {
             continue;
         }
 
-        const std::string candidate_extension = extract_extension_lower(file_name);
-        if (has_extension) {
-            if (candidate_extension != normalized_extension) {
-                continue;
-            }
-        } else if (!candidate_extension.empty()) {
-            continue;
-        }
-
-        std::string category = category_text ? category_text : "";
-        std::string subcategory = subcategory_text ? subcategory_text : "";
-        if (category.empty()) {
-            continue;
-        }
-
-        std::pair<std::string, std::string> candidate{category, subcategory};
-        bool duplicate = false;
-        for (const auto& existing : results) {
-            if (existing.first == candidate.first && existing.second == candidate.second) {
-                duplicate = true;
-                break;
-            }
-        }
-        if (duplicate) {
-            continue;
-        }
-
-        results.push_back(std::move(candidate));
+        results.push_back(*candidate);
         if (results.size() >= limit) {
             break;
         }

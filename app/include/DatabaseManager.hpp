@@ -6,6 +6,7 @@
 #include <map>
 #include <vector>
 #include <unordered_map>
+#include <optional>
 #include <sqlite3.h>
 
 class DatabaseManager {
@@ -94,6 +95,16 @@ private:
     std::unordered_map<std::string, int> canonical_lookup;
     std::unordered_map<std::string, int> alias_lookup;
     std::unordered_map<int, size_t> taxonomy_index;
+
+    static bool is_duplicate_category(
+        const std::vector<std::pair<std::string, std::string>>& results,
+        const std::pair<std::string, std::string>& candidate);
+    std::optional<std::pair<std::string, std::string>> build_recent_category_candidate(
+        const char* file_name_text,
+        const char* category_text,
+        const char* subcategory_text,
+        const std::string& normalized_extension,
+        bool has_extension) const;
 };
 
 #endif
