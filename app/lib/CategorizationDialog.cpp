@@ -104,6 +104,9 @@ void CategorizationDialog::setup_ui()
     table_view->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked | QAbstractItemView::EditKeyPressed);
     table_view->horizontalHeader()->setStretchLastSection(true);
     table_view->verticalHeader()->setVisible(false);
+    table_view->horizontalHeader()->setSectionsClickable(true);
+    table_view->horizontalHeader()->setSortIndicatorShown(true);
+    table_view->setSortingEnabled(true);
     table_view->setColumnHidden(2, false);
     table_view->setColumnHidden(4, !show_subcategory_column);
     table_view->setColumnWidth(0, 70);
