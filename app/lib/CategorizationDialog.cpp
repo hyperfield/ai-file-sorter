@@ -16,6 +16,8 @@
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QPushButton>
+#include <QIcon>
+#include <QLabel>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QStringList>
@@ -114,6 +116,9 @@ void CategorizationDialog::setup_ui()
     table_view->setColumnWidth(2, table_view->iconSize().width() + 12);
     layout->addWidget(table_view, 1);
 
+    auto* bottom_layout = new QHBoxLayout();
+    bottom_layout->setContentsMargins(0, 0, 0, 0);
+    bottom_layout->setSpacing(8);
     auto* button_layout = new QHBoxLayout();
     button_layout->addStretch(1);
 
@@ -130,7 +135,16 @@ void CategorizationDialog::setup_ui()
     button_layout->addWidget(undo_button);
     button_layout->addWidget(close_button);
 
-    layout->addLayout(button_layout);
+    auto* tip_label = new QLabel(this);
+    tip_label->setWordWrap(true);
+    QFont tip_font = tip_label->font();
+    tip_font.setItalic(true);
+    tip_label->setFont(tip_font);
+    tip_label->setText(tr("Tip: Click Category or Subcategory cells (pencil icon) to rename them."));
+
+    bottom_layout->addWidget(tip_label, /*stretch*/1, Qt::AlignVCenter);
+    bottom_layout->addLayout(button_layout);
+    layout->addLayout(bottom_layout);
 
     connect(confirm_button, &QPushButton::clicked, this, &CategorizationDialog::on_confirm_and_sort_button_clicked);
     connect(continue_button, &QPushButton::clicked, this, &CategorizationDialog::on_continue_later_button_clicked);
@@ -152,6 +166,22 @@ QIcon type_icon(const QString& code)
                    : style->standardIcon(QStyle::SP_FileIcon);
     }
     return {};
+}
+
+QIcon edit_icon()
+{
+    QIcon icon = QIcon::fromTheme(QStringLiteral("edit-rename"));
+    if (!icon.isNull()) {
+        return icon;
+    }
+    icon = QIcon::fromTheme(QStringLiteral("document-edit"));
+    if (!icon.isNull()) {
+        return icon;
+    }
+    if (auto* style = QApplication::style()) {
+        return style->standardIcon(QStyle::SP_FileDialogDetailedView);
+    }
+    return QIcon();
 }
 }
 
@@ -186,9 +216,11 @@ void CategorizationDialog::populate_model()
 
         auto* category_item = new QStandardItem(QString::fromStdString(file.category));
         category_item->setEditable(true);
+        category_item->setIcon(edit_icon());
 
         auto* subcategory_item = new QStandardItem(QString::fromStdString(file.subcategory));
         subcategory_item->setEditable(true);
+        subcategory_item->setIcon(edit_icon());
 
         auto* status_item = new QStandardItem;
         status_item->setEditable(false);
