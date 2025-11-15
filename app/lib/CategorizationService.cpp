@@ -285,10 +285,11 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     const std::filesystem::path entry_path = Utils::utf8_to_path(entry.full_path);
     const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
     const std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
+    const bool use_consistency_hints = settings.get_use_consistency_hints();
     const std::string extension = extract_extension(entry.file_name);
     const std::string signature = make_file_signature(entry.type, extension);
     std::string hint_block;
-    if (settings.get_use_consistency_hints()) {
+    if (use_consistency_hints) {
         const auto hints = collect_consistency_hints(signature, session_history, extension, entry.type);
         hint_block = format_hint_block(hints);
     }
@@ -312,13 +313,14 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
             const std::string reason = is_local_llm
                 ? "Categorization returned no result. The item will be processed again."
                 : "Categorization returned no result. Configure your remote API key and try again.";
-            recategorization_callback(CategorizedFile{dir_path,
-                                                      entry.file_name,
-                                                      entry.type,
-                                                      resolved.category,
-                                                      resolved.subcategory,
-                                                      resolved.taxonomy_id},
-                                      reason);
+            CategorizedFile retry_entry{dir_path,
+                                        entry.file_name,
+                                        entry.type,
+                                        resolved.category,
+                                        resolved.subcategory,
+                                        resolved.taxonomy_id};
+            retry_entry.used_consistency_hints = use_consistency_hints;
+            recategorization_callback(retry_entry, reason);
         }
         return std::nullopt;
     }
@@ -334,14 +336,17 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
         entry.file_name,
         entry.type == FileType::File ? "F" : "D",
         dir_path,
-        resolved);
+        resolved,
+        use_consistency_hints);
 
     if (!signature.empty()) {
         record_session_assignment(session_history[signature], {resolved.category, resolved.subcategory});
     }
 
-    return CategorizedFile{dir_path, entry.file_name, entry.type,
+    CategorizedFile result{dir_path, entry.file_name, entry.type,
                            resolved.category, resolved.subcategory, resolved.taxonomy_id};
+    result.used_consistency_hints = use_consistency_hints;
+    return result;
 }
 
 std::string CategorizationService::run_llm_with_timeout(

@@ -236,7 +236,7 @@ void CategorizationDialog::record_categorization_to_db()
 
         const std::string file_type = (entry.type == FileType::Directory) ? "D" : "F";
         db_manager->insert_or_update_file_with_categorization(
-            entry.file_name, file_type, entry.file_path, resolved);
+            entry.file_name, file_type, entry.file_path, resolved, entry.used_consistency_hints);
 
         entry.category = resolved.category;
         entry.subcategory = resolved.subcategory;

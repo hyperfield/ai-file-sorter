@@ -126,6 +126,7 @@ private:
     void notify_recategorization_reset(const CategorizedFile& entry,
                                        const std::string& reason);
     void set_categorization_style(bool use_consistency);
+    bool ensure_folder_categorization_style(const std::string& folder_path);
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;

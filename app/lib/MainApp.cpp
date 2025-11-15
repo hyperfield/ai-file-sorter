@@ -679,6 +679,10 @@ void MainApp::on_analyze_clicked()
         }
     }
 
+    if (!ensure_folder_categorization_style(folder_path)) {
+        return;
+    }
+
     stop_analysis = false;
     update_analyze_button_state(true);
 
@@ -722,6 +726,46 @@ void MainApp::set_categorization_style(bool use_consistency)
     QSignalBlocker blocker_consistent(categorization_style_consistent_radio);
     categorization_style_refined_radio->setChecked(!use_consistency);
     categorization_style_consistent_radio->setChecked(use_consistency);
+}
+
+bool MainApp::ensure_folder_categorization_style(const std::string& folder_path)
+{
+    const auto cached_style = db_manager.get_directory_categorization_style(folder_path);
+    if (!cached_style.has_value()) {
+        return true;
+    }
+
+    const bool desired = settings.get_use_consistency_hints();
+    if (cached_style.value() == desired) {
+        return true;
+    }
+
+    const auto style_label = [this](bool value) -> QString {
+        return value ? tr("More consistent") : tr("More refined");
+    };
+
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Question);
+    box.setWindowTitle(tr("Recategorize folder?"));
+    box.setText(tr("This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?")
+                    .arg(style_label(cached_style.value()), style_label(desired)));
+    QPushButton* recategorize_button = box.addButton(tr("Recategorize"), QMessageBox::AcceptRole);
+    box.addButton(tr("Keep existing"), QMessageBox::RejectRole);
+    QPushButton* cancel_button = box.addButton(QMessageBox::Cancel);
+    box.exec();
+
+    if (box.clickedButton() == cancel_button) {
+        return false;
+    }
+
+    if (box.clickedButton() == recategorize_button) {
+        if (!db_manager.clear_directory_categorizations(folder_path)) {
+            show_error_dialog(tr("Failed to reset cached categorization for this folder.").toStdString());
+            return false;
+        }
+    }
+
+    return true;
 }
 
 
@@ -850,9 +894,9 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     box.setText(headline);
     box.setInformativeText(details);
 
-    auto* support_btn = box.addButton(tr("Support"), QMessageBox::AcceptRole);
-    auto* later_btn = box.addButton(tr("I'm not yet sure"), QMessageBox::RejectRole);
-    auto* cannot_btn = box.addButton(tr("I cannot donate"), QMessageBox::DestructiveRole);
+    auto* support_btn = box.addButton(tr("Support"), QMessageBox::ActionRole);
+    auto* later_btn = box.addButton(tr("I'm not yet sure"), QMessageBox::ActionRole);
+    auto* cannot_btn = box.addButton(tr("I cannot donate"), QMessageBox::ActionRole);
 
     const auto apply_button_style = [](QAbstractButton* button,
                                        const QString& background,
@@ -880,11 +924,15 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     };
 
     apply_button_style(support_btn, QStringLiteral("#007aff"), QStringLiteral("#005ec7"));
-    apply_button_style(later_btn, QStringLiteral("#bdc3c7"), QStringLiteral("#95a5a6"));
-    apply_button_style(cannot_btn, QStringLiteral("#e74c3c"), QStringLiteral("#c0392b"));
+    const QString neutral_bg = QStringLiteral("#bdc3c7");
+    const QString neutral_hover = QStringLiteral("#95a5a6");
+    apply_button_style(later_btn, neutral_bg, neutral_hover);
+    apply_button_style(cannot_btn, neutral_bg, neutral_hover);
 
     if (auto* button_box = box.findChild<QDialogButtonBox*>()) {
         button_box->setCenterButtons(true);
+        // Ensure the visual order matches creation (Support, Not sure, Cannot donate)
+        button_box->setLayoutDirection(Qt::LeftToRight);
     }
 
     box.setDefaultButton(later_btn);
