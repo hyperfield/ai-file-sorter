@@ -287,8 +287,11 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     const std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
     const std::string extension = extract_extension(entry.file_name);
     const std::string signature = make_file_signature(entry.type, extension);
-    const auto hints = collect_consistency_hints(signature, session_history, extension, entry.type);
-    const std::string hint_block = format_hint_block(hints);
+    std::string hint_block;
+    if (settings.get_use_consistency_hints()) {
+        const auto hints = collect_consistency_hints(signature, session_history, extension, entry.type);
+        hint_block = format_hint_block(hints);
+    }
 
     DatabaseManager::ResolvedCategory resolved =
         categorize_with_cache(llm,

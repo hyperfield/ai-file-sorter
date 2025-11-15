@@ -6,9 +6,12 @@
 
 #include <functional>
 
+#include <QCheckBox>
+#include <QRadioButton>
+
 class QAction;
 class QActionGroup;
-class QCheckBox;
+
 class QDockWidget;
 class QLabel;
 class QMainWindow;
@@ -26,6 +29,9 @@ public:
         QPointer<QPushButton>& browse_button;
         QPointer<QPushButton>& analyze_button;
         QPointer<QCheckBox>& use_subcategories_checkbox;
+        QPointer<QLabel>& categorization_style_heading;
+        QPointer<QRadioButton>& categorization_style_refined_radio;
+        QPointer<QRadioButton>& categorization_style_consistent_radio;
         QPointer<QCheckBox>& categorize_files_checkbox;
         QPointer<QCheckBox>& categorize_directories_checkbox;
     };

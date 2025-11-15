@@ -23,6 +23,9 @@ public:
     bool get_use_subcategories() const;
     void set_use_subcategories(bool value);
 
+    bool get_use_consistency_hints() const;
+    void set_use_consistency_hints(bool value);
+
     bool get_categorize_files() const;
     void set_categorize_files(bool value);
 
@@ -61,6 +64,7 @@ private:
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;
+    bool use_consistency_hints{true};
     std::string default_sort_folder;
     std::string sort_folder;
     std::string skipped_version;

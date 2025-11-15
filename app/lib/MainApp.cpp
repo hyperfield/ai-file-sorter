@@ -40,6 +40,7 @@
 #include <QMetaObject>
 #include <QSignalBlocker>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QCoreApplication>
@@ -164,6 +165,9 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
             browse_button,
             analyze_button,
             use_subcategories_checkbox,
+            categorization_style_heading,
+            categorization_style_refined_radio,
+            categorization_style_consistent_radio,
             categorize_files_checkbox,
             categorize_directories_checkbox},
         .tree_model = tree_model,
@@ -375,6 +379,31 @@ void MainApp::connect_signals()
         }
     });
 
+    if (categorization_style_refined_radio) {
+        connect(categorization_style_refined_radio, &QRadioButton::toggled, this, [this](bool checked) {
+            if (checked) {
+                set_categorization_style(false);
+                settings.set_use_consistency_hints(false);
+            } else if (categorization_style_consistent_radio &&
+                       !categorization_style_consistent_radio->isChecked()) {
+                set_categorization_style(true);
+                settings.set_use_consistency_hints(true);
+            }
+        });
+    }
+    if (categorization_style_consistent_radio) {
+        connect(categorization_style_consistent_radio, &QRadioButton::toggled, this, [this](bool checked) {
+            if (checked) {
+                set_categorization_style(true);
+                settings.set_use_consistency_hints(true);
+            } else if (categorization_style_refined_radio &&
+                       !categorization_style_refined_radio->isChecked()) {
+                set_categorization_style(false);
+                settings.set_use_consistency_hints(false);
+            }
+        });
+    }
+
     connect(categorize_files_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
         ensure_one_checkbox_active(categorize_files_checkbox);
         update_file_scan_option(FileScanOptions::Files, checked);
@@ -456,6 +485,7 @@ void MainApp::sync_settings_to_ui()
 void MainApp::restore_tree_settings()
 {
     use_subcategories_checkbox->setChecked(settings.get_use_subcategories());
+    set_categorization_style(settings.get_use_consistency_hints());
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
 }
@@ -512,6 +542,9 @@ void MainApp::restore_development_preferences()
 void MainApp::sync_ui_to_settings()
 {
     settings.set_use_subcategories(use_subcategories_checkbox->isChecked());
+    if (categorization_style_consistent_radio) {
+        settings.set_use_consistency_hints(categorization_style_consistent_radio->isChecked());
+    }
     settings.set_categorize_files(categorize_files_checkbox->isChecked());
     settings.set_categorize_directories(categorize_directories_checkbox->isChecked());
     const QByteArray folder_bytes = path_entry->text().toUtf8();
@@ -677,6 +710,18 @@ void MainApp::on_directory_selected(const QString& path, bool user_initiated)
     }
 
     update_folder_contents(path);
+}
+
+void MainApp::set_categorization_style(bool use_consistency)
+{
+    if (!categorization_style_refined_radio || !categorization_style_consistent_radio) {
+        return;
+    }
+
+    QSignalBlocker blocker_refined(categorization_style_refined_radio);
+    QSignalBlocker blocker_consistent(categorization_style_consistent_radio);
+    categorization_style_refined_radio->setChecked(!use_consistency);
+    categorization_style_consistent_radio->setChecked(use_consistency);
 }
 
 

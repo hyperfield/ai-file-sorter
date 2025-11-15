@@ -3,4 +3,4 @@
 #include "Version.hpp"
 
 
-const Version APP_VERSION = Version{1, 1, 0};
+const Version APP_VERSION = Version{1, 2, 0};

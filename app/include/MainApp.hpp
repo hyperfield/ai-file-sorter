@@ -31,6 +31,7 @@
 
 class QAction;
 class QCheckBox;
+class QRadioButton;
 class QDockWidget;
 class QFileSystemModel;
 class QLineEdit;
@@ -124,6 +125,7 @@ private:
                                        const std::string& reason);
     void notify_recategorization_reset(const CategorizedFile& entry,
                                        const std::string& reason);
+    void set_categorization_style(bool use_consistency);
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
@@ -148,6 +150,9 @@ private:
     QPointer<QPushButton> browse_button;
     QPointer<QLabel> path_label;
     QPointer<QCheckBox> use_subcategories_checkbox;
+    QPointer<QLabel> categorization_style_heading;
+    QPointer<QRadioButton> categorization_style_refined_radio;
+    QPointer<QRadioButton> categorization_style_consistent_radio;
     QPointer<QCheckBox> categorize_files_checkbox;
     QPointer<QCheckBox> categorize_directories_checkbox;
     QPointer<QTreeView> tree_view;

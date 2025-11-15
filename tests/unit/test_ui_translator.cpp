@@ -14,6 +14,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QStatusBar>
@@ -34,6 +35,9 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     QPointer<QPushButton> browse_button = new QPushButton(&window);
     QPointer<QPushButton> analyze_button = new QPushButton(&window);
     QPointer<QCheckBox> subcategories_checkbox = new QCheckBox(&window);
+    QPointer<QLabel> style_heading = new QLabel(&window);
+    QPointer<QRadioButton> style_refined = new QRadioButton(&window);
+    QPointer<QRadioButton> style_consistent = new QRadioButton(&window);
     QPointer<QCheckBox> files_checkbox = new QCheckBox(&window);
     QPointer<QCheckBox> directories_checkbox = new QCheckBox(&window);
 
@@ -89,6 +93,9 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
             browse_button,
             analyze_button,
             subcategories_checkbox,
+            style_heading,
+            style_refined,
+            style_consistent,
             files_checkbox,
             directories_checkbox},
         .tree_model = tree_model,
@@ -140,6 +147,9 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     REQUIRE(browse_button->text() == QStringLiteral("Browse…"));
     REQUIRE(analyze_button->text() == QStringLiteral("Analyze folder"));
     REQUIRE(subcategories_checkbox->text() == QStringLiteral("Use subcategories"));
+    REQUIRE(style_heading->text() == QStringLiteral("Categorization type"));
+    REQUIRE(style_refined->text() == QStringLiteral("More refined"));
+    REQUIRE(style_consistent->text() == QStringLiteral("More consistent"));
     REQUIRE(files_checkbox->text() == QStringLiteral("Categorize files"));
     REQUIRE(directories_checkbox->text() == QStringLiteral("Categorize directories"));
 

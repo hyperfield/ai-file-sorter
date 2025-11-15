@@ -25,6 +25,8 @@
 #include <QMessageBox>
 #include <QObject>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QSlider>
 #include <QPainter>
 #include <QSize>
 #include <QSizePolicy>
@@ -71,6 +73,10 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     options_layout->addStretch(1);
     main_layout->addLayout(options_layout);
 
+    app.categorization_style_heading = new QLabel(central);
+    app.categorization_style_refined_radio = new QRadioButton(central);
+    app.categorization_style_consistent_radio = new QRadioButton(central);
+
     app.analyze_button = new QPushButton(central);
     QIcon analyze_icon = QIcon::fromTheme(QStringLiteral("sparkle"));
     if (analyze_icon.isNull()) {
@@ -84,9 +90,17 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.analyze_button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
     app.analyze_button->setMinimumWidth(160);
     auto* analyze_layout = new QHBoxLayout();
-    analyze_layout->addStretch();
-    analyze_layout->addWidget(app.analyze_button);
-    analyze_layout->addStretch();
+    auto* categorization_layout = new QVBoxLayout();
+    auto* toggle_row = new QHBoxLayout();
+    toggle_row->addWidget(app.categorization_style_refined_radio);
+    toggle_row->addWidget(app.categorization_style_consistent_radio);
+    toggle_row->addStretch();
+    categorization_layout->addWidget(app.categorization_style_heading);
+    categorization_layout->addLayout(toggle_row);
+
+    analyze_layout->addLayout(categorization_layout);
+    analyze_layout->addSpacing(12);
+    analyze_layout->addWidget(app.analyze_button, 0, Qt::AlignBottom | Qt::AlignRight);
     main_layout->addLayout(analyze_layout);
 
     app.tree_model = new QStandardItemModel(0, 5, &app);

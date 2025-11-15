@@ -10,6 +10,7 @@
 <p align="center">
   <img src="images/platform-logos/logo-vulkan.png" alt="Vulkan" width="160">
   <img src="images/platform-logos/logo-cuda.png" alt="CUDA" width="160">
+  <img src="images/platform-logos/logo-metal.png" alt="Apple Metal" width="160">
   <img src="images/platform-logos/logo-windows.png" alt="Windows" width="160">
   <img src="images/platform-logos/logo-macos.png" alt="macOS" width="160">
   <img src="images/platform-logos/logo-linux.png" alt="Linux" width="160">

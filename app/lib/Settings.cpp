@@ -43,6 +43,7 @@ Settings::Settings()
     : use_subcategories(true),
       categorize_files(true),
       categorize_directories(false),
+      use_consistency_hints(true),
       default_sort_folder(""),
       sort_folder("")
 {
@@ -123,6 +124,7 @@ bool Settings::load()
     else llm_choice = LLMChoice::Unset;
 
     use_subcategories = config.getValue("Settings", "UseSubcategories", "false") == "true";
+    use_consistency_hints = config.getValue("Settings", "UseConsistencyHints", "true") == "true";
     categorize_files = config.getValue("Settings", "CategorizeFiles", "true") == "true";
     categorize_directories = config.getValue("Settings", "CategorizeDirectories", "false") == "true";
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
@@ -155,6 +157,7 @@ bool Settings::save()
 
 
     config.setValue("Settings", "UseSubcategories", use_subcategories ? "true" : "false");
+    config.setValue("Settings", "UseConsistencyHints", use_consistency_hints ? "true" : "false");
     config.setValue("Settings", "CategorizeFiles", categorize_files ? "true" : "false");
     config.setValue("Settings", "CategorizeDirectories", categorize_directories ? "true" : "false");
     config.setValue("Settings", "SortFolder", this->sort_folder);
@@ -200,6 +203,16 @@ bool Settings::get_use_subcategories() const
 void Settings::set_use_subcategories(bool value)
 {
     use_subcategories = value;
+}
+
+bool Settings::get_use_consistency_hints() const
+{
+    return use_consistency_hints;
+}
+
+void Settings::set_use_consistency_hints(bool value)
+{
+    use_consistency_hints = value;
 }
 
 

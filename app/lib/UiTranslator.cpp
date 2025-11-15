@@ -66,6 +66,15 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* checkbox = raw_ptr(deps_.primary.use_subcategories_checkbox)) {
         checkbox->setText(tr("Use subcategories"));
     }
+    if (auto* heading = raw_ptr(deps_.primary.categorization_style_heading)) {
+        heading->setText(tr("Categorization type"));
+    }
+    if (auto* refined_radio = raw_ptr(deps_.primary.categorization_style_refined_radio)) {
+        refined_radio->setText(tr("More refined"));
+    }
+    if (auto* consistent_radio = raw_ptr(deps_.primary.categorization_style_consistent_radio)) {
+        consistent_radio->setText(tr("More consistent"));
+    }
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_files_checkbox)) {
         checkbox->setText(tr("Categorize files"));
     }
