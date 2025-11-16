@@ -373,20 +373,7 @@ std::optional<int32_t> extract_block_count_gguf(const std::string& model_path) {
     }
 
     auto cleanup = std::unique_ptr<gguf_context, GgufCtxDeleter>(ctx);
-    constexpr std::array<const char*, 6> keys = {
-        "llama.block_count",
-        "llama.layer_count",
-        "llama.n_layer",
-        "qwen.block_count",
-        "qwen2.block_count",
-        "block_count",
-    };
-
-    for (const char* key : keys) {
-        const int64_t id = gguf_find_key(ctx, key);
-        if (id < 0) {
-            continue;
-        }
+    const auto read_val = [&](int64_t id) -> std::optional<int32_t> {
         const enum gguf_type type = gguf_get_kv_type(ctx, id);
         switch (type) {
             case GGUF_TYPE_INT16: return static_cast<int32_t>(gguf_get_val_i16(ctx, id));
@@ -396,35 +383,64 @@ std::optional<int32_t> extract_block_count_gguf(const std::string& model_path) {
             case GGUF_TYPE_UINT32: return static_cast<int32_t>(gguf_get_val_u32(ctx, id));
             case GGUF_TYPE_UINT64: return static_cast<int32_t>(gguf_get_val_u64(ctx, id));
             default:
-                break;
+                return std::nullopt;
         }
+    };
+
+    const auto try_keys = [&](const std::array<const char*, 6>& keys) -> std::optional<int32_t> {
+        for (const char* key : keys) {
+            const int64_t id = gguf_find_key(ctx, key);
+            if (id < 0) {
+                continue;
+            }
+            if (auto val = read_val(id)) {
+                return val;
+            }
+        }
+        return std::nullopt;
+    };
+
+    if (auto meta_val = try_keys({"llama.block_count",
+                                  "llama.layer_count",
+                                  "llama.n_layer",
+                                  "qwen.block_count",
+                                  "qwen2.block_count",
+                                  "block_count"})) {
+        return meta_val;
     }
 
     // Fallback: infer from tensor names (e.g., "blk.0." / "layer.12.")
-    const int64_t tensor_count = gguf_get_n_tensors(ctx);
-    int32_t max_layer = -1;
-    for (int64_t i = 0; i < tensor_count; ++i) {
-        const char* tname = gguf_get_tensor_name(ctx, i);
-        if (!tname) {
-            continue;
-        }
-        int32_t current = -1;
-        for (const char* p = tname; *p; ++p) {
-            if (std::isdigit(static_cast<unsigned char>(*p))) {
-                int value = 0;
-                while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-                    value = value * 10 + (*p - '0');
-                    ++p;
+    const auto infer_from_tensors = [&]() -> std::optional<int32_t> {
+        const int64_t tensor_count = gguf_get_n_tensors(ctx);
+        int32_t max_layer = -1;
+        for (int64_t i = 0; i < tensor_count; ++i) {
+            const char* tname = gguf_get_tensor_name(ctx, i);
+            if (!tname) {
+                continue;
+            }
+            int32_t current = -1;
+            for (const char* p = tname; *p; ++p) {
+                if (std::isdigit(static_cast<unsigned char>(*p))) {
+                    int value = 0;
+                    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
+                        value = value * 10 + (*p - '0');
+                        ++p;
+                    }
+                    current = std::max(current, value);
                 }
-                current = std::max(current, value);
+            }
+            if (current > max_layer) {
+                max_layer = current;
             }
         }
-        if (current > max_layer) {
-            max_layer = current;
+        if (max_layer >= 0) {
+            return max_layer + 1; // layers are zero-indexed in names
         }
-    }
-    if (max_layer >= 0) {
-        return max_layer + 1; // layers are zero-indexed in names
+        return std::nullopt;
+    };
+
+    if (auto inferred = infer_from_tensors()) {
+        return inferred;
     }
 
     return std::nullopt;

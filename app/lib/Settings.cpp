@@ -158,35 +158,42 @@ bool Settings::load()
         return false;
     }
 
-    std::string load_choice_value = config.getValue("Settings", "LLMChoice", "Unset");
-    if (load_choice_value == "Local_3b") llm_choice = LLMChoice::Local_3b;
-    else if (load_choice_value == "Local_7b") llm_choice = LLMChoice::Local_7b;
-    else if (load_choice_value == "Remote") llm_choice = LLMChoice::Remote;
-    else if (load_choice_value == "Custom") llm_choice = LLMChoice::Custom;
-    else llm_choice = LLMChoice::Unset;
+    const auto load_llm_choice = [&]() {
+        const std::string value = config.getValue("Settings", "LLMChoice", "Unset");
+        if (value == "Local_3b") return LLMChoice::Local_3b;
+        if (value == "Local_7b") return LLMChoice::Local_7b;
+        if (value == "Remote")   return LLMChoice::Remote;
+        if (value == "Custom")   return LLMChoice::Custom;
+        return LLMChoice::Unset;
+    };
 
-    use_subcategories = config.getValue("Settings", "UseSubcategories", "false") == "true";
-    use_consistency_hints = config.getValue("Settings", "UseConsistencyHints", "true") == "true";
-    categorize_files = config.getValue("Settings", "CategorizeFiles", "true") == "true";
-    categorize_directories = config.getValue("Settings", "CategorizeDirectories", "false") == "true";
+    const auto load_bool = [&](const char* key, bool def) {
+        return config.getValue("Settings", key, def ? "true" : "false") == "true";
+    };
+
+    const auto load_int = [&](const char* key, int def, int min_val = std::numeric_limits<int>::min()) {
+        int value = parse_int_or(config.getValue("Settings", key, std::to_string(def)), def);
+        return value < min_val ? min_val : value;
+    };
+
+    llm_choice = load_llm_choice();
+    use_subcategories = load_bool("UseSubcategories", false);
+    use_consistency_hints = load_bool("UseConsistencyHints", true);
+    categorize_files = load_bool("CategorizeFiles", true);
+    categorize_directories = load_bool("CategorizeDirectories", false);
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
-    show_file_explorer = config.getValue("Settings", "ShowFileExplorer", "true") == "true";
-    consistency_pass_enabled = config.getValue("Settings", "ConsistencyPass", "false") == "true";
-    development_prompt_logging = config.getValue("Settings", "DevelopmentPromptLogging", "false") == "true";
+    show_file_explorer = load_bool("ShowFileExplorer", true);
+    consistency_pass_enabled = load_bool("ConsistencyPass", false);
+    development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
-    const std::string language_value = config.getValue("Settings", "Language", "English");
-    language = languageFromString(QString::fromStdString(language_value));
-    const std::string cat_lang_value = config.getValue("Settings", "CategoryLanguage", "English");
-    category_language = categoryLanguageFromString(QString::fromStdString(cat_lang_value));
-    categorized_file_count = parse_int_or(config.getValue("Settings", "CategorizedFileCount", "0"), 0);
-    next_support_prompt_threshold = parse_int_or(config.getValue("Settings", "SupportPromptThreshold", "100"), 100);
-    if (next_support_prompt_threshold < 100) {
-        next_support_prompt_threshold = 100;
-    }
+    language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
+    category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
+    categorized_file_count = load_int("CategorizedFileCount", 0);
+    next_support_prompt_threshold = load_int("SupportPromptThreshold", 100, 100);
 
     allowed_categories = parse_list(config.getValue("Settings", "AllowedCategories", ""));
     allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
-    use_whitelist = config.getValue("Settings", "UseWhitelist", "false") == "true";
+    use_whitelist = load_bool("UseWhitelist", false);
     active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
     active_custom_llm_id = config.getValue("LLMs", "ActiveCustomId", "");
 

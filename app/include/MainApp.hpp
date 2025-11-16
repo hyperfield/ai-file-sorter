@@ -120,6 +120,11 @@ private:
     void stop_running_analysis();
     void show_llm_selection_dialog();
     void on_about_activate();
+    void append_progress(const std::string& message);
+    bool should_abort_analysis() const;
+    void prune_empty_cached_entries_for(const std::string& directory_path);
+    void log_cached_highlights();
+    void log_pending_queue();
     void run_consistency_pass();
     void handle_development_prompt_logging(bool checked);
     void record_categorized_metrics(int count);

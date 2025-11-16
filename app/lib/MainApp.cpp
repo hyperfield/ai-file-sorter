@@ -1147,137 +1147,122 @@ void MainApp::populate_tree_view(const std::vector<CategorizedFile>& files)
 }
 
 
+
+void MainApp::append_progress(const std::string& message)
+{
+    run_on_ui([this, message]() {
+        if (progress_dialog) {
+            progress_dialog->append_text(message);
+        }
+    });
+}
+
+bool MainApp::should_abort_analysis() const
+{
+    return stop_analysis.load();
+}
+
+void MainApp::prune_empty_cached_entries_for(const std::string& directory_path)
+{
+    const std::vector<CategorizedFile> cleared =
+        categorization_service.prune_empty_cached_entries(directory_path);
+    if (cleared.empty()) {
+        return;
+    }
+
+    if (core_logger) {
+        core_logger->warn("Cleared {} cached categorization entr{} with empty values for '{}'",
+                          cleared.size(),
+                          cleared.size() == 1 ? "y" : "ies",
+                          directory_path);
+        for (const auto& entry : cleared) {
+            core_logger->warn("  - {}", entry.file_name);
+        }
+    }
+    std::string reason = "Cached category was empty. The item will be analyzed again.";
+    if (!using_local_llm) {
+        reason += " Configure your remote API key before analyzing.";
+    }
+    notify_recategorization_reset(cleared, reason);
+}
+
+void MainApp::log_cached_highlights()
+{
+    if (already_categorized_files.empty()) {
+        return;
+    }
+    append_progress("[ARCHIVE] Already categorized highlights:");
+    for (const auto& file_entry : already_categorized_files) {
+        const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
+        const std::string sub = file_entry.subcategory.empty() ? "-" : file_entry.subcategory;
+        append_progress(fmt::format("  - [{}] {} -> {} / {}", symbol, file_entry.file_name, file_entry.category, sub));
+    }
+}
+
+void MainApp::log_pending_queue()
+{
+    if (!progress_dialog) {
+        return;
+    }
+    if (files_to_categorize.empty()) {
+        append_progress("[DONE] No files to categorize.");
+        return;
+    }
+
+    append_progress("[QUEUE] Items waiting for categorization:");
+    for (const auto& file_entry : files_to_categorize) {
+        const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
+        append_progress(fmt::format("  - [{}] {}", symbol, file_entry.file_name));
+    }
+}
+
 void MainApp::perform_analysis()
 {
     const std::string directory_path = get_folder_path();
     core_logger->info("Starting analysis for directory '{}'", directory_path);
 
-    run_on_ui([this, directory_path]() {
-        if (progress_dialog) {
-            progress_dialog->append_text(fmt::format("[SCAN] Exploring {}", directory_path));
-        }
-    });
-
-    if (stop_analysis.load()) {
+    append_progress(fmt::format("[SCAN] Exploring {}", directory_path));
+    if (should_abort_analysis()) {
         return;
     }
 
     try {
-        const std::vector<CategorizedFile> cleared =
-            categorization_service.prune_empty_cached_entries(directory_path);
-        if (!cleared.empty()) {
-            if (core_logger) {
-                core_logger->warn("Cleared {} cached categorization entr{} with empty values for '{}'",
-                                  cleared.size(),
-                                  cleared.size() == 1 ? "y" : "ies",
-                                  directory_path);
-                for (const auto& entry : cleared) {
-                    core_logger->warn("  - {}", entry.file_name);
-                }
-            }
-            std::string reason =
-                "Cached category was empty. The item will be analyzed again.";
-            if (!using_local_llm) {
-                reason += " Configure your remote API key before analyzing.";
-            }
-            notify_recategorization_reset(cleared, reason);
-        }
-
+        prune_empty_cached_entries_for(directory_path);
         already_categorized_files = categorization_service.load_cached_entries(directory_path);
 
-        if (!already_categorized_files.empty()) {
-            run_on_ui([this]() {
-                if (progress_dialog) {
-                    progress_dialog->append_text("[ARCHIVE] Already categorized highlights:");
-                }
-            });
+        if (should_abort_analysis()) {
+            return;
         }
 
-        for (const auto& file_entry : already_categorized_files) {
-            if (stop_analysis.load()) {
-                return;
-            }
-            const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
-            const std::string sub = file_entry.subcategory.empty() ? "-" : file_entry.subcategory;
-            const std::string message = fmt::format(
-                "  - [{}] {} -> {} / {}",
-                symbol,
-                file_entry.file_name,
-                file_entry.category,
-                sub);
-
-            run_on_ui([this, message]() {
-                if (progress_dialog) {
-                    progress_dialog->append_text(message);
-                }
-            });
-        }
+        log_cached_highlights();
 
         const auto cached_file_names = results_coordinator.extract_file_names(already_categorized_files);
         files_to_categorize = results_coordinator.find_files_to_categorize(directory_path, file_scan_options, cached_file_names);
         core_logger->debug("Found {} item(s) pending categorization in '{}'.",
                            files_to_categorize.size(), directory_path);
 
-        run_on_ui([this]() {
-            if (!progress_dialog) {
-                return;
-            }
-            if (!files_to_categorize.empty()) {
-                progress_dialog->append_text("[QUEUE] Items waiting for categorization:");
-            } else {
-                progress_dialog->append_text("[DONE] No files to categorize.");
-            }
-        });
-
-        for (const auto& file_entry : files_to_categorize) {
-            if (stop_analysis.load()) {
-                return;
-            }
-            run_on_ui([this, file_entry]() {
-                if (!progress_dialog) {
-                    return;
-                }
-                const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
-                progress_dialog->append_text(fmt::format("  - [{}] {}", symbol, file_entry.file_name));
-            });
-        }
-
-        if (stop_analysis.load()) {
+        log_pending_queue();
+        if (should_abort_analysis()) {
             return;
         }
 
-        run_on_ui([this]() {
-            if (progress_dialog) {
-                progress_dialog->append_text("[PROCESS] Letting the AI do its magic...");
-            }
-        });
+        append_progress("[PROCESS] Letting the AI do its magic...");
 
         new_files_with_categories = categorization_service.categorize_entries(
             files_to_categorize,
             using_local_llm,
             stop_analysis,
-            [this](const std::string& message) {
-                run_on_ui([this, message]() {
-                    if (progress_dialog) {
-                        progress_dialog->append_text(message);
-                    }
-                });
-            },
+            [this](const std::string& message) { append_progress(message); },
             [this](const FileEntry& entry) {
-                run_on_ui([this, entry]() {
-                    if (progress_dialog) {
-                        progress_dialog->append_text(
-                            fmt::format("[SORT] {} ({})", entry.file_name,
-                                        entry.type == FileType::Directory ? "directory" : "file"));
-                    }
-                });
+                append_progress(fmt::format("[SORT] {} ({})",
+                                            entry.file_name,
+                                            entry.type == FileType::Directory ? "directory" : "file"));
             },
             [this](const CategorizedFile& entry, const std::string& reason) {
                 notify_recategorization_reset(entry, reason);
             },
-            [this]() {
-                return make_llm_client();
-            });
+            [this]() { return make_llm_client(); });
+
         core_logger->info("Categorization produced {} new record(s).",
                           new_files_with_categories.size());
 
@@ -1285,13 +1270,6 @@ void MainApp::perform_analysis()
             already_categorized_files.end(),
             new_files_with_categories.begin(),
             new_files_with_categories.end());
-
-        // Consistency pass prototype work in progress; skip in production builds.
-        if (false) {
-            if (settings.get_consistency_pass_enabled()) {
-                run_consistency_pass();
-            }
-        }
 
         const auto actual_files = results_coordinator.list_directory(get_folder_path(), file_scan_options);
         new_files_to_sort = results_coordinator.compute_files_to_sort(get_folder_path(), file_scan_options, actual_files, already_categorized_files);

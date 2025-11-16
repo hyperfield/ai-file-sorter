@@ -28,6 +28,20 @@ FileScanner::get_directory_entries(const std::string &directory_path,
     const bool include_directories = has_flag(options, FileScanOptions::Directories);
     const bool include_hidden = has_flag(options, FileScanOptions::HiddenFiles);
 
+    const auto resolve_type = [&](const fs::directory_entry& entry,
+                                  const fs::path& entry_path,
+                                  bool is_bundle) -> std::optional<FileType> {
+        const bool is_file = is_bundle || fs::is_regular_file(entry);
+        const bool is_directory = !is_bundle && fs::is_directory(entry);
+        if (include_files && is_file) {
+            return FileType::File;
+        }
+        if (include_directories && is_directory) {
+            return FileType::Directory;
+        }
+        return std::nullopt;
+    };
+
     try {
         const fs::path scan_path = Utils::utf8_to_path(directory_path);
         for (const auto &entry : fs::directory_iterator(scan_path)) {
@@ -46,20 +60,10 @@ FileScanner::get_directory_entries(const std::string &directory_path,
                 continue;
             }
 
-            FileType file_type;
             const bool bundle = is_file_bundle(entry_path);
-            const bool is_file = bundle || fs::is_regular_file(entry);
-            const bool is_directory = !bundle && fs::is_directory(entry);
-
-            if (include_files && is_file) {
-                file_type = FileType::File;
-            } else if (include_directories && is_directory) {
-                file_type = FileType::Directory;
-            } else {
-                continue;
+            if (auto type = resolve_type(entry, entry_path, bundle)) {
+                file_paths_and_names.push_back({full_path, file_name, *type});
             }
-
-            file_paths_and_names.push_back({full_path, file_name, file_type});
         }
     } catch (const fs::filesystem_error& ex) {
         if (logger) {
