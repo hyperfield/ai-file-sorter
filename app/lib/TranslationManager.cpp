@@ -147,35 +147,64 @@ TranslationManager& TranslationManager::instance()
 void TranslationManager::initialize(QApplication* app)
 {
     app_ = app;
-    if (!translator_) {
-        translator_ = std::make_unique<StaticTranslator>();
+    if (!file_translator_) {
+        file_translator_ = std::make_unique<QTranslator>();
+    }
+    if (!fallback_translator_) {
+        fallback_translator_ = std::make_unique<StaticTranslator>();
+    }
+    if (languages_.empty()) {
+        languages_.push_back(LanguageInfo{Language::English, QStringLiteral("en"), QStringLiteral("English"), QString()});
+        languages_.push_back(LanguageInfo{Language::French, QStringLiteral("fr"), QStringLiteral("French"),
+                                          QStringLiteral(":/i18n/aifilesorter_fr.qm")});
     }
 }
 
 void TranslationManager::set_language(Language language)
 {
-    if (!app_ || current_language_ == language) {
+    if (!app_) {
         current_language_ = language;
-        if (translator_) {
-            translator_->set_language(language);
-        }
         return;
     }
 
-    if (!translator_) {
-        translator_ = std::make_unique<StaticTranslator>();
+    app_->removeTranslator(file_translator_.get());
+    app_->removeTranslator(fallback_translator_.get());
+
+    if (language == Language::English) {
+        current_language_ = language;
+        return;
     }
 
-    app_->removeTranslator(translator_.get());
-    translator_->set_language(language);
+    QString target_path;
+    for (const auto& info : languages_) {
+        if (info.id == language) {
+            target_path = info.resource_path;
+            break;
+        }
+    }
+
+    bool loaded = false;
+    if (!target_path.isEmpty() && file_translator_) {
+        loaded = file_translator_->load(target_path);
+        if (loaded) {
+            app_->installTranslator(file_translator_.get());
+        }
+    }
+
+    if (!loaded && fallback_translator_) {
+        fallback_translator_->set_language(language);
+        app_->installTranslator(fallback_translator_.get());
+    }
+
     current_language_ = language;
-
-    if (language != Language::English) {
-        app_->installTranslator(translator_.get());
-    }
 }
 
 Language TranslationManager::current_language() const
 {
     return current_language_;
+}
+
+const std::vector<TranslationManager::LanguageInfo>& TranslationManager::available_languages() const
+{
+    return languages_;
 }
