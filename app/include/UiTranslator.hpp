@@ -47,6 +47,7 @@ public:
         QMenu*& development_menu;
         QMenu*& development_settings_menu;
         QMenu*& language_menu;
+        QMenu*& category_language_menu;
         QMenu*& help_menu;
     };
 
@@ -63,6 +64,15 @@ public:
         QAction*& consistency_pass_action;
         QAction*& english_action;
         QAction*& french_action;
+        QAction*& category_language_english;
+        QAction*& category_language_french;
+        QAction*& category_language_german;
+        QAction*& category_language_italian;
+        QAction*& category_language_dutch;
+        QAction*& category_language_polish;
+        QAction*& category_language_portuguese;
+        QAction*& category_language_spanish;
+        QAction*& category_language_turkish;
         QAction*& about_action;
         QAction*& about_qt_action;
         QAction*& about_agpl_action;
@@ -73,6 +83,19 @@ public:
         QActionGroup*& language_group;
         QAction*& english_action;
         QAction*& french_action;
+    };
+
+    struct CategoryLanguageControls {
+        QActionGroup*& category_language_group;
+        QAction*& dutch;
+        QAction*& english;
+        QAction*& french;
+        QAction*& german;
+        QAction*& italian;
+        QAction*& polish;
+        QAction*& portuguese;
+        QAction*& spanish;
+        QAction*& turkish;
     };
 
     struct State {
@@ -88,6 +111,7 @@ public:
         MenuControls menus;
         ActionControls actions;
         LanguageControls language;
+        CategoryLanguageControls category_language;
         QPointer<QDockWidget>& file_explorer_dock;
         Settings& settings;
         std::function<QString(const char*)> translator;

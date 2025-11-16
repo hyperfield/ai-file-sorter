@@ -1,6 +1,7 @@
 #include "CategorizationService.hpp"
 
 #include "Settings.hpp"
+#include "CategoryLanguage.hpp"
 #include "DatabaseManager.hpp"
 #include "CryptoManager.hpp"
 #include "ILLMClient.hpp"
@@ -22,40 +23,19 @@ constexpr const char* kLocalTimeoutEnv = "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT";
 constexpr const char* kRemoteTimeoutEnv = "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT";
 constexpr size_t kMaxConsistencyHints = 5;
 
-std::string trim_whitespace(const std::string& value);
-std::string sanitize_label(const std::string& value);
-
 std::pair<std::string, std::string> split_category_subcategory(const std::string& input) {
     const std::string delimiter = " : ";
 
     const auto pos = input.find(delimiter);
     if (pos == std::string::npos) {
-        return {sanitize_label(input), ""};
+        return {Utils::sanitize_path_label(input), ""};
     }
 
     auto category = input.substr(0, pos);
     auto subcategory = input.substr(pos + delimiter.size());
-    return {sanitize_label(category), sanitize_label(subcategory)};
+    return {Utils::sanitize_path_label(category), Utils::sanitize_path_label(subcategory)};
 }
 
-std::string trim_whitespace(const std::string& value) {
-    const char* whitespace = " \t\n\r\f\v";
-    const auto start = value.find_first_not_of(whitespace);
-    const auto end = value.find_last_not_of(whitespace);
-    if (start == std::string::npos || end == std::string::npos) {
-        return std::string();
-    }
-    return value.substr(start, end - start + 1);
-}
-
-std::string sanitize_label(const std::string& value) {
-    std::string trimmed = trim_whitespace(value);
-    const auto slash_pos = trimmed.find('/');
-    if (slash_pos != std::string::npos) {
-        trimmed = trimmed.substr(0, slash_pos);
-    }
-    return trim_whitespace(trimmed);
-}
 }
 
 CategorizationService::CategorizationService(Settings& settings,
@@ -170,6 +150,16 @@ std::string CategorizationService::build_whitelist_context() const
     return oss.str();
 }
 
+std::string CategorizationService::build_category_language_context() const
+{
+    const CategoryLanguage lang = settings.get_category_language();
+    if (lang == CategoryLanguage::English) {
+        return std::string();
+    }
+    const std::string name = categoryLanguageDisplay(lang);
+    return fmt::format("Use {} for both the main category and subcategory names. Respond in {}.", name, name);
+}
+
 namespace {
 std::string to_lower_copy_str(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -207,8 +197,8 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
         return std::nullopt;
     }
 
-    const std::string sanitized_category = sanitize_label(cached[0]);
-    const std::string sanitized_subcategory = sanitize_label(cached[1]);
+    const std::string sanitized_category = Utils::sanitize_path_label(cached[0]);
+    const std::string sanitized_subcategory = Utils::sanitize_path_label(cached[1]);
     if (sanitized_category.empty() || sanitized_subcategory.empty()) {
         if (core_logger) {
             core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
@@ -355,14 +345,21 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
         hint_block = format_hint_block(hints);
     }
     std::string whitelist_block = build_whitelist_context();
+    std::string language_block = build_category_language_context();
     std::string combined_context;
+    if (!language_block.empty()) {
+        combined_context += language_block;
+    }
     if (settings.get_use_whitelist() && !whitelist_block.empty()) {
         if (core_logger) {
             core_logger->debug("Applying category whitelist ({} cats, {} subs)",
                                settings.get_allowed_categories().size(),
                                settings.get_allowed_subcategories().size());
         }
-        combined_context = whitelist_block;
+        if (!combined_context.empty()) {
+            combined_context += "\n\n";
+        }
+        combined_context += whitelist_block;
     }
     if (!hint_block.empty()) {
         if (!combined_context.empty()) {
@@ -533,7 +530,7 @@ std::string CategorizationService::extract_extension(const std::string& file_nam
 
 bool CategorizationService::append_unique_hint(std::vector<CategoryPair>& target, const CategoryPair& candidate)
 {
-    CategoryPair normalized{sanitize_label(candidate.first), sanitize_label(candidate.second)};
+    CategoryPair normalized{Utils::sanitize_path_label(candidate.first), Utils::sanitize_path_label(candidate.second)};
     if (normalized.first.empty()) {
         return false;
     }
@@ -551,7 +548,7 @@ bool CategorizationService::append_unique_hint(std::vector<CategoryPair>& target
 
 void CategorizationService::record_session_assignment(HintHistory& history, const CategoryPair& assignment)
 {
-    CategoryPair normalized{sanitize_label(assignment.first), sanitize_label(assignment.second)};
+    CategoryPair normalized{Utils::sanitize_path_label(assignment.first), Utils::sanitize_path_label(assignment.second)};
     if (normalized.first.empty()) {
         return;
     }

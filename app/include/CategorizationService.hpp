@@ -73,6 +73,7 @@ private:
         const std::string& consistency_context) const;
 
     std::string build_whitelist_context() const;
+    std::string build_category_language_context() const;
 
     std::vector<CategoryPair> collect_consistency_hints(
         const std::string& signature,

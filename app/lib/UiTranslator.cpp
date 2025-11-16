@@ -1,6 +1,7 @@
 #include "UiTranslator.hpp"
 
 #include "Language.hpp"
+#include "CategoryLanguage.hpp"
 #include "Settings.hpp"
 
 #include <QAction>
@@ -136,7 +137,8 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.menus.settings_menu, "&Settings"},
         {deps_.menus.development_menu, "&Development"},
         {deps_.menus.development_settings_menu, "&Settings"},
-        {deps_.menus.language_menu, "&Language"}
+        {deps_.menus.language_menu, "&Language"},
+        {deps_.menus.category_language_menu, "Category &language"}
     };
 
     for (const MenuEntry& entry : menu_entries) {
@@ -163,6 +165,15 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.consistency_pass_action, "Run &consistency pass"},
         {deps_.actions.english_action, "&English"},
         {deps_.actions.french_action, "&French"},
+        {deps_.actions.category_language_dutch, "Dutch"},
+        {deps_.actions.category_language_english, "English"},
+        {deps_.actions.category_language_french, "French"},
+        {deps_.actions.category_language_german, "German"},
+        {deps_.actions.category_language_italian, "Italian"},
+        {deps_.actions.category_language_polish, "Polish"},
+        {deps_.actions.category_language_portuguese, "Portuguese"},
+        {deps_.actions.category_language_spanish, "Spanish"},
+        {deps_.actions.category_language_turkish, "Turkish"},
         {deps_.actions.about_action, "&About AI File Sorter"},
         {deps_.actions.about_qt_action, "About &Qt"},
         {deps_.actions.about_agpl_action, "About &AGPL"},
@@ -208,22 +219,34 @@ void UiTranslator::translate_status_messages(const State& state) const
 
 void UiTranslator::update_language_checks() const
 {
-    if (!deps_.language.language_group) {
-        return;
+    if (deps_.language.language_group) {
+        Language configured = deps_.settings.get_language();
+        if (configured != Language::English && configured != Language::French) {
+            configured = Language::English;
+            deps_.settings.set_language(configured);
+        }
+
+        QSignalBlocker blocker(deps_.language.language_group);
+        if (deps_.language.english_action) {
+            deps_.language.english_action->setChecked(configured == Language::English);
+        }
+        if (deps_.language.french_action) {
+            deps_.language.french_action->setChecked(configured == Language::French);
+        }
     }
 
-    Language configured = deps_.settings.get_language();
-    if (configured != Language::English && configured != Language::French) {
-        configured = Language::English;
-        deps_.settings.set_language(configured);
-    }
-
-    QSignalBlocker blocker(deps_.language.language_group);
-    if (deps_.language.english_action) {
-        deps_.language.english_action->setChecked(configured == Language::English);
-    }
-    if (deps_.language.french_action) {
-        deps_.language.french_action->setChecked(configured == Language::French);
+    if (deps_.category_language.category_language_group) {
+        CategoryLanguage cat_lang = deps_.settings.get_category_language();
+        QSignalBlocker blocker_cat(deps_.category_language.category_language_group);
+        if (deps_.category_language.dutch) deps_.category_language.dutch->setChecked(cat_lang == CategoryLanguage::Dutch);
+        if (deps_.category_language.english) deps_.category_language.english->setChecked(cat_lang == CategoryLanguage::English);
+        if (deps_.category_language.french) deps_.category_language.french->setChecked(cat_lang == CategoryLanguage::French);
+        if (deps_.category_language.german) deps_.category_language.german->setChecked(cat_lang == CategoryLanguage::German);
+        if (deps_.category_language.italian) deps_.category_language.italian->setChecked(cat_lang == CategoryLanguage::Italian);
+        if (deps_.category_language.polish) deps_.category_language.polish->setChecked(cat_lang == CategoryLanguage::Polish);
+        if (deps_.category_language.portuguese) deps_.category_language.portuguese->setChecked(cat_lang == CategoryLanguage::Portuguese);
+        if (deps_.category_language.spanish) deps_.category_language.spanish->setChecked(cat_lang == CategoryLanguage::Spanish);
+        if (deps_.category_language.turkish) deps_.category_language.turkish->setChecked(cat_lang == CategoryLanguage::Turkish);
     }
 }
 

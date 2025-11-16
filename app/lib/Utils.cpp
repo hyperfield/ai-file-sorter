@@ -808,3 +808,57 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
 
     return to_forward_slashes(Utils::path_to_utf8(normalized.filename()));
 }
+
+namespace {
+std::string trim_ws(const std::string& value) {
+    const char* whitespace = " \t\n\r\f\v";
+    const auto start = value.find_first_not_of(whitespace);
+    const auto end = value.find_last_not_of(whitespace);
+    if (start == std::string::npos || end == std::string::npos) {
+        return std::string();
+    }
+    return value.substr(start, end - start + 1);
+}
+}
+
+std::string Utils::sanitize_path_label(const std::string& value) {
+    const std::string invalid = R"(<>:"/\|?*)";
+    std::string cleaned;
+    cleaned.reserve(value.size());
+
+    // Replace invalid path characters and control chars with spaces.
+    for (unsigned char ch : value) {
+        if (std::iscntrl(ch)) {
+            continue;
+        }
+        if (invalid.find(static_cast<char>(ch)) != std::string::npos) {
+            cleaned.push_back(' ');
+        } else {
+            cleaned.push_back(static_cast<char>(ch));
+        }
+    }
+
+    // Collapse multiple spaces.
+    std::string collapsed;
+    collapsed.reserve(cleaned.size());
+    bool prev_space = false;
+    for (char ch : cleaned) {
+        const bool is_space = std::isspace(static_cast<unsigned char>(ch));
+        if (is_space) {
+            if (!prev_space) {
+                collapsed.push_back(' ');
+            }
+        } else {
+            collapsed.push_back(ch);
+        }
+        prev_space = is_space;
+    }
+
+    // Trim and drop trailing dots/spaces (Windows safety).
+    std::string trimmed = trim_ws(collapsed);
+    while (!trimmed.empty() && (trimmed.back() == '.' || std::isspace(static_cast<unsigned char>(trimmed.back())))) {
+        trimmed.pop_back();
+    }
+
+    return trim_ws(trimmed);
+}

@@ -4,6 +4,7 @@
 #include <IniConfig.hpp>
 #include <Types.hpp>
 #include <Language.hpp>
+#include <CategoryLanguage.hpp>
 #include <string>
 #include <filesystem>
 #include <vector>
@@ -19,6 +20,8 @@ public:
 
     LLMChoice get_llm_choice() const;
     void set_llm_choice(LLMChoice choice);
+    CategoryLanguage get_category_language() const;
+    void set_category_language(CategoryLanguage language);
     std::string get_active_custom_llm_id() const;
     void set_active_custom_llm_id(const std::string& id);
     const std::vector<CustomLLM>& get_custom_llms() const;
@@ -87,6 +90,7 @@ private:
     std::string skipped_version;
     bool show_file_explorer{true};
     Language language{Language::English};
+    CategoryLanguage category_language{CategoryLanguage::English};
     bool consistency_pass_enabled{false};
     bool development_prompt_logging{false};
     int categorized_file_count{0};

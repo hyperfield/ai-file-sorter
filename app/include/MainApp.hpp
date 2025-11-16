@@ -100,6 +100,7 @@ private:
     void sync_ui_to_settings();
     void retranslate_ui();
     void on_language_selected(Language language);
+    void on_category_language_selected(CategoryLanguage language);
 
     void on_analyze_clicked();
     void on_directory_selected(const QString& path, bool user_initiated = false);
@@ -183,6 +184,7 @@ private:
     QMenu* development_menu{nullptr};
     QMenu* development_settings_menu{nullptr};
     QMenu* language_menu{nullptr};
+    QMenu* category_language_menu{nullptr};
     QMenu* help_menu{nullptr};
     QAction* file_quit_action{nullptr};
     QAction* copy_action{nullptr};
@@ -197,6 +199,16 @@ private:
     QActionGroup* language_group{nullptr};
     QAction* english_action{nullptr};
     QAction* french_action{nullptr};
+    QActionGroup* category_language_group{nullptr};
+    QAction* category_language_dutch{nullptr};
+    QAction* category_language_english{nullptr};
+    QAction* category_language_french{nullptr};
+    QAction* category_language_german{nullptr};
+    QAction* category_language_italian{nullptr};
+    QAction* category_language_polish{nullptr};
+    QAction* category_language_portuguese{nullptr};
+    QAction* category_language_spanish{nullptr};
+    QAction* category_language_turkish{nullptr};
     QAction* about_action{nullptr};
     QAction* about_qt_action{nullptr};
     QAction* about_agpl_action{nullptr};

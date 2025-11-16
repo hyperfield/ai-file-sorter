@@ -4,6 +4,7 @@
 #include "MainAppEditActions.hpp"
 #include "MainAppHelpActions.hpp"
 #include "Language.hpp"
+#include "CategoryLanguage.hpp"
 
 #include <QAction>
 #include <QActionGroup>
@@ -246,6 +247,35 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
         }
         const Language chosen = static_cast<Language>(action->data().toInt());
         app.on_language_selected(chosen);
+    });
+
+    app.category_language_menu = app.settings_menu->addMenu(QString());
+    app.category_language_group = new QActionGroup(&app);
+    app.category_language_group->setExclusive(true);
+
+    const auto add_cat_lang = [&](CategoryLanguage lang) {
+        QAction* act = app.category_language_menu->addAction(QString());
+        act->setCheckable(true);
+        act->setData(static_cast<int>(lang));
+        app.category_language_group->addAction(act);
+        return act;
+    };
+    app.category_language_dutch = add_cat_lang(CategoryLanguage::Dutch);
+    app.category_language_english = add_cat_lang(CategoryLanguage::English);
+    app.category_language_french = add_cat_lang(CategoryLanguage::French);
+    app.category_language_german = add_cat_lang(CategoryLanguage::German);
+    app.category_language_italian = add_cat_lang(CategoryLanguage::Italian);
+    app.category_language_polish = add_cat_lang(CategoryLanguage::Polish);
+    app.category_language_portuguese = add_cat_lang(CategoryLanguage::Portuguese);
+    app.category_language_spanish = add_cat_lang(CategoryLanguage::Spanish);
+    app.category_language_turkish = add_cat_lang(CategoryLanguage::Turkish);
+
+    QObject::connect(app.category_language_group, &QActionGroup::triggered, &app, [&app](QAction* action) {
+        if (!action) {
+            return;
+        }
+        const CategoryLanguage chosen = static_cast<CategoryLanguage>(action->data().toInt());
+        app.on_category_language_selected(chosen);
     });
 }
 

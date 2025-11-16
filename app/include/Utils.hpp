@@ -46,6 +46,7 @@ public:
     static std::filesystem::path ensure_ca_bundle();
     static std::string path_to_utf8(const std::filesystem::path& path);
     static std::filesystem::path utf8_to_path(const std::string& utf8_path);
+    static std::string sanitize_path_label(const std::string& value);
 
 private:
     static int get_ngl(int vram_mb);

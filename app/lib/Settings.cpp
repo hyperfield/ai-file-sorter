@@ -176,6 +176,8 @@ bool Settings::load()
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
     const std::string language_value = config.getValue("Settings", "Language", "English");
     language = languageFromString(QString::fromStdString(language_value));
+    const std::string cat_lang_value = config.getValue("Settings", "CategoryLanguage", "English");
+    category_language = categoryLanguageFromString(QString::fromStdString(cat_lang_value));
     categorized_file_count = parse_int_or(config.getValue("Settings", "CategorizedFileCount", "0"), 0);
     next_support_prompt_threshold = parse_int_or(config.getValue("Settings", "SupportPromptThreshold", "100"), 100);
     if (next_support_prompt_threshold < 100) {
@@ -203,13 +205,14 @@ bool Settings::load()
     }
 
     if (auto logger = Logger::get_logger("core_logger")) {
-        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {})",
+        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {}, category language: {})",
                      config_path,
                      allowed_categories.size(),
                      allowed_subcategories.size(),
                      use_whitelist,
                      active_whitelist,
-                     custom_llms.size());
+                     custom_llms.size(),
+                     categoryLanguageDisplay(category_language));
     }
 
     return true;
@@ -243,6 +246,7 @@ bool Settings::save()
     config.setValue("Settings", "ConsistencyPass", consistency_pass_enabled ? "true" : "false");
     config.setValue("Settings", "DevelopmentPromptLogging", development_prompt_logging ? "true" : "false");
     config.setValue("Settings", "Language", languageToString(language).toStdString());
+    config.setValue("Settings", "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
     config.setValue("Settings", "CategorizedFileCount", std::to_string(categorized_file_count));
     config.setValue("Settings", "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
 
@@ -340,6 +344,16 @@ void Settings::remove_custom_llm(const std::string& id)
 
 bool Settings::is_llm_chosen() const {
     return llm_choice != LLMChoice::Unset;
+}
+
+CategoryLanguage Settings::get_category_language() const
+{
+    return category_language;
+}
+
+void Settings::set_category_language(CategoryLanguage language)
+{
+    category_language = language;
 }
 
 

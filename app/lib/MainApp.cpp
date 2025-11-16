@@ -12,6 +12,7 @@
 #include "TranslationManager.hpp"
 #include "Utils.hpp"
 #include "Types.hpp"
+#include "CategoryLanguage.hpp"
 #include "MainAppUiBuilder.hpp"
 #include "UiTranslator.hpp"
 #include "WhitelistManagerDialog.hpp"
@@ -191,6 +192,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
             development_menu,
             development_settings_menu,
             language_menu,
+            category_language_menu,
             help_menu},
         .actions = UiTranslator::ActionControls{
             file_quit_action,
@@ -205,6 +207,15 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
             consistency_pass_action,
             english_action,
             french_action,
+            category_language_english,
+            category_language_french,
+            category_language_german,
+            category_language_italian,
+            category_language_dutch,
+            category_language_polish,
+            category_language_portuguese,
+            category_language_spanish,
+            category_language_turkish,
             about_action,
             about_qt_action,
             about_agpl_action,
@@ -213,6 +224,17 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
             language_group,
             english_action,
             french_action},
+        .category_language = UiTranslator::CategoryLanguageControls{
+            category_language_group,
+            category_language_dutch,
+            category_language_english,
+            category_language_french,
+            category_language_german,
+            category_language_italian,
+            category_language_polish,
+            category_language_portuguese,
+            category_language_spanish,
+            category_language_turkish},
         .file_explorer_dock = file_explorer_dock,
         .settings = settings,
         .translator = [](const char* source) {
@@ -682,6 +704,14 @@ void MainApp::on_language_selected(Language language)
         QCoreApplication::postEvent(
             progress_dialog.get(),
             new QEvent(QEvent::LanguageChange));
+    }
+}
+
+void MainApp::on_category_language_selected(CategoryLanguage language)
+{
+    settings.set_category_language(language);
+    if (ui_translator_) {
+        ui_translator_->update_language_checks();
     }
 }
 
