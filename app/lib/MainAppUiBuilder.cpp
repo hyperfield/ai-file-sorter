@@ -240,6 +240,22 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.french_action->setCheckable(true);
     app.french_action->setData(static_cast<int>(Language::French));
     app.language_group->addAction(app.french_action);
+    app.german_action = app.language_menu->addAction(QString());
+    app.german_action->setCheckable(true);
+    app.german_action->setData(static_cast<int>(Language::German));
+    app.language_group->addAction(app.german_action);
+    app.italian_action = app.language_menu->addAction(QString());
+    app.italian_action->setCheckable(true);
+    app.italian_action->setData(static_cast<int>(Language::Italian));
+    app.language_group->addAction(app.italian_action);
+    app.spanish_action = app.language_menu->addAction(QString());
+    app.spanish_action->setCheckable(true);
+    app.spanish_action->setData(static_cast<int>(Language::Spanish));
+    app.language_group->addAction(app.spanish_action);
+    app.turkish_action = app.language_menu->addAction(QString());
+    app.turkish_action->setCheckable(true);
+    app.turkish_action->setData(static_cast<int>(Language::Turkish));
+    app.language_group->addAction(app.turkish_action);
 
     QObject::connect(app.language_group, &QActionGroup::triggered, &app, [&app](QAction* action) {
         if (!action) {

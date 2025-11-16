@@ -64,6 +64,10 @@ public:
         QAction*& consistency_pass_action;
         QAction*& english_action;
         QAction*& french_action;
+        QAction*& german_action;
+        QAction*& italian_action;
+        QAction*& spanish_action;
+        QAction*& turkish_action;
         QAction*& category_language_english;
         QAction*& category_language_french;
         QAction*& category_language_german;
@@ -83,6 +87,10 @@ public:
         QActionGroup*& language_group;
         QAction*& english_action;
         QAction*& french_action;
+        QAction*& german_action;
+        QAction*& italian_action;
+        QAction*& spanish_action;
+        QAction*& turkish_action;
     };
 
     struct CategoryLanguageControls {

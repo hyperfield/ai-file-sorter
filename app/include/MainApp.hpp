@@ -199,6 +199,10 @@ private:
     QActionGroup* language_group{nullptr};
     QAction* english_action{nullptr};
     QAction* french_action{nullptr};
+    QAction* german_action{nullptr};
+    QAction* italian_action{nullptr};
+    QAction* spanish_action{nullptr};
+    QAction* turkish_action{nullptr};
     QActionGroup* category_language_group{nullptr};
     QAction* category_language_dutch{nullptr};
     QAction* category_language_english{nullptr};

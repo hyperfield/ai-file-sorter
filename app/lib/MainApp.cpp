@@ -207,6 +207,10 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
             consistency_pass_action,
             english_action,
             french_action,
+            german_action,
+            italian_action,
+            spanish_action,
+            turkish_action,
             category_language_english,
             category_language_french,
             category_language_german,
@@ -223,7 +227,11 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
         .language = UiTranslator::LanguageControls{
             language_group,
             english_action,
-            french_action},
+            french_action,
+            german_action,
+            italian_action,
+            spanish_action,
+            turkish_action},
         .category_language = UiTranslator::CategoryLanguageControls{
             category_language_group,
             category_language_dutch,

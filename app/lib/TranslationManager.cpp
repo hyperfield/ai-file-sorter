@@ -55,9 +55,13 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("&Development"), QStringLiteral("&Développement")},
     {QStringLiteral("Log prompts and responses to stdout"), QStringLiteral("Journaliser les invites et réponses dans stdout")},
     {QStringLiteral("Run &consistency pass"), QStringLiteral("Lancer le &signalement de cohérence")},
-    {QStringLiteral("&Language"), QStringLiteral("&Langue")},
+    {QStringLiteral("Interface &language"), QStringLiteral("&Langue de l'interface")},
     {QStringLiteral("&English"), QStringLiteral("&Anglais")},
     {QStringLiteral("&French"), QStringLiteral("&Français")},
+    {QStringLiteral("&German"), QStringLiteral("&Allemand")},
+    {QStringLiteral("&Italian"), QStringLiteral("&Italien")},
+    {QStringLiteral("&Spanish"), QStringLiteral("&Espagnol")},
+    {QStringLiteral("&Turkish"), QStringLiteral("&Turc")},
     {QStringLiteral("&Help"), QStringLiteral("&Aide")},
     {QStringLiteral("&About"), QStringLiteral("À propos")},
     {QStringLiteral("&About AI File Sorter"), QStringLiteral("À propos d'AI File Sorter")},
@@ -95,6 +99,386 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("Download error: %1"), QStringLiteral("Erreur de téléchargement : %1")}
 };
 
+static const QHash<QString, QString> kGermanTranslations = {
+    {QStringLiteral("Analyze folder"), QStringLiteral("Ordner analysieren")},
+    {QStringLiteral("Stop analyzing"), QStringLiteral("Analyse stoppen")},
+    {QStringLiteral("Use subcategories"), QStringLiteral("Unterkategorien verwenden")},
+    {QStringLiteral("Categorization type"), QStringLiteral("Kategorisierungstyp")},
+    {QStringLiteral("More refined"), QStringLiteral("Ausführlicher")},
+    {QStringLiteral("More consistent"), QStringLiteral("Einheitlicher")},
+    {QStringLiteral("Use a whitelist"), QStringLiteral("Whitelist verwenden")},
+    {QStringLiteral("Recategorize folder?"), QStringLiteral("Ordner neu kategorisieren?")},
+    {QStringLiteral("This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?"),
+     QStringLiteral("Dieser Ordner wurde im Modus %1 kategorisiert. Möchten Sie ihn jetzt im Modus %2 neu kategorisieren?")},
+    {QStringLiteral("Recategorize"), QStringLiteral("Neu kategorisieren")},
+    {QStringLiteral("Keep existing"), QStringLiteral("Beibehalten")},
+    {QStringLiteral("Failed to reset cached categorization for this folder."), QStringLiteral("Zurücksetzen der zwischengespeicherten Kategorisierung für diesen Ordner fehlgeschlagen.")},
+    {QStringLiteral("Categorize files"), QStringLiteral("Dateien kategorisieren")},
+    {QStringLiteral("Categorize directories"), QStringLiteral("Ordner kategorisieren")},
+    {QStringLiteral("Ready"), QStringLiteral("Bereit")},
+    {QStringLiteral("Set folder to %1"), QStringLiteral("Ordner auf %1 gesetzt")},
+    {QStringLiteral("Loaded folder %1"), QStringLiteral("Ordner %1 geladen")},
+    {QStringLiteral("Analysis cancelled"), QStringLiteral("Analyse abgebrochen")},
+    {QStringLiteral("Folder selected: %1"), QStringLiteral("Ordner ausgewählt: %1")},
+    {QStringLiteral("Analyzing…"), QStringLiteral("Analysiere…")},
+    {QStringLiteral("Cancelling analysis…"), QStringLiteral("Analyse wird abgebrochen…")},
+    {QStringLiteral("Folder:"), QStringLiteral("Ordner:")},
+    {QStringLiteral("Browse…"), QStringLiteral("Durchsuchen…")},
+    {QStringLiteral("File"), QStringLiteral("Datei")},
+    {QStringLiteral("Type"), QStringLiteral("Typ")},
+    {QStringLiteral("Category"), QStringLiteral("Kategorie")},
+    {QStringLiteral("Subcategory"), QStringLiteral("Unterkategorie")},
+    {QStringLiteral("Status"), QStringLiteral("Status")},
+    {QStringLiteral("Select Directory"), QStringLiteral("Ordner auswählen")},
+    {QStringLiteral("Directory"), QStringLiteral("Ordner")},
+    {QStringLiteral("&File"), QStringLiteral("&Datei")},
+    {QStringLiteral("&Quit"), QStringLiteral("&Beenden")},
+    {QStringLiteral("&Edit"), QStringLiteral("&Bearbeiten")},
+    {QStringLiteral("&Copy"), QStringLiteral("&Kopieren")},
+    {QStringLiteral("Cu&t"), QStringLiteral("A&usschneiden")},
+    {QStringLiteral("&Paste"), QStringLiteral("&Einfügen")},
+    {QStringLiteral("&Delete"), QStringLiteral("&Löschen")},
+    {QStringLiteral("&View"), QStringLiteral("&Ansicht")},
+    {QStringLiteral("File &Explorer"), QStringLiteral("Datei-Explorer")},
+    {QStringLiteral("File Explorer"), QStringLiteral("Datei-Explorer")},
+    {QStringLiteral("&Settings"), QStringLiteral("&Einstellungen")},
+    {QStringLiteral("Select &LLM…"), QStringLiteral("&LLM auswählen…")},
+    {QStringLiteral("Manage category whitelists…"), QStringLiteral("Kategorie-Whitelists verwalten…")},
+    {QStringLiteral("&Development"), QStringLiteral("&Entwicklung")},
+    {QStringLiteral("Log prompts and responses to stdout"), QStringLiteral("Eingaben und Antworten in stdout protokollieren")},
+    {QStringLiteral("Run &consistency pass"), QStringLiteral("Konsistenzdurchlauf ausführen")},
+    {QStringLiteral("Interface &language"), QStringLiteral("&Oberflächensprache")},
+    {QStringLiteral("&English"), QStringLiteral("&Englisch")},
+    {QStringLiteral("&French"), QStringLiteral("&Französisch")},
+    {QStringLiteral("&German"), QStringLiteral("&Deutsch")},
+    {QStringLiteral("&Italian"), QStringLiteral("&Italienisch")},
+    {QStringLiteral("&Spanish"), QStringLiteral("&Spanisch")},
+    {QStringLiteral("&Turkish"), QStringLiteral("&Türkisch")},
+    {QStringLiteral("&Help"), QStringLiteral("&Hilfe")},
+    {QStringLiteral("&About"), QStringLiteral("&Über")},
+    {QStringLiteral("&About AI File Sorter"), QStringLiteral("Über AI File Sorter")},
+    {QStringLiteral("About &Qt"), QStringLiteral("Über &Qt")},
+    {QStringLiteral("About &AGPL"), QStringLiteral("Über &AGPL")},
+    {QStringLiteral("&Support Project"), QStringLiteral("Projekt unterstützen")},
+    {QStringLiteral("About the AGPL License"), QStringLiteral("Über die AGPL-Lizenz")},
+    {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "You can access the full source code at "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "A full copy of the license is provided with this application and available online at "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>."),
+     QStringLiteral("AI File Sorter wird unter der GNU Affero General Public License v3.0 vertrieben."
+                    "<br><br>"
+                    "Den vollständigen Quellcode finden Sie unter "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "Eine vollständige Lizenzkopie liegt bei und ist online verfügbar unter "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
+    {QStringLiteral("Review Categorization"), QStringLiteral("Kategorisierung überprüfen")},
+    {QStringLiteral("Select all"), QStringLiteral("Alle auswählen")},
+    {QStringLiteral("Move"), QStringLiteral("Verschieben")},
+    {QStringLiteral("Confirm and Sort"), QStringLiteral("Bestätigen und sortieren")},
+    {QStringLiteral("Continue Later"), QStringLiteral("Später fortsetzen")},
+    {QStringLiteral("Close"), QStringLiteral("Schließen")},
+    {QStringLiteral("Not selected"), QStringLiteral("Nicht ausgewählt")},
+    {QStringLiteral("Moved"), QStringLiteral("Verschoben")},
+    {QStringLiteral("Skipped"), QStringLiteral("Übersprungen")},
+    {QStringLiteral("Analyzing Files"), QStringLiteral("Dateien analysieren")},
+    {QStringLiteral("Stop Analysis"), QStringLiteral("Analyse stoppen")},
+    {QStringLiteral("Download complete."), QStringLiteral("Download abgeschlossen.")},
+    {QStringLiteral("Download cancelled."), QStringLiteral("Download abgebrochen.")},
+    {QStringLiteral("Download error: %1"), QStringLiteral("Download-Fehler: %1")}
+};
+
+static const QHash<QString, QString> kItalianTranslations = {
+    {QStringLiteral("Analyze folder"), QStringLiteral("Analizza cartella")},
+    {QStringLiteral("Stop analyzing"), QStringLiteral("Interrompi analisi")},
+    {QStringLiteral("Use subcategories"), QStringLiteral("Usa sottocategorie")},
+    {QStringLiteral("Categorization type"), QStringLiteral("Tipo di categorizzazione")},
+    {QStringLiteral("More refined"), QStringLiteral("Più dettagliata")},
+    {QStringLiteral("More consistent"), QStringLiteral("Più coerente")},
+    {QStringLiteral("Use a whitelist"), QStringLiteral("Usa whitelist")},
+    {QStringLiteral("Recategorize folder?"), QStringLiteral("Ricategorizzare la cartella?")},
+    {QStringLiteral("This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?"),
+     QStringLiteral("Questa cartella è stata categorizzata in modalità %1. Vuoi ricategorizzarla ora in modalità %2?")},
+    {QStringLiteral("Recategorize"), QStringLiteral("Ricategorizza")},
+    {QStringLiteral("Keep existing"), QStringLiteral("Mantieni")},
+    {QStringLiteral("Failed to reset cached categorization for this folder."), QStringLiteral("Impossibile ripristinare la categorizzazione memorizzata per questa cartella.")},
+    {QStringLiteral("Categorize files"), QStringLiteral("Categoriza i file")},
+    {QStringLiteral("Categorize directories"), QStringLiteral("Categoriza le cartelle")},
+    {QStringLiteral("Ready"), QStringLiteral("Pronto")},
+    {QStringLiteral("Set folder to %1"), QStringLiteral("Cartella impostata su %1")},
+    {QStringLiteral("Loaded folder %1"), QStringLiteral("Cartella %1 caricata")},
+    {QStringLiteral("Analysis cancelled"), QStringLiteral("Analisi annullata")},
+    {QStringLiteral("Folder selected: %1"), QStringLiteral("Cartella selezionata: %1")},
+    {QStringLiteral("Analyzing…"), QStringLiteral("Analisi in corso…")},
+    {QStringLiteral("Cancelling analysis…"), QStringLiteral("Annullamento analisi…")},
+    {QStringLiteral("Folder:"), QStringLiteral("Cartella:")},
+    {QStringLiteral("Browse…"), QStringLiteral("Sfoglia…")},
+    {QStringLiteral("File"), QStringLiteral("File")},
+    {QStringLiteral("Type"), QStringLiteral("Tipo")},
+    {QStringLiteral("Category"), QStringLiteral("Categoria")},
+    {QStringLiteral("Subcategory"), QStringLiteral("Sottocategoria")},
+    {QStringLiteral("Status"), QStringLiteral("Stato")},
+    {QStringLiteral("Select Directory"), QStringLiteral("Seleziona cartella")},
+    {QStringLiteral("Directory"), QStringLiteral("Cartella")},
+    {QStringLiteral("&File"), QStringLiteral("&File")},
+    {QStringLiteral("&Quit"), QStringLiteral("&Esci")},
+    {QStringLiteral("&Edit"), QStringLiteral("&Modifica")},
+    {QStringLiteral("&Copy"), QStringLiteral("&Copia")},
+    {QStringLiteral("Cu&t"), QStringLiteral("Tag&lia")},
+    {QStringLiteral("&Paste"), QStringLiteral("&Incolla")},
+    {QStringLiteral("&Delete"), QStringLiteral("&Elimina")},
+    {QStringLiteral("&View"), QStringLiteral("&Visualizza")},
+    {QStringLiteral("File &Explorer"), QStringLiteral("Esplora file")},
+    {QStringLiteral("File Explorer"), QStringLiteral("Esplora file")},
+    {QStringLiteral("&Settings"), QStringLiteral("&Impostazioni")},
+    {QStringLiteral("Select &LLM…"), QStringLiteral("Seleziona &LLM…")},
+    {QStringLiteral("Manage category whitelists…"), QStringLiteral("Gestisci whitelist categorie…")},
+    {QStringLiteral("&Development"), QStringLiteral("&Sviluppo")},
+    {QStringLiteral("Log prompts and responses to stdout"), QStringLiteral("Registra prompt e risposte su stdout")},
+    {QStringLiteral("Run &consistency pass"), QStringLiteral("Esegui controllo di &coerenza")},
+    {QStringLiteral("Interface &language"), QStringLiteral("Lingua dell'&interfaccia")},
+    {QStringLiteral("&English"), QStringLiteral("&Inglese")},
+    {QStringLiteral("&French"), QStringLiteral("&Francese")},
+    {QStringLiteral("&German"), QStringLiteral("&Tedesco")},
+    {QStringLiteral("&Italian"), QStringLiteral("&Italiano")},
+    {QStringLiteral("&Spanish"), QStringLiteral("&Spagnolo")},
+    {QStringLiteral("&Turkish"), QStringLiteral("&Turco")},
+    {QStringLiteral("&Help"), QStringLiteral("&Aiuto")},
+    {QStringLiteral("&About"), QStringLiteral("Informazioni")},
+    {QStringLiteral("&About AI File Sorter"), QStringLiteral("Informazioni su AI File Sorter")},
+    {QStringLiteral("About &Qt"), QStringLiteral("Informazioni su &Qt")},
+    {QStringLiteral("About &AGPL"), QStringLiteral("Informazioni su &AGPL")},
+    {QStringLiteral("&Support Project"), QStringLiteral("Supporta il progetto")},
+    {QStringLiteral("About the AGPL License"), QStringLiteral("Informazioni sulla licenza AGPL")},
+    {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "You can access the full source code at "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "A full copy of the license is provided with this application and available online at "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>."),
+     QStringLiteral("AI File Sorter è distribuito sotto la GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "Puoi accedere al codice sorgente completo su "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "Una copia completa della licenza è fornita con l'applicazione ed è disponibile online su "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
+    {QStringLiteral("Review Categorization"), QStringLiteral("Rivedi categorizzazione")},
+    {QStringLiteral("Select all"), QStringLiteral("Seleziona tutto")},
+    {QStringLiteral("Move"), QStringLiteral("Sposta")},
+    {QStringLiteral("Confirm and Sort"), QStringLiteral("Conferma e ordina")},
+    {QStringLiteral("Continue Later"), QStringLiteral("Continua più tardi")},
+    {QStringLiteral("Close"), QStringLiteral("Chiudi")},
+    {QStringLiteral("Not selected"), QStringLiteral("Non selezionato")},
+    {QStringLiteral("Moved"), QStringLiteral("Spostato")},
+    {QStringLiteral("Skipped"), QStringLiteral("Saltato")},
+    {QStringLiteral("Analyzing Files"), QStringLiteral("Analisi dei file")},
+    {QStringLiteral("Stop Analysis"), QStringLiteral("Interrompi analisi")},
+    {QStringLiteral("Download complete."), QStringLiteral("Download completato.")},
+    {QStringLiteral("Download cancelled."), QStringLiteral("Download annullato.")},
+    {QStringLiteral("Download error: %1"), QStringLiteral("Errore di download: %1")}
+};
+
+static const QHash<QString, QString> kSpanishTranslations = {
+    {QStringLiteral("Analyze folder"), QStringLiteral("Analizar carpeta")},
+    {QStringLiteral("Stop analyzing"), QStringLiteral("Detener análisis")},
+    {QStringLiteral("Use subcategories"), QStringLiteral("Usar subcategorías")},
+    {QStringLiteral("Categorization type"), QStringLiteral("Tipo de categorización")},
+    {QStringLiteral("More refined"), QStringLiteral("Más detallada")},
+    {QStringLiteral("More consistent"), QStringLiteral("Más coherente")},
+    {QStringLiteral("Use a whitelist"), QStringLiteral("Usar lista blanca")},
+    {QStringLiteral("Recategorize folder?"), QStringLiteral("¿Recategorizar la carpeta?")},
+    {QStringLiteral("This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?"),
+     QStringLiteral("Esta carpeta se categorizó con el modo %1. ¿Quieres recategorizarla ahora con el modo %2?")},
+    {QStringLiteral("Recategorize"), QStringLiteral("Recategorizar")},
+    {QStringLiteral("Keep existing"), QStringLiteral("Mantener existente")},
+    {QStringLiteral("Failed to reset cached categorization for this folder."), QStringLiteral("No se pudo restablecer la categorización en caché para esta carpeta.")},
+    {QStringLiteral("Categorize files"), QStringLiteral("Categorizar archivos")},
+    {QStringLiteral("Categorize directories"), QStringLiteral("Categorizar directorios")},
+    {QStringLiteral("Ready"), QStringLiteral("Listo")},
+    {QStringLiteral("Set folder to %1"), QStringLiteral("Carpeta establecida en %1")},
+    {QStringLiteral("Loaded folder %1"), QStringLiteral("Carpeta %1 cargada")},
+    {QStringLiteral("Analysis cancelled"), QStringLiteral("Análisis cancelado")},
+    {QStringLiteral("Folder selected: %1"), QStringLiteral("Carpeta seleccionada: %1")},
+    {QStringLiteral("Analyzing…"), QStringLiteral("Analizando…")},
+    {QStringLiteral("Cancelling analysis…"), QStringLiteral("Cancelando análisis…")},
+    {QStringLiteral("Folder:"), QStringLiteral("Carpeta:")},
+    {QStringLiteral("Browse…"), QStringLiteral("Explorar…")},
+    {QStringLiteral("File"), QStringLiteral("Archivo")},
+    {QStringLiteral("Type"), QStringLiteral("Tipo")},
+    {QStringLiteral("Category"), QStringLiteral("Categoría")},
+    {QStringLiteral("Subcategory"), QStringLiteral("Subcategoría")},
+    {QStringLiteral("Status"), QStringLiteral("Estado")},
+    {QStringLiteral("Select Directory"), QStringLiteral("Seleccionar carpeta")},
+    {QStringLiteral("Directory"), QStringLiteral("Carpeta")},
+    {QStringLiteral("&File"), QStringLiteral("&Archivo")},
+    {QStringLiteral("&Quit"), QStringLiteral("&Salir")},
+    {QStringLiteral("&Edit"), QStringLiteral("&Editar")},
+    {QStringLiteral("&Copy"), QStringLiteral("&Copiar")},
+    {QStringLiteral("Cu&t"), QStringLiteral("Cor&tar")},
+    {QStringLiteral("&Paste"), QStringLiteral("&Pegar")},
+    {QStringLiteral("&Delete"), QStringLiteral("&Eliminar")},
+    {QStringLiteral("&View"), QStringLiteral("&Ver")},
+    {QStringLiteral("File &Explorer"), QStringLiteral("Explorador de archivos")},
+    {QStringLiteral("File Explorer"), QStringLiteral("Explorador de archivos")},
+    {QStringLiteral("&Settings"), QStringLiteral("&Configuración")},
+    {QStringLiteral("Select &LLM…"), QStringLiteral("Seleccionar &LLM…")},
+    {QStringLiteral("Manage category whitelists…"), QStringLiteral("Gestionar listas blancas de categorías…")},
+    {QStringLiteral("&Development"), QStringLiteral("&Desarrollo")},
+    {QStringLiteral("Log prompts and responses to stdout"), QStringLiteral("Registrar prompts y respuestas en stdout")},
+    {QStringLiteral("Run &consistency pass"), QStringLiteral("Ejecutar pase de &consistencia")},
+    {QStringLiteral("Interface &language"), QStringLiteral("&Idioma de la interfaz")},
+    {QStringLiteral("&English"), QStringLiteral("&Inglés")},
+    {QStringLiteral("&French"), QStringLiteral("&Francés")},
+    {QStringLiteral("&German"), QStringLiteral("&Alemán")},
+    {QStringLiteral("&Italian"), QStringLiteral("&Italiano")},
+    {QStringLiteral("&Spanish"), QStringLiteral("&Español")},
+    {QStringLiteral("&Turkish"), QStringLiteral("&Turco")},
+    {QStringLiteral("&Help"), QStringLiteral("&Ayuda")},
+    {QStringLiteral("&About"), QStringLiteral("&Acerca de")},
+    {QStringLiteral("&About AI File Sorter"), QStringLiteral("Acerca de AI File Sorter")},
+    {QStringLiteral("About &Qt"), QStringLiteral("Acerca de &Qt")},
+    {QStringLiteral("About &AGPL"), QStringLiteral("Acerca de &AGPL")},
+    {QStringLiteral("&Support Project"), QStringLiteral("Apoyar el proyecto")},
+    {QStringLiteral("About the AGPL License"), QStringLiteral("Acerca de la licencia AGPL")},
+    {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "You can access the full source code at "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "A full copy of the license is provided with this application and available online at "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>."),
+     QStringLiteral("AI File Sorter se distribuye bajo la GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "Puedes acceder al código fuente completo en "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "Se incluye una copia completa de la licencia y está disponible en línea en "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
+    {QStringLiteral("Review Categorization"), QStringLiteral("Revisar categorización")},
+    {QStringLiteral("Select all"), QStringLiteral("Seleccionar todo")},
+    {QStringLiteral("Move"), QStringLiteral("Mover")},
+    {QStringLiteral("Confirm and Sort"), QStringLiteral("Confirmar y ordenar")},
+    {QStringLiteral("Continue Later"), QStringLiteral("Continuar más tarde")},
+    {QStringLiteral("Close"), QStringLiteral("Cerrar")},
+    {QStringLiteral("Not selected"), QStringLiteral("No seleccionado")},
+    {QStringLiteral("Moved"), QStringLiteral("Movido")},
+    {QStringLiteral("Skipped"), QStringLiteral("Omitido")},
+    {QStringLiteral("Analyzing Files"), QStringLiteral("Analizando archivos")},
+    {QStringLiteral("Stop Analysis"), QStringLiteral("Detener análisis")},
+    {QStringLiteral("Download complete."), QStringLiteral("Descarga completa.")},
+    {QStringLiteral("Download cancelled."), QStringLiteral("Descarga cancelada.")},
+    {QStringLiteral("Download error: %1"), QStringLiteral("Error de descarga: %1")}
+};
+
+static const QHash<QString, QString> kTurkishTranslations = {
+    {QStringLiteral("Analyze folder"), QStringLiteral("Klasörü analiz et")},
+    {QStringLiteral("Stop analyzing"), QStringLiteral("Analizi durdur")},
+    {QStringLiteral("Use subcategories"), QStringLiteral("Alt kategorileri kullan")},
+    {QStringLiteral("Categorization type"), QStringLiteral("Kategorilendirme türü")},
+    {QStringLiteral("More refined"), QStringLiteral("Daha ayrıntılı")},
+    {QStringLiteral("More consistent"), QStringLiteral("Daha tutarlı")},
+    {QStringLiteral("Use a whitelist"), QStringLiteral("Beyaz liste kullan")},
+    {QStringLiteral("Recategorize folder?"), QStringLiteral("Klasör yeniden kategorilendirilsin mi?")},
+    {QStringLiteral("This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?"),
+     QStringLiteral("Bu klasör %1 modunda kategorilendirildi. Şimdi %2 moduyla yeniden kategorilendirmek ister misiniz?")},
+    {QStringLiteral("Recategorize"), QStringLiteral("Yeniden kategorilendir")},
+    {QStringLiteral("Keep existing"), QStringLiteral("Mevcut kalsın")},
+    {QStringLiteral("Failed to reset cached categorization for this folder."), QStringLiteral("Bu klasör için önbellekteki kategorilendirme sıfırlanamadı.")},
+    {QStringLiteral("Categorize files"), QStringLiteral("Dosyaları kategorilendir")},
+    {QStringLiteral("Categorize directories"), QStringLiteral("Dizinleri kategorilendir")},
+    {QStringLiteral("Ready"), QStringLiteral("Hazır")},
+    {QStringLiteral("Set folder to %1"), QStringLiteral("Klasör %1 olarak ayarlandı")},
+    {QStringLiteral("Loaded folder %1"), QStringLiteral("%1 klasörü yüklendi")},
+    {QStringLiteral("Analysis cancelled"), QStringLiteral("Analiz iptal edildi")},
+    {QStringLiteral("Folder selected: %1"), QStringLiteral("Seçilen klasör: %1")},
+    {QStringLiteral("Analyzing…"), QStringLiteral("Analiz ediliyor…")},
+    {QStringLiteral("Cancelling analysis…"), QStringLiteral("Analiz iptal ediliyor…")},
+    {QStringLiteral("Folder:"), QStringLiteral("Klasör:")},
+    {QStringLiteral("Browse…"), QStringLiteral("Gözat…")},
+    {QStringLiteral("File"), QStringLiteral("Dosya")},
+    {QStringLiteral("Type"), QStringLiteral("Tür")},
+    {QStringLiteral("Category"), QStringLiteral("Kategori")},
+    {QStringLiteral("Subcategory"), QStringLiteral("Alt kategori")},
+    {QStringLiteral("Status"), QStringLiteral("Durum")},
+    {QStringLiteral("Select Directory"), QStringLiteral("Klasör seç")},
+    {QStringLiteral("Directory"), QStringLiteral("Klasör")},
+    {QStringLiteral("&File"), QStringLiteral("&Dosya")},
+    {QStringLiteral("&Quit"), QStringLiteral("&Çıkış")},
+    {QStringLiteral("&Edit"), QStringLiteral("&Düzenle")},
+    {QStringLiteral("&Copy"), QStringLiteral("&Kopyala")},
+    {QStringLiteral("Cu&t"), QStringLiteral("Ke&s")},
+    {QStringLiteral("&Paste"), QStringLiteral("&Yapıştır")},
+    {QStringLiteral("&Delete"), QStringLiteral("&Sil")},
+    {QStringLiteral("&View"), QStringLiteral("&Görüntüle")},
+    {QStringLiteral("File &Explorer"), QStringLiteral("Dosya gezgini")},
+    {QStringLiteral("File Explorer"), QStringLiteral("Dosya gezgini")},
+    {QStringLiteral("&Settings"), QStringLiteral("&Ayarlar")},
+    {QStringLiteral("Select &LLM…"), QStringLiteral("&LLM seç…")},
+    {QStringLiteral("Manage category whitelists…"), QStringLiteral("Kategori beyaz listelerini yönet…")},
+    {QStringLiteral("&Development"), QStringLiteral("&Geliştirme")},
+    {QStringLiteral("Log prompts and responses to stdout"), QStringLiteral("İstek ve yanıtları stdout'a kaydet")},
+    {QStringLiteral("Run &consistency pass"), QStringLiteral("&Tutarlılık geçişi çalıştır")},
+    {QStringLiteral("Interface &language"), QStringLiteral("Arayüz &dili")},
+    {QStringLiteral("&English"), QStringLiteral("&İngilizce")},
+    {QStringLiteral("&French"), QStringLiteral("&Fransızca")},
+    {QStringLiteral("&German"), QStringLiteral("&Almanca")},
+    {QStringLiteral("&Italian"), QStringLiteral("&İtalyanca")},
+    {QStringLiteral("&Spanish"), QStringLiteral("&İspanyolca")},
+    {QStringLiteral("&Turkish"), QStringLiteral("&Türkçe")},
+    {QStringLiteral("&Help"), QStringLiteral("&Yardım")},
+    {QStringLiteral("&About"), QStringLiteral("&Hakkında")},
+    {QStringLiteral("&About AI File Sorter"), QStringLiteral("AI File Sorter hakkında")},
+    {QStringLiteral("About &Qt"), QStringLiteral("&Qt hakkında")},
+    {QStringLiteral("About &AGPL"), QStringLiteral("&AGPL hakkında")},
+    {QStringLiteral("&Support Project"), QStringLiteral("Projeyi destekle")},
+    {QStringLiteral("About the AGPL License"), QStringLiteral("AGPL lisansı hakkında")},
+    {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "You can access the full source code at "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "A full copy of the license is provided with this application and available online at "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>."),
+     QStringLiteral("AI File Sorter, GNU Affero General Public License v3.0 kapsamında dağıtılmaktadır."
+                    "<br><br>"
+                    "Tam kaynak koduna şu adresten erişebilirsiniz: "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "Lisansın tam kopyası uygulama ile birlikte gelir ve çevrimiçi olarak "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a> adresinde bulunur.")},
+    {QStringLiteral("Review Categorization"), QStringLiteral("Kategoriyi gözden geçir")},
+    {QStringLiteral("Select all"), QStringLiteral("Tümünü seç")},
+    {QStringLiteral("Move"), QStringLiteral("Taşı")},
+    {QStringLiteral("Confirm and Sort"), QStringLiteral("Onayla ve sırala")},
+    {QStringLiteral("Continue Later"), QStringLiteral("Daha sonra devam et")},
+    {QStringLiteral("Close"), QStringLiteral("Kapat")},
+    {QStringLiteral("Not selected"), QStringLiteral("Seçilmedi")},
+    {QStringLiteral("Moved"), QStringLiteral("Taşındı")},
+    {QStringLiteral("Skipped"), QStringLiteral("Atlandı")},
+    {QStringLiteral("Analyzing Files"), QStringLiteral("Dosyalar analiz ediliyor")},
+    {QStringLiteral("Stop Analysis"), QStringLiteral("Analizi durdur")},
+    {QStringLiteral("Download complete."), QStringLiteral("İndirme tamamlandı.")},
+    {QStringLiteral("Download cancelled."), QStringLiteral("İndirme iptal edildi.")},
+    {QStringLiteral("Download error: %1"), QStringLiteral("İndirme hatası: %1")}
+};
+
+const QHash<QString, QString>* translations_for(Language lang)
+{
+    switch (lang) {
+    case Language::French: return &kFrenchTranslations;
+    case Language::German: return &kGermanTranslations;
+    case Language::Italian: return &kItalianTranslations;
+    case Language::Spanish: return &kSpanishTranslations;
+    case Language::Turkish: return &kTurkishTranslations;
+    default: return nullptr;
+    }
+}
+
 } // namespace
 
 class TranslationManager::StaticTranslator : public QTranslator
@@ -109,26 +493,23 @@ public:
         language_ = language;
     }
 
-    Language language() const
-    {
-        return language_;
-    }
-
     QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
     {
+        Q_UNUSED(context)
         Q_UNUSED(disambiguation)
         Q_UNUSED(n)
 
-        if (!sourceText || language_ != Language::French) {
+        if (!sourceText) {
             return QString();
         }
 
-        const QString key = QString::fromUtf8(sourceText);
-        const auto it = kFrenchTranslations.constFind(key);
-        if (it != kFrenchTranslations.constEnd()) {
-            return it.value();
+        if (const auto* map = translations_for(language_)) {
+            const QString key = QString::fromUtf8(sourceText);
+            const auto it = map->constFind(key);
+            if (it != map->constEnd()) {
+                return it.value();
+            }
         }
-
         return QString();
     }
 
@@ -147,16 +528,16 @@ TranslationManager& TranslationManager::instance()
 void TranslationManager::initialize(QApplication* app)
 {
     app_ = app;
-    if (!file_translator_) {
-        file_translator_ = std::make_unique<QTranslator>();
-    }
-    if (!fallback_translator_) {
-        fallback_translator_ = std::make_unique<StaticTranslator>();
+    if (!translator_) {
+        translator_ = std::make_unique<StaticTranslator>();
     }
     if (languages_.empty()) {
         languages_.push_back(LanguageInfo{Language::English, QStringLiteral("en"), QStringLiteral("English"), QString()});
-        languages_.push_back(LanguageInfo{Language::French, QStringLiteral("fr"), QStringLiteral("French"),
-                                          QStringLiteral(":/i18n/aifilesorter_fr.qm")});
+        languages_.push_back(LanguageInfo{Language::French, QStringLiteral("fr"), QStringLiteral("French"), QString()});
+        languages_.push_back(LanguageInfo{Language::German, QStringLiteral("de"), QStringLiteral("German"), QString()});
+        languages_.push_back(LanguageInfo{Language::Italian, QStringLiteral("it"), QStringLiteral("Italian"), QString()});
+        languages_.push_back(LanguageInfo{Language::Spanish, QStringLiteral("es"), QStringLiteral("Spanish"), QString()});
+        languages_.push_back(LanguageInfo{Language::Turkish, QStringLiteral("tr"), QStringLiteral("Turkish"), QString()});
     }
 }
 
@@ -167,33 +548,13 @@ void TranslationManager::set_language(Language language)
         return;
     }
 
-    app_->removeTranslator(file_translator_.get());
-    app_->removeTranslator(fallback_translator_.get());
+    app_->removeTranslator(translator_.get());
 
-    if (language == Language::English) {
-        current_language_ = language;
-        return;
-    }
-
-    QString target_path;
-    for (const auto& info : languages_) {
-        if (info.id == language) {
-            target_path = info.resource_path;
-            break;
+    if (translator_) {
+        translator_->set_language(language);
+        if (language != Language::English) {
+            app_->installTranslator(translator_.get());
         }
-    }
-
-    bool loaded = false;
-    if (!target_path.isEmpty() && file_translator_) {
-        loaded = file_translator_->load(target_path);
-        if (loaded) {
-            app_->installTranslator(file_translator_.get());
-        }
-    }
-
-    if (!loaded && fallback_translator_) {
-        fallback_translator_->set_language(language);
-        app_->installTranslator(fallback_translator_.get());
     }
 
     current_language_ = language;

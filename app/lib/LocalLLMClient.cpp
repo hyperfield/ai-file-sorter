@@ -458,8 +458,12 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
         return std::nullopt;
     }
 
-    const std::size_t bytes_read = static_cast<std::size_t>(file.gcount());
-    if (bytes_read == 0) {
+    const std::streamsize read_count = file.gcount();
+    if (read_count <= 0) {
+        return std::nullopt;
+    }
+    const std::size_t bytes_read = static_cast<std::size_t>(read_count);
+    if (bytes_read > buffer.size()) {
         return std::nullopt;
     }
 

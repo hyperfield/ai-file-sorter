@@ -33,8 +33,7 @@ private:
     TranslationManager();
 
     QApplication* app_{nullptr};
-    std::unique_ptr<QTranslator> file_translator_;
-    std::unique_ptr<StaticTranslator> fallback_translator_;
+    std::unique_ptr<StaticTranslator> translator_;
     Language current_language_{Language::English};
     std::vector<LanguageInfo> languages_;
 };

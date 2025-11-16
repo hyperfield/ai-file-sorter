@@ -137,7 +137,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.menus.settings_menu, "&Settings"},
         {deps_.menus.development_menu, "&Development"},
         {deps_.menus.development_settings_menu, "&Settings"},
-        {deps_.menus.language_menu, "&Language"},
+        {deps_.menus.language_menu, "Interface &language"},
         {deps_.menus.category_language_menu, "Category &language"}
     };
 
@@ -165,6 +165,10 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.consistency_pass_action, "Run &consistency pass"},
         {deps_.actions.english_action, "&English"},
         {deps_.actions.french_action, "&French"},
+        {deps_.actions.german_action, "&German"},
+        {deps_.actions.italian_action, "&Italian"},
+        {deps_.actions.spanish_action, "&Spanish"},
+        {deps_.actions.turkish_action, "&Turkish"},
         {deps_.actions.category_language_dutch, "Dutch"},
         {deps_.actions.category_language_english, "English"},
         {deps_.actions.category_language_french, "French"},
@@ -221,17 +225,24 @@ void UiTranslator::update_language_checks() const
 {
     if (deps_.language.language_group) {
         Language configured = deps_.settings.get_language();
-        if (configured != Language::English && configured != Language::French) {
-            configured = Language::English;
-            deps_.settings.set_language(configured);
-        }
-
         QSignalBlocker blocker(deps_.language.language_group);
         if (deps_.language.english_action) {
             deps_.language.english_action->setChecked(configured == Language::English);
         }
         if (deps_.language.french_action) {
             deps_.language.french_action->setChecked(configured == Language::French);
+        }
+        if (deps_.language.german_action) {
+            deps_.language.german_action->setChecked(configured == Language::German);
+        }
+        if (deps_.language.italian_action) {
+            deps_.language.italian_action->setChecked(configured == Language::Italian);
+        }
+        if (deps_.language.spanish_action) {
+            deps_.language.spanish_action->setChecked(configured == Language::Spanish);
+        }
+        if (deps_.language.turkish_action) {
+            deps_.language.turkish_action->setChecked(configured == Language::Turkish);
         }
     }
 
