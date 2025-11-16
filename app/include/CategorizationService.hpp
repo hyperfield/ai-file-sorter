@@ -61,8 +61,28 @@ private:
         const FileEntry& entry,
         std::atomic<bool>& stop_flag,
         const ProgressCallback& progress_callback,
-        const RecategorizationCallback& recategorization_callback,
-        SessionHistoryMap& session_history) const;
+    const RecategorizationCallback& recategorization_callback,
+    SessionHistoryMap& session_history) const;
+
+    std::string build_combined_context(const std::string& hint_block) const;
+    DatabaseManager::ResolvedCategory run_categorization_with_cache(
+        ILLMClient& llm,
+        bool is_local_llm,
+        const FileEntry& entry,
+        const ProgressCallback& progress_callback,
+        const std::string& combined_context) const;
+    std::optional<CategorizedFile> handle_empty_result(
+        const FileEntry& entry,
+        const std::string& dir_path,
+        const DatabaseManager::ResolvedCategory& resolved,
+        bool used_consistency_hints,
+        bool is_local_llm,
+        const RecategorizationCallback& recategorization_callback) const;
+    void update_storage_with_result(const FileEntry& entry,
+                                    const std::string& dir_path,
+                                    const DatabaseManager::ResolvedCategory& resolved,
+                                    bool used_consistency_hints,
+                                    SessionHistoryMap& session_history) const;
 
     std::string run_llm_with_timeout(
         ILLMClient& llm,
@@ -111,6 +131,10 @@ private:
     static bool append_unique_hint(std::vector<CategoryPair>& target, const CategoryPair& candidate);
     static void record_session_assignment(HintHistory& history, const CategoryPair& assignment);
     std::string format_hint_block(const std::vector<CategoryPair>& hints) const;
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend class CategorizationServiceTestAccess;
+#endif
 
     Settings& settings;
     DatabaseManager& db_manager;

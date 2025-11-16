@@ -785,8 +785,10 @@ bool apply_vulkan_backend(const std::string& model_path,
                           llama_model_params& params,
                           const std::shared_ptr<spdlog::logger>& logger) {
     set_env_var("GGML_DISABLE_CUDA", "1");
-    const int override_layers = resolve_gpu_layer_override();
-    if (override_layers != INT_MIN) {
+    const auto apply_override = [&](int override_layers) -> bool {
+        if (override_layers == INT_MIN) {
+            return false;
+        }
         if (override_layers <= 0) {
             params.n_gpu_layers = 0;
             if (logger) {
@@ -800,9 +802,13 @@ bool apply_vulkan_backend(const std::string& model_path,
                          gpu_layers_to_string(override_layers));
         }
         return true;
+    };
+
+    const auto vk_memory = resolve_backend_memory("vulkan");
+    if (apply_override(resolve_gpu_layer_override())) {
+        return true;
     }
 
-    auto vk_memory = resolve_backend_memory("vulkan");
     if (!vk_memory.has_value()) {
         params.n_gpu_layers = -1;
         if (logger) {
@@ -811,7 +817,7 @@ bool apply_vulkan_backend(const std::string& model_path,
         return true;
     }
 
-    Utils::CudaMemoryInfo adjusted = vk_memory->memory;
+    auto adjusted = vk_memory->memory;
     if (vk_memory->is_integrated) {
         constexpr size_t igpu_cap_bytes = static_cast<size_t>(4ULL) * 1024ULL * 1024ULL * 1024ULL; // 4 GiB
         adjusted.free_bytes = std::min(adjusted.free_bytes, igpu_cap_bytes);

@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <optional>
 
+class Settings;
+
 struct WhitelistEntry {
     std::vector<std::string> categories;
     std::vector<std::string> subcategories;
@@ -27,6 +29,7 @@ public:
     // Migration helper
     void ensure_default_from_legacy(const std::vector<std::string>& cats,
                                     const std::vector<std::string>& subs);
+    void initialize_from_settings(Settings& settings);
 
     std::string default_name() const { return default_name_; }
 

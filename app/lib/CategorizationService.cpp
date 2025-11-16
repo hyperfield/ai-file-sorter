@@ -344,9 +344,37 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
         const auto hints = collect_consistency_hints(signature, session_history, extension, entry.type);
         hint_block = format_hint_block(hints);
     }
-    std::string whitelist_block = build_whitelist_context();
-    std::string language_block = build_category_language_context();
+    const std::string combined_context = build_combined_context(hint_block);
+
+    DatabaseManager::ResolvedCategory resolved =
+        run_categorization_with_cache(llm,
+                                      is_local_llm,
+                                      entry,
+                                      progress_callback,
+                                      combined_context);
+
+    if (auto retry = handle_empty_result(entry,
+                                         dir_path,
+                                         resolved,
+                                         use_consistency_hints,
+                                         is_local_llm,
+                                         recategorization_callback)) {
+        return retry;
+    }
+
+    update_storage_with_result(entry, dir_path, resolved, use_consistency_hints, session_history);
+
+    CategorizedFile result{dir_path, entry.file_name, entry.type,
+                           resolved.category, resolved.subcategory, resolved.taxonomy_id};
+    result.used_consistency_hints = use_consistency_hints;
+    return result;
+}
+
+std::string CategorizationService::build_combined_context(const std::string& hint_block) const
+{
     std::string combined_context;
+    const std::string whitelist_block = build_whitelist_context();
+    const std::string language_block = build_category_language_context();
     if (!language_block.empty()) {
         combined_context += language_block;
     }
@@ -367,38 +395,66 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
         }
         combined_context += hint_block;
     }
+    return combined_context;
+}
 
-    DatabaseManager::ResolvedCategory resolved =
-        categorize_with_cache(llm,
-                              is_local_llm,
-                              entry.file_name,
-                              abbreviated_path,
-                              entry.type,
-                              progress_callback,
-                              combined_context);
+DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with_cache(
+    ILLMClient& llm,
+    bool is_local_llm,
+    const FileEntry& entry,
+    const ProgressCallback& progress_callback,
+    const std::string& combined_context) const
+{
+    const std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
+    return categorize_with_cache(llm,
+                                 is_local_llm,
+                                 entry.file_name,
+                                 abbreviated_path,
+                                 entry.type,
+                                 progress_callback,
+                                 combined_context);
+}
 
-    if (resolved.category.empty() || resolved.subcategory.empty()) {
-        if (core_logger) {
-            core_logger->warn("Categorization for '{}' returned empty category/subcategory.", entry.file_name);
-        }
-        db_manager.remove_file_categorization(dir_path, entry.file_name, entry.type);
-
-        if (recategorization_callback) {
-            const std::string reason = is_local_llm
-                ? "Categorization returned no result. The item will be processed again."
-                : "Categorization returned no result. Configure your remote API key and try again.";
-            CategorizedFile retry_entry{dir_path,
-                                        entry.file_name,
-                                        entry.type,
-                                        resolved.category,
-                                        resolved.subcategory,
-                                        resolved.taxonomy_id};
-            retry_entry.used_consistency_hints = use_consistency_hints;
-            recategorization_callback(retry_entry, reason);
-        }
+std::optional<CategorizedFile> CategorizationService::handle_empty_result(
+    const FileEntry& entry,
+    const std::string& dir_path,
+    const DatabaseManager::ResolvedCategory& resolved,
+    bool used_consistency_hints,
+    bool is_local_llm,
+    const RecategorizationCallback& recategorization_callback) const
+{
+    if (!resolved.category.empty() && !resolved.subcategory.empty()) {
         return std::nullopt;
     }
 
+    if (core_logger) {
+        core_logger->warn("Categorization for '{}' returned empty category/subcategory.", entry.file_name);
+    }
+    db_manager.remove_file_categorization(dir_path, entry.file_name, entry.type);
+
+    if (recategorization_callback) {
+        const std::string reason = is_local_llm
+            ? "Categorization returned no result. The item will be processed again."
+            : "Categorization returned no result. Configure your remote API key and try again.";
+        CategorizedFile retry_entry{dir_path,
+                                    entry.file_name,
+                                    entry.type,
+                                    resolved.category,
+                                    resolved.subcategory,
+                                    resolved.taxonomy_id};
+        retry_entry.used_consistency_hints = used_consistency_hints;
+        recategorization_callback(retry_entry, reason);
+        return retry_entry;
+    }
+    return std::nullopt;
+}
+
+void CategorizationService::update_storage_with_result(const FileEntry& entry,
+                                                       const std::string& dir_path,
+                                                       const DatabaseManager::ResolvedCategory& resolved,
+                                                       bool used_consistency_hints,
+                                                       SessionHistoryMap& session_history) const
+{
     if (core_logger) {
         core_logger->info("Categorized '{}' as '{} / {}'.",
                           entry.file_name,
@@ -411,16 +467,12 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
         entry.type == FileType::File ? "F" : "D",
         dir_path,
         resolved,
-        use_consistency_hints);
+        used_consistency_hints);
 
+    const std::string signature = make_file_signature(entry.type, extract_extension(entry.file_name));
     if (!signature.empty()) {
         record_session_assignment(session_history[signature], {resolved.category, resolved.subcategory});
     }
-
-    CategorizedFile result{dir_path, entry.file_name, entry.type,
-                           resolved.category, resolved.subcategory, resolved.taxonomy_id};
-    result.used_consistency_hints = use_consistency_hints;
-    return result;
 }
 
 std::string CategorizationService::run_llm_with_timeout(

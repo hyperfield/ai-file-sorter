@@ -23,6 +23,7 @@ public:
     static TranslationManager& instance();
 
     void initialize(QApplication* app);
+    void initialize_for_app(QApplication* app, Language language);
     void set_language(Language language);
     Language current_language() const;
     const std::vector<LanguageInfo>& available_languages() const;

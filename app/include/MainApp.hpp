@@ -11,6 +11,7 @@
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
 #include "WhitelistStore.hpp"
+#include "UiTranslator.hpp"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -46,7 +47,6 @@ class QWidget;
 class QLabel;
 class QEvent;
 class MainAppUiBuilder;
-class UiTranslator;
 class WhitelistManagerDialog;
 
 struct CategorizedFile;
@@ -101,6 +101,7 @@ private:
     void retranslate_ui();
     void on_language_selected(Language language);
     void on_category_language_selected(CategoryLanguage language);
+    void initialize_whitelists();
 
     void on_analyze_clicked();
     void on_directory_selected(const QString& path, bool user_initiated = false);

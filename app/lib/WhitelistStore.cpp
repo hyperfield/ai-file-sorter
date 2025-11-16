@@ -1,5 +1,6 @@
 #include "WhitelistStore.hpp"
 #include "Logger.hpp"
+#include "Settings.hpp"
 
 #include <QSettings>
 #include <algorithm>
@@ -114,4 +115,22 @@ void WhitelistStore::ensure_default_from_legacy(const std::vector<std::string>& 
         use_subs = {};
     }
     entries_[default_name_] = WhitelistEntry{use_cats, use_subs};
+}
+
+void WhitelistStore::initialize_from_settings(Settings& settings)
+{
+    load();
+    ensure_default_from_legacy(settings.get_allowed_categories(),
+                               settings.get_allowed_subcategories());
+    save();
+
+    if (settings.get_active_whitelist().empty()) {
+        settings.set_active_whitelist(default_name_);
+    }
+
+    auto active = settings.get_active_whitelist();
+    if (auto entry = get(active)) {
+        settings.set_allowed_categories(entry->categories);
+        settings.set_allowed_subcategories(entry->subcategories);
+    }
 }

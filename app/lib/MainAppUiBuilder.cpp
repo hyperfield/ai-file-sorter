@@ -3,6 +3,7 @@
 #include "MainApp.hpp"
 #include "MainAppEditActions.hpp"
 #include "MainAppHelpActions.hpp"
+#include "UiTranslator.hpp"
 #include "Language.hpp"
 #include "CategoryLanguage.hpp"
 
@@ -155,6 +156,89 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->addWidget(app.results_stack, 1);
 
     app.setCentralWidget(central);
+}
+
+UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainApp& app) const
+{
+    return UiTranslator::Dependencies{
+        .window = app,
+        .primary = UiTranslator::PrimaryControls{
+            app.path_label,
+            app.browse_button,
+            app.analyze_button,
+            app.use_subcategories_checkbox,
+            app.categorization_style_heading,
+            app.categorization_style_refined_radio,
+            app.categorization_style_consistent_radio,
+            app.use_whitelist_checkbox,
+            app.whitelist_selector,
+            app.categorize_files_checkbox,
+            app.categorize_directories_checkbox},
+        .tree_model = app.tree_model,
+        .menus = UiTranslator::MenuControls{
+            app.file_menu,
+            app.edit_menu,
+            app.view_menu,
+            app.settings_menu,
+            app.development_menu,
+            app.development_settings_menu,
+            app.language_menu,
+            app.category_language_menu,
+            app.help_menu},
+        .actions = UiTranslator::ActionControls{
+            app.file_quit_action,
+            app.copy_action,
+            app.cut_action,
+            app.paste_action,
+            app.delete_action,
+            app.toggle_explorer_action,
+            app.toggle_llm_action,
+            app.manage_whitelists_action,
+            app.development_prompt_logging_action,
+            app.consistency_pass_action,
+            app.english_action,
+            app.french_action,
+            app.german_action,
+            app.italian_action,
+            app.spanish_action,
+            app.turkish_action,
+            app.category_language_english,
+            app.category_language_french,
+            app.category_language_german,
+            app.category_language_italian,
+            app.category_language_dutch,
+            app.category_language_polish,
+            app.category_language_portuguese,
+            app.category_language_spanish,
+            app.category_language_turkish,
+            app.about_action,
+            app.about_qt_action,
+            app.about_agpl_action,
+            app.support_project_action},
+        .language = UiTranslator::LanguageControls{
+            app.language_group,
+            app.english_action,
+            app.french_action,
+            app.german_action,
+            app.italian_action,
+            app.spanish_action,
+            app.turkish_action},
+        .category_language = UiTranslator::CategoryLanguageControls{
+            app.category_language_group,
+            app.category_language_dutch,
+            app.category_language_english,
+            app.category_language_french,
+            app.category_language_german,
+            app.category_language_italian,
+            app.category_language_polish,
+            app.category_language_portuguese,
+            app.category_language_spanish,
+            app.category_language_turkish},
+        .file_explorer_dock = app.file_explorer_dock,
+        .settings = app.settings,
+        .translator = [](const char* source) {
+            return MainApp::tr(source);
+        }};
 }
 
 void MainAppUiBuilder::build_menus(MainApp& app) {

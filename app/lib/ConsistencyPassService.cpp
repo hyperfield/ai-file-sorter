@@ -301,6 +301,38 @@ const Json::Value* parse_consistency_response(
     return nullptr;
 }
 
+std::string strip_list_prefix(std::string line) {
+    line = trim_whitespace(line);
+    while (!line.empty() && (line.front() == '-' || line.front() == '*')) {
+        line.erase(line.begin());
+        line = trim_whitespace(line);
+    }
+    return line;
+}
+
+std::optional<std::pair<std::string, std::string>> split_key_value(const std::string& line) {
+    const auto colon_pos = line.find(':');
+    if (colon_pos == std::string::npos) {
+        return std::nullopt;
+    }
+    std::string lhs = trim_whitespace(line.substr(0, colon_pos));
+    std::string rhs = trim_whitespace(line.substr(colon_pos + 1));
+    const auto arrow_pos = rhs.find("=>");
+    if (arrow_pos != std::string::npos) {
+        rhs = trim_whitespace(rhs.substr(0, arrow_pos));
+    }
+    return std::make_pair(std::move(lhs), std::move(rhs));
+}
+
+std::pair<std::string, std::string> split_category_subcategory(const std::string& lhs) {
+    const auto slash_pos = lhs.find('/');
+    if (slash_pos != std::string::npos) {
+        return {trim_whitespace(lhs.substr(0, slash_pos)),
+                trim_whitespace(lhs.substr(slash_pos + 1))};
+    }
+    return {lhs, std::string()};
+}
+
 std::vector<std::pair<std::string, std::string>> parse_ordered_category_lines(
     const std::string& response,
     const std::shared_ptr<spdlog::logger>& logger)
@@ -319,32 +351,15 @@ std::vector<std::pair<std::string, std::string>> parse_ordered_category_lines(
         if (line == "END") {
             break;
         }
-        while (!line.empty() && (line.front() == '-' || line.front() == '*')) {
-            line.erase(line.begin());
-            line = trim_whitespace(line);
-        }
-
-        const auto colon_pos = line.find(':');
-        if (colon_pos == std::string::npos) {
+        line = strip_list_prefix(std::move(line));
+        const auto key_value = split_key_value(line);
+        if (!key_value.has_value()) {
             continue;
         }
 
-        std::string lhs = trim_whitespace(line.substr(0, colon_pos));
-        std::string rhs = trim_whitespace(line.substr(colon_pos + 1));
-        const auto arrow_pos = rhs.find("=>");
-        if (arrow_pos != std::string::npos) {
-            rhs = trim_whitespace(rhs.substr(0, arrow_pos));
-        }
-
-        std::string category;
-        std::string subcategory;
-        const auto slash_pos = lhs.find('/');
-        if (slash_pos != std::string::npos) {
-            category = trim_whitespace(lhs.substr(0, slash_pos));
-            subcategory = trim_whitespace(lhs.substr(slash_pos + 1));
-        } else {
-            category = lhs;
-        }
+        const auto& [lhs, rhs_raw] = *key_value;
+        auto [category, subcategory] = split_category_subcategory(lhs);
+        std::string rhs = rhs_raw;
 
         if (subcategory.empty()) {
             subcategory = rhs;
@@ -437,7 +452,6 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
         }
         return;
     }
-
     if (!llm) {
         return;
     }
@@ -456,24 +470,11 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
         new_items_by_key[make_item_key(item)] = &item;
     }
 
-    std::vector<const CategorizedFile*> chunk;
-    chunk.reserve(10);
-
-    for (size_t index = 0; index < categorized_files.size(); ++index) {
-        if (stop_flag.load()) {
-            break;
-        }
-
-        chunk.push_back(&categorized_files[index]);
-        bool should_flush = chunk.size() == 10 || index + 1 == categorized_files.size();
-        if (!should_flush) {
-            continue;
-        }
-
+    auto process_chunk = [&](const std::vector<const CategorizedFile*>& chunk, size_t start_index, size_t end_index) {
         if (logger) {
             logger->info("[CONSISTENCY] Processing chunk {}-{} of {}",
-                         index + 1 - chunk.size() + 1,
-                         index + 1,
+                         start_index + 1,
+                         end_index,
                          categorized_files.size());
             for (const auto* item : chunk) {
                 if (!item) continue;
@@ -498,17 +499,15 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
                         apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
                     }
                 }
-            } else {
-                if (!apply_ordered_fallback(response,
-                                             chunk,
-                                             items_by_key,
-                                             db_manager,
-                                             new_items_by_key,
-                                             progress_callback,
-                                             logger)) {
-                    if (logger) {
-                        logger->warn("Consistency pass could not interpret response; skipping chunk");
-                    }
+            } else if (!apply_ordered_fallback(response,
+                                               chunk,
+                                               items_by_key,
+                                               db_manager,
+                                               new_items_by_key,
+                                               progress_callback,
+                                               logger)) {
+                if (logger) {
+                    logger->warn("Consistency pass could not interpret response; skipping chunk");
                 }
             }
         } catch (const std::exception& ex) {
@@ -523,7 +522,25 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
                 logger->info("  [AFTER] {} -> {} / {}", item->file_name, item->category, item->subcategory);
             }
         }
+    };
 
+    std::vector<const CategorizedFile*> chunk;
+    chunk.reserve(10);
+
+    for (size_t index = 0; index < categorized_files.size(); ++index) {
+        if (stop_flag.load()) {
+            break;
+        }
+
+        chunk.push_back(&categorized_files[index]);
+        const bool should_flush = chunk.size() == 10 || index + 1 == categorized_files.size();
+        if (!should_flush) {
+            continue;
+        }
+
+        const size_t start_index = index + 1 - chunk.size();
+        const size_t end_index = index + 1;
+        process_chunk(chunk, start_index, end_index);
         chunk.clear();
     }
 }

@@ -153,103 +153,14 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
       development_mode_(development_mode),
       development_prompt_logging_enabled_(development_mode ? settings.get_development_prompt_logging() : false)
 {
-    TranslationManager::instance().initialize(qApp);
-    TranslationManager::instance().set_language(settings.get_language());
-    whitelist_store.load();
-    whitelist_store.ensure_default_from_legacy(settings.get_allowed_categories(),
-                                               settings.get_allowed_subcategories());
-    whitelist_store.save();
-    if (settings.get_active_whitelist().empty()) {
-        settings.set_active_whitelist(whitelist_store.default_name());
-    }
+    TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
+    initialize_whitelists();
 
-    if (settings.get_llm_choice() != LLMChoice::Remote) {
-        using_local_llm = true;
-    }
+    using_local_llm = settings.get_llm_choice() != LLMChoice::Remote;
 
     MainAppUiBuilder ui_builder;
     ui_builder.build(*this);
-    UiTranslator::Dependencies translator_deps{
-        .window = *this,
-        .primary = UiTranslator::PrimaryControls{
-            path_label,
-            browse_button,
-            analyze_button,
-            use_subcategories_checkbox,
-            categorization_style_heading,
-            categorization_style_refined_radio,
-            categorization_style_consistent_radio,
-            use_whitelist_checkbox,
-            whitelist_selector,
-            categorize_files_checkbox,
-            categorize_directories_checkbox},
-        .tree_model = tree_model,
-        .menus = UiTranslator::MenuControls{
-            file_menu,
-            edit_menu,
-            view_menu,
-            settings_menu,
-            development_menu,
-            development_settings_menu,
-            language_menu,
-            category_language_menu,
-            help_menu},
-        .actions = UiTranslator::ActionControls{
-            file_quit_action,
-            copy_action,
-            cut_action,
-            paste_action,
-            delete_action,
-            toggle_explorer_action,
-            toggle_llm_action,
-            manage_whitelists_action,
-            development_prompt_logging_action,
-            consistency_pass_action,
-            english_action,
-            french_action,
-            german_action,
-            italian_action,
-            spanish_action,
-            turkish_action,
-            category_language_english,
-            category_language_french,
-            category_language_german,
-            category_language_italian,
-            category_language_dutch,
-            category_language_polish,
-            category_language_portuguese,
-            category_language_spanish,
-            category_language_turkish,
-            about_action,
-            about_qt_action,
-            about_agpl_action,
-            support_project_action},
-        .language = UiTranslator::LanguageControls{
-            language_group,
-            english_action,
-            french_action,
-            german_action,
-            italian_action,
-            spanish_action,
-            turkish_action},
-        .category_language = UiTranslator::CategoryLanguageControls{
-            category_language_group,
-            category_language_dutch,
-            category_language_english,
-            category_language_french,
-            category_language_german,
-            category_language_italian,
-            category_language_polish,
-            category_language_portuguese,
-            category_language_spanish,
-            category_language_turkish},
-        .file_explorer_dock = file_explorer_dock,
-        .settings = settings,
-        .translator = [](const char* source) {
-            return MainApp::tr(source);
-        }
-    };
-    ui_translator_ = std::make_unique<UiTranslator>(translator_deps);
+    ui_translator_ = std::make_unique<UiTranslator>(ui_builder.build_translator_dependencies(*this));
     retranslate_ui();
     setup_file_explorer();
     connect_signals();
@@ -858,6 +769,11 @@ void MainApp::show_whitelist_manager()
     whitelist_dialog->show();
     whitelist_dialog->raise();
     whitelist_dialog->activateWindow();
+}
+
+void MainApp::initialize_whitelists()
+{
+    whitelist_store.initialize_from_settings(settings);
 }
 
 bool MainApp::ensure_folder_categorization_style(const std::string& folder_path)

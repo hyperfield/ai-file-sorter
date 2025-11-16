@@ -3,12 +3,14 @@
 
 #include <QIcon>
 #include <QStyle>
+#include "UiTranslator.hpp"
 
 class MainApp;
 
 class MainAppUiBuilder {
 public:
     void build(MainApp& app);
+    UiTranslator::Dependencies build_translator_dependencies(MainApp& app) const;
 
 private:
     void build_central_panel(MainApp& app);

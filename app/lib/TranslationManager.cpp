@@ -541,6 +541,12 @@ void TranslationManager::initialize(QApplication* app)
     }
 }
 
+void TranslationManager::initialize_for_app(QApplication* app, Language language)
+{
+    initialize(app);
+    set_language(language);
+}
+
 void TranslationManager::set_language(Language language)
 {
     if (!app_) {
