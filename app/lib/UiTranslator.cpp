@@ -75,6 +75,9 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* consistent_radio = raw_ptr(deps_.primary.categorization_style_consistent_radio)) {
         consistent_radio->setText(tr("More consistent"));
     }
+    if (auto* checkbox = raw_ptr(deps_.primary.use_whitelist_checkbox)) {
+        checkbox->setText(tr("Use a whitelist"));
+    }
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_files_checkbox)) {
         checkbox->setText(tr("Categorize files"));
     }
@@ -155,6 +158,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.delete_action, "&Delete"},
         {deps_.actions.toggle_explorer_action, "File &Explorer"},
         {deps_.actions.toggle_llm_action, "Select &LLM…"},
+        {deps_.actions.manage_whitelists_action, "Manage category whitelists…"},
         {deps_.actions.development_prompt_logging_action, "Log prompts and responses to stdout"},
         {deps_.actions.consistency_pass_action, "Run &consistency pass"},
         {deps_.actions.english_action, "&English"},

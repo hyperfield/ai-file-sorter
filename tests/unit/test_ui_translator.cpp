@@ -9,11 +9,13 @@
 #include <QActionGroup>
 #include <QChar>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDockWidget>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
+#include <QComboBox>
 #include <QRadioButton>
 #include <QStandardItem>
 #include <QStandardItemModel>
@@ -38,6 +40,8 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     QPointer<QLabel> style_heading = new QLabel(&window);
     QPointer<QRadioButton> style_refined = new QRadioButton(&window);
     QPointer<QRadioButton> style_consistent = new QRadioButton(&window);
+    QPointer<QCheckBox> use_whitelist = new QCheckBox(&window);
+    QPointer<QComboBox> whitelist_selector = new QComboBox(&window);
     QPointer<QCheckBox> files_checkbox = new QCheckBox(&window);
     QPointer<QCheckBox> directories_checkbox = new QCheckBox(&window);
 
@@ -66,6 +70,7 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     QAction* delete_action = new QAction(&window);
     QAction* toggle_explorer_action = new QAction(&window);
     QAction* toggle_llm_action = new QAction(&window);
+    QAction* manage_whitelists_action = new QAction(&window);
     QAction* development_prompt_logging_action = new QAction(&window);
     QAction* consistency_pass_action = new QAction(&window);
     QAction* english_action = new QAction(&window);
@@ -96,6 +101,8 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
             style_heading,
             style_refined,
             style_consistent,
+            use_whitelist,
+            whitelist_selector,
             files_checkbox,
             directories_checkbox},
         .tree_model = tree_model,
@@ -116,6 +123,7 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
             delete_action,
             toggle_explorer_action,
             toggle_llm_action,
+            manage_whitelists_action,
             development_prompt_logging_action,
             consistency_pass_action,
             english_action,
@@ -150,12 +158,14 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     REQUIRE(style_heading->text() == QStringLiteral("Categorization type"));
     REQUIRE(style_refined->text() == QStringLiteral("More refined"));
     REQUIRE(style_consistent->text() == QStringLiteral("More consistent"));
+    REQUIRE(use_whitelist->text() == QStringLiteral("Use a whitelist"));
     REQUIRE(files_checkbox->text() == QStringLiteral("Categorize files"));
     REQUIRE(directories_checkbox->text() == QStringLiteral("Categorize directories"));
 
     REQUIRE(file_menu->title() == QStringLiteral("&File"));
     REQUIRE(settings_menu->title() == QStringLiteral("&Settings"));
     REQUIRE(toggle_llm_action->text() == QStringLiteral("Select &LLM…"));
+    REQUIRE(manage_whitelists_action->text() == QStringLiteral("Manage category whitelists…"));
     REQUIRE(development_prompt_logging_action->text() ==
             QStringLiteral("Log prompts and responses to stdout"));
 

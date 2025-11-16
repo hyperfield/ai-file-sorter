@@ -148,6 +148,54 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
     return categorized;
 }
 
+std::string CategorizationService::build_whitelist_context() const
+{
+    std::ostringstream oss;
+    const auto cats = settings.get_allowed_categories();
+    const auto subs = settings.get_allowed_subcategories();
+    if (!cats.empty()) {
+        oss << "Allowed main categories (pick exactly one label from the numbered list):\n";
+        for (size_t i = 0; i < cats.size(); ++i) {
+            oss << (i + 1) << ") " << cats[i] << "\n";
+        }
+    }
+    if (!subs.empty()) {
+        oss << "Allowed subcategories (pick exactly one label from the numbered list):\n";
+        for (size_t i = 0; i < subs.size(); ++i) {
+            oss << (i + 1) << ") " << subs[i] << "\n";
+        }
+    } else {
+        oss << "Allowed subcategories: any (pick a specific, relevant subcategory; do not repeat the main category).";
+    }
+    return oss.str();
+}
+
+namespace {
+std::string to_lower_copy_str(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+bool is_allowed(const std::string& value, const std::vector<std::string>& allowed) {
+    if (allowed.empty()) {
+        return true;
+    }
+    const std::string norm = to_lower_copy_str(value);
+    for (const auto& item : allowed) {
+        if (to_lower_copy_str(item) == norm) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string first_allowed_or_blank(const std::vector<std::string>& allowed) {
+    return allowed.empty() ? std::string() : allowed.front();
+}
+} // namespace
+
 std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cached_categorization(
     const std::string& item_name,
     const std::string& item_path,
@@ -214,6 +262,19 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
 
         auto [category, subcategory] = split_category_subcategory(category_subcategory);
         auto resolved = db_manager.resolve_category(category, subcategory);
+        if (settings.get_use_whitelist()) {
+            const auto allowed_categories = settings.get_allowed_categories();
+            const auto allowed_subcategories = settings.get_allowed_subcategories();
+            if (!is_allowed(resolved.category, allowed_categories)) {
+                resolved.category = first_allowed_or_blank(allowed_categories);
+            }
+            if (!is_allowed(resolved.subcategory, allowed_subcategories)) {
+                resolved.subcategory = first_allowed_or_blank(allowed_subcategories);
+            }
+        }
+        if (resolved.category.empty()) {
+            resolved.category = "Uncategorized";
+        }
         emit_progress_message(progress_callback, "AI", item_name, resolved, item_path);
         return resolved;
     } catch (const std::exception& ex) {
@@ -293,6 +354,22 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
         const auto hints = collect_consistency_hints(signature, session_history, extension, entry.type);
         hint_block = format_hint_block(hints);
     }
+    std::string whitelist_block = build_whitelist_context();
+    std::string combined_context;
+    if (settings.get_use_whitelist() && !whitelist_block.empty()) {
+        if (core_logger) {
+            core_logger->debug("Applying category whitelist ({} cats, {} subs)",
+                               settings.get_allowed_categories().size(),
+                               settings.get_allowed_subcategories().size());
+        }
+        combined_context = whitelist_block;
+    }
+    if (!hint_block.empty()) {
+        if (!combined_context.empty()) {
+            combined_context += "\n\n";
+        }
+        combined_context += hint_block;
+    }
 
     DatabaseManager::ResolvedCategory resolved =
         categorize_with_cache(llm,
@@ -301,7 +378,7 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
                               abbreviated_path,
                               entry.type,
                               progress_callback,
-                              hint_block);
+                              combined_context);
 
     if (resolved.category.empty() || resolved.subcategory.empty()) {
         if (core_logger) {

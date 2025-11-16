@@ -92,7 +92,7 @@ int resolve_context_length() {
     if (try_parse_env_int("LLAMA_CPP_MAX_CONTEXT", parsed) && parsed > 0) {
         return parsed;
     }
-    return 2048;
+    return 2048; // increased default to better accommodate larger prompts (whitelists, hints)
 }
 
 struct MetalDeviceInfo {

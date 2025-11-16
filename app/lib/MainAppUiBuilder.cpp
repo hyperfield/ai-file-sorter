@@ -17,6 +17,8 @@
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QComboBox>
+#include <QFontMetrics>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -76,6 +78,13 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);
     app.categorization_style_consistent_radio = new QRadioButton(central);
+    app.use_whitelist_checkbox = new QCheckBox(central);
+    app.whitelist_selector = new QComboBox(central);
+    app.whitelist_selector->setEnabled(false);
+    app.whitelist_selector->setMinimumContentsLength(16);
+    app.whitelist_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    QFontMetrics fm(app.whitelist_selector->font());
+    app.whitelist_selector->setMinimumWidth(fm.horizontalAdvance(QString(16, QChar('W'))) + 5);
 
     app.analyze_button = new QPushButton(central);
     QIcon analyze_icon = QIcon::fromTheme(QStringLiteral("sparkle"));
@@ -98,7 +107,17 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     categorization_layout->addWidget(app.categorization_style_heading);
     categorization_layout->addLayout(toggle_row);
 
-    analyze_layout->addLayout(categorization_layout);
+    auto* whitelist_row = new QHBoxLayout();
+    whitelist_row->addWidget(app.use_whitelist_checkbox);
+    whitelist_row->addWidget(app.whitelist_selector);
+    whitelist_row->addStretch();
+
+    auto* control_block = new QVBoxLayout();
+    control_block->addLayout(categorization_layout);
+    control_block->addSpacing(4);
+    control_block->addLayout(whitelist_row);
+
+    analyze_layout->addLayout(control_block);
     analyze_layout->addSpacing(12);
     analyze_layout->addWidget(app.analyze_button, 0, Qt::AlignBottom | Qt::AlignRight);
     main_layout->addLayout(analyze_layout);
@@ -203,6 +222,9 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.settings_menu = app.menuBar()->addMenu(QString());
     app.toggle_llm_action = app.settings_menu->addAction(icon_for(app, "preferences-system", QStyle::SP_DialogApplyButton), QString());
     QObject::connect(app.toggle_llm_action, &QAction::triggered, &app, &MainApp::show_llm_selection_dialog);
+
+    app.manage_whitelists_action = app.settings_menu->addAction(QString());
+    QObject::connect(app.manage_whitelists_action, &QAction::triggered, &app, &MainApp::show_whitelist_manager);
 
     app.language_menu = app.settings_menu->addMenu(QString());
     app.language_group = new QActionGroup(&app);

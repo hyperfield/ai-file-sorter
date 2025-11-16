@@ -10,6 +10,7 @@
 #include "FileScanner.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
+#include "WhitelistStore.hpp"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -32,6 +33,8 @@
 class QAction;
 class QCheckBox;
 class QRadioButton;
+class QComboBox;
+class QLabel;
 class QDockWidget;
 class QFileSystemModel;
 class QLineEdit;
@@ -44,6 +47,7 @@ class QLabel;
 class QEvent;
 class MainAppUiBuilder;
 class UiTranslator;
+class WhitelistManagerDialog;
 
 struct CategorizedFile;
 struct FileEntry;
@@ -127,6 +131,8 @@ private:
                                        const std::string& reason);
     void set_categorization_style(bool use_consistency);
     bool ensure_folder_categorization_style(const std::string& folder_path);
+    void show_whitelist_manager();
+    void apply_whitelist_to_selector();
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
@@ -154,6 +160,8 @@ private:
     QPointer<QLabel> categorization_style_heading;
     QPointer<QRadioButton> categorization_style_refined_radio;
     QPointer<QRadioButton> categorization_style_consistent_radio;
+    QPointer<QCheckBox> use_whitelist_checkbox;
+    QPointer<QComboBox> whitelist_selector;
     QPointer<QCheckBox> categorize_files_checkbox;
     QPointer<QCheckBox> categorize_directories_checkbox;
     QPointer<QTreeView> tree_view;
@@ -183,6 +191,7 @@ private:
     QAction* delete_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
+    QAction* manage_whitelists_action{nullptr};
     QAction* development_prompt_logging_action{nullptr};
     QAction* consistency_pass_action{nullptr};
     QActionGroup* language_group{nullptr};
@@ -198,6 +207,8 @@ private:
 
     std::shared_ptr<spdlog::logger> core_logger;
     std::shared_ptr<spdlog::logger> ui_logger;
+    WhitelistStore whitelist_store;
+    std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
     ResultsCoordinator results_coordinator;
@@ -219,3 +230,4 @@ private:
 };
 
 #endif // MAINAPP_HPP
+class WhitelistManagerDialog;

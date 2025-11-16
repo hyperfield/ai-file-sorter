@@ -14,6 +14,7 @@
 #include "Types.hpp"
 #include "MainAppUiBuilder.hpp"
 #include "UiTranslator.hpp"
+#include "WhitelistManagerDialog.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
 #include "MainAppTestAccess.hpp"
 #endif
@@ -41,6 +42,7 @@
 #include <QSignalBlocker>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QComboBox>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QCoreApplication>
@@ -143,6 +145,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
       db_manager(settings.get_config_dir()),
       core_logger(Logger::get_logger("core_logger")),
       ui_logger(Logger::get_logger("ui_logger")),
+      whitelist_store(settings.get_config_dir()),
       categorization_service(settings, db_manager, core_logger),
       consistency_pass_service(db_manager, core_logger),
       results_coordinator(dirscanner),
@@ -151,6 +154,13 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
 {
     TranslationManager::instance().initialize(qApp);
     TranslationManager::instance().set_language(settings.get_language());
+    whitelist_store.load();
+    whitelist_store.ensure_default_from_legacy(settings.get_allowed_categories(),
+                                               settings.get_allowed_subcategories());
+    whitelist_store.save();
+    if (settings.get_active_whitelist().empty()) {
+        settings.set_active_whitelist(whitelist_store.default_name());
+    }
 
     if (settings.get_llm_choice() != LLMChoice::Remote) {
         using_local_llm = true;
@@ -168,6 +178,8 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
             categorization_style_heading,
             categorization_style_refined_radio,
             categorization_style_consistent_radio,
+            use_whitelist_checkbox,
+            whitelist_selector,
             categorize_files_checkbox,
             categorize_directories_checkbox},
         .tree_model = tree_model,
@@ -188,6 +200,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
             delete_action,
             toggle_explorer_action,
             toggle_llm_action,
+            manage_whitelists_action,
             development_prompt_logging_action,
             consistency_pass_action,
             english_action,
@@ -415,6 +428,21 @@ void MainApp::connect_signals()
         update_file_scan_option(FileScanOptions::Directories, checked);
         settings.set_categorize_directories(checked);
     });
+
+    connect(use_whitelist_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+        if (whitelist_selector) {
+            whitelist_selector->setEnabled(checked);
+        }
+        settings.set_use_whitelist(checked);
+        apply_whitelist_to_selector();
+    });
+    connect(whitelist_selector, &QComboBox::currentTextChanged, this, [this](const QString& name) {
+        settings.set_active_whitelist(name.toStdString());
+        if (auto entry = whitelist_store.get(name.toStdString())) {
+            settings.set_allowed_categories(entry->categories);
+            settings.set_allowed_subcategories(entry->subcategories);
+        }
+    });
 }
 
 
@@ -486,6 +514,12 @@ void MainApp::restore_tree_settings()
 {
     use_subcategories_checkbox->setChecked(settings.get_use_subcategories());
     set_categorization_style(settings.get_use_consistency_hints());
+    if (use_whitelist_checkbox) {
+        use_whitelist_checkbox->setChecked(settings.get_use_whitelist());
+    }
+    if (whitelist_selector) {
+        apply_whitelist_to_selector();
+    }
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
 }
@@ -544,6 +578,12 @@ void MainApp::sync_ui_to_settings()
     settings.set_use_subcategories(use_subcategories_checkbox->isChecked());
     if (categorization_style_consistent_radio) {
         settings.set_use_consistency_hints(categorization_style_consistent_radio->isChecked());
+    }
+    if (use_whitelist_checkbox) {
+        settings.set_use_whitelist(use_whitelist_checkbox->isChecked());
+    }
+    if (whitelist_selector) {
+        settings.set_active_whitelist(whitelist_selector->currentText().toStdString());
     }
     settings.set_categorize_files(categorize_files_checkbox->isChecked());
     settings.set_categorize_directories(categorize_directories_checkbox->isChecked());
@@ -726,6 +766,60 @@ void MainApp::set_categorization_style(bool use_consistency)
     QSignalBlocker blocker_consistent(categorization_style_consistent_radio);
     categorization_style_refined_radio->setChecked(!use_consistency);
     categorization_style_consistent_radio->setChecked(use_consistency);
+}
+
+void MainApp::apply_whitelist_to_selector()
+{
+    if (!whitelist_selector) {
+        return;
+    }
+    auto names = whitelist_store.list_names();
+    if (names.empty()) {
+        whitelist_store.ensure_default_from_legacy(settings.get_allowed_categories(),
+                                                   settings.get_allowed_subcategories());
+        whitelist_store.save();
+        names = whitelist_store.list_names();
+    }
+    const QString current_active = QString::fromStdString(settings.get_active_whitelist());
+    whitelist_selector->blockSignals(true);
+    whitelist_selector->clear();
+    for (const auto& name : names) {
+        whitelist_selector->addItem(QString::fromStdString(name));
+    }
+    whitelist_selector->setEnabled(use_whitelist_checkbox && use_whitelist_checkbox->isChecked());
+    int idx = whitelist_selector->findText(current_active);
+    if (idx < 0 && !names.empty()) {
+        const QString def = QString::fromStdString(whitelist_store.default_name());
+        idx = whitelist_selector->findText(def);
+        if (idx < 0) {
+            idx = 0;
+        }
+    }
+    if (idx >= 0) {
+        whitelist_selector->setCurrentIndex(idx);
+        const QString chosen = whitelist_selector->itemText(idx);
+        settings.set_active_whitelist(chosen.toStdString());
+        if (auto entry = whitelist_store.get(chosen.toStdString())) {
+            settings.set_allowed_categories(entry->categories);
+            settings.set_allowed_subcategories(entry->subcategories);
+        }
+    }
+    whitelist_selector->blockSignals(false);
+}
+
+void MainApp::show_whitelist_manager()
+{
+    if (!whitelist_dialog) {
+        whitelist_dialog = std::make_unique<WhitelistManagerDialog>(whitelist_store, this);
+        whitelist_dialog->set_on_lists_changed([this]() {
+            whitelist_store.load();
+            whitelist_store.save();
+            apply_whitelist_to_selector();
+        });
+    }
+    whitelist_dialog->show();
+    whitelist_dialog->raise();
+    whitelist_dialog->activateWindow();
 }
 
 bool MainApp::ensure_folder_categorization_style(const std::string& folder_path)

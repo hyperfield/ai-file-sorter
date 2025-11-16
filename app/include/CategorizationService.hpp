@@ -72,7 +72,9 @@ private:
         bool is_local_llm,
         const std::string& consistency_context) const;
 
-        std::vector<CategoryPair> collect_consistency_hints(
+    std::string build_whitelist_context() const;
+
+    std::vector<CategoryPair> collect_consistency_hints(
         const std::string& signature,
         const SessionHistoryMap& session_history,
         const std::string& extension,

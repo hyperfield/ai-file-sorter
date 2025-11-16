@@ -140,7 +140,7 @@ void CategorizationDialog::setup_ui()
     QFont tip_font = tip_label->font();
     tip_font.setItalic(true);
     tip_label->setFont(tip_font);
-    tip_label->setText(tr("Tip: Click Category or Subcategory cells (pencil icon) to rename them."));
+    tip_label->setText(tr("Tip: Click Category or Subcategory cells to rename them."));
 
     bottom_layout->addWidget(tip_label, /*stretch*/1, Qt::AlignVCenter);
     bottom_layout->addLayout(button_layout);

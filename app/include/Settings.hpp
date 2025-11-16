@@ -6,6 +6,7 @@
 #include <Language.hpp>
 #include <string>
 #include <filesystem>
+#include <vector>
 
 
 class Settings
@@ -38,6 +39,11 @@ public:
     bool get_consistency_pass_enabled() const;
     void set_consistency_pass_enabled(bool value);
 
+    bool get_use_whitelist() const;
+    void set_use_whitelist(bool value);
+    std::string get_active_whitelist() const;
+    void set_active_whitelist(const std::string& name);
+
     bool get_development_prompt_logging() const;
     void set_development_prompt_logging(bool value);
 
@@ -54,6 +60,10 @@ public:
     void add_categorized_files(int count);
     int get_next_support_prompt_threshold() const;
     void set_next_support_prompt_threshold(int threshold);
+    std::vector<std::string> get_allowed_categories() const;
+    void set_allowed_categories(std::vector<std::string> values);
+    std::vector<std::string> get_allowed_subcategories() const;
+    void set_allowed_subcategories(std::vector<std::string> values);
 
 private:
     std::string config_path;
@@ -65,6 +75,7 @@ private:
     bool categorize_files;
     bool categorize_directories;
     bool use_consistency_hints{true};
+    bool use_whitelist{false};
     std::string default_sort_folder;
     std::string sort_folder;
     std::string skipped_version;
@@ -74,6 +85,9 @@ private:
     bool development_prompt_logging{false};
     int categorized_file_count{0};
     int next_support_prompt_threshold{100};
+    std::vector<std::string> allowed_categories;
+    std::vector<std::string> allowed_subcategories;
+    std::string active_whitelist;
 };
 
 #endif

@@ -12,6 +12,8 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 #include <algorithm>
+#include <sstream>
+#include <cctype>
 #ifdef _WIN32
     #include <shlobj.h>
     #include <windows.h>
@@ -36,6 +38,32 @@ int parse_int_or(const std::string& value, int fallback) {
         return fallback;
     }
 }
+
+std::vector<std::string> parse_list(const std::string& value) {
+    std::vector<std::string> result;
+    std::stringstream ss(value);
+    std::string item;
+    while (std::getline(ss, item, ',')) {
+        auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+        item.erase(item.begin(), std::find_if(item.begin(), item.end(), not_space));
+        item.erase(std::find_if(item.rbegin(), item.rend(), not_space).base(), item.end());
+        if (!item.empty()) {
+            result.push_back(item);
+        }
+    }
+    return result;
+}
+
+std::string join_list(const std::vector<std::string>& items) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (i > 0) {
+            oss << ",";
+        }
+        oss << items[i];
+    }
+    return oss.str();
+}
 }
 
 
@@ -44,6 +72,7 @@ Settings::Settings()
       categorize_files(true),
       categorize_directories(false),
       use_consistency_hints(true),
+      use_whitelist(false),
       default_sort_folder(""),
       sort_folder("")
 {
@@ -140,6 +169,20 @@ bool Settings::load()
         next_support_prompt_threshold = 100;
     }
 
+    allowed_categories = parse_list(config.getValue("Settings", "AllowedCategories", ""));
+    allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
+    use_whitelist = config.getValue("Settings", "UseWhitelist", "false") == "true";
+    active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
+
+    if (auto logger = Logger::get_logger("core_logger")) {
+        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}')",
+                     config_path,
+                     allowed_categories.size(),
+                     allowed_subcategories.size(),
+                     use_whitelist,
+                     active_whitelist);
+    }
+
     return true;
 }
 
@@ -172,6 +215,13 @@ bool Settings::save()
     config.setValue("Settings", "Language", languageToString(language).toStdString());
     config.setValue("Settings", "CategorizedFileCount", std::to_string(categorized_file_count));
     config.setValue("Settings", "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
+
+    config.setValue("Settings", "AllowedCategories", join_list(allowed_categories));
+    config.setValue("Settings", "AllowedSubcategories", join_list(allowed_subcategories));
+    config.setValue("Settings", "UseWhitelist", use_whitelist ? "true" : "false");
+    if (!active_whitelist.empty()) {
+        config.setValue("Settings", "ActiveWhitelist", active_whitelist);
+    }
 
     return config.save(config_path);
 }
@@ -271,6 +321,26 @@ void Settings::set_development_prompt_logging(bool value)
     development_prompt_logging = value;
 }
 
+bool Settings::get_use_whitelist() const
+{
+    return use_whitelist;
+}
+
+void Settings::set_use_whitelist(bool value)
+{
+    use_whitelist = value;
+}
+
+std::string Settings::get_active_whitelist() const
+{
+    return active_whitelist;
+}
+
+void Settings::set_active_whitelist(const std::string& name)
+{
+    active_whitelist = name;
+}
+
 
 void Settings::set_skipped_version(const std::string &version) {
     skipped_version = version;
@@ -330,4 +400,24 @@ void Settings::set_next_support_prompt_threshold(int threshold)
         threshold = 100;
     }
     next_support_prompt_threshold = threshold;
+}
+
+std::vector<std::string> Settings::get_allowed_categories() const
+{
+    return allowed_categories;
+}
+
+void Settings::set_allowed_categories(std::vector<std::string> values)
+{
+    allowed_categories = std::move(values);
+}
+
+std::vector<std::string> Settings::get_allowed_subcategories() const
+{
+    return allowed_subcategories;
+}
+
+void Settings::set_allowed_subcategories(std::vector<std::string> values)
+{
+    allowed_subcategories = std::move(values);
 }
