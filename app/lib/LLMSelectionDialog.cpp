@@ -4,6 +4,7 @@
 #include "ErrorMessages.hpp"
 #include "Settings.hpp"
 #include "Utils.hpp"
+#include "CustomLLMDialog.hpp"
 
 #include <QDialogButtonBox>
 #include <QGroupBox>
@@ -13,6 +14,9 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QComboBox>
+#include <QFileDialog>
+#include <QMessageBox>
 #include <QVBoxLayout>
 #include <QString>
 
@@ -32,6 +36,7 @@ QString format_markup_label(const QString& title, const QString& value, const QS
 
 LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     : QDialog(parent)
+    , settings(settings)
 {
     setWindowTitle(tr("Choose LLM Mode"));
     setModal(true);
@@ -39,6 +44,7 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     connect_signals();
 
     selected_choice = settings.get_llm_choice();
+    selected_custom_id = settings.get_active_custom_llm_id();
     switch (selected_choice) {
     case LLMChoice::Remote:
         remote_radio->setChecked(true);
@@ -49,14 +55,21 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     case LLMChoice::Local_7b:
         local7_radio->setChecked(true);
         break;
+    case LLMChoice::Custom:
+        custom_radio->setChecked(true);
+        break;
     default:
         remote_radio->setChecked(true);
         selected_choice = LLMChoice::Remote;
         break;
     }
+    refresh_custom_lists();
+    if (selected_choice == LLMChoice::Custom) {
+        select_custom_by_id(selected_custom_id);
+    }
 
     update_ui_for_choice();
-    resize(520, sizeHint().height());
+    resize(620, sizeHint().height());
 }
 
 
@@ -92,12 +105,29 @@ void LLMSelectionDialog::setup_ui()
     auto* remote_desc = new QLabel(tr("Fast and accurate, but requires internet connection."), radio_container);
     remote_desc->setWordWrap(true);
 
+    custom_radio = new QRadioButton(tr("Custom local LLM (gguf)"), radio_container);
+    auto* custom_row = new QWidget(radio_container);
+    auto* custom_layout = new QHBoxLayout(custom_row);
+    custom_layout->setContentsMargins(24, 0, 0, 0);
+    custom_combo = new QComboBox(custom_row);
+    custom_combo->setMinimumContentsLength(18);
+    custom_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    add_custom_button = new QPushButton(tr("Add…"), custom_row);
+    edit_custom_button = new QPushButton(tr("Edit…"), custom_row);
+    delete_custom_button = new QPushButton(tr("Delete"), custom_row);
+    custom_layout->addWidget(custom_combo, 1);
+    custom_layout->addWidget(add_custom_button);
+    custom_layout->addWidget(edit_custom_button);
+    custom_layout->addWidget(delete_custom_button);
+
     radio_layout->addWidget(local7_radio);
     radio_layout->addWidget(local7_desc);
     radio_layout->addWidget(local3_radio);
     radio_layout->addWidget(local3_desc);
     radio_layout->addWidget(remote_radio);
     radio_layout->addWidget(remote_desc);
+    radio_layout->addWidget(custom_radio);
+    radio_layout->addWidget(custom_row);
 
     layout->addWidget(radio_container);
 
@@ -146,6 +176,11 @@ void LLMSelectionDialog::connect_signals()
     connect(remote_radio, &QRadioButton::toggled, this, update_handler);
     connect(local3_radio, &QRadioButton::toggled, this, update_handler);
     connect(local7_radio, &QRadioButton::toggled, this, update_handler);
+    connect(custom_radio, &QRadioButton::toggled, this, update_handler);
+    connect(custom_combo, &QComboBox::currentTextChanged, this, update_handler);
+    connect(add_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_add_custom);
+    connect(edit_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_edit_custom);
+    connect(delete_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_custom);
 
     connect(download_button, &QPushButton::clicked, this, &LLMSelectionDialog::start_download);
     connect(button_box, &QDialogButtonBox::accepted, this, &LLMSelectionDialog::accept);
@@ -158,6 +193,11 @@ LLMChoice LLMSelectionDialog::get_selected_llm_choice() const
     return selected_choice;
 }
 
+std::string LLMSelectionDialog::get_selected_custom_llm_id() const
+{
+    return selected_custom_id;
+}
+
 
 void LLMSelectionDialog::set_status_message(const QString& message)
 {
@@ -167,18 +207,40 @@ void LLMSelectionDialog::set_status_message(const QString& message)
 
 void LLMSelectionDialog::update_ui_for_choice()
 {
+    update_custom_buttons();
+
     if (remote_radio->isChecked()) {
         selected_choice = LLMChoice::Remote;
     } else if (local3_radio->isChecked()) {
         selected_choice = LLMChoice::Local_3b;
     } else if (local7_radio->isChecked()) {
         selected_choice = LLMChoice::Local_7b;
+    } else if (custom_radio->isChecked()) {
+        selected_choice = LLMChoice::Custom;
     }
 
-    const bool is_local = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
-    download_section->setVisible(is_local);
+    const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
+    const bool is_custom = selected_choice == LLMChoice::Custom;
+    download_section->setVisible(is_local_builtin);
 
-    if (!is_local) {
+    custom_combo->setEnabled(is_custom);
+    edit_custom_button->setEnabled(is_custom && custom_combo->currentIndex() >= 0 && custom_combo->count() > 0);
+    delete_custom_button->setEnabled(is_custom && custom_combo->currentIndex() >= 0 && custom_combo->count() > 0);
+
+    if (is_custom) {
+        if (custom_combo->currentIndex() >= 0) {
+            selected_custom_id = custom_combo->currentData().toString().toStdString();
+        } else {
+            selected_custom_id.clear();
+        }
+        button_box->button(QDialogButtonBox::Ok)->setEnabled(!selected_custom_id.empty());
+        progress_bar->setVisible(false);
+        download_button->setVisible(false);
+        set_status_message(selected_custom_id.empty() ? tr("Choose or add a custom model.") : tr("Custom model selected."));
+        return;
+    }
+
+    if (!is_local_builtin) {
         button_box->button(QDialogButtonBox::Ok)->setEnabled(true);
         return;
     }
@@ -277,6 +339,113 @@ void LLMSelectionDialog::update_download_info()
                                                      QStringLiteral("#333")));
     } else {
         file_size_label->setText(tr("File size: unknown"));
+    }
+}
+
+void LLMSelectionDialog::refresh_custom_lists()
+{
+    if (!custom_combo) {
+        return;
+    }
+
+    custom_combo->blockSignals(true);
+    custom_combo->clear();
+    for (const auto& entry : settings.get_custom_llms()) {
+        custom_combo->addItem(QString::fromStdString(entry.name),
+                              QString::fromStdString(entry.id));
+    }
+    if (!selected_custom_id.empty()) {
+        select_custom_by_id(selected_custom_id);
+    } else if (custom_combo->count() > 0) {
+        custom_combo->setCurrentIndex(0);
+        selected_custom_id = custom_combo->currentData().toString().toStdString();
+    }
+    custom_combo->blockSignals(false);
+    update_custom_buttons();
+}
+
+void LLMSelectionDialog::select_custom_by_id(const std::string& id)
+{
+    for (int i = 0; i < custom_combo->count(); ++i) {
+        if (custom_combo->itemData(i).toString().toStdString() == id) {
+            custom_combo->setCurrentIndex(i);
+            return;
+        }
+    }
+    if (custom_combo->count() > 0) {
+        custom_combo->setCurrentIndex(0);
+    }
+}
+
+void LLMSelectionDialog::handle_add_custom()
+{
+    CustomLLMDialog editor(this);
+    if (editor.exec() != QDialog::Accepted) {
+        return;
+    }
+    CustomLLM entry = editor.result();
+    selected_custom_id = settings.upsert_custom_llm(entry);
+    refresh_custom_lists();
+    select_custom_by_id(selected_custom_id);
+    custom_radio->setChecked(true);
+    update_ui_for_choice();
+}
+
+void LLMSelectionDialog::handle_edit_custom()
+{
+    if (!custom_combo || custom_combo->currentIndex() < 0) {
+        return;
+    }
+    const std::string id = custom_combo->currentData().toString().toStdString();
+    CustomLLM entry = settings.find_custom_llm(id);
+    if (entry.id.empty()) {
+        return;
+    }
+
+    CustomLLMDialog editor(this, entry);
+    if (editor.exec() != QDialog::Accepted) {
+        return;
+    }
+    CustomLLM updated = editor.result();
+    updated.id = entry.id;
+    selected_custom_id = settings.upsert_custom_llm(updated);
+    refresh_custom_lists();
+    select_custom_by_id(selected_custom_id);
+    custom_radio->setChecked(true);
+    update_ui_for_choice();
+}
+
+void LLMSelectionDialog::handle_delete_custom()
+{
+    if (!custom_combo || custom_combo->currentIndex() < 0) {
+        return;
+    }
+    const std::string id = custom_combo->currentData().toString().toStdString();
+    const QString name = custom_combo->currentText();
+    const auto response = QMessageBox::question(this,
+                                                tr("Delete custom model"),
+                                                tr("Remove '%1' from your custom LLMs? This does not delete the file on disk.")
+                                                    .arg(name));
+    if (response != QMessageBox::Yes) {
+        return;
+    }
+    settings.remove_custom_llm(id);
+    if (selected_custom_id == id) {
+        selected_custom_id.clear();
+    }
+    refresh_custom_lists();
+    custom_radio->setChecked(custom_combo->count() > 0);
+    update_ui_for_choice();
+}
+
+void LLMSelectionDialog::update_custom_buttons()
+{
+    const bool has_selection = custom_combo && custom_combo->currentIndex() >= 0 && custom_combo->count() > 0;
+    if (edit_custom_button) {
+        edit_custom_button->setEnabled(has_selection && custom_radio->isChecked());
+    }
+    if (delete_custom_button) {
+        delete_custom_button->setEnabled(has_selection && custom_radio->isChecked());
     }
 }
 

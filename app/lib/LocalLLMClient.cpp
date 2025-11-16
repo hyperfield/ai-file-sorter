@@ -4,6 +4,7 @@
 #include "TestHooks.hpp"
 #include "LocalLLMTestAccess.hpp"
 #include "llama.h"
+#include "gguf.h"
 #include "ggml-backend.h"
 #include "ggml-backend.h"
 #include <string>
@@ -45,6 +46,10 @@
 
 
 namespace {
+
+struct GgufCtxDeleter {
+    void operator()(gguf_context* ctx) const { gguf_free(ctx); }
+};
 
 bool try_parse_env_int(const char *key, int &out) {
     const char *value = std::getenv(key);
@@ -359,7 +364,76 @@ std::optional<int32_t> parse_block_count_entry(const std::vector<char>& buffer,
     return read_uint_value(type, buffer.data() + value_offset, available);
 }
 
+std::optional<int32_t> extract_block_count_gguf(const std::string& model_path) {
+    gguf_init_params params{};
+    params.no_alloc = true;
+    gguf_context* ctx = gguf_init_from_file(model_path.c_str(), params);
+    if (!ctx) {
+        return std::nullopt;
+    }
+
+    auto cleanup = std::unique_ptr<gguf_context, GgufCtxDeleter>(ctx);
+    constexpr std::array<const char*, 6> keys = {
+        "llama.block_count",
+        "llama.layer_count",
+        "llama.n_layer",
+        "qwen.block_count",
+        "qwen2.block_count",
+        "block_count",
+    };
+
+    for (const char* key : keys) {
+        const int64_t id = gguf_find_key(ctx, key);
+        if (id < 0) {
+            continue;
+        }
+        const enum gguf_type type = gguf_get_kv_type(ctx, id);
+        switch (type) {
+            case GGUF_TYPE_INT16: return static_cast<int32_t>(gguf_get_val_i16(ctx, id));
+            case GGUF_TYPE_INT32: return gguf_get_val_i32(ctx, id);
+            case GGUF_TYPE_INT64: return static_cast<int32_t>(gguf_get_val_i64(ctx, id));
+            case GGUF_TYPE_UINT16: return static_cast<int32_t>(gguf_get_val_u16(ctx, id));
+            case GGUF_TYPE_UINT32: return static_cast<int32_t>(gguf_get_val_u32(ctx, id));
+            case GGUF_TYPE_UINT64: return static_cast<int32_t>(gguf_get_val_u64(ctx, id));
+            default:
+                break;
+        }
+    }
+
+    // Fallback: infer from tensor names (e.g., "blk.0." / "layer.12.")
+    const int64_t tensor_count = gguf_get_n_tensors(ctx);
+    int32_t max_layer = -1;
+    for (int64_t i = 0; i < tensor_count; ++i) {
+        const char* tname = gguf_get_tensor_name(ctx, i);
+        if (!tname) {
+            continue;
+        }
+        int32_t current = -1;
+        for (const char* p = tname; *p; ++p) {
+            if (std::isdigit(static_cast<unsigned char>(*p))) {
+                int value = 0;
+                while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
+                    value = value * 10 + (*p - '0');
+                    ++p;
+                }
+                current = std::max(current, value);
+            }
+        }
+        if (current > max_layer) {
+            max_layer = current;
+        }
+    }
+    if (max_layer >= 0) {
+        return max_layer + 1; // layers are zero-indexed in names
+    }
+
+    return std::nullopt;
+}
+
 std::optional<int32_t> extract_block_count(const std::string & model_path) {
+    if (const auto via_ctx = extract_block_count_gguf(model_path)) {
+        return via_ctx;
+    }
     std::ifstream file(model_path, std::ios::binary);
     if (!file) {
         return std::nullopt;
@@ -394,6 +468,9 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
         "llama.block_count",
         "llama.layer_count",
         "llama.n_layer",
+        "qwen.block_count",
+        "qwen2.block_count",
+        "block_count",
     };
 
     for (const auto & key : candidate_keys) {

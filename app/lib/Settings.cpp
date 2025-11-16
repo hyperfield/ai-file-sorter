@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <sstream>
 #include <cctype>
+#include <chrono>
+#include <random>
 #ifdef _WIN32
     #include <shlobj.h>
     #include <windows.h>
@@ -62,6 +64,16 @@ std::string join_list(const std::vector<std::string>& items) {
         }
         oss << items[i];
     }
+    return oss.str();
+}
+
+std::string generate_custom_llm_id() {
+    using clock = std::chrono::steady_clock;
+    const auto now = clock::now().time_since_epoch().count();
+    std::mt19937_64 rng(static_cast<std::mt19937_64::result_type>(now));
+    const uint64_t value = rng();
+    std::ostringstream oss;
+    oss << "llm_" << std::hex << value;
     return oss.str();
 }
 }
@@ -150,6 +162,7 @@ bool Settings::load()
     if (load_choice_value == "Local_3b") llm_choice = LLMChoice::Local_3b;
     else if (load_choice_value == "Local_7b") llm_choice = LLMChoice::Local_7b;
     else if (load_choice_value == "Remote") llm_choice = LLMChoice::Remote;
+    else if (load_choice_value == "Custom") llm_choice = LLMChoice::Custom;
     else llm_choice = LLMChoice::Unset;
 
     use_subcategories = config.getValue("Settings", "UseSubcategories", "false") == "true";
@@ -173,14 +186,30 @@ bool Settings::load()
     allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
     use_whitelist = config.getValue("Settings", "UseWhitelist", "false") == "true";
     active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
+    active_custom_llm_id = config.getValue("LLMs", "ActiveCustomId", "");
+
+    custom_llms.clear();
+    const auto custom_ids = parse_list(config.getValue("LLMs", "CustomIds", ""));
+    for (const auto& id : custom_ids) {
+        const std::string section = "LLM_" + id;
+        CustomLLM entry;
+        entry.id = id;
+        entry.name = config.getValue(section, "Name", "");
+        entry.description = config.getValue(section, "Description", "");
+        entry.path = config.getValue(section, "Path", "");
+        if (!entry.name.empty() && !entry.path.empty()) {
+            custom_llms.push_back(entry);
+        }
+    }
 
     if (auto logger = Logger::get_logger("core_logger")) {
-        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}')",
+        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {})",
                      config_path,
                      allowed_categories.size(),
                      allowed_subcategories.size(),
                      use_whitelist,
-                     active_whitelist);
+                     active_whitelist,
+                     custom_llms.size());
     }
 
     return true;
@@ -194,6 +223,7 @@ bool Settings::save()
         case LLMChoice::Local_3b: save_choice_value = "Local_3b"; break;
         case LLMChoice::Local_7b: save_choice_value = "Local_7b"; break;
         case LLMChoice::Remote: save_choice_value = "Remote"; break;
+        case LLMChoice::Custom: save_choice_value = "Custom"; break;
         default: save_choice_value = "Unset"; break;
     }
     config.setValue("Settings", "LLMChoice", save_choice_value);
@@ -222,6 +252,23 @@ bool Settings::save()
     if (!active_whitelist.empty()) {
         config.setValue("Settings", "ActiveWhitelist", active_whitelist);
     }
+    if (!active_custom_llm_id.empty()) {
+        config.setValue("LLMs", "ActiveCustomId", active_custom_llm_id);
+    }
+
+    std::vector<std::string> ids;
+    ids.reserve(custom_llms.size());
+    for (const auto& entry : custom_llms) {
+        if (entry.id.empty() || entry.name.empty() || entry.path.empty()) {
+            continue;
+        }
+        ids.push_back(entry.id);
+        const std::string section = "LLM_" + entry.id;
+        config.setValue(section, "Name", entry.name);
+        config.setValue(section, "Description", entry.description);
+        config.setValue(section, "Path", entry.path);
+    }
+    config.setValue("LLMs", "CustomIds", join_list(ids));
 
     return config.save(config_path);
 }
@@ -236,6 +283,58 @@ LLMChoice Settings::get_llm_choice() const
 void Settings::set_llm_choice(LLMChoice choice)
 {
     llm_choice = choice;
+}
+
+std::string Settings::get_active_custom_llm_id() const
+{
+    return active_custom_llm_id;
+}
+
+void Settings::set_active_custom_llm_id(const std::string& id)
+{
+    active_custom_llm_id = id;
+}
+
+const std::vector<CustomLLM>& Settings::get_custom_llms() const
+{
+    return custom_llms;
+}
+
+CustomLLM Settings::find_custom_llm(const std::string& id) const
+{
+    const auto it = std::find_if(custom_llms.begin(), custom_llms.end(),
+                                 [&id](const CustomLLM& item) { return item.id == id; });
+    if (it != custom_llms.end()) {
+        return *it;
+    }
+    return {};
+}
+
+std::string Settings::upsert_custom_llm(const CustomLLM& llm)
+{
+    CustomLLM copy = llm;
+    if (copy.id.empty()) {
+        copy.id = generate_custom_llm_id();
+    }
+    const auto it = std::find_if(custom_llms.begin(), custom_llms.end(),
+                                 [&copy](const CustomLLM& item) { return item.id == copy.id; });
+    if (it != custom_llms.end()) {
+        *it = copy;
+    } else {
+        custom_llms.push_back(copy);
+    }
+    return copy.id;
+}
+
+void Settings::remove_custom_llm(const std::string& id)
+{
+    custom_llms.erase(std::remove_if(custom_llms.begin(),
+                                     custom_llms.end(),
+                                     [&id](const CustomLLM& item) { return item.id == id; }),
+                      custom_llms.end());
+    if (active_custom_llm_id == id) {
+        active_custom_llm_id.clear();
+    }
 }
 
 

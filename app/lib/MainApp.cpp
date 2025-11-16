@@ -1338,6 +1338,11 @@ void MainApp::show_llm_selection_dialog()
         auto dialog = std::make_unique<LLMSelectionDialog>(settings, this);
         if (dialog->exec() == QDialog::Accepted) {
             settings.set_llm_choice(dialog->get_selected_llm_choice());
+            if (dialog->get_selected_llm_choice() == LLMChoice::Custom) {
+                settings.set_active_custom_llm_id(dialog->get_selected_custom_llm_id());
+            } else {
+                settings.set_active_custom_llm_id("");
+            }
             settings.save();
         }
     } catch (const std::exception& ex) {
@@ -1367,6 +1372,17 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
     if (settings.get_llm_choice() == LLMChoice::Remote) {
         CategorizationSession session;
         auto client = std::make_unique<LLMClient>(session.create_llm_client());
+        client->set_prompt_logging_enabled(should_log_prompts());
+        return client;
+    }
+
+    if (settings.get_llm_choice() == LLMChoice::Custom) {
+        const auto id = settings.get_active_custom_llm_id();
+        const CustomLLM custom = settings.find_custom_llm(id);
+        if (custom.id.empty() || custom.path.empty()) {
+            throw std::runtime_error("Selected custom LLM is missing or invalid. Please re-select it.");
+        }
+        auto client = std::make_unique<LocalLLMClient>(custom.path);
         client->set_prompt_logging_enabled(should_log_prompts());
         return client;
     }

@@ -7,7 +7,8 @@ enum class LLMChoice {
     Unset,
     Remote,
     Local_3b,
-    Local_7b
+    Local_7b,
+    Custom
 };
 
 enum class FileType {File, Directory};
@@ -35,6 +36,13 @@ struct FileEntry {
     std::string full_path;
     std::string file_name;
     FileType type;
+};
+
+struct CustomLLM {
+    std::string id;
+    std::string name;
+    std::string description;
+    std::string path;
 };
 
 enum class FileScanOptions {

@@ -19,6 +19,12 @@ public:
 
     LLMChoice get_llm_choice() const;
     void set_llm_choice(LLMChoice choice);
+    std::string get_active_custom_llm_id() const;
+    void set_active_custom_llm_id(const std::string& id);
+    const std::vector<CustomLLM>& get_custom_llms() const;
+    std::string upsert_custom_llm(const CustomLLM& llm);
+    void remove_custom_llm(const std::string& id);
+    CustomLLM find_custom_llm(const std::string& id) const;
     bool is_llm_chosen() const;
 
     bool get_use_subcategories() const;
@@ -88,6 +94,8 @@ private:
     std::vector<std::string> allowed_categories;
     std::vector<std::string> allowed_subcategories;
     std::string active_whitelist;
+    std::vector<CustomLLM> custom_llms;
+    std::string active_custom_llm_id;
 };
 
 #endif
