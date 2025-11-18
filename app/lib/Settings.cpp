@@ -123,6 +123,137 @@ Settings::Settings()
     sort_folder = default_sort_folder;
 }
 
+LLMChoice Settings::parse_llm_choice() const
+{
+    const std::string value = config.getValue("Settings", "LLMChoice", "Unset");
+    if (value == "Local_3b") return LLMChoice::Local_3b;
+    if (value == "Local_7b") return LLMChoice::Local_7b;
+    if (value == "Remote")   return LLMChoice::Remote;
+    if (value == "Custom")   return LLMChoice::Custom;
+    return LLMChoice::Unset;
+}
+
+void Settings::load_basic_settings(const std::function<bool(const char*, bool)>& load_bool,
+                                   const std::function<int(const char*, int, int)>& load_int)
+{
+    llm_choice = parse_llm_choice();
+    use_subcategories = load_bool("UseSubcategories", false);
+    use_consistency_hints = load_bool("UseConsistencyHints", true);
+    categorize_files = load_bool("CategorizeFiles", true);
+    categorize_directories = load_bool("CategorizeDirectories", false);
+    sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
+    show_file_explorer = load_bool("ShowFileExplorer", true);
+    consistency_pass_enabled = load_bool("ConsistencyPass", false);
+    development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
+    skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
+    language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
+    category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
+    categorized_file_count = load_int("CategorizedFileCount", 0, 0);
+    next_support_prompt_threshold = load_int("SupportPromptThreshold", 100, 100);
+}
+
+void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)
+{
+    allowed_categories = parse_list(config.getValue("Settings", "AllowedCategories", ""));
+    allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
+    use_whitelist = load_bool("UseWhitelist", false);
+    active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
+}
+
+void Settings::load_custom_llm_settings()
+{
+    active_custom_llm_id = config.getValue("LLMs", "ActiveCustomId", "");
+
+    custom_llms.clear();
+    const auto custom_ids = parse_list(config.getValue("LLMs", "CustomIds", ""));
+    for (const auto& id : custom_ids) {
+        const std::string section = "LLM_" + id;
+        CustomLLM entry;
+        entry.id = id;
+        entry.name = config.getValue(section, "Name", "");
+        entry.description = config.getValue(section, "Description", "");
+        entry.path = config.getValue(section, "Path", "");
+        if (!entry.name.empty() && !entry.path.empty()) {
+            custom_llms.push_back(entry);
+        }
+    }
+}
+
+void Settings::log_loaded_settings() const
+{
+    if (auto logger = Logger::get_logger("core_logger")) {
+        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {}, category language: {})",
+                     config_path,
+                     allowed_categories.size(),
+                     allowed_subcategories.size(),
+                     use_whitelist,
+                     active_whitelist,
+                     custom_llms.size(),
+                     categoryLanguageDisplay(category_language));
+    }
+}
+
+void Settings::save_core_settings()
+{
+    std::string save_choice_value;
+    switch (llm_choice) {
+        case LLMChoice::Local_3b: save_choice_value = "Local_3b"; break;
+        case LLMChoice::Local_7b: save_choice_value = "Local_7b"; break;
+        case LLMChoice::Remote: save_choice_value = "Remote"; break;
+        case LLMChoice::Custom: save_choice_value = "Custom"; break;
+        default: save_choice_value = "Unset"; break;
+    }
+    config.setValue("Settings", "LLMChoice", save_choice_value);
+    config.setValue("Settings", "UseSubcategories", use_subcategories ? "true" : "false");
+    config.setValue("Settings", "UseConsistencyHints", use_consistency_hints ? "true" : "false");
+    config.setValue("Settings", "CategorizeFiles", categorize_files ? "true" : "false");
+    config.setValue("Settings", "CategorizeDirectories", categorize_directories ? "true" : "false");
+    config.setValue("Settings", "SortFolder", this->sort_folder);
+
+    if (!skipped_version.empty()) {
+        config.setValue("Settings", "SkippedVersion", skipped_version);
+    }
+
+    config.setValue("Settings", "ShowFileExplorer", show_file_explorer ? "true" : "false");
+    config.setValue("Settings", "ConsistencyPass", consistency_pass_enabled ? "true" : "false");
+    config.setValue("Settings", "DevelopmentPromptLogging", development_prompt_logging ? "true" : "false");
+    config.setValue("Settings", "Language", languageToString(language).toStdString());
+    config.setValue("Settings", "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
+    config.setValue("Settings", "CategorizedFileCount", std::to_string(categorized_file_count));
+    config.setValue("Settings", "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
+}
+
+void Settings::save_whitelist_settings()
+{
+    config.setValue("Settings", "AllowedCategories", join_list(allowed_categories));
+    config.setValue("Settings", "AllowedSubcategories", join_list(allowed_subcategories));
+    config.setValue("Settings", "UseWhitelist", use_whitelist ? "true" : "false");
+    if (!active_whitelist.empty()) {
+        config.setValue("Settings", "ActiveWhitelist", active_whitelist);
+    }
+}
+
+void Settings::save_custom_llms()
+{
+    if (!active_custom_llm_id.empty()) {
+        config.setValue("LLMs", "ActiveCustomId", active_custom_llm_id);
+    }
+
+    std::vector<std::string> ids;
+    ids.reserve(custom_llms.size());
+    for (const auto& entry : custom_llms) {
+        if (entry.id.empty() || entry.name.empty() || entry.path.empty()) {
+            continue;
+        }
+        ids.push_back(entry.id);
+        const std::string section = "LLM_" + entry.id;
+        config.setValue(section, "Name", entry.name);
+        config.setValue(section, "Description", entry.description);
+        config.setValue(section, "Path", entry.path);
+    }
+    config.setValue("LLMs", "CustomIds", join_list(ids));
+}
+
 
 std::string Settings::define_config_path()
 {
@@ -158,15 +289,6 @@ bool Settings::load()
         return false;
     }
 
-    const auto load_llm_choice = [&]() {
-        const std::string value = config.getValue("Settings", "LLMChoice", "Unset");
-        if (value == "Local_3b") return LLMChoice::Local_3b;
-        if (value == "Local_7b") return LLMChoice::Local_7b;
-        if (value == "Remote")   return LLMChoice::Remote;
-        if (value == "Custom")   return LLMChoice::Custom;
-        return LLMChoice::Unset;
-    };
-
     const auto load_bool = [&](const char* key, bool def) {
         return config.getValue("Settings", key, def ? "true" : "false") == "true";
     };
@@ -176,51 +298,10 @@ bool Settings::load()
         return value < min_val ? min_val : value;
     };
 
-    llm_choice = load_llm_choice();
-    use_subcategories = load_bool("UseSubcategories", false);
-    use_consistency_hints = load_bool("UseConsistencyHints", true);
-    categorize_files = load_bool("CategorizeFiles", true);
-    categorize_directories = load_bool("CategorizeDirectories", false);
-    sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
-    show_file_explorer = load_bool("ShowFileExplorer", true);
-    consistency_pass_enabled = load_bool("ConsistencyPass", false);
-    development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
-    skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
-    language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
-    category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
-    categorized_file_count = load_int("CategorizedFileCount", 0);
-    next_support_prompt_threshold = load_int("SupportPromptThreshold", 100, 100);
-
-    allowed_categories = parse_list(config.getValue("Settings", "AllowedCategories", ""));
-    allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
-    use_whitelist = load_bool("UseWhitelist", false);
-    active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
-    active_custom_llm_id = config.getValue("LLMs", "ActiveCustomId", "");
-
-    custom_llms.clear();
-    const auto custom_ids = parse_list(config.getValue("LLMs", "CustomIds", ""));
-    for (const auto& id : custom_ids) {
-        const std::string section = "LLM_" + id;
-        CustomLLM entry;
-        entry.id = id;
-        entry.name = config.getValue(section, "Name", "");
-        entry.description = config.getValue(section, "Description", "");
-        entry.path = config.getValue(section, "Path", "");
-        if (!entry.name.empty() && !entry.path.empty()) {
-            custom_llms.push_back(entry);
-        }
-    }
-
-    if (auto logger = Logger::get_logger("core_logger")) {
-        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {}, category language: {})",
-                     config_path,
-                     allowed_categories.size(),
-                     allowed_subcategories.size(),
-                     use_whitelist,
-                     active_whitelist,
-                     custom_llms.size(),
-                     categoryLanguageDisplay(category_language));
-    }
+    load_basic_settings(load_bool, load_int);
+    load_whitelist_settings(load_bool);
+    load_custom_llm_settings();
+    log_loaded_settings();
 
     return true;
 }
@@ -228,59 +309,9 @@ bool Settings::load()
 
 bool Settings::save()
 {
-    std::string save_choice_value;
-    switch (llm_choice) {
-        case LLMChoice::Local_3b: save_choice_value = "Local_3b"; break;
-        case LLMChoice::Local_7b: save_choice_value = "Local_7b"; break;
-        case LLMChoice::Remote: save_choice_value = "Remote"; break;
-        case LLMChoice::Custom: save_choice_value = "Custom"; break;
-        default: save_choice_value = "Unset"; break;
-    }
-    config.setValue("Settings", "LLMChoice", save_choice_value);
-
-
-    config.setValue("Settings", "UseSubcategories", use_subcategories ? "true" : "false");
-    config.setValue("Settings", "UseConsistencyHints", use_consistency_hints ? "true" : "false");
-    config.setValue("Settings", "CategorizeFiles", categorize_files ? "true" : "false");
-    config.setValue("Settings", "CategorizeDirectories", categorize_directories ? "true" : "false");
-    config.setValue("Settings", "SortFolder", this->sort_folder);
-
-    if (!skipped_version.empty()) {
-        config.setValue("Settings", "SkippedVersion", skipped_version);
-    }
-
-    config.setValue("Settings", "ShowFileExplorer", show_file_explorer ? "true" : "false");
-    config.setValue("Settings", "ConsistencyPass", consistency_pass_enabled ? "true" : "false");
-    config.setValue("Settings", "DevelopmentPromptLogging", development_prompt_logging ? "true" : "false");
-    config.setValue("Settings", "Language", languageToString(language).toStdString());
-    config.setValue("Settings", "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
-    config.setValue("Settings", "CategorizedFileCount", std::to_string(categorized_file_count));
-    config.setValue("Settings", "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
-
-    config.setValue("Settings", "AllowedCategories", join_list(allowed_categories));
-    config.setValue("Settings", "AllowedSubcategories", join_list(allowed_subcategories));
-    config.setValue("Settings", "UseWhitelist", use_whitelist ? "true" : "false");
-    if (!active_whitelist.empty()) {
-        config.setValue("Settings", "ActiveWhitelist", active_whitelist);
-    }
-    if (!active_custom_llm_id.empty()) {
-        config.setValue("LLMs", "ActiveCustomId", active_custom_llm_id);
-    }
-
-    std::vector<std::string> ids;
-    ids.reserve(custom_llms.size());
-    for (const auto& entry : custom_llms) {
-        if (entry.id.empty() || entry.name.empty() || entry.path.empty()) {
-            continue;
-        }
-        ids.push_back(entry.id);
-        const std::string section = "LLM_" + entry.id;
-        config.setValue(section, "Name", entry.name);
-        config.setValue(section, "Description", entry.description);
-        config.setValue(section, "Path", entry.path);
-    }
-    config.setValue("LLMs", "CustomIds", join_list(ids));
-
+    save_core_settings();
+    save_whitelist_settings();
+    save_custom_llms();
     return config.save(config_path);
 }
 

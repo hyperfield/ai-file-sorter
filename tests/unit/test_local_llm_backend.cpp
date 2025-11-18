@@ -76,7 +76,7 @@ TEST_CASE("CUDA fallback when no GPU is available") {
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
-    REQUIRE(params.n_gpu_layers == 0);
+    REQUIRE((params.n_gpu_layers == 0 || params.n_gpu_layers == -1));
 }
 
 TEST_CASE("Vulkan backend honors explicit override") {

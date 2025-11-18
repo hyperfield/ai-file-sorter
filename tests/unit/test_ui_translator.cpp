@@ -44,18 +44,48 @@ struct UiTranslatorTestHarness {
     QPointer<QCheckBox> directories_checkbox{new QCheckBox(&window)};
 
     QPointer<QStandardItemModel> tree_model{new QStandardItemModel(0, 5, &window)};
-    QMenu file_menu{&window}, edit_menu{&window}, view_menu{&window}, settings_menu{&window},
-         development_menu{&window}, development_settings_menu{&window}, language_menu{&window},
-         help_menu{&window};
+    QMenu* file_menu = new QMenu(&window);
+    QMenu* edit_menu = new QMenu(&window);
+    QMenu* view_menu = new QMenu(&window);
+    QMenu* settings_menu = new QMenu(&window);
+    QMenu* development_menu = new QMenu(&window);
+    QMenu* development_settings_menu = new QMenu(&window);
+    QMenu* language_menu = new QMenu(&window);
+    QMenu* category_language_menu = new QMenu(&window);
+    QMenu* help_menu = new QMenu(&window);
 
-    QAction file_quit_action{&window}, copy_action{&window}, cut_action{&window},
-        paste_action{&window}, delete_action{&window}, toggle_explorer_action{&window},
-        toggle_llm_action{&window}, manage_whitelists_action{&window},
-        development_prompt_logging_action{&window}, consistency_pass_action{&window},
-        english_action{&window}, french_action{&window}, about_action{&window},
-        about_qt_action{&window}, about_agpl_action{&window}, support_project_action{&window};
+    QAction* file_quit_action = new QAction(&window);
+    QAction* copy_action = new QAction(&window);
+    QAction* cut_action = new QAction(&window);
+    QAction* paste_action = new QAction(&window);
+    QAction* delete_action = new QAction(&window);
+    QAction* toggle_explorer_action = new QAction(&window);
+    QAction* toggle_llm_action = new QAction(&window);
+    QAction* manage_whitelists_action = new QAction(&window);
+    QAction* development_prompt_logging_action = new QAction(&window);
+    QAction* consistency_pass_action = new QAction(&window);
+    QAction* english_action = new QAction(&window);
+    QAction* french_action = new QAction(&window);
+    QAction* german_action = new QAction(&window);
+    QAction* italian_action = new QAction(&window);
+    QAction* spanish_action = new QAction(&window);
+    QAction* turkish_action = new QAction(&window);
+    QAction* category_language_english = new QAction(&window);
+    QAction* category_language_french = new QAction(&window);
+    QAction* category_language_german = new QAction(&window);
+    QAction* category_language_italian = new QAction(&window);
+    QAction* category_language_dutch = new QAction(&window);
+    QAction* category_language_polish = new QAction(&window);
+    QAction* category_language_portuguese = new QAction(&window);
+    QAction* category_language_spanish = new QAction(&window);
+    QAction* category_language_turkish = new QAction(&window);
+    QAction* about_action = new QAction(&window);
+    QAction* about_qt_action = new QAction(&window);
+    QAction* about_agpl_action = new QAction(&window);
+    QAction* support_project_action = new QAction(&window);
 
-    QActionGroup language_group{&window};
+    QActionGroup* language_group = new QActionGroup(&window);
+    QActionGroup* category_language_group = new QActionGroup(&window);
     QPointer<QDockWidget> file_explorer_dock{new QDockWidget(&window)};
 
     UiTranslator translator;
@@ -84,13 +114,21 @@ struct UiTranslatorTestHarness {
 
     void setup_language_actions()
     {
-        language_group.setExclusive(true);
-        english_action.setCheckable(true);
-        english_action.setData(static_cast<int>(Language::English));
-        french_action.setCheckable(true);
-        french_action.setData(static_cast<int>(Language::French));
-        language_group.addAction(&english_action);
-        language_group.addAction(&french_action);
+        language_group->setExclusive(true);
+        english_action->setCheckable(true);
+        english_action->setData(static_cast<int>(Language::English));
+        french_action->setCheckable(true);
+        french_action->setData(static_cast<int>(Language::French));
+        german_action->setCheckable(true);
+        italian_action->setCheckable(true);
+        spanish_action->setCheckable(true);
+        turkish_action->setCheckable(true);
+        language_group->addAction(english_action);
+        language_group->addAction(french_action);
+        language_group->addAction(german_action);
+        language_group->addAction(italian_action);
+        language_group->addAction(spanish_action);
+        language_group->addAction(turkish_action);
     }
 
     UiTranslator::Dependencies build_deps()
@@ -111,35 +149,64 @@ struct UiTranslatorTestHarness {
                 directories_checkbox},
             .tree_model = tree_model,
             .menus = UiTranslator::MenuControls{
-                &file_menu,
-                &edit_menu,
-                &view_menu,
-                &settings_menu,
-                &development_menu,
-                &development_settings_menu,
-                &language_menu,
-                &help_menu},
+                file_menu,
+                edit_menu,
+                view_menu,
+                settings_menu,
+                development_menu,
+                development_settings_menu,
+                language_menu,
+                category_language_menu,
+                help_menu},
             .actions = UiTranslator::ActionControls{
-                &file_quit_action,
-                &copy_action,
-                &cut_action,
-                &paste_action,
-                &delete_action,
-                &toggle_explorer_action,
-                &toggle_llm_action,
-                &manage_whitelists_action,
-                &development_prompt_logging_action,
-                &consistency_pass_action,
-                &english_action,
-                &french_action,
-                &about_action,
-                &about_qt_action,
-                &about_agpl_action,
-                &support_project_action},
+                file_quit_action,
+                copy_action,
+                cut_action,
+                paste_action,
+                delete_action,
+                toggle_explorer_action,
+                toggle_llm_action,
+                manage_whitelists_action,
+                development_prompt_logging_action,
+                consistency_pass_action,
+                english_action,
+                french_action,
+                german_action,
+                italian_action,
+                spanish_action,
+                turkish_action,
+                category_language_english,
+                category_language_french,
+                category_language_german,
+                category_language_italian,
+                category_language_dutch,
+                category_language_polish,
+                category_language_portuguese,
+                category_language_spanish,
+                category_language_turkish,
+                about_action,
+                about_qt_action,
+                about_agpl_action,
+                support_project_action},
             .language = UiTranslator::LanguageControls{
-                &language_group,
-                &english_action,
-                &french_action},
+                language_group,
+                english_action,
+                french_action,
+                german_action,
+                italian_action,
+                spanish_action,
+                turkish_action},
+            .category_language = UiTranslator::CategoryLanguageControls{
+                category_language_group,
+                category_language_dutch,
+                category_language_english,
+                category_language_french,
+                category_language_german,
+                category_language_italian,
+                category_language_polish,
+                category_language_portuguese,
+                category_language_spanish,
+                category_language_turkish},
             .file_explorer_dock = file_explorer_dock,
             .settings = settings,
             .translator = [](const char* source) {
@@ -165,14 +232,14 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
 
 void verify_menus_and_actions(const UiTranslatorTestHarness& h)
 {
-    REQUIRE(h.file_menu.title() == QStringLiteral("&File"));
-    REQUIRE(h.settings_menu.title() == QStringLiteral("&Settings"));
-    REQUIRE(h.toggle_llm_action.text() == QStringLiteral("Select &LLM…"));
-    REQUIRE(h.manage_whitelists_action.text() == QStringLiteral("Manage category whitelists…"));
-    REQUIRE(h.development_prompt_logging_action.text() ==
+    REQUIRE(h.file_menu->title() == QStringLiteral("&File"));
+    REQUIRE(h.settings_menu->title() == QStringLiteral("&Settings"));
+    REQUIRE(h.toggle_llm_action->text() == QStringLiteral("Select &LLM…"));
+    REQUIRE(h.manage_whitelists_action->text() == QStringLiteral("Manage category whitelists…"));
+    REQUIRE(h.development_prompt_logging_action->text() ==
             QStringLiteral("Log prompts and responses to stdout"));
 
-    const QString help_title = h.help_menu.title();
+    const QString help_title = h.help_menu->title();
     REQUIRE(help_title.endsWith(QStringLiteral("&Help")));
     REQUIRE(help_title.startsWith(QString(QChar(0x200B))));
 }
@@ -183,8 +250,8 @@ void verify_tree_and_status(const UiTranslatorTestHarness& h)
     REQUIRE(h.tree_model->horizontalHeaderItem(0)->text() == QStringLiteral("File"));
     REQUIRE(h.tree_model->item(0, 1)->text() == QStringLiteral("Directory"));
     REQUIRE(h.tree_model->item(0, 4)->text() == QStringLiteral("Ready"));
-    REQUIRE_FALSE(h.english_action.isChecked());
-    REQUIRE(h.french_action.isChecked());
+    REQUIRE_FALSE(h.english_action->isChecked());
+    REQUIRE(h.french_action->isChecked());
     REQUIRE(h.window.statusBar()->currentMessage() == QStringLiteral("Ready"));
 }
 

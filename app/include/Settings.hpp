@@ -8,6 +8,7 @@
 #include <string>
 #include <filesystem>
 #include <vector>
+#include <functional>
 
 
 class Settings
@@ -75,6 +76,17 @@ public:
     void set_allowed_subcategories(std::vector<std::string> values);
 
 private:
+    LLMChoice parse_llm_choice() const;
+    void load_basic_settings(const std::function<bool(const char*, bool)>& load_bool,
+                             const std::function<int(const char*, int, int)>& load_int);
+    void load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool);
+    void load_custom_llm_settings();
+    void log_loaded_settings() const;
+
+    void save_core_settings();
+    void save_whitelist_settings();
+    void save_custom_llms();
+
     std::string config_path;
     std::filesystem::path config_dir;
     IniConfig config;

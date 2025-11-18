@@ -469,12 +469,16 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
         return std::nullopt;
     }
 
-    file.read(buffer.data(), to_read);
+    const std::streamsize requested = to_read;
+    file.read(buffer.data(), requested);
     if (!file && !file.eof()) {
         return std::nullopt;
     }
 
     const std::streamsize read_count = file.gcount();
+    if (read_count > requested) {
+        return std::nullopt;
+    }
     if (read_count <= 0) {
         return std::nullopt;
     }
