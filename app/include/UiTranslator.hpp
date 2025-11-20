@@ -22,6 +22,9 @@ class QStandardItemModel;
 
 class Settings;
 
+#include "Language.hpp"
+#include "CategoryLanguage.hpp"
+
 class UiTranslator
 {
 public:
@@ -137,8 +140,12 @@ public:
 
 private:
     QString tr(const char* source) const;
+    void update_language_group_checks(Language configured) const;
+    void update_category_language_checks(CategoryLanguage configured) const;
 
     Dependencies deps_;
 };
 
 #endif // UI_TRANSLATOR_HPP
+#include "Language.hpp"
+#include "CategoryLanguage.hpp"

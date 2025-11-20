@@ -90,6 +90,9 @@ private:
     void restore_file_explorer_visibility();
     void restore_development_preferences();
     void connect_signals();
+    void connect_folder_contents_signals();
+    void connect_checkbox_signals();
+    void connect_whitelist_signals();
     void connect_edit_actions();
     void start_updater();
     void set_app_icon();

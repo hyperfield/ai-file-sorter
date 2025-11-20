@@ -310,22 +310,34 @@ void MainApp::connect_signals()
         }
     });
 
-    if (folder_contents_view && folder_contents_model && folder_contents_view->selectionModel()) {
-        connect(folder_contents_view->selectionModel(), &QItemSelectionModel::currentChanged,
-                this, [this](const QModelIndex& current, const QModelIndex&) {
-                    if (suppress_folder_view_sync_) {
-                        return;
-                    }
-                    if (!folder_contents_model || !current.isValid()) {
-                        return;
-                    }
-                    if (!folder_contents_model->isDir(current)) {
-                        return;
-                    }
-                    on_directory_selected(folder_contents_model->filePath(current), true);
-                });
+    connect_folder_contents_signals();
+    connect_checkbox_signals();
+    connect_whitelist_signals();
+}
+
+void MainApp::connect_folder_contents_signals()
+{
+    if (!folder_contents_view || !folder_contents_model || !folder_contents_view->selectionModel()) {
+        return;
     }
 
+    connect(folder_contents_view->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, [this](const QModelIndex& current, const QModelIndex&) {
+                if (suppress_folder_view_sync_) {
+                    return;
+                }
+                if (!folder_contents_model || !current.isValid()) {
+                    return;
+                }
+                if (!folder_contents_model->isDir(current)) {
+                    return;
+                }
+                on_directory_selected(folder_contents_model->filePath(current), true);
+            });
+}
+
+void MainApp::connect_checkbox_signals()
+{
     connect(use_subcategories_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
         settings.set_use_subcategories(checked);
         if (categorization_dialog) {
@@ -345,6 +357,7 @@ void MainApp::connect_signals()
             }
         });
     }
+
     if (categorization_style_consistent_radio) {
         connect(categorization_style_consistent_radio, &QRadioButton::toggled, this, [this](bool checked) {
             if (checked) {
@@ -369,7 +382,10 @@ void MainApp::connect_signals()
         update_file_scan_option(FileScanOptions::Directories, checked);
         settings.set_categorize_directories(checked);
     });
+}
 
+void MainApp::connect_whitelist_signals()
+{
     connect(use_whitelist_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
         if (whitelist_selector) {
             whitelist_selector->setEnabled(checked);
@@ -377,6 +393,7 @@ void MainApp::connect_signals()
         settings.set_use_whitelist(checked);
         apply_whitelist_to_selector();
     });
+
     connect(whitelist_selector, &QComboBox::currentTextChanged, this, [this](const QString& name) {
         settings.set_active_whitelist(name.toStdString());
         if (auto entry = whitelist_store.get(name.toStdString())) {

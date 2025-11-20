@@ -223,41 +223,71 @@ void UiTranslator::translate_status_messages(const State& state) const
 
 void UiTranslator::update_language_checks() const
 {
-    if (deps_.language.language_group) {
-        Language configured = deps_.settings.get_language();
-        QSignalBlocker blocker(deps_.language.language_group);
-        if (deps_.language.english_action) {
-            deps_.language.english_action->setChecked(configured == Language::English);
-        }
-        if (deps_.language.french_action) {
-            deps_.language.french_action->setChecked(configured == Language::French);
-        }
-        if (deps_.language.german_action) {
-            deps_.language.german_action->setChecked(configured == Language::German);
-        }
-        if (deps_.language.italian_action) {
-            deps_.language.italian_action->setChecked(configured == Language::Italian);
-        }
-        if (deps_.language.spanish_action) {
-            deps_.language.spanish_action->setChecked(configured == Language::Spanish);
-        }
-        if (deps_.language.turkish_action) {
-            deps_.language.turkish_action->setChecked(configured == Language::Turkish);
-        }
-    }
+    Language configured = deps_.settings.get_language();
+    update_language_group_checks(configured);
 
-    if (deps_.category_language.category_language_group) {
-        CategoryLanguage cat_lang = deps_.settings.get_category_language();
-        QSignalBlocker blocker_cat(deps_.category_language.category_language_group);
-        if (deps_.category_language.dutch) deps_.category_language.dutch->setChecked(cat_lang == CategoryLanguage::Dutch);
-        if (deps_.category_language.english) deps_.category_language.english->setChecked(cat_lang == CategoryLanguage::English);
-        if (deps_.category_language.french) deps_.category_language.french->setChecked(cat_lang == CategoryLanguage::French);
-        if (deps_.category_language.german) deps_.category_language.german->setChecked(cat_lang == CategoryLanguage::German);
-        if (deps_.category_language.italian) deps_.category_language.italian->setChecked(cat_lang == CategoryLanguage::Italian);
-        if (deps_.category_language.polish) deps_.category_language.polish->setChecked(cat_lang == CategoryLanguage::Polish);
-        if (deps_.category_language.portuguese) deps_.category_language.portuguese->setChecked(cat_lang == CategoryLanguage::Portuguese);
-        if (deps_.category_language.spanish) deps_.category_language.spanish->setChecked(cat_lang == CategoryLanguage::Spanish);
-        if (deps_.category_language.turkish) deps_.category_language.turkish->setChecked(cat_lang == CategoryLanguage::Turkish);
+    CategoryLanguage cat_lang = deps_.settings.get_category_language();
+    update_category_language_checks(cat_lang);
+}
+
+void UiTranslator::update_language_group_checks(Language configured) const
+{
+    if (!deps_.language.language_group) {
+        return;
+    }
+    QSignalBlocker blocker(deps_.language.language_group);
+    if (deps_.language.english_action) {
+        deps_.language.english_action->setChecked(configured == Language::English);
+    }
+    if (deps_.language.french_action) {
+        deps_.language.french_action->setChecked(configured == Language::French);
+    }
+    if (deps_.language.german_action) {
+        deps_.language.german_action->setChecked(configured == Language::German);
+    }
+    if (deps_.language.italian_action) {
+        deps_.language.italian_action->setChecked(configured == Language::Italian);
+    }
+    if (deps_.language.spanish_action) {
+        deps_.language.spanish_action->setChecked(configured == Language::Spanish);
+    }
+    if (deps_.language.turkish_action) {
+        deps_.language.turkish_action->setChecked(configured == Language::Turkish);
+    }
+}
+
+void UiTranslator::update_category_language_checks(CategoryLanguage configured) const
+{
+    if (!deps_.category_language.category_language_group) {
+        return;
+    }
+    QSignalBlocker blocker_cat(deps_.category_language.category_language_group);
+    if (deps_.category_language.dutch) {
+        deps_.category_language.dutch->setChecked(configured == CategoryLanguage::Dutch);
+    }
+    if (deps_.category_language.english) {
+        deps_.category_language.english->setChecked(configured == CategoryLanguage::English);
+    }
+    if (deps_.category_language.french) {
+        deps_.category_language.french->setChecked(configured == CategoryLanguage::French);
+    }
+    if (deps_.category_language.german) {
+        deps_.category_language.german->setChecked(configured == CategoryLanguage::German);
+    }
+    if (deps_.category_language.italian) {
+        deps_.category_language.italian->setChecked(configured == CategoryLanguage::Italian);
+    }
+    if (deps_.category_language.polish) {
+        deps_.category_language.polish->setChecked(configured == CategoryLanguage::Polish);
+    }
+    if (deps_.category_language.portuguese) {
+        deps_.category_language.portuguese->setChecked(configured == CategoryLanguage::Portuguese);
+    }
+    if (deps_.category_language.spanish) {
+        deps_.category_language.spanish->setChecked(configured == CategoryLanguage::Spanish);
+    }
+    if (deps_.category_language.turkish) {
+        deps_.category_language.turkish->setChecked(configured == CategoryLanguage::Turkish);
     }
 }
 

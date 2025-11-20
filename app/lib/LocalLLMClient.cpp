@@ -369,6 +369,174 @@ std::optional<int32_t> read_uint_value(uint32_t type,
     return std::nullopt;
 }
 
+std::optional<int32_t> read_gguf_numeric(gguf_context* ctx, int64_t id)
+{
+    const enum gguf_type type = gguf_get_kv_type(ctx, id);
+    switch (type) {
+        case GGUF_TYPE_INT16: return static_cast<int32_t>(gguf_get_val_i16(ctx, id));
+        case GGUF_TYPE_INT32: return gguf_get_val_i32(ctx, id);
+        case GGUF_TYPE_INT64: return static_cast<int32_t>(gguf_get_val_i64(ctx, id));
+        case GGUF_TYPE_UINT16: return static_cast<int32_t>(gguf_get_val_u16(ctx, id));
+        case GGUF_TYPE_UINT32: return static_cast<int32_t>(gguf_get_val_u32(ctx, id));
+        case GGUF_TYPE_UINT64: return static_cast<int32_t>(gguf_get_val_u64(ctx, id));
+        default:
+            return std::nullopt;
+    }
+}
+
+std::optional<int32_t> try_block_count_keys(gguf_context* ctx,
+                                            const std::array<const char*, 6>& keys)
+{
+    for (const char* key : keys) {
+        const int64_t id = gguf_find_key(ctx, key);
+        if (id < 0) {
+            continue;
+        }
+        if (auto value = read_gguf_numeric(ctx, id)) {
+            return value;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<int32_t> infer_block_count_from_tensors(gguf_context* ctx)
+{
+    const int64_t tensor_count = gguf_get_n_tensors(ctx);
+    int32_t max_layer = -1;
+    for (int64_t i = 0; i < tensor_count; ++i) {
+        const char* tname = gguf_get_tensor_name(ctx, i);
+        if (!tname) {
+            continue;
+        }
+        int32_t current = -1;
+        for (const char* p = tname; *p; ++p) {
+            if (std::isdigit(static_cast<unsigned char>(*p))) {
+                int value = 0;
+                while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
+                    value = value * 10 + (*p - '0');
+                    ++p;
+                }
+                current = std::max(current, value);
+            }
+        }
+        if (current > max_layer) {
+            max_layer = current;
+        }
+    }
+    if (max_layer >= 0) {
+        return max_layer + 1; // zero-indexed
+    }
+    return std::nullopt;
+}
+
+bool format_prompt(llama_model* model, const std::string& prompt, std::string& final_prompt)
+{
+    std::vector<llama_chat_message> messages;
+    messages.push_back({"user", prompt.c_str()});
+    const char* tmpl = llama_model_chat_template(model, nullptr);
+    std::vector<char> formatted_prompt(8192);
+
+    int actual_len = llama_chat_apply_template(tmpl,
+                                               messages.data(),
+                                               messages.size(),
+                                               true,
+                                               formatted_prompt.data(),
+                                               formatted_prompt.size());
+    if (actual_len < 0) {
+        return false;
+    }
+
+    final_prompt.assign(formatted_prompt.data(), static_cast<size_t>(actual_len));
+    return true;
+}
+
+bool tokenize_prompt(const llama_vocab* vocab,
+                     const std::string& final_prompt,
+                     std::vector<llama_token>& prompt_tokens,
+                     int& n_prompt,
+                     const std::shared_ptr<spdlog::logger>& logger)
+{
+    n_prompt = -llama_tokenize(vocab,
+                               final_prompt.c_str(),
+                               final_prompt.size(),
+                               nullptr,
+                               0,
+                               true,
+                               true);
+    if (n_prompt <= 0) {
+        if (logger) {
+            logger->error("Failed to determine token count for prompt");
+        }
+        return false;
+    }
+
+    prompt_tokens.resize(static_cast<size_t>(n_prompt));
+    if (llama_tokenize(vocab,
+                       final_prompt.c_str(),
+                       final_prompt.size(),
+                       prompt_tokens.data(),
+                       prompt_tokens.size(),
+                       true,
+                       true) < 0) {
+        if (logger) {
+            logger->error("Tokenization failed for prompt");
+        }
+        return false;
+    }
+
+    return true;
+}
+
+std::string run_generation_loop(llama_context* ctx,
+                                llama_sampler* smpl,
+                                std::vector<llama_token>& prompt_tokens,
+                                int n_prompt,
+                                int max_tokens,
+                                const std::shared_ptr<spdlog::logger>& logger,
+                                const llama_vocab* vocab)
+{
+    llama_batch batch = llama_batch_get_one(prompt_tokens.data(),
+                                            prompt_tokens.size());
+    llama_token new_token_id;
+    std::string output;
+    int generated_tokens = 0;
+
+    for (int n_pos = 0; generated_tokens < max_tokens; ) {
+        if (llama_decode(ctx, batch)) {
+            if (logger) {
+                logger->warn("llama_decode returned non-zero status; aborting generation");
+            }
+            break;
+        }
+
+        n_pos += batch.n_tokens;
+        new_token_id = llama_sampler_sample(smpl, ctx, -1);
+
+        if (llama_vocab_is_eog(vocab, new_token_id)) {
+            break;
+        }
+
+        if (n_pos >= n_prompt) {
+            char buf[128];
+            int n = llama_token_to_piece(vocab, new_token_id, buf,
+                                         sizeof(buf), 0, true);
+            if (n < 0) {
+                break;
+            }
+            output.append(buf, n);
+            generated_tokens++;
+        }
+
+        batch = llama_batch_get_one(&new_token_id, 1);
+    }
+
+    while (!output.empty() && std::isspace(static_cast<unsigned char>(output.front()))) {
+        output.erase(output.begin());
+    }
+
+    return output;
+}
+
 std::optional<int32_t> parse_block_count_entry(const std::vector<char>& buffer,
                                                std::size_t bytes_read,
                                                std::size_t key_pos,
@@ -407,73 +575,20 @@ std::optional<int32_t> extract_block_count_gguf(const std::string& model_path) {
     }
 
     auto cleanup = std::unique_ptr<gguf_context, GgufCtxDeleter>(ctx);
-    const auto read_val = [&](int64_t id) -> std::optional<int32_t> {
-        const enum gguf_type type = gguf_get_kv_type(ctx, id);
-        switch (type) {
-            case GGUF_TYPE_INT16: return static_cast<int32_t>(gguf_get_val_i16(ctx, id));
-            case GGUF_TYPE_INT32: return gguf_get_val_i32(ctx, id);
-            case GGUF_TYPE_INT64: return static_cast<int32_t>(gguf_get_val_i64(ctx, id));
-            case GGUF_TYPE_UINT16: return static_cast<int32_t>(gguf_get_val_u16(ctx, id));
-            case GGUF_TYPE_UINT32: return static_cast<int32_t>(gguf_get_val_u32(ctx, id));
-            case GGUF_TYPE_UINT64: return static_cast<int32_t>(gguf_get_val_u64(ctx, id));
-            default:
-                return std::nullopt;
-        }
+    static const std::array<const char*, 6> block_keys = {
+        "llama.block_count",
+        "llama.layer_count",
+        "llama.n_layer",
+        "qwen.block_count",
+        "qwen2.block_count",
+        "block_count"
     };
 
-    const auto try_keys = [&](const std::array<const char*, 6>& keys) -> std::optional<int32_t> {
-        for (const char* key : keys) {
-            const int64_t id = gguf_find_key(ctx, key);
-            if (id < 0) {
-                continue;
-            }
-            if (auto val = read_val(id)) {
-                return val;
-            }
-        }
-        return std::nullopt;
-    };
-
-    if (auto meta_val = try_keys({"llama.block_count",
-                                  "llama.layer_count",
-                                  "llama.n_layer",
-                                  "qwen.block_count",
-                                  "qwen2.block_count",
-                                  "block_count"})) {
+    if (auto meta_val = try_block_count_keys(ctx, block_keys)) {
         return meta_val;
     }
 
-    // Fallback: infer from tensor names (e.g., "blk.0." / "layer.12.")
-    const auto infer_from_tensors = [&]() -> std::optional<int32_t> {
-        const int64_t tensor_count = gguf_get_n_tensors(ctx);
-        int32_t max_layer = -1;
-        for (int64_t i = 0; i < tensor_count; ++i) {
-            const char* tname = gguf_get_tensor_name(ctx, i);
-            if (!tname) {
-                continue;
-            }
-            int32_t current = -1;
-            for (const char* p = tname; *p; ++p) {
-                if (std::isdigit(static_cast<unsigned char>(*p))) {
-                    int value = 0;
-                    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-                        value = value * 10 + (*p - '0');
-                        ++p;
-                    }
-                    current = std::max(current, value);
-                }
-            }
-            if (current > max_layer) {
-                max_layer = current;
-            }
-        }
-        if (max_layer >= 0) {
-            return max_layer + 1; // layers are zero-indexed in names
-        }
-        return std::nullopt;
-    };
-
-    if (auto inferred = infer_from_tensors()) {
+    if (auto inferred = infer_block_count_from_tensors(ctx)) {
         return inferred;
     }
 
@@ -1338,80 +1453,35 @@ std::string LocalLLMClient::generate_response(const std::string &prompt,
     llama_sampler_chain_add(smpl, llama_sampler_init_temp(0.8f));
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
-    std::vector<llama_chat_message> messages;
-    messages.push_back({"user", prompt.c_str()});
-    const char * tmpl = llama_model_chat_template(model, nullptr);
-    std::vector<char> formatted_prompt(8192);
-
-    int actual_len = llama_chat_apply_template(tmpl, messages.data(),
-                                               messages.size(), true,
-                                               formatted_prompt.data(),
-                                               formatted_prompt.size());
-    if (actual_len < 0) {
+    std::string final_prompt;
+    if (!format_prompt(model, prompt, final_prompt)) {
         if (logger) {
             logger->error("Failed to apply chat template to prompt");
         }
-        fprintf(stderr, "Failed to apply chat template\n");
-        return "";
-    }
-    std::string final_prompt(formatted_prompt.data(), actual_len);
-
-    const int n_prompt = -llama_tokenize(vocab, final_prompt.c_str(),
-                                         final_prompt.size(),
-                                         NULL, 0, true, true);
-    std::vector<llama_token> prompt_tokens(n_prompt);
-
-    if (llama_tokenize(vocab, final_prompt.c_str(), final_prompt.size(),
-                       prompt_tokens.data(), prompt_tokens.size(), true,
-                       true) < 0) {
-        fprintf(stderr, "%s: error: failed to tokenize the prompt\n", __func__);
-        if (logger) {
-            logger->error("Tokenization failed for prompt");
-        }
-        llama_model_free(model);
+        llama_free(ctx);
+        llama_sampler_free(smpl);
         return "";
     }
 
-    llama_batch batch = llama_batch_get_one(prompt_tokens.data(),
-                                            prompt_tokens.size());
-    llama_token new_token_id;
-    std::string output;
-
-    const int max_tokens = n_predict;
-    int generated_tokens = 0;
-    for (int n_pos = 0; generated_tokens < max_tokens; ) {
-        if (llama_decode(ctx, batch)) {
-            if (logger) {
-                logger->warn("llama_decode returned non-zero status; aborting generation");
-            }
-            break;
-        }
-
-        n_pos += batch.n_tokens;
-        new_token_id = llama_sampler_sample(smpl, ctx, -1);
-
-        if (llama_vocab_is_eog(vocab, new_token_id)) {
-            break;
-        }
-
-        if (n_pos >= n_prompt) {
-            char buf[128];
-            int n = llama_token_to_piece(vocab, new_token_id, buf,
-                                         sizeof(buf), 0, true);
-            if (n < 0) break;
-            output.append(buf, n);
-            generated_tokens++;
-        }
-
-        batch = llama_batch_get_one(&new_token_id, 1);
+    std::vector<llama_token> prompt_tokens;
+    int n_prompt = 0;
+    if (!tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
+        llama_free(ctx);
+        llama_sampler_free(smpl);
+        return "";
     }
 
-    while (!output.empty() && std::isspace(output.front())) {
-        output.erase(output.begin());
-    }
+    std::string output = run_generation_loop(ctx,
+                                             smpl,
+                                             prompt_tokens,
+                                             n_prompt,
+                                             n_predict,
+                                             logger,
+                                             vocab);
 
     llama_sampler_reset(smpl);
     llama_free(ctx);
+    llama_sampler_free(smpl);
 
     if (logger) {
         logger->debug("Generation complete, produced {} character(s)", output.size());
