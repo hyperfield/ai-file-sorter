@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QHash>
 #include <QString>
+#include <algorithm>
 
 namespace {
 
@@ -552,6 +553,15 @@ void TranslationManager::set_language(Language language)
     if (!app_) {
         current_language_ = language;
         return;
+    }
+
+    if (!languages_.empty()) {
+        const bool supported = std::any_of(
+            languages_.cbegin(), languages_.cend(),
+            [language](const LanguageInfo& info) { return info.id == language; });
+        if (!supported) {
+            language = Language::English;
+        }
     }
 
     app_->removeTranslator(translator_.get());

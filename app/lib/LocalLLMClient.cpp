@@ -25,6 +25,7 @@
 #include <optional>
 #include <cmath>
 #include <fstream>
+#include <limits>
 #include <string_view>
 #include <string>
 #include <array>
@@ -298,6 +299,39 @@ void reset_backend_memory_probe() {
 
 namespace {
 
+bool read_file_prefix(std::ifstream& file,
+                      std::vector<char>& buffer,
+                      std::size_t requested_bytes,
+                      std::size_t& bytes_read)
+{
+    if (requested_bytes == 0 || requested_bytes > buffer.size()) {
+        return false;
+    }
+
+    const auto max_streamsize = static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max());
+    const std::size_t safe_request = std::min(requested_bytes, max_streamsize);
+    if (safe_request == 0) {
+        return false;
+    }
+
+    const std::streamsize to_request = static_cast<std::streamsize>(safe_request);
+    file.read(buffer.data(), to_request);
+    if (!file && !file.eof()) {
+        return false;
+    }
+
+    const std::streamsize read_count = file.gcount();
+    if (read_count <= 0) {
+        return false;
+    }
+    if (read_count > to_request || static_cast<std::size_t>(read_count) > buffer.size()) {
+        return false;
+    }
+
+    bytes_read = static_cast<std::size_t>(read_count);
+    return true;
+}
+
 uint32_t read_le32(const char* ptr)
 {
     uint32_t value = 0;
@@ -469,21 +503,8 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
         return std::nullopt;
     }
 
-    const std::streamsize requested = to_read;
-    file.read(buffer.data(), requested);
-    if (!file && !file.eof()) {
-        return std::nullopt;
-    }
-
-    const std::streamsize read_count = file.gcount();
-    if (read_count > requested) {
-        return std::nullopt;
-    }
-    if (read_count <= 0) {
-        return std::nullopt;
-    }
-    const std::size_t bytes_read = static_cast<std::size_t>(read_count);
-    if (bytes_read > buffer.size()) {
+    std::size_t bytes_read = 0;
+    if (!read_file_prefix(file, buffer, static_cast<std::size_t>(to_read), bytes_read)) {
         return std::nullopt;
     }
 
@@ -785,31 +806,97 @@ bool apply_cpu_backend(llama_model_params& params,
     return true;
 }
 
+bool apply_vulkan_override(llama_model_params& params,
+                           int override_layers,
+                           const std::shared_ptr<spdlog::logger>& logger)
+{
+    if (override_layers == INT_MIN) {
+        return false;
+    }
+
+    if (override_layers <= 0) {
+        params.n_gpu_layers = 0;
+        if (logger) {
+            logger->info("Vulkan backend requested but AI_FILE_SORTER_N_GPU_LAYERS <= 0; using CPU instead.");
+        }
+        return true;
+    }
+
+    params.n_gpu_layers = override_layers;
+    if (logger) {
+        logger->info("Using Vulkan backend with explicit n_gpu_layers override={}",
+                     gpu_layers_to_string(override_layers));
+    }
+    return true;
+}
+
+Utils::CudaMemoryInfo cap_integrated_gpu_memory(const BackendMemoryInfo& backend_memory,
+                                                const std::shared_ptr<spdlog::logger>& logger)
+{
+    Utils::CudaMemoryInfo adjusted = backend_memory.memory;
+    if (!backend_memory.is_integrated) {
+        return adjusted;
+    }
+
+    constexpr size_t igpu_cap_bytes = static_cast<size_t>(4ULL) * 1024ULL * 1024ULL * 1024ULL; // 4 GiB
+    adjusted.free_bytes = std::min(adjusted.free_bytes, igpu_cap_bytes);
+    adjusted.total_bytes = std::min(adjusted.total_bytes, igpu_cap_bytes);
+    if (logger) {
+        const double to_mib = 1024.0 * 1024.0;
+        logger->info("Vulkan device reported as integrated GPU; capping usable memory to {:.1f} MiB",
+                     igpu_cap_bytes / to_mib);
+    }
+    return adjusted;
+}
+
+void log_vulkan_estimation(const Utils::CudaMemoryInfo& memory,
+                           const BackendMemoryInfo& original,
+                           const AutoGpuLayerEstimation& estimation,
+                           int resolved_layers,
+                           const std::shared_ptr<spdlog::logger>& logger)
+{
+    if (!logger) {
+        return;
+    }
+    const double to_mib = 1024.0 * 1024.0;
+    const char* device_label = original.name.empty() ? "Vulkan device" : original.name.c_str();
+    logger->info(
+        "{} total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
+        device_label,
+        memory.total_bytes / to_mib,
+        memory.free_bytes / to_mib,
+        gpu_layers_to_string(resolved_layers),
+        estimation.reason.empty() ? "auto-estimated" : estimation.reason);
+}
+
+bool finalize_vulkan_layers(const AutoGpuLayerEstimation& estimation,
+                            const Utils::CudaMemoryInfo& memory,
+                            llama_model_params& params,
+                            const BackendMemoryInfo& original,
+                            const std::shared_ptr<spdlog::logger>& logger)
+{
+    if (estimation.layers > 0) {
+        params.n_gpu_layers = estimation.layers;
+        log_vulkan_estimation(memory, original, estimation, params.n_gpu_layers, logger);
+        return true;
+    }
+
+    params.n_gpu_layers = -1;
+    if (logger) {
+        logger->warn(
+            "Vulkan estimator could not determine n_gpu_layers ({}); leaving llama.cpp auto (-1).",
+            estimation.reason.empty() ? "no detail" : estimation.reason);
+    }
+    return true;
+}
+
 bool apply_vulkan_backend(const std::string& model_path,
                           llama_model_params& params,
                           const std::shared_ptr<spdlog::logger>& logger) {
     set_env_var("GGML_DISABLE_CUDA", "1");
-    const auto apply_override = [&](int override_layers) -> bool {
-        if (override_layers == INT_MIN) {
-            return false;
-        }
-        if (override_layers <= 0) {
-            params.n_gpu_layers = 0;
-            if (logger) {
-                logger->info("Vulkan backend requested but AI_FILE_SORTER_N_GPU_LAYERS <= 0; using CPU instead.");
-            }
-            return true;
-        }
-        params.n_gpu_layers = override_layers;
-        if (logger) {
-            logger->info("Using Vulkan backend with explicit n_gpu_layers override={}",
-                         gpu_layers_to_string(override_layers));
-        }
-        return true;
-    };
 
     const auto vk_memory = resolve_backend_memory("vulkan");
-    if (apply_override(resolve_gpu_layer_override())) {
+    if (apply_vulkan_override(params, resolve_gpu_layer_override(), logger)) {
         return true;
     }
 
@@ -821,43 +908,9 @@ bool apply_vulkan_backend(const std::string& model_path,
         return true;
     }
 
-    auto adjusted = vk_memory->memory;
-    if (vk_memory->is_integrated) {
-        constexpr size_t igpu_cap_bytes = static_cast<size_t>(4ULL) * 1024ULL * 1024ULL * 1024ULL; // 4 GiB
-        adjusted.free_bytes = std::min(adjusted.free_bytes, igpu_cap_bytes);
-        adjusted.total_bytes = std::min(adjusted.total_bytes, igpu_cap_bytes);
-        if (logger) {
-            const double to_mib = 1024.0 * 1024.0;
-            logger->info("Vulkan device reported as integrated GPU; capping usable memory to {:.1f} MiB",
-                         igpu_cap_bytes / to_mib);
-        }
-    }
-
+    Utils::CudaMemoryInfo adjusted = cap_integrated_gpu_memory(*vk_memory, logger);
     const auto estimation = estimate_gpu_layers_for_cuda(model_path, adjusted);
-    if (estimation.layers > 0) {
-        params.n_gpu_layers = estimation.layers;
-        if (logger) {
-            const double to_mib = 1024.0 * 1024.0;
-            const char* device_label = vk_memory->name.empty() ? "Vulkan device" : vk_memory->name.c_str();
-            logger->info(
-                "{} total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
-                device_label,
-                adjusted.total_bytes / to_mib,
-                adjusted.free_bytes / to_mib,
-                gpu_layers_to_string(params.n_gpu_layers),
-                estimation.reason.empty() ? "auto-estimated" : estimation.reason
-            );
-        }
-    } else {
-        params.n_gpu_layers = -1;
-        if (logger) {
-            logger->warn(
-                "Vulkan estimator could not determine n_gpu_layers ({}); leaving llama.cpp auto (-1).",
-                estimation.reason.empty() ? "no detail" : estimation.reason
-            );
-        }
-    }
-
+    finalize_vulkan_layers(estimation, adjusted, params, *vk_memory, logger);
     return true;
 }
 

@@ -70,14 +70,13 @@ private:
     void retranslate_ui();
     void apply_status_text(QStandardItem* item) const;
     RowStatus status_from_item(const QStandardItem* item) const;
-    std::vector<std::tuple<bool, std::string, std::string, std::string, std::string>> get_rows() const;
+    std::vector<std::tuple<bool, std::string, std::string, std::string>> get_rows() const;
     void on_show_subcategories_toggled(bool checked);
     void apply_subcategory_visibility();
     void clear_move_history();
     void record_move_for_undo(int row, const std::string& source, const std::string& destination);
     void handle_selected_row(int row_index,
                              const std::string& file_name,
-                             const std::string& file_type,
                              const std::string& category,
                              const std::string& subcategory,
                              const std::string& base_dir,

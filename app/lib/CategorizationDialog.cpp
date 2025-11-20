@@ -285,23 +285,21 @@ void CategorizationDialog::record_categorization_to_db()
 }
 
 
-std::vector<std::tuple<bool, std::string, std::string, std::string, std::string>>
+std::vector<std::tuple<bool, std::string, std::string, std::string>>
 CategorizationDialog::get_rows() const
 {
-    std::vector<std::tuple<bool, std::string, std::string, std::string, std::string>> rows;
+    std::vector<std::tuple<bool, std::string, std::string, std::string>> rows;
     rows.reserve(model->rowCount());
 
     for (int row = 0; row < model->rowCount(); ++row) {
         const bool selected = model->item(row, 0)->checkState() == Qt::Checked;
         const QString file_name = model->item(row, 1)->text();
-        const QString file_type = model->item(row, 2)->data(Qt::UserRole).toString();
         const QString category = model->item(row, 3)->text();
         const QString subcategory = show_subcategory_column
                                         ? model->item(row, 4)->text()
                                         : QString();
         rows.emplace_back(selected,
                           file_name.toStdString(),
-                          file_type.toStdString(),
                           category.toStdString(),
                           subcategory.toStdString());
     }
@@ -332,7 +330,7 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
 
     std::vector<std::string> files_not_moved;
     int row_index = 0;
-    for (const auto& [selected, file_name, file_type, category, subcategory] : rows) {
+    for (const auto& [selected, file_name, category, subcategory] : rows) {
         if (!selected) {
             update_status_column(row_index, false, false);
             ++row_index;
@@ -340,7 +338,6 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
         }
         handle_selected_row(row_index,
                             file_name,
-                            file_type,
                             category,
                             subcategory,
                             base_dir,
@@ -366,7 +363,6 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
 
 void CategorizationDialog::handle_selected_row(int row_index,
                                                const std::string& file_name,
-                                               const std::string& file_type,
                                                const std::string& category,
                                                const std::string& subcategory,
                                                const std::string& base_dir,
@@ -387,8 +383,7 @@ void CategorizationDialog::handle_selected_row(int row_index,
 
     try {
         MovableCategorizedFile categorized_file(
-            base_dir, category, effective_subcategory,
-            file_name, file_type);
+            base_dir, category, effective_subcategory, file_name);
 
         const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
 
