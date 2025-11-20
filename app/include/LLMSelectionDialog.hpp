@@ -37,6 +37,9 @@ private:
     void setup_ui();
     void connect_signals();
     void update_ui_for_choice();
+    void update_radio_selection();
+    void update_custom_choice_ui();
+    void update_local_choice_ui();
     void update_download_info();
     void start_download();
     void refresh_downloader();

@@ -309,7 +309,8 @@ bool read_file_prefix(std::ifstream& file,
     }
 
     const auto max_streamsize = static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max());
-    const std::size_t safe_request = std::min(requested_bytes, max_streamsize);
+    const std::size_t clamped_request = std::min(requested_bytes, buffer.size());
+    const std::size_t safe_request = std::min(clamped_request, max_streamsize);
     if (safe_request == 0) {
         return false;
     }

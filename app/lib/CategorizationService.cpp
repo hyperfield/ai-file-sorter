@@ -483,20 +483,35 @@ std::string CategorizationService::run_llm_with_timeout(
     bool is_local_llm,
     const std::string& consistency_context) const
 {
+    const int timeout_seconds = resolve_llm_timeout(is_local_llm);
+
+    auto future = start_llm_future(llm, item_name, item_path, file_type, consistency_context);
+
+    if (future.wait_for(std::chrono::seconds(timeout_seconds)) == std::future_status::timeout) {
+        throw std::runtime_error("Timed out waiting for LLM response");
+    }
+
+    return future.get();
+}
+
+int CategorizationService::resolve_llm_timeout(bool is_local_llm) const
+{
     int timeout_seconds = is_local_llm ? 60 : 10;
     const char* timeout_env = std::getenv(is_local_llm ? kLocalTimeoutEnv : kRemoteTimeoutEnv);
-    if (timeout_env && *timeout_env) {
-        try {
-            const int parsed = std::stoi(timeout_env);
-            if (parsed > 0) {
-                timeout_seconds = parsed;
-            } else if (core_logger) {
-                core_logger->warn("Ignoring non-positive LLM timeout '{}'", timeout_env);
-            }
-        } catch (const std::exception& ex) {
-            if (core_logger) {
-                core_logger->warn("Failed to parse LLM timeout '{}': {}", timeout_env, ex.what());
-            }
+    if (!timeout_env || *timeout_env == '\0') {
+        return timeout_seconds;
+    }
+
+    try {
+        const int parsed = std::stoi(timeout_env);
+        if (parsed > 0) {
+            timeout_seconds = parsed;
+        } else if (core_logger) {
+            core_logger->warn("Ignoring non-positive LLM timeout '{}'", timeout_env);
+        }
+    } catch (const std::exception& ex) {
+        if (core_logger) {
+            core_logger->warn("Failed to parse LLM timeout '{}': {}", timeout_env, ex.what());
         }
     }
 
@@ -506,6 +521,16 @@ std::string CategorizationService::run_llm_with_timeout(
                            timeout_seconds);
     }
 
+    return timeout_seconds;
+}
+
+std::future<std::string> CategorizationService::start_llm_future(
+    ILLMClient& llm,
+    const std::string& item_name,
+    const std::string& item_path,
+    FileType file_type,
+    const std::string& consistency_context) const
+{
     std::promise<std::string> promise;
     std::future<std::string> future = promise.get_future();
 
@@ -521,11 +546,7 @@ std::string CategorizationService::run_llm_with_timeout(
         }
     }).detach();
 
-    if (future.wait_for(std::chrono::seconds(timeout_seconds)) == std::future_status::timeout) {
-        throw std::runtime_error("Timed out waiting for LLM response");
-    }
-
-    return future.get();
+    return future;
 }
 
 std::vector<CategorizationService::CategoryPair> CategorizationService::collect_consistency_hints(

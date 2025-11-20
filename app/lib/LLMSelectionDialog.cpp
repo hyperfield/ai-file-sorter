@@ -204,11 +204,22 @@ void LLMSelectionDialog::set_status_message(const QString& message)
     status_label->setText(message);
 }
 
-
 void LLMSelectionDialog::update_ui_for_choice()
 {
     update_custom_buttons();
 
+    update_radio_selection();
+    update_custom_choice_ui();
+
+    if (selected_choice == LLMChoice::Custom) {
+        return;
+    }
+
+    update_local_choice_ui();
+}
+
+void LLMSelectionDialog::update_radio_selection()
+{
     if (remote_radio->isChecked()) {
         selected_choice = LLMChoice::Remote;
     } else if (local3_radio->isChecked()) {
@@ -218,7 +229,10 @@ void LLMSelectionDialog::update_ui_for_choice()
     } else if (custom_radio->isChecked()) {
         selected_choice = LLMChoice::Custom;
     }
+}
 
+void LLMSelectionDialog::update_custom_choice_ui()
+{
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
     const bool is_custom = selected_choice == LLMChoice::Custom;
     download_section->setVisible(is_local_builtin);
@@ -244,7 +258,10 @@ void LLMSelectionDialog::update_ui_for_choice()
         button_box->button(QDialogButtonBox::Ok)->setEnabled(true);
         return;
     }
+}
 
+void LLMSelectionDialog::update_local_choice_ui()
+{
     refresh_downloader();
 
     if (!downloader) {

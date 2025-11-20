@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <deque>
+#include <future>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -91,6 +92,12 @@ private:
         FileType file_type,
         bool is_local_llm,
         const std::string& consistency_context) const;
+    int resolve_llm_timeout(bool is_local_llm) const;
+    std::future<std::string> start_llm_future(ILLMClient& llm,
+                                              const std::string& item_name,
+                                              const std::string& item_path,
+                                              FileType file_type,
+                                              const std::string& consistency_context) const;
 
     std::string build_whitelist_context() const;
     std::string build_category_language_context() const;
