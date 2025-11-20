@@ -304,14 +304,29 @@ bool read_file_prefix(std::ifstream& file,
                       std::size_t requested_bytes,
                       std::size_t& bytes_read)
 {
-    if (requested_bytes == 0 || requested_bytes > buffer.size()) {
-        return false;
-    }
+    const auto compute_safe_request = [&](std::size_t& safe_request) -> bool {
+        if (requested_bytes == 0 || requested_bytes > buffer.size()) {
+            return false;
+        }
+        const auto max_streamsize = static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max());
+        const std::size_t clamped_request = std::min(requested_bytes, buffer.size());
+        safe_request = std::min(clamped_request, max_streamsize);
+        return safe_request > 0;
+    };
 
-    const auto max_streamsize = static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max());
-    const std::size_t clamped_request = std::min(requested_bytes, buffer.size());
-    const std::size_t safe_request = std::min(clamped_request, max_streamsize);
-    if (safe_request == 0) {
+    const auto validate_read_count = [&](std::streamsize read_count, std::size_t to_request) -> bool {
+        if (read_count <= 0) {
+            return false;
+        }
+        if (read_count > static_cast<std::streamsize>(to_request) ||
+            static_cast<std::size_t>(read_count) > buffer.size()) {
+            return false;
+        }
+        return true;
+    };
+
+    std::size_t safe_request = 0;
+    if (!compute_safe_request(safe_request)) {
         return false;
     }
 
@@ -322,10 +337,7 @@ bool read_file_prefix(std::ifstream& file,
     }
 
     const std::streamsize read_count = file.gcount();
-    if (read_count <= 0) {
-        return false;
-    }
-    if (read_count > to_request || static_cast<std::size_t>(read_count) > buffer.size()) {
+    if (!validate_read_count(read_count, safe_request)) {
         return false;
     }
 
