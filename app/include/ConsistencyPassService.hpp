@@ -49,6 +49,12 @@ private:
                        std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
                        const ProgressCallback& progress_callback) const;
     void log_chunk_items(const std::vector<const CategorizedFile*>& chunk, const char* stage) const;
+    bool apply_harmonized_response(const std::string& response,
+                                   const std::vector<const CategorizedFile*>& chunk,
+                                   std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+                                   std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+                                   const ProgressCallback& progress_callback,
+                                   DatabaseManager& db_manager) const;
 
     DatabaseManager& db_manager;
     std::shared_ptr<spdlog::logger> logger;

@@ -495,6 +495,40 @@ void ConsistencyPassService::log_chunk_items(const std::vector<const Categorized
     }
 }
 
+bool ConsistencyPassService::apply_harmonized_response(
+    const std::string& response,
+    const std::vector<const CategorizedFile*>& chunk,
+    std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+    std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+    const ProgressCallback& progress_callback,
+    DatabaseManager& db_manager) const
+{
+    Json::Value root;
+    if (const Json::Value* harmonized = parse_consistency_response(response, root, logger)) {
+        for (const auto& entry : *harmonized) {
+            if (auto update = extract_harmonized_update(entry, items_by_key, logger)) {
+                apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
+            }
+        }
+        return true;
+    }
+
+    if (apply_ordered_fallback(response,
+                               chunk,
+                               items_by_key,
+                               db_manager,
+                               new_items_by_key,
+                               progress_callback,
+                               logger)) {
+        return true;
+    }
+
+    if (logger) {
+        logger->warn("Consistency pass could not interpret response; skipping chunk");
+    }
+    return false;
+}
+
 void ConsistencyPassService::process_chunk(
     const std::vector<const CategorizedFile*>& chunk,
     size_t start_index,
@@ -522,24 +556,12 @@ void ConsistencyPassService::process_chunk(
             std::cout << "[CONSISTENCY RESPONSE]\n" << response << "\n";
         }
 
-        Json::Value root;
-        if (const Json::Value* harmonized = parse_consistency_response(response, root, logger)) {
-            for (const auto& entry : *harmonized) {
-                if (auto update = extract_harmonized_update(entry, items_by_key, logger)) {
-                    apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
-                }
-            }
-        } else if (!apply_ordered_fallback(response,
-                                           chunk,
-                                           items_by_key,
-                                           db_manager,
-                                           new_items_by_key,
-                                           progress_callback,
-                                           logger)) {
-            if (logger) {
-                logger->warn("Consistency pass could not interpret response; skipping chunk");
-            }
-        }
+        apply_harmonized_response(response,
+                                  chunk,
+                                  items_by_key,
+                                  new_items_by_key,
+                                  progress_callback,
+                                  db_manager);
     } catch (const std::exception& ex) {
         if (logger) {
             logger->warn("Consistency pass chunk failed: {}", ex.what());

@@ -60,7 +60,7 @@ FileScanner::get_directory_entries(const std::string &directory_path,
 }
 
 
-bool FileScanner::is_file_hidden(const fs::path &path) {
+bool FileScanner::is_file_hidden(const fs::path &path) const {
 #ifdef _WIN32
     DWORD attrs = GetFileAttributesW(path.c_str());
     return (attrs != INVALID_FILE_ATTRIBUTES) &&
@@ -71,7 +71,7 @@ bool FileScanner::is_file_hidden(const fs::path &path) {
 }
 
 
-bool FileScanner::is_junk_file(const std::string& name) {
+bool FileScanner::is_junk_file(const std::string& name) const {
     static const std::unordered_set<std::string> junk = {
         ".DS_Store", "Thumbs.db", "desktop.ini"
     };
@@ -79,7 +79,7 @@ bool FileScanner::is_junk_file(const std::string& name) {
 }
 
 
-bool FileScanner::is_file_bundle(const fs::path& path) {
+bool FileScanner::is_file_bundle(const fs::path& path) const {
     static const std::unordered_set<std::string> bundle_extensions = {
         ".app", ".utm", ".vmwarevm", ".pvm", ".vbox", ".pkg", ".mpkg",
         ".prefPane", ".plugin", ".framework", ".kext", ".qlgenerator",

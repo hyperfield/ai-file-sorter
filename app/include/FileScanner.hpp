@@ -27,9 +27,9 @@ private:
     std::optional<FileType> classify_entry(const fs::directory_entry& entry,
                                            bool bundle,
                                            const ScanContext& context) const;
-    bool is_file_hidden(const fs::path &path);
-    bool is_junk_file(const std::string& name);
-    bool is_file_bundle(const fs::path& path);
+    bool is_file_hidden(const fs::path &path) const;
+    bool is_junk_file(const std::string& name) const;
+    bool is_file_bundle(const fs::path& path) const;
 };
 
 #endif
