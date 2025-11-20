@@ -67,6 +67,30 @@ std::string join_list(const std::vector<std::string>& items) {
     return oss.str();
 }
 
+std::string to_bool_string(bool value) {
+    return value ? "true" : "false";
+}
+
+std::string llm_choice_to_string(LLMChoice choice) {
+    switch (choice) {
+        case LLMChoice::Local_3b: return "Local_3b";
+        case LLMChoice::Local_7b: return "Local_7b";
+        case LLMChoice::Remote: return "Remote";
+        case LLMChoice::Custom: return "Custom";
+        default: return "Unset";
+    }
+}
+
+void set_bool_setting(IniConfig& config, const std::string& section, const char* key, bool value) {
+    config.setValue(section, key, to_bool_string(value));
+}
+
+void set_optional_setting(IniConfig& config, const std::string& section, const char* key, const std::string& value) {
+    if (!value.empty()) {
+        config.setValue(section, key, value);
+    }
+}
+
 std::string generate_custom_llm_id() {
     using clock = std::chrono::steady_clock;
     const auto now = clock::now().time_since_epoch().count();
@@ -195,54 +219,46 @@ void Settings::log_loaded_settings() const
 
 void Settings::save_core_settings()
 {
-    std::string save_choice_value;
-    switch (llm_choice) {
-        case LLMChoice::Local_3b: save_choice_value = "Local_3b"; break;
-        case LLMChoice::Local_7b: save_choice_value = "Local_7b"; break;
-        case LLMChoice::Remote: save_choice_value = "Remote"; break;
-        case LLMChoice::Custom: save_choice_value = "Custom"; break;
-        default: save_choice_value = "Unset"; break;
-    }
-    config.setValue("Settings", "LLMChoice", save_choice_value);
-    config.setValue("Settings", "UseSubcategories", use_subcategories ? "true" : "false");
-    config.setValue("Settings", "UseConsistencyHints", use_consistency_hints ? "true" : "false");
-    config.setValue("Settings", "CategorizeFiles", categorize_files ? "true" : "false");
-    config.setValue("Settings", "CategorizeDirectories", categorize_directories ? "true" : "false");
-    config.setValue("Settings", "SortFolder", this->sort_folder);
+    static const std::string settings_section = "Settings";
 
-    if (!skipped_version.empty()) {
-        config.setValue("Settings", "SkippedVersion", skipped_version);
-    }
+    config.setValue(settings_section, "LLMChoice", llm_choice_to_string(llm_choice));
+    set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
+    set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
+    set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
+    set_bool_setting(config, settings_section, "CategorizeDirectories", categorize_directories);
+    config.setValue(settings_section, "SortFolder", this->sort_folder);
 
-    config.setValue("Settings", "ShowFileExplorer", show_file_explorer ? "true" : "false");
-    config.setValue("Settings", "ConsistencyPass", consistency_pass_enabled ? "true" : "false");
-    config.setValue("Settings", "DevelopmentPromptLogging", development_prompt_logging ? "true" : "false");
-    config.setValue("Settings", "Language", languageToString(language).toStdString());
-    config.setValue("Settings", "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
-    config.setValue("Settings", "CategorizedFileCount", std::to_string(categorized_file_count));
-    config.setValue("Settings", "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
+    set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
+
+    set_bool_setting(config, settings_section, "ShowFileExplorer", show_file_explorer);
+    set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
+    set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
+    config.setValue(settings_section, "Language", languageToString(language).toStdString());
+    config.setValue(settings_section, "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
+    config.setValue(settings_section, "CategorizedFileCount", std::to_string(categorized_file_count));
+    config.setValue(settings_section, "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
 }
 
 void Settings::save_whitelist_settings()
 {
-    config.setValue("Settings", "AllowedCategories", join_list(allowed_categories));
-    config.setValue("Settings", "AllowedSubcategories", join_list(allowed_subcategories));
-    config.setValue("Settings", "UseWhitelist", use_whitelist ? "true" : "false");
-    if (!active_whitelist.empty()) {
-        config.setValue("Settings", "ActiveWhitelist", active_whitelist);
-    }
+    static const std::string settings_section = "Settings";
+
+    config.setValue(settings_section, "AllowedCategories", join_list(allowed_categories));
+    config.setValue(settings_section, "AllowedSubcategories", join_list(allowed_subcategories));
+    set_bool_setting(config, settings_section, "UseWhitelist", use_whitelist);
+    set_optional_setting(config, settings_section, "ActiveWhitelist", active_whitelist);
 }
 
 void Settings::save_custom_llms()
 {
-    if (!active_custom_llm_id.empty()) {
-        config.setValue("LLMs", "ActiveCustomId", active_custom_llm_id);
-    }
+    static const std::string llm_section = "LLMs";
+
+    set_optional_setting(config, llm_section, "ActiveCustomId", active_custom_llm_id);
 
     std::vector<std::string> ids;
     ids.reserve(custom_llms.size());
     for (const auto& entry : custom_llms) {
-        if (entry.id.empty() || entry.name.empty() || entry.path.empty()) {
+        if (!is_valid_custom_llm(entry)) {
             continue;
         }
         ids.push_back(entry.id);
@@ -251,7 +267,7 @@ void Settings::save_custom_llms()
         config.setValue(section, "Description", entry.description);
         config.setValue(section, "Path", entry.path);
     }
-    config.setValue("LLMs", "CustomIds", join_list(ids));
+    config.setValue(llm_section, "CustomIds", join_list(ids));
 }
 
 

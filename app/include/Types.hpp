@@ -45,6 +45,10 @@ struct CustomLLM {
     std::string path;
 };
 
+inline bool is_valid_custom_llm(const CustomLLM& entry) {
+    return !entry.id.empty() && !entry.name.empty() && !entry.path.empty();
+}
+
 enum class FileScanOptions {
     None        = 0,
     Files       = 1 << 0,   // 0001
