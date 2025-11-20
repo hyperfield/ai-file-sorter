@@ -353,6 +353,39 @@ std::pair<std::string, std::string> split_category_subcategory(const std::string
     return {lhs, std::string()};
 }
 
+std::optional<std::pair<std::string, std::string>> parse_ordered_line(
+    std::string line,
+    const std::string& raw_line,
+    size_t line_number,
+    const std::shared_ptr<spdlog::logger>& logger)
+{
+    line = strip_list_prefix(std::move(line));
+    const auto key_value = split_key_value(line);
+    if (!key_value.has_value()) {
+        return std::nullopt;
+    }
+
+    const auto& [lhs, rhs_raw] = *key_value;
+    auto [category, subcategory] = split_category_subcategory(lhs);
+    std::string rhs = rhs_raw;
+
+    if (subcategory.empty()) {
+        subcategory = rhs;
+    }
+    if (subcategory.empty()) {
+        subcategory = category;
+    }
+
+    if (category.empty()) {
+        if (logger) {
+            logger->warn("Consistency pass fallback skipped malformed line {}: '{}'", line_number, raw_line);
+        }
+        return std::nullopt;
+    }
+
+    return std::make_pair(std::move(category), std::move(subcategory));
+}
+
 std::vector<std::pair<std::string, std::string>> parse_ordered_category_lines(
     const std::string& response,
     const std::shared_ptr<spdlog::logger>& logger)
@@ -371,31 +404,9 @@ std::vector<std::pair<std::string, std::string>> parse_ordered_category_lines(
         if (line == "END") {
             break;
         }
-        line = strip_list_prefix(std::move(line));
-        const auto key_value = split_key_value(line);
-        if (!key_value.has_value()) {
-            continue;
+        if (auto parsed = parse_ordered_line(line, raw_line, line_number, logger)) {
+            ordered.push_back(std::move(*parsed));
         }
-
-        const auto& [lhs, rhs_raw] = *key_value;
-        auto [category, subcategory] = split_category_subcategory(lhs);
-        std::string rhs = rhs_raw;
-
-        if (subcategory.empty()) {
-            subcategory = rhs;
-        }
-        if (subcategory.empty()) {
-            subcategory = category;
-        }
-
-        if (category.empty()) {
-            if (logger) {
-                logger->warn("Consistency pass fallback skipped malformed line {}: '{}'", line_number, raw_line);
-            }
-            continue;
-        }
-
-        ordered.emplace_back(std::move(category), std::move(subcategory));
     }
 
     if (ordered.empty() && logger) {
