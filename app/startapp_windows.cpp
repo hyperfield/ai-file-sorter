@@ -363,6 +363,23 @@ BackendSelection resolve_backend_selection(const BackendOverrides& overrides,
     return selection;
 }
 
+QString cpu_backend_message(const BackendAvailability& availability)
+{
+    if (!availability.cudaAvailable && !availability.vulkanAvailable) {
+        if (availability.cudaRuntimeDetected && !availability.runtimeCompatible) {
+            return QStringLiteral("CUDA runtime ignored due to incompatibility; using CPU backend.");
+        }
+        return QStringLiteral("No GPU runtime detected; using CPU backend.");
+    }
+    if (availability.cudaInitiallyAvailable && !availability.cudaAvailable) {
+        return QStringLiteral("CUDA runtime ignored due to override; using CPU backend.");
+    }
+    if (availability.vulkanInitiallyAvailable && !availability.vulkanAvailable) {
+        return QStringLiteral("Vulkan runtime ignored due to override; using CPU backend.");
+    }
+    return QStringLiteral("CUDA and Vulkan explicitly disabled; using CPU backend.");
+}
+
 void log_runtime_availability(const BackendAvailability& availability,
                               BackendSelection selection)
 {
@@ -372,24 +389,17 @@ void log_runtime_availability(const BackendAvailability& availability,
             .arg(availability.vulkanInitiallyAvailable ? QStringLiteral("yes") : QStringLiteral("no"));
     qInfo().noquote() << availabilityLine;
 
-    if (selection == BackendSelection::Vulkan) {
-        qInfo().noquote() << "Backend selection: Vulkan (priority order Vulkan → CUDA → CPU).";
-    } else if (selection == BackendSelection::Cuda) {
-        qInfo().noquote() << "Backend selection: CUDA (Vulkan unavailable).";
-    } else {
-        if (!availability.cudaAvailable && !availability.vulkanAvailable) {
-            if (availability.cudaRuntimeDetected && !availability.runtimeCompatible) {
-                qInfo().noquote() << "CUDA runtime ignored due to incompatibility; using CPU backend.";
-            } else {
-                qInfo().noquote() << "No GPU runtime detected; using CPU backend.";
-            }
-        } else if (availability.cudaInitiallyAvailable && !availability.cudaAvailable) {
-            qInfo().noquote() << "CUDA runtime ignored due to override; using CPU backend.";
-        } else if (availability.vulkanInitiallyAvailable && !availability.vulkanAvailable) {
-            qInfo().noquote() << "Vulkan runtime ignored due to override; using CPU backend.";
-        } else {
-            qInfo().noquote() << "CUDA and Vulkan explicitly disabled; using CPU backend.";
-        }
+    switch (selection) {
+        case BackendSelection::Vulkan:
+            qInfo().noquote() << "Backend selection: Vulkan (priority order Vulkan → CUDA → CPU).";
+            break;
+        case BackendSelection::Cuda:
+            qInfo().noquote() << "Backend selection: CUDA (Vulkan unavailable).";
+            break;
+        case BackendSelection::Cpu:
+        default:
+            qInfo().noquote() << cpu_backend_message(availability);
+            break;
     }
 }
 
@@ -562,5 +572,4 @@ int main(int argc, char* argv[]) {
 
     return EXIT_SUCCESS;
 }
-
 

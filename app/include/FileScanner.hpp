@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <optional>
 #include "Types.hpp"
 
 namespace fs = std::filesystem;
@@ -16,6 +17,9 @@ public:
                               FileScanOptions options);
 
 private:
+    struct ScanContext;
+    std::optional<FileEntry> build_entry(const fs::directory_entry& entry,
+                                         const ScanContext& context);
     bool is_file_hidden(const fs::path &path);
     bool is_junk_file(const std::string& name);
     bool is_file_bundle(const fs::path& path);

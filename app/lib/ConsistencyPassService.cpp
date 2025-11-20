@@ -15,10 +15,12 @@
 #endif
 
 #include <algorithm>
+#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <optional>
 #include <sstream>
+#include <unordered_map>
 
 namespace {
 
@@ -74,6 +76,15 @@ std::string make_item_key(const CategorizedFile& item) {
     std::filesystem::path path(item.file_path);
     path /= item.file_name;
     return path.generic_string();
+}
+
+std::unordered_map<std::string, CategorizedFile*> build_items_by_key(std::vector<CategorizedFile>& items) {
+    std::unordered_map<std::string, CategorizedFile*> map;
+    map.reserve(items.size());
+    for (auto& item : items) {
+        map[make_item_key(item)] = &item;
+    }
+    return map;
 }
 
 std::string build_consistency_prompt(
@@ -433,97 +444,100 @@ void ConsistencyPassService::set_prompt_logging_enabled(bool enabled)
     prompt_logging_enabled = enabled;
 }
 
-void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files,
-                                 std::vector<CategorizedFile>& newly_categorized_files,
-                                 std::function<std::unique_ptr<ILLMClient>()> llm_factory,
-                                 std::atomic<bool>& stop_flag,
-                                 const ProgressCallback& progress_callback) const
+std::unique_ptr<ILLMClient> ConsistencyPassService::create_llm(
+    std::function<std::unique_ptr<ILLMClient>()> llm_factory) const
 {
-    if (stop_flag.load() || categorized_files.empty()) {
-        return;
+    if (!llm_factory) {
+        return nullptr;
     }
 
-    std::unique_ptr<ILLMClient> llm;
     try {
-        llm = llm_factory ? llm_factory() : nullptr;
+        return llm_factory();
     } catch (const std::exception& ex) {
         if (logger) {
             logger->warn("Failed to create LLM client for consistency pass: {}", ex.what());
         }
+        return nullptr;
+    }
+}
+
+void ConsistencyPassService::log_chunk_items(const std::vector<const CategorizedFile*>& chunk,
+                                             const char* stage) const
+{
+    if (!logger) {
         return;
     }
-    if (!llm) {
-        return;
-    }
-
-    const auto taxonomy = db_manager.get_taxonomy_snapshot(150);
-
-    std::unordered_map<std::string, CategorizedFile*> items_by_key;
-    items_by_key.reserve(categorized_files.size());
-    for (auto& item : categorized_files) {
-        items_by_key[make_item_key(item)] = &item;
-    }
-
-    std::unordered_map<std::string, CategorizedFile*> new_items_by_key;
-    new_items_by_key.reserve(newly_categorized_files.size());
-    for (auto& item : newly_categorized_files) {
-        new_items_by_key[make_item_key(item)] = &item;
-    }
-
-    auto process_chunk = [&](const std::vector<const CategorizedFile*>& chunk, size_t start_index, size_t end_index) {
-        if (logger) {
-            logger->info("[CONSISTENCY] Processing chunk {}-{} of {}",
-                         start_index + 1,
-                         end_index,
-                         categorized_files.size());
-            for (const auto* item : chunk) {
-                if (!item) continue;
-                logger->info("  [BEFORE] {} -> {} / {}", item->file_name, item->category, item->subcategory);
-            }
+    for (const auto* item : chunk) {
+        if (!item) {
+            continue;
         }
+        logger->info("  [{}] {} -> {} / {}", stage, item->file_name, item->category, item->subcategory);
+    }
+}
 
-        const std::string prompt = build_consistency_prompt(chunk, taxonomy);
+void ConsistencyPassService::process_chunk(
+    const std::vector<const CategorizedFile*>& chunk,
+    size_t start_index,
+    size_t end_index,
+    size_t total_items,
+    ILLMClient& llm,
+    const std::vector<std::pair<std::string, std::string>>& taxonomy,
+    std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+    std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+    const ProgressCallback& progress_callback) const
+{
+    if (logger) {
+        logger->info("[CONSISTENCY] Processing chunk {}-{} of {}", start_index + 1, end_index, total_items);
+        log_chunk_items(chunk, "BEFORE");
+    }
+
+    const std::string prompt = build_consistency_prompt(chunk, taxonomy);
+    if (prompt_logging_enabled) {
+        std::cout << "\n[CONSISTENCY PROMPT]\n" << prompt << "\n";
+    }
+
+    try {
+        const std::string response = llm.complete_prompt(prompt, 512);
         if (prompt_logging_enabled) {
-            std::cout << "\n[CONSISTENCY PROMPT]\n" << prompt << "\n";
+            std::cout << "[CONSISTENCY RESPONSE]\n" << response << "\n";
         }
-        try {
-            const std::string response = llm->complete_prompt(prompt, 512);
-            if (prompt_logging_enabled) {
-                std::cout << "[CONSISTENCY RESPONSE]\n" << response << "\n";
-            }
 
-            Json::Value root;
-            if (const Json::Value* harmonized = parse_consistency_response(response, root, logger)) {
-                for (const auto& entry : *harmonized) {
-                    if (auto update = extract_harmonized_update(entry, items_by_key, logger)) {
-                        apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
-                    }
-                }
-            } else if (!apply_ordered_fallback(response,
-                                               chunk,
-                                               items_by_key,
-                                               db_manager,
-                                               new_items_by_key,
-                                               progress_callback,
-                                               logger)) {
-                if (logger) {
-                    logger->warn("Consistency pass could not interpret response; skipping chunk");
+        Json::Value root;
+        if (const Json::Value* harmonized = parse_consistency_response(response, root, logger)) {
+            for (const auto& entry : *harmonized) {
+                if (auto update = extract_harmonized_update(entry, items_by_key, logger)) {
+                    apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
                 }
             }
-        } catch (const std::exception& ex) {
+        } else if (!apply_ordered_fallback(response,
+                                           chunk,
+                                           items_by_key,
+                                           db_manager,
+                                           new_items_by_key,
+                                           progress_callback,
+                                           logger)) {
             if (logger) {
-                logger->warn("Consistency pass chunk failed: {}", ex.what());
+                logger->warn("Consistency pass could not interpret response; skipping chunk");
             }
         }
-
+    } catch (const std::exception& ex) {
         if (logger) {
-            for (const auto* item : chunk) {
-                if (!item) continue;
-                logger->info("  [AFTER] {} -> {} / {}", item->file_name, item->category, item->subcategory);
-            }
+            logger->warn("Consistency pass chunk failed: {}", ex.what());
         }
-    };
+    }
 
+    log_chunk_items(chunk, "AFTER");
+}
+
+void ConsistencyPassService::process_chunks(
+    ILLMClient& llm,
+    const std::vector<std::pair<std::string, std::string>>& taxonomy,
+    std::vector<CategorizedFile>& categorized_files,
+    std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+    std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+    std::atomic<bool>& stop_flag,
+    const ProgressCallback& progress_callback) const
+{
     std::vector<const CategorizedFile*> chunk;
     chunk.reserve(10);
 
@@ -540,7 +554,44 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
 
         const size_t start_index = index + 1 - chunk.size();
         const size_t end_index = index + 1;
-        process_chunk(chunk, start_index, end_index);
+        process_chunk(chunk,
+                      start_index,
+                      end_index,
+                      categorized_files.size(),
+                      llm,
+                      taxonomy,
+                      items_by_key,
+                      new_items_by_key,
+                      progress_callback);
         chunk.clear();
     }
+}
+
+void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files,
+                                 std::vector<CategorizedFile>& newly_categorized_files,
+                                 std::function<std::unique_ptr<ILLMClient>()> llm_factory,
+                                 std::atomic<bool>& stop_flag,
+                                 const ProgressCallback& progress_callback) const
+{
+    if (stop_flag.load() || categorized_files.empty()) {
+        return;
+    }
+
+    auto llm = create_llm(std::move(llm_factory));
+    if (!llm) {
+        return;
+    }
+
+    const auto taxonomy = db_manager.get_taxonomy_snapshot(150);
+
+    auto items_by_key = build_items_by_key(categorized_files);
+    auto new_items_by_key = build_items_by_key(newly_categorized_files);
+
+    process_chunks(*llm,
+                   taxonomy,
+                   categorized_files,
+                   items_by_key,
+                   new_items_by_key,
+                   stop_flag,
+                   progress_callback);
 }
