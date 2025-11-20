@@ -100,27 +100,48 @@ std::optional<FileEntry> FileScanner::build_entry(const fs::directory_entry& ent
     std::string full_path = Utils::path_to_utf8(entry_path);
     std::string file_name = Utils::path_to_utf8(entry_path.filename());
 
-    if (is_junk_file(file_name)) {
-        return std::nullopt;
-    }
-
-    const bool hidden = is_file_hidden(entry_path);
-    if (hidden && !context.include_hidden) {
-        if (context.logger) {
-            context.logger->trace("Skipping hidden entry '{}'", full_path);
-        }
+    if (should_skip_entry(entry_path, file_name, context, full_path)) {
         return std::nullopt;
     }
 
     const bool bundle = is_file_bundle(entry_path);
-    const bool is_file = bundle || fs::is_regular_file(entry);
-    const bool is_directory = !bundle && fs::is_directory(entry);
-
-    if (context.include_files && is_file) {
-        return FileEntry{std::move(full_path), std::move(file_name), FileType::File};
+    if (auto type = classify_entry(entry, bundle, context)) {
+        return FileEntry{std::move(full_path), std::move(file_name), *type};
     }
+    return std::nullopt;
+}
+
+bool FileScanner::should_skip_entry(const fs::path& entry_path,
+                                    const std::string& file_name,
+                                    const ScanContext& context,
+                                    const std::string& full_path) const
+{
+    if (is_junk_file(file_name)) {
+        return true;
+    }
+
+    if (is_file_hidden(entry_path) && !context.include_hidden) {
+        if (context.logger) {
+            context.logger->trace("Skipping hidden entry '{}'", full_path);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+std::optional<FileType> FileScanner::classify_entry(const fs::directory_entry& entry,
+                                                    bool bundle,
+                                                    const ScanContext& context) const
+{
+    const bool is_file = bundle || fs::is_regular_file(entry);
+    if (context.include_files && is_file) {
+        return FileType::File;
+    }
+
+    const bool is_directory = !bundle && fs::is_directory(entry);
     if (context.include_directories && is_directory) {
-        return FileEntry{std::move(full_path), std::move(file_name), FileType::Directory};
+        return FileType::Directory;
     }
 
     return std::nullopt;

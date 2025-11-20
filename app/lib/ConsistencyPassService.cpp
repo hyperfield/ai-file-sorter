@@ -171,6 +171,29 @@ bool parse_structured_lines(
     return true;
 }
 
+const Json::Value* parse_structured_fallback(
+    const std::string& response,
+    Json::Value& root,
+    const std::shared_ptr<spdlog::logger>& logger)
+{
+    return parse_structured_lines(response, root, logger) ? &root : nullptr;
+}
+
+const Json::Value* extract_harmonized_array(Json::Value& root)
+{
+    if (root.isObject() && root.isMember("harmonized")) {
+        const Json::Value& harmonized = root["harmonized"];
+        if (harmonized.isArray()) {
+            return &harmonized;
+        }
+        return nullptr;
+    }
+    if (root.isArray()) {
+        return &root;
+    }
+    return nullptr;
+}
+
 struct HarmonizedUpdate {
     std::string id;
     CategorizedFile* target{nullptr};
@@ -200,9 +223,10 @@ std::optional<HarmonizedUpdate> extract_harmonized_update(
         return std::nullopt;
     }
 
-    auto trim_or_fallback = [](const Json::Value& parent,
-                               const char* key,
-                               const std::string& fallback) {
+    CategorizedFile* target = it->second;
+    const auto trim_or_fallback = [](const Json::Value& parent,
+                                     const char* key,
+                                     const std::string& fallback) {
         if (!parent.isMember(key)) {
             return fallback;
         }
@@ -214,14 +238,13 @@ std::optional<HarmonizedUpdate> extract_harmonized_update(
         return candidate.empty() ? fallback : candidate;
     };
 
-    CategorizedFile* target = it->second;
     std::string category = trim_or_fallback(entry, "category", target->category);
     if (category.empty()) {
         category = target->category;
     }
 
     std::string subcategory = trim_or_fallback(entry, "subcategory", target->subcategory);
-    if (subcategory.empty()) {
+    if (!entry.isMember("subcategory") || subcategory.empty()) {
         subcategory = category;
     }
 
@@ -285,31 +308,17 @@ const Json::Value* parse_consistency_response(
             logger->warn("Consistency pass JSON parse failed: {}", errors);
             logger->warn("Consistency pass raw response ({} chars):\n{}", response.size(), response);
         }
-        if (parse_structured_lines(response, root, logger)) {
-            return &root;
-        }
-        return nullptr;
+        return parse_structured_fallback(response, root, logger);
     }
 
-    if (root.isObject() && root.isMember("harmonized")) {
-        const Json::Value& harmonized = root["harmonized"];
-        if (harmonized.isArray()) {
-            return &harmonized;
-        }
-    }
-
-    if (root.isArray()) {
-        return &root;
+    if (const Json::Value* direct = extract_harmonized_array(root)) {
+        return direct;
     }
 
     if (logger) {
         logger->warn("Consistency pass response missing 'harmonized' array");
     }
-
-    if (parse_structured_lines(response, root, logger)) {
-        return &root;
-    }
-    return nullptr;
+    return parse_structured_fallback(response, root, logger);
 }
 
 std::string strip_list_prefix(std::string line) {

@@ -363,13 +363,18 @@ BackendSelection resolve_backend_selection(const BackendOverrides& overrides,
     return selection;
 }
 
+QString incompatible_runtime_message(const BackendAvailability& availability)
+{
+    if (availability.cudaRuntimeDetected && !availability.runtimeCompatible) {
+        return QStringLiteral("CUDA runtime ignored due to incompatibility; using CPU backend.");
+    }
+    return QStringLiteral("No GPU runtime detected; using CPU backend.");
+}
+
 QString cpu_backend_message(const BackendAvailability& availability)
 {
     if (!availability.cudaAvailable && !availability.vulkanAvailable) {
-        if (availability.cudaRuntimeDetected && !availability.runtimeCompatible) {
-            return QStringLiteral("CUDA runtime ignored due to incompatibility; using CPU backend.");
-        }
-        return QStringLiteral("No GPU runtime detected; using CPU backend.");
+        return incompatible_runtime_message(availability);
     }
     if (availability.cudaInitiallyAvailable && !availability.cudaAvailable) {
         return QStringLiteral("CUDA runtime ignored due to override; using CPU backend.");
@@ -572,4 +577,3 @@ int main(int argc, char* argv[]) {
 
     return EXIT_SUCCESS;
 }
-
