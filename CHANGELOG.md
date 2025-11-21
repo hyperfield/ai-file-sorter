@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0] - 2025-11-21
+
+- You can now switch between two categorization modes: More Refined and More Consistent. Choose depending on your folder and use case.
+- Added optional Whitelists - limit the number and names of categories when needed.
+- Added sorting by file names, categories, subcategories in the Categorization Review dialog.
+- You can now add a custom Local LLM in the Select LLM dialog.
+- Multilingual categorization: the file categorization labels can now be assigned in Dutch, French, German, Italian, Polish, Portuguese, Spanish, and Turkish.
+- New interface languages: Dutch, German, Italian, Polish, Portugese, Spanish, and Turkish.
+
 ## [1.1.0] - 2025-11-08
 
 - New feature: Support for Vulkan. This means that many non-Nvidia graphics cards (GPUs) are now supported for compute acceleration during local LLM inference.
