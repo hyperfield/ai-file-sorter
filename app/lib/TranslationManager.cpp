@@ -69,6 +69,16 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("About &Qt"), QStringLiteral("À propos de &Qt")},
     {QStringLiteral("About &AGPL"), QStringLiteral("À propos de l'&AGPL")},
     {QStringLiteral("&Support Project"), QStringLiteral("&Soutenir le projet")},
+    {QStringLiteral("Support AI File Sorter"), QStringLiteral("Soutenir AI File Sorter")},
+    {QStringLiteral("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you."),
+     QStringLiteral("Merci d'utiliser AI File Sorter ! Vous avez déjà catégorisé %1 fichiers. Moi, l'auteur, j'espère vraiment que cette application vous a été utile.")},
+    {QStringLiteral("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+                    "If the app saves you time or brings value, please consider supporting it so it can keep improving."),
+     QStringLiteral("AI File Sorter demande des centaines d'heures de développement, de nouvelles fonctionnalités, de réponses au support et des coûts permanents comme les serveurs ou l'infrastructure des modèles distants. "
+                    "Si l'application vous fait gagner du temps ou vous apporte de la valeur, merci d'envisager un soutien pour qu'elle puisse continuer à s'améliorer.")},
+    {QStringLiteral("Support"), QStringLiteral("Soutenir")},
+    {QStringLiteral("I'm not yet sure"), QStringLiteral("Je ne suis pas encore sûr")},
+    {QStringLiteral("I cannot donate"), QStringLiteral("Je ne peux pas faire de don")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("À propos de la licence AGPL")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -161,6 +171,16 @@ static const QHash<QString, QString> kGermanTranslations = {
     {QStringLiteral("About &Qt"), QStringLiteral("Über &Qt")},
     {QStringLiteral("About &AGPL"), QStringLiteral("Über &AGPL")},
     {QStringLiteral("&Support Project"), QStringLiteral("Projekt unterstützen")},
+    {QStringLiteral("Support AI File Sorter"), QStringLiteral("Unterstütze AI File Sorter")},
+    {QStringLiteral("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you."),
+     QStringLiteral("Vielen Dank, dass du AI File Sorter verwendest! Du hast bisher %1 Dateien kategorisiert. Ich, der Autor, hoffe wirklich, dass dir die App geholfen hat.")},
+    {QStringLiteral("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+                    "If the app saves you time or brings value, please consider supporting it so it can keep improving."),
+     QStringLiteral("AI File Sorter erfordert hunderte Stunden Entwicklung, Funktionsarbeit, Support-Antworten und laufende Kosten wie Server und Remote-Model-Infrastruktur. "
+                    "Wenn dir die App Zeit spart oder Nutzen bringt, erwäge bitte sie zu unterstützen, damit sie sich weiterentwickeln kann.")},
+    {QStringLiteral("Support"), QStringLiteral("Unterstützen")},
+    {QStringLiteral("I'm not yet sure"), QStringLiteral("Ich bin mir noch nicht sicher")},
+    {QStringLiteral("I cannot donate"), QStringLiteral("Ich kann nicht spenden")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("Über die AGPL-Lizenz")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -253,6 +273,16 @@ static const QHash<QString, QString> kItalianTranslations = {
     {QStringLiteral("About &Qt"), QStringLiteral("Informazioni su &Qt")},
     {QStringLiteral("About &AGPL"), QStringLiteral("Informazioni su &AGPL")},
     {QStringLiteral("&Support Project"), QStringLiteral("Supporta il progetto")},
+    {QStringLiteral("Support AI File Sorter"), QStringLiteral("Sostieni AI File Sorter")},
+    {QStringLiteral("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you."),
+     QStringLiteral("Grazie per usare AI File Sorter! Hai già categorizzato %1 file. Io, l'autore, spero davvero che questa app ti sia stata utile.")},
+    {QStringLiteral("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+                    "If the app saves you time or brings value, please consider supporting it so it can keep improving."),
+     QStringLiteral("AI File Sorter richiede centinaia di ore di sviluppo, nuove funzionalità, risposte al supporto e costi continui come server e infrastrutture per modelli remoti. "
+                    "Se l'app ti fa risparmiare tempo o ti offre valore, considera di sostenerla affinché possa continuare a migliorare.")},
+    {QStringLiteral("Support"), QStringLiteral("Sostieni")},
+    {QStringLiteral("I'm not yet sure"), QStringLiteral("Non sono ancora sicuro")},
+    {QStringLiteral("I cannot donate"), QStringLiteral("Non posso donare")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("Informazioni sulla licenza AGPL")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -345,6 +375,16 @@ static const QHash<QString, QString> kSpanishTranslations = {
     {QStringLiteral("About &Qt"), QStringLiteral("Acerca de &Qt")},
     {QStringLiteral("About &AGPL"), QStringLiteral("Acerca de &AGPL")},
     {QStringLiteral("&Support Project"), QStringLiteral("Apoyar el proyecto")},
+    {QStringLiteral("Support AI File Sorter"), QStringLiteral("Apoya AI File Sorter")},
+    {QStringLiteral("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you."),
+     QStringLiteral("Gracias por usar AI File Sorter. Has categorizado %1 archivos hasta ahora. Yo, el autor, realmente espero que esta aplicación te haya sido útil.")},
+    {QStringLiteral("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+                    "If the app saves you time or brings value, please consider supporting it so it can keep improving."),
+     QStringLiteral("AI File Sorter requiere cientos de horas de desarrollo, trabajo en nuevas funciones, respuestas de soporte y costos continuos como servidores e infraestructura de modelos remotos. "
+                    "Si la aplicación te ahorra tiempo o te aporta valor, considera apoyarla para que pueda seguir mejorando.")},
+    {QStringLiteral("Support"), QStringLiteral("Apoyar")},
+    {QStringLiteral("I'm not yet sure"), QStringLiteral("Aún no estoy seguro")},
+    {QStringLiteral("I cannot donate"), QStringLiteral("No puedo donar")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("Acerca de la licencia AGPL")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -437,6 +477,16 @@ static const QHash<QString, QString> kTurkishTranslations = {
     {QStringLiteral("About &Qt"), QStringLiteral("&Qt hakkında")},
     {QStringLiteral("About &AGPL"), QStringLiteral("&AGPL hakkında")},
     {QStringLiteral("&Support Project"), QStringLiteral("Projeyi destekle")},
+    {QStringLiteral("Support AI File Sorter"), QStringLiteral("AI File Sorter'ı Destekle")},
+    {QStringLiteral("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you."),
+     QStringLiteral("AI File Sorter'ı kullandığınız için teşekkürler! Şimdiye kadar %1 dosyayı kategorilendirdiniz. Geliştirici olarak umarım bu uygulama sizin için faydalı olmuştur.")},
+    {QStringLiteral("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+                    "If the app saves you time or brings value, please consider supporting it so it can keep improving."),
+     QStringLiteral("AI File Sorter yüzlerce saatlik geliştirme, özellik çalışması, destek yanıtları ve sunucular ile uzaktaki modeller gibi devam eden maliyetler gerektirir. "
+                    "Uygulama size zaman kazandırıyor ya da değer sağlıyorsa, gelişmeye devam edebilmesi için lütfen desteklemeyi düşünün.")},
+    {QStringLiteral("Support"), QStringLiteral("Destekle")},
+    {QStringLiteral("I'm not yet sure"), QStringLiteral("Henüz emin değilim")},
+    {QStringLiteral("I cannot donate"), QStringLiteral("Bağış yapamıyorum")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("AGPL lisansı hakkında")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
