@@ -37,38 +37,56 @@ static void run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult re
     };
 
     REQUIRE(env.settings.get_total_categorized_files() == 0);
-    REQUIRE(env.settings.get_next_support_prompt_threshold() == 100);
+    REQUIRE(env.settings.get_next_support_prompt_threshold() == 200);
 
     MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 50, callback);
     CHECK(env.settings.get_total_categorized_files() == 50);
     CHECK(totals.empty());
 
-    MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 50, callback);
-    CHECK(env.settings.get_total_categorized_files() == 100);
+    MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 150, callback);
+    CHECK(env.settings.get_total_categorized_files() == 200);
     REQUIRE(totals.size() == 1);
-    CHECK(totals.front() == 100);
-    CHECK(env.settings.get_next_support_prompt_threshold() == 100 + expected_increment);
+    CHECK(totals.front() == 200);
+    CHECK(env.settings.get_next_support_prompt_threshold() == 200 + expected_increment);
 
     MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, expected_increment - 1, callback);
     CHECK(totals.size() == 1);
 
     MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 1, callback);
-    CHECK(env.settings.get_total_categorized_files() == 100 + expected_increment);
+    CHECK(env.settings.get_total_categorized_files() == 200 + expected_increment);
     REQUIRE(totals.size() == 2);
-    CHECK(totals.back() == 100 + expected_increment);
-    CHECK(env.settings.get_next_support_prompt_threshold() == 100 + expected_increment * 2);
+    CHECK(totals.back() == 200 + expected_increment);
+    CHECK(env.settings.get_next_support_prompt_threshold() == 200 + expected_increment * 2);
 }
 
 TEST_CASE("Support prompt thresholds advance based on response") {
-    SECTION("Not sure response prompts every 100 files") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::NotSure, 100);
+    SECTION("Not sure response prompts every 200 files") {
+        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::NotSure, 200);
     }
 
-    SECTION("Cannot donate defers prompt by 500 files") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::CannotDonate, 500);
+    SECTION("Cannot donate defers prompt by 750 files") {
+        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::CannotDonate, 750);
     }
 
-    SECTION("Support response also defers by 500 files") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::Support, 500);
+    SECTION("Support response also defers by 750 files") {
+        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::Support, 750);
     }
+}
+
+TEST_CASE("Zero categorized increments do not change totals or trigger prompts") {
+    TestEnvironment env;
+    bool callback_invoked = false;
+
+    MainAppTestAccess::simulate_support_prompt(
+        env.settings,
+        env.prompt_state,
+        0,
+        [&](int) {
+            callback_invoked = true;
+            return MainAppTestAccess::SimulatedSupportResult::NotSure;
+        });
+
+    CHECK(env.settings.get_total_categorized_files() == 0);
+    CHECK_FALSE(callback_invoked);
+    CHECK(env.settings.get_next_support_prompt_threshold() == 200);
 }

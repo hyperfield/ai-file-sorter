@@ -7,7 +7,8 @@ enum class LLMChoice {
     Unset,
     Remote,
     Local_3b,
-    Local_7b
+    Local_7b,
+    Custom
 };
 
 enum class FileType {File, Directory};
@@ -19,6 +20,8 @@ struct CategorizedFile {
     std::string category;
     std::string subcategory;
     int taxonomy_id{0};
+    bool from_cache{false};
+    bool used_consistency_hints{false};
 };
 
 inline std::string to_string(FileType type) {
@@ -34,6 +37,17 @@ struct FileEntry {
     std::string file_name;
     FileType type;
 };
+
+struct CustomLLM {
+    std::string id;
+    std::string name;
+    std::string description;
+    std::string path;
+};
+
+inline bool is_valid_custom_llm(const CustomLLM& entry) {
+    return !entry.id.empty() && !entry.name.empty() && !entry.path.empty();
+}
 
 enum class FileScanOptions {
     None        = 0,

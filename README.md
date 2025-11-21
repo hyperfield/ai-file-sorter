@@ -10,6 +10,7 @@
 <p align="center">
   <img src="images/platform-logos/logo-vulkan.png" alt="Vulkan" width="160">
   <img src="images/platform-logos/logo-cuda.png" alt="CUDA" width="160">
+  <img src="images/platform-logos/logo-metal.png" alt="Apple Metal" width="160">
   <img src="images/platform-logos/logo-windows.png" alt="Windows" width="160">
   <img src="images/platform-logos/logo-macos.png" alt="macOS" width="160">
   <img src="images/platform-logos/logo-linux.png" alt="Linux" width="160">
@@ -25,7 +26,7 @@ The app intelligently assigns categories and optional subcategories, which you c
 
 AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* and *Mistral 7B*, and does not require an internet connection unless you choose to use a remote model.
 
-File content–based sorting for certain file types is also in development.  
+File content–based sorting for certain file types is also in development.
 
 ---
 
@@ -46,14 +47,10 @@ File content–based sorting for certain file types is also in development.
 
 - [AI File Sorter](#ai-file-sorter)
   - [Changelog](#changelog)
-    - [[1.1.0] - 2025-11-08](#110---2025-11-08)
-    - [[1.0.0] - 2025-10-30](#100---2025-10-30)
-    - [[0.9.7] - 2025-10-19](#097---2025-10-19)
-    - [[0.9.3] - 2025-09-22](#093---2025-09-22)
-    - [[0.9.2] - 2025-08-06](#092---2025-08-06)
-    - [[0.9.1] - 2025-08-01](#091---2025-08-01)
-    - [[0.9.0] - 2025-07-18](#090---2025-07-18)
   - [Features](#features)
+  - [Categorization](#categorization)
+    - [Categorization modes](#categorization-modes)
+    - [Category whitelists](#category-whitelists)
   - [Requirements](#requirements)
   - [Installation](#installation)
     - [Linux](#linux)
@@ -72,55 +69,7 @@ File content–based sorting for certain file types is also in development.
 
 ## Changelog
 
-### [1.1.0] - 2025-11-08
-
-- New feature: Support for Vulkan. This means that many non-Nvidia graphics cards (GPUs) are now supported for compute acceleration during local LLM inference.
-- New feature: Toggle subcategories in the categorization review dialog.
-- New feature: Undo the recent file sort (move) action.
-- Fixes: Bug fixes and stability improvements.
-- Added a CTest-integrated test suite. Expanded test coverage.
-- Code optimization refactors.
-
-### [1.0.0] - 2025-10-30
-
-- Migrated the entire desktop UI from GTK/Glade to a native Qt6 interface.
-- Added selection boxes for files in the categorization review dialog.
-- Added internatioinalization framework and the French translation for the user interface.
-- Added refreshed menu icons, mnemonic behaviour, and persistent File Explorer settings.
-- Simplified cross-platform builds (Linux/macOS) around Qt6; retired the MSYS2/GTK toolchain.
-- Optimized and cleaned up the code. Fixed error-prone areas.
-- Modernized the build pipeline. Introduced CMake for compilation on Windows.
-
-### [0.9.7] - 2025-10-19
-
-- Added paths to files in LLM requests for more context.
-- Added taxonomy for more consistent assignment of categories across categorizations.
-  (Narrowing down the number of categories and subcategories).
-- Improved the readability of the categorization progress dialog box.
-- Improved the stability of CUDA detection and interaction.
-- Added more logging coverage throughout the code base.
-
-### [0.9.3] - 2025-09-22
-
-- Added compatibility with CUDA 13.
-
-### [0.9.2] - 2025-08-06
-
-- Bug fixes.
-- Increased code coverage with logging.
-
-### [0.9.1] - 2025-08-01
-
-- Bug fixes.
-- Minor improvements for stability.
-- Removed the deprecated GPU backend from the runtime build.
-
-### [0.9.0] - 2025-07-18
-
-- Local LLM support with `llama.cpp`.
-- LLM selection and download dialog.
-- Improved `Makefile` for a more hassle-free build and installation.
-- Minor bug fixes and improvements.
+See [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ---
 
@@ -136,6 +85,24 @@ File content–based sorting for certain file types is also in development.
 - **Sorting Preview**: See how files will be organized before confirming changes.
 - **Secure API Key Encryption**: When using the remote model, your API key is stored securely with encryption.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
+- **Category Whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window via **Use a whitelist** when you want to constrain model output for a session.
+
+---
+
+## Categorization
+
+### Categorization modes
+
+- **More refined**: The flexible, detail-oriented mode. Consistency hints are disabled so the model can pick the most specific category/subcategory it deems appropriate, which is useful for long-tail or mixed folders.
+- **More consistent**: The uniform mode. The model receives consistency hints from prior assignments in the current session so files with similar names/extensions trend toward the same categories. This is helpful when you want strict uniformity across a batch.
+- Switch between the two via the **Categorization type** radio buttons on the main window; your choice is saved for the next run.
+
+### Category whitelists
+
+- Enable **Use a whitelist** to inject the selected whitelist into the LLM prompt; disable it to let the model choose freely.
+- Manage lists (add, edit, remove) under **Settings → Manage category whitelists…**. A default list is auto-created only when no lists exist, and multiple named lists can be kept for different projects.
+- Keep each whitelist to roughly **15–20 categories/subcategories** to avoid overlong prompts on smaller local models. Use several narrower lists instead of a single very long one.
+- Whitelists apply in either categorization mode; pair them with **More consistent** when you want the strongest adherence to a constrained vocabulary.
 
 ---
 
@@ -325,8 +292,8 @@ Catch2-based unit tests are optional. Enable them via CMake:
 
 ```bash
 cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
-cmake --build build-tests
-ctest --test-dir build-tests
+cmake --build build-tests --target ai_file_sorter_tests
+ctest --test-dir build-tests --output-on-failure
 ```
 
 On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:

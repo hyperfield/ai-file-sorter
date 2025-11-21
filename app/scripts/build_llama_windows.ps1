@@ -21,15 +21,15 @@ if ($useCuda -eq "ON" -and $useVulkan -eq "ON") {
     throw "Cannot enable both CUDA and Vulkan simultaneously. Choose only one backend."
 }
 
-Write-Host "`nCUDA Support: $useCuda`n"
-Write-Host "Vulkan Support: $useVulkan`n"
+Write-Output "`nCUDA Support: $useCuda`n"
+Write-Output "Vulkan Support: $useVulkan`n"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $llamaDir = Join-Path $scriptDir "..\include\external\llama.cpp"
 
 if (-not (Test-Path $llamaDir)) {
-    Write-Host "Missing llama.cpp submodule. Please run:"
-    Write-Host "  git submodule update --init --recursive"
+    Write-Output "Missing llama.cpp submodule. Please run:"
+    Write-Output "  git submodule update --init --recursive"
     exit 1
 }
 
@@ -110,7 +110,7 @@ function Invoke-Vcpkg {
         throw "Cannot find vcpkg.exe under $vcpkgRoot. Please ensure vcpkg is installed there."
     }
     Push-Location $vcpkgRoot
-    Write-Host "Invoking vcpkg with arguments: $Subcommand $($PackageArgs -join ' ') (count=$($PackageArgs.Count))"
+    Write-Output "Invoking vcpkg with arguments: $Subcommand $($PackageArgs -join ' ') (count=$($PackageArgs.Count))"
     if ($PackageArgs.Count -eq 0) {
         & $vcpkgExe "--vcpkg-root" $vcpkgRoot $Subcommand
     } else {
@@ -151,9 +151,9 @@ function Confirm-VcpkgPackage {
     }
 
     if ($needsInstall) {
-        Write-Host "$PackageName not found. Installing via vcpkg ..."
+        Write-Output "$PackageName not found. Installing via vcpkg ..."
         $pkgSpec = "${PackageName}:$triplet"
-        Write-Host "Running: vcpkg install $pkgSpec"
+        Write-Output "Running: vcpkg install $pkgSpec"
         Invoke-Vcpkg -Subcommand "install" -PackageArgs @($pkgSpec)
     }
 

@@ -245,177 +245,215 @@ QString resolveExecutableName(const QString& baseDir) {
     return QDir(baseDir).filePath(candidates.front());
 }
 
-} // namespace
-
-int main(int argc, char* argv[]) {
-    QApplication app(argc, argv);
-    app.setQuitOnLastWindowClosed(false);
-
-    const QString exeDir = QCoreApplication::applicationDirPath();
-    QDir::setCurrent(exeDir);
-
-    const bool cudaRuntimeDetected = isCudaAvailable();
-    const bool hasNvidiaDriver = isNvidiaDriverAvailable();
-
-    if (hasNvidiaDriver && !cudaRuntimeDetected) {
-        if (promptCudaDownload()) {
-            return EXIT_SUCCESS;
-        }
-    }
-
-    const bool secureSearchEnabled = enableSecureDllSearch();
-    if (!secureSearchEnabled) {
-        qWarning() << "SetDefaultDllDirectories unavailable; relying on PATH order for DLL resolution.";
-    }
-
-    BackendOverride cudaOverride = BackendOverride::None;
-    BackendOverride vulkanOverride = BackendOverride::None;
+struct BackendOverrides {
+    BackendOverride cuda{BackendOverride::None};
+    BackendOverride vulkan{BackendOverride::None};
     QStringList observedArgs;
+};
+
+struct BackendAvailability {
+    bool hasNvidiaDriver{false};
+    bool cudaRuntimeDetected{false};
+    bool runtimeCompatible{false};
+    bool cudaAvailable{false};
+    bool vulkanAvailable{false};
+    bool cudaInitiallyAvailable{false};
+    bool vulkanInitiallyAvailable{false};
+    QString detectedCudaRuntime;
+};
+
+BackendOverrides parse_backend_overrides(int argc, char* argv[])
+{
+    BackendOverrides overrides;
     for (int i = 1; i < argc; ++i) {
         const QString arg = QString::fromLocal8Bit(argv[i]);
-        observedArgs << arg;
-        if (arg.startsWith("--cuda=")) {
-            cudaOverride = parseBackendOverride(arg.mid(7));
-        } else if (arg.startsWith("--vulkan=")) {
-            vulkanOverride = parseBackendOverride(arg.mid(9));
+        overrides.observedArgs << arg;
+        if (arg.startsWith(QStringLiteral("--cuda="))) {
+            overrides.cuda = parseBackendOverride(arg.mid(7));
+        } else if (arg.startsWith(QStringLiteral("--vulkan="))) {
+            overrides.vulkan = parseBackendOverride(arg.mid(9));
         }
     }
+    return overrides;
+}
 
-    if (!observedArgs.isEmpty()) {
-        const QString argLine = observedArgs.join(QLatin1Char(' '));
-        qInfo().noquote() << "Starter arguments:" << argLine;
+void log_observed_arguments(const QStringList& args)
+{
+    if (args.isEmpty()) {
+        return;
     }
+    qInfo().noquote() << "Starter arguments:" << args.join(QLatin1Char(' '));
+}
 
-    if (cudaOverride == BackendOverride::ForceOn && vulkanOverride == BackendOverride::ForceOn) {
-        QMessageBox::critical(nullptr, QObject::tr("Launch Error"), QObject::tr("Cannot enable both CUDA and Vulkan simultaneously."));
-        return EXIT_FAILURE;
+bool maybe_prompt_cuda_download(bool hasNvidiaDriver, bool cudaRuntimeDetected)
+{
+    if (hasNvidiaDriver && !cudaRuntimeDetected) {
+        return promptCudaDownload();
     }
+    return false;
+}
 
-    QString detectedCudaRuntime;
-    const bool runtimeCompatible = isRequiredCudaRuntimePresent(&detectedCudaRuntime);
-    if (hasNvidiaDriver && cudaRuntimeDetected && !runtimeCompatible) {
+bool validate_override_conflict(const BackendOverrides& overrides)
+{
+    if (overrides.cuda == BackendOverride::ForceOn &&
+        overrides.vulkan == BackendOverride::ForceOn) {
+        QMessageBox::critical(nullptr,
+                              QObject::tr("Launch Error"),
+                              QObject::tr("Cannot enable both CUDA and Vulkan simultaneously."));
+        return false;
+    }
+    return true;
+}
+
+BackendAvailability detect_backend_availability(const QString& exeDir,
+                                                bool hasNvidiaDriver,
+                                                bool cudaRuntimeDetected)
+{
+    BackendAvailability availability;
+    availability.hasNvidiaDriver = hasNvidiaDriver;
+    availability.cudaRuntimeDetected = cudaRuntimeDetected;
+    availability.runtimeCompatible = isRequiredCudaRuntimePresent(&availability.detectedCudaRuntime);
+    availability.cudaAvailable = availability.runtimeCompatible && hasNvidiaDriver;
+    availability.vulkanAvailable = isVulkanRuntimeAvailable(exeDir);
+    availability.cudaInitiallyAvailable = availability.cudaAvailable;
+    availability.vulkanInitiallyAvailable = availability.vulkanAvailable;
+    if (hasNvidiaDriver && cudaRuntimeDetected && !availability.runtimeCompatible) {
         qWarning().noquote()
-            << "Detected CUDA runtime" << detectedCudaRuntime
+            << "Detected CUDA runtime" << availability.detectedCudaRuntime
             << "but the bundled GGML build requires cudart64_13.dll. Falling back to alternate backend.";
     }
+    return availability;
+}
 
-    bool cudaAvailable = runtimeCompatible && hasNvidiaDriver;
-    bool vulkanAvailable = isVulkanRuntimeAvailable(exeDir);
-    const bool cudaInitiallyAvailable = cudaAvailable;
-    const bool vulkanInitiallyAvailable = vulkanAvailable;
-
-    const QString availabilityLine =
-        QStringLiteral("Runtime availability: CUDA=%1 Vulkan=%2")
-            .arg(cudaInitiallyAvailable ? QStringLiteral("yes") : QStringLiteral("no"))
-            .arg(vulkanInitiallyAvailable ? QStringLiteral("yes") : QStringLiteral("no"));
-    qInfo().noquote() << availabilityLine;
-
-    const bool cudaForcedOn = (cudaOverride == BackendOverride::ForceOn);
-    const bool cudaForcedOff = (cudaOverride == BackendOverride::ForceOff);
-    const bool vulkanForcedOn = (vulkanOverride == BackendOverride::ForceOn);
-    const bool vulkanForcedOff = (vulkanOverride == BackendOverride::ForceOff);
-
-    if (cudaForcedOff) {
-        cudaAvailable = false;
+void apply_override_flags(const BackendOverrides& overrides,
+                          BackendAvailability& availability)
+{
+    if (overrides.cuda == BackendOverride::ForceOff) {
+        availability.cudaAvailable = false;
         qInfo().noquote() << "CUDA manually disabled via --cuda=off.";
     }
-    if (vulkanForcedOff) {
-        vulkanAvailable = false;
+    if (overrides.vulkan == BackendOverride::ForceOff) {
+        availability.vulkanAvailable = false;
         qInfo().noquote() << "Vulkan manually disabled via --vulkan=off.";
     }
+}
 
+BackendSelection resolve_backend_selection(const BackendOverrides& overrides,
+                                           const BackendAvailability& availability)
+{
     BackendSelection selection = BackendSelection::Cpu;
-    bool selectionDecided = false;
-
-    if (vulkanForcedOn) {
-        if (vulkanAvailable) {
-            selection = BackendSelection::Vulkan;
-            selectionDecided = true;
-        } else {
-            qWarning().noquote() << "Vulkan forced but not detected; ignoring request.";
+    if (overrides.vulkan == BackendOverride::ForceOn) {
+        if (availability.vulkanAvailable) {
+            return BackendSelection::Vulkan;
         }
+        qWarning().noquote() << "Vulkan forced but not detected; ignoring request.";
     }
-
-    if (!selectionDecided && cudaForcedOn) {
-        if (cudaAvailable) {
-            selection = BackendSelection::Cuda;
-            selectionDecided = true;
-        } else {
-            qWarning().noquote() << "CUDA forced but not detected; ignoring request.";
+    if (overrides.cuda == BackendOverride::ForceOn) {
+        if (availability.cudaAvailable) {
+            return BackendSelection::Cuda;
         }
+        qWarning().noquote() << "CUDA forced but not detected; ignoring request.";
     }
-
-    if (!selectionDecided) {
-        if (vulkanAvailable) {
-            selection = BackendSelection::Vulkan;
-            selectionDecided = true;
-        } else if (cudaAvailable) {
-            selection = BackendSelection::Cuda;
-            selectionDecided = true;
-        }
+    if (availability.vulkanAvailable) {
+        return BackendSelection::Vulkan;
     }
-
-    const bool useCuda = (selection == BackendSelection::Cuda);
-    const bool useVulkan = (selection == BackendSelection::Vulkan);
-
-    if (!useCuda && !useVulkan) {
-        if (cudaForcedOff && vulkanForcedOff) {
-            qInfo().noquote() << "CUDA and Vulkan explicitly disabled; using CPU backend.";
-        } else if (vulkanInitiallyAvailable && !vulkanAvailable) {
-            qInfo().noquote() << "Vulkan runtime ignored due to override; using CPU backend.";
-        } else if (cudaInitiallyAvailable && !cudaAvailable) {
-            qInfo().noquote() << "CUDA runtime ignored due to override; using CPU backend.";
-        } else {
-            qInfo().noquote() << "No GPU runtime detected; using CPU backend.";
-        }
-    } else if (useVulkan) {
-        qInfo().noquote() << "Backend selection: Vulkan (priority order Vulkan → CUDA → CPU).";
-    } else if (useCuda) {
-        qInfo().noquote() << "Backend selection: CUDA (Vulkan unavailable).";
+    if (availability.cudaAvailable) {
+        return BackendSelection::Cuda;
     }
+    return selection;
+}
 
-    QString ggmlVariant;
-    if (useCuda) {
-        ggmlVariant = QStringLiteral("wcuda");
-        qInfo().noquote() << "Using CUDA backend.";
-    } else if (useVulkan) {
-        ggmlVariant = QStringLiteral("wvulkan");
-        qInfo().noquote() << "Using Vulkan backend.";
-    } else {
-        ggmlVariant = QStringLiteral("wocuda");
-        qInfo().noquote() << "Using CPU backend.";
+QString incompatible_runtime_message(const BackendAvailability& availability)
+{
+    if (availability.cudaRuntimeDetected && !availability.runtimeCompatible) {
+        return QStringLiteral("CUDA runtime ignored due to incompatibility; using CPU backend.");
     }
+    return QStringLiteral("No GPU runtime detected; using CPU backend.");
+}
 
-    const QStringList ggmlCandidates = candidateGgmlDirectories(exeDir, ggmlVariant);
+QString cpu_backend_message(const BackendAvailability& availability)
+{
+    if (!availability.cudaAvailable && !availability.vulkanAvailable) {
+        return incompatible_runtime_message(availability);
+    }
+    if (availability.cudaInitiallyAvailable && !availability.cudaAvailable) {
+        return QStringLiteral("CUDA runtime ignored due to override; using CPU backend.");
+    }
+    if (availability.vulkanInitiallyAvailable && !availability.vulkanAvailable) {
+        return QStringLiteral("Vulkan runtime ignored due to override; using CPU backend.");
+    }
+    return QStringLiteral("CUDA and Vulkan explicitly disabled; using CPU backend.");
+}
 
-    QString ggmlPath;
-    for (const QString& candidate : ggmlCandidates) {
+void log_runtime_availability(const BackendAvailability& availability,
+                              BackendSelection selection)
+{
+    const QString availabilityLine =
+        QStringLiteral("Runtime availability: CUDA=%1 Vulkan=%2")
+            .arg(availability.cudaInitiallyAvailable ? QStringLiteral("yes") : QStringLiteral("no"))
+            .arg(availability.vulkanInitiallyAvailable ? QStringLiteral("yes") : QStringLiteral("no"));
+    qInfo().noquote() << availabilityLine;
+
+    switch (selection) {
+        case BackendSelection::Vulkan:
+            qInfo().noquote() << "Backend selection: Vulkan (priority order Vulkan → CUDA → CPU).";
+            break;
+        case BackendSelection::Cuda:
+            qInfo().noquote() << "Backend selection: CUDA (Vulkan unavailable).";
+            break;
+        case BackendSelection::Cpu:
+        default:
+            qInfo().noquote() << cpu_backend_message(availability);
+            break;
+    }
+}
+
+QString ggml_variant_for_selection(BackendSelection selection)
+{
+    switch (selection) {
+        case BackendSelection::Cuda:
+            return QStringLiteral("wcuda");
+        case BackendSelection::Vulkan:
+            return QStringLiteral("wvulkan");
+        case BackendSelection::Cpu:
+        default:
+            return QStringLiteral("wocuda");
+    }
+}
+
+QString resolve_ggml_directory(const QString& exeDir, const QString& variant)
+{
+    const QStringList candidates = candidateGgmlDirectories(exeDir, variant);
+    for (const QString& candidate : candidates) {
         if (QDir(candidate).exists()) {
-            ggmlPath = candidate;
-            if (candidate != ggmlCandidates.front()) {
+            if (candidate != candidates.front()) {
                 qInfo().noquote() << "Primary GGML directory missing; using fallback"
                                   << QDir::toNativeSeparators(candidate);
             }
-            break;
+            return candidate;
         }
     }
 
-    if (ggmlPath.isEmpty()) {
-        QMessageBox::critical(
-            nullptr,
-            QObject::tr("Missing GGML Runtime"),
-            QObject::tr("Could not locate the backend runtime DLLs.\nTried:\n%1\n%2")
-                .arg(QDir::toNativeSeparators(ggmlCandidates.value(0)),
-                     QDir::toNativeSeparators(ggmlCandidates.value(1))));
-        return EXIT_FAILURE;
-    }
+    QMessageBox::critical(
+        nullptr,
+        QObject::tr("Missing GGML Runtime"),
+        QObject::tr("Could not locate the backend runtime DLLs.\nTried:\n%1\n%2")
+            .arg(QDir::toNativeSeparators(candidates.value(0)),
+                 QDir::toNativeSeparators(candidates.value(1))));
+    return QString();
+}
 
+void configure_runtime_paths(const QString& exeDir,
+                             const QString& ggmlPath,
+                             bool secureSearchEnabled,
+                             bool useCuda,
+                             bool useVulkan)
+{
     appendToProcessPath(ggmlPath);
     if (secureSearchEnabled) {
         addDllDirectoryChecked(ggmlPath);
     }
 
-    // Include other runtime directories so Qt/OpenSSL/etc can be found.
     QStringList additionalDllRoots;
     additionalDllRoots << QDir(exeDir).filePath(QStringLiteral("lib/precompiled/cpu/bin"));
     if (useCuda) {
@@ -435,28 +473,107 @@ int main(int argc, char* argv[]) {
             addDllDirectoryChecked(dir);
         }
     }
+}
 
+QStringList build_forwarded_args(int argc, char* argv[])
+{
     QStringList forwardedArgs;
     for (int i = 1; i < argc; ++i) {
         forwardedArgs.append(QString::fromLocal8Bit(argv[i]));
     }
     forwardedArgs.prepend(QStringLiteral("--allow-direct-launch"));
+    return forwardedArgs;
+}
 
-    const QString mainExecutable = resolveExecutableName(exeDir);
-    const bool disableCudaEnv = !useCuda;
-    const QString backendTag = useCuda ? QStringLiteral("cuda")
-                                       : (useVulkan ? QStringLiteral("vulkan") : QStringLiteral("cpu"));
-    const QString llamaDevice = useCuda ? QStringLiteral("cuda")
-                                        : (useVulkan ? QStringLiteral("vulkan") : QString());
-    if (!launchMainExecutable(mainExecutable, forwardedArgs, disableCudaEnv, backendTag, ggmlPath, llamaDevice)) {
+QString backend_tag_for_selection(BackendSelection selection)
+{
+    switch (selection) {
+        case BackendSelection::Cuda: return QStringLiteral("cuda");
+        case BackendSelection::Vulkan: return QStringLiteral("vulkan");
+        case BackendSelection::Cpu:
+        default: return QStringLiteral("cpu");
+    }
+}
+
+QString llama_device_for_selection(BackendSelection selection)
+{
+    switch (selection) {
+        case BackendSelection::Cuda: return QStringLiteral("cuda");
+        case BackendSelection::Vulkan: return QStringLiteral("vulkan");
+        case BackendSelection::Cpu:
+        default: return QString();
+    }
+}
+
+bool launch_main_process(const QString& mainExecutable,
+                         const QStringList& forwardedArgs,
+                         BackendSelection selection,
+                         const QString& ggmlPath)
+{
+    const bool disableCudaEnv = (selection != BackendSelection::Cuda);
+    const QString backendTag = backend_tag_for_selection(selection);
+    const QString llamaDevice = llama_device_for_selection(selection);
+    if (!launchMainExecutable(mainExecutable,
+                              forwardedArgs,
+                              disableCudaEnv,
+                              backendTag,
+                              ggmlPath,
+                              llamaDevice)) {
         QMessageBox::critical(nullptr,
             QObject::tr("Launch Failed"),
             QObject::tr("Failed to launch the main application executable:\n%1").arg(mainExecutable));
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
+int main(int argc, char* argv[]) {
+    QApplication app(argc, argv);
+    app.setQuitOnLastWindowClosed(false);
+
+    const QString exeDir = QCoreApplication::applicationDirPath();
+    QDir::setCurrent(exeDir);
+
+    const bool cudaRuntimeDetected = isCudaAvailable();
+    const bool hasNvidiaDriver = isNvidiaDriverAvailable();
+
+    if (maybe_prompt_cuda_download(hasNvidiaDriver, cudaRuntimeDetected)) {
+        return EXIT_SUCCESS;
+    }
+
+    const bool secureSearchEnabled = enableSecureDllSearch();
+    if (!secureSearchEnabled) {
+        qWarning() << "SetDefaultDllDirectories unavailable; relying on PATH order for DLL resolution.";
+    }
+
+    BackendOverrides overrides = parse_backend_overrides(argc, argv);
+    log_observed_arguments(overrides.observedArgs);
+    if (!validate_override_conflict(overrides)) {
+        return EXIT_FAILURE;
+    }
+
+    BackendAvailability availability = detect_backend_availability(exeDir, hasNvidiaDriver, cudaRuntimeDetected);
+    apply_override_flags(overrides, availability);
+    const BackendSelection selection = resolve_backend_selection(overrides, availability);
+    log_runtime_availability(availability, selection);
+
+    const QString ggmlVariant = ggml_variant_for_selection(selection);
+    const QString ggmlPath = resolve_ggml_directory(exeDir, ggmlVariant);
+    if (ggmlPath.isEmpty()) {
+        return EXIT_FAILURE;
+    }
+
+    const bool useCuda = (selection == BackendSelection::Cuda);
+    const bool useVulkan = (selection == BackendSelection::Vulkan);
+    configure_runtime_paths(exeDir, ggmlPath, secureSearchEnabled, useCuda, useVulkan);
+
+    const QString mainExecutable = resolveExecutableName(exeDir);
+    const QStringList forwardedArgs = build_forwarded_args(argc, argv);
+    if (!launch_main_process(mainExecutable, forwardedArgs, selection, ggmlPath)) {
         return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
 }
-
-
-

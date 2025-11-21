@@ -10,6 +10,8 @@
 #include "FileScanner.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
+#include "WhitelistStore.hpp"
+#include "UiTranslator.hpp"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -31,6 +33,9 @@
 
 class QAction;
 class QCheckBox;
+class QRadioButton;
+class QComboBox;
+class QLabel;
 class QDockWidget;
 class QFileSystemModel;
 class QLineEdit;
@@ -42,6 +47,7 @@ class QWidget;
 class QLabel;
 class QEvent;
 class MainAppUiBuilder;
+class WhitelistManagerDialog;
 
 struct CategorizedFile;
 struct FileEntry;
@@ -73,7 +79,20 @@ protected:
 
 private:
     void setup_file_explorer();
+    void create_file_explorer_dock();
+    void setup_file_system_model();
+    void setup_file_explorer_view();
+    void connect_file_explorer_signals();
+    void apply_file_explorer_preferences();
+    void restore_tree_settings();
+    void restore_sort_folder_state();
+    void restore_file_scan_options();
+    void restore_file_explorer_visibility();
+    void restore_development_preferences();
     void connect_signals();
+    void connect_folder_contents_signals();
+    void connect_checkbox_signals();
+    void connect_whitelist_signals();
     void connect_edit_actions();
     void start_updater();
     void set_app_icon();
@@ -83,13 +102,9 @@ private:
     void sync_settings_to_ui();
     void sync_ui_to_settings();
     void retranslate_ui();
-    void translate_window_title();
-    void translate_primary_controls();
-    void translate_tree_view_labels();
-    void translate_menus_and_actions();
-    void translate_status_messages();
-    void update_language_checks();
     void on_language_selected(Language language);
+    void on_category_language_selected(CategoryLanguage language);
+    void initialize_whitelists();
 
     void on_analyze_clicked();
     void on_directory_selected(const QString& path, bool user_initiated = false);
@@ -109,6 +124,11 @@ private:
     void stop_running_analysis();
     void show_llm_selection_dialog();
     void on_about_activate();
+    void append_progress(const std::string& message);
+    bool should_abort_analysis() const;
+    void prune_empty_cached_entries_for(const std::string& directory_path);
+    void log_cached_highlights();
+    void log_pending_queue();
     void run_consistency_pass();
     void handle_development_prompt_logging(bool checked);
     void record_categorized_metrics(int count);
@@ -119,6 +139,10 @@ private:
                                        const std::string& reason);
     void notify_recategorization_reset(const CategorizedFile& entry,
                                        const std::string& reason);
+    void set_categorization_style(bool use_consistency);
+    bool ensure_folder_categorization_style(const std::string& folder_path);
+    void show_whitelist_manager();
+    void apply_whitelist_to_selector();
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
@@ -143,6 +167,11 @@ private:
     QPointer<QPushButton> browse_button;
     QPointer<QLabel> path_label;
     QPointer<QCheckBox> use_subcategories_checkbox;
+    QPointer<QLabel> categorization_style_heading;
+    QPointer<QRadioButton> categorization_style_refined_radio;
+    QPointer<QRadioButton> categorization_style_consistent_radio;
+    QPointer<QCheckBox> use_whitelist_checkbox;
+    QPointer<QComboBox> whitelist_selector;
     QPointer<QCheckBox> categorize_files_checkbox;
     QPointer<QCheckBox> categorize_directories_checkbox;
     QPointer<QTreeView> tree_view;
@@ -164,6 +193,7 @@ private:
     QMenu* development_menu{nullptr};
     QMenu* development_settings_menu{nullptr};
     QMenu* language_menu{nullptr};
+    QMenu* category_language_menu{nullptr};
     QMenu* help_menu{nullptr};
     QAction* file_quit_action{nullptr};
     QAction* copy_action{nullptr};
@@ -172,11 +202,26 @@ private:
     QAction* delete_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
+    QAction* manage_whitelists_action{nullptr};
     QAction* development_prompt_logging_action{nullptr};
     QAction* consistency_pass_action{nullptr};
     QActionGroup* language_group{nullptr};
     QAction* english_action{nullptr};
     QAction* french_action{nullptr};
+    QAction* german_action{nullptr};
+    QAction* italian_action{nullptr};
+    QAction* spanish_action{nullptr};
+    QAction* turkish_action{nullptr};
+    QActionGroup* category_language_group{nullptr};
+    QAction* category_language_dutch{nullptr};
+    QAction* category_language_english{nullptr};
+    QAction* category_language_french{nullptr};
+    QAction* category_language_german{nullptr};
+    QAction* category_language_italian{nullptr};
+    QAction* category_language_polish{nullptr};
+    QAction* category_language_portuguese{nullptr};
+    QAction* category_language_spanish{nullptr};
+    QAction* category_language_turkish{nullptr};
     QAction* about_action{nullptr};
     QAction* about_qt_action{nullptr};
     QAction* about_agpl_action{nullptr};
@@ -187,6 +232,8 @@ private:
 
     std::shared_ptr<spdlog::logger> core_logger;
     std::shared_ptr<spdlog::logger> ui_logger;
+    WhitelistStore whitelist_store;
+    std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
     ResultsCoordinator results_coordinator;
@@ -201,9 +248,11 @@ private:
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
     bool donation_prompt_active_{false};
-    int pending_categorized_count_{0};
     bool should_log_prompts() const;
     void apply_development_logging();
+
+    std::unique_ptr<UiTranslator> ui_translator_;
 };
 
 #endif // MAINAPP_HPP
+class WhitelistManagerDialog;

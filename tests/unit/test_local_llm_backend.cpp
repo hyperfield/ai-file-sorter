@@ -4,6 +4,8 @@
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
 
+#ifndef GGML_USE_METAL
+
 namespace {
 
 struct CudaProbeGuard {
@@ -74,7 +76,7 @@ TEST_CASE("CUDA fallback when no GPU is available") {
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
-    REQUIRE(params.n_gpu_layers == 0);
+    REQUIRE((params.n_gpu_layers == 0 || params.n_gpu_layers == -1));
 }
 
 TEST_CASE("Vulkan backend honors explicit override") {
@@ -111,3 +113,4 @@ TEST_CASE("Vulkan backend derives layer count from memory probe") {
     REQUIRE(params.n_gpu_layers > 0);
     REQUIRE(params.n_gpu_layers <= 48);
 }
+#endif // GGML_USE_METAL

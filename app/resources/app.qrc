@@ -7,4 +7,11 @@
     <file>.env</file>
     <file>certs/cacert.pem</file>
   </qresource>
+  <qresource prefix="/i18n">
+    <file>i18n/aifilesorter_fr.qm</file>
+    <file>i18n/aifilesorter_de.qm</file>
+    <file>i18n/aifilesorter_it.qm</file>
+    <file>i18n/aifilesorter_es.qm</file>
+    <file>i18n/aifilesorter_tr.qm</file>
+  </qresource>
 </RCC>

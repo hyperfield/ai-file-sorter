@@ -14,6 +14,15 @@
 
 #include <iostream>
 #include <sstream>
+#include <string>
+
+// Helper function to write the response from curl into a string
+static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *response)
+{
+    size_t totalSize = size * nmemb;
+    response->append(static_cast<const char*>(contents), totalSize);
+    return totalSize;
+}
 
 namespace {
 std::string escape_json(const std::string& input) {
@@ -32,15 +41,142 @@ std::string escape_json(const std::string& input) {
     }
     return out;
 }
+
+struct CurlRequest {
+    CURL* handle{nullptr};
+    curl_slist* headers{nullptr};
+
+    CurlRequest() = default;
+    CurlRequest(const CurlRequest&) = delete;
+    CurlRequest& operator=(const CurlRequest&) = delete;
+
+    CurlRequest(CurlRequest&& other) noexcept
+        : handle(other.handle),
+          headers(other.headers)
+    {
+        other.handle = nullptr;
+        other.headers = nullptr;
+    }
+
+    CurlRequest& operator=(CurlRequest&& other) noexcept
+    {
+        if (this != &other) {
+            cleanup();
+            handle = other.handle;
+            headers = other.headers;
+            other.handle = nullptr;
+            other.headers = nullptr;
+        }
+        return *this;
+    }
+
+    ~CurlRequest() {
+        cleanup();
+    }
+
+private:
+    void cleanup()
+    {
+        if (handle) {
+            curl_easy_cleanup(handle);
+            handle = nullptr;
+        }
+        if (headers) {
+            curl_slist_free_all(headers);
+            headers = nullptr;
+        }
+    }
+};
+
+CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
+{
+    CurlRequest request;
+    request.handle = curl_easy_init();
+    if (!request.handle) {
+        if (logger) {
+            logger->critical("Failed to initialize cURL handle for remote request");
+        }
+        throw std::runtime_error("Initialization Error: Failed to initialize cURL.");
+    }
+
+#ifdef _WIN32
+    try {
+        const auto cert_path = Utils::ensure_ca_bundle();
+        curl_easy_setopt(request.handle, CURLOPT_CAINFO, cert_path.string().c_str());
+    } catch (const std::exception& ex) {
+        throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
+    }
+#endif
+    return request;
 }
 
-
-// Helper function to write the response from curl into a string
-static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *response)
+void configure_request_payload(CurlRequest& request,
+                               const std::string& api_url,
+                               const std::string& payload,
+                               const std::string& api_key,
+                               std::string& response_buffer)
 {
-    size_t totalSize = size * nmemb;
-    response->append(static_cast<const char*>(contents), totalSize);
-    return totalSize;
+    curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
+    curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
+    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 5L);
+
+    request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
+    const std::string auth = "Authorization: Bearer " + api_key;
+    request.headers = curl_slist_append(request.headers, auth.c_str());
+    curl_easy_setopt(request.handle, CURLOPT_HTTPHEADER, request.headers);
+
+    curl_easy_setopt(request.handle, CURLOPT_POSTFIELDS, payload.c_str());
+    curl_easy_setopt(request.handle, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(request.handle, CURLOPT_WRITEDATA, &response_buffer);
+}
+
+long perform_request(CurlRequest& request, const std::shared_ptr<spdlog::logger>& logger)
+{
+    const CURLcode res = curl_easy_perform(request.handle);
+    if (res != CURLE_OK) {
+        if (logger) {
+            logger->error("cURL request failed: {}", curl_easy_strerror(res));
+        }
+        throw std::runtime_error("Network Error: " + std::string(curl_easy_strerror(res)));
+    }
+
+    long http_code = 0;
+    curl_easy_getinfo(request.handle, CURLINFO_RESPONSE_CODE, &http_code);
+    return http_code;
+}
+
+std::string parse_category_response(const std::string& payload,
+                                    long http_code,
+                                    const std::shared_ptr<spdlog::logger>& logger)
+{
+    Json::CharReaderBuilder reader_builder;
+    Json::Value root;
+    std::istringstream response_stream(payload);
+    std::string errors;
+
+    if (!Json::parseFromStream(reader_builder, response_stream, &root, &errors)) {
+        if (logger) {
+            logger->error("Failed to parse JSON response: {}", errors);
+        }
+        throw std::runtime_error("Response Error: Failed to parse JSON response. " + errors);
+    }
+
+    if (http_code == 401) {
+        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
+    }
+    if (http_code == 403) {
+        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
+    }
+    if (http_code >= 500) {
+        throw std::runtime_error("Server Error: OpenAI server returned an error. Status code: " + std::to_string(http_code));
+    }
+    if (http_code >= 400) {
+        const std::string error_message = root["error"]["message"].asString();
+        throw std::runtime_error("Client Error: " + error_message);
+    }
+
+    return root["choices"][0]["message"]["content"].asString();
+}
 }
 
 
@@ -58,85 +194,19 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 
 std::string LLMClient::send_api_request(std::string json_payload) {
-    CURL *curl;
-    CURLcode res;
     std::string response_string;
-    std::string api_url = "https://api.openai.com/v1/chat/completions";
+    const std::string api_url = "https://api.openai.com/v1/chat/completions";
     auto logger = Logger::get_logger("core_logger");
 
     if (logger) {
         logger->debug("Dispatching remote LLM request to {}", api_url);
     }
 
-    curl = curl_easy_init();
-    if (!curl) {
-        if (logger) {
-            logger->critical("Failed to initialize cURL handle for remote request");
-        }
-        throw std::runtime_error("Initialization Error: Failed to initialize cURL.");
-    }
+    CurlRequest request = create_curl_request(logger);
+    configure_request_payload(request, api_url, json_payload, api_key, response_string);
 
-    #ifdef _WIN32
-        try {
-            const auto cert_path = Utils::ensure_ca_bundle();
-            curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-        } catch (const std::exception& ex) {
-            curl_easy_cleanup(curl);
-            throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
-        }
-    #endif
-    curl_easy_setopt(curl, CURLOPT_URL, api_url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
-    struct curl_slist *headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = curl_slist_append(headers, ("Authorization: Bearer " + api_key).c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_payload.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_string);
-
-    res = curl_easy_perform(curl);
-
-    if (res != CURLE_OK) {
-        curl_easy_cleanup(curl);
-        curl_slist_free_all(headers);
-        if (logger) {
-            logger->error("cURL request failed: {}", curl_easy_strerror(res));
-        }
-        throw std::runtime_error("Network Error: " + std::string(curl_easy_strerror(res)));
-    }
-
-    long http_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    curl_easy_cleanup(curl);
-    curl_slist_free_all(headers);
-
-    Json::CharReaderBuilder reader_builder;
-    Json::Value root;
-    std::istringstream response_stream(response_string);
-    std::string errors;
-    
-    if (!Json::parseFromStream(reader_builder, response_stream, &root, &errors)) {
-        if (logger) {
-            logger->error("Failed to parse JSON response: {}", errors);
-        }
-        throw std::runtime_error("Response Error: Failed to parse JSON response. " + errors);
-    }
-
-    if (http_code == 401) {
-        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
-    } else if (http_code == 403) {
-        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
-    } else if (http_code >= 500) {
-        throw std::runtime_error("Server Error: OpenAI server returned an error. Status code: " + std::to_string(http_code));
-    } else if (http_code >= 400) {
-        std::string error_message = root["error"]["message"].asString();
-        throw std::runtime_error("Client Error: " + error_message);
-    }
-
-    std::string category = root["choices"][0]["message"]["content"].asString();
-    return category;
+    const long http_code = perform_request(request, logger);
+    return parse_category_response(response_string, http_code, logger);
 }
 
 

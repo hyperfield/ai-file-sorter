@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1" language="it_IT">
+<context>
+    <name>QObject</name>
+    <message><source>Analyze folder</source><translation>Analizza cartella</translation></message>
+    <message><source>Stop analyzing</source><translation>Interrompi analisi</translation></message>
+    <message><source>Use subcategories</source><translation>Usa sottocategorie</translation></message>
+    <message><source>Categorization type</source><translation>Tipo di categorizzazione</translation></message>
+    <message><source>More refined</source><translation>Più dettagliata</translation></message>
+    <message><source>More consistent</source><translation>Più coerente</translation></message>
+    <message><source>Use a whitelist</source><translation>Usa whitelist</translation></message>
+    <message><source>Recategorize folder?</source><translation>Ricategorizzare la cartella?</translation></message>
+    <message><source>This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?</source><translation>Questa cartella è stata categorizzata in modalità %1. Vuoi ricategorizzarla ora in modalità %2?</translation></message>
+    <message><source>Recategorize</source><translation>Ricategorizza</translation></message>
+    <message><source>Keep existing</source><translation>Mantieni</translation></message>
+    <message><source>Failed to reset cached categorization for this folder.</source><translation>Impossibile ripristinare la categorizzazione memorizzata per questa cartella.</translation></message>
+    <message><source>Categorize files</source><translation>Categorizza i file</translation></message>
+    <message><source>Categorize directories</source><translation>Categorizza le cartelle</translation></message>
+    <message><source>Ready</source><translation>Pronto</translation></message>
+    <message><source>Set folder to %1</source><translation>Cartella impostata su %1</translation></message>
+    <message><source>Loaded folder %1</source><translation>Cartella %1 caricata</translation></message>
+    <message><source>Analysis cancelled</source><translation>Analisi annullata</translation></message>
+    <message><source>Folder selected: %1</source><translation>Cartella selezionata: %1</translation></message>
+    <message><source>Analyzing…</source><translation>Analisi in corso…</translation></message>
+    <message><source>Cancelling analysis…</source><translation>Annullamento analisi…</translation></message>
+    <message><source>Folder:</source><translation>Cartella:</translation></message>
+    <message><source>Browse…</source><translation>Sfoglia…</translation></message>
+    <message><source>File</source><translation>File</translation></message>
+    <message><source>Type</source><translation>Tipo</translation></message>
+    <message><source>Category</source><translation>Categoria</translation></message>
+    <message><source>Subcategory</source><translation>Sottocategoria</translation></message>
+    <message><source>Status</source><translation>Stato</translation></message>
+    <message><source>Select Directory</source><translation>Seleziona cartella</translation></message>
+    <message><source>Directory</source><translation>Cartella</translation></message>
+    <message><source>&amp;File</source><translation>&amp;File</translation></message>
+    <message><source>&amp;Quit</source><translation>&amp;Esci</translation></message>
+    <message><source>&amp;Edit</source><translation>&amp;Modifica</translation></message>
+    <message><source>&amp;Copy</source><translation>&amp;Copia</translation></message>
+    <message><source>Cu&amp;t</source><translation>&amp;Taglia</translation></message>
+    <message><source>&amp;Paste</source><translation>&amp;Incolla</translation></message>
+    <message><source>&amp;Delete</source><translation>&amp;Elimina</translation></message>
+    <message><source>&amp;View</source><translation>&amp;Visualizza</translation></message>
+    <message><source>File &amp;Explorer</source><translation>Esplora file</translation></message>
+    <message><source>File Explorer</source><translation>Esplora file</translation></message>
+    <message><source>&amp;Settings</source><translation>&amp;Impostazioni</translation></message>
+    <message><source>Select &amp;LLM…</source><translation>Seleziona &amp;LLM…</translation></message>
+    <message><source>Manage category whitelists…</source><translation>Gestisci whitelist categorie…</translation></message>
+    <message><source>&amp;Development</source><translation>&amp;Sviluppo</translation></message>
+    <message><source>Log prompts and responses to stdout</source><translation>Registra prompt e risposte su stdout</translation></message>
+    <message><source>Run &amp;consistency pass</source><translation>Esegui controllo di &amp;coerenza</translation></message>
+    <message><source>Interface &amp;language</source><translation>Lingua dell'&amp;interfaccia</translation></message>
+    <message><source>&amp;English</source><translation>&amp;Inglese</translation></message>
+    <message><source>&amp;French</source><translation>&amp;Francese</translation></message>
+    <message><source>&amp;German</source><translation>&amp;Tedesco</translation></message>
+    <message><source>&amp;Italian</source><translation>&amp;Italiano</translation></message>
+    <message><source>&amp;Spanish</source><translation>&amp;Spagnolo</translation></message>
+    <message><source>&amp;Turkish</source><translation>&amp;Turco</translation></message>
+    <message><source>&amp;Help</source><translation>&amp;Aiuto</translation></message>
+    <message><source>&amp;About</source><translation>Informazioni</translation></message>
+    <message><source>&amp;About AI File Sorter</source><translation>Informazioni su AI File Sorter</translation></message>
+    <message><source>About &amp;Qt</source><translation>Informazioni su &amp;Qt</translation></message>
+    <message><source>About &amp;AGPL</source><translation>Informazioni su &amp;AGPL</translation></message>
+    <message><source>&amp;Support Project</source><translation>Supporta il progetto</translation></message>
+    <message><source>About the AGPL License</source><translation>Informazioni sulla licenza AGPL</translation></message>
+    <message><source>AI File Sorter is distributed under the GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;You can access the full source code at &lt;a href=&quot;https://github.com/hyperfield/ai-file-sorter&quot;&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;A full copy of the license is provided with this application and available online at &lt;a href=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;&gt;gnu.org&lt;/a&gt;.</source><translation>AI File Sorter è distribuito sotto la GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;Puoi accedere al codice sorgente completo su &lt;a href=&quot;https://github.com/hyperfield/ai-file-sorter&quot;&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;Una copia completa della licenza è fornita con l'applicazione ed è disponibile online su &lt;a href=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;&gt;gnu.org&lt;/a&gt;.</translation></message>
+    <message><source>Review Categorization</source><translation>Rivedi categorizzazione</translation></message>
+    <message><source>Select all</source><translation>Seleziona tutto</translation></message>
+    <message><source>Move</source><translation>Sposta</translation></message>
+    <message><source>Confirm and Sort</source><translation>Conferma e ordina</translation></message>
+    <message><source>Continue Later</source><translation>Continua più tardi</translation></message>
+    <message><source>Close</source><translation>Chiudi</translation></message>
+    <message><source>Not selected</source><translation>Non selezionato</translation></message>
+    <message><source>Moved</source><translation>Spostato</translation></message>
+    <message><source>Skipped</source><translation>Saltato</translation></message>
+    <message><source>Analyzing Files</source><translation>Analisi dei file</translation></message>
+    <message><source>Stop Analysis</source><translation>Interrompi analisi</translation></message>
+    <message><source>Download complete.</source><translation>Download completato.</translation></message>
+    <message><source>Download cancelled.</source><translation>Download annullato.</translation></message>
+    <message><source>Download error: %1</source><translation>Errore di download: %1</translation></message>
+</context>
+</TS>

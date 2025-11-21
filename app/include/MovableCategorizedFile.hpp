@@ -13,10 +13,9 @@ public:
 
     MovableCategorizedFile();
     MovableCategorizedFile(const std::string& dir_path,
-                    const std::string& cat,
-                    const std::string& subcat,
-                    const std::string& file_name,
-                    const std::string& file_type);
+                           const std::string& cat,
+                           const std::string& subcat,
+                           const std::string& file_name);
     ~MovableCategorizedFile();
     void create_cat_dirs(bool use_subcategory);
     bool move_file(bool use_subcategory);
@@ -29,7 +28,6 @@ public:
     std::string get_dir_path() const;
     std::string get_category() const;
     std::string get_subcategory() const;
-    std::string get_file_type() const; // TODO
     void set_category(std::string& category);
     void set_subcategory(std::string& subcategory);
 
@@ -46,7 +44,6 @@ private:
                       const std::filesystem::path& destination_path) const;
 
     std::string file_name;
-    std::string file_type;
     std::string dir_path;
     std::string category;
     std::string subcategory;

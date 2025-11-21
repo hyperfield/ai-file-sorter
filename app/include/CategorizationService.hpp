@@ -6,10 +6,12 @@
 
 #include <atomic>
 #include <deque>
+#include <future>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -60,8 +62,28 @@ private:
         const FileEntry& entry,
         std::atomic<bool>& stop_flag,
         const ProgressCallback& progress_callback,
-        const RecategorizationCallback& recategorization_callback,
-        SessionHistoryMap& session_history) const;
+    const RecategorizationCallback& recategorization_callback,
+    SessionHistoryMap& session_history) const;
+
+    std::string build_combined_context(const std::string& hint_block) const;
+    DatabaseManager::ResolvedCategory run_categorization_with_cache(
+        ILLMClient& llm,
+        bool is_local_llm,
+        const FileEntry& entry,
+        const ProgressCallback& progress_callback,
+        const std::string& combined_context) const;
+    std::optional<CategorizedFile> handle_empty_result(
+        const FileEntry& entry,
+        const std::string& dir_path,
+        const DatabaseManager::ResolvedCategory& resolved,
+        bool used_consistency_hints,
+        bool is_local_llm,
+        const RecategorizationCallback& recategorization_callback) const;
+    void update_storage_with_result(const FileEntry& entry,
+                                    const std::string& dir_path,
+                                    const DatabaseManager::ResolvedCategory& resolved,
+                                    bool used_consistency_hints,
+                                    SessionHistoryMap& session_history) const;
 
     std::string run_llm_with_timeout(
         ILLMClient& llm,
@@ -70,6 +92,15 @@ private:
         FileType file_type,
         bool is_local_llm,
         const std::string& consistency_context) const;
+    int resolve_llm_timeout(bool is_local_llm) const;
+    std::future<std::string> start_llm_future(ILLMClient& llm,
+                                              const std::string& item_name,
+                                              const std::string& item_path,
+                                              FileType file_type,
+                                              const std::string& consistency_context) const;
+
+    std::string build_whitelist_context() const;
+    std::string build_category_language_context() const;
 
     std::vector<CategoryPair> collect_consistency_hints(
         const std::string& signature,
@@ -77,11 +108,40 @@ private:
         const std::string& extension,
         FileType file_type) const;
 
+    std::optional<DatabaseManager::ResolvedCategory> try_cached_categorization(
+        const std::string& item_name,
+        const std::string& item_path,
+        FileType file_type,
+        const ProgressCallback& progress_callback) const;
+
+    bool ensure_remote_credentials_for_request(
+        const std::string& item_name,
+        const ProgressCallback& progress_callback) const;
+
+    DatabaseManager::ResolvedCategory categorize_via_llm(
+        ILLMClient& llm,
+        bool is_local_llm,
+        const std::string& item_name,
+        const std::string& item_path,
+        FileType file_type,
+        const ProgressCallback& progress_callback,
+        const std::string& consistency_context) const;
+
+    void emit_progress_message(const ProgressCallback& progress_callback,
+                               std::string_view source,
+                               const std::string& item_name,
+                               const DatabaseManager::ResolvedCategory& resolved,
+                               const std::string& item_path) const;
+
     static std::string make_file_signature(FileType file_type, const std::string& extension);
     static std::string extract_extension(const std::string& file_name);
     static bool append_unique_hint(std::vector<CategoryPair>& target, const CategoryPair& candidate);
     static void record_session_assignment(HintHistory& history, const CategoryPair& assignment);
     std::string format_hint_block(const std::vector<CategoryPair>& hints) const;
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend class CategorizationServiceTestAccess;
+#endif
 
     Settings& settings;
     DatabaseManager& db_manager;

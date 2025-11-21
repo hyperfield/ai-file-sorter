@@ -6,6 +6,7 @@
 #include <map>
 #include <vector>
 #include <unordered_map>
+#include <optional>
 #include <sqlite3.h>
 
 class DatabaseManager {
@@ -26,7 +27,8 @@ public:
     bool insert_or_update_file_with_categorization(const std::string& file_name,
                                                    const std::string& file_type,
                                                    const std::string& dir_path,
-                                                   const ResolvedCategory& resolved);
+                                                   const ResolvedCategory& resolved,
+                                                   bool used_consistency_hints);
     std::vector<std::string> get_dir_contents_from_db(const std::string &dir_path);
     bool remove_file_categorization(const std::string& dir_path,
                                     const std::string& file_name,
@@ -44,6 +46,8 @@ public:
         get_recent_categories_for_extension(const std::string& extension,
                                             FileType file_type,
                                             std::size_t limit) const;
+    bool clear_directory_categorizations(const std::string& dir_path);
+    std::optional<bool> get_directory_categorization_style(const std::string& dir_path) const;
 
 private:
     struct TaxonomyEntry {
@@ -94,6 +98,16 @@ private:
     std::unordered_map<std::string, int> canonical_lookup;
     std::unordered_map<std::string, int> alias_lookup;
     std::unordered_map<int, size_t> taxonomy_index;
+
+    static bool is_duplicate_category(
+        const std::vector<std::pair<std::string, std::string>>& results,
+        const std::pair<std::string, std::string>& candidate);
+    std::optional<std::pair<std::string, std::string>> build_recent_category_candidate(
+        const char* file_name_text,
+        const char* category_text,
+        const char* subcategory_text,
+        const std::string& normalized_extension,
+        bool has_extension) const;
 };
 
 #endif

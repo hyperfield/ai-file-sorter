@@ -75,8 +75,8 @@ vcpkg_installed/
 
 # Cache directories
 .cache/
-.ccache*
-.codacy
+.ccache*/
+.codacy/
 
 # Built Visual Studio Code Extensions
 *.vsix
@@ -107,6 +107,8 @@ app/include/llama/*.h
 /tools/
 /reports/
 /logo-workdir-temp/
+/Testing/
+/changelog/
 
 # Build artifacts
 

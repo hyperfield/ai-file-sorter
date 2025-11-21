@@ -3,7 +3,9 @@
 #include "MainApp.hpp"
 #include "MainAppEditActions.hpp"
 #include "MainAppHelpActions.hpp"
+#include "UiTranslator.hpp"
 #include "Language.hpp"
+#include "CategoryLanguage.hpp"
 
 #include <QAction>
 #include <QActionGroup>
@@ -17,6 +19,8 @@
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QComboBox>
+#include <QFontMetrics>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -25,6 +29,8 @@
 #include <QMessageBox>
 #include <QObject>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QSlider>
 #include <QPainter>
 #include <QSize>
 #include <QSizePolicy>
@@ -71,6 +77,17 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     options_layout->addStretch(1);
     main_layout->addLayout(options_layout);
 
+    app.categorization_style_heading = new QLabel(central);
+    app.categorization_style_refined_radio = new QRadioButton(central);
+    app.categorization_style_consistent_radio = new QRadioButton(central);
+    app.use_whitelist_checkbox = new QCheckBox(central);
+    app.whitelist_selector = new QComboBox(central);
+    app.whitelist_selector->setEnabled(false);
+    app.whitelist_selector->setMinimumContentsLength(16);
+    app.whitelist_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    QFontMetrics fm(app.whitelist_selector->font());
+    app.whitelist_selector->setMinimumWidth(fm.horizontalAdvance(QString(16, QChar('W'))) + 5);
+
     app.analyze_button = new QPushButton(central);
     QIcon analyze_icon = QIcon::fromTheme(QStringLiteral("sparkle"));
     if (analyze_icon.isNull()) {
@@ -84,9 +101,27 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.analyze_button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
     app.analyze_button->setMinimumWidth(160);
     auto* analyze_layout = new QHBoxLayout();
-    analyze_layout->addStretch();
-    analyze_layout->addWidget(app.analyze_button);
-    analyze_layout->addStretch();
+    auto* categorization_layout = new QVBoxLayout();
+    auto* toggle_row = new QHBoxLayout();
+    toggle_row->addWidget(app.categorization_style_refined_radio);
+    toggle_row->addWidget(app.categorization_style_consistent_radio);
+    toggle_row->addStretch();
+    categorization_layout->addWidget(app.categorization_style_heading);
+    categorization_layout->addLayout(toggle_row);
+
+    auto* whitelist_row = new QHBoxLayout();
+    whitelist_row->addWidget(app.use_whitelist_checkbox);
+    whitelist_row->addWidget(app.whitelist_selector);
+    whitelist_row->addStretch();
+
+    auto* control_block = new QVBoxLayout();
+    control_block->addLayout(categorization_layout);
+    control_block->addSpacing(4);
+    control_block->addLayout(whitelist_row);
+
+    analyze_layout->addLayout(control_block);
+    analyze_layout->addSpacing(12);
+    analyze_layout->addWidget(app.analyze_button, 0, Qt::AlignBottom | Qt::AlignRight);
     main_layout->addLayout(analyze_layout);
 
     app.tree_model = new QStandardItemModel(0, 5, &app);
@@ -121,6 +156,89 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->addWidget(app.results_stack, 1);
 
     app.setCentralWidget(central);
+}
+
+UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainApp& app) const
+{
+    return UiTranslator::Dependencies{
+        .window = app,
+        .primary = UiTranslator::PrimaryControls{
+            app.path_label,
+            app.browse_button,
+            app.analyze_button,
+            app.use_subcategories_checkbox,
+            app.categorization_style_heading,
+            app.categorization_style_refined_radio,
+            app.categorization_style_consistent_radio,
+            app.use_whitelist_checkbox,
+            app.whitelist_selector,
+            app.categorize_files_checkbox,
+            app.categorize_directories_checkbox},
+        .tree_model = app.tree_model,
+        .menus = UiTranslator::MenuControls{
+            app.file_menu,
+            app.edit_menu,
+            app.view_menu,
+            app.settings_menu,
+            app.development_menu,
+            app.development_settings_menu,
+            app.language_menu,
+            app.category_language_menu,
+            app.help_menu},
+        .actions = UiTranslator::ActionControls{
+            app.file_quit_action,
+            app.copy_action,
+            app.cut_action,
+            app.paste_action,
+            app.delete_action,
+            app.toggle_explorer_action,
+            app.toggle_llm_action,
+            app.manage_whitelists_action,
+            app.development_prompt_logging_action,
+            app.consistency_pass_action,
+            app.english_action,
+            app.french_action,
+            app.german_action,
+            app.italian_action,
+            app.spanish_action,
+            app.turkish_action,
+            app.category_language_english,
+            app.category_language_french,
+            app.category_language_german,
+            app.category_language_italian,
+            app.category_language_dutch,
+            app.category_language_polish,
+            app.category_language_portuguese,
+            app.category_language_spanish,
+            app.category_language_turkish,
+            app.about_action,
+            app.about_qt_action,
+            app.about_agpl_action,
+            app.support_project_action},
+        .language = UiTranslator::LanguageControls{
+            app.language_group,
+            app.english_action,
+            app.french_action,
+            app.german_action,
+            app.italian_action,
+            app.spanish_action,
+            app.turkish_action},
+        .category_language = UiTranslator::CategoryLanguageControls{
+            app.category_language_group,
+            app.category_language_dutch,
+            app.category_language_english,
+            app.category_language_french,
+            app.category_language_german,
+            app.category_language_italian,
+            app.category_language_polish,
+            app.category_language_portuguese,
+            app.category_language_spanish,
+            app.category_language_turkish},
+        .file_explorer_dock = app.file_explorer_dock,
+        .settings = app.settings,
+        .translator = [](const char* source) {
+            return MainApp::tr(source);
+        }};
 }
 
 void MainAppUiBuilder::build_menus(MainApp& app) {
@@ -190,6 +308,9 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.toggle_llm_action = app.settings_menu->addAction(icon_for(app, "preferences-system", QStyle::SP_DialogApplyButton), QString());
     QObject::connect(app.toggle_llm_action, &QAction::triggered, &app, &MainApp::show_llm_selection_dialog);
 
+    app.manage_whitelists_action = app.settings_menu->addAction(QString());
+    QObject::connect(app.manage_whitelists_action, &QAction::triggered, &app, &MainApp::show_whitelist_manager);
+
     app.language_menu = app.settings_menu->addMenu(QString());
     app.language_group = new QActionGroup(&app);
     app.language_group->setExclusive(true);
@@ -203,6 +324,22 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.french_action->setCheckable(true);
     app.french_action->setData(static_cast<int>(Language::French));
     app.language_group->addAction(app.french_action);
+    app.german_action = app.language_menu->addAction(QString());
+    app.german_action->setCheckable(true);
+    app.german_action->setData(static_cast<int>(Language::German));
+    app.language_group->addAction(app.german_action);
+    app.italian_action = app.language_menu->addAction(QString());
+    app.italian_action->setCheckable(true);
+    app.italian_action->setData(static_cast<int>(Language::Italian));
+    app.language_group->addAction(app.italian_action);
+    app.spanish_action = app.language_menu->addAction(QString());
+    app.spanish_action->setCheckable(true);
+    app.spanish_action->setData(static_cast<int>(Language::Spanish));
+    app.language_group->addAction(app.spanish_action);
+    app.turkish_action = app.language_menu->addAction(QString());
+    app.turkish_action->setCheckable(true);
+    app.turkish_action->setData(static_cast<int>(Language::Turkish));
+    app.language_group->addAction(app.turkish_action);
 
     QObject::connect(app.language_group, &QActionGroup::triggered, &app, [&app](QAction* action) {
         if (!action) {
@@ -210,6 +347,35 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
         }
         const Language chosen = static_cast<Language>(action->data().toInt());
         app.on_language_selected(chosen);
+    });
+
+    app.category_language_menu = app.settings_menu->addMenu(QString());
+    app.category_language_group = new QActionGroup(&app);
+    app.category_language_group->setExclusive(true);
+
+    const auto add_cat_lang = [&](CategoryLanguage lang) {
+        QAction* act = app.category_language_menu->addAction(QString());
+        act->setCheckable(true);
+        act->setData(static_cast<int>(lang));
+        app.category_language_group->addAction(act);
+        return act;
+    };
+    app.category_language_dutch = add_cat_lang(CategoryLanguage::Dutch);
+    app.category_language_english = add_cat_lang(CategoryLanguage::English);
+    app.category_language_french = add_cat_lang(CategoryLanguage::French);
+    app.category_language_german = add_cat_lang(CategoryLanguage::German);
+    app.category_language_italian = add_cat_lang(CategoryLanguage::Italian);
+    app.category_language_polish = add_cat_lang(CategoryLanguage::Polish);
+    app.category_language_portuguese = add_cat_lang(CategoryLanguage::Portuguese);
+    app.category_language_spanish = add_cat_lang(CategoryLanguage::Spanish);
+    app.category_language_turkish = add_cat_lang(CategoryLanguage::Turkish);
+
+    QObject::connect(app.category_language_group, &QActionGroup::triggered, &app, [&app](QAction* action) {
+        if (!action) {
+            return;
+        }
+        const CategoryLanguage chosen = static_cast<CategoryLanguage>(action->data().toInt());
+        app.on_category_language_selected(chosen);
     });
 }
 

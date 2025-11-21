@@ -107,9 +107,16 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     if (sqlite3_column_type(stmt, 5) != SQLITE_NULL) {
         taxonomy_id = sqlite3_column_int(stmt, 5);
     }
+    bool used_consistency = false;
+    if (sqlite3_column_count(stmt) > 6 && sqlite3_column_type(stmt, 6) != SQLITE_NULL) {
+        used_consistency = sqlite3_column_int(stmt, 6) != 0;
+    }
 
     FileType file_type_enum = (type_str == "F") ? FileType::File : FileType::Directory;
-    return CategorizedFile{dir_path, name, file_type_enum, cat, subcat, taxonomy_id};
+    CategorizedFile entry{dir_path, name, file_type_enum, cat, subcat, taxonomy_id};
+    entry.from_cache = true;
+    entry.used_consistency_hints = used_consistency;
+    return entry;
 }
 
 } // namespace
@@ -158,6 +165,7 @@ void DatabaseManager::initialize_schema() {
             category TEXT NOT NULL,
             subcategory TEXT,
             taxonomy_id INTEGER,
+            categorization_style INTEGER DEFAULT 0,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(file_name, file_type, dir_path)
         );
@@ -173,6 +181,17 @@ void DatabaseManager::initialize_schema() {
     if (sqlite3_exec(db, add_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         if (!is_duplicate_column_error(error_msg)) {
             db_log(spdlog::level::warn, "Failed to add taxonomy_id column: {}", error_msg ? error_msg : "");
+        }
+        if (error_msg) {
+            sqlite3_free(error_msg);
+        }
+    }
+
+    const char *add_style_column_sql =
+        "ALTER TABLE file_categorization ADD COLUMN categorization_style INTEGER DEFAULT 0;";
+    if (sqlite3_exec(db, add_style_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        if (!is_duplicate_column_error(error_msg)) {
+            db_log(spdlog::level::warn, "Failed to add categorization_style column: {}", error_msg ? error_msg : "");
         }
         if (error_msg) {
             sqlite3_free(error_msg);
@@ -579,18 +598,20 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     const std::string &file_name,
     const std::string &file_type,
     const std::string &dir_path,
-    const ResolvedCategory &resolved) {
+    const ResolvedCategory &resolved,
+    bool used_consistency_hints) {
     if (!db) return false;
 
     const char *sql = R"(
         INSERT INTO file_categorization
-            (file_name, file_type, dir_path, category, subcategory, taxonomy_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (file_name, file_type, dir_path, category, subcategory, taxonomy_id, categorization_style)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_name, file_type, dir_path)
         DO UPDATE SET
             category = excluded.category,
             subcategory = excluded.subcategory,
-            taxonomy_id = excluded.taxonomy_id;
+            taxonomy_id = excluded.taxonomy_id,
+            categorization_style = excluded.categorization_style;
     )";
 
     sqlite3_stmt *stmt = nullptr;
@@ -610,6 +631,7 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     } else {
         sqlite3_bind_null(stmt, 6);
     }
+    sqlite3_bind_int(stmt, 7, used_consistency_hints ? 1 : 0);
 
     bool success = true;
     if (sqlite3_step(stmt) != SQLITE_DONE) {
@@ -655,6 +677,54 @@ bool DatabaseManager::remove_file_categorization(const std::string& dir_path,
 
     sqlite3_finalize(stmt);
     return success;
+}
+
+bool DatabaseManager::clear_directory_categorizations(const std::string& dir_path) {
+    if (!db) {
+        return false;
+    }
+
+    const char* sql = "DELETE FROM file_categorization WHERE dir_path = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare directory cache clear statement: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    const bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    if (!success) {
+        db_log(spdlog::level::err, "Failed to clear cached categorizations for '{}': {}", dir_path, sqlite3_errmsg(db));
+    }
+    sqlite3_finalize(stmt);
+    cached_results.clear();
+    return success;
+}
+
+std::optional<bool> DatabaseManager::get_directory_categorization_style(const std::string& dir_path) const {
+    if (!db) {
+        return std::nullopt;
+    }
+
+    const char* sql =
+        "SELECT categorization_style FROM file_categorization WHERE dir_path = ? LIMIT 1;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::warn, "Failed to prepare cached style query: {}", sqlite3_errmsg(db));
+        return std::nullopt;
+    }
+    sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+
+    std::optional<bool> result;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // If the column exists but is NULL (older rows), treat as "false" (refined) to compare
+        // against the user's current preference.
+        result = (sqlite3_column_type(stmt, 0) != SQLITE_NULL)
+                     ? (sqlite3_column_int(stmt, 0) != 0)
+                     : false;
+    }
+    sqlite3_finalize(stmt);
+    return result;
 }
 
 std::vector<CategorizedFile>
@@ -740,7 +810,7 @@ DatabaseManager::get_categorized_files(const std::string &directory_path) {
     if (!db) return categorized_files;
 
     const char *sql =
-        "SELECT dir_path, file_name, file_type, category, subcategory, taxonomy_id "
+        "SELECT dir_path, file_name, file_type, category, subcategory, taxonomy_id, categorization_style "
         "FROM file_categorization WHERE dir_path = ?;";
     StatementPtr stmt = prepare_statement(db, sql);
     if (!stmt) {
@@ -846,6 +916,45 @@ std::vector<std::pair<std::string, std::string>> DatabaseManager::get_taxonomy_s
     return snapshot;
 }
 
+bool DatabaseManager::is_duplicate_category(
+    const std::vector<std::pair<std::string, std::string>>& results,
+    const std::pair<std::string, std::string>& candidate)
+{
+    return std::any_of(results.begin(), results.end(), [&candidate](const auto& existing) {
+        return existing.first == candidate.first && existing.second == candidate.second;
+    });
+}
+
+std::optional<std::pair<std::string, std::string>> DatabaseManager::build_recent_category_candidate(
+    const char* file_name_text,
+    const char* category_text,
+    const char* subcategory_text,
+    const std::string& normalized_extension,
+    bool has_extension) const
+{
+    std::string file_name = file_name_text ? file_name_text : "";
+    if (file_name.empty()) {
+        return std::nullopt;
+    }
+
+    const std::string candidate_extension = extract_extension_lower(file_name);
+    if (has_extension) {
+        if (candidate_extension != normalized_extension) {
+            return std::nullopt;
+        }
+    } else if (!candidate_extension.empty()) {
+        return std::nullopt;
+    }
+
+    std::string category = category_text ? category_text : "";
+    if (category.empty()) {
+        return std::nullopt;
+    }
+
+    std::string subcategory = subcategory_text ? subcategory_text : "";
+    return std::make_pair(std::move(category), std::move(subcategory));
+}
+
 std::vector<std::pair<std::string, std::string>>
 DatabaseManager::get_recent_categories_for_extension(const std::string& extension,
                                                      FileType file_type,
@@ -881,39 +990,19 @@ DatabaseManager::get_recent_categories_for_extension(const std::string& extensio
         const char* category_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         const char* subcategory_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
 
-        std::string file_name = file_name_text ? file_name_text : "";
-        if (file_name.empty()) {
+        const auto candidate = build_recent_category_candidate(file_name_text,
+                                                               category_text,
+                                                               subcategory_text,
+                                                               normalized_extension,
+                                                               has_extension);
+        if (!candidate.has_value()) {
+            continue;
+        }
+        if (is_duplicate_category(results, *candidate)) {
             continue;
         }
 
-        const std::string candidate_extension = extract_extension_lower(file_name);
-        if (has_extension) {
-            if (candidate_extension != normalized_extension) {
-                continue;
-            }
-        } else if (!candidate_extension.empty()) {
-            continue;
-        }
-
-        std::string category = category_text ? category_text : "";
-        std::string subcategory = subcategory_text ? subcategory_text : "";
-        if (category.empty()) {
-            continue;
-        }
-
-        std::pair<std::string, std::string> candidate{category, subcategory};
-        bool duplicate = false;
-        for (const auto& existing : results) {
-            if (existing.first == candidate.first && existing.second == candidate.second) {
-                duplicate = true;
-                break;
-            }
-        }
-        if (duplicate) {
-            continue;
-        }
-
-        results.push_back(std::move(candidate));
+        results.push_back(*candidate);
         if (results.size() >= limit) {
             break;
         }

@@ -31,6 +31,31 @@ public:
              const ProgressCallback& progress_callback) const;
 
 private:
+    std::unique_ptr<ILLMClient> create_llm(std::function<std::unique_ptr<ILLMClient>()> llm_factory) const;
+    void process_chunks(ILLMClient& llm,
+                        const std::vector<std::pair<std::string, std::string>>& taxonomy,
+                        std::vector<CategorizedFile>& categorized_files,
+                        std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+                        std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+                        std::atomic<bool>& stop_flag,
+                        const ProgressCallback& progress_callback) const;
+    void process_chunk(const std::vector<const CategorizedFile*>& chunk,
+                       size_t start_index,
+                       size_t end_index,
+                       size_t total_items,
+                       ILLMClient& llm,
+                       const std::vector<std::pair<std::string, std::string>>& taxonomy,
+                       std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+                       std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+                       const ProgressCallback& progress_callback) const;
+    void log_chunk_items(const std::vector<const CategorizedFile*>& chunk, const char* stage) const;
+    bool apply_harmonized_response(const std::string& response,
+                                   const std::vector<const CategorizedFile*>& chunk,
+                                   std::unordered_map<std::string, CategorizedFile*>& items_by_key,
+                                   std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+                                   const ProgressCallback& progress_callback,
+                                   DatabaseManager& db_manager) const;
+
     DatabaseManager& db_manager;
     std::shared_ptr<spdlog::logger> logger;
     mutable bool prompt_logging_enabled{false};

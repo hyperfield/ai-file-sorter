@@ -76,9 +76,8 @@ bool MovableCategorizedFile::perform_move(const std::filesystem::path& source_pa
 
 MovableCategorizedFile::MovableCategorizedFile(
     const std::string& dir_path, const std::string& cat, const std::string& subcat,
-    const std::string& file_name, const std::string& file_type)
+    const std::string& file_name)
     : file_name(file_name),
-      file_type(file_type),
       dir_path(dir_path),
       category(cat),
       subcategory(subcat)
