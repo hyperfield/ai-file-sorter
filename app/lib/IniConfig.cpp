@@ -119,3 +119,13 @@ bool IniConfig::save(const std::string &filename) const
 
     return true;
 }
+
+bool IniConfig::hasValue(const std::string& section, const std::string& key) const
+{
+    const auto sec_it = data.find(section);
+    if (sec_it == data.end()) {
+        return false;
+    }
+    const auto key_it = sec_it->second.find(key);
+    return key_it != sec_it->second.end();
+}

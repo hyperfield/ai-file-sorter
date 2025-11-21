@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <iostream>
 #include <QStandardPaths>
+#include <QLocale>
 #include <QString>
 #include <QByteArray>
 #include <spdlog/spdlog.h>
@@ -100,6 +101,18 @@ std::string generate_custom_llm_id() {
     oss << "llm_" << std::hex << value;
     return oss.str();
 }
+
+Language system_default_language()
+{
+    switch (QLocale::system().language()) {
+        case QLocale::French: return Language::French;
+        case QLocale::German: return Language::German;
+        case QLocale::Italian: return Language::Italian;
+        case QLocale::Spanish: return Language::Spanish;
+        case QLocale::Turkish: return Language::Turkish;
+        default: return Language::English;
+    }
+}
 }
 
 
@@ -170,7 +183,11 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
-    language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
+    if (config.hasValue("Settings", "Language")) {
+        language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
+    } else {
+        language = system_default_language();
+    }
     category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
     categorized_file_count = load_int("CategorizedFileCount", 0, 0);
     next_support_prompt_threshold = load_int("SupportPromptThreshold", 100, 100);
