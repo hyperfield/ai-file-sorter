@@ -41,6 +41,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <algorithm>
+
 void MainAppUiBuilder::build(MainApp& app) {
     build_central_panel(app);
     build_menus(app);
@@ -427,13 +429,17 @@ QIcon MainAppUiBuilder::icon_for(MainApp& app, const char* name, QStyle::Standar
         if (targetSize > 0) {
             QPixmap pixmap = icon.pixmap(targetSize, targetSize);
             if (!pixmap.isNull()) {
-                const int padding = 3;
-                QPixmap padded(pixmap.width() + padding * 2, pixmap.height() + padding * 2);
+                const int padding = std::max(4, targetSize / 4);
+                const QSize paddedSize(pixmap.width() + padding * 2, pixmap.height() + padding * 2);
+                QPixmap padded(paddedSize);
                 padded.fill(Qt::transparent);
                 QPainter painter(&padded);
                 painter.drawPixmap(padding, padding, pixmap);
                 painter.end();
-                icon = QIcon(padded);
+                QIcon paddedIcon;
+                paddedIcon.addPixmap(padded, QIcon::Normal);
+                paddedIcon.addPixmap(padded, QIcon::Disabled);
+                icon = paddedIcon;
             }
         }
     }

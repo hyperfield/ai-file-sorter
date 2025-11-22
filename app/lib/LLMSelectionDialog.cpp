@@ -211,7 +211,9 @@ void LLMSelectionDialog::update_ui_for_choice()
     update_radio_selection();
     update_custom_choice_ui();
 
-    if (selected_choice == LLMChoice::Custom) {
+    const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
+
+    if (selected_choice == LLMChoice::Custom || !is_local_builtin) {
         return;
     }
 
