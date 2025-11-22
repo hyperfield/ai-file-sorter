@@ -158,6 +158,10 @@ Settings::Settings()
     }
 
     sort_folder = default_sort_folder;
+
+    // Default language follows system locale on first run (before any config file exists).
+    language = system_default_language();
+    category_language = CategoryLanguage::English;
 }
 
 LLMChoice Settings::parse_llm_choice() const
@@ -319,6 +323,7 @@ bool Settings::load()
 {
     if (!config.load(config_path)) {
         sort_folder = default_sort_folder.empty() ? std::string("/") : default_sort_folder;
+        // Keep language defaults derived from system locale when no config is found.
         return false;
     }
 

@@ -140,6 +140,24 @@ MetalDeviceInfo query_primary_gpu_device() {
 
     return info;
 }
+
+bool metal_backend_available(const std::shared_ptr<spdlog::logger>& logger) {
+    ggml_backend_reg_t metal = ggml_backend_reg_by_name("Metal");
+    if (!metal) {
+        if (logger) {
+            logger->warn("Metal backend not registered; falling back to CPU");
+        }
+        return false;
+    }
+    const size_t dev_count = ggml_backend_reg_dev_count(metal);
+    if (dev_count == 0) {
+        if (logger) {
+            logger->warn("No Metal devices detected; falling back to CPU");
+        }
+        return false;
+    }
+    return true;
+}
 #endif // defined(GGML_USE_METAL)
 
 bool case_insensitive_contains(std::string_view text, std::string_view needle) {
@@ -1271,6 +1289,26 @@ llama_model_params build_model_params_for_path(const std::string& model_path,
     llama_model_params model_params = llama_model_default_params();
 
 #ifdef GGML_USE_METAL
+    const char* backend_env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
+    if (backend_env) {
+        std::string value(backend_env);
+        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        if (value == "cpu") {
+            if (logger) {
+                logger->info("AI_FILE_SORTER_GPU_BACKEND=cpu set; disabling Metal and using CPU backend.");
+            }
+            model_params.n_gpu_layers = 0;
+            return model_params;
+        }
+    }
+
+    if (!metal_backend_available(logger)) {
+        model_params.n_gpu_layers = 0;
+        return model_params;
+    }
+
     model_params.n_gpu_layers = determine_metal_layers(model_path, logger);
 #else
     const PreferredBackend backend_pref = detect_preferred_backend();
