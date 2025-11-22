@@ -2,6 +2,8 @@
 #include "CategorizationDialog.hpp"
 #include "TestHooks.hpp"
 #include "TestHelpers.hpp"
+#include <QTableView>
+#include <QStandardItemModel>
 #include <filesystem>
 #include <fstream>
 
@@ -66,6 +68,47 @@ TEST_CASE("CategorizationDialog uses subcategory toggle when moving files") {
         verify_toggle(false, true);
     }
 }
+
+#ifndef _WIN32
+TEST_CASE("CategorizationDialog supports sorting by columns") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    CategorizedFile alpha;
+    alpha.file_path = "/tmp";
+    alpha.file_name = "b.txt";
+    alpha.type = FileType::File;
+    alpha.category = "Alpha";
+    alpha.subcategory = "One";
+
+    CategorizedFile beta;
+    beta.file_path = "/tmp";
+    beta.file_name = "a.txt";
+    beta.type = FileType::File;
+    beta.category = "Beta";
+    beta.subcategory = "Two";
+
+    CategorizationDialog dialog(nullptr, true);
+    dialog.test_set_entries({alpha, beta});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    SECTION("Sorts by file name ascending") {
+        table->sortByColumn(1, Qt::AscendingOrder); // file name column
+        REQUIRE(model->item(0, 1)->text() == QStringLiteral("a.txt"));
+        REQUIRE(model->item(1, 1)->text() == QStringLiteral("b.txt"));
+    }
+
+    SECTION("Sorts by category descending") {
+        table->sortByColumn(3, Qt::DescendingOrder); // category column
+        REQUIRE(model->item(0, 3)->text() == QStringLiteral("Beta"));
+        REQUIRE(model->item(1, 3)->text() == QStringLiteral("Alpha"));
+    }
+}
+#endif
 
 #ifndef _WIN32
 TEST_CASE("CategorizationDialog undo restores moved files") {

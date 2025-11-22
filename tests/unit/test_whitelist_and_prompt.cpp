@@ -69,3 +69,17 @@ TEST_CASE("CategorizationService builds category language context when non-Engli
     REQUIRE_FALSE(context.empty());
     REQUIRE(context.find("French") != std::string::npos);
 }
+
+TEST_CASE("CategorizationService builds category language context for Spanish") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    settings.set_category_language(CategoryLanguage::Spanish);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string context = CategorizationServiceTestAccess::build_category_language_context(service);
+
+    REQUIRE_FALSE(context.empty());
+    REQUIRE(context.find("Spanish") != std::string::npos);
+}
