@@ -201,7 +201,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 2. **Install Homebrew** (if required).
 3. **Install dependencies**
    ```bash
-   brew install qt curl jsoncpp sqlite openssl fmt spdlog cmake git
+   brew install qt curl jsoncpp sqlite openssl fmt spdlog cmake git pkgconfig libffi
    ```
    Add Qt to your environment if it is not already present:
    ```bash
