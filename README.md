@@ -2,6 +2,10 @@
 # AI File Sorter
 
 [![Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter)](#)
+[![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
+[![SourceForge Downloads](https://img.shields.io/sourceforge/dw/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/2c646c836a9844be964fbf681649c3cd)](https://app.codacy.com/gh/hyperfield/ai-file-sorter/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![Donate](https://img.shields.io/badge/Support%20AI%20File%20Sorter-orange)](https://filesorter.app/donate)
 
 <p align="center">
   <img src="app/resources/images/icon_256x256.png" alt="AI File Sorter logo" width="128" height="128">
@@ -79,13 +83,17 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
   **Robust Categorization Algorithm**: Consistency across categories is supported by taxonomy and heuristics.
   **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
+- **Two categorization modes**: Pick **More Refined** for detailed labels or **More Consistent** to bias toward uniform categories within a folder.
+- **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
+- **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
+- **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
+- **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
 - **Local Database Caching**: Speeds up repeated categorization and minimizes remote LLM usage costs.
 - **Sorting Preview**: See how files will be organized before confirming changes.
 - **Secure API Key Encryption**: When using the remote model, your API key is stored securely with encryption.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
-- **Category Whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window via **Use a whitelist** when you want to constrain model output for a session.
 
 ---
 
@@ -200,6 +208,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$PKG_CONFIG_PATH"
    ```
 4. **Clone the repository and submodules** (same commands as Linux).
+   > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=11.0` so the Mach-O `LC_BUILD_VERSION` covers Apple Silicon and newer releases (including Sequoia). Raise or lower it (e.g., `export MACOSX_DEPLOYMENT_TARGET=15.0`) if you need a different floor.
 5. **Build the llama runtime (Metal-only on macOS)**
    ```bash
    ./app/scripts/build_llama_macos.sh
@@ -211,6 +220,15 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    make -j4
    sudo make install   # optional
    ```
+   > **Fix for the 1.1.0 macOS build:** That package shipped with `LC_BUILD_VERSION` set to macOS 26.0, which Sequoia blocks. If you still have that build, you can patch it in place:
+   > ```bash
+   > APP="/Applications/AI File Sorter.app"
+   > BIN="$APP/Contents/MacOS/aifilesorter"
+   > vtool -replace -set-build-version macos 11.0 11.0 -output "$BIN.patched" "$BIN" && mv "$BIN.patched" "$BIN"
+   > codesign --force --deep --sign - "$APP"
+   > xattr -d com.apple.quarantine "$APP" || true
+   > ```
+   > (`vtool` ships with the Xcode command line tools.) Future releases are built with the corrected deployment target.
 
 ### Windows
 
@@ -438,7 +456,7 @@ This project is licensed under the GNU AFFERO GENERAL PUBLIC LICENSE (GNU AGPL).
 
 Support the development of **AI File Sorter** and its future features. Every contribution counts!
 
-- **[Donate via PayPal](https://paypal.me/aifilesorter)**
+- **[Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=Z3XYTG38C62HQ)**
 - **Bitcoin**: 12H8VvRG9PGyHoBzbYxVGcu8PaLL6pc3NM
 - **Ethereum**: 0x09c6918160e2AA2b57BfD40BCF2A4BD61B38B2F9
 - **Tron**: TGPr8b5RxC5JEaZXkzeGVxq7hExEAi7Yaj
