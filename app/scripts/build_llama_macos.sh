@@ -80,6 +80,11 @@ mkdir -p "$PRECOMPILED_LIBS_DIR"
 cp build/bin/libllama.dylib "$PRECOMPILED_LIBS_DIR"
 cp build/bin/libggml*.dylib "$PRECOMPILED_LIBS_DIR"
 cp build/bin/libmtmd.dylib "$PRECOMPILED_LIBS_DIR"
+# Provide versioned symlinks expected by the app runtime loader
+(
+  cd "$PRECOMPILED_LIBS_DIR"
+  ln -sf libllama.dylib libllama.0.dylib
+)
 
 # Copy headers
 rm -rf "$HEADERS_DIR"

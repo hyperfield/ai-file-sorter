@@ -807,7 +807,7 @@ bool MainApp::ensure_folder_categorization_style(const std::string& folder_path)
         return true;
     }
 
-    const auto style_label = [this](bool value) -> QString {
+    const auto style_label = [](bool value) -> QString {
         return value ? tr("More consistent") : tr("More refined");
     };
 

@@ -106,7 +106,7 @@ private:
     bool consistency_pass_enabled{false};
     bool development_prompt_logging{false};
     int categorized_file_count{0};
-    int next_support_prompt_threshold{100};
+    int next_support_prompt_threshold{200};
     std::vector<std::string> allowed_categories;
     std::vector<std::string> allowed_subcategories;
     std::string active_whitelist;

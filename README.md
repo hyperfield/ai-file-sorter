@@ -61,6 +61,7 @@ File content–based sorting for certain file types is also in development.
     - [macOS](#macos)
     - [Windows](#windows)
   - [Uninstallation](#uninstallation)
+  - [Testing](#testing)
   - [API Key, Obfuscation, and Encryption](#api-key-obfuscation-and-encryption)
   - [How to Use](#how-to-use)
   - [Sorting a Remote Directory (e.g., NAS)](#sorting-a-remote-directory-eg-nas)
@@ -394,6 +395,19 @@ Before compiling the app:
 ## Uninstallation
 
 In the same subdirectory `app`, run `sudo make uninstall`.
+
+---
+
+## Testing
+
+- From the repo root, clean any old cache and run the CTest wrapper:
+  ```bash
+  cd app
+  rm -rf ../build-tests      # clear a cache from another checkout
+  ./scripts/rebuild_and_test.sh
+  ```
+- The script configures to `../build-tests`, builds, then runs `ctest`.
+- If you have multiple copies of the repo (e.g., `ai-file-sorter` and `ai-file-sorter-mac-dist`), each needs its own `build-tests` folder; reusing one from a different path will make CMake complain about mismatched source/build directories.
 
 ---
 
