@@ -208,6 +208,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$PKG_CONFIG_PATH"
    ```
 4. **Clone the repository and submodules** (same commands as Linux).
+   > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=11.0` so the Mach-O `LC_BUILD_VERSION` covers Apple Silicon and newer releases (including Sequoia). Raise or lower it (e.g., `export MACOSX_DEPLOYMENT_TARGET=15.0`) if you need a different floor.
 5. **Build the llama runtime (Metal-only on macOS)**
    ```bash
    ./app/scripts/build_llama_macos.sh
@@ -219,6 +220,15 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    make -j4
    sudo make install   # optional
    ```
+   > **Fix for the 1.1.0 macOS build:** That package shipped with `LC_BUILD_VERSION` set to macOS 26.0, which Sequoia blocks. If you still have that build, you can patch it in place:
+   > ```bash
+   > APP="/Applications/AI File Sorter.app"
+   > BIN="$APP/Contents/MacOS/aifilesorter"
+   > vtool -replace -set-build-version macos 11.0 11.0 -output "$BIN.patched" "$BIN" && mv "$BIN.patched" "$BIN"
+   > codesign --force --deep --sign - "$APP"
+   > xattr -d com.apple.quarantine "$APP" || true
+   > ```
+   > (`vtool` ships with the Xcode command line tools.) Future releases are built with the corrected deployment target.
 
 ### Windows
 

@@ -35,7 +35,9 @@ else ifeq ($(UNAME), Darwin)
     LIBFFI_PREFIX := $(BREW_PREFIX)/opt/libffi
     EXPAT_PREFIX := $(BREW_PREFIX)/opt/expat
     SDKROOT := $(shell xcrun --sdk macosx --show-sdk-path 2>/dev/null)
+    MACOSX_DEPLOYMENT_TARGET ?= 11.0
 
+    export MACOSX_DEPLOYMENT_TARGET
     PATH := $(QTBASE_PREFIX)/share/qt/libexec:$(QT_PREFIX)/bin:$(CURL_PREFIX)/bin:$(PATH)
     export PATH
 
@@ -44,12 +46,13 @@ else ifeq ($(UNAME), Darwin)
     export LDFLAGS += -L$(LIBFFI_PREFIX)/lib
     export CPPFLAGS += -I$(LIBFFI_PREFIX)/include
     PLATFORM := MacOS
-    CXXFLAGS += -DMACOS -DENABLE_METAL -DGGML_USE_METAL -Wno-deprecated -Iinclude/llama
+    CXXFLAGS += -DMACOS -DENABLE_METAL -DGGML_USE_METAL -Wno-deprecated -Iinclude/llama -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
     ifneq ($(strip $(SDKROOT)),)
     export SDKROOT
     CXXFLAGS += -isysroot $(SDKROOT) -stdlib=libc++ -I$(SDKROOT)/usr/include/c++/v1
     LDFLAGS += -isysroot $(SDKROOT)
     endif
+    LDFLAGS += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
     TARGET := $(BIN_DIR)/aifilesorter
     INSTALL_DIR := /usr/local/bin
 	INSTALL_LIB_DIR := /usr/local/lib

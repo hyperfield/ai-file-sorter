@@ -17,6 +17,10 @@ HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 ARCH=$(uname -m)
 echo "Building on architecture: $ARCH"
 
+MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
+export MACOSX_DEPLOYMENT_TARGET
+echo "Targeting macOS ${MACOSX_DEPLOYMENT_TARGET} for build outputs"
+
 # Decide whether to enable Metal. Apple Silicon machines benefit from it, but
 # most Intel Macs either lack usable Metal compute queues or expose 0 bytes of
 # GPU memory to ggml, which causes llama.cpp to fail the moment it tries to
@@ -56,6 +60,7 @@ rm -rf build
 mkdir -p build
 cmake -S . -B build \
   ${CMAKE_SYSROOT_ARG} \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
   -DBUILD_SHARED_LIBS=ON \
   -DGGML_METAL=${METAL_FLAG} \
   -DGGML_BLAS=ON -DGGML_BLAS_VENDOR=Accelerate \
