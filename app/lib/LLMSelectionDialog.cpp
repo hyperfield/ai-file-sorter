@@ -235,6 +235,7 @@ void LLMSelectionDialog::update_radio_selection()
 
 void LLMSelectionDialog::update_custom_choice_ui()
 {
+    auto* ok_button = button_box ? button_box->button(QDialogButtonBox::Ok) : nullptr;
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
     const bool is_custom = selected_choice == LLMChoice::Custom;
     download_section->setVisible(is_local_builtin);
@@ -249,7 +250,9 @@ void LLMSelectionDialog::update_custom_choice_ui()
         } else {
             selected_custom_id.clear();
         }
-        button_box->button(QDialogButtonBox::Ok)->setEnabled(!selected_custom_id.empty());
+        if (ok_button) {
+            ok_button->setEnabled(!selected_custom_id.empty());
+        }
         progress_bar->setVisible(false);
         download_button->setVisible(false);
         set_status_message(selected_custom_id.empty() ? tr("Choose or add a custom model.") : tr("Custom model selected."));
@@ -257,17 +260,29 @@ void LLMSelectionDialog::update_custom_choice_ui()
     }
 
     if (!is_local_builtin) {
-        button_box->button(QDialogButtonBox::Ok)->setEnabled(true);
+        if (ok_button) {
+            ok_button->setEnabled(true);
+        }
+        progress_bar->setVisible(false);
+        download_button->setVisible(false);
+        if (selected_choice == LLMChoice::Remote) {
+            set_status_message(tr("Remote LLM selected."));
+        } else {
+            set_status_message(tr("Selection ready."));
+        }
         return;
     }
 }
 
 void LLMSelectionDialog::update_local_choice_ui()
 {
+    auto* ok_button = button_box ? button_box->button(QDialogButtonBox::Ok) : nullptr;
     refresh_downloader();
 
     if (!downloader) {
-        button_box->button(QDialogButtonBox::Ok)->setEnabled(false);
+        if (ok_button) {
+            ok_button->setEnabled(false);
+        }
         download_button->setEnabled(false);
         return;
     }
@@ -281,7 +296,9 @@ void LLMSelectionDialog::update_local_choice_ui()
         progress_bar->setValue(100);
         download_button->setEnabled(false);
         download_button->setVisible(false);
-        button_box->button(QDialogButtonBox::Ok)->setEnabled(true);
+        if (ok_button) {
+            ok_button->setEnabled(true);
+        }
         set_status_message(tr("Model ready."));
         break;
     case LLMDownloader::DownloadStatus::InProgress:
@@ -289,7 +306,9 @@ void LLMSelectionDialog::update_local_choice_ui()
         download_button->setVisible(true);
         download_button->setEnabled(!is_downloading.load());
         download_button->setText(tr("Resume download"));
-        button_box->button(QDialogButtonBox::Ok)->setEnabled(false);
+        if (ok_button) {
+            ok_button->setEnabled(false);
+        }
         set_status_message(tr("Partial download detected. You can resume."));
         break;
     case LLMDownloader::DownloadStatus::NotStarted:
@@ -299,7 +318,9 @@ void LLMSelectionDialog::update_local_choice_ui()
         download_button->setVisible(true);
         download_button->setEnabled(!is_downloading.load());
         download_button->setText(tr("Download"));
-        button_box->button(QDialogButtonBox::Ok)->setEnabled(false);
+        if (ok_button) {
+            ok_button->setEnabled(false);
+        }
         set_status_message(tr("Download required."));
         break;
     }
