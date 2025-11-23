@@ -166,6 +166,7 @@ void LLMSelectionDialog::setup_ui()
     download_section->setVisible(false);
 
     button_box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    ok_button = button_box->button(QDialogButtonBox::Ok);
     layout->addWidget(button_box);
 }
 
@@ -235,7 +236,9 @@ void LLMSelectionDialog::update_radio_selection()
 
 void LLMSelectionDialog::update_custom_choice_ui()
 {
-    auto* ok_button = button_box ? button_box->button(QDialogButtonBox::Ok) : nullptr;
+    if (!ok_button && button_box) {
+        ok_button = button_box->button(QDialogButtonBox::Ok);
+    }
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
     const bool is_custom = selected_choice == LLMChoice::Custom;
     download_section->setVisible(is_local_builtin);
@@ -250,9 +253,7 @@ void LLMSelectionDialog::update_custom_choice_ui()
         } else {
             selected_custom_id.clear();
         }
-        if (ok_button) {
-            ok_button->setEnabled(!selected_custom_id.empty());
-        }
+        if (ok_button) ok_button->setEnabled(!selected_custom_id.empty());
         progress_bar->setVisible(false);
         download_button->setVisible(false);
         set_status_message(selected_custom_id.empty() ? tr("Choose or add a custom model.") : tr("Custom model selected."));
@@ -260,9 +261,7 @@ void LLMSelectionDialog::update_custom_choice_ui()
     }
 
     if (!is_local_builtin) {
-        if (ok_button) {
-            ok_button->setEnabled(true);
-        }
+        if (ok_button) ok_button->setEnabled(true);
         progress_bar->setVisible(false);
         download_button->setVisible(false);
         if (selected_choice == LLMChoice::Remote) {
@@ -276,13 +275,13 @@ void LLMSelectionDialog::update_custom_choice_ui()
 
 void LLMSelectionDialog::update_local_choice_ui()
 {
-    auto* ok_button = button_box ? button_box->button(QDialogButtonBox::Ok) : nullptr;
+    if (!ok_button && button_box) {
+        ok_button = button_box->button(QDialogButtonBox::Ok);
+    }
     refresh_downloader();
 
     if (!downloader) {
-        if (ok_button) {
-            ok_button->setEnabled(false);
-        }
+        if (ok_button) ok_button->setEnabled(false);
         download_button->setEnabled(false);
         return;
     }

@@ -70,6 +70,7 @@ private:
     QLabel* status_label{nullptr};
     QProgressBar* progress_bar{nullptr};
     QPushButton* download_button{nullptr};
+    QPushButton* ok_button{nullptr};
     QDialogButtonBox* button_box{nullptr};
     QWidget* download_section{nullptr};
 
