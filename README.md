@@ -45,7 +45,7 @@ File content–based sorting for certain file types is also in development.
 
 [![Download ai-file-sorter](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 
-![AI File Sorter Screenshot](images/screenshots/aifs-main-window-win.png) ![AI File Sorter Screenshot](images/screenshots/aifs-progress-dialog-win.png) ![AI File Sorter Screenshot](images/screenshots/aifs-review-dialog-win.png) ![AI File Sorter Screenshot](images/screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](images/screenshots/categorization-dialog-macos.png)
+![AI File Sorter Screenshot](images/screenshots/ai-file-sorter-win.gif) ![AI File Sorter Screenshot](images/screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](images/screenshots/categorization-dialog-macos.png)
 
 ---
 
