@@ -21,6 +21,7 @@ class QString;
 class QComboBox;
 class QListWidget;
 class QLineEdit;
+class QCheckBox;
 
 class Settings;
 
@@ -32,6 +33,8 @@ public:
 
     LLMChoice get_selected_llm_choice() const;
     std::string get_selected_custom_llm_id() const;
+    std::string get_remote_api_key() const;
+    std::string get_remote_model() const;
 
 private:
     void setup_ui();
@@ -39,6 +42,8 @@ private:
     void update_ui_for_choice();
     void update_radio_selection();
     void update_custom_choice_ui();
+    void update_remote_fields_state();
+    bool remote_inputs_valid() const;
     void update_local_choice_ui();
     void update_download_info();
     void start_download();
@@ -55,6 +60,8 @@ private:
     Settings& settings;
     LLMChoice selected_choice{LLMChoice::Unset};
     std::string selected_custom_id;
+    std::string remote_api_key;
+    std::string remote_model;
 
     QRadioButton* remote_radio{nullptr};
     QRadioButton* local3_radio{nullptr};
@@ -73,6 +80,11 @@ private:
     QPushButton* ok_button{nullptr};
     QDialogButtonBox* button_box{nullptr};
     QWidget* download_section{nullptr};
+    QWidget* remote_inputs{nullptr};
+    QLineEdit* api_key_edit{nullptr};
+    QLineEdit* model_edit{nullptr};
+    QCheckBox* show_api_key_checkbox{nullptr};
+    QLabel* remote_help_label{nullptr};
 
     std::unique_ptr<LLMDownloader> downloader;
     std::atomic<bool> is_downloading{false};

@@ -15,6 +15,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
 
 // Helper function to write the response from curl into a string
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *response)
@@ -180,7 +181,8 @@ std::string parse_category_response(const std::string& payload,
 }
 
 
-LLMClient::LLMClient(const std::string &api_key) : api_key(api_key)
+LLMClient::LLMClient(std::string api_key, std::string model)
+    : api_key(std::move(api_key)), model(std::move(model))
 {}
 
 
@@ -194,6 +196,10 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 
 std::string LLMClient::send_api_request(std::string json_payload) {
+    if (api_key.empty()) {
+        throw std::runtime_error("Missing OpenAI API key.");
+    }
+
     std::string response_string;
     const std::string api_url = "https://api.openai.com/v1/chat/completions";
     auto logger = Logger::get_logger("core_logger");
@@ -207,6 +213,11 @@ std::string LLMClient::send_api_request(std::string json_payload) {
 
     const long http_code = perform_request(request, logger);
     return parse_category_response(response_string, http_code, logger);
+}
+
+std::string LLMClient::effective_model() const
+{
+    return model.empty() ? "gpt-4o-mini" : model;
 }
 
 
@@ -269,19 +280,24 @@ std::string LLMClient::make_payload(const std::string& file_name,
     }
 
     last_prompt = prompt;
-    std::string escaped_prompt = escape_json(prompt);
+    const std::string escaped_prompt = escape_json(prompt);
+    const std::string system_prompt =
+        "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
+        "Consider the filename, extension, and any directory context provided. Always reply with one line in the "
+        "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). Subcategory "
+        "must be specific, relevant, and must not repeat the main category.";
+    const std::string escaped_system = escape_json(system_prompt);
 
-    std::string json_payload = R"(
-    {
-        "model": "gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": "You are a file categorization assistant. If it's an installer, describe the type of software it installs. Consider the filename, extension, and any directory context provided. Always reply with one line in the format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). Subcategory must be specific, relevant, and must not repeat the main category."},
-            {"role": "user", "content": ")" + escaped_prompt + R"("}
-        ]
-    }
-    )";
-    
-    return json_payload;
+    std::ostringstream payload;
+    payload << "{\n"
+            << "    \"model\": \"" << escape_json(effective_model()) << "\",\n"
+            << "    \"messages\": [\n"
+            << "        {\"role\": \"system\", \"content\": \"" << escaped_system << "\"},\n"
+            << "        {\"role\": \"user\", \"content\": \"" << escaped_prompt << "\"}\n"
+            << "    ]\n"
+            << "}";
+
+    return payload.str();
 }
 
 std::string LLMClient::make_generic_payload(const std::string& system_prompt,
@@ -289,7 +305,7 @@ std::string LLMClient::make_generic_payload(const std::string& system_prompt,
                                             int max_tokens) const
 {
     std::ostringstream payload;
-    payload << "{\"model\": \"gpt-4o-mini\",";
+    payload << "{\"model\": \"" << escape_json(effective_model()) << "\",";
     payload << "\"messages\": [";
     payload << "{\"role\": \"system\", \"content\": \""
             << escape_json(system_prompt) << "\"},";

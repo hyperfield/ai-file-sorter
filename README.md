@@ -61,8 +61,8 @@ File content–based sorting for certain file types is also in development.
     - [macOS](#macos)
     - [Windows](#windows)
   - [Uninstallation](#uninstallation)
+  - [Using your OpenAI API key](#using-your-openai-api-key)
   - [Testing](#testing)
-  - [API Key, Obfuscation, and Encryption](#api-key-obfuscation-and-encryption)
   - [How to Use](#how-to-use)
   - [Sorting a Remote Directory (e.g., NAS)](#sorting-a-remote-directory-eg-nas)
   - [Contributing](#contributing)
@@ -86,7 +86,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Features
 
-- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or a remote LLM (ChatGPT), depending on your preference.
+- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or ChatGPT with your own OpenAI API key (choose any ChatGPT model your key allows).
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
   **Robust Categorization Algorithm**: Consistency across categories is supported by taxonomy and heuristics.
   **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
@@ -101,7 +101,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Sorting Preview**: See how files will be organized before confirming changes.
 - 🧪 **Dry run** / preview-only mode to inspect planned moves without touching files.
 - ↩️ **Persistent Undo** ("Undo last run") even after closing the sort dialog.
-- **Secure API Key Encryption**: When using the remote model, your API key is stored securely with encryption.
+- **Bring your own key**: Paste your OpenAI API key once; it's stored locally and reused for ChatGPT runs.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
 
 ---
@@ -137,7 +137,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Installation
 
-File categorization with local LLMs is completely free of charge. If you prefer to use the ChatGPT workflow you will need an OpenAI API key with a small balance (see [API Key, Obfuscation, and Encryption](#api-key-obfuscation-and-encryption)).
+File categorization with local LLMs is completely free of charge. If you prefer to use the ChatGPT workflow you will need an OpenAI API key with a small balance (see [Using your OpenAI API key](#using-your-openai-api-key)).
 
 ### Linux
 
@@ -352,57 +352,16 @@ The command removes the executable and the staged precompiled libraries. You can
 
 ---
 
-## API Key, Obfuscation, and Encryption
+## Using your OpenAI API key
 
-**Important**: This step is needed *only* if you are going to use the Remote LLM option.
+Want to use ChatGPT instead of the bundled local models? Bring your own OpenAI API key:
 
-Before compiling the app:
+1. Open **Settings -> Select LLM** in the app.
+2. Choose **ChatGPT (OpenAI API key)**, paste your key, and enter the ChatGPT model you want to use (for example `gpt-4o-mini`, `gpt-4.1`, or `o3-mini`).
+3. Click **OK**. The key is stored locally in your AI File Sorter config (`config.ini` in the app data folder) and reused for future runs. Clear the field to remove it.
+4. An internet connection is only required while this option is selected.
 
-1. Get an OpenAI API key from the [OpenAI website](https://platform.openai.com/).  
-   A minimal balance is required in your OpenAI API account for the app to function.
-
-2. Generate a 32-character random secret key, e.g., using [this tool](https://passwords-generator.org/32-character).
-
-    **Important**: If you're compiling on Windows, make sure there is NO `=` in the generated key! If one or more `=` are there, regenerate the key!
-    **Important**: If you're compiling on Windows, it's probably best to avoid symbols due to possible unpredictable parsing issues.
-
-    Your secret key could look something like `sVPV2fWoRg5q62AuCGVQ4p0NbHIU5DEv` or `du)]--Wg#+Au89Ro6eRMJc"]qx~owL_X`.
-
-3. Navigate to the `api-key-encryption` folder, then make a file named `encryption.ini` with the following content:
-
-    ```ini
-    LLM_API_KEY=sk-...
-    SECRET_KEY=your-generated-32-byte-secret-key
-    ```
-
-4. Run the `compile.sh` (or `compile_mac.sh`) script in the same directory to generate the executable `obfuscate_encrypt`.
- due 
-5. Execute `obfuscate_encrypt` to generate:
-   - Obfuscated Key part 1
-   - Obfuscated Key part 2
-   - Encrypted data (hex)
-
-6. Update the application files:
-   - Update `app/include/CryptoManager.hpp` with Obfuscated Key part 1:
-
-     ```cpp
-     static constexpr char embedded_pc[] = "insert-obfuscated-Key-part-1-here";
-     ```
-
-   - Add the values to `app/resources/.env` as shown:
-
-     ```ini
-     ENV_PC=obfuscated-key-part2-value
-     ENV_RR=encrypted-data-hex-value
-     ```
-
-7. Continue with [Installation](#installation)
-
----
-
-## Uninstallation
-
-In the same subdirectory `app`, run `sudo make uninstall`.
+> The app no longer embeds a bundled key; you always provide your own OpenAI key.
 
 ---
 

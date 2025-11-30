@@ -3,7 +3,6 @@
 #include "Settings.hpp"
 #include "CategoryLanguage.hpp"
 #include "DatabaseManager.hpp"
-#include "CryptoManager.hpp"
 #include "ILLMClient.hpp"
 #include "Utils.hpp"
 
@@ -137,26 +136,17 @@ bool CategorizationService::ensure_remote_credentials(std::string* error_message
         return true;
     }
 
-    const char* env_pc = std::getenv("ENV_PC");
-    const char* env_rr = std::getenv("ENV_RR");
-
-    try {
-        CryptoManager crypto(env_pc, env_rr);
-        const std::string key = crypto.reconstruct();
-        if (key.empty()) {
-            throw std::runtime_error("Reconstructed API key was empty");
-        }
+    if (!settings.get_remote_api_key().empty()) {
         return true;
-    } catch (const std::exception& ex) {
-        if (core_logger) {
-            core_logger->error("Remote LLM credentials unavailable: {}", ex.what());
-        }
-        if (error_message) {
-            *error_message = "Remote model credentials are missing or invalid. "
-                             "Please configure your API key and try again.";
-        }
-        return false;
     }
+
+    if (core_logger) {
+        core_logger->error("Remote LLM selected but OpenAI API key is not configured.");
+    }
+    if (error_message) {
+        *error_message = "Remote model credentials are missing. Enter your OpenAI API key in the Select LLM dialog.";
+    }
+    return false;
 }
 
 std::vector<CategorizedFile> CategorizationService::prune_empty_cached_entries(const std::string& directory_path)
@@ -305,26 +295,18 @@ bool CategorizationService::ensure_remote_credentials_for_request(
     const std::string& item_name,
     const ProgressCallback& progress_callback) const
 {
-    const char* env_pc = std::getenv("ENV_PC");
-    const char* env_rr = std::getenv("ENV_RR");
-
-    try {
-        CryptoManager crypto(env_pc, env_rr);
-        const std::string key = crypto.reconstruct();
-        if (key.empty()) {
-            throw std::runtime_error("Reconstructed API key was empty");
-        }
+    if (!settings.get_remote_api_key().empty()) {
         return true;
-    } catch (const std::exception& ex) {
-        const std::string err_msg = fmt::format("[CRYPTO] {} ({})", item_name, ex.what());
-        if (progress_callback) {
-            progress_callback(err_msg);
-        }
-        if (core_logger) {
-            core_logger->error("{}", err_msg);
-        }
-        return false;
     }
+
+    const std::string err_msg = fmt::format("[REMOTE] {} (missing OpenAI API key)", item_name);
+    if (progress_callback) {
+        progress_callback(err_msg);
+    }
+    if (core_logger) {
+        core_logger->error("{}", err_msg);
+    }
+    return false;
 }
 
 DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(

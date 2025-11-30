@@ -1351,12 +1351,15 @@ void MainApp::show_llm_selection_dialog()
     try {
         auto dialog = std::make_unique<LLMSelectionDialog>(settings, this);
         if (dialog->exec() == QDialog::Accepted) {
+            settings.set_remote_api_key(dialog->get_remote_api_key());
+            settings.set_remote_model(dialog->get_remote_model());
             settings.set_llm_choice(dialog->get_selected_llm_choice());
             if (dialog->get_selected_llm_choice() == LLMChoice::Custom) {
                 settings.set_active_custom_llm_id(dialog->get_selected_custom_llm_id());
             } else {
                 settings.set_active_custom_llm_id("");
             }
+            using_local_llm = settings.get_llm_choice() != LLMChoice::Remote;
             settings.save();
         }
     } catch (const std::exception& ex) {
@@ -1384,7 +1387,12 @@ void MainApp::apply_development_logging()
 std::unique_ptr<ILLMClient> MainApp::make_llm_client()
 {
     if (settings.get_llm_choice() == LLMChoice::Remote) {
-        CategorizationSession session;
+        const std::string api_key = settings.get_remote_api_key();
+        const std::string model = settings.get_remote_model();
+        if (api_key.empty()) {
+            throw std::runtime_error("OpenAI API key is missing. Please add it from Select LLM.");
+        }
+        CategorizationSession session(api_key, model);
         auto client = std::make_unique<LLMClient>(session.create_llm_client());
         client->set_prompt_logging_enabled(should_log_prompts());
         return client;

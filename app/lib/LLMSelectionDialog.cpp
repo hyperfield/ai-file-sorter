@@ -6,7 +6,9 @@
 #include "Utils.hpp"
 #include "CustomLLMDialog.hpp"
 
+#include <QCheckBox>
 #include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -16,6 +18,7 @@
 #include <QRadioButton>
 #include <QComboBox>
 #include <QFileDialog>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QVBoxLayout>
 #include <QString>
@@ -43,6 +46,15 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     setup_ui();
     connect_signals();
 
+    remote_api_key = settings.get_remote_api_key();
+    remote_model = settings.get_remote_model();
+    if (api_key_edit) {
+        api_key_edit->setText(QString::fromStdString(remote_api_key));
+    }
+    if (model_edit) {
+        model_edit->setText(QString::fromStdString(remote_model));
+    }
+
     selected_choice = settings.get_llm_choice();
     selected_custom_id = settings.get_active_custom_llm_id();
     switch (selected_choice) {
@@ -59,8 +71,8 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
         custom_radio->setChecked(true);
         break;
     default:
-        remote_radio->setChecked(true);
-        selected_choice = LLMChoice::Remote;
+        local3_radio->setChecked(true);
+        selected_choice = LLMChoice::Local_3b;
         break;
     }
     refresh_custom_lists();
@@ -101,9 +113,34 @@ void LLMSelectionDialog::setup_ui()
     auto* local3_desc = new QLabel(tr("Less precise, but works quickly even on CPUs. Good for lightweight local use."), radio_container);
     local3_desc->setWordWrap(true);
 
-    remote_radio = new QRadioButton(tr("Remote LLM (ChatGPT 4o-mini)"), radio_container);
-    auto* remote_desc = new QLabel(tr("Fast and accurate, but requires internet connection."), radio_container);
+    remote_radio = new QRadioButton(tr("ChatGPT (OpenAI API key)"), radio_container);
+    auto* remote_desc = new QLabel(tr("Use your own OpenAI API key to access ChatGPT models (internet required)."), radio_container);
     remote_desc->setWordWrap(true);
+    remote_inputs = new QWidget(radio_container);
+    auto* remote_form = new QFormLayout(remote_inputs);
+    remote_form->setContentsMargins(24, 0, 0, 0);
+    remote_form->setHorizontalSpacing(10);
+    remote_form->setVerticalSpacing(6);
+    api_key_edit = new QLineEdit(remote_inputs);
+    api_key_edit->setEchoMode(QLineEdit::Password);
+    api_key_edit->setClearButtonEnabled(true);
+    api_key_edit->setPlaceholderText(tr("sk-..."));
+    show_api_key_checkbox = new QCheckBox(tr("Show"), remote_inputs);
+    auto* api_key_row = new QWidget(remote_inputs);
+    auto* api_key_layout = new QHBoxLayout(api_key_row);
+    api_key_layout->setContentsMargins(0, 0, 0, 0);
+    api_key_layout->addWidget(api_key_edit, 1);
+    api_key_layout->addWidget(show_api_key_checkbox);
+    remote_form->addRow(tr("OpenAI API key"), api_key_row);
+
+    model_edit = new QLineEdit(remote_inputs);
+    model_edit->setPlaceholderText(tr("e.g. gpt-4o-mini, gpt-4.1, o3-mini"));
+    remote_form->addRow(tr("Model"), model_edit);
+
+    remote_help_label = new QLabel(tr("Your key is stored locally in the config file for this device."), remote_inputs);
+    remote_help_label->setWordWrap(true);
+    remote_form->addRow(remote_help_label);
+    remote_inputs->setVisible(false);
 
     custom_radio = new QRadioButton(tr("Custom local LLM (gguf) (experimental)"), radio_container);
     auto* custom_row = new QWidget(radio_container);
@@ -126,6 +163,7 @@ void LLMSelectionDialog::setup_ui()
     radio_layout->addWidget(local3_desc);
     radio_layout->addWidget(remote_radio);
     radio_layout->addWidget(remote_desc);
+    radio_layout->addWidget(remote_inputs);
     radio_layout->addWidget(custom_radio);
     radio_layout->addWidget(custom_row);
 
@@ -179,9 +217,19 @@ void LLMSelectionDialog::connect_signals()
     connect(local7_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_combo, &QComboBox::currentTextChanged, this, update_handler);
+    connect(api_key_edit, &QLineEdit::textChanged, this, update_handler);
+    connect(model_edit, &QLineEdit::textChanged, this, update_handler);
     connect(add_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_add_custom);
     connect(edit_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_edit_custom);
     connect(delete_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_custom);
+
+    if (show_api_key_checkbox) {
+        connect(show_api_key_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (api_key_edit) {
+                api_key_edit->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
+            }
+        });
+    }
 
     connect(download_button, &QPushButton::clicked, this, &LLMSelectionDialog::start_download);
     connect(button_box, &QDialogButtonBox::accepted, this, &LLMSelectionDialog::accept);
@@ -199,6 +247,16 @@ std::string LLMSelectionDialog::get_selected_custom_llm_id() const
     return selected_custom_id;
 }
 
+std::string LLMSelectionDialog::get_remote_api_key() const
+{
+    return remote_api_key;
+}
+
+std::string LLMSelectionDialog::get_remote_model() const
+{
+    return remote_model;
+}
+
 
 void LLMSelectionDialog::set_status_message(const QString& message)
 {
@@ -214,7 +272,7 @@ void LLMSelectionDialog::update_ui_for_choice()
 
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
 
-    if (selected_choice == LLMChoice::Custom || !is_local_builtin) {
+    if (selected_choice == LLMChoice::Custom || selected_choice == LLMChoice::Remote || !is_local_builtin) {
         return;
     }
 
@@ -240,8 +298,13 @@ void LLMSelectionDialog::update_custom_choice_ui()
         ok_button = button_box->button(QDialogButtonBox::Ok);
     }
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
+    const bool is_remote = selected_choice == LLMChoice::Remote;
     const bool is_custom = selected_choice == LLMChoice::Custom;
     download_section->setVisible(is_local_builtin);
+    if (remote_inputs) {
+        remote_inputs->setVisible(is_remote);
+        remote_inputs->setEnabled(is_remote);
+    }
 
     custom_combo->setEnabled(is_custom);
     edit_custom_button->setEnabled(is_custom && custom_combo->currentIndex() >= 0 && custom_combo->count() > 0);
@@ -260,17 +323,55 @@ void LLMSelectionDialog::update_custom_choice_ui()
         return;
     }
 
+    if (is_remote) {
+        update_remote_fields_state();
+        return;
+    }
+
     if (!is_local_builtin) {
         if (ok_button) ok_button->setEnabled(true);
         progress_bar->setVisible(false);
         download_button->setVisible(false);
-        if (selected_choice == LLMChoice::Remote) {
-            set_status_message(tr("Remote LLM selected."));
-        } else {
-            set_status_message(tr("Selection ready."));
-        }
+        set_status_message(tr("Selection ready."));
         return;
     }
+}
+
+void LLMSelectionDialog::update_remote_fields_state()
+{
+    if (!ok_button && button_box) {
+        ok_button = button_box->button(QDialogButtonBox::Ok);
+    }
+
+    if (remote_inputs) {
+        remote_inputs->setVisible(selected_choice == LLMChoice::Remote);
+    }
+
+    remote_api_key = api_key_edit ? api_key_edit->text().trimmed().toStdString() : std::string();
+    remote_model = model_edit ? model_edit->text().trimmed().toStdString() : std::string();
+
+    const bool valid = remote_inputs_valid();
+    if (ok_button) {
+        ok_button->setEnabled(valid);
+    }
+    if (progress_bar) {
+        progress_bar->setVisible(false);
+    }
+    if (download_button) {
+        download_button->setVisible(false);
+        download_button->setEnabled(false);
+    }
+
+    set_status_message(valid
+        ? tr("ChatGPT will use your API key and model.")
+        : tr("Enter your OpenAI API key and model to continue."));
+}
+
+bool LLMSelectionDialog::remote_inputs_valid() const
+{
+    const QString key_text = api_key_edit ? api_key_edit->text().trimmed() : QString();
+    const QString model_text = model_edit ? model_edit->text().trimmed() : QString();
+    return !key_text.isEmpty() && !model_text.isEmpty();
 }
 
 void LLMSelectionDialog::update_local_choice_ui()

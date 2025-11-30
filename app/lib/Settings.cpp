@@ -178,6 +178,8 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
                                    const std::function<int(const char*, int, int)>& load_int)
 {
     llm_choice = parse_llm_choice();
+    set_remote_api_key(config.getValue("Settings", "RemoteApiKey", ""));
+    set_remote_model(config.getValue("Settings", "RemoteModel", "gpt-4o-mini"));
     use_subcategories = load_bool("UseSubcategories", false);
     use_consistency_hints = load_bool("UseConsistencyHints", true);
     categorize_files = load_bool("CategorizeFiles", true);
@@ -243,6 +245,8 @@ void Settings::save_core_settings()
     static const std::string settings_section = "Settings";
 
     config.setValue(settings_section, "LLMChoice", llm_choice_to_string(llm_choice));
+    config.setValue(settings_section, "RemoteApiKey", remote_api_key);
+    config.setValue(settings_section, "RemoteModel", remote_model.empty() ? "gpt-4o-mini" : remote_model);
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
     set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
@@ -363,6 +367,37 @@ LLMChoice Settings::get_llm_choice() const
 void Settings::set_llm_choice(LLMChoice choice)
 {
     llm_choice = choice;
+}
+
+std::string Settings::get_remote_api_key() const
+{
+    return remote_api_key;
+}
+
+void Settings::set_remote_api_key(const std::string& key)
+{
+    auto trimmed = key;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    remote_api_key = trimmed;
+}
+
+std::string Settings::get_remote_model() const
+{
+    return remote_model;
+}
+
+void Settings::set_remote_model(const std::string& model)
+{
+    auto trimmed = model;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    if (trimmed.empty()) {
+        trimmed = "gpt-4o-mini";
+    }
+    remote_model = trimmed;
 }
 
 std::string Settings::get_active_custom_llm_id() const

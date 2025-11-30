@@ -7,7 +7,7 @@
 
 class LLMClient : public ILLMClient {
 public:
-    explicit LLMClient(const std::string &api_key);
+    LLMClient(std::string api_key, std::string model);
     ~LLMClient() override;
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,
@@ -22,13 +22,15 @@ private:
     std::string send_api_request(std::string json_payload);
     std::string make_payload(const std::string &file_name,
                              const std::string &file_path,
-                             const FileType file_type,
-                             const std::string& consistency_context);
+                                const FileType file_type,
+                                const std::string& consistency_context);
     std::string make_generic_payload(const std::string& system_prompt,
                                      const std::string& user_prompt,
                                      int max_tokens) const;
+    std::string effective_model() const;
     bool prompt_logging_enabled{false};
     std::string last_prompt;
+    std::string model;
 };
 
 #endif
