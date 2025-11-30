@@ -339,6 +339,16 @@ void MainApp::connect_folder_contents_signals()
                 }
                 on_directory_selected(folder_contents_model->filePath(current), true);
             });
+
+    connect(folder_contents_model, &QFileSystemModel::directoryLoaded,
+            this, [this](const QString& path) {
+                if (!folder_contents_view || !folder_contents_model) {
+                    return;
+                }
+                if (folder_contents_model->rootPath() == path) {
+                    folder_contents_view->resizeColumnToContents(0);
+                }
+            });
 }
 
 void MainApp::connect_checkbox_signals()
@@ -489,16 +499,22 @@ void MainApp::restore_tree_settings()
 
 void MainApp::restore_sort_folder_state()
 {
-    const QString sort_folder = QString::fromStdString(settings.get_sort_folder());
-    path_entry->setText(sort_folder);
+    const QString stored_folder = QString::fromStdString(settings.get_sort_folder());
+    QString effective_folder = stored_folder;
 
-    if (!sort_folder.isEmpty() && QDir(sort_folder).exists()) {
-        statusBar()->showMessage(tr("Loaded folder %1").arg(sort_folder), 3000);
+    if (effective_folder.isEmpty() || !QDir(effective_folder).exists()) {
+        effective_folder = QDir::homePath();
+    }
+
+    path_entry->setText(effective_folder);
+
+    if (!effective_folder.isEmpty() && QDir(effective_folder).exists()) {
+        statusBar()->showMessage(tr("Loaded folder %1").arg(effective_folder), 3000);
         status_is_ready_ = false;
-        update_folder_contents(sort_folder);
-        focus_file_explorer_on_path(sort_folder);
-    } else if (!sort_folder.isEmpty()) {
-        core_logger->warn("Sort folder path is invalid: {}", sort_folder.toStdString());
+        update_folder_contents(effective_folder);
+        focus_file_explorer_on_path(effective_folder);
+    } else if (!stored_folder.isEmpty()) {
+        core_logger->warn("Sort folder path is invalid: {}", stored_folder.toStdString());
     }
 }
 
