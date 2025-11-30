@@ -1,10 +1,11 @@
-# Changelog
+﻿# Changelog
 
 ## [1.4.0] - 2025-12-30
-- Added dry run / preview-only mode with From→To table, no moves performed until you uncheck.
-- Persistent Undo: the latest sort saves a plan file; use Edit → “Undo last run” even after closing dialogs.
+- Added dry run / preview-only mode with From/To table, no moves performed until you uncheck.
+- Persistent Undo: the latest sort saves a plan file; use Edit -> "Undo last run" even after closing dialogs.
 - UI tweaks: Name column auto-resizes, new translations for dry run/undo strings, Undo moved to top of Edit menu.
 - A few more guard rails added.
+- Remote LLM flow now uses your own OpenAI API key (any ChatGPT model supported); the bundled remote key and obfuscation step were removed.
 
 ## [1.3.0] - 2025-11-21
 
@@ -64,3 +65,7 @@
 - LLM selection and download dialog.
 - Improved `Makefile` for a more hassle-free build and installation.
 - Minor bug fixes and improvements.
+
+
+
+
