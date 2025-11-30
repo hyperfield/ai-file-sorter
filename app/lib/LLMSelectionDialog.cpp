@@ -140,6 +140,12 @@ void LLMSelectionDialog::setup_ui()
     remote_help_label = new QLabel(tr("Your key is stored locally in the config file for this device."), remote_inputs);
     remote_help_label->setWordWrap(true);
     remote_form->addRow(remote_help_label);
+    remote_link_label = new QLabel(remote_inputs);
+    remote_link_label->setTextFormat(Qt::RichText);
+    remote_link_label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    remote_link_label->setOpenExternalLinks(true);
+    remote_link_label->setText(tr("<a href=\"https://platform.openai.com/api-keys\">Get an OpenAI API key</a>"));
+    remote_form->addRow(remote_link_label);
     remote_inputs->setVisible(false);
 
     custom_radio = new QRadioButton(tr("Custom local LLM (gguf) (experimental)"), radio_container);

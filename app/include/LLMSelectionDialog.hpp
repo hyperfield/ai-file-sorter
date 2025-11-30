@@ -85,6 +85,7 @@ private:
     QLineEdit* model_edit{nullptr};
     QCheckBox* show_api_key_checkbox{nullptr};
     QLabel* remote_help_label{nullptr};
+    QLabel* remote_link_label{nullptr};
 
     std::unique_ptr<LLMDownloader> downloader;
     std::atomic<bool> is_downloading{false};
