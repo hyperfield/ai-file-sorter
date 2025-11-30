@@ -518,13 +518,21 @@ void configure_runtime_paths(const QString& exeDir,
     }
 }
 
-QStringList build_forwarded_args(int argc, char* argv[])
+QStringList build_forwarded_args(int argc, char* argv[], bool &console_log_flag)
 {
     QStringList forwardedArgs;
+    console_log_flag = false;
     for (int i = 1; i < argc; ++i) {
-        forwardedArgs.append(QString::fromLocal8Bit(argv[i]));
+        const QString arg = QString::fromLocal8Bit(argv[i]);
+        if (arg == QStringLiteral("--console-log")) {
+            console_log_flag = true;
+        }
+        forwardedArgs.append(arg);
     }
     forwardedArgs.prepend(QStringLiteral("--allow-direct-launch"));
+    if (console_log_flag && !forwardedArgs.contains(QStringLiteral("--console-log"))) {
+        forwardedArgs.append(QStringLiteral("--console-log"));
+    }
     return forwardedArgs;
 }
 
@@ -643,8 +651,17 @@ int main(int argc, char* argv[]) {
     const bool useVulkan = (selection == BackendSelection::Vulkan);
     configure_runtime_paths(exeDir, ggmlPath, secureSearchEnabled, useCuda, useVulkan);
 
+    bool console_log_flag = false;
+    QStringList forwardedArgs = build_forwarded_args(argc, argv, console_log_flag);
+    if (console_log_flag) {
+        AttachConsole(ATTACH_PARENT_PROCESS);
+        FILE* f = nullptr;
+        freopen_s(&f, "CONOUT$", "w", stdout);
+        freopen_s(&f, "CONOUT$", "w", stderr);
+        freopen_s(&f, "CONIN$", "r", stdin);
+    }
+
     const QString mainExecutable = resolveExecutableName(exeDir);
-    const QStringList forwardedArgs = build_forwarded_args(argc, argv);
     if (!launch_main_process(mainExecutable, forwardedArgs, selection, ggmlPath)) {
         return EXIT_FAILURE;
     }

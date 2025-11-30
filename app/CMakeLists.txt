@@ -47,9 +47,14 @@ file(GLOB APP_LIB_SOURCES
 )
 set(APP_SOURCES ${APP_MAIN_SOURCE} ${APP_LIB_SOURCES})
 
-# Executable (GUI on Windows)
+# Executable (console opt-in on Windows)
 if(WIN32)
-    add_executable(aifilesorter WIN32 ${APP_SOURCES})
+    option(AI_FILE_SORTER_CONSOLE "Build main executable as console (attach stdout/stderr)" OFF)
+    if(AI_FILE_SORTER_CONSOLE)
+        add_executable(aifilesorter ${APP_SOURCES})
+    else()
+        add_executable(aifilesorter WIN32 ${APP_SOURCES})
+    endif()
 else()
     add_executable(aifilesorter ${APP_SOURCES})
 endif()
@@ -171,13 +176,15 @@ if(WIN32)
 endif()
 
 if(WIN32)
-    add_executable(StartAiFileSorter WIN32
+    # Build the starter as a console subsystem so stdout/stderr stay attached for CLI debugging.
+    set(STARTER_TARGET StartAiFileSorter)
+    add_executable(${STARTER_TARGET}
         "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp"
     )
-    target_link_libraries(StartAiFileSorter PRIVATE
+    target_link_libraries(${STARTER_TARGET} PRIVATE
         Qt6::Widgets Qt6::Gui Qt6::Core
     )
-    target_compile_definitions(StartAiFileSorter PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_compile_definitions(${STARTER_TARGET} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 endif()
 
 # On Windows, ensure Unicode and lean Windows headers in deps that need it
@@ -268,9 +275,37 @@ if(WIN32)
     set_source_files_properties("${APP_ICON_ICO}" PROPERTIES GENERATED TRUE)
     add_custom_target(app_icon_resource ALL DEPENDS "${APP_ICON_ICO}")
     add_dependencies(aifilesorter app_icon_resource)
-    add_dependencies(StartAiFileSorter app_icon_resource)
+    add_dependencies(aifilesorter app_icon_resource)
+    if(WIN32)
+        add_dependencies(${STARTER_TARGET} app_icon_resource)
+    endif()
     target_sources(aifilesorter PRIVATE "${APP_ICON_RC}")
-    target_sources(StartAiFileSorter PRIVATE "${APP_ICON_RC}")
+    target_sources(aifilesorter PRIVATE "${APP_ICON_RC}")
+    if(WIN32)
+        target_sources(${STARTER_TARGET} PRIVATE "${APP_ICON_RC}")
+    endif()
+
+    # Version info resource generated from app_version.hpp
+    set(APP_VERSION_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/app_version.hpp")
+    file(READ "${APP_VERSION_HEADER}" APP_VERSION_CONTENTS)
+    string(REGEX MATCH "Version\\{([0-9]+),[ \t]*([0-9]+),[ \t]*([0-9]+)" _ "${APP_VERSION_CONTENTS}")
+    if(CMAKE_MATCH_1)
+        set(APP_VER_MAJOR "${CMAKE_MATCH_1}")
+        set(APP_VER_MINOR "${CMAKE_MATCH_2}")
+        set(APP_VER_PATCH "${CMAKE_MATCH_3}")
+    else()
+        set(APP_VER_MAJOR "0")
+        set(APP_VER_MINOR "0")
+        set(APP_VER_PATCH "0")
+    endif()
+
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/version.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/version.rc"
+        @ONLY
+    )
+    target_sources(aifilesorter PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/version.rc")
+    target_sources(${STARTER_TARGET} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/version.rc")
 
     set(PRECOMPILED_CPU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cpu")
     set(PRECOMPILED_CUDA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cuda")

@@ -8,7 +8,8 @@ param(
     [switch]$BuildTests,
     [switch]$RunTests,
     [ValidateRange(1, 512)]
-    [int]$Parallel = [System.Environment]::ProcessorCount
+    [int]$Parallel = [System.Environment]::ProcessorCount,
+    [switch]$ConsoleApp
 )
 
 $ErrorActionPreference = "Stop"
@@ -140,6 +141,8 @@ $configureArgs += @("-G", $Generator)
 $configureArgs += "-DCMAKE_TOOLCHAIN_FILE=`"$toolchainFile`""
 $configureArgs += "-DVCPKG_TARGET_TRIPLET=x64-windows"
 $configureArgs += "-DVCPKG_MANIFEST_DIR=`"$appDir`""
+$configureArgs += "-DAI_FILE_SORTER_CONSOLE=`"$(if ($ConsoleApp.IsPresent) { "ON" } else { "OFF" })`""
+$configureArgs += "-DAI_FILE_SORTER_STARTER_CONSOLE=`"$AI_FILE_SORTER_STARTER_CONSOLE`""
 if ($RunTests) {
     $BuildTests = $true
 }

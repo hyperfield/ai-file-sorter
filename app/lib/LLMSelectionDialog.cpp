@@ -105,7 +105,7 @@ void LLMSelectionDialog::setup_ui()
     auto* remote_desc = new QLabel(tr("Fast and accurate, but requires internet connection."), radio_container);
     remote_desc->setWordWrap(true);
 
-    custom_radio = new QRadioButton(tr("Custom local LLM (gguf)"), radio_container);
+    custom_radio = new QRadioButton(tr("Custom local LLM (gguf) (experimental)"), radio_container);
     auto* custom_row = new QWidget(radio_container);
     auto* custom_layout = new QHBoxLayout(custom_row);
     custom_layout->setContentsMargins(24, 0, 0, 0);

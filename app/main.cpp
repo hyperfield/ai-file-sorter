@@ -50,6 +50,8 @@ namespace {
 
 struct ParsedArguments {
     bool development_mode{false};
+    bool console_log{false};
+    bool force_direct_run{false};
     std::vector<char*> qt_args;
 };
 
@@ -67,6 +69,14 @@ ParsedArguments parse_command_line(int argc, char** argv)
         if (is_flag && std::strcmp(argv[i], "--allow-direct-launch") == 0) {
             continue;
         }
+        if (is_flag && std::strcmp(argv[i], "--console-log") == 0) {
+            parsed.console_log = true;
+            continue;
+        }
+        if (is_flag && std::strcmp(argv[i], "--force-direct-run") == 0) {
+            parsed.force_direct_run = true;
+            continue;
+        }
         parsed.qt_args.push_back(argv[i]);
     }
     parsed.qt_args.push_back(nullptr);
@@ -77,11 +87,29 @@ ParsedArguments parse_command_line(int argc, char** argv)
 bool allow_direct_launch(int argc, char** argv)
 {
     for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--force-direct-run") == 0) {
+            return true;
+        }
+    }
+    for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--allow-direct-launch") == 0) {
             return true;
         }
     }
     return false;
+}
+
+void attach_console_if_requested(bool enable)
+{
+    if (!enable) {
+        return;
+    }
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        FILE* f = nullptr;
+        freopen_s(&f, "CONOUT$", "w", stdout);
+        freopen_s(&f, "CONOUT$", "w", stderr);
+        freopen_s(&f, "CONIN$", "r", stdin);
+    }
 }
 #endif
 
@@ -237,7 +265,10 @@ int run_application(int argc, char** argv)
 
 int main(int argc, char **argv) {
 
+    ParsedArguments parsed = parse_command_line(argc, argv);
+
 #ifdef _WIN32
+    attach_console_if_requested(parsed.console_log);
     if (!allow_direct_launch(argc, argv)) {
         const wchar_t* message =
             L"Please launch AI File Sorter by running StartAiFileSorter.exe.\n"
@@ -259,7 +290,7 @@ int main(int argc, char **argv) {
         _putenv("GSETTINGS_SCHEMA_DIR=schemas");
     #endif
     try {
-        return run_application(argc, argv);
+        return run_application(static_cast<int>(parsed.qt_args.size() - 1), parsed.qt_args.data());
     } catch (const std::exception& ex) {
         if (auto logger = Logger::get_logger("core_logger")) {
             logger->critical("Error: {}", ex.what());
