@@ -47,14 +47,9 @@ file(GLOB APP_LIB_SOURCES
 )
 set(APP_SOURCES ${APP_MAIN_SOURCE} ${APP_LIB_SOURCES})
 
-# Executable (console opt-in on Windows)
+# Executable (GUI subsystem on Windows)
 if(WIN32)
-    option(AI_FILE_SORTER_CONSOLE "Build main executable as console (attach stdout/stderr)" OFF)
-    if(AI_FILE_SORTER_CONSOLE)
-        add_executable(aifilesorter ${APP_SOURCES})
-    else()
-        add_executable(aifilesorter WIN32 ${APP_SOURCES})
-    endif()
+    add_executable(aifilesorter WIN32 ${APP_SOURCES})
 else()
     add_executable(aifilesorter ${APP_SOURCES})
 endif()
@@ -176,9 +171,8 @@ if(WIN32)
 endif()
 
 if(WIN32)
-    # Build the starter as a console subsystem so stdout/stderr stay attached for CLI debugging.
     set(STARTER_TARGET StartAiFileSorter)
-    add_executable(${STARTER_TARGET}
+    add_executable(${STARTER_TARGET} WIN32
         "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp"
     )
     target_link_libraries(${STARTER_TARGET} PRIVATE

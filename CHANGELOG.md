@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0] - 2025-12-30
+- Added dry run / preview-only mode with From→To table, no moves performed until you uncheck.
+- Persistent Undo: the latest sort saves a plan file; use Edit → “Undo last run” even after closing dialogs.
+- UI tweaks: Name column auto-resizes, new translations for dry run/undo strings, Undo moved to top of Edit menu.
+- A few more guard rails added.
+
 ## [1.3.0] - 2025-11-21
 
 - You can now switch between two categorization modes: More Refined and More Consistent. Choose depending on your folder and use case.

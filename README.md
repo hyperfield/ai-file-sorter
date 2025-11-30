@@ -74,7 +74,13 @@ File content–based sorting for certain file types is also in development.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the release history.
+## [1.4.0] - 2025-12-30
+- Added dry run / preview-only mode with From→To table, no moves performed until you uncheck.
+- Persistent Undo: the latest sort saves a plan file; use Edit → “Undo last run” even after closing dialogs.
+- UI tweaks: Name column auto-resizes, new translations for dry run/undo strings, Undo moved to top of Edit menu.
+- A few more guard rails added.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ---
 
@@ -93,6 +99,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
 - **Local Database Caching**: Speeds up repeated categorization and minimizes remote LLM usage costs.
 - **Sorting Preview**: See how files will be organized before confirming changes.
+- 🧪 **Dry run** / preview-only mode to inspect planned moves without touching files.
+- ↩️ **Persistent Undo** ("Undo last run") even after closing the sort dialog.
 - **Secure API Key Encryption**: When using the remote model, your API key is stored securely with encryption.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
 
@@ -415,6 +423,11 @@ In the same subdirectory `app`, run `sudo make uninstall`.
 
 1. Launch the application (see the last step in [Installation](#installation) according your OS).
 2. Select a directory to analyze.
+
+### Using dry run and undo
+
+- In the results dialog, you can enable **"Dry run (preview only, do not move files)"** to preview planned moves. A preview dialog shows From/To without moving any files.
+- After a real sort, the app saves a persistent undo plan. You can revert later via **Edit → "Undo last run"** (best-effort; skips conflicts/changes).
 3. Tick off the checkboxes on the main window according to your preferences.
 4. Click the **"Analyze"** button. The app will scan each file and/or directory based on your selected options.
 5. A review dialog will appear. Verify the assigned categories (and subcategories, if enabled in step 3).
