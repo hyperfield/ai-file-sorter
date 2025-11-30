@@ -12,6 +12,7 @@
 #include "Settings.hpp"
 #include "WhitelistStore.hpp"
 #include "UiTranslator.hpp"
+#include "UndoManager.hpp"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -133,6 +134,8 @@ private:
     void handle_development_prompt_logging(bool checked);
     void record_categorized_metrics(int count);
     SupportPromptResult show_support_prompt_dialog(int categorized_files);
+    void undo_last_run();
+    bool perform_undo_from_plan(const QString& plan_path);
 
     std::unique_ptr<ILLMClient> make_llm_client();
     void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
@@ -200,6 +203,7 @@ private:
     QAction* cut_action{nullptr};
     QAction* paste_action{nullptr};
     QAction* delete_action{nullptr};
+    QAction* undo_last_run_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
     QAction* manage_whitelists_action{nullptr};
@@ -237,6 +241,7 @@ private:
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
     ResultsCoordinator results_coordinator;
+    UndoManager undo_manager_;
     bool development_mode_{false};
     bool development_prompt_logging_enabled_{false};
 

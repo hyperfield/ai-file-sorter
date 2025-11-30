@@ -58,6 +58,7 @@ public:
         QAction*& file_quit_action;
         QAction*& copy_action;
         QAction*& cut_action;
+        QAction*& undo_last_run_action;
         QAction*& paste_action;
         QAction*& delete_action;
         QAction*& toggle_explorer_action;

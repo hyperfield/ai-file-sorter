@@ -5,6 +5,8 @@
 #include "MovableCategorizedFile.hpp"
 #include "TestHooks.hpp"
 #include "Utils.hpp"
+#include "UndoManager.hpp"
+#include "DryRunPreviewDialog.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -24,16 +26,108 @@
 #include <QTableView>
 #include <QVBoxLayout>
 #include <QSignalBlocker>
+#include <QFile>
+#include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDateTime>
 
 #include <fmt/format.h>
 
+#include <algorithm>
+#include <cctype>
+#include <vector>
 #include <filesystem>
+#include <optional>
+#include <chrono>
 
 namespace {
 
 TestHooks::CategorizationMoveProbe& move_probe_slot() {
     static TestHooks::CategorizationMoveProbe probe;
     return probe;
+}
+
+struct ScopedFlag {
+    bool& ref;
+    explicit ScopedFlag(bool& target) : ref(target) { ref = true; }
+    ~ScopedFlag() { ref = false; }
+};
+
+std::string to_lower_copy_str(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+bool contains_only_allowed_chars(const std::string& value) {
+    for (unsigned char ch : value) {
+        if (std::iscntrl(ch)) {
+            return false;
+        }
+        static const std::string forbidden = R"(<>:"/\|?*)";
+        if (forbidden.find(static_cast<char>(ch)) != std::string::npos) {
+            return false;
+        }
+        // Everything else is allowed (including non-ASCII letters and punctuation).
+    }
+    return true;
+}
+
+bool is_reserved_windows_name(const std::string& value) {
+    static const std::vector<std::string> reserved = {
+        "con","prn","aux","nul",
+        "com1","com2","com3","com4","com5","com6","com7","com8","com9",
+        "lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"
+    };
+    const std::string lower = to_lower_copy_str(value);
+    return std::find(reserved.begin(), reserved.end(), lower) != reserved.end();
+}
+
+bool looks_like_extension_label(const std::string& value) {
+    const auto dot_pos = value.rfind('.');
+    if (dot_pos == std::string::npos || dot_pos == value.size() - 1) {
+        return false;
+    }
+    const std::string ext = value.substr(dot_pos + 1);
+    if (ext.empty() || ext.size() > 5) {
+        return false;
+    }
+    return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) { return std::isalpha(ch); });
+}
+
+bool validate_labels(const std::string& category,
+                     const std::string& subcategory,
+                     std::string& error,
+                     bool allow_identical = false) {
+    constexpr size_t kMaxLabelLength = 80;
+    if (category.empty() || subcategory.empty()) {
+        error = "Category or subcategory is empty";
+        return false;
+    }
+    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+        error = "Category or subcategory exceeds max length";
+        return false;
+    }
+    if (!contains_only_allowed_chars(category) || !contains_only_allowed_chars(subcategory)) {
+        error = "Category or subcategory contains disallowed characters";
+        return false;
+    }
+    if (looks_like_extension_label(category) || looks_like_extension_label(subcategory)) {
+        error = "Category or subcategory looks like a file extension";
+        return false;
+    }
+    if (is_reserved_windows_name(category) || is_reserved_windows_name(subcategory)) {
+        error = "Category or subcategory is a reserved name";
+        return false;
+    }
+    if (!allow_identical && to_lower_copy_str(category) == to_lower_copy_str(subcategory)) {
+        error = "Category and subcategory are identical";
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -52,10 +146,12 @@ void reset_categorization_move_probe() {
 
 CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
                                            bool show_subcategory_col,
+                                           const std::string& undo_dir,
                                            QWidget* parent)
     : QDialog(parent),
       db_manager(db_manager),
       show_subcategory_column(show_subcategory_col),
+      undo_dir_(undo_dir),
       core_logger(Logger::get_logger("core_logger")),
       db_logger(Logger::get_logger("db_logger")),
       ui_logger(Logger::get_logger("ui_logger"))
@@ -75,12 +171,20 @@ bool CategorizationDialog::is_dialog_valid() const
 void CategorizationDialog::show_results(const std::vector<CategorizedFile>& files)
 {
     categorized_files = files;
+    base_dir_.clear();
+    dry_run_plan_.clear();
+    if (!categorized_files.empty()) {
+        base_dir_ = categorized_files.front().file_path;
+    }
     clear_move_history();
     if (undo_button) {
         undo_button->setEnabled(false);
         undo_button->setVisible(false);
     }
-    populate_model();
+    {
+        ScopedFlag guard(suppress_item_changed_);
+        populate_model();
+    }
     exec();
 }
 
@@ -97,8 +201,12 @@ void CategorizationDialog::setup_ui()
     show_subcategories_checkbox->setChecked(show_subcategory_column);
     layout->addWidget(show_subcategories_checkbox);
 
+    dry_run_checkbox = new QCheckBox(this);
+    dry_run_checkbox->setChecked(false);
+    layout->addWidget(dry_run_checkbox);
+
     model = new QStandardItemModel(this);
-    model->setColumnCount(6);
+    model->setColumnCount(7);
 
     table_view = new QTableView(this);
     table_view->setModel(model);
@@ -111,6 +219,7 @@ void CategorizationDialog::setup_ui()
     table_view->setSortingEnabled(true);
     table_view->setColumnHidden(2, false);
     table_view->setColumnHidden(4, !show_subcategory_column);
+    table_view->setColumnHidden(6, false);
     table_view->setColumnWidth(0, 70);
     table_view->setIconSize(QSize(16, 16));
     table_view->setColumnWidth(2, table_view->iconSize().width() + 12);
@@ -187,6 +296,7 @@ QIcon edit_icon()
 
 void CategorizationDialog::populate_model()
 {
+    ScopedFlag guard(suppress_item_changed_);
     model->removeRows(0, model->rowCount());
 
     const int type_col_width = table_view ? table_view->iconSize().width() + 12 : 28;
@@ -228,8 +338,12 @@ void CategorizationDialog::populate_model()
         apply_status_text(status_item);
         status_item->setForeground(QBrush());
 
-        row << select_item << file_item << type_item << category_item << subcategory_item << status_item;
+        auto* preview_item = new QStandardItem;
+        preview_item->setEditable(false);
+
+        row << select_item << file_item << type_item << category_item << subcategory_item << status_item << preview_item;
         model->appendRow(row);
+        update_preview_column(model->rowCount() - 1);
     }
 
     updating_select_all = false;
@@ -320,6 +434,7 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
     }
 
     const std::string base_dir = categorized_files.front().file_path;
+    dry_run_plan_.clear();
     auto rows = get_rows();
 
     clear_move_history();
@@ -328,7 +443,13 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
         undo_button->setVisible(false);
     }
 
+    const bool dry_run = dry_run_checkbox && dry_run_checkbox->isChecked();
+    if (dry_run && core_logger) {
+        core_logger->info("Dry run enabled; will not move files.");
+    }
+
     std::vector<std::string> files_not_moved;
+    ScopedFlag guard(suppress_item_changed_);
     int row_index = 0;
     for (const auto& [selected, file_name, category, subcategory] : rows) {
         if (!selected) {
@@ -341,7 +462,8 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
                             category,
                             subcategory,
                             base_dir,
-                            files_not_moved);
+                            files_not_moved,
+                            dry_run);
         ++row_index;
     }
 
@@ -353,9 +475,83 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
         ui_logger->info("Categorization complete. Unmoved files: {}", files_not_moved.size());
     }
 
+    if (dry_run) {
+        // Show preview dialog of planned moves.
+        std::vector<DryRunPreviewDialog::Entry> entries;
+        entries.reserve(static_cast<size_t>(model->rowCount()));
+        for (int row = 0; row < model->rowCount(); ++row) {
+            if (auto* select_item = model->item(row, 0)) {
+                if (select_item->checkState() != Qt::Checked) {
+                    continue;
+                }
+            }
+            const auto* file_item = model->item(row, 1);
+            const auto* cat_item = model->item(row, 3);
+            const auto* sub_item = model->item(row, 4);
+            if (!file_item || !cat_item) {
+                continue;
+            }
+            const std::string file_name = file_item->text().toStdString();
+            const std::string category = cat_item->text().toStdString();
+            const std::string subcategory = show_subcategory_column && sub_item
+                                                ? sub_item->text().toStdString()
+                                                : std::string();
+            std::string debug_reason;
+            auto rec = build_preview_record_for_row(row, &debug_reason);
+            if (!rec) {
+                if (core_logger) {
+                    core_logger->warn("Dry run preview skipped row {}: {}", row, debug_reason);
+                }
+                continue;
+            }
+            std::string to_label = rec->category;
+#ifdef _WIN32
+            const char sep = '\\\\';
+#else
+            const char sep = '/';
+#endif
+            if (rec->use_subcategory && !rec->subcategory.empty()) {
+                to_label += std::string(1, sep) + rec->subcategory;
+            }
+            to_label += std::string(1, sep) + rec->file_name;
+
+            std::string destination = rec->destination;
+#ifdef _WIN32
+            std::replace(destination.begin(), destination.end(), '/', '\\');
+#endif
+            std::string source_tooltip = rec->source;
+#ifdef _WIN32
+            std::replace(source_tooltip.begin(), source_tooltip.end(), '/', '\\');
+#endif
+
+            entries.push_back(DryRunPreviewDialog::Entry{
+                /*from_label*/ rec->file_name,
+                /*to_label*/ to_label,
+                /*source_tooltip*/ source_tooltip,
+                /*destination_tooltip*/ destination});
+        }
+        if (core_logger) {
+            core_logger->info("Dry run preview entries built: {}", entries.size());
+        }
+        DryRunPreviewDialog preview_dialog(entries, this);
+        preview_dialog.exec();
+
+        // In preview mode, keep the dialog actionable so the user can uncheck Dry run and re-run.
+        if (undo_button) {
+            undo_button->setVisible(false);
+            undo_button->setEnabled(false);
+        }
+        restore_action_buttons();
+        return;
+    }
+
     if (!move_history_.empty() && undo_button) {
         undo_button->setVisible(true);
         undo_button->setEnabled(true);
+    }
+
+    if (!move_history_.empty()) {
+        persist_move_plan();
     }
 
     show_close_button();
@@ -366,7 +562,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
                                                const std::string& category,
                                                const std::string& subcategory,
                                                const std::string& base_dir,
-                                               std::vector<std::string>& files_not_moved)
+                                               std::vector<std::string>& files_not_moved,
+                                               bool dry_run)
 {
     const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
 
@@ -381,11 +578,43 @@ void CategorizationDialog::handle_selected_row(int row_index,
         return;
     }
 
+    std::string validation_error;
+    const bool allow_identical = !show_subcategory_column;
+    if (!validate_labels(category, effective_subcategory, validation_error, allow_identical)) {
+        update_status_column(row_index, false);
+        files_not_moved.push_back(file_name);
+        if (core_logger) {
+            core_logger->warn("Skipping move for '{}' due to invalid category/subcategory: {} (cat='{}', sub='{}')",
+                              file_name,
+                              validation_error,
+                              category,
+                              effective_subcategory);
+        }
+        return;
+    }
+
     try {
         MovableCategorizedFile categorized_file(
             base_dir, category, effective_subcategory, file_name);
 
         const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
+
+        if (dry_run) {
+            set_preview_status(row_index, preview_paths.destination);
+            dry_run_plan_.push_back(PreviewRecord{
+                preview_paths.source,
+                preview_paths.destination,
+                file_name,
+                category,
+                effective_subcategory,
+                show_subcategory_column});
+            if (core_logger) {
+                core_logger->info("Dry run: would move '{}' to '{}'",
+                                  preview_paths.source,
+                                  preview_paths.destination);
+            }
+            return;
+        }
 
         categorized_file.create_cat_dirs(show_subcategory_column);
         bool moved = categorized_file.move_file(show_subcategory_column);
@@ -397,7 +626,17 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 core_logger->warn("File {} already exists in the destination.", file_name);
             }
         } else {
-            record_move_for_undo(row_index, preview_paths.source, preview_paths.destination);
+            std::error_code ec;
+            const std::uintmax_t size_bytes = std::filesystem::file_size(Utils::utf8_to_path(preview_paths.destination), ec);
+            std::time_t mtime_value = 0;
+            if (!ec) {
+                const auto ftime = std::filesystem::last_write_time(Utils::utf8_to_path(preview_paths.destination), ec);
+                if (!ec) {
+                    const auto sys = std::chrono::clock_cast<std::chrono::system_clock>(ftime);
+                    mtime_value = std::chrono::system_clock::to_time_t(sys);
+                }
+            }
+            record_move_for_undo(row_index, preview_paths.source, preview_paths.destination, size_bytes, mtime_value);
         }
     } catch (const std::exception& ex) {
         update_status_column(row_index, false);
@@ -488,9 +727,13 @@ void CategorizationDialog::on_select_all_toggled(bool checked)
     apply_select_all(checked);
 }
 
-void CategorizationDialog::record_move_for_undo(int row, const std::string& source, const std::string& destination)
+void CategorizationDialog::record_move_for_undo(int row,
+                                                const std::string& source,
+                                                const std::string& destination,
+                                                std::uintmax_t size_bytes,
+                                                std::time_t mtime)
 {
-    move_history_.push_back(MoveRecord{row, source, destination});
+    move_history_.push_back(MoveRecord{row, source, destination, size_bytes, mtime});
 }
 
 void CategorizationDialog::remove_empty_parent_directories(const std::string& destination)
@@ -544,7 +787,7 @@ bool CategorizationDialog::move_file_back(const std::string& source, const std::
 bool CategorizationDialog::undo_move_history()
 {
     if (move_history_.empty()) {
-        return false;
+    return false;
     }
 
     bool any_success = false;
@@ -576,6 +819,7 @@ void CategorizationDialog::apply_select_all(bool checked)
         if (auto* item = model->item(row, 0)) {
             item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
         }
+        update_preview_column(row);
     }
     updating_select_all = false;
     update_select_all_state();
@@ -585,13 +829,138 @@ void CategorizationDialog::on_show_subcategories_toggled(bool checked)
 {
     show_subcategory_column = checked;
     apply_subcategory_visibility();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        update_preview_column(row);
+    }
 }
 
 void CategorizationDialog::apply_subcategory_visibility()
 {
     if (table_view) {
         table_view->setColumnHidden(4, !show_subcategory_column);
+        table_view->setColumnHidden(6, false);
     }
+}
+
+std::optional<std::string> CategorizationDialog::compute_preview_path(int row) const
+{
+    auto rec = build_preview_record_for_row(row);
+    if (rec) {
+        return rec->destination;
+    }
+    return std::nullopt;
+}
+
+std::optional<CategorizationDialog::PreviewRecord>
+CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_reason) const
+{
+    auto fail = [&](std::string reason) -> std::optional<PreviewRecord> {
+        if (debug_reason) {
+            *debug_reason = std::move(reason);
+        }
+        return std::nullopt;
+    };
+
+    if (!model || row < 0 || row >= model->rowCount()) {
+        return fail("Invalid model or row");
+    }
+    if (base_dir_.empty()) {
+        return fail("Base dir empty");
+    }
+
+    const auto* file_item = model->item(row, 1);
+    const auto* category_item = model->item(row, 3);
+    const auto* subcategory_item = model->item(row, 4);
+    if (!file_item || !category_item) {
+        return fail("Missing file/category item");
+    }
+
+    const std::string file_name = file_item->text().toStdString();
+    const std::string category = category_item->text().toStdString();
+    const std::string subcategory = show_subcategory_column && subcategory_item
+        ? subcategory_item->text().toStdString()
+        : std::string();
+    const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
+
+    std::string validation_error;
+    const bool allow_identical = !show_subcategory_column;
+    if (!validate_labels(category, effective_subcategory, validation_error, allow_identical)) {
+        return fail("Validation failed: " + validation_error);
+    }
+
+    try {
+        MovableCategorizedFile categorized_file(base_dir_, category, effective_subcategory, file_name);
+        const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
+        return PreviewRecord{
+            preview_paths.source,
+            preview_paths.destination,
+            file_name,
+            category,
+            effective_subcategory,
+            show_subcategory_column};
+    } catch (...) {
+        return fail("Exception building preview record");
+    }
+}
+
+void CategorizationDialog::update_preview_column(int row)
+{
+    if (!model || row < 0 || row >= model->rowCount()) {
+        return;
+    }
+    auto* preview_item = model->item(row, 6);
+    if (!preview_item) {
+        return;
+    }
+    const auto preview = compute_preview_path(row);
+    if (preview) {
+        std::string display = *preview;
+#ifdef _WIN32
+        std::replace(display.begin(), display.end(), '/', '\\');
+#endif
+        preview_item->setText(QString::fromStdString(display));
+        preview_item->setToolTip(QString::fromStdString(display));
+    } else {
+        preview_item->setText(QStringLiteral("-"));
+        preview_item->setToolTip(QString());
+    }
+}
+
+void CategorizationDialog::set_preview_status(int row, const std::string& destination)
+{
+    if (!model || row < 0 || row >= model->rowCount()) {
+        return;
+    }
+    if (auto* status_item = model->item(row, 5)) {
+        status_item->setData(static_cast<int>(RowStatus::Preview), kStatusRole);
+        status_item->setText(tr("Preview"));
+        status_item->setForeground(QBrush(Qt::blue));
+        std::string display = destination;
+#ifdef _WIN32
+        std::replace(display.begin(), display.end(), '/', '\\');
+#endif
+        status_item->setToolTip(QString::fromStdString(display));
+    }
+}
+
+void CategorizationDialog::persist_move_plan()
+{
+    if (undo_dir_.empty() || base_dir_.empty() || move_history_.empty()) {
+        return;
+    }
+
+    std::vector<UndoManager::Entry> entries;
+    entries.reserve(move_history_.size());
+    for (const auto& rec : move_history_) {
+        entries.push_back(UndoManager::Entry{
+            rec.source_path,
+            rec.destination_path,
+            rec.size_bytes,
+            rec.mtime});
+    }
+
+    UndoManager manager(undo_dir_);
+    manager.save_plan(base_dir_, entries, core_logger);
 }
 
 void CategorizationDialog::clear_move_history()
@@ -611,6 +980,7 @@ void CategorizationDialog::retranslate_ui()
 
     set_text_if(select_all_checkbox, tr("Select all"));
     set_text_if(show_subcategories_checkbox, tr("Create subcategory folders"));
+    set_text_if(dry_run_checkbox, tr("Dry run (preview only, do not move files)"));
     set_text_if(confirm_button, tr("Confirm and Sort"));
     set_text_if(continue_button, tr("Continue Later"));
     set_text_if(undo_button, tr("Undo this change"));
@@ -623,7 +993,8 @@ void CategorizationDialog::retranslate_ui()
             tr("Type"),
             tr("Category"),
             tr("Subcategory"),
-            tr("Status")
+            tr("Status"),
+            tr("Planned destination")
         });
 
         for (int row = 0; row < model->rowCount(); ++row) {
@@ -650,6 +1021,9 @@ void CategorizationDialog::apply_status_text(QStandardItem* item) const
         break;
     case RowStatus::Skipped:
         item->setText(tr("Skipped"));
+        break;
+    case RowStatus::Preview:
+        item->setText(tr("Preview"));
         break;
     case RowStatus::NotSelected:
         item->setText(tr("Not selected"));
@@ -679,6 +1053,7 @@ CategorizationDialog::RowStatus CategorizationDialog::status_from_item(const QSt
     case RowStatus::Moved:
     case RowStatus::Skipped:
     case RowStatus::NotSelected:
+    case RowStatus::Preview:
         return status;
     }
 
@@ -688,12 +1063,18 @@ CategorizationDialog::RowStatus CategorizationDialog::status_from_item(const QSt
 
 void CategorizationDialog::on_item_changed(QStandardItem* item)
 {
-    if (!item || updating_select_all) {
+    if (!item || updating_select_all || suppress_item_changed_) {
         return;
     }
 
     if (item->column() == 0) {
         update_select_all_state();
+    } else if (item->column() == 3 || item->column() == 4) {
+        update_preview_column(item->row());
+    }
+    // invalidate preview plan only on user-facing edits (selection/category fields)
+    if (item->column() == 0 || item->column() == 3 || item->column() == 4) {
+        dry_run_plan_.clear();
     }
 }
 
@@ -723,6 +1104,9 @@ void CategorizationDialog::changeEvent(QEvent* event)
     QDialog::changeEvent(event);
     if (event && event->type() == QEvent::LanguageChange) {
         retranslate_ui();
+        for (int row = 0; row < model->rowCount(); ++row) {
+            update_preview_column(row);
+        }
     }
 }
 

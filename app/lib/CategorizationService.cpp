@@ -18,11 +18,13 @@
 #include <memory>
 #include <sstream>
 #include <thread>
+#include <vector>
 
 namespace {
 constexpr const char* kLocalTimeoutEnv = "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT";
 constexpr const char* kRemoteTimeoutEnv = "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT";
 constexpr size_t kMaxConsistencyHints = 5;
+constexpr size_t kMaxLabelLength = 80;
 
 std::pair<std::string, std::string> split_category_subcategory(const std::string& input) {
     const std::string delimiter = " : ";
@@ -35,6 +37,89 @@ std::pair<std::string, std::string> split_category_subcategory(const std::string
     auto category = input.substr(0, pos);
     auto subcategory = input.substr(pos + delimiter.size());
     return {Utils::sanitize_path_label(category), Utils::sanitize_path_label(subcategory)};
+}
+
+std::string to_lower_copy_str(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+bool contains_only_allowed_chars(const std::string& value) {
+    for (unsigned char ch : value) {
+        if (std::iscntrl(ch)) {
+            return false;
+        }
+        static const std::string forbidden = R"(<>:"/\|?*)";
+        if (forbidden.find(static_cast<char>(ch)) != std::string::npos) {
+            return false;
+        }
+        // Everything else is allowed (including non-ASCII letters and punctuation).
+    }
+    return true;
+}
+
+bool has_leading_or_trailing_space_or_dot(const std::string& value) {
+    if (value.empty()) {
+        return false;
+    }
+    const unsigned char first = static_cast<unsigned char>(value.front());
+    const unsigned char last = static_cast<unsigned char>(value.back());
+    // Only guard leading/trailing whitespace; dots are allowed.
+    return std::isspace(first) || std::isspace(last);
+}
+
+bool is_reserved_windows_name(const std::string& value) {
+    static const std::vector<std::string> reserved = {
+        "con","prn","aux","nul",
+        "com1","com2","com3","com4","com5","com6","com7","com8","com9",
+        "lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"
+    };
+    const std::string lower = to_lower_copy_str(value);
+    return std::find(reserved.begin(), reserved.end(), lower) != reserved.end();
+}
+
+bool looks_like_extension_label(const std::string& value) {
+    const auto dot_pos = value.rfind('.');
+    if (dot_pos == std::string::npos || dot_pos == value.size() - 1) {
+        return false;
+    }
+    const std::string ext = value.substr(dot_pos + 1);
+    if (ext.empty() || ext.size() > 5) {
+        return false;
+    }
+    return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) { return std::isalpha(ch); });
+}
+
+struct LabelValidationResult {
+    bool valid{false};
+    std::string error;
+};
+
+LabelValidationResult validate_labels(const std::string& category, const std::string& subcategory) {
+    if (category.empty() || subcategory.empty()) {
+        return {false, "Category or subcategory is empty"};
+    }
+    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+        return {false, "Category or subcategory exceeds max length"};
+    }
+    if (!contains_only_allowed_chars(category) || !contains_only_allowed_chars(subcategory)) {
+        return {false, "Category or subcategory contains disallowed characters"};
+    }
+    if (looks_like_extension_label(category) || looks_like_extension_label(subcategory)) {
+        return {false, "Category or subcategory looks like a file extension"};
+    }
+    if (is_reserved_windows_name(category) || is_reserved_windows_name(subcategory)) {
+        return {false, "Category or subcategory is a reserved name"};
+    }
+    if (has_leading_or_trailing_space_or_dot(category) || has_leading_or_trailing_space_or_dot(subcategory)) {
+        return {false, "Category or subcategory has leading/trailing space or dot"};
+    }
+    if (to_lower_copy_str(category) == to_lower_copy_str(subcategory)) {
+        return {false, "Category and subcategory are identical"};
+    }
+    return {true, {}};
 }
 
 }
@@ -162,13 +247,6 @@ std::string CategorizationService::build_category_language_context() const
 }
 
 namespace {
-std::string to_lower_copy_str(std::string value) {
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return value;
-}
-
 bool is_allowed(const std::string& value, const std::vector<std::string>& allowed) {
     if (allowed.empty()) {
         return true;
@@ -203,6 +281,17 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     if (sanitized_category.empty() || sanitized_subcategory.empty()) {
         if (core_logger) {
             core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
+        }
+        return std::nullopt;
+    }
+    const auto validation = validate_labels(sanitized_category, sanitized_subcategory);
+    if (!validation.valid) {
+        if (core_logger) {
+            core_logger->warn("Ignoring cached categorization for '{}' due to validation error: {} (cat='{}', sub='{}')",
+                              item_name,
+                              validation.error,
+                              sanitized_category,
+                              sanitized_subcategory);
         }
         return std::nullopt;
     }
@@ -262,6 +351,22 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
             if (!is_allowed(resolved.subcategory, allowed_subcategories)) {
                 resolved.subcategory = first_allowed_or_blank(allowed_subcategories);
             }
+        }
+        const auto validation = validate_labels(resolved.category, resolved.subcategory);
+        if (!validation.valid) {
+            if (progress_callback) {
+                progress_callback(fmt::format("[LLM-ERROR] {} (invalid category/subcategory: {})",
+                                              item_name,
+                                              validation.error));
+            }
+            if (core_logger) {
+                core_logger->warn("Invalid LLM output for '{}': {} (cat='{}', sub='{}')",
+                                  item_name,
+                                  validation.error,
+                                  resolved.category,
+                                  resolved.subcategory);
+            }
+            return DatabaseManager::ResolvedCategory{-1, "", ""};
         }
         if (resolved.category.empty()) {
             resolved.category = "Uncategorized";
@@ -424,19 +529,22 @@ std::optional<CategorizedFile> CategorizationService::handle_empty_result(
     bool is_local_llm,
     const RecategorizationCallback& recategorization_callback) const
 {
-    if (!resolved.category.empty() && !resolved.subcategory.empty()) {
+    const bool invalid = resolved.taxonomy_id == -1;
+    if (!resolved.category.empty() && !resolved.subcategory.empty() && !invalid) {
         return std::nullopt;
     }
 
+    const std::string reason = invalid
+        ? "Categorization returned invalid category/subcategory and was skipped."
+        : "Categorization returned no result.";
+
     if (core_logger) {
-        core_logger->warn("Categorization for '{}' returned empty category/subcategory.", entry.file_name);
+        core_logger->warn("{} for '{}'.", reason, entry.file_name);
     }
+
     db_manager.remove_file_categorization(dir_path, entry.file_name, entry.type);
 
     if (recategorization_callback) {
-        const std::string reason = is_local_llm
-            ? "Categorization returned no result. The item will be processed again."
-            : "Categorization returned no result. Configure your remote API key and try again.";
         CategorizedFile retry_entry{dir_path,
                                     entry.file_name,
                                     entry.type,
@@ -445,7 +553,6 @@ std::optional<CategorizedFile> CategorizationService::handle_empty_result(
                                     resolved.taxonomy_id};
         retry_entry.used_consistency_hints = used_consistency_hints;
         recategorization_callback(retry_entry, reason);
-        return retry_entry;
     }
     return std::nullopt;
 }

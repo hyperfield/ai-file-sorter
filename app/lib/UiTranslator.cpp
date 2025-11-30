@@ -156,6 +156,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.file_quit_action, "&Quit"},
         {deps_.actions.copy_action, "&Copy"},
         {deps_.actions.cut_action, "Cu&t"},
+        {deps_.actions.undo_last_run_action, "Undo last run"},
         {deps_.actions.paste_action, "&Paste"},
         {deps_.actions.delete_action, "&Delete"},
         {deps_.actions.toggle_explorer_action, "File &Explorer"},

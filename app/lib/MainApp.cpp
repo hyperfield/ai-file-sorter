@@ -16,6 +16,7 @@
 #include "MainAppUiBuilder.hpp"
 #include "UiTranslator.hpp"
 #include "WhitelistManagerDialog.hpp"
+#include "UndoManager.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
 #include "MainAppTestAccess.hpp"
 #endif
@@ -31,6 +32,7 @@
 #include <QAbstractItemView>
 #include <QFileDialog>
 #include <QFileSystemModel>
+#include <QFile>
 #include <QHeaderView>
 #include <QKeySequence>
 #include <QByteArray>
@@ -150,6 +152,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
       categorization_service(settings, db_manager, core_logger),
       consistency_pass_service(db_manager, core_logger),
       results_coordinator(dirscanner),
+      undo_manager_(settings.get_config_dir() + "/undo"),
       development_mode_(development_mode),
       development_prompt_logging_enabled_(development_mode ? settings.get_development_prompt_logging() : false)
 {
@@ -910,9 +913,7 @@ void MainApp::update_folder_contents(const QString& directory)
     folder_contents_view->setRootIndex(new_root);
     folder_contents_view->scrollTo(new_root, QAbstractItemView::PositionAtTop);
 
-    for (int col = 0; col < folder_contents_model->columnCount(); ++col) {
-        folder_contents_view->resizeColumnToContents(col);
-    }
+    folder_contents_view->resizeColumnToContents(0);
 
     suppress_folder_view_sync_ = previous_flag;
 }
@@ -945,6 +946,52 @@ void MainApp::record_categorized_metrics(int count)
         donation_prompt_active_,
         count,
         [this](int total) { return show_support_prompt_dialog(total); });
+}
+
+void MainApp::undo_last_run()
+{
+    const auto latest = undo_manager_.latest_plan_path();
+    if (!latest) {
+        show_error_dialog("No undo plans available.");
+        return;
+    }
+
+    QMessageBox box(this);
+    box.setWindowTitle(tr("Undo last run"));
+    box.setText(tr("This will attempt to move files back to their original locations based on the last run.\n\nPlan file: %1")
+                    .arg(*latest));
+    box.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+    box.setDefaultButton(QMessageBox::Cancel);
+    if (box.exec() != QMessageBox::Ok) {
+        return;
+    }
+
+    const auto res = undo_manager_.undo_plan(*latest);
+    QString summary = tr("Restored %1 file(s). Skipped %2.").arg(res.restored).arg(res.skipped);
+    if (!res.details.isEmpty()) {
+        summary.append("\n");
+        summary.append(res.details.join("\n"));
+    }
+
+    QMessageBox::information(this, tr("Undo complete"), summary);
+    if (ui_logger) {
+        ui_logger->info(summary.toStdString());
+    }
+    if (res.restored > 0) {
+        QFile::remove(*latest);
+    }
+}
+
+bool MainApp::perform_undo_from_plan(const QString& plan_path)
+{
+    const auto res = undo_manager_.undo_plan(plan_path);
+    QString summary = tr("Restored %1 file(s). Skipped %2.").arg(res.restored).arg(res.skipped);
+    if (!res.details.isEmpty()) {
+        summary.append("\n");
+        summary.append(res.details.join("\n"));
+    }
+    QMessageBox::information(this, tr("Undo complete"), summary);
+    return res.restored > 0;
 }
 
 MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files)
@@ -1389,7 +1436,8 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
 {
     try {
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
-        categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, this);
+        const std::string undo_dir = settings.get_config_dir() + "/undo";
+        categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, undo_dir, this);
         categorization_dialog->show_results(results);
 
         const int newly_analyzed = static_cast<int>(std::count_if(
