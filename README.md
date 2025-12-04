@@ -39,7 +39,7 @@ File content–based sorting for certain file types is also in development.
 1. Point it at a folder or drive  
 2. It runs a local LLM to analyze your files  
 3. The LLM suggests categorizations  
-4. You review and adjust if needed — done  
+4. You review and adjust if needed - done  
 
 ---
 
