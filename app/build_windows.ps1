@@ -257,6 +257,31 @@ if (Test-Path $precompiledCpuBin) {
             Copy-Item $_.FullName -Destination $destWocuda -Force
         }
 }
+
+# Ensure MinGW/OpenBLAS runtime deps land in the CPU-only (wocuda) bundle.
+$mingwRuntimeNames = @("libgomp-1.dll", "libgcc_s_seh-1.dll", "libgfortran-5.dll", "libwinpthread-1.dll", "libquadmath-0.dll")
+$runtimeSearchPaths = @()
+if ($env:OPENBLAS_ROOT) {
+    $runtimeSearchPaths += (Join-Path $env:OPENBLAS_ROOT "bin")
+}
+$runtimeSearchPaths += "C:\msys64\mingw64\bin"
+
+foreach ($dllName in $mingwRuntimeNames) {
+    $found = $false
+    foreach ($path in $runtimeSearchPaths) {
+        if (-not (Test-Path $path)) { continue }
+        $candidate = Join-Path $path $dllName
+        if (Test-Path $candidate) {
+            Copy-Item $candidate -Destination $destWocuda -Force
+            $found = $true
+            break
+        }
+    }
+    if (-not $found) {
+        Write-Warning "Could not locate $dllName in any runtime path. Add it manually to $destWocuda if needed."
+    }
+}
+
 if (Test-Path $precompiledCudaBin) {
     Get-ChildItem -Path $precompiledCudaBin -Filter "*.dll" -File -ErrorAction SilentlyContinue |
         ForEach-Object {

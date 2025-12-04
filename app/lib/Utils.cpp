@@ -137,6 +137,10 @@ std::optional<std::string> strip_prefix(const std::string& path,
 #include <Types.hpp>
 #include <cstddef>
 #include <stdexcept>
+#ifdef _WIN32
+    #include <appmodel.h>
+    #include <cwchar>
+#endif
 
 // Shortcuts for loading libraries on different OSes
 #ifdef _WIN32
@@ -553,6 +557,39 @@ int Utils::determine_ngl_cuda() {
 }
 
 
+#ifdef _WIN32
+std::optional<std::filesystem::path> packaged_llm_path()
+{
+    // Detect MSIX/packaged context and build LocalCache path that is removed on uninstall.
+    UINT32 length = 0;
+    LONG rc = GetCurrentPackageFamilyName(&length, nullptr);
+    if (rc == APPMODEL_ERROR_NO_PACKAGE) {
+        return std::nullopt; // not packaged
+    }
+    if (rc != ERROR_INSUFFICIENT_BUFFER) {
+        return std::nullopt;
+    }
+
+    std::wstring family;
+    family.resize(length);
+    rc = GetCurrentPackageFamilyName(&length, family.data());
+    if (rc != ERROR_SUCCESS) {
+        return std::nullopt;
+    }
+    if (length > 0 && family[length - 1] == L'\0') {
+        family.resize(length - 1);
+    }
+
+    const wchar_t* localAppData = _wgetenv(L"LOCALAPPDATA");
+    if (!localAppData || *localAppData == L'\0') {
+        return std::nullopt;
+    }
+
+    std::filesystem::path base(localAppData);
+    return base / L"Packages" / std::filesystem::path(family) / L"LocalCache" / L"aifilesorter" / L"llms";
+}
+#endif
+
 template <typename Func>
 void Utils::run_on_main_thread(Func&& func)
 {
@@ -572,7 +609,18 @@ std::string Utils::get_default_llm_destination()
     if (Utils::is_os_windows()) {
         const char* appdata = std::getenv("APPDATA");
         if (!appdata) throw std::runtime_error("APPDATA not set");
-        return (std::filesystem::path(appdata) / "aifilesorter" / "llms").string();
+        std::filesystem::path legacy = std::filesystem::path(appdata) / "aifilesorter" / "llms";
+
+#ifdef _WIN32
+        if (auto packaged = packaged_llm_path()) {
+            // Prefer the packaged LocalCache path; fall back to legacy if it already exists (backward compatibility).
+            if (std::filesystem::exists(legacy)) {
+                return legacy.string();
+            }
+            return packaged->string();
+        }
+#endif
+        return legacy.string();
     }
 
     if (!home) throw std::runtime_error("HOME not set");

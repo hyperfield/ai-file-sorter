@@ -28,6 +28,11 @@
 #include <iostream>
 #ifdef _WIN32
 #include <windows.h>
+#ifndef DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+#define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 ((HANDLE)-4)
+#endif
+using SetProcessDpiAwarenessContextFn = BOOL (WINAPI *)(HANDLE);
+using SetProcessDpiAwarenessFn = HRESULT (WINAPI *)(int); // 2 = PROCESS_PER_MONITOR_DPI_AWARE
 #endif
 
 
@@ -97,6 +102,28 @@ bool allow_direct_launch(int argc, char** argv)
         }
     }
     return false;
+}
+
+void enable_per_monitor_dpi_awareness()
+{
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    if (user32) {
+        const auto set_ctx = reinterpret_cast<SetProcessDpiAwarenessContextFn>(
+            GetProcAddress(user32, "SetProcessDpiAwarenessContext"));
+        if (set_ctx && set_ctx(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
+            return;
+        }
+    }
+    HMODULE shcore = LoadLibraryW(L"Shcore.dll");
+    if (shcore) {
+        const auto set_awareness = reinterpret_cast<SetProcessDpiAwarenessFn>(
+            GetProcAddress(shcore, "SetProcessDpiAwareness"));
+        if (set_awareness) {
+            // 2 == PROCESS_PER_MONITOR_DPI_AWARE
+            set_awareness(2);
+        }
+        FreeLibrary(shcore);
+    }
 }
 
 void attach_console_if_requested(bool enable)
@@ -268,6 +295,7 @@ int main(int argc, char **argv) {
     ParsedArguments parsed = parse_command_line(argc, argv);
 
 #ifdef _WIN32
+    enable_per_monitor_dpi_awareness();
     attach_console_if_requested(parsed.console_log);
     if (!allow_direct_launch(argc, argv)) {
         const wchar_t* message =
