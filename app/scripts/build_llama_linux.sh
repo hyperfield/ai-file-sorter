@@ -17,7 +17,7 @@ HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 # Parse optional arguments (cuda=on/off, vulkan=on/off)
 CUDASWITCH="OFF"
 VULKANSWITCH="OFF"
-BLASSWITCH="ON"
+BLASSWITCH="OFF"
 for arg in "$@"; do
     case "${arg,,}" in
         cuda=on) CUDASWITCH="ON" ;;

@@ -214,7 +214,7 @@ bool ensure_llm_choice(Settings& settings, const std::function<void()>& finish_s
     return true;
 }
 
-int run_application(int argc, char** argv)
+int run_application(const ParsedArguments& parsed_args)
 {
     EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
     env_loader.load_env();
@@ -225,7 +225,6 @@ int run_application(int argc, char** argv)
     QCoreApplication::setApplicationName(QStringLiteral("AI File Sorter"));
     QGuiApplication::setApplicationDisplayName(QStringLiteral("AI File Sorter"));
 
-    ParsedArguments parsed_args = parse_command_line(argc, argv);
     int qt_argc = static_cast<int>(parsed_args.qt_args.size()) - 1;
     char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());
     QApplication app(qt_argc, qt_argv);
@@ -271,7 +270,7 @@ int main(int argc, char **argv) {
         _putenv("GSETTINGS_SCHEMA_DIR=schemas");
     #endif
     try {
-        return run_application(static_cast<int>(parsed.qt_args.size() - 1), parsed.qt_args.data());
+        return run_application(parsed);
     } catch (const std::exception& ex) {
         if (auto logger = Logger::get_logger("core_logger")) {
             logger->critical("Error: {}", ex.what());
