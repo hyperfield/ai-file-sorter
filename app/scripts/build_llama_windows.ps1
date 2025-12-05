@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 # --- Parse optional arguments ---
 $useCuda = "OFF"
 $useVulkan = "OFF"
+$useBlas = "AUTO" # AUTO = enable BLAS for CPU-only builds by default
 $vcpkgRootArg = $null
 $openBlasRootArg = $null
 foreach ($arg in $args) {
@@ -10,6 +11,8 @@ foreach ($arg in $args) {
         $useCuda = $Matches[1].ToUpper()
     } elseif ($arg -match "^vulkan=(on|off)$") {
         $useVulkan = $Matches[1].ToUpper()
+    } elseif ($arg -match "^blas=(on|off)$") {
+        $useBlas = $Matches[1].ToUpper()
     } elseif ($arg -match "^vcpkgroot=(.+)$") {
         $vcpkgRootArg = $Matches[1]
     } elseif ($arg -match "^openblasroot=(.+)$") {
@@ -23,6 +26,7 @@ if ($useCuda -eq "ON" -and $useVulkan -eq "ON") {
 
 Write-Output "`nCUDA Support: $useCuda`n"
 Write-Output "Vulkan Support: $useVulkan`n"
+Write-Output "BLAS Support: $useBlas (AUTO enables for CPU-only builds)`n"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $llamaDir = Join-Path $scriptDir "..\include\external\llama.cpp"
@@ -75,6 +79,7 @@ function Resolve-VcpkgRoot {
 }
 
 $cpuOnlyBuild = ($useCuda -eq "OFF" -and $useVulkan -eq "OFF")
+$enableBlas = ($useBlas -eq "ON") -or ($useBlas -eq "AUTO" -and $cpuOnlyBuild)
 
 function Resolve-OpenBlasRoot {
     param([string]$Explicit)
@@ -172,10 +177,10 @@ Confirm-VcpkgPackage -HeaderCheckPath (Join-Path $curlInclude "curl\curl.h") -Li
 $openBlasInclude = $null
 $openBlasLib = $null
 $openBlasDll = $null
-if ($cpuOnlyBuild) {
+if ($enableBlas) {
     $openBlasRoot = Resolve-OpenBlasRoot -Explicit $openBlasRootArg
     if (-not $openBlasRoot) {
-        throw "CPU-only builds require OpenBLAS from MSYS2/MinGW64. Pass openblasroot=<path> or set OPENBLAS_ROOT."
+        throw "BLAS builds require OpenBLAS from MSYS2/MinGW64. Pass openblasroot=<path> or set OPENBLAS_ROOT."
     }
 
     $openBlasIncludeRoot = Join-Path $openBlasRoot "include"
@@ -266,9 +271,9 @@ $cmakeArgs = @(
     "-DCMAKE_CXX_FLAGS=/arch:AVX2"
 )
 
-if ($cpuOnlyBuild) {
+if ($enableBlas) {
     if (-not $openBlasInclude -or -not $openBlasLib) {
-        throw "OpenBLAS paths not initialized for the CPU-only build."
+        throw "OpenBLAS paths not initialized for the BLAS-enabled build."
     }
     $cmakeArgs += @(
         "-DGGML_BLAS=ON",
@@ -322,8 +327,13 @@ if ($useCuda -eq "ON") {
     $variant = "cuda"
     $runtimeSubdir = "wcuda"
 } elseif ($useVulkan -eq "ON") {
-    $variant = "vulkan"
-    $runtimeSubdir = "wvulkan"
+    if ($enableBlas) {
+        $variant = "vulkan-blas"
+        $runtimeSubdir = "wvulkan-cpu"
+    } else {
+        $variant = "vulkan"
+        $runtimeSubdir = "wvulkan"
+    }
 }
 $variantRoot = Join-Path $precompiledRootDir $variant
 $variantBin = Join-Path $variantRoot "bin"
@@ -354,7 +364,7 @@ foreach ($dll in $dllList) {
     }
 }
 
-if ($cpuOnlyBuild -and $openBlasDll -and (Test-Path $openBlasDll)) {
+if ($enableBlas -and $openBlasDll -and (Test-Path $openBlasDll)) {
     $libOpenBlasName = "libopenblas.dll"
     Copy-Item $openBlasDll -Destination (Join-Path $variantBin $libOpenBlasName) -Force
     Copy-Item $openBlasDll -Destination (Join-Path $runtimeDir $libOpenBlasName) -Force

@@ -434,7 +434,7 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 
 ## License
 
-This project is licensed under the GNU AFFERO GENERAL PUBLIC LICENSE (GNU AGPL). See the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU AFFERO GENERAL PUBLIC LICENSE (GNU AGPL). See the [LICENSE](LICENSE) file for details, or https://www.gnu.org/licenses/agpl-3.0.html.
 
 ---
 

@@ -383,7 +383,7 @@ $vcpkgRuntimeSources = @(
 )
 $copiedVcpkgDlls = Copy-VcpkgRuntimeDlls -SourceDirectories $vcpkgRuntimeSources -Destination $outputDir
 if ($copiedVcpkgDlls.Count -gt 0) {
-    Write-Output "Staged vcpkg runtime DLLs to $outputDir:"
+    Write-Output ("Staged vcpkg runtime DLLs to {0}:" -f $outputDir)
     Write-Output "  $($copiedVcpkgDlls -join ', ')"
 } else {
     Write-Warning "No vcpkg runtime DLLs were copied; ensure curl/openssl/sqlite runtimes are present beside the executable before distributing."

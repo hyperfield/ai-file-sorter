@@ -170,20 +170,8 @@ QPixmap build_splash_pixmap()
 class SplashController {
 public:
     explicit SplashController(QApplication& app)
-        : app_(app),
-          splash_(std::make_unique<QSplashScreen>(build_splash_pixmap()))
+        : app_(app)
     {
-        splash_->setWindowFlag(Qt::WindowStaysOnTopHint);
-        splash_->setWindowFlag(Qt::SplashScreen);
-        const QString splash_text = QStringLiteral("AI File Sorter %1").arg(QString::fromStdString(APP_VERSION.to_string()));
-        splash_->showMessage(splash_text, Qt::AlignBottom | Qt::AlignHCenter, Qt::black);
-        splash_->show();
-        raise();
-        QObject::connect(&app_, &QCoreApplication::aboutToQuit, splash_.get(), [this]() {
-            finish();
-        });
-        timer_.start();
-        app_.processEvents();
     }
 
     void set_target(QWidget* target)
@@ -193,36 +181,16 @@ public:
 
     void keep_visible_for(int minimum_duration_ms)
     {
-        const int elapsed_ms = static_cast<int>(timer_.elapsed());
-        const int remaining_ms = std::max(0, minimum_duration_ms - elapsed_ms);
-        raise();
-        QTimer::singleShot(0, splash_.get(), [this]() {
-            raise();
-        });
-        QTimer::singleShot(remaining_ms, splash_.get(), [this]() {
-            finish();
-        });
+        Q_UNUSED(minimum_duration_ms);
     }
 
     void finish()
     {
-        if (finished_) {
-            return;
-        }
-        splash_->finish(target_);
         finished_ = true;
     }
 
 private:
-    void raise()
-    {
-        splash_->raise();
-        splash_->activateWindow();
-    }
-
     QApplication& app_;
-    std::unique_ptr<QSplashScreen> splash_;
-    QElapsedTimer timer_;
     bool finished_{false};
     QWidget* target_{nullptr};
 };
@@ -262,27 +230,19 @@ int run_application(int argc, char** argv)
     char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());
     QApplication app(qt_argc, qt_argv);
 
-    SplashController splash(app);
-
     Settings settings;
     settings.load();
 
-    const auto finish_splash = [&]() {
-        splash.finish();
-    };
+    const auto finish_splash = [&]() {};
 
     if (!ensure_llm_choice(settings, finish_splash)) {
         return EXIT_SUCCESS;
     }
 
     MainApp main_app(settings, parsed_args.development_mode);
-    splash.set_target(&main_app);
-    constexpr int splash_duration_ms = 3000;
-    splash.keep_visible_for(splash_duration_ms);
     main_app.run();
 
     const int result = app.exec();
-    splash.finish();
     main_app.shutdown();
     return result;
 }
@@ -297,13 +257,6 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
     enable_per_monitor_dpi_awareness();
     attach_console_if_requested(parsed.console_log);
-    if (!allow_direct_launch(argc, argv)) {
-        const wchar_t* message =
-            L"Please launch AI File Sorter by running StartAiFileSorter.exe.\n"
-            L"The starter configures GPU backends and runtime DLLs automatically.";
-        MessageBoxW(nullptr, message, L"AI File Sorter", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
-        return EXIT_FAILURE;
-    }
 #endif
 
     if (!initialize_loggers()) {
