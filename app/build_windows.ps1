@@ -296,6 +296,7 @@ foreach ($dllName in $mingwRuntimeNames) {
         $candidate = Join-Path $path $dllName
         if (Test-Path $candidate) {
             Copy-Item $candidate -Destination $destWocuda -Force
+            Copy-Item $candidate -Destination $outputDir -Force
             $found = $true
             break
         }

@@ -1328,20 +1328,30 @@ llama_model_params build_model_params_for_path(const std::string& model_path,
         return model_params;
     }
 
+    const bool prefer_vulkan = (backend_pref == PreferredBackend::Vulkan) ||
+                               (backend_pref == PreferredBackend::Auto);
+
+    if (prefer_vulkan) {
+        // Vulkan is the primary backend; keep CUDA disabled and steer llama.cpp to Vulkan.
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+        set_env_var("LLAMA_ARG_DEVICE", "vulkan");
+        apply_vulkan_backend(model_path, model_params, logger);
+        return model_params;
+    }
+
+    // CUDA requested explicitly.
+    if (handle_cuda_forced_off(cuda_forced_off, backend_pref, model_params, logger)) {
+        return model_params;
+    }
+
     const bool cudaConfigured = configure_cuda_backend(model_path, model_params, logger);
     if (!cudaConfigured) {
         if (logger) {
-            if (backend_pref == PreferredBackend::Cuda) {
-                logger->warn("CUDA backend explicitly requested but unavailable; attempting Vulkan fallback.");
-            } else {
-                logger->warn("CUDA backend unavailable; attempting Vulkan fallback.");
-            }
+            logger->warn("CUDA backend explicitly requested but unavailable; attempting Vulkan fallback.");
         }
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+        set_env_var("LLAMA_ARG_DEVICE", "vulkan");
         apply_vulkan_backend(model_path, model_params, logger);
-        return model_params;
-        if (logger) {
-            logger->warn("Vulkan fallback unavailable; using CPU backend.");
-        }
         return model_params;
     }
 #endif
