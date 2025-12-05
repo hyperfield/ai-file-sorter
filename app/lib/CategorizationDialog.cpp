@@ -130,6 +130,16 @@ bool validate_labels(const std::string& category,
     return true;
 }
 
+std::chrono::system_clock::time_point to_system_clock(std::filesystem::file_time_type file_time) {
+#if defined(__cpp_lib_chrono) && __cpp_lib_chrono >= 201907L
+    return std::chrono::clock_cast<std::chrono::system_clock>(file_time);
+#else
+    const auto now = decltype(file_time)::clock::now();
+    const auto delta = std::chrono::duration_cast<std::chrono::system_clock::duration>(file_time - now);
+    return std::chrono::system_clock::now() + delta;
+#endif
+}
+
 } // namespace
 
 namespace TestHooks {
@@ -151,10 +161,10 @@ CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
     : QDialog(parent),
       db_manager(db_manager),
       show_subcategory_column(show_subcategory_col),
-      undo_dir_(undo_dir),
       core_logger(Logger::get_logger("core_logger")),
       db_logger(Logger::get_logger("db_logger")),
-      ui_logger(Logger::get_logger("ui_logger"))
+      ui_logger(Logger::get_logger("ui_logger")),
+      undo_dir_(undo_dir)
 {
     resize(1100, 720);
     setup_ui();
@@ -632,7 +642,7 @@ void CategorizationDialog::handle_selected_row(int row_index,
             if (!ec) {
                 const auto ftime = std::filesystem::last_write_time(Utils::utf8_to_path(preview_paths.destination), ec);
                 if (!ec) {
-                    const auto sys = std::chrono::clock_cast<std::chrono::system_clock>(ftime);
+                    const auto sys = to_system_clock(ftime);
                     mtime_value = std::chrono::system_clock::to_time_t(sys);
                 }
             }

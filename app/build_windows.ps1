@@ -55,6 +55,29 @@ function Resolve-VcpkgRootFromPath {
     return $null
 }
 
+function Copy-VcpkgRuntimeDlls {
+    param(
+        [string[]]$SourceDirectories,
+        [string]$Destination
+    )
+
+    $copied = @()
+    foreach ($dir in $SourceDirectories) {
+        if (-not $dir) { continue }
+        if (-not (Test-Path $dir)) { continue }
+
+        $dlls = Get-ChildItem -Path $dir -Filter "*.dll" -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch '^Qt6' }
+
+        foreach ($dll in $dlls) {
+            Copy-Item $dll.FullName -Destination $Destination -Force
+            $copied += $dll.Name
+        }
+    }
+
+    return $copied | Sort-Object -Unique
+}
+
 if (-not $VcpkgRoot) {
     $envCandidates = @($env:VCPKG_ROOT, $env:VPKG_ROOT)
     foreach ($envCandidate in $envCandidates) {
@@ -352,4 +375,16 @@ if (-not $SkipDeploy) {
     }
 } else {
     Write-Output "Skipping windeployqt step (per -SkipDeploy)."
+}
+
+$vcpkgRuntimeSources = @(
+    (Join-Path $buildDir "vcpkg_installed/x64-windows/bin"),
+    (Join-Path $VcpkgRoot "installed/x64-windows/bin")
+)
+$copiedVcpkgDlls = Copy-VcpkgRuntimeDlls -SourceDirectories $vcpkgRuntimeSources -Destination $outputDir
+if ($copiedVcpkgDlls.Count -gt 0) {
+    Write-Output "Staged vcpkg runtime DLLs to $outputDir:"
+    Write-Output "  $($copiedVcpkgDlls -join ', ')"
+} else {
+    Write-Warning "No vcpkg runtime DLLs were copied; ensure curl/openssl/sqlite runtimes are present beside the executable before distributing."
 }
