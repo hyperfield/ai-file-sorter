@@ -120,7 +120,7 @@ Settings::Settings()
     : use_subcategories(true),
       categorize_files(true),
       categorize_directories(false),
-      use_consistency_hints(true),
+      use_consistency_hints(false),
       use_whitelist(false),
       default_sort_folder(""),
       sort_folder("")
@@ -181,7 +181,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     set_remote_api_key(config.getValue("Settings", "RemoteApiKey", ""));
     set_remote_model(config.getValue("Settings", "RemoteModel", "gpt-4o-mini"));
     use_subcategories = load_bool("UseSubcategories", false);
-    use_consistency_hints = load_bool("UseConsistencyHints", true);
+    use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);

@@ -22,8 +22,8 @@ ifeq ($(UNAME), Linux)
 
     # --- Other dependencies ---
 	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lX11 -pthread
-	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled/cpu/bin'
-	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin
+	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled/cpu/bin' -Wl,-rpath,'$$ORIGIN/../lib/precompiled'
+	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin -Wl,-rpath-link=./lib/precompiled
 
 else ifeq ($(UNAME), Darwin)
     IS_APPLE_SILICON := $(shell sysctl -n machdep.cpu.brand_string | grep -i "Apple" > /dev/null && echo 1 || echo 0)
@@ -100,7 +100,7 @@ endif
 INCLUDE_DIRS = -I./include -I./include/llama
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
-LIB_DIRS += -L./lib/precompiled/cpu/bin
+LIB_DIRS += -L./lib/precompiled/cpu/bin -L./lib/precompiled
 else
 LIB_DIRS += -L./lib/precompiled
 endif

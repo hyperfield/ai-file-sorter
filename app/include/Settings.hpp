@@ -101,7 +101,7 @@ private:
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;
-    bool use_consistency_hints{true};
+    bool use_consistency_hints{false};
     bool use_whitelist{false};
     std::string default_sort_folder;
     std::string sort_folder;

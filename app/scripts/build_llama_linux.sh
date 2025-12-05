@@ -17,12 +17,15 @@ HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 # Parse optional arguments (cuda=on/off, vulkan=on/off)
 CUDASWITCH="OFF"
 VULKANSWITCH="OFF"
+BLASSWITCH="ON"
 for arg in "$@"; do
     case "${arg,,}" in
         cuda=on) CUDASWITCH="ON" ;;
         cuda=off) CUDASWITCH="OFF" ;;
         vulkan=on) VULKANSWITCH="ON" ;;
         vulkan=off) VULKANSWITCH="OFF" ;;
+        blas=on) BLASSWITCH="ON" ;;
+        blas=off) BLASSWITCH="OFF" ;;
     esac
 done
 
@@ -33,6 +36,7 @@ fi
 
 echo "CUDA support: $CUDASWITCH"
 echo "VULKAN support: $VULKANSWITCH"
+echo "BLAS support: $BLASSWITCH"
 
 # Enter llama.cpp directory and build
 cd "$LLAMA_DIR"
@@ -46,13 +50,16 @@ cmake_args=(
     -DGGML_CUDA=$CUDASWITCH
     -DGGML_VULKAN=$VULKANSWITCH
     -DGGML_OPENCL=OFF
-    -DGGML_BLAS=ON
-    -DGGML_BLAS_VENDOR=OpenBLAS
+    -DGGML_BLAS=$BLASSWITCH
     -DBUILD_SHARED_LIBS=ON
     -DGGML_NATIVE=OFF
     -DCMAKE_C_FLAGS="-mavx2 -mfma"
     -DCMAKE_CXX_FLAGS="-mavx2 -mfma"
 )
+
+if [[ "$BLASSWITCH" == "ON" ]]; then
+    cmake_args+=( -DGGML_BLAS_VENDOR=OpenBLAS )
+fi
 
 if [[ "$CUDASWITCH" == "ON" ]]; then
     cmake_args+=( -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-10 )
