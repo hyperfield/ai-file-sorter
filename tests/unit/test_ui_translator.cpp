@@ -57,6 +57,7 @@ struct UiTranslatorTestHarness {
     QAction* file_quit_action = new QAction(&window);
     QAction* copy_action = new QAction(&window);
     QAction* cut_action = new QAction(&window);
+    QAction* undo_last_run_action = new QAction(&window);
     QAction* paste_action = new QAction(&window);
     QAction* delete_action = new QAction(&window);
     QAction* toggle_explorer_action = new QAction(&window);
@@ -162,6 +163,7 @@ struct UiTranslatorTestHarness {
                 file_quit_action,
                 copy_action,
                 cut_action,
+                undo_last_run_action,
                 paste_action,
                 delete_action,
                 toggle_explorer_action,

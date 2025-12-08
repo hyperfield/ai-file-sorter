@@ -115,6 +115,7 @@ app/include/llama/*.h
 
 build-windows/
 build-tests/
+build/
 dist/
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode

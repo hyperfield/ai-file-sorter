@@ -1,6 +1,7 @@
 #include "LLMDownloader.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
+#include "TestHooks.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <curl/curl.h>
@@ -8,6 +9,17 @@
 #include <iostream>
 #include <system_error>
 #include <stdexcept>
+
+namespace {
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+TestHooks::LLMDownloadProbe& download_probe_slot() {
+    static TestHooks::LLMDownloadProbe probe;
+    return probe;
+}
+#endif
+
+} // namespace
 
 
 LLMDownloader::LLMDownloader(const std::string& download_url)
@@ -213,6 +225,11 @@ void LLMDownloader::perform_download()
     }
 
     auto attempt_download = [&](long offset) -> CURLcode {
+#ifdef AI_FILE_SORTER_TEST_BUILD
+        if (auto& probe = download_probe_slot()) {
+            return probe(offset, download_destination);
+        }
+#endif
         FILE* fp = open_output_file(offset);
         if (!fp) {
             cleanup_curl();
@@ -499,3 +516,36 @@ std::string LLMDownloader::get_download_url()
 {
     return url;
 }
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+namespace TestHooks {
+
+void set_llm_download_probe(LLMDownloadProbe probe) {
+    download_probe_slot() = std::move(probe);
+}
+
+void reset_llm_download_probe() {
+    download_probe_slot() = LLMDownloadProbe{};
+}
+
+} // namespace TestHooks
+
+void LLMDownloader::LLMDownloaderTestAccess::set_real_content_length(LLMDownloader& downloader,
+                                                                     long long length) {
+    downloader.real_content_length = length;
+}
+
+void LLMDownloader::LLMDownloaderTestAccess::set_download_destination(LLMDownloader& downloader,
+                                                                      const std::string& path) {
+    downloader.destination_dir = std::filesystem::path(path).parent_path().string();
+    downloader.download_destination = path;
+}
+
+void LLMDownloader::LLMDownloaderTestAccess::set_resume_headers(LLMDownloader& downloader,
+                                                                long long content_length) {
+    std::lock_guard<std::mutex> lock(downloader.mutex);
+    downloader.curl_headers["accept-ranges"] = "bytes";
+    downloader.curl_headers["content-length"] = std::to_string(content_length);
+    downloader.real_content_length = content_length;
+}
+#endif

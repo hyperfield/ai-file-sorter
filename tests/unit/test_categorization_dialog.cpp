@@ -36,7 +36,8 @@ TEST_CASE("CategorizationDialog uses subcategory toggle when moving files") {
     const std::vector<CategorizedFile> files = {sample_file()};
 
     auto verify_toggle = [&](bool initial_state, bool toggled_state) {
-        CategorizationDialog dialog(nullptr, initial_state);
+        TempDir undo_dir;
+        CategorizationDialog dialog(nullptr, initial_state, undo_dir.path().string());
         dialog.test_set_entries(files);
 
         bool probe_called = false;
@@ -88,7 +89,8 @@ TEST_CASE("CategorizationDialog supports sorting by columns") {
     beta.category = "Beta";
     beta.subcategory = "Two";
 
-    CategorizationDialog dialog(nullptr, true);
+    TempDir undo_dir;
+    CategorizationDialog dialog(nullptr, true, undo_dir.path().string());
     dialog.test_set_entries({alpha, beta});
 
     auto* table = dialog.findChild<QTableView*>();
@@ -128,7 +130,8 @@ TEST_CASE("CategorizationDialog undo restores moved files") {
     file.category = "Docs";
     file.subcategory = "Reports";
 
-    CategorizationDialog dialog(nullptr, true);
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
     dialog.test_set_entries({file});
 
     REQUIRE_FALSE(dialog.test_undo_enabled());
