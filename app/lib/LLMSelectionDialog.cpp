@@ -71,8 +71,8 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
         custom_radio->setChecked(true);
         break;
     default:
-        local3_radio->setChecked(true);
-        selected_choice = LLMChoice::Local_3b;
+        local7_radio->setChecked(true);
+        selected_choice = LLMChoice::Local_7b;
         break;
     }
     refresh_custom_lists();

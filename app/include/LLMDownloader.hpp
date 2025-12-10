@@ -45,7 +45,19 @@ public:
     void set_download_url(const std::string& new_url);
     std::string get_download_url();
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    class LLMDownloaderTestAccess {
+    public:
+        static void set_real_content_length(LLMDownloader& downloader, long long length);
+        static void set_download_destination(LLMDownloader& downloader, const std::string& path);
+        static void set_resume_headers(LLMDownloader& downloader, long long content_length);
+    };
+#endif
+
 private:
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend class LLMDownloaderTestAccess;
+#endif
     bool initialized{false};
     std::string url;
     std::string destination_dir;

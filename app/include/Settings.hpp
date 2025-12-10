@@ -95,7 +95,7 @@ private:
     std::filesystem::path config_dir;
     IniConfig config;
 
-    LLMChoice llm_choice = LLMChoice::Unset;
+    LLMChoice llm_choice = LLMChoice::Local_7b;
     std::string remote_api_key;
     std::string remote_model{ "gpt-4o-mini" };
     bool use_subcategories;

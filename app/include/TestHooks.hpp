@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <curl/curl.h>
 
 #include "Utils.hpp"
 
@@ -37,5 +38,11 @@ struct CategorizationMoveInfo {
 using CategorizationMoveProbe = std::function<void(const CategorizationMoveInfo&)>;
 void set_categorization_move_probe(CategorizationMoveProbe probe);
 void reset_categorization_move_probe();
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+using LLMDownloadProbe = std::function<CURLcode(long resume_offset, const std::string& destination_path)>;
+void set_llm_download_probe(LLMDownloadProbe probe);
+void reset_llm_download_probe();
+#endif
 
 } // namespace TestHooks

@@ -1,12 +1,25 @@
 #include "LLMDownloader.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
+#include "TestHooks.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <curl/curl.h>
 #include <filesystem>
 #include <iostream>
+#include <system_error>
 #include <stdexcept>
+
+namespace {
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+TestHooks::LLMDownloadProbe& download_probe_slot() {
+    static TestHooks::LLMDownloadProbe probe;
+    return probe;
+}
+#endif
+
+} // namespace
 
 
 LLMDownloader::LLMDownloader(const std::string& download_url)
@@ -186,44 +199,100 @@ void LLMDownloader::start_download(std::function<void(double)> progress_cb,
 
 void LLMDownloader::perform_download()
 {
-    CURL* curl = curl_easy_init();
-    
-    if (!curl) throw std::runtime_error("Failed to initialize curl");
+    auto init_curl = []() -> CURL* {
+        CURL* handle = curl_easy_init();
+        if (!handle) {
+            throw std::runtime_error("Failed to initialize curl");
+        }
+        return handle;
+    };
+
+    CURL* curl = init_curl();
+    auto cleanup_curl = [&]() {
+        if (curl) {
+            curl_easy_cleanup(curl);
+            curl = nullptr;
+        }
+    };
 
     long resume_from = determine_resume_offset();
     resume_offset = resume_from;
 
-    if (resume_from >= real_content_length) {
+    if (real_content_length > 0 && resume_from >= real_content_length) {
         notify_download_complete();
-        curl_easy_cleanup(curl);
+        cleanup_curl();
         return;
     }
 
-    FILE* fp = open_output_file(resume_from);
-    if (!fp) {
-        curl_easy_cleanup(curl);
-        throw std::runtime_error("Failed to open file: " + download_destination);
-    }
+    auto attempt_download = [&](long offset) -> CURLcode {
+#ifdef AI_FILE_SORTER_TEST_BUILD
+        if (auto& probe = download_probe_slot()) {
+            return probe(offset, download_destination);
+        }
+#endif
+        FILE* fp = open_output_file(offset);
+        if (!fp) {
+            cleanup_curl();
+            throw std::runtime_error("Failed to open file: " + download_destination);
+        }
 
-    setup_download_curl_options(curl, fp, resume_offset);
-    CURLcode res = curl_easy_perform(curl);
+        setup_download_curl_options(curl, fp, offset);
+        CURLcode result = curl_easy_perform(curl);
+        fclose(fp);
+        return result;
+    };
 
-    fclose(fp);
-    curl_easy_cleanup(curl);
+    bool retried_full_download = false;
 
-    if (res != CURLE_OK) {
+    while (true) {
+        CURLcode res = attempt_download(resume_from);
+
+        if (res == CURLE_OK) {
+            mark_download_resumable();
+            notify_download_complete();
+            cleanup_curl();
+            return;
+        }
+
         cancel_requested.store(false, std::memory_order_relaxed);
+
         if (res == CURLE_ABORTED_BY_CALLBACK) {
             if (on_download_error) {
                 on_download_error("Download cancelled");
             }
-        } else {
-            throw std::runtime_error(std::string("Download failed: ") + curl_easy_strerror(res));
+            cleanup_curl();
+            return;
         }
-    } else {
-        mark_download_resumable();
-        notify_download_complete();
-    }    
+
+        const bool range_error =
+            res == CURLE_HTTP_RANGE_ERROR ||
+            res == CURLE_BAD_DOWNLOAD_RESUME
+#ifdef CURLE_RANGE_ERROR
+            || res == CURLE_RANGE_ERROR
+#endif
+            ;
+
+        if (range_error && resume_from > 0 && !retried_full_download) {
+            if (auto logger = Logger::get_logger("core_logger")) {
+                logger->warn("Range resume failed ({}). Retrying full download.",
+                             curl_easy_strerror(res));
+            }
+            retried_full_download = true;
+            resume_from = 0;
+            resume_offset = 0;
+
+            std::error_code ec;
+            std::filesystem::remove(download_destination, ec);
+
+            cleanup_curl();
+            curl = init_curl();
+            continue;
+        }
+
+        std::string error = std::string("Download failed: ") + curl_easy_strerror(res);
+        cleanup_curl();
+        throw std::runtime_error(error);
+    }
 }
 
 
@@ -282,7 +351,9 @@ void LLMDownloader::setup_download_curl_options(CURL* curl, FILE* fp, long resum
     curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &LLMDownloader::progress_func);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
-    curl_easy_setopt(curl, CURLOPT_RESUME_FROM, resume_offset);
+    if (resume_offset > 0) {
+        curl_easy_setopt(curl, CURLOPT_RESUME_FROM, resume_offset);
+    }
 }
 
 
@@ -445,3 +516,36 @@ std::string LLMDownloader::get_download_url()
 {
     return url;
 }
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+namespace TestHooks {
+
+void set_llm_download_probe(LLMDownloadProbe probe) {
+    download_probe_slot() = std::move(probe);
+}
+
+void reset_llm_download_probe() {
+    download_probe_slot() = LLMDownloadProbe{};
+}
+
+} // namespace TestHooks
+
+void LLMDownloader::LLMDownloaderTestAccess::set_real_content_length(LLMDownloader& downloader,
+                                                                     long long length) {
+    downloader.real_content_length = length;
+}
+
+void LLMDownloader::LLMDownloaderTestAccess::set_download_destination(LLMDownloader& downloader,
+                                                                      const std::string& path) {
+    downloader.destination_dir = std::filesystem::path(path).parent_path().string();
+    downloader.download_destination = path;
+}
+
+void LLMDownloader::LLMDownloaderTestAccess::set_resume_headers(LLMDownloader& downloader,
+                                                                long long content_length) {
+    std::lock_guard<std::mutex> lock(downloader.mutex);
+    downloader.curl_headers["accept-ranges"] = "bytes";
+    downloader.curl_headers["content-length"] = std::to_string(content_length);
+    downloader.real_content_length = content_length;
+}
+#endif
