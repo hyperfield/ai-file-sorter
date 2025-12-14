@@ -447,3 +447,24 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         )
     endif()
 endif()
+
+# Provider smoke test CLI (headless tool for testing Ollama providers)
+option(AI_FILE_SORTER_BUILD_TOOLS "Build CLI tools (provider_smoke)" OFF)
+if(AI_FILE_SORTER_BUILD_TOOLS)
+    add_executable(provider_smoke
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/provider_smoke.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/LocalOllamaProvider.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/OllamaCloudProvider.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
+    )
+    target_include_directories(provider_smoke PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    )
+    target_link_libraries(provider_smoke PRIVATE
+        CURL::libcurl
+        JsonCpp::JsonCpp
+        spdlog::spdlog
+        fmt::fmt
+    )
+    target_compile_definitions(provider_smoke PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()

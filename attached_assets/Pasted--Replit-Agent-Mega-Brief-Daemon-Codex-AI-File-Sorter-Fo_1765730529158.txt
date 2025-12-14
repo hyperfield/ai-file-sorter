@@ -1,0 +1,426 @@
+# Replit Agent Mega-Brief — Daemon Codex (AI File Sorter Fork)
+
+You are working in a fork of `hyperfield/ai-file-sorter`. This fork is the foundation for a new project named **Daemon Codex**.
+
+## 0) Identity & Principles (this matters)
+Daemon Codex is not “AI magic file sorter.” It’s a **review-first, undo-first file transaction system** that uses AI as an *assistant* (propose) and treats the user as the authority (commit). The product ethos is:
+
+- **No silent mutation**
+- **Every move is planned**
+- **Every plan is reviewable**
+- **Every commit is reversible**
+- **Taxonomy must be stable and predictable**
+- **Automation (watch mode) must be opt-in, fenced, and safe**
+
+This should feel more like **Git for file moves** than a daemon possessed by vibes.
+
+---
+
+## 1) Replit Constraint (you already saw it — stop fighting it)
+Do **not** spend time trying to compile or run the full Qt6/OpenGL/llama.cpp desktop application inside Replit. The environment is not suitable due to nix path-length and submodule limitations. Replit is being used for:
+
+- refactors
+- clean module design
+- PR-ready changes
+- test harnesses that compile headless (if possible)
+- documentation & developer notes
+
+**Goal:** produce code changes that will build on macOS / Linux locally when submodules are available.
+
+---
+
+## 2) The Main Feature: Ollama Cloud Provider (First-Class)
+
+### 2.1 Why
+We want to integrate **Ollama Cloud models** in a way that:
+- doesn’t break local LLM
+- doesn’t break existing OpenAI-key workflow
+- plugs into the same UI/LLM selection logic
+- is safe, reversible, auditable
+
+### 2.2 Core requirement
+Introduce an explicit **Provider abstraction** (network/inference layer) so the rest of the app doesn’t care which backend is active.
+
+This provider abstraction should be the single place that encodes:
+- base URL
+- auth requirements
+- model listing
+- request formats
+- timeouts
+- retry policy (minimal)
+
+### 2.3 Provider targets (minimum set)
+1) **Local Ollama** (localhost)
+   - base URL: `http://localhost:11434`
+   - no API key
+   - uses standard Ollama endpoints (`/api/tags`, `/api/generate` or `/api/chat`)
+
+2) **Ollama Cloud** (remote)
+   - base URL must be configurable
+   - API key from env var `OLLAMA_API_KEY`
+   - optionally allow user to input a key in UI stored locally, but env var is required first step
+   - never log keys
+
+**Important:** If cloud endpoint details are uncertain, implement base URL and endpoint strings as config and keep assumptions isolated. Do not hardcode a single host and “guess” too much.
+
+### 2.4 Minimal features to implement first
+- **Model listing** for selected provider
+  - implement `list_models()` using `/api/tags` equivalent for that provider (or implement a provider-specific adapter if cloud differs)
+- **Health check**
+  - basic ping endpoint or safe call to tags; show a clear error if unreachable / unauthorized
+- **Inference routing** should come after provider + listing foundation is in place.
+
+---
+
+## 3) Safety Rails (Daemon Codex rules)
+These should influence design choices:
+
+### 3.1 File operations
+- All file moves/renames must come from a **Plan** object
+- Plan must include From → To mapping
+- Plan must be reviewable and editable
+- Plan application must be atomic-ish (best effort) and produce a commit log
+
+### 3.2 Downloads folder hygiene (future)
+If we later implement watch/monitor:
+- off by default
+- fenced to a single configured folder
+- ignore in-progress downloads (`.download`, `.part`, `.crdownload`, temp names)
+- never touch system folders
+- avoid loops (AI Library moving into itself)
+
+### 3.3 Undo
+Undo must never be broken:
+- persist the plan/commit log needed for revert
+- “Undo last run” should be able to reconstruct moves
+- If a file already moved/renamed externally, undo should “skip with warning” not destroy data
+
+---
+
+## 4) Deliverables in this repo (what you must do)
+
+### 4.1 Repo Orientation (high-signal map)
+Find and summarize:
+1) Where config is stored/read (likely config.ini or app data folder)
+2) Where LLM selection happens (UI for selecting local model vs ChatGPT)
+3) Where LLM requests are made (HTTP client code / llama invocation)
+4) Where taxonomy and whitelists are stored/applied
+5) Where the plan/dry-run preview is constructed
+6) Where persistent undo stores the plan and how it replays
+
+Output a “map” with file paths and brief descriptions:
+- `app/lib/...` does X
+- `app/include/...` contains Y
+- settings keys are read in Z
+- UI files for model selection are A
+
+### 4.2 Implementation plan (PR-sized milestones)
+Propose a small-step plan with tight diffs:
+
+**PR #1: Provider foundation + model listing (no GUI running needed)**
+- Add provider interface + implementations:
+  - LocalOllamaProvider
+  - OllamaCloudProvider (even stubbed but structured)
+- Add config keys + defaults:
+  - `llm.provider = local_ollama|ollama_cloud|openai|local_gguf` (whatever fits)
+  - `ollama.base_url` (default `http://localhost:11434`)
+  - `ollama.cloud_base_url` (placeholder configurable)
+- Implement `list_models()` and parse response into a unified Model struct
+- Add a “headless test harness” (CLI tool in `tests/` or `tools/`) that:
+  - reads config/env
+  - calls list_models()
+  - prints sanitized output (no secrets)
+- Add unit test(s) for parsing the tags response (stub JSON)
+- Do NOT attempt to build full GUI. This PR should compile in a local dev env later.
+
+**PR #2: Wire provider selection into UI/settings**
+- Add UI control to pick provider
+- Add UI for base URL field for local and cloud
+- Add UI hint for API key (env var)
+- Add test for config read/write
+
+**PR #3: Route actual inference calls**
+- Switch existing Ollama/local remote call sites to use provider
+- Ensure existing OpenAI key path remains untouched
+- Add robust error surfaces: unauthorized, offline, timeouts
+
+**PR #4: Daemon Codex plan ledger enhancements**
+- improve plan file format
+- ensure undo uses plan ledger robustly
+- add `plan.json` schema versioning (future-proof)
+
+### 4.3 Make real changes now
+Start with PR #1 immediately:
+- create provider module
+- implement local provider fully
+- implement cloud provider skeleton + auth handling
+- implement list_models with parsing
+- implement stub HTTP client wrapper if needed
+
+---
+
+## 5) Technical Design Guidance (how to structure it cleanly)
+
+### 5.1 Provider interface
+Create something like:
+
+**Model struct**:
+- id/name (string)
+- family/provider (enum)
+- maybe size/quant if available
+- “display_name” for UI
+
+**Provider interface**:
+- `ProviderKind kind()`
+- `std::string display_name()`
+- `std::vector<Model> list_models()`
+- `InferenceResult categorize(...)` (later)
+- `HealthResult check()`
+
+### 5.2 HTTP client wrapper
+If repo already has curl wrappers, reuse them.
+If not, make a minimal wrapper:
+- GET/POST JSON
+- timeout config
+- return (status_code, body)
+- never log headers containing auth
+
+### 5.3 Auth handling (cloud)
+- Read `OLLAMA_API_KEY` from environment at runtime
+- Optionally allow config key override (but env first)
+- Add a function: `std::optional<std::string> get_api_key()`
+- When missing: error should be explicit and non-fatal
+
+### 5.4 Config layering
+Implement precedence:
+1) runtime flag (if any)
+2) env var
+3) config file
+4) defaults
+
+### 5.5 Log hygiene
+- never print API keys
+- never print full Authorization headers
+- if you log base URLs, okay
+- if you log errors, sanitize
+
+---
+
+## 6) What “Ollama Cloud” means (practical)
+We want:
+- The ability to select an Ollama Cloud hosted model
+- Use it exactly like local ollama models from the app’s POV
+- The provider supplies a model list
+- The provider supplies an inference endpoint
+- The rest of the app remains stable and reversible
+
+If cloud endpoints differ from local Ollama, create a small adapter class. Do not pollute the rest of the codebase with `if cloud then ...`.
+
+---
+
+## 7) Testing strategy in this constrained environment
+
+### 7.1 Unit tests
+Add unit tests for:
+- parsing tags model list
+- provider selection logic
+- missing key errors
+
+Keep tests headless; do not require Qt.
+
+### 7.2 CLI harness
+Add a small program (e.g., `tools/provider_smoke.cpp`) that can run:
+- `provider_smoke --provider local --list-models`
+- `provider_smoke --provider cloud --list-models`
+This helps validate provider logic without GUI.
+
+### 7.3 No file moves in tests
+Never manipulate user files. Use temp dirs or “plan only”.
+
+---
+
+## 8) Documentation to add
+Create:
+- `docs/daemon_codex.md` (design intent & guardrails)
+- `docs/ollama_cloud.md` (setup, env vars, testing)
+- update `README` minimally (do not rebrand yet; just add dev notes)
+
+Include “macOS build truth” instructions:
+- `git submodule update --init --recursive`
+- `./app/scripts/build_llama_macos.sh`
+- `cd app && make -j4`
+
+---
+
+## 9) Output format when you finish
+At the end of your work session, output:
+
+1) **Repo map** (paths → responsibilities)
+2) **Implemented changes** (what’s in PR #1)
+3) **Files changed** (list)
+4) **How to test on macOS** (exact commands)
+5) **Known limitations** (what’s stubbed / next PR)
+
+---
+
+## 10) IMPORTANT: Stop doing these things
+- Stop trying to fix OpenGL / Qt / CMake MAX_PATH inside Replit
+- Stop trying to make the GUI runnable here
+- Stop downloading llama.cpp manually—on macOS submodules will be used properly
+- Stop large-scale refactors that aren’t required for provider abstraction
+
+---
+
+## 11) Begin now
+Start by mapping where LLM selection and request routing live, then implement PR #1 provider abstraction + model listing + tests/harness.
+
+---
+
+If you want one extra “daemon codex flavored” north star to keep the agent aligned:
+
+**Daemon Codex = “Every move is a written record. Every record can be reversed.”**  
+Let that shape your design.
+
+
+---
+
+## Replit Agent Brief — Daemon Codex (fork of hyperfield/ai-file-sorter)
+
+You are working in a fork of `hyperfield/ai-file-sorter`. This fork is the foundation of a new project called **Daemon Codex**.
+
+### Mission
+Evolve this repo into a **local-first, review-first, undo-first** file organizer:
+- **Propose → Review → Commit → Undo**
+- No silent mutation of files
+- Predictable behavior, strong guardrails
+- Taxonomy stays stable (optionally constrained by whitelists)
+- Add **Ollama Cloud models** support alongside local Ollama
+
+### Non-negotiables
+- Never move/rename files without explicit user confirmation.
+- Dry-run preview must remain reliable.
+- Undo must remain correct and must not be broken.
+- No always-on “watch mode” enabled by default. If any monitoring exists, it must be off-by-default and fenced.
+- AI is a **subordinate assistant**: it proposes; the user decides.
+- Prefer simple, auditable code paths over “clever”.
+
+### Important constraint about Replit
+Do **not** spend time trying to compile/run the full Qt6 GUI app in Replit. The environment may not support native Qt/OpenGL/llama.cpp submodules well. Treat Replit as a “code change + refactor + PR generator” environment.
+
+Your job: produce **PR-ready changes** with clear notes so they can be built/tested on a real macOS machine later.
+
+---
+
+# Primary Goal: Ollama Cloud Integration
+
+### Why
+We want to support **Ollama Cloud models** in addition to local Ollama. This means:
+- Local host: `http://localhost:11434`
+- Cloud host: likely `https://ollama.com` (or a configurable base URL)
+- API key via environment variable: `OLLAMA_API_KEY`
+- The app should treat both as the same “provider” concept: only the base URL + auth changes.
+
+### Design requirement
+Implement a **provider abstraction**, so the rest of the app doesn’t care whether it’s local or cloud.
+
+Example interface (conceptual):
+- `list_models() -> models`
+- `generate(...) -> response` OR `chat(...) -> response`
+- `health_check() -> ok/error`
+- `base_url`, optional `api_key`, `timeout`
+
+Implementation targets:
+- Provider: **LocalOllamaProvider**
+- Provider: **OllamaCloudProvider**
+- Keep existing provider(s) (local GGUF/llama.cpp, OpenAI key path) working.
+
+### Security requirements
+- Never print API keys to logs.
+- Never commit secrets.
+- Prefer env var `OLLAMA_API_KEY`. Optional: allow config value, but treat it carefully.
+
+---
+
+# Secondary Goal: “Daemon Codex” reliability upgrades (incremental)
+
+We are NOT rebranding/renaming everything yet. Focus on core capabilities:
+- Better “plan” representation (From → To)
+- Transaction log / persistent undo plan stays first-class
+- Add optional **category whitelist profiles** to constrain ontology
+
+---
+
+# What I want you to deliver
+
+## Step 1 — Repo orientation (high signal)
+Find and summarize where these live:
+1) LLM selection and configuration (settings/config.ini etc.)
+2) Model listing (if exists)
+3) Where LLM calls are made (request routing)
+4) Where “dry run / preview” is built
+5) Where “undo last run” is implemented and how plans are stored
+
+Output a short map like:
+- `app/src/...` handles X
+- `app/include/...` contains Y
+- `config.ini` keys are read in Z
+
+## Step 2 — Implementation plan (small, safe increments)
+Propose a minimal-risk sequence of PR-sized milestones:
+
+### PR #1 (foundation)
+- Add provider interface + LocalOllamaProvider
+- Add config keys for:
+  - `ollama.provider = local|cloud`
+  - `ollama.base_url`
+  - `ollama.cloud_base_url`
+- Implement `list_models()` via `GET /api/tags` (or equivalent) for the selected base URL
+- Add strict error handling and clear UI/UX message for missing key / unreachable host
+
+### PR #2 (cloud support)
+- Add OllamaCloudProvider with auth (`OLLAMA_API_KEY`)
+- Wire it into selection UI/settings (minimal wiring is fine)
+- Add lightweight tests for:
+  - tags parsing
+  - provider selection logic
+  - “missing key” behavior
+
+### PR #3 (inference routing)
+- Route actual categorization calls through the chosen provider
+- Ensure existing local GGUF and OpenAI workflows remain intact (do not break)
+- Add a small “headless smoke test harness” if needed
+
+## Step 3 — Make the first real code change
+Actually implement PR #1 (provider + model list) in the repo:
+- Create new files/modules cleanly
+- Update existing call sites minimally
+- Document how to test locally on macOS
+
+## Step 4 — Write developer notes
+Add `docs/ollama-cloud.md` (or similar) with:
+- How to enable cloud provider
+- Env var setup (`OLLAMA_API_KEY`)
+- How to validate connectivity
+- How to run a basic categorization test safely (pointed at a test directory)
+
+---
+
+# Quality bar / guardrails for code changes
+- Keep diffs tight and reviewable.
+- No broad refactors unless necessary.
+- Prefer adding new modules over rewriting existing working logic.
+- Add compile-time safety and minimal tests.
+- If something is ambiguous about Ollama Cloud endpoints, make base URLs/endpoints configurable and isolate assumptions inside provider classes.
+
+---
+
+# Expected output from you
+When finished, output:
+1) A bullet summary of what you changed
+2) A file list of edits/additions
+3) Testing instructions for macOS (commands + expected result)
+4) Known limitations / next steps
+
+Begin by mapping the current LLM call flow and config reading, then implement PR #1.
+
+---
