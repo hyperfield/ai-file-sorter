@@ -19,18 +19,35 @@ jobs:
         target: 'desktop'
         arch: 'win64_msvc2019_64'
 
+    - name: Install Missing Libraries (Curl, JsonCpp, Spdlog)
+      # This fixes the "Could NOT find CURL" error
+      run: vcpkg install curl jsoncpp spdlog --triplet x64-windows
+
     - name: Configure CMake
-      run: cmake -B build -S app -DCMAKE_BUILD_TYPE=Release
+      # We add the "Toolchain" file so CMake knows where we installed Curl
+      run: cmake -B build -S app -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
     - name: Build App
       run: cmake --build build --config Release
 
     - name: Gather Files for Upload
+      shell: cmd
       run: |
         mkdir output
-        copy build\app\Release\*.exe output\
-        # Try to copy DLLs (Qt deployment)
+        
+        rem 1. Copy the Main EXE
+        for /r build %%f in ("AI File Sorter.exe") do copy "%%f" output\
+        if not exist output\*.exe for /r build %%f in (*.exe) do copy "%%f" output\
+        
+        rem 2. Run windeployqt to get Qt DLLs
         windeployqt --release --dir output output\*.exe
+        
+        rem 3. Copy Library DLLs (Curl, etc.) that windeployqt misses
+        rem Vcpkg usually puts them in the build/bin or installed folder. We search and grab them.
+        for /r build %%f in (*.dll) do copy "%%f" output\
+        
+        rem Just in case they are in the vcpkg folder directly
+        copy %VCPKG_INSTALLATION_ROOT%\installed\x64-windows\bin\*.dll output\
 
     - name: Upload The EXE
       uses: actions/upload-artifact@v4
