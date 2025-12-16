@@ -1,67 +1,72 @@
-name: Build Gemini Final
-on: [push, workflow_dispatch]
+steps:
+ - name: Checkout Code
+   uses: actions/checkout@v4
+   with:
+     submodules: recursive
 
-jobs:
-  build:
-    runs-on: windows-latest
-    env:
-      # Use GitHub cache to speed up vcpkg
-      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+ - name: Enable GitHub Cache
+   uses: actions/github-script@v7
+   with:
+     script: |
+       core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+       core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+ - name: Install Qt
+   uses: jurplel/install-qt-action@v3
+   with:
+     version: '6.5.3'
+     host: 'windows'
+     target: 'desktop'
+     arch: 'win64_msvc2019_64'
 
-    - name: Enable GitHub Cache
-      uses: actions/github-script@v7
-      with:
-        script: |
-          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+ - name: Setup Local vcpkg
+   shell: powershell
+   run: |
+     # Clone vcpkg locally so we have write access
+     git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
+     cd $env:GITHUB_WORKSPACE\vcpkg
+     .\bootstrap-vcpkg.bat
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '6.5.3'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2019_64'
+ - name: Install Support Libraries
+   shell: powershell
+   run: |
+     # Use the LOCAL vcpkg to install libraries
+     cd $env:GITHUB_WORKSPACE\vcpkg
+     .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
 
-    - name: Install Support Libraries
-      # Installs Curl, SSL, etc.
-      run: vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
+ - name: Build Llama Engine (Required Dependency)
+   shell: powershell
+   run: |
+     # Point the build script to our LOCAL vcpkg
+     $vcpkgPath = "$env:GITHUB_WORKSPACE\vcpkg"
+     
+     powershell -ExecutionPolicy Bypass -File app/scripts/build_llama_windows.ps1 `
+       -cuda off `
+       -vcpkgroot $vcpkgPath
 
-    - name: Build Llama Engine (Required Dependency)
-      # This builds the missing library from your error log
-      run: |
-        powershell -ExecutionPolicy Bypass -File app/scripts/build_llama_windows.ps1 -cuda off -vcpkgroot $env:VCPKG_INSTALLATION_ROOT
+ - name: Configure CMake
+   run: >
+     cmake -B build -S app 
+     -DCMAKE_BUILD_TYPE=Release 
+     -DCMAKE_TOOLCHAIN_FILE="$env:GITHUB_WORKSPACE/vcpkg/scripts/buildsystems/vcpkg.cmake" 
+     -DVCPKG_TARGET_TRIPLET=x64-windows
 
-    - name: Configure CMake
-      # Now it will find both vcpkg libraries AND the llama.lib we just built
-      run: >
-        cmake -B build -S app 
-        -DCMAKE_BUILD_TYPE=Release 
-        -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" 
-        -DVCPKG_TARGET_TRIPLET=x64-windows
+ - name: Build App
+   run: cmake --build build --config Release
 
-    - name: Build App
-      run: cmake --build build --config Release
+ - name: Bundle Files
+   shell: cmd
+   run: |
+     mkdir output
+     rem Copy Main App
+     copy build\Release\*.exe output\
+     rem Copy Qt DLLs
+     windeployqt --release --dir output output\*.exe
+     rem Copy Library DLLs from LOCAL vcpkg
+     copy %GITHUB_WORKSPACE%\vcpkg\installed\x64-windows\bin\*.dll output\
 
-    - name: Bundle Files
-      shell: cmd
-      run: |
-        mkdir output
-        rem Copy Main App
-        copy build\Release\*.exe output\
-        rem Copy Qt DLLs
-        windeployqt --release --dir output output\*.exe
-        rem Copy Library DLLs
-        copy %VCPKG_INSTALLATION_ROOT%\installed\x64-windows\bin\*.dll output\
-
-    - name: Upload Finished App
-      uses: actions/upload-artifact@v4
-      with:
-        name: AI-File-Sorter-Gemini
-        path: output/*
+ - name: Upload Finished App
+   uses: actions/upload-artifact@v4
+   with:
+     name: AI-File-Sorter-Gemini
+     path: output/*
