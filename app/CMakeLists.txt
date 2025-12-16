@@ -236,15 +236,15 @@ if(WIN32)
         if(NOT ${varName})
             find_library(${varName} NAMES ${libName})
         endif()
+
+        # --- FIX START: Fallback to name-only linking if file isn't found ---
         if(NOT ${varName})
-            # Fallback: On Windows, system libs like wininet are available to the linker 
-            # by name, even if find_library fails to locate the file on disk.
-            message(STATUS "Library '${libName}' not found on disk. Linking by name as fallback.")
+            message(STATUS "System library '${libName}' not found on disk. Configuring to link by name.")
             set(${varName} ${libName})
-            
-            # If this is inside a function, ensure the variable persists
-            set(${varName} ${libName} PARENT_SCOPE) 
+            # If this is inside a function, we must export the variable to the parent scope
+            set(${varName} ${libName} PARENT_SCOPE)
         endif()
+        # --- FIX END ---
         target_link_libraries(aifilesorter PRIVATE "${${varName}}")
     endforeach()
 endif()
