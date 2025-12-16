@@ -30,7 +30,12 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2019_64'
 
-      # FIX: Clone a fresh, writable copy of vcpkg
+      # 1. Install OpenBLAS via MSYS2 (Required for Llama CPU build)
+      - name: Install OpenBLAS
+        shell: cmd
+        run: |
+          C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-openblas
+
       - name: Setup Local vcpkg
         shell: powershell
         run: |
@@ -38,7 +43,6 @@ jobs:
           cd $env:GITHUB_WORKSPACE\vcpkg
           .\bootstrap-vcpkg.bat
 
-      # FIX: Install libraries into the LOCAL vcpkg
       - name: Install Support Libraries
         shell: powershell
         env:
@@ -47,13 +51,13 @@ jobs:
           cd $env:VCPKG_ROOT
           .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
 
-      # FIX: Run build script pointing to LOCAL vcpkg
       - name: Build Llama Engine
         shell: powershell
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
           Write-Host "Using VCPKG_ROOT: $env:VCPKG_ROOT"
+          # Run script pointing to our local vcpkg and the system MSYS2 OpenBLAS
           & app/scripts/build_llama_windows.ps1 -cuda off -vcpkgroot "$env:VCPKG_ROOT"
 
       - name: Configure CMake
@@ -78,8 +82,14 @@ jobs:
           copy build\Release\*.exe output\
           rem Copy Qt DLLs
           windeployqt --release --dir output output\*.exe
-          rem Copy Library DLLs
+          rem Copy Library DLLs from vcpkg
           copy "%VCPKG_ROOT%\installed\x64-windows\bin\*.dll" output\
+          rem Copy OpenBLAS DLLs (Critical for running the app)
+          if exist C:\msys64\mingw64\bin\libopenblas*.dll copy C:\msys64\mingw64\bin\libopenblas*.dll output\
+          if exist C:\msys64\mingw64\bin\libgfortran*.dll copy C:\msys64\mingw64\bin\libgfortran*.dll output\
+          if exist C:\msys64\mingw64\bin\libgcc*.dll copy C:\msys64\mingw64\bin\libgcc*.dll output\
+          if exist C:\msys64\mingw64\bin\libquadmath*.dll copy C:\msys64\mingw64\bin\libquadmath*.dll output\
+          if exist C:\msys64\mingw64\bin\libwinpthread*.dll copy C:\msys64\mingw64\bin\libwinpthread*.dll output\
 
       - name: Upload Finished App
         uses: actions/upload-artifact@v4
