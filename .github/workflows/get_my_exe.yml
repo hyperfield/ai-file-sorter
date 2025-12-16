@@ -1,0 +1,39 @@
+name: Build Gemini Version
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.5.3'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'
+
+    - name: Configure CMake
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build App
+      run: cmake --build build --config Release
+
+    - name: Gather Files for Upload
+      run: |
+        mkdir output
+        copy build\app\Release\*.exe output\
+        # Try to copy DLLs (Qt deployment)
+        windeployqt --release --dir output output\*.exe
+
+    - name: Upload The EXE
+      uses: actions/upload-artifact@v4
+      with:
+        name: AI-File-Sorter-Gemini
+        path: output/*
