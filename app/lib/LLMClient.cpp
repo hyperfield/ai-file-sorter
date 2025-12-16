@@ -119,13 +119,17 @@ void configure_request_payload(CurlRequest& request,
 {
     curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
     curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
-    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 5L);
+    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 30L); // Increased timeout for safety
 
     request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
-    const std::string auth = "Authorization: Bearer " + api_key;
-    request.headers = curl_slist_append(request.headers, auth.c_str());
-    curl_easy_setopt(request.handle, CURLOPT_HTTPHEADER, request.headers);
+    
+    // CHANGE: Only add Bearer token if NOT using Gemini (Google uses key in URL)
+    if (api_url.find("googleapis.com") == std::string::npos) {
+        const std::string auth = "Authorization: Bearer " + api_key;
+        request.headers = curl_slist_append(request.headers, auth.c_str());
+    }
 
+    curl_easy_setopt(request.handle, CURLOPT_HTTPHEADER, request.headers);
     curl_easy_setopt(request.handle, CURLOPT_POSTFIELDS, payload.c_str());
     curl_easy_setopt(request.handle, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(request.handle, CURLOPT_WRITEDATA, &response_buffer);
@@ -162,21 +166,27 @@ std::string parse_category_response(const std::string& payload,
         throw std::runtime_error("Response Error: Failed to parse JSON response. " + errors);
     }
 
-    if (http_code == 401) {
-        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
-    }
-    if (http_code == 403) {
-        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
-    }
-    if (http_code >= 500) {
-        throw std::runtime_error("Server Error: OpenAI server returned an error. Status code: " + std::to_string(http_code));
-    }
+    if (http_code == 401) throw std::runtime_error("Authentication Error: Invalid or missing API key.");
     if (http_code >= 400) {
-        const std::string error_message = root["error"]["message"].asString();
-        throw std::runtime_error("Client Error: " + error_message);
+        std::string error_msg = "Unknown Error";
+        // Try to find error message in OpenAI or Google format
+        if (root.isMember("error") && root["error"].isMember("message")) 
+            error_msg = root["error"]["message"].asString();
+        else if (root.isMember("error"))
+            error_msg = root["error"].toStyledString();
+            
+        throw std::runtime_error("Server Error (" + std::to_string(http_code) + "): " + error_msg);
     }
 
-    return root["choices"][0]["message"]["content"].asString();
+    // CHANGE: Check for Gemini "candidates" first, then OpenAI "choices"
+    if (root.isMember("candidates") && !root["candidates"].empty()) {
+        return root["candidates"][0]["content"]["parts"][0]["text"].asString();
+    }
+    if (root.isMember("choices") && !root["choices"].empty()) {
+        return root["choices"][0]["message"]["content"].asString();
+    }
+
+    throw std::runtime_error("Invalid Response: Could not find 'choices' or 'candidates' in API response.");
 }
 }
 
@@ -197,13 +207,23 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 std::string LLMClient::send_api_request(std::string json_payload) {
     if (api_key.empty()) {
-        throw std::runtime_error("Missing OpenAI API key.");
+        throw std::runtime_error("Missing API key.");
     }
 
     std::string response_string;
-    const std::string api_url = "https://api.openai.com/v1/chat/completions";
-    auto logger = Logger::get_logger("core_logger");
+    std::string api_url;
+    
+    // CHANGE: Switch URL based on model name
+    // Check if model starts with "gemini"
+    if (effective_model().rfind("gemini", 0) == 0) { 
+         // Gemini URL Structure: https://generativelanguage.googleapis.com/v1beta/models/MODEL_NAME:generateContent?key=API_KEY
+         api_url = "https://generativelanguage.googleapis.com/v1beta/models/" + effective_model() + ":generateContent?key=" + api_key;
+    } else {
+         // OpenAI URL Structure
+         api_url = "https://api.openai.com/v1/chat/completions";
+    }
 
+    auto logger = Logger::get_logger("core_logger");
     if (logger) {
         logger->debug("Dispatching remote LLM request to {}", api_url);
     }
@@ -265,9 +285,7 @@ std::string LLMClient::make_payload(const std::string& file_name,
         prompt = "Categorize file: " + file_name;
     }
 
-    if (file_type == FileType::File) {
-        // already set above
-    } else {
+    if (file_type != FileType::File) {
         if (!sanitized_path.empty()) {
             prompt = "Categorize the directory with full path: " + sanitized_path + "\nDirectory name: " + file_name;
         } else {
@@ -280,22 +298,44 @@ std::string LLMClient::make_payload(const std::string& file_name,
     }
 
     last_prompt = prompt;
-    const std::string escaped_prompt = escape_json(prompt);
-    const std::string system_prompt =
-        "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
-        "Consider the filename, extension, and any directory context provided. Always reply with one line in the "
-        "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). Subcategory "
-        "must be specific, relevant, and must not repeat the main category.";
-    const std::string escaped_system = escape_json(system_prompt);
-
     std::ostringstream payload;
-    payload << "{\n"
-            << "    \"model\": \"" << escape_json(effective_model()) << "\",\n"
-            << "    \"messages\": [\n"
-            << "        {\"role\": \"system\", \"content\": \"" << escaped_system << "\"},\n"
-            << "        {\"role\": \"user\", \"content\": \"" << escaped_prompt << "\"}\n"
-            << "    ]\n"
-            << "}";
+    
+    // CHANGE: Check model to decide JSON format
+    if (effective_model().rfind("gemini", 0) == 0) {
+        // --- GEMINI FORMAT ---
+        // Combine system prompt + user prompt because Gemini's simple API prefers it this way
+        std::string full_prompt = 
+            "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
+            "Consider the filename, extension, and any directory context provided. Always reply with one line in the "
+            "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). Subcategory "
+            "must be specific, relevant, and must not repeat the main category.\n\n" + prompt;
+
+        payload << "{\n"
+                << " \"contents\": [{\n"
+                << "   \"parts\": [{\n"
+                << "     \"text\": \"" << escape_json(full_prompt) << "\"\n"
+                << "   }]\n"
+                << " }]\n"
+                << "}";
+                
+    } else {
+        // --- OPENAI FORMAT (Existing Code) ---
+        const std::string escaped_prompt = escape_json(prompt);
+        const std::string system_prompt =
+            "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
+            "Consider the filename, extension, and any directory context provided. Always reply with one line in the "
+            "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). Subcategory "
+            "must be specific, relevant, and must not repeat the main category.";
+        const std::string escaped_system = escape_json(system_prompt);
+
+        payload << "{\n"
+                << " \"model\": \"" << escape_json(effective_model()) << "\",\n"
+                << " \"messages\": [\n"
+                << " {\"role\": \"system\", \"content\": \"" << escaped_system << "\"},\n"
+                << " {\"role\": \"user\", \"content\": \"" << escaped_prompt << "\"}\n"
+                << " ]\n"
+                << "}";
+    }
 
     return payload.str();
 }
