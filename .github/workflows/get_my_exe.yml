@@ -20,7 +20,7 @@ jobs:
         arch: 'win64_msvc2019_64'
 
     - name: Configure CMake
-      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+      run: cmake -B build -S app -DCMAKE_BUILD_TYPE=Release
 
     - name: Build App
       run: cmake --build build --config Release
