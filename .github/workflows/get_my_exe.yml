@@ -1,11 +1,11 @@
-name: Build Fixed Gemini
+name: Build Gemini Final
 on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: windows-latest
     env:
-      # Force vcpkg to use binary caching if available to speed up re-runs
+      # Use GitHub cache to speed up vcpkg
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
     steps:
@@ -14,7 +14,7 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Export GitHub Actions Cache environment variables
+    - name: Enable GitHub Cache
       uses: actions/github-script@v7
       with:
         script: |
@@ -29,14 +29,17 @@ jobs:
         target: 'desktop'
         arch: 'win64_msvc2019_64'
 
-    - name: Install Libraries (Curl, etc)
-      # We specify 'curl[ssl]' to ensure HTTPS works for Gemini
-      # We force 'x64-windows' to match the Qt architecture
+    - name: Install Support Libraries
+      # Installs Curl, SSL, etc.
       run: vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
 
+    - name: Build Llama Engine (Required Dependency)
+      # This builds the missing library from your error log
+      run: |
+        powershell -ExecutionPolicy Bypass -File app/scripts/build_llama_windows.ps1 -cuda off -vcpkgroot $env:VCPKG_INSTALLATION_ROOT
+
     - name: Configure CMake
-      # FIXED: We added -DVCPKG_TARGET_TRIPLET=x64-windows
-      # This tells CMake exactly which folder to look in for the libraries we just installed.
+      # Now it will find both vcpkg libraries AND the llama.lib we just built
       run: >
         cmake -B build -S app 
         -DCMAKE_BUILD_TYPE=Release 
@@ -46,23 +49,19 @@ jobs:
     - name: Build App
       run: cmake --build build --config Release
 
-    - name: Gather Files
+    - name: Bundle Files
       shell: cmd
       run: |
         mkdir output
-        
-        rem 1. Copy the Main EXE (Look in Release folder)
+        rem Copy Main App
         copy build\Release\*.exe output\
-        
-        rem 2. Get Qt DLLs
+        rem Copy Qt DLLs
         windeployqt --release --dir output output\*.exe
-        
-        rem 3. Get Library DLLs (Curl, etc)
-        rem They live in vcpkg installed/bin. We copy them so the app opens.
+        rem Copy Library DLLs
         copy %VCPKG_INSTALLATION_ROOT%\installed\x64-windows\bin\*.dll output\
 
-    - name: Upload Artifact
+    - name: Upload Finished App
       uses: actions/upload-artifact@v4
       with:
-        name: AI-File-Sorter-Gemini-Final
+        name: AI-File-Sorter-Gemini
         path: output/*
