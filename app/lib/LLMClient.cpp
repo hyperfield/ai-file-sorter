@@ -217,7 +217,7 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     // Check if model starts with "gemini"
     if (effective_model().rfind("gemini", 0) == 0) { 
          // Gemini URL Structure: https://generativelanguage.googleapis.com/v1beta/models/MODEL_NAME:generateContent?key=API_KEY
-         api_url = "https://generativelanguage.googleapis.com/v1beta/models/" + effective_model() + ":generateContent?key=" + api_key;
+         api_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     } else {
          // OpenAI URL Structure
          api_url = "https://api.openai.com/v1/chat/completions";
