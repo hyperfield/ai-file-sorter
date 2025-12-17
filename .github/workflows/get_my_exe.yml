@@ -134,4 +134,20 @@ jobs:
       - name: Bundle Files
         shell: cmd
         env:
-          VCPKG_ROOT:
+          VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+        run: |
+          mkdir output
+          if exist build\Release\*.exe copy build\Release\*.exe output\
+          if exist build\Release\llama.dll copy build\Release\llama.dll output\
+          windeployqt --release --dir output output\*.exe
+          copy "%VCPKG_ROOT%\installed\x64-windows\bin\*.dll" output\
+          if exist C:\msys64\mingw64\bin\libopenblas*.dll copy C:\msys64\mingw64\bin\libopenblas*.dll output\
+          if exist C:\msys64\mingw64\bin\libgfortran*.dll copy C:\msys64\mingw64\bin\libgfortran*.dll output\
+          if exist C:\msys64\mingw64\bin\libgcc*.dll copy C:\msys64\mingw64\bin\libgcc*.dll output\
+          if exist C:\msys64\mingw64\bin\libwinpthread*.dll copy C:\msys64\mingw64\bin\libwinpthread*.dll output\
+
+      - name: Upload Finished App
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-File-Sorter-Gemini
+          path: output/*
