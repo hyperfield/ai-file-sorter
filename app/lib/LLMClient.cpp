@@ -222,15 +222,13 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     
     // CHANGE: Switch URL based on model name
     // Check if model starts with "gemini"
-    if (root.isMember("candidates") && !root["candidates"].empty()) {
-    const Json::Value& candidate = root["candidates"][0];
-    if (candidate.isMember("content") && candidate["content"].isMember("parts")) {
-        const Json::Value& parts = candidate["content"]["parts"];
-        // Check if parts is an array and has at least one element
-        if (parts.isArray() && !parts.empty()) {
-            return parts[0]["text"].asString();
-        }
-    }
+    if (effective_model().rfind("gemini", 0) == 0) { 
+    // Uses gemini-1.5-flash by default or your configured model
+    std::string model_name = effective_model();
+    // Simple mapping or fallback
+    if(model_name == "gemini") model_name = "gemini-1.5-flash"; 
+    
+    api_url = "https://generativelanguage.googleapis.com/v1beta/models/" + model_name + ":generateContent?key=" + api_key;
 }
 
     auto logger = Logger::get_logger("core_logger");
