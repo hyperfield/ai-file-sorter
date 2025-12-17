@@ -222,19 +222,13 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     
     // CHANGE: Switch URL based on model name
     // Check if model starts with "gemini"
-    if (effective_model().rfind("gemini", 0) == 0) { 
-    // Uses gemini-1.5-flash by default or your configured model
-    std::string model_name = effective_model();
-    // Simple mapping or fallback
-    if(model_name == "gemini") model_name = "gemini-1.5-flash"; 
+    if (effective_model().rfind("gemini", 0) == 0) {
+    // ⬇️ CHANGE THIS LINE to use 'gemini-2.5-flash'
+    std::string model_name = "gemini-2.5-flash"; 
     
+    // Ensure the rest of the URL is correct
     api_url = "https://generativelanguage.googleapis.com/v1beta/models/" + model_name + ":generateContent?key=" + api_key;
 }
-
-    auto logger = Logger::get_logger("core_logger");
-    if (logger) {
-        logger->debug("Dispatching remote LLM request to {}", api_url);
-    }
 
     CurlRequest request = create_curl_request(logger);
     configure_request_payload(request, api_url, json_payload, api_key, response_string);
