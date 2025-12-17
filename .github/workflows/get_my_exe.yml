@@ -9,6 +9,11 @@ jobs:
   build:
     runs-on: windows-2022
 
+    env:
+      # Global environment variables for sccache
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -22,6 +27,12 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
+      # 1. SETUP COMPILER CACHE (SCCACHE)
+      # This saves the compiled C++ objects of YOUR code
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
+      # 2. INSTALL QT (WITH CACHING ENABLED)
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
@@ -29,17 +40,29 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
+          cache: 'true'  # <--- Added this line to cache Qt download
 
-      # 1. Install OpenBLAS (Required for Llama CPU build)
       - name: Install OpenBLAS & Add to Path
         shell: powershell
         run: |
           cmd /c "C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-openblas"
           echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      # 3. CACHE VCPKG (DEPENDENCIES)
+      # This saves the huge time it takes to compile curl, fmt, jsoncpp, etc.
+      - name: Restore vcpkg Cache
+        id: vcpkg-cache
+        uses: actions/cache@v3
+        with:
+          path: vcpkg
+          # Key includes the list of libs so it updates if you change them
+          key: ${{ runner.os }}-vcpkg-lib-cache-curl-fmt-spdlog-jsoncpp-sqlite3
+
       - name: Setup Local vcpkg
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         shell: powershell
         run: |
+          # Only clone if not restored from cache
           git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
           cd $env:GITHUB_WORKSPACE\vcpkg
           .\bootstrap-vcpkg.bat
@@ -50,6 +73,7 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
           cd $env:VCPKG_ROOT
+          # vcpkg is smart; if files are cached, this finishes instantly
           .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
 
       - name: Build Llama Engine
@@ -57,13 +81,13 @@ jobs:
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
-          # Build Llama (CPU Only)
+          # Added sccache to Llama build via CMAKE_CXX_COMPILER_LAUNCHER
           & app/scripts/build_llama_windows.ps1 `
             -cuda off `
             -vcpkgroot "$env:VCPKG_ROOT" `
-            -openblasroot "C:\msys64\mingw64"
+            -openblasroot "C:\msys64\mingw64" `
+            -extra_cmake_args "-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
 
-      # 2. FIND AND STAGE LLAMA.DLL (Prevents 'missing file' errors)
       - name: Locate and Stage Llama DLL
         shell: powershell
         run: |
@@ -77,12 +101,9 @@ jobs:
               Write-Warning "llama.dll not found. The app might fail to run, but we will try to finish the build."
           }
 
-      # 3. FIX: CREATE DUMMY FOLDERS (Fixes MSB3073 Error)
       - name: Create Dummy Precompiled Folders
         shell: powershell
         run: |
-          # The CMake script tries to copy these folders even if they don't exist.
-          # We create them as empty folders so the copy command succeeds.
           $paths = @(
             "app\lib\precompiled\cpu",
             "app\lib\precompiled\cuda",
@@ -91,7 +112,6 @@ jobs:
           foreach ($p in $paths) {
             $fullPath = Join-Path $env:GITHUB_WORKSPACE $p
             if (-not (Test-Path $fullPath)) {
-              Write-Host "Creating missing directory: $fullPath"
               New-Item -Path $fullPath -ItemType Directory -Force
             }
           }
@@ -104,7 +124,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release 
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" 
           -DVCPKG_TARGET_TRIPLET=x64-windows 
-          -DWININET_LIB=wininet
+          -DWININET_LIB=wininet 
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache 
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
       - name: Build App
         run: cmake --build build --config Release
@@ -112,30 +134,4 @@ jobs:
       - name: Bundle Files
         shell: cmd
         env:
-          VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-        run: |
-          mkdir output
-          
-          rem Copy Main App
-          if exist build\Release\*.exe copy build\Release\*.exe output\
-          
-          rem Copy Llama DLL
-          if exist build\Release\llama.dll copy build\Release\llama.dll output\
-          
-          rem Copy Qt DLLs
-          windeployqt --release --dir output output\*.exe
-          
-          rem Copy Support Libs
-          copy "%VCPKG_ROOT%\installed\x64-windows\bin\*.dll" output\
-          
-          rem Copy OpenBLAS Dependencies
-          if exist C:\msys64\mingw64\bin\libopenblas*.dll copy C:\msys64\mingw64\bin\libopenblas*.dll output\
-          if exist C:\msys64\mingw64\bin\libgfortran*.dll copy C:\msys64\mingw64\bin\libgfortran*.dll output\
-          if exist C:\msys64\mingw64\bin\libgcc*.dll copy C:\msys64\mingw64\bin\libgcc*.dll output\
-          if exist C:\msys64\mingw64\bin\libwinpthread*.dll copy C:\msys64\mingw64\bin\libwinpthread*.dll output\
-
-      - name: Upload Finished App
-        uses: actions/upload-artifact@v4
-        with:
-          name: AI-File-Sorter-Gemini
-          path: output/*
+          VCPKG_ROOT:
