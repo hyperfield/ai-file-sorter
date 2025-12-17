@@ -213,6 +213,9 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 
 std::string LLMClient::send_api_request(std::string json_payload) {
+    // FIX 1: Define the logger at the start of the function
+    auto logger = Logger::get_logger("core_logger");
+
     if (api_key.empty()) {
         throw std::runtime_error("Missing API key.");
     }
@@ -220,14 +223,24 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     std::string response_string;
     std::string api_url;
     
-    // CHANGE: Switch URL based on model name
-    // Check if model starts with "gemini"
+    // FIX 2: Ensure the Gemini URL uses the correct model and format
     if (effective_model().rfind("gemini", 0) == 0) {
-    // ⬇️ CHANGE THIS LINE to use 'gemini-2.5-flash'
-    std::string model_name = "gemini-2.5-flash"; 
-    
-    // Ensure the rest of the URL is correct
-    api_url = "https://generativelanguage.googleapis.com/v1beta/models/" + model_name + ":generateContent?key=" + api_key;
+        // Use the valid current model name
+        std::string model_name = "gemini-2.5-flash"; 
+        api_url = "https://generativelanguage.googleapis.com/v1beta/models/" + model_name + ":generateContent?key=" + api_key;
+    } else {
+        // Fallback for OpenAI or others (prevents empty URL crashes)
+        api_url = "https://api.openai.com/v1/chat/completions";
+    }
+
+    // FIX 3: Pass the valid 'logger' to the helper functions
+    CurlRequest request = create_curl_request(logger);
+    configure_request_payload(request, api_url, json_payload, api_key, response_string);
+
+    // FIX 4: Use the helper function 'perform_request' instead of broken inline code
+    const long http_code = perform_request(request, logger);
+
+    return parse_category_response(response_string, http_code, logger);
 }
 
     CurlRequest request = create_curl_request(logger);
