@@ -30,13 +30,11 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2019_64'
 
+      # 1. Install OpenBLAS (Required for Llama CPU build)
       - name: Install OpenBLAS & Add to Path
         shell: powershell
         run: |
-          # Install OpenBLAS
           cmd /c "C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-openblas"
-          
-          # Add MSYS2 bin to PATH so CMake and scripts can find the DLLs/Headers
           echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Setup Local vcpkg
@@ -59,19 +57,33 @@ jobs:
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
-          # Pass -openblasroot explicitly to ensure it finds the headers
-          # We point to C:\msys64\mingw64 where include/ and bin/ live
+          # Build Llama using the local vcpkg and MSYS2 OpenBLAS
           & app/scripts/build_llama_windows.ps1 `
             -cuda off `
             -vcpkgroot "$env:VCPKG_ROOT" `
             -openblasroot "C:\msys64\mingw64"
 
-      - name: Debug - Check Llama Output
+      # 2. FIND AND MOVE LLAMA.DLL (Fixes MSB3073 and Path Errors)
+      - name: Locate and Stage Llama DLL
         shell: powershell
         run: |
-          # Verify if the DLL was actually built. If this is empty, the next step fails.
-          Write-Host "Checking for llama.dll..."
-          Get-ChildItem -Path app\llama\build -Recurse -Filter "llama.dll" | Select-Object FullName
+          Write-Host "Searching for llama.dll in workspace..."
+          $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
+          
+          if ($dll) {
+              Write-Host "FOUND: $($dll.FullName)"
+              
+              # Create the directory where the App build expects the DLL to be
+              $destDir = "$env:GITHUB_WORKSPACE\build\Release"
+              New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+              
+              # Copy it there so the Link/Post-Build steps succeed
+              Copy-Item -Path $dll.FullName -Destination $destDir -Force
+              Write-Host "Copied llama.dll to $destDir"
+          } else {
+              Write-Error "CRITICAL: llama.dll was not found! The Llama build step may have failed silently."
+              exit 1
+          }
 
       - name: Configure CMake
         env:
@@ -83,9 +95,8 @@ jobs:
           -DVCPKG_TARGET_TRIPLET=x64-windows 
           -DWININET_LIB=wininet
 
-      - name: Build App (Verbose)
-        # Added --verbose to see exactly which copy command is failing
-        run: cmake --build build --config Release --verbose
+      - name: Build App
+        run: cmake --build build --config Release
 
       - name: Bundle Files
         shell: cmd
@@ -97,13 +108,16 @@ jobs:
           rem Copy Main App
           if exist build\Release\*.exe copy build\Release\*.exe output\
           
+          rem Copy Llama DLL (Already staged in build\Release)
+          if exist build\Release\llama.dll copy build\Release\llama.dll output\
+          
           rem Copy Qt DLLs
           windeployqt --release --dir output output\*.exe
           
-          rem Copy Library DLLs
+          rem Copy Support Libs
           copy "%VCPKG_ROOT%\installed\x64-windows\bin\*.dll" output\
           
-          rem Copy OpenBLAS DLLs
+          rem Copy OpenBLAS Dependencies
           if exist C:\msys64\mingw64\bin\libopenblas*.dll copy C:\msys64\mingw64\bin\libopenblas*.dll output\
           if exist C:\msys64\mingw64\bin\libgfortran*.dll copy C:\msys64\mingw64\bin\libgfortran*.dll output\
           if exist C:\msys64\mingw64\bin\libgcc*.dll copy C:\msys64\mingw64\bin\libgcc*.dll output\
