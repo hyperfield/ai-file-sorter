@@ -18,19 +18,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 1  # ⚡ Faster Checkout
 
-      - name: Enable GitHub Cache
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
-      # 1. SETUP MSVC ENVIRONMENT (REQUIRED FOR NINJA)
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
-      # 2. SETUP COMPILER CACHE (SCCACHE)
+      # 1. COMPILER CACHE (SCCACHE)
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.3
 
@@ -43,76 +36,90 @@ jobs:
           arch: 'win64_msvc2019_64'
           cache: 'true'
 
-      - name: Install OpenBLAS & Add to Path
+      - name: Install OpenBLAS
         shell: powershell
         run: |
           cmd /c "C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-openblas"
           echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      # 3. CACHE VCPKG
+      # 2. VCPKG CACHE & INSTALL
       - name: Restore vcpkg Cache
         id: vcpkg-cache
         uses: actions/cache@v3
         with:
           path: vcpkg
-          key: ${{ runner.os }}-vcpkg-lib-cache-curl-fmt-spdlog-jsoncpp-sqlite3
+          key: ${{ runner.os }}-vcpkg-ninja-${{ hashFiles('app/vcpkg.json') }}
 
-      - name: Setup Local vcpkg
+      - name: Setup & Install vcpkg
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         shell: powershell
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
           git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
           cd $env:GITHUB_WORKSPACE\vcpkg
           .\bootstrap-vcpkg.bat
-
-      - name: Install Support Libraries
-        shell: powershell
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-        run: |
-          cd $env:VCPKG_ROOT
           .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
 
-      - name: Build Llama Engine
+      # 3. LLAMA ENGINE CACHING (⚡ MAJOR SPEEDUP)
+      - name: Get Llama Commit Hash
+        id: llama-hash
+        shell: bash
+        run: echo "hash=$(git submodule status app/vendor/llama.cpp | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Cache Llama Build
+        id: llama-build-cache
+        uses: actions/cache@v3
+        with:
+          path: build/llama_artifacts
+          key: ${{ runner.os }}-llama-build-${{ steps.llama-hash.outputs.hash }}
+
+      - name: Build Llama Engine (Only if changed)
+        if: steps.llama-build-cache.outputs.cache-hit != 'true'
         shell: powershell
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
-          # Added sccache to Llama build via CMAKE_CXX_COMPILER_LAUNCHER
           & app/scripts/build_llama_windows.ps1 `
             -cuda off `
             -vcpkgroot "$env:VCPKG_ROOT" `
             -openblasroot "C:\msys64\mingw64" `
-            -extra_cmake_args "-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+            -extra_cmake_args "-G Ninja -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
 
-      - name: Locate and Stage Llama DLL
+          # Prepare artifacts for caching
+          New-Item -ItemType Directory -Force -Path build/llama_artifacts | Out-Null
+          
+          # Find and copy llama.dll to artifacts folder
+          $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
+          if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/llama_artifacts" -Force }
+
+      # 4. STAGE LLAMA (FROM CACHE OR BUILD)
+      - name: Stage Llama DLL
         shell: powershell
         run: |
-          $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
-          if ($dll) {
-              $destDir = "$env:GITHUB_WORKSPACE\build" 
-              # NOTE: Ninja puts binaries directly in build/, not build/Release/
-              New-Item -ItemType Directory -Force -Path $destDir | Out-Null
-              Copy-Item -Path $dll.FullName -Destination $destDir -Force
-              Write-Host "Staged llama.dll to $destDir"
+          # Ninja builds to 'build/', so we put it there
+          $destDir = "$env:GITHUB_WORKSPACE\build"
+          New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+          
+          if (Test-Path "build/llama_artifacts/llama.dll") {
+             Copy-Item -Path "build/llama_artifacts/llama.dll" -Destination $destDir -Force
+             Write-Host "✅ Restored Llama.dll from Cache"
+          } else {
+             # Fallback if just built
+             $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
+             if ($dll) { Copy-Item -Path $dll.FullName -Destination $destDir -Force }
           }
 
       - name: Create Dummy Precompiled Folders
         shell: powershell
         run: |
-          $paths = @(
-            "app\lib\precompiled\cpu",
-            "app\lib\precompiled\cuda",
-            "app\lib\precompiled\vulkan"
-          )
+          $paths = @("app\lib\precompiled\cpu", "app\lib\precompiled\cuda", "app\lib\precompiled\vulkan")
           foreach ($p in $paths) {
-            $fullPath = Join-Path $env:GITHUB_WORKSPACE $p
-            if (-not (Test-Path $fullPath)) {
-              New-Item -Path $fullPath -ItemType Directory -Force
-            }
+            $f = Join-Path $env:GITHUB_WORKSPACE $p
+            if (-not (Test-Path $f)) { New-Item -Path $f -ItemType Directory -Force }
           }
 
-      # 4. CONFIGURE CMAKE (USING NINJA - FAST!)
+      # 5. CONFIGURE CMAKE (NINJA)
       - name: Configure CMake
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
@@ -126,7 +133,6 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=sccache 
           -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
-      # 5. BUILD APP (Removed --config Release because Ninja is single-config)
       - name: Build App
         run: cmake --build build
 
@@ -136,14 +142,10 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
           mkdir output
-          
-          rem Ninja puts files directly in 'build', NOT 'build/Release'
           if exist build\*.exe copy build\*.exe output\
           if exist build\llama.dll copy build\llama.dll output\
-          
           windeployqt --release --dir output output\*.exe
           copy "%VCPKG_ROOT%\installed\x64-windows\bin\*.dll" output\
-          
           if exist C:\msys64\mingw64\bin\libopenblas*.dll copy C:\msys64\mingw64\bin\libopenblas*.dll output\
           if exist C:\msys64\mingw64\bin\libgfortran*.dll copy C:\msys64\mingw64\bin\libgfortran*.dll output\
           if exist C:\msys64\mingw64\bin\libgcc*.dll copy C:\msys64\mingw64\bin\libgcc*.dll output\
