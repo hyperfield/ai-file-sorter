@@ -180,8 +180,15 @@ std::string parse_category_response(const std::string& payload,
 
     // CHANGE: Check for Gemini "candidates" first, then OpenAI "choices"
     if (root.isMember("candidates") && !root["candidates"].empty()) {
-        return root["candidates"][0]["content"]["parts"][0]["text"].asString();
+    const Json::Value& candidate = root["candidates"][0];
+    if (candidate.isMember("content") && candidate["content"].isMember("parts")) {
+        const Json::Value& parts = candidate["content"]["parts"];
+        // Check if parts is an array and has at least one element
+        if (parts.isArray() && !parts.empty()) {
+            return parts[0]["text"].asString();
+        }
     }
+}
     if (root.isMember("choices") && !root["choices"].empty()) {
         return root["choices"][0]["message"]["content"].asString();
     }
@@ -215,13 +222,16 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     
     // CHANGE: Switch URL based on model name
     // Check if model starts with "gemini"
-    if (effective_model().rfind("gemini", 0) == 0) { 
-         // Gemini URL Structure: https://generativelanguage.googleapis.com/v1beta/models/MODEL_NAME:generateContent?key=API_KEY
-         api_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-    } else {
-         // OpenAI URL Structure
-         api_url = "https://api.openai.com/v1/chat/completions";
+    if (root.isMember("candidates") && !root["candidates"].empty()) {
+    const Json::Value& candidate = root["candidates"][0];
+    if (candidate.isMember("content") && candidate["content"].isMember("parts")) {
+        const Json::Value& parts = candidate["content"]["parts"];
+        // Check if parts is an array and has at least one element
+        if (parts.isArray() && !parts.empty()) {
+            return parts[0]["text"].asString();
+        }
     }
+}
 
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
