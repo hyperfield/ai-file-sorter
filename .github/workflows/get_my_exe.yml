@@ -9,23 +9,17 @@ jobs:
   build:
     runs-on: windows-2022
 
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: "sccache"
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 1  # ⚡ Faster Checkout
+          fetch-depth: 1
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
-      # 1. COMPILER CACHE (SCCACHE)
-      - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.3
+      # Removed sccache steps here to fix the "Service Unavailable" error
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
@@ -42,7 +36,7 @@ jobs:
           cmd /c "C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-openblas"
           echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      # 2. VCPKG CACHE & INSTALL
+      # --- VCPKG CACHE (Saves ~10 mins) ---
       - name: Restore vcpkg Cache
         id: vcpkg-cache
         uses: actions/cache@v3
@@ -61,7 +55,7 @@ jobs:
           .\bootstrap-vcpkg.bat
           .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
 
-      # 3. LLAMA ENGINE CACHING (⚡ MAJOR SPEEDUP)
+      # --- LLAMA ENGINE CACHE (Saves ~5 mins) ---
       - name: Get Llama Commit Hash
         id: llama-hash
         shell: bash
@@ -80,24 +74,21 @@ jobs:
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
+          # Removed sccache arguments here
           & app/scripts/build_llama_windows.ps1 `
             -cuda off `
             -vcpkgroot "$env:VCPKG_ROOT" `
             -openblasroot "C:\msys64\mingw64" `
-            -extra_cmake_args "-G Ninja -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+            -extra_cmake_args "-G Ninja"
 
-          # Prepare artifacts for caching
+          # Cache the result
           New-Item -ItemType Directory -Force -Path build/llama_artifacts | Out-Null
-          
-          # Find and copy llama.dll to artifacts folder
           $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
           if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/llama_artifacts" -Force }
 
-      # 4. STAGE LLAMA (FROM CACHE OR BUILD)
       - name: Stage Llama DLL
         shell: powershell
         run: |
-          # Ninja builds to 'build/', so we put it there
           $destDir = "$env:GITHUB_WORKSPACE\build"
           New-Item -ItemType Directory -Force -Path $destDir | Out-Null
           
@@ -105,7 +96,6 @@ jobs:
              Copy-Item -Path "build/llama_artifacts/llama.dll" -Destination $destDir -Force
              Write-Host "✅ Restored Llama.dll from Cache"
           } else {
-             # Fallback if just built
              $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
              if ($dll) { Copy-Item -Path $dll.FullName -Destination $destDir -Force }
           }
@@ -119,7 +109,7 @@ jobs:
             if (-not (Test-Path $f)) { New-Item -Path $f -ItemType Directory -Force }
           }
 
-      # 5. CONFIGURE CMAKE (NINJA)
+      # --- CONFIGURE & BUILD (Ninja) ---
       - name: Configure CMake
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
@@ -129,9 +119,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release 
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" 
           -DVCPKG_TARGET_TRIPLET=x64-windows 
-          -DWININET_LIB=wininet 
-          -DCMAKE_C_COMPILER_LAUNCHER=sccache 
-          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DWININET_LIB=wininet
 
       - name: Build App
         run: cmake --build build
