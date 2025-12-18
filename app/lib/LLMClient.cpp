@@ -5,11 +5,11 @@
 #include <curl/curl.h>
 #include <filesystem>
 #ifdef _WIN32
-    #include <json/json.h>
+ #include <json/json.h>
 #elif __APPLE__
-    #include <json/json.h>
+ #include <json/json.h>
 #else
-    #include <jsoncpp/json/json.h>
+ #include <jsoncpp/json/json.h>
 #endif
 
 #include <iostream>
@@ -26,6 +26,7 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::stri
 }
 
 namespace {
+
 std::string escape_json(const std::string& input) {
     std::string out;
     out.reserve(input.size() * 2);
@@ -46,6 +47,9 @@ std::string escape_json(const std::string& input) {
 struct CurlRequest {
     CURL* handle{nullptr};
     curl_slist* headers{nullptr};
+    
+    // Explicitly add a 'curl' pointer for direct access if needed
+    CURL* curl{nullptr};
 
     CurlRequest() = default;
     CurlRequest(const CurlRequest&) = delete;
@@ -53,10 +57,12 @@ struct CurlRequest {
 
     CurlRequest(CurlRequest&& other) noexcept
         : handle(other.handle),
-          headers(other.headers)
+          headers(other.headers),
+          curl(other.curl)
     {
         other.handle = nullptr;
         other.headers = nullptr;
+        other.curl = nullptr;
     }
 
     CurlRequest& operator=(CurlRequest&& other) noexcept
@@ -65,8 +71,10 @@ struct CurlRequest {
             cleanup();
             handle = other.handle;
             headers = other.headers;
+            curl = other.curl;
             other.handle = nullptr;
             other.headers = nullptr;
+            other.curl = nullptr;
         }
         return *this;
     }
@@ -86,6 +94,7 @@ private:
             curl_slist_free_all(headers);
             headers = nullptr;
         }
+        curl = nullptr;
     }
 };
 
@@ -93,6 +102,10 @@ CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
 {
     CurlRequest request;
     request.handle = curl_easy_init();
+    
+    // Assign the public pointer too so we can access it easily
+    request.curl = request.handle;
+
     if (!request.handle) {
         if (logger) {
             logger->critical("Failed to initialize cURL handle for remote request");
@@ -119,11 +132,11 @@ void configure_request_payload(CurlRequest& request,
 {
     curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
     curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
-    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 30L); // Increased timeout for safety
+    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 60L); // Increased timeout for safety
 
     request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
     
-    // CHANGE: Only add Bearer token if NOT using Gemini (Google uses key in URL)
+    // Only add Bearer token if NOT using Gemini (Google uses key in URL)
     if (api_url.find("googleapis.com") == std::string::npos) {
         const std::string auth = "Authorization: Bearer " + api_key;
         request.headers = curl_slist_append(request.headers, auth.c_str());
@@ -174,28 +187,31 @@ std::string parse_category_response(const std::string& payload,
             error_msg = root["error"]["message"].asString();
         else if (root.isMember("error"))
             error_msg = root["error"].toStyledString();
-            
+        
         throw std::runtime_error("Server Error (" + std::to_string(http_code) + "): " + error_msg);
     }
 
-    // CHANGE: Check for Gemini "candidates" first, then OpenAI "choices"
+    // CHECK FOR GEMINI "candidates" (Array)
     if (root.isMember("candidates") && !root["candidates"].empty()) {
-    const Json::Value& candidate = root["candidates"][0];
-    if (candidate.isMember("content") && candidate["content"].isMember("parts")) {
-        const Json::Value& parts = candidate["content"]["parts"];
-        // Check if parts is an array and has at least one element
-        if (parts.isArray() && !parts.empty()) {
-            return parts[0]["text"].asString();
+        const Json::Value& candidate = root["candidates"][0];
+        if (candidate.isMember("content") && candidate["content"].isMember("parts")) {
+            const Json::Value& parts = candidate["content"]["parts"];
+            // Gemini returns 'parts' as an array of text segments
+            if (parts.isArray() && !parts.empty()) {
+                return parts[0]["text"].asString();
+            }
         }
     }
-}
+
+    // CHECK FOR OPENAI "choices" (Array)
     if (root.isMember("choices") && !root["choices"].empty()) {
         return root["choices"][0]["message"]["content"].asString();
     }
 
     throw std::runtime_error("Invalid Response: Could not find 'choices' or 'candidates' in API response.");
 }
-}
+
+} // namespace
 
 
 LLMClient::LLMClient(std::string api_key, std::string model)
@@ -213,42 +229,42 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 
 std::string LLMClient::send_api_request(std::string json_payload) {
-    // FIX 1: Define the logger at the start of the function
+    // 1. Define the logger manually to prevent "undeclared identifier"
     auto logger = Logger::get_logger("core_logger");
 
     if (api_key.empty()) {
+        if (logger) logger->error("API Key is empty.");
         throw std::runtime_error("Missing API key.");
     }
 
     std::string response_string;
     std::string api_url;
     
-    // FIX 2: Ensure the Gemini URL uses the correct model and format
-    if (effective_model().rfind("gemini", 0) == 0) {
-        // Use the valid current model name
+    // 2. Map generic 'gemini' model to a specific valid version to prevent 404
+    std::string current_model = effective_model();
+    
+    if (current_model.rfind("gemini", 0) == 0) {
+        // Force valid model name (Gemini 2.5 Flash is the standard as of late 2025)
         std::string model_name = "gemini-2.5-flash"; 
+        
+        // Gemini requires the key in the URL, not the header
         api_url = "https://generativelanguage.googleapis.com/v1beta/models/" + model_name + ":generateContent?key=" + api_key;
     } else {
-        // Fallback for OpenAI or others (prevents empty URL crashes)
+        // Fallback for OpenAI
         api_url = "https://api.openai.com/v1/chat/completions";
     }
 
-    // FIX 3: Pass the valid 'logger' to the helper functions
+    // 3. Create and configure request
     CurlRequest request = create_curl_request(logger);
     configure_request_payload(request, api_url, json_payload, api_key, response_string);
 
-    // FIX 4: Use the helper function 'perform_request' instead of broken inline code
+    // 4. Perform request using the helper function
+    // This helper returns a 'long' which avoids the 'const int' error
     const long http_code = perform_request(request, logger);
 
     return parse_category_response(response_string, http_code, logger);
 }
 
-    CurlRequest request = create_curl_request(logger);
-    configure_request_payload(request, api_url, json_payload, api_key, response_string);
-
-    const long http_code = perform_request(request, logger);
-    return parse_category_response(response_string, http_code, logger);
-}
 
 std::string LLMClient::effective_model() const
 {
@@ -269,6 +285,7 @@ std::string LLMClient::categorize_file(const std::string& file_name,
             logger->debug("Requesting remote categorization for '{}' ({})", file_name, to_string(file_type));
         }
     }
+
     std::string json_payload = make_payload(file_name, file_path, file_type, consistency_context);
 
     if (prompt_logging_enabled && !last_prompt.empty()) {
@@ -315,7 +332,7 @@ std::string LLMClient::make_payload(const std::string& file_name,
     last_prompt = prompt;
     std::ostringstream payload;
     
-    // CHANGE: Check model to decide JSON format
+    // Check model to decide JSON format
     if (effective_model().rfind("gemini", 0) == 0) {
         // --- GEMINI FORMAT ---
         // Combine system prompt + user prompt because Gemini's simple API prefers it this way
@@ -326,15 +343,15 @@ std::string LLMClient::make_payload(const std::string& file_name,
             "must be specific, relevant, and must not repeat the main category.\n\n" + prompt;
 
         payload << "{\n"
-                << " \"contents\": [{\n"
-                << "   \"parts\": [{\n"
-                << "     \"text\": \"" << escape_json(full_prompt) << "\"\n"
-                << "   }]\n"
-                << " }]\n"
+                << "  \"contents\": [{\n"
+                << "    \"parts\": [{\n"
+                << "      \"text\": \"" << escape_json(full_prompt) << "\"\n"
+                << "    }]\n"
+                << "  }]\n"
                 << "}";
-                
+        
     } else {
-        // --- OPENAI FORMAT (Existing Code) ---
+        // --- OPENAI FORMAT ---
         const std::string escaped_prompt = escape_json(prompt);
         const std::string system_prompt =
             "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
@@ -344,11 +361,11 @@ std::string LLMClient::make_payload(const std::string& file_name,
         const std::string escaped_system = escape_json(system_prompt);
 
         payload << "{\n"
-                << " \"model\": \"" << escape_json(effective_model()) << "\",\n"
-                << " \"messages\": [\n"
-                << " {\"role\": \"system\", \"content\": \"" << escaped_system << "\"},\n"
-                << " {\"role\": \"user\", \"content\": \"" << escaped_prompt << "\"}\n"
-                << " ]\n"
+                << "  \"model\": \"" << escape_json(effective_model()) << "\",\n"
+                << "  \"messages\": [\n"
+                << "    {\"role\": \"system\", \"content\": \"" << escaped_system << "\"},\n"
+                << "    {\"role\": \"user\", \"content\": \"" << escaped_prompt << "\"}\n"
+                << "  ]\n"
                 << "}";
     }
 
