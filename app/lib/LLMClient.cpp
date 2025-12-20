@@ -159,27 +159,38 @@ std::string parse_category_response(const std::string& payload,
         if (logger) {
             logger->error("Failed to parse JSON response: {}", errors);
         }
-        throw std::runtime_error("Response Error: Failed to parse JSON response. " + errors);
+        throw std::runtime_error("Response Error: Failed to parse JSON response.");
     }
 
-    if (http_code == 401) {
-        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
-    }
-    if (http_code == 403) {
-        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
-    }
-    if (http_code >= 500) {
-        throw std::runtime_error("Server Error: OpenAI server returned an error. Status code: " + std::to_string(http_code));
-    }
+    // Handle Errors (Both OpenAI and Gemini formats)
     if (http_code >= 400) {
-        const std::string error_message = root["error"]["message"].asString();
-        throw std::runtime_error("Client Error: " + error_message);
+        std::string error_msg = "Unknown Error";
+        
+        if (root.isObject() && root.isMember("error") && root["error"].isObject()) {
+            // Standard OpenAI format
+            error_msg = root["error"].get("message", "Unknown error message").asString();
+        } 
+        else if (root.isArray() && root.size() > 0 && root[0].isMember("error")) {
+            // Gemini array-wrapped error format
+            error_msg = root[0]["error"].get("message", "Unknown error message").asString();
+        }
+        else if (!payload.empty() && payload.length() < 250) {
+            error_msg = payload; // Raw error text
+        }
+
+        throw std::runtime_error("API Error (" + std::to_string(http_code) + "): " + error_msg);
     }
 
-    return root["choices"][0]["message"]["content"].asString();
-}
-}
+    // Safe extraction of the successful message content
+    if (root.isObject() && root.isMember("choices") && root["choices"].isArray() && root["choices"].size() > 0) {
+        const Json::Value& first_choice = root["choices"][0];
+        if (first_choice.isMember("message") && first_choice["message"].isObject()) {
+            return first_choice["message"].get("content", "").asString();
+        }
+    }
 
+    throw std::runtime_error("Response Error: The AI returned an unexpected response structure.");
+}
 
 LLMClient::LLMClient(std::string api_key, std::string model)
     : api_key(std::move(api_key)), model(std::move(model))
@@ -197,19 +208,19 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 std::string LLMClient::send_api_request(std::string json_payload) {
     if (api_key.empty()) {
-        throw std::runtime_error("Missing API key (OpenAI or Gemini).");
+        throw std::runtime_error("Missing API key. Please check your settings.");
     }
 
     std::string response_string;
     
-    // --- AUTOMATIC SWITCHER LOGIC START ---
-    std::string api_url = "https://api.openai.com/v1/chat/completions"; // Default to OpenAI
+    // Default URL is OpenAI
+    std::string api_url = "https://api.openai.com/v1/chat/completions";
     
-    // If the model name contains "gemini", we point to Google's OpenAI-compatible endpoint
-    if (model.find("gemini") != std::string::npos) {
+    // Automatically switch to Gemini if the model name contains "gemini"
+    std::string current_model = effective_model();
+    if (current_model.find("gemini") != std::string::npos) {
         api_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     }
-    // --- AUTOMATIC SWITCHER LOGIC END ---
 
     auto logger = Logger::get_logger("core_logger");
 
@@ -222,10 +233,6 @@ std::string LLMClient::send_api_request(std::string json_payload) {
 
     const long http_code = perform_request(request, logger);
     return parse_category_response(response_string, http_code, logger);
-}
-std::string LLMClient::effective_model() const
-{
-    return model.empty() ? "gpt-4o-mini" : model;
 }
 
 
