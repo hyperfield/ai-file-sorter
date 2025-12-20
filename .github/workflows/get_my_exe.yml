@@ -14,12 +14,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 1
 
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-
-      # Removed sccache steps here to fix the "Service Unavailable" error
+      - name: Enable GitHub Cache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
@@ -28,101 +29,85 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
-          cache: 'true'
 
-      - name: Install OpenBLAS
+      # 1. Install OpenBLAS (Required for Llama CPU build)
+      - name: Install OpenBLAS & Add to Path
         shell: powershell
         run: |
           cmd /c "C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-openblas"
           echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      # --- VCPKG CACHE (Saves ~10 mins) ---
-      - name: Restore vcpkg Cache
-        id: vcpkg-cache
-        uses: actions/cache@v3
-        with:
-          path: vcpkg
-          key: ${{ runner.os }}-vcpkg-ninja-${{ hashFiles('app/vcpkg.json') }}
-
-      - name: Setup & Install vcpkg
-        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+      - name: Setup Local vcpkg
         shell: powershell
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
           git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
           cd $env:GITHUB_WORKSPACE\vcpkg
           .\bootstrap-vcpkg.bat
-          .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
 
-      # --- LLAMA ENGINE CACHE (Saves ~5 mins) ---
-      - name: Get Llama Commit Hash
-        id: llama-hash
-        shell: bash
-        run: echo "hash=$(git submodule status app/vendor/llama.cpp | awk '{print $1}')" >> $GITHUB_OUTPUT
-
-      - name: Cache Llama Build
-        id: llama-build-cache
-        uses: actions/cache@v3
-        with:
-          path: build/llama_artifacts
-          key: ${{ runner.os }}-llama-build-${{ steps.llama-hash.outputs.hash }}
-
-      - name: Build Llama Engine (Only if changed)
-        if: steps.llama-build-cache.outputs.cache-hit != 'true'
+      - name: Install Support Libraries
         shell: powershell
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
-          # Removed sccache arguments here
+          cd $env:VCPKG_ROOT
+          .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
+
+      - name: Build Llama Engine
+        shell: powershell
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+        run: |
+          # Build Llama (CPU Only)
           & app/scripts/build_llama_windows.ps1 `
             -cuda off `
             -vcpkgroot "$env:VCPKG_ROOT" `
-            -openblasroot "C:\msys64\mingw64" `
-            -extra_cmake_args "-G Ninja"
+            -openblasroot "C:\msys64\mingw64"
 
-          # Cache the result
-          New-Item -ItemType Directory -Force -Path build/llama_artifacts | Out-Null
-          $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
-          if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/llama_artifacts" -Force }
-
-      - name: Stage Llama DLL
+      # 2. FIND AND STAGE LLAMA.DLL (Prevents 'missing file' errors)
+      - name: Locate and Stage Llama DLL
         shell: powershell
         run: |
-          $destDir = "$env:GITHUB_WORKSPACE\build"
-          New-Item -ItemType Directory -Force -Path $destDir | Out-Null
-          
-          if (Test-Path "build/llama_artifacts/llama.dll") {
-             Copy-Item -Path "build/llama_artifacts/llama.dll" -Destination $destDir -Force
-             Write-Host "✅ Restored Llama.dll from Cache"
+          $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
+          if ($dll) {
+              $destDir = "$env:GITHUB_WORKSPACE\build\Release"
+              New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+              Copy-Item -Path $dll.FullName -Destination $destDir -Force
+              Write-Host "Staged llama.dll to $destDir"
           } else {
-             $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "llama.dll" -Recurse | Select-Object -First 1
-             if ($dll) { Copy-Item -Path $dll.FullName -Destination $destDir -Force }
+              Write-Warning "llama.dll not found. The app might fail to run, but we will try to finish the build."
           }
 
+      # 3. FIX: CREATE DUMMY FOLDERS (Fixes MSB3073 Error)
       - name: Create Dummy Precompiled Folders
         shell: powershell
         run: |
-          $paths = @("app\lib\precompiled\cpu", "app\lib\precompiled\cuda", "app\lib\precompiled\vulkan")
+          # The CMake script tries to copy these folders even if they don't exist.
+          # We create them as empty folders so the copy command succeeds.
+          $paths = @(
+            "app\lib\precompiled\cpu",
+            "app\lib\precompiled\cuda",
+            "app\lib\precompiled\vulkan"
+          )
           foreach ($p in $paths) {
-            $f = Join-Path $env:GITHUB_WORKSPACE $p
-            if (-not (Test-Path $f)) { New-Item -Path $f -ItemType Directory -Force }
+            $fullPath = Join-Path $env:GITHUB_WORKSPACE $p
+            if (-not (Test-Path $fullPath)) {
+              Write-Host "Creating missing directory: $fullPath"
+              New-Item -Path $fullPath -ItemType Directory -Force
+            }
           }
 
-      # --- CONFIGURE & BUILD (Ninja) ---
       - name: Configure CMake
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: >
           cmake -B build -S app 
-          -G "Ninja"
           -DCMAKE_BUILD_TYPE=Release 
           -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" 
           -DVCPKG_TARGET_TRIPLET=x64-windows 
           -DWININET_LIB=wininet
 
       - name: Build App
-        run: cmake --build build
+        run: cmake --build build --config Release
 
       - name: Bundle Files
         shell: cmd
@@ -130,10 +115,20 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
         run: |
           mkdir output
-          if exist build\*.exe copy build\*.exe output\
-          if exist build\llama.dll copy build\llama.dll output\
+          
+          rem Copy Main App
+          if exist build\Release\*.exe copy build\Release\*.exe output\
+          
+          rem Copy Llama DLL
+          if exist build\Release\llama.dll copy build\Release\llama.dll output\
+          
+          rem Copy Qt DLLs
           windeployqt --release --dir output output\*.exe
+          
+          rem Copy Support Libs
           copy "%VCPKG_ROOT%\installed\x64-windows\bin\*.dll" output\
+          
+          rem Copy OpenBLAS Dependencies
           if exist C:\msys64\mingw64\bin\libopenblas*.dll copy C:\msys64\mingw64\bin\libopenblas*.dll output\
           if exist C:\msys64\mingw64\bin\libgfortran*.dll copy C:\msys64\mingw64\bin\libgfortran*.dll output\
           if exist C:\msys64\mingw64\bin\libgcc*.dll copy C:\msys64\mingw64\bin\libgcc*.dll output\
