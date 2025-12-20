@@ -119,7 +119,7 @@ void configure_request_payload(CurlRequest& request,
 {
     curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
     curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
-    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 5L);
+    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 30L); // Increased timeout for slower LLMs
 
     request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
     const std::string auth = "Authorization: Bearer " + api_key;
@@ -167,15 +167,13 @@ std::string parse_category_response(const std::string& payload,
         std::string error_msg = "Unknown Error";
         
         if (root.isObject() && root.isMember("error") && root["error"].isObject()) {
-            // Standard OpenAI format
-            error_msg = root["error"].get("message", "Unknown error message").asString();
+            error_msg = root["error"].get("message", "Unknown OpenAI error").asString();
         } 
         else if (root.isArray() && root.size() > 0 && root[0].isMember("error")) {
-            // Gemini array-wrapped error format
-            error_msg = root[0]["error"].get("message", "Unknown error message").asString();
+            error_msg = root[0]["error"].get("message", "Unknown Gemini error").asString();
         }
-        else if (!payload.empty() && payload.length() < 250) {
-            error_msg = payload; // Raw error text
+        else if (!payload.empty() && payload.length() < 500) {
+            error_msg = payload; 
         }
 
         throw std::runtime_error("API Error (" + std::to_string(http_code) + "): " + error_msg);
@@ -191,6 +189,8 @@ std::string parse_category_response(const std::string& payload,
 
     throw std::runtime_error("Response Error: The AI returned an unexpected response structure.");
 }
+} // <--- End of anonymous namespace
+
 
 LLMClient::LLMClient(std::string api_key, std::string model)
     : api_key(std::move(api_key)), model(std::move(model))
@@ -208,16 +208,17 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 std::string LLMClient::send_api_request(std::string json_payload) {
     if (api_key.empty()) {
-        throw std::runtime_error("Missing API key. Please check your settings.");
+        throw std::runtime_error("Missing API key. Please check settings.");
     }
 
     std::string response_string;
-    
-    // Default URL is OpenAI
     std::string api_url = "https://api.openai.com/v1/chat/completions";
     
-    // Automatically switch to Gemini if the model name contains "gemini"
+    // Check if we should use Gemini
     std::string current_model = effective_model();
+    // Convert to lowercase for safer checking
+    for (auto & c: current_model) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
     if (current_model.find("gemini") != std::string::npos) {
         api_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     }
@@ -233,6 +234,11 @@ std::string LLMClient::send_api_request(std::string json_payload) {
 
     const long http_code = perform_request(request, logger);
     return parse_category_response(response_string, http_code, logger);
+}
+
+std::string LLMClient::effective_model() const
+{
+    return model.empty() ? "gpt-4o-mini" : model;
 }
 
 
