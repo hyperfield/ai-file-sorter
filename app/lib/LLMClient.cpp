@@ -111,15 +111,31 @@ CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
     return request;
 }
 
+// Modified: accept a timeout_seconds parameter (default 30) and set additional connection options
 void configure_request_payload(CurlRequest& request,
                                const std::string& api_url,
                                const std::string& payload,
                                const std::string& api_key,
-                               std::string& response_buffer)
+                               std::string& response_buffer,
+                               long timeout_seconds = 30L)
 {
     curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
     curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
-    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 30L); // Increased timeout for slower LLMs
+
+    // Set a reasonable connect timeout and an operation timeout.
+    // Keep connect timeout relatively short (10s) but allow operation timeout to be large for slow LLM responses.
+    curl_easy_setopt(request.handle, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, timeout_seconds);
+
+    // Avoid signals in multi-threaded apps
+    curl_easy_setopt(request.handle, CURLOPT_NOSIGNAL, 1L);
+
+    // Enable TCP keepalive so the socket isn't silently dropped by intermediate NATs for long-running requests
+#if (LIBCURL_VERSION_NUM >= 0x071500)
+    curl_easy_setopt(request.handle, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(request.handle, CURLOPT_TCP_KEEPIDLE, 60L);
+    curl_easy_setopt(request.handle, CURLOPT_TCP_KEEPINTVL, 30L);
+#endif
 
     request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
     const std::string auth = "Authorization: Bearer " + api_key;
@@ -143,6 +159,9 @@ long perform_request(CurlRequest& request, const std::shared_ptr<spdlog::logger>
 
     long http_code = 0;
     curl_easy_getinfo(request.handle, CURLINFO_RESPONSE_CODE, &http_code);
+    if (logger) {
+        logger->debug("Remote LLM returned HTTP {}", http_code);
+    }
     return http_code;
 }
 
@@ -219,22 +238,28 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     // Convert to lowercase for safer checking
     for (auto & c: current_model) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
+    long timeout_seconds = 30L;
     if (current_model.find("gemini") != std::string::npos) {
         api_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+        // Gemini calls can take longer — increase the timeout.
+        // You can lower this if you know your expected latency. 120–300s are common safe values.
+        timeout_seconds = 300L; // 5 minutes
     }
 
     auto logger = Logger::get_logger("core_logger");
 
     if (logger) {
-        logger->debug("Dispatching remote LLM request to {}", api_url);
+        logger->debug("Dispatching remote LLM request to {} (timeout {}s)", api_url, timeout_seconds);
     }
 
     CurlRequest request = create_curl_request(logger);
-    configure_request_payload(request, api_url, json_payload, api_key, response_string);
+    // Pass the timeout_seconds into the configure function
+    configure_request_payload(request, api_url, json_payload, api_key, response_string, timeout_seconds);
 
     const long http_code = perform_request(request, logger);
     return parse_category_response(response_string, http_code, logger);
 }
+
 
 std::string LLMClient::effective_model() const
 {
