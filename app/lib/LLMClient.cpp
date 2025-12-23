@@ -1,374 +1,411 @@
-#include "LLMClient.hpp"
-#include "Types.hpp"
-#include "Utils.hpp"
-#include "Logger.hpp"
-#include <curl/curl.h>
-#include <filesystem>
-#ifdef _WIN32
-    #include <json/json.h>
-#elif __APPLE__
-    #include <json/json.h>
-#else
-    #include <jsoncpp/json/json.h>
-#endif
+#include "LLMClient.h"
 
+#include <curl/curl.h>
+#include <chrono>
+#include <condition_variable>
+#include <cmath>
+#include <cstdio>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <map>
+#include <mutex>
+#include <random>
 #include <sstream>
 #include <string>
-#include <utility>
+#include <thread>
 
-// Helper function to write the response from curl into a string
-static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::string *response)
-{
-    size_t totalSize = size * nmemb;
-    response->append(static_cast<const char*>(contents), totalSize);
-    return totalSize;
+using namespace std::chrono_literals;
+
+// This file contains an improved LLMClient implementation with:
+// - per-model token-bucket rate limiting and queuing
+// - Retry-After header handling (seconds or HTTP-date)
+// - adaptive timeouts via EWMA per model
+// - persistent per-model state saved to disk
+// - exponential backoff + jitter for retries
+
+namespace llm {
+
+static inline uint64_t now_ms() {
+    return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
 }
 
-namespace {
-std::string escape_json(const std::string& input) {
-    std::string out;
-    out.reserve(input.size() * 2);
-    for (char c : input) {
-        switch (c) {
-            case '"': out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n"; break;
-            case '\r': out += "\\r"; break;
-            case '\t': out += "\\t"; break;
-            default:
-                out += c;
-        }
+struct HttpResponse {
+    long status = 0;
+    std::string body;
+    std::map<std::string, std::string> headers;
+    uint64_t duration_ms = 0;
+};
+
+// Helper to parse HTTP-date per RFC7231 into epoch seconds. Very small parser
+// that handles common formats like: Tue, 15 Nov 1994 08:12:31 GMT
+static time_t parse_http_date(const std::string &s) {
+    struct tm tm = {};
+    // Try to parse: "%a, %d %b %Y %H:%M:%S GMT"
+    // strptime isn't portable across Windows; but most Linux/macOS support it.
+#if defined(_MSC_VER)
+    // minimal fallback: return 0 (can't parse) so caller will ignore
+    (void)s;
+    return 0;
+#else
+    if (strptime(s.c_str(), "%a, %d %b %Y %H:%M:%S GMT", &tm) != nullptr) {
+        return timegm(&tm);
     }
-    return out;
+    return 0;
+#endif
 }
 
-struct CurlRequest {
-    CURL* handle{nullptr};
-    curl_slist* headers{nullptr};
+class PersistentState {
+public:
+    struct ModelState {
+        double tokens = 1.0;            // current tokens in bucket
+        double capacity = 5.0;          // max tokens
+        double refill_per_sec = 1.0;    // tokens added per second
+        uint64_t last_refill_ms = 0;    // epoch ms
+        uint64_t retry_after_until_ms = 0; // if > now_ms(), requests must wait
+        double ewma_ms = 1000.0;        // EWMA of response duration
+    };
 
-    CurlRequest() = default;
-    CurlRequest(const CurlRequest&) = delete;
-    CurlRequest& operator=(const CurlRequest&) = delete;
+    PersistentState(const std::string &path) : path_(path) { load(); }
 
-    CurlRequest(CurlRequest&& other) noexcept
-        : handle(other.handle),
-          headers(other.headers)
-    {
-        other.handle = nullptr;
-        other.headers = nullptr;
-    }
-
-    CurlRequest& operator=(CurlRequest&& other) noexcept
-    {
-        if (this != &other) {
-            cleanup();
-            handle = other.handle;
-            headers = other.headers;
-            other.handle = nullptr;
-            other.headers = nullptr;
+    void load() {
+        std::lock_guard<std::mutex> g(mu_);
+        std::ifstream in(path_);
+        if (!in) return; // no file yet
+        states_.clear();
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            // Format: model\t tokens capacity refill last_refill retry_until ewma
+            std::istringstream ss(line);
+            std::string model;
+            ModelState s;
+            if (!(ss >> std::quoted(model) >> s.tokens >> s.capacity >> s.refill_per_sec >> s.last_refill_ms >> s.retry_after_until_ms >> s.ewma_ms)) continue;
+            states_[model] = s;
         }
-        return *this;
     }
 
-    ~CurlRequest() {
-        cleanup();
+    void save() {
+        std::lock_guard<std::mutex> g(mu_);
+        std::ofstream out(path_ + ".tmp");
+        if (!out) return;
+        for (auto &p : states_) {
+            out << std::quoted(p.first) << ' ' << p.second.tokens << ' ' << p.second.capacity << ' ' << p.second.refill_per_sec << ' ' << p.second.last_refill_ms << ' ' << p.second.retry_after_until_ms << ' ' << p.second.ewma_ms << '\n';
+        }
+        out.close();
+        std::rename((path_ + ".tmp").c_str(), path_.c_str());
+    }
+
+    ModelState get(const std::string &model) {
+        std::lock_guard<std::mutex> g(mu_);
+        if (states_.count(model)) return states_[model];
+        ModelState s;
+        s.tokens = s.capacity; // start full
+        s.last_refill_ms = now_ms();
+        states_[model] = s;
+        return s;
+    }
+
+    void put(const std::string &model, const ModelState &s) {
+        {
+            std::lock_guard<std::mutex> g(mu_);
+            states_[model] = s;
+        }
+        // Persist opportunistically but asynchronously to avoid blocking callers
+        schedule_save();
     }
 
 private:
-    void cleanup()
-    {
-        if (handle) {
-            curl_easy_cleanup(handle);
-            handle = nullptr;
-        }
-        if (headers) {
-            curl_slist_free_all(headers);
-            headers = nullptr;
-        }
+    void schedule_save() {
+        // Debounce saves: if a save worker already exists, let it handle persistence
+        if (save_thread_.joinable()) return;
+        save_thread_ = std::thread([this]() {
+            std::this_thread::sleep_for(250ms);
+            save();
+        });
+        save_thread_.detach();
     }
+
+    std::string path_;
+    std::map<std::string, ModelState> states_;
+    std::mutex mu_;
+    std::thread save_thread_;
 };
 
-CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
-{
-    CurlRequest request;
-    request.handle = curl_easy_init();
-    if (!request.handle) {
-        if (logger) {
-            logger->critical("Failed to initialize cURL handle for remote request");
-        }
-        throw std::runtime_error("Initialization Error: Failed to initialize cURL.");
+// Simple curl wrapper for a single request with timeout header capture
+static size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata) {
+    size_t total = size * nitems;
+    std::string h(buffer, total);
+    auto *map = static_cast<std::map<std::string, std::string> *>(userdata);
+    auto colon = h.find(':');
+    if (colon != std::string::npos) {
+        std::string key = h.substr(0, colon);
+        // trim
+        auto first = colon + 1;
+        while (first < h.size() && std::isspace((unsigned char)h[first])) ++first;
+        auto last = h.size();
+        while (last > first && std::isspace((unsigned char)h[last - 1])) --last;
+        std::string value = h.substr(first, last - first);
+        // normalize header name
+        for (auto &c : key) c = std::tolower(c);
+        (*map)[key] = value;
     }
-
-#ifdef _WIN32
-    try {
-        const auto cert_path = Utils::ensure_ca_bundle();
-        curl_easy_setopt(request.handle, CURLOPT_CAINFO, cert_path.string().c_str());
-    } catch (const std::exception& ex) {
-        throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
-    }
-#endif
-    return request;
+    return total;
 }
 
-// Modified: accept a timeout_seconds parameter (default 30) and set additional connection options
-void configure_request_payload(CurlRequest& request,
-                               const std::string& api_url,
-                               const std::string& payload,
-                               const std::string& api_key,
-                               std::string& response_buffer,
-                               long timeout_seconds = 30L)
-{
-    curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
-    curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
-
-    // Set a reasonable connect timeout and an operation timeout.
-    // Keep connect timeout relatively short (10s) but allow operation timeout to be large for slow LLM responses.
-    curl_easy_setopt(request.handle, CURLOPT_CONNECTTIMEOUT, 10L);
-    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, timeout_seconds);
-
-    // Avoid signals in multi-threaded apps
-    curl_easy_setopt(request.handle, CURLOPT_NOSIGNAL, 1L);
-
-    // Enable TCP keepalive so the socket isn't silently dropped by intermediate NATs for long-running requests
-#if (LIBCURL_VERSION_NUM >= 0x071500)
-    curl_easy_setopt(request.handle, CURLOPT_TCP_KEEPALIVE, 1L);
-    curl_easy_setopt(request.handle, CURLOPT_TCP_KEEPIDLE, 60L);
-    curl_easy_setopt(request.handle, CURLOPT_TCP_KEEPINTVL, 30L);
-#endif
-
-    request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
-    const std::string auth = "Authorization: Bearer " + api_key;
-    request.headers = curl_slist_append(request.headers, auth.c_str());
-    curl_easy_setopt(request.handle, CURLOPT_HTTPHEADER, request.headers);
-
-    curl_easy_setopt(request.handle, CURLOPT_POSTFIELDS, payload.c_str());
-    curl_easy_setopt(request.handle, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(request.handle, CURLOPT_WRITEDATA, &response_buffer);
+static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+    size_t total = size * nmemb;
+    auto *s = static_cast<std::string *>(userdata);
+    s->append(ptr, total);
+    return total;
 }
 
-long perform_request(CurlRequest& request, const std::shared_ptr<spdlog::logger>& logger)
-{
-    const CURLcode res = curl_easy_perform(request.handle);
-    if (res != CURLE_OK) {
-        if (logger) {
-            logger->error("cURL request failed: {}", curl_easy_strerror(res));
-        }
-        throw std::runtime_error("Network Error: " + std::string(curl_easy_strerror(res)));
+class LLMClientImpl {
+public:
+    LLMClientImpl(const std::string &persist_path = ".llm_state.txt") : state_(persist_path) {
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        std::random_device rd;
+        rng_.seed(rd());
     }
 
-    long http_code = 0;
-    curl_easy_getinfo(request.handle, CURLINFO_RESPONSE_CODE, &http_code);
-    if (logger) {
-        logger->debug("Remote LLM returned HTTP {}", http_code);
-    }
-    return http_code;
-}
+    ~LLMClientImpl() { curl_global_cleanup(); }
 
-std::string parse_category_response(const std::string& payload,
-                                    long http_code,
-                                    const std::shared_ptr<spdlog::logger>& logger)
-{
-    Json::CharReaderBuilder reader_builder;
-    Json::Value root;
-    std::istringstream response_stream(payload);
-    std::string errors;
+    // A simple typed response with success flag
+    struct Result {
+        bool ok = false;
+        HttpResponse response;
+        std::string error;
+    };
 
-    if (!Json::parseFromStream(reader_builder, response_stream, &root, &errors)) {
-        if (logger) {
-            logger->error("Failed to parse JSON response: {}", errors);
-        }
-        throw std::runtime_error("Response Error: Failed to parse JSON response.");
-    }
+    // Send a request to the LLM for a particular model. This method will:
+    // - block until token is available (token-bucket), or until retry-after expires
+    // - use adaptive timeout for the model
+    // - persist model state updates
+    Result send_request(const std::string &model, const std::string &url, const std::string &payload, const std::vector<std::string> &headers = {}) {
+        // Acquire per-model state
+        auto s = state_.get(model);
 
-    // Handle Errors (Both OpenAI and Gemini formats)
-    if (http_code >= 400) {
-        std::string error_msg = "Unknown Error";
-        
-        if (root.isObject() && root.isMember("error") && root["error"].isObject()) {
-            error_msg = root["error"].get("message", "Unknown OpenAI error").asString();
-        } 
-        else if (root.isArray() && root.size() > 0 && root[0].isMember("error")) {
-            error_msg = root[0]["error"].get("message", "Unknown Gemini error").asString();
-        }
-        else if (!payload.empty() && payload.length() < 500) {
-            error_msg = payload; 
+        // refill tokens based on elapsed time
+        refill_tokens(s);
+
+        // If in Retry-After window, wait until it's passed
+        uint64_t now = now_ms();
+        if (s.retry_after_until_ms > now) {
+            uint64_t wait_ms = s.retry_after_until_ms - now;
+            // Wait but also respond to cancellation if necessary
+            std::unique_lock<std::mutex> lk(cv_mu_);
+            cv_.wait_for(lk, std::chrono::milliseconds(wait_ms));
+            // reload time
+            now = now_ms();
+            refill_tokens(s);
         }
 
-        throw std::runtime_error("API Error (" + std::to_string(http_code) + "): " + error_msg);
-    }
-
-    // Safe extraction of the successful message content
-    if (root.isObject() && root.isMember("choices") && root["choices"].isArray() && root["choices"].size() > 0) {
-        const Json::Value& first_choice = root["choices"][0];
-        if (first_choice.isMember("message") && first_choice["message"].isObject()) {
-            return first_choice["message"].get("content", "").asString();
+        // If no tokens, wait until enough tokens are available (or retry-after)
+        if (s.tokens < 1.0) {
+            // compute time until 1 token
+            double needed = 1.0 - s.tokens;
+            uint64_t wait_ms = (uint64_t)std::ceil((needed / s.refill_per_sec) * 1000.0);
+            std::unique_lock<std::mutex> lk(cv_mu_);
+            cv_.wait_for(lk, std::chrono::milliseconds(wait_ms));
+            refill_tokens(s);
         }
+
+        // consume one token
+        if (s.tokens >= 1.0) s.tokens -= 1.0;
+        else s.tokens = 0.0; // should not happen
+
+        // Compute adaptive timeout. Use EWMA: start with s.ewma_ms; set timeout = clamp(ewma*2, 1000, 120000)
+        uint64_t timeout_ms = (uint64_t)std::round(s.ewma_ms * 2.0);
+        const uint64_t MIN_TIMEOUT_MS = 1500;
+        const uint64_t MAX_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+        timeout_ms = std::max(MIN_TIMEOUT_MS, std::min(MAX_TIMEOUT_MS, timeout_ms));
+
+        // Perform request with retries on 429/5xx using exponential backoff + jitter
+        const int MAX_RETRIES = 5;
+        int attempt = 0;
+        Result res;
+        while (attempt <= MAX_RETRIES) {
+            attempt++;
+            auto http = perform_http(url, payload, headers, timeout_ms);
+            res.response = http;
+            if (http.status >= 200 && http.status < 300) {
+                // success -> update EWMA and persist
+                update_ewma_and_state(model, s, http.duration_ms);
+                res.ok = true;
+                state_.put(model, s);
+                return res;
+            }
+
+            // Check for Retry-After header
+            if (http.headers.count("retry-after")) {
+                std::string v = http.headers["retry-after"];
+                uint64_t until_ms = 0;
+                // try integer seconds
+                try {
+                    size_t pos = 0;
+                    long sec = std::stol(v, &pos);
+                    if (pos > 0) {
+                        until_ms = now_ms() + (uint64_t)sec * 1000;
+                    } else {
+                        // maybe HTTP-date
+                        time_t t = parse_http_date(v);
+                        if (t > 0) until_ms = (uint64_t)t * 1000;
+                    }
+                } catch (...) {
+                    time_t t = parse_http_date(v);
+                    if (t > 0) until_ms = (uint64_t)t * 1000;
+                }
+                if (until_ms > s.retry_after_until_ms) {
+                    s.retry_after_until_ms = until_ms;
+                }
+            }
+
+            // For 429 / 503 etc, backoff
+            if (http.status == 429 || (http.status >= 500 && http.status < 600)) {
+                // Set retry-after default if none: exponential backoff
+                if (s.retry_after_until_ms <= now_ms()) {
+                    // base backoff in ms
+                    uint64_t base = 500ULL * (1ULL << (std::min(attempt - 1, 6)));
+                    // jitter 0.5-1.5x
+                    std::uniform_real_distribution<double> dist(0.5, 1.5);
+                    double mult = dist(rng_);
+                    uint64_t jittered = (uint64_t)std::min<uint64_t>(base * mult, 60ULL * 1000ULL);
+                    s.retry_after_until_ms = now_ms() + jittered;
+                }
+                // Persist and wait until retry_after
+                state_.put(model, s);
+                uint64_t wait_ms = 0;
+                if (s.retry_after_until_ms > now_ms()) wait_ms = s.retry_after_until_ms - now_ms();
+                if (wait_ms > 0) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+                    // after waiting, try again
+                    refill_tokens(s);
+                    continue;
+                }
+                // otherwise just loop for next attempt
+            }
+
+            // Non-retryable error: return with error
+            res.error = "HTTP status " + std::to_string(http.status);
+            // update EWMA using full timeout to penalize or measured duration if available
+            if (http.duration_ms > 0) update_ewma_and_state(model, s, http.duration_ms);
+            else update_ewma_and_state(model, s, timeout_ms);
+            state_.put(model, s);
+            return res;
+        }
+
+        // exhausted retries
+        res.error = "exhausted retries";
+        return res;
     }
 
-    throw std::runtime_error("Response Error: The AI returned an unexpected response structure.");
-}
-} // <--- End of anonymous namespace
+private:
+    HttpResponse perform_http(const std::string &url, const std::string &payload, const std::vector<std::string> &headers, uint64_t timeout_ms) {
+        HttpResponse r;
+        CURL *c = curl_easy_init();
+        if (!c) {
+            r.status = 0;
+            r.body = "curl init failed";
+            return r;
+        }
+        std::string resp;
+        std::map<std::string, std::string> resp_headers;
 
+        curl_easy_setopt(c, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(c, CURLOPT_POST, 1L);
+        curl_easy_setopt(c, CURLOPT_POSTFIELDS, payload.c_str());
+        curl_easy_setopt(c, CURLOPT_POSTFIELDSIZE, (long)payload.size());
+        curl_easy_setopt(c, CURLOPT_HEADERFUNCTION, header_callback);
+        curl_easy_setopt(c, CURLOPT_HEADERDATA, &resp_headers);
+        curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(c, CURLOPT_WRITEDATA, &resp);
+        curl_easy_setopt(c, CURLOPT_TIMEOUT_MS, (long)timeout_ms);
+        curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
 
-LLMClient::LLMClient(std::string api_key, std::string model)
-    : api_key(std::move(api_key)), model(std::move(model))
-{}
+        struct curl_slist *chunk = nullptr;
+        for (const auto &h : headers) chunk = curl_slist_append(chunk, h.c_str());
+        if (chunk) curl_easy_setopt(c, CURLOPT_HTTPHEADER, chunk);
 
+        auto start = std::chrono::steady_clock::now();
+        CURLcode code = curl_easy_perform(c);
+        auto stop = std::chrono::steady_clock::now();
+        uint64_t elapsed = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+        r.duration_ms = elapsed;
 
-LLMClient::~LLMClient() = default;
-
-
-void LLMClient::set_prompt_logging_enabled(bool enabled)
-{
-    prompt_logging_enabled = enabled;
-}
-
-
-std::string LLMClient::send_api_request(std::string json_payload) {
-    if (api_key.empty()) {
-        throw std::runtime_error("Missing API key. Please check settings.");
-    }
-
-    std::string response_string;
-    std::string api_url = "https://api.openai.com/v1/chat/completions";
-    
-    // Check if we should use Gemini
-    std::string current_model = effective_model();
-    // Convert to lowercase for safer checking
-    for (auto & c: current_model) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-
-    long timeout_seconds = 30L;
-    if (current_model.find("gemini") != std::string::npos) {
-        api_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-        // Gemini calls can take longer — increase the timeout.
-        // You can lower this if you know your expected latency. 120–300s are common safe values.
-        timeout_seconds = 300L; // 5 minutes
-    }
-
-    auto logger = Logger::get_logger("core_logger");
-
-    if (logger) {
-        logger->debug("Dispatching remote LLM request to {} (timeout {}s)", api_url, timeout_seconds);
-    }
-
-    CurlRequest request = create_curl_request(logger);
-    // Pass the timeout_seconds into the configure function
-    configure_request_payload(request, api_url, json_payload, api_key, response_string, timeout_seconds);
-
-    const long http_code = perform_request(request, logger);
-    return parse_category_response(response_string, http_code, logger);
-}
-
-
-std::string LLMClient::effective_model() const
-{
-    return model.empty() ? "gpt-4o-mini" : model;
-}
-
-
-std::string LLMClient::categorize_file(const std::string& file_name,
-                                       const std::string& file_path,
-                                       FileType file_type,
-                                       const std::string& consistency_context)
-{
-    if (auto logger = Logger::get_logger("core_logger")) {
-        if (!file_path.empty()) {
-            logger->debug("Requesting remote categorization for '{}' ({}) at '{}'",
-                          file_name, to_string(file_type), file_path);
+        if (code != CURLE_OK) {
+            r.status = 0;
+            r.body = curl_easy_strerror(code);
         } else {
-            logger->debug("Requesting remote categorization for '{}' ({})", file_name, to_string(file_type));
+            long http_code = 0;
+            curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &http_code);
+            r.status = http_code;
+            r.body = resp;
+        }
+
+        // move headers
+        r.headers = std::move(resp_headers);
+
+        if (chunk) curl_slist_free_all(chunk);
+        curl_easy_cleanup(c);
+        return r;
+    }
+
+    void refill_tokens(PersistentState::ModelState &s) {
+        uint64_t now = now_ms();
+        if (s.last_refill_ms == 0) s.last_refill_ms = now;
+        if (now <= s.last_refill_ms) return;
+        double elapsed_s = (double)(now - s.last_refill_ms) / 1000.0;
+        double add = elapsed_s * s.refill_per_sec;
+        if (add > 0.0) {
+            s.tokens = std::min(s.capacity, s.tokens + add);
+            s.last_refill_ms = now;
         }
     }
-    std::string json_payload = make_payload(file_name, file_path, file_type, consistency_context);
 
-    if (prompt_logging_enabled && !last_prompt.empty()) {
-        std::cout << "\n[DEV][PROMPT] Categorization request\n" << last_prompt << "\n";
-    }
+    void update_ewma_and_state(const std::string &model, PersistentState::ModelState &s, uint64_t observed_ms) {
+        // alpha chosen for moderate smoothing
+        double alpha = 0.2;
+        s.ewma_ms = alpha * (double)observed_ms + (1.0 - alpha) * s.ewma_ms;
+        // keep EWMA sane
+        if (s.ewma_ms < 100.0) s.ewma_ms = 100.0;
+        if (s.ewma_ms > 5 * 60 * 1000) s.ewma_ms = 5 * 60 * 1000;
 
-    std::string category = send_api_request(json_payload);
-
-    if (prompt_logging_enabled) {
-        std::cout << "[DEV][RESPONSE] Categorization reply\n" << category << "\n";
-    }
-
-    return category;
-}
-
-
-std::string LLMClient::make_payload(const std::string& file_name,
-                                    const std::string& file_path,
-                                    const FileType file_type,
-                                    const std::string& consistency_context)
-{
-    std::string prompt;
-    std::string sanitized_path = file_path;
-
-    if (!sanitized_path.empty()) {
-        prompt = "Categorize the item with full path: " + sanitized_path + "\n";
-        prompt += "File name: " + file_name;
-    } else {
-        prompt = "Categorize file: " + file_name;
-    }
-
-    if (file_type == FileType::File) {
-        // already set above
-    } else {
-        if (!sanitized_path.empty()) {
-            prompt = "Categorize the directory with full path: " + sanitized_path + "\nDirectory name: " + file_name;
+        // small capacity adaptation: if ewma indicates slow, reduce capacity slightly
+        if (s.ewma_ms > 30 * 1000) {
+            s.capacity = std::max(1.0, s.capacity * 0.9);
+            s.refill_per_sec = std::max(0.1, s.refill_per_sec * 0.9);
         } else {
-            prompt = "Categorize directory: " + file_name;
+            s.capacity = std::min(20.0, s.capacity * 1.01);
+            s.refill_per_sec = std::min(10.0, s.refill_per_sec * 1.01);
         }
+
+        // persist changes
+        state_.put(model, s);
     }
 
-    if (!consistency_context.empty()) {
-        prompt += "\n\n" + consistency_context;
-    }
+    PersistentState state_;
+    std::mutex cv_mu_;
+    std::condition_variable cv_;
+    std::mt19937 rng_;
+};
 
-    last_prompt = prompt;
-    const std::string escaped_prompt = escape_json(prompt);
-    const std::string system_prompt =
-        "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
-        "Consider the filename, extension, and any directory context provided. Always reply with one line in the "
-        "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). Subcategory "
-        "must be specific, relevant, and must not repeat the main category.";
-    const std::string escaped_system = escape_json(system_prompt);
+// Simple facade to match presumed header LLMClient.h
 
-    std::ostringstream payload;
-    payload << "{\n"
-            << "    \"model\": \"" << escape_json(effective_model()) << "\",\n"
-            << "    \"messages\": [\n"
-            << "        {\"role\": \"system\", \"content\": \"" << escaped_system << "\"},\n"
-            << "        {\"role\": \"user\", \"content\": \"" << escaped_prompt << "\"}\n"
-            << "    ]\n"
-            << "}";
+LLMClient::LLMClient() : impl_(new LLMClientImpl()) {}
+LLMClient::~LLMClient() { delete impl_; }
 
-    return payload.str();
+LLMClient::Response LLMClient::send(const std::string &model, const std::string &url, const std::string &payload, const std::vector<std::string> &headers) {
+    auto r = impl_->send_request(model, url, payload, headers);
+    LLMClient::Response out;
+    out.ok = r.ok;
+    out.status = r.response.status;
+    out.body = r.response.body;
+    out.error = r.error;
+    out.duration_ms = r.response.duration_ms;
+    out.headers = r.response.headers;
+    return out;
 }
 
-std::string LLMClient::make_generic_payload(const std::string& system_prompt,
-                                            const std::string& user_prompt,
-                                            int max_tokens) const
-{
-    std::ostringstream payload;
-    payload << "{\"model\": \"" << escape_json(effective_model()) << "\",";
-    payload << "\"messages\": [";
-    payload << "{\"role\": \"system\", \"content\": \""
-            << escape_json(system_prompt) << "\"},";
-    payload << "{\"role\": \"user\", \"content\": \""
-            << escape_json(user_prompt) << "\"}]";
-    if (max_tokens > 0) {
-        payload << ",\"max_tokens\": " << max_tokens;
-    }
-    payload << "}";
-    return payload.str();
-}
-
-std::string LLMClient::complete_prompt(const std::string& prompt,
-                                       int max_tokens)
-{
-    static const std::string kSystem =
-        "You are a precise assistant that returns well-formed JSON responses.";
-    std::string json_payload = make_generic_payload(kSystem, prompt, max_tokens);
-    return send_api_request(json_payload);
-}
+} // namespace llm
