@@ -140,7 +140,7 @@ void attach_console_if_requested(bool enable)
 }
 #endif
 
-QPixmap build_splash_pixmap()
+[[maybe_unused]] QPixmap build_splash_pixmap()
 {
     QPixmap splash_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/icon_512x512.png"));
     if (splash_pix.isNull()) {

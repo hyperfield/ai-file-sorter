@@ -7,12 +7,12 @@
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
-#ifdef _WIN32
-    #include <json/json.h>
-#elif __APPLE__
+#if __has_include(<jsoncpp/json/json.h>)
+    #include <jsoncpp/json/json.h>
+#elif __has_include(<json/json.h>)
     #include <json/json.h>
 #else
-    #include <jsoncpp/json/json.h>
+    #error "jsoncpp headers not found. Install jsoncpp development files."
 #endif
 #include <optional>
 #include <curl/easy.h>
