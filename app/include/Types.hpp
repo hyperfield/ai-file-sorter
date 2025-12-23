@@ -5,11 +5,16 @@
 
 enum class LLMChoice {
     Unset,
-    Remote,
+    Remote_OpenAI,
+    Remote_Gemini,
     Local_3b,
     Local_7b,
     Custom
 };
+
+inline bool is_remote_choice(LLMChoice choice) {
+    return choice == LLMChoice::Remote_OpenAI || choice == LLMChoice::Remote_Gemini;
+}
 
 enum class FileType {File, Directory};
 

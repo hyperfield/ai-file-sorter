@@ -4,6 +4,7 @@
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
 #include "LLMClient.hpp"
+#include "GeminiClient.hpp"
 #include "LLMSelectionDialog.hpp"
 #include "Logger.hpp"
 #include "MainAppEditActions.hpp"
@@ -159,7 +160,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
     TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
     initialize_whitelists();
 
-    using_local_llm = settings.get_llm_choice() != LLMChoice::Remote;
+    using_local_llm = !is_remote_choice(settings.get_llm_choice());
 
     MainAppUiBuilder ui_builder;
     ui_builder.build(*this);
@@ -1351,15 +1352,17 @@ void MainApp::show_llm_selection_dialog()
     try {
         auto dialog = std::make_unique<LLMSelectionDialog>(settings, this);
         if (dialog->exec() == QDialog::Accepted) {
-            settings.set_remote_api_key(dialog->get_remote_api_key());
-            settings.set_remote_model(dialog->get_remote_model());
+            settings.set_openai_api_key(dialog->get_openai_api_key());
+            settings.set_openai_model(dialog->get_openai_model());
+            settings.set_gemini_api_key(dialog->get_gemini_api_key());
+            settings.set_gemini_model(dialog->get_gemini_model());
             settings.set_llm_choice(dialog->get_selected_llm_choice());
             if (dialog->get_selected_llm_choice() == LLMChoice::Custom) {
                 settings.set_active_custom_llm_id(dialog->get_selected_custom_llm_id());
             } else {
                 settings.set_active_custom_llm_id("");
             }
-            using_local_llm = settings.get_llm_choice() != LLMChoice::Remote;
+            using_local_llm = !is_remote_choice(settings.get_llm_choice());
             settings.save();
         }
     } catch (const std::exception& ex) {
@@ -1386,9 +1389,11 @@ void MainApp::apply_development_logging()
 
 std::unique_ptr<ILLMClient> MainApp::make_llm_client()
 {
-    if (settings.get_llm_choice() == LLMChoice::Remote) {
-        const std::string api_key = settings.get_remote_api_key();
-        const std::string model = settings.get_remote_model();
+    const LLMChoice choice = settings.get_llm_choice();
+
+    if (choice == LLMChoice::Remote_OpenAI) {
+        const std::string api_key = settings.get_openai_api_key();
+        const std::string model = settings.get_openai_model();
         if (api_key.empty()) {
             throw std::runtime_error("OpenAI API key is missing. Please add it from Select LLM.");
         }
@@ -1398,7 +1403,18 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         return client;
     }
 
-    if (settings.get_llm_choice() == LLMChoice::Custom) {
+    if (choice == LLMChoice::Remote_Gemini) {
+        const std::string api_key = settings.get_gemini_api_key();
+        const std::string model = settings.get_gemini_model();
+        if (api_key.empty()) {
+            throw std::runtime_error("Gemini API key is missing. Please add it from Select LLM.");
+        }
+        auto client = std::make_unique<GeminiClient>(api_key, model);
+        client->set_prompt_logging_enabled(should_log_prompts());
+        return client;
+    }
+
+    if (choice == LLMChoice::Custom) {
         const auto id = settings.get_active_custom_llm_id();
         const CustomLLM custom = settings.find_custom_llm(id);
         if (custom.id.empty() || custom.path.empty()) {
@@ -1409,7 +1425,7 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         return client;
     }
 
-    const char* env_var = settings.get_llm_choice() == LLMChoice::Local_3b
+    const char* env_var = choice == LLMChoice::Local_3b
         ? "LOCAL_LLM_3B_DOWNLOAD_URL"
         : "LOCAL_LLM_7B_DOWNLOAD_URL";
 

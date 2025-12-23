@@ -33,8 +33,10 @@ public:
 
     LLMChoice get_selected_llm_choice() const;
     std::string get_selected_custom_llm_id() const;
-    std::string get_remote_api_key() const;
-    std::string get_remote_model() const;
+    std::string get_openai_api_key() const;
+    std::string get_openai_model() const;
+    std::string get_gemini_api_key() const;
+    std::string get_gemini_model() const;
 
 private:
     void setup_ui();
@@ -42,8 +44,10 @@ private:
     void update_ui_for_choice();
     void update_radio_selection();
     void update_custom_choice_ui();
-    void update_remote_fields_state();
-    bool remote_inputs_valid() const;
+    void update_openai_fields_state();
+    void update_gemini_fields_state();
+    bool openai_inputs_valid() const;
+    bool gemini_inputs_valid() const;
     void update_local_choice_ui();
     void update_download_info();
     void start_download();
@@ -60,10 +64,13 @@ private:
     Settings& settings;
     LLMChoice selected_choice{LLMChoice::Unset};
     std::string selected_custom_id;
-    std::string remote_api_key;
-    std::string remote_model;
+    std::string openai_api_key;
+    std::string openai_model;
+    std::string gemini_api_key;
+    std::string gemini_model;
 
-    QRadioButton* remote_radio{nullptr};
+    QRadioButton* openai_radio{nullptr};
+    QRadioButton* gemini_radio{nullptr};
     QRadioButton* local3_radio{nullptr};
     QRadioButton* local7_radio{nullptr};
     QRadioButton* custom_radio{nullptr};
@@ -80,12 +87,18 @@ private:
     QPushButton* ok_button{nullptr};
     QDialogButtonBox* button_box{nullptr};
     QWidget* download_section{nullptr};
-    QWidget* remote_inputs{nullptr};
-    QLineEdit* api_key_edit{nullptr};
-    QLineEdit* model_edit{nullptr};
-    QCheckBox* show_api_key_checkbox{nullptr};
-    QLabel* remote_help_label{nullptr};
-    QLabel* remote_link_label{nullptr};
+    QWidget* openai_inputs{nullptr};
+    QWidget* gemini_inputs{nullptr};
+    QLineEdit* openai_api_key_edit{nullptr};
+    QLineEdit* openai_model_edit{nullptr};
+    QLineEdit* gemini_api_key_edit{nullptr};
+    QLineEdit* gemini_model_edit{nullptr};
+    QCheckBox* show_openai_api_key_checkbox{nullptr};
+    QCheckBox* show_gemini_api_key_checkbox{nullptr};
+    QLabel* openai_help_label{nullptr};
+    QLabel* openai_link_label{nullptr};
+    QLabel* gemini_help_label{nullptr};
+    QLabel* gemini_link_label{nullptr};
 
     std::unique_ptr<LLMDownloader> downloader;
     std::atomic<bool> is_downloading{false};

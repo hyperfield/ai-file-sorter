@@ -4,6 +4,7 @@
 #include "CategoryLanguage.hpp"
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
+#include "LLMErrors.hpp"
 #include "Utils.hpp"
 
 #include <fmt/format.h>
@@ -132,19 +133,24 @@ CategorizationService::CategorizationService(Settings& settings,
 
 bool CategorizationService::ensure_remote_credentials(std::string* error_message) const
 {
-    if (settings.get_llm_choice() != LLMChoice::Remote) {
+    const LLMChoice choice = settings.get_llm_choice();
+    if (!is_remote_choice(choice)) {
         return true;
     }
 
-    if (!settings.get_remote_api_key().empty()) {
+    const bool has_key = (choice == LLMChoice::Remote_OpenAI)
+        ? !settings.get_openai_api_key().empty()
+        : !settings.get_gemini_api_key().empty();
+    if (has_key) {
         return true;
     }
 
+    const char* provider = choice == LLMChoice::Remote_OpenAI ? "OpenAI" : "Gemini";
     if (core_logger) {
-        core_logger->error("Remote LLM selected but OpenAI API key is not configured.");
+        core_logger->error("Remote LLM selected but {} API key is not configured.", provider);
     }
     if (error_message) {
-        *error_message = "Remote model credentials are missing. Enter your OpenAI API key in the Select LLM dialog.";
+        *error_message = fmt::format("Remote model credentials are missing. Enter your {} API key in the Select LLM dialog.", provider);
     }
     return false;
 }
@@ -295,11 +301,20 @@ bool CategorizationService::ensure_remote_credentials_for_request(
     const std::string& item_name,
     const ProgressCallback& progress_callback) const
 {
-    if (!settings.get_remote_api_key().empty()) {
+    if (!is_remote_choice(settings.get_llm_choice())) {
         return true;
     }
 
-    const std::string err_msg = fmt::format("[REMOTE] {} (missing OpenAI API key)", item_name);
+    const LLMChoice choice = settings.get_llm_choice();
+    const bool has_key = (choice == LLMChoice::Remote_OpenAI)
+        ? !settings.get_openai_api_key().empty()
+        : !settings.get_gemini_api_key().empty();
+    if (has_key) {
+        return true;
+    }
+
+    const std::string provider = choice == LLMChoice::Remote_OpenAI ? "OpenAI" : "Gemini";
+    const std::string err_msg = fmt::format("[REMOTE] {} (missing {} API key)", item_name, provider);
     if (progress_callback) {
         progress_callback(err_msg);
     }
@@ -434,12 +449,42 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     }
     const std::string combined_context = build_combined_context(hint_block);
 
-    DatabaseManager::ResolvedCategory resolved =
-        run_categorization_with_cache(llm,
-                                      is_local_llm,
-                                      entry,
-                                      progress_callback,
-                                      combined_context);
+    DatabaseManager::ResolvedCategory resolved;
+    bool retried_after_backoff = false;
+    while (true) {
+        try {
+            resolved = run_categorization_with_cache(llm,
+                                                     is_local_llm,
+                                                     entry,
+                                                     progress_callback,
+                                                     combined_context);
+            break;
+        } catch (const BackoffError& backoff) {
+            const int wait_seconds = backoff.retry_after_seconds() > 0 ? backoff.retry_after_seconds() : 60;
+            if (progress_callback) {
+                progress_callback(fmt::format(
+                    "[REMOTE] Rate limit hit. Waiting {}s before retrying {}...",
+                    wait_seconds,
+                    entry.file_name));
+            }
+            if (core_logger) {
+                core_logger->warn("Rate limit hit for '{}'; retrying in {}s", entry.file_name, wait_seconds);
+            }
+            for (int remaining = wait_seconds; remaining > 0; --remaining) {
+                if (stop_flag.load()) {
+                    return std::nullopt;
+                }
+                if (progress_callback && (remaining % 10 == 0 || remaining <= 3)) {
+                    progress_callback(fmt::format("[REMOTE] Retrying {} in {}s...", entry.file_name, remaining));
+                }
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+            if (retried_after_backoff) {
+                throw;
+            }
+            retried_after_backoff = true;
+        }
+    }
 
     if (auto retry = handle_empty_result(entry,
                                          dir_path,

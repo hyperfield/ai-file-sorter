@@ -46,20 +46,31 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     setup_ui();
     connect_signals();
 
-    remote_api_key = settings.get_remote_api_key();
-    remote_model = settings.get_remote_model();
-    if (api_key_edit) {
-        api_key_edit->setText(QString::fromStdString(remote_api_key));
+    openai_api_key = settings.get_openai_api_key();
+    openai_model = settings.get_openai_model();
+    gemini_api_key = settings.get_gemini_api_key();
+    gemini_model = settings.get_gemini_model();
+    if (openai_api_key_edit) {
+        openai_api_key_edit->setText(QString::fromStdString(openai_api_key));
     }
-    if (model_edit) {
-        model_edit->setText(QString::fromStdString(remote_model));
+    if (openai_model_edit) {
+        openai_model_edit->setText(QString::fromStdString(openai_model));
+    }
+    if (gemini_api_key_edit) {
+        gemini_api_key_edit->setText(QString::fromStdString(gemini_api_key));
+    }
+    if (gemini_model_edit) {
+        gemini_model_edit->setText(QString::fromStdString(gemini_model));
     }
 
     selected_choice = settings.get_llm_choice();
     selected_custom_id = settings.get_active_custom_llm_id();
     switch (selected_choice) {
-    case LLMChoice::Remote:
-        remote_radio->setChecked(true);
+    case LLMChoice::Remote_OpenAI:
+        openai_radio->setChecked(true);
+        break;
+    case LLMChoice::Remote_Gemini:
+        gemini_radio->setChecked(true);
         break;
     case LLMChoice::Local_3b:
         local3_radio->setChecked(true);
@@ -113,40 +124,75 @@ void LLMSelectionDialog::setup_ui()
     auto* local3_desc = new QLabel(tr("Less precise, but works quickly even on CPUs. Good for lightweight local use."), radio_container);
     local3_desc->setWordWrap(true);
 
-    remote_radio = new QRadioButton(tr("ChatGPT (OpenAI API key)"), radio_container);
-    auto* remote_desc = new QLabel(tr("Use your own OpenAI API key to access ChatGPT models (internet required)."), radio_container);
-    remote_desc->setWordWrap(true);
-    remote_inputs = new QWidget(radio_container);
-    auto* remote_form = new QFormLayout(remote_inputs);
-    remote_form->setContentsMargins(24, 0, 0, 0);
-    remote_form->setHorizontalSpacing(10);
-    remote_form->setVerticalSpacing(6);
-    api_key_edit = new QLineEdit(remote_inputs);
-    api_key_edit->setEchoMode(QLineEdit::Password);
-    api_key_edit->setClearButtonEnabled(true);
-    api_key_edit->setPlaceholderText(tr("sk-..."));
-    show_api_key_checkbox = new QCheckBox(tr("Show"), remote_inputs);
-    auto* api_key_row = new QWidget(remote_inputs);
-    auto* api_key_layout = new QHBoxLayout(api_key_row);
-    api_key_layout->setContentsMargins(0, 0, 0, 0);
-    api_key_layout->addWidget(api_key_edit, 1);
-    api_key_layout->addWidget(show_api_key_checkbox);
-    remote_form->addRow(tr("OpenAI API key"), api_key_row);
+    gemini_radio = new QRadioButton(tr("Gemini (Google AI Studio API key)"), radio_container);
+    auto* gemini_desc = new QLabel(tr("Use Google's Gemini models with your AI Studio API key (internet required)."), radio_container);
+    gemini_desc->setWordWrap(true);
+    gemini_inputs = new QWidget(radio_container);
+    auto* gemini_form = new QFormLayout(gemini_inputs);
+    gemini_form->setContentsMargins(24, 0, 0, 0);
+    gemini_form->setHorizontalSpacing(10);
+    gemini_form->setVerticalSpacing(6);
+    gemini_api_key_edit = new QLineEdit(gemini_inputs);
+    gemini_api_key_edit->setEchoMode(QLineEdit::Password);
+    gemini_api_key_edit->setClearButtonEnabled(true);
+    gemini_api_key_edit->setPlaceholderText(tr("AIza..."));
+    show_gemini_api_key_checkbox = new QCheckBox(tr("Show"), gemini_inputs);
+    auto* gemini_key_row = new QWidget(gemini_inputs);
+    auto* gemini_key_layout = new QHBoxLayout(gemini_key_row);
+    gemini_key_layout->setContentsMargins(0, 0, 0, 0);
+    gemini_key_layout->addWidget(gemini_api_key_edit, 1);
+    gemini_key_layout->addWidget(show_gemini_api_key_checkbox);
+    gemini_form->addRow(tr("Gemini API key"), gemini_key_row);
 
-    model_edit = new QLineEdit(remote_inputs);
-    model_edit->setPlaceholderText(tr("e.g. gpt-4o-mini, gpt-4.1, o3-mini"));
-    remote_form->addRow(tr("Model"), model_edit);
+    gemini_model_edit = new QLineEdit(gemini_inputs);
+    gemini_model_edit->setPlaceholderText(tr("e.g. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro"));
+    gemini_form->addRow(tr("Model"), gemini_model_edit);
 
-    remote_help_label = new QLabel(tr("Your key is stored locally in the config file for this device."), remote_inputs);
-    remote_help_label->setWordWrap(true);
-    remote_form->addRow(remote_help_label);
-    remote_link_label = new QLabel(remote_inputs);
-    remote_link_label->setTextFormat(Qt::RichText);
-    remote_link_label->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    remote_link_label->setOpenExternalLinks(true);
-    remote_link_label->setText(tr("<a href=\"https://platform.openai.com/api-keys\">Get an OpenAI API key</a>"));
-    remote_form->addRow(remote_link_label);
-    remote_inputs->setVisible(false);
+    gemini_help_label = new QLabel(tr("Your key is stored locally in the config file for this device."), gemini_inputs);
+    gemini_help_label->setWordWrap(true);
+    gemini_form->addRow(gemini_help_label);
+    gemini_link_label = new QLabel(gemini_inputs);
+    gemini_link_label->setTextFormat(Qt::RichText);
+    gemini_link_label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    gemini_link_label->setOpenExternalLinks(true);
+    gemini_link_label->setText(tr("<a href=\"https://aistudio.google.com/app/apikey\">Get a Gemini API key</a>"));
+    gemini_form->addRow(gemini_link_label);
+    gemini_inputs->setVisible(false);
+
+    openai_radio = new QRadioButton(tr("ChatGPT (OpenAI API key)"), radio_container);
+    auto* openai_desc = new QLabel(tr("Use your own OpenAI API key to access ChatGPT models (internet required)."), radio_container);
+    openai_desc->setWordWrap(true);
+    openai_inputs = new QWidget(radio_container);
+    auto* openai_form = new QFormLayout(openai_inputs);
+    openai_form->setContentsMargins(24, 0, 0, 0);
+    openai_form->setHorizontalSpacing(10);
+    openai_form->setVerticalSpacing(6);
+    openai_api_key_edit = new QLineEdit(openai_inputs);
+    openai_api_key_edit->setEchoMode(QLineEdit::Password);
+    openai_api_key_edit->setClearButtonEnabled(true);
+    openai_api_key_edit->setPlaceholderText(tr("sk-..."));
+    show_openai_api_key_checkbox = new QCheckBox(tr("Show"), openai_inputs);
+    auto* openai_key_row = new QWidget(openai_inputs);
+    auto* openai_key_layout = new QHBoxLayout(openai_key_row);
+    openai_key_layout->setContentsMargins(0, 0, 0, 0);
+    openai_key_layout->addWidget(openai_api_key_edit, 1);
+    openai_key_layout->addWidget(show_openai_api_key_checkbox);
+    openai_form->addRow(tr("OpenAI API key"), openai_key_row);
+
+    openai_model_edit = new QLineEdit(openai_inputs);
+    openai_model_edit->setPlaceholderText(tr("e.g. gpt-4o-mini, gpt-4.1, o3-mini"));
+    openai_form->addRow(tr("Model"), openai_model_edit);
+
+    openai_help_label = new QLabel(tr("Your key is stored locally in the config file for this device."), openai_inputs);
+    openai_help_label->setWordWrap(true);
+    openai_form->addRow(openai_help_label);
+    openai_link_label = new QLabel(openai_inputs);
+    openai_link_label->setTextFormat(Qt::RichText);
+    openai_link_label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    openai_link_label->setOpenExternalLinks(true);
+    openai_link_label->setText(tr("<a href=\"https://platform.openai.com/api-keys\">Get an OpenAI API key</a>"));
+    openai_form->addRow(openai_link_label);
+    openai_inputs->setVisible(false);
 
     custom_radio = new QRadioButton(tr("Custom local LLM (gguf) (experimental)"), radio_container);
     auto* custom_row = new QWidget(radio_container);
@@ -167,9 +213,12 @@ void LLMSelectionDialog::setup_ui()
     radio_layout->addWidget(local7_desc);
     radio_layout->addWidget(local3_radio);
     radio_layout->addWidget(local3_desc);
-    radio_layout->addWidget(remote_radio);
-    radio_layout->addWidget(remote_desc);
-    radio_layout->addWidget(remote_inputs);
+    radio_layout->addWidget(gemini_radio);
+    radio_layout->addWidget(gemini_desc);
+    radio_layout->addWidget(gemini_inputs);
+    radio_layout->addWidget(openai_radio);
+    radio_layout->addWidget(openai_desc);
+    radio_layout->addWidget(openai_inputs);
     radio_layout->addWidget(custom_radio);
     radio_layout->addWidget(custom_row);
 
@@ -218,21 +267,32 @@ void LLMSelectionDialog::setup_ui()
 void LLMSelectionDialog::connect_signals()
 {
     auto update_handler = [this]() { update_ui_for_choice(); };
-    connect(remote_radio, &QRadioButton::toggled, this, update_handler);
+    connect(openai_radio, &QRadioButton::toggled, this, update_handler);
+    connect(gemini_radio, &QRadioButton::toggled, this, update_handler);
     connect(local3_radio, &QRadioButton::toggled, this, update_handler);
     connect(local7_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_combo, &QComboBox::currentTextChanged, this, update_handler);
-    connect(api_key_edit, &QLineEdit::textChanged, this, update_handler);
-    connect(model_edit, &QLineEdit::textChanged, this, update_handler);
+    connect(openai_api_key_edit, &QLineEdit::textChanged, this, update_handler);
+    connect(openai_model_edit, &QLineEdit::textChanged, this, update_handler);
+    connect(gemini_api_key_edit, &QLineEdit::textChanged, this, update_handler);
+    connect(gemini_model_edit, &QLineEdit::textChanged, this, update_handler);
     connect(add_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_add_custom);
     connect(edit_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_edit_custom);
     connect(delete_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_custom);
 
-    if (show_api_key_checkbox) {
-        connect(show_api_key_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
-            if (api_key_edit) {
-                api_key_edit->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
+    if (show_openai_api_key_checkbox) {
+        connect(show_openai_api_key_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (openai_api_key_edit) {
+                openai_api_key_edit->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
+            }
+        });
+    }
+
+    if (show_gemini_api_key_checkbox) {
+        connect(show_gemini_api_key_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (gemini_api_key_edit) {
+                gemini_api_key_edit->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
             }
         });
     }
@@ -253,14 +313,24 @@ std::string LLMSelectionDialog::get_selected_custom_llm_id() const
     return selected_custom_id;
 }
 
-std::string LLMSelectionDialog::get_remote_api_key() const
+std::string LLMSelectionDialog::get_openai_api_key() const
 {
-    return remote_api_key;
+    return openai_api_key;
 }
 
-std::string LLMSelectionDialog::get_remote_model() const
+std::string LLMSelectionDialog::get_openai_model() const
 {
-    return remote_model;
+    return openai_model;
+}
+
+std::string LLMSelectionDialog::get_gemini_api_key() const
+{
+    return gemini_api_key;
+}
+
+std::string LLMSelectionDialog::get_gemini_model() const
+{
+    return gemini_model;
 }
 
 
@@ -278,7 +348,7 @@ void LLMSelectionDialog::update_ui_for_choice()
 
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
 
-    if (selected_choice == LLMChoice::Custom || selected_choice == LLMChoice::Remote || !is_local_builtin) {
+    if (selected_choice == LLMChoice::Custom || is_remote_choice(selected_choice) || !is_local_builtin) {
         return;
     }
 
@@ -287,8 +357,10 @@ void LLMSelectionDialog::update_ui_for_choice()
 
 void LLMSelectionDialog::update_radio_selection()
 {
-    if (remote_radio->isChecked()) {
-        selected_choice = LLMChoice::Remote;
+    if (openai_radio->isChecked()) {
+        selected_choice = LLMChoice::Remote_OpenAI;
+    } else if (gemini_radio->isChecked()) {
+        selected_choice = LLMChoice::Remote_Gemini;
     } else if (local3_radio->isChecked()) {
         selected_choice = LLMChoice::Local_3b;
     } else if (local7_radio->isChecked()) {
@@ -304,12 +376,17 @@ void LLMSelectionDialog::update_custom_choice_ui()
         ok_button = button_box->button(QDialogButtonBox::Ok);
     }
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
-    const bool is_remote = selected_choice == LLMChoice::Remote;
+    const bool is_remote_openai = selected_choice == LLMChoice::Remote_OpenAI;
+    const bool is_remote_gemini = selected_choice == LLMChoice::Remote_Gemini;
     const bool is_custom = selected_choice == LLMChoice::Custom;
     download_section->setVisible(is_local_builtin);
-    if (remote_inputs) {
-        remote_inputs->setVisible(is_remote);
-        remote_inputs->setEnabled(is_remote);
+    if (openai_inputs) {
+        openai_inputs->setVisible(is_remote_openai);
+        openai_inputs->setEnabled(is_remote_openai);
+    }
+    if (gemini_inputs) {
+        gemini_inputs->setVisible(is_remote_gemini);
+        gemini_inputs->setEnabled(is_remote_gemini);
     }
 
     custom_combo->setEnabled(is_custom);
@@ -329,8 +406,12 @@ void LLMSelectionDialog::update_custom_choice_ui()
         return;
     }
 
-    if (is_remote) {
-        update_remote_fields_state();
+    if (is_remote_openai) {
+        update_openai_fields_state();
+        return;
+    }
+    if (is_remote_gemini) {
+        update_gemini_fields_state();
         return;
     }
 
@@ -343,20 +424,26 @@ void LLMSelectionDialog::update_custom_choice_ui()
     }
 }
 
-void LLMSelectionDialog::update_remote_fields_state()
+void LLMSelectionDialog::update_openai_fields_state()
 {
     if (!ok_button && button_box) {
         ok_button = button_box->button(QDialogButtonBox::Ok);
     }
 
-    if (remote_inputs) {
-        remote_inputs->setVisible(selected_choice == LLMChoice::Remote);
+    const bool is_openai = selected_choice == LLMChoice::Remote_OpenAI;
+    if (openai_inputs) {
+        openai_inputs->setVisible(is_openai);
+    }
+    bool valid = false;
+    if (is_openai) {
+        openai_api_key = openai_api_key_edit ? openai_api_key_edit->text().trimmed().toStdString() : std::string();
+        openai_model = openai_model_edit ? openai_model_edit->text().trimmed().toStdString() : std::string();
+        valid = openai_inputs_valid();
+        set_status_message(valid
+            ? tr("ChatGPT will use your API key and model.")
+            : tr("Enter your OpenAI API key and model to continue."));
     }
 
-    remote_api_key = api_key_edit ? api_key_edit->text().trimmed().toStdString() : std::string();
-    remote_model = model_edit ? model_edit->text().trimmed().toStdString() : std::string();
-
-    const bool valid = remote_inputs_valid();
     if (ok_button) {
         ok_button->setEnabled(valid);
     }
@@ -367,16 +454,52 @@ void LLMSelectionDialog::update_remote_fields_state()
         download_button->setVisible(false);
         download_button->setEnabled(false);
     }
-
-    set_status_message(valid
-        ? tr("ChatGPT will use your API key and model.")
-        : tr("Enter your OpenAI API key and model to continue."));
 }
 
-bool LLMSelectionDialog::remote_inputs_valid() const
+void LLMSelectionDialog::update_gemini_fields_state()
 {
-    const QString key_text = api_key_edit ? api_key_edit->text().trimmed() : QString();
-    const QString model_text = model_edit ? model_edit->text().trimmed() : QString();
+    if (!ok_button && button_box) {
+        ok_button = button_box->button(QDialogButtonBox::Ok);
+    }
+
+    const bool is_gemini = selected_choice == LLMChoice::Remote_Gemini;
+    if (gemini_inputs) {
+        gemini_inputs->setVisible(is_gemini);
+    }
+
+    bool valid = false;
+    if (is_gemini) {
+        gemini_api_key = gemini_api_key_edit ? gemini_api_key_edit->text().trimmed().toStdString() : std::string();
+        gemini_model = gemini_model_edit ? gemini_model_edit->text().trimmed().toStdString() : std::string();
+        valid = gemini_inputs_valid();
+        set_status_message(valid
+            ? tr("Gemini will use your API key and model.")
+            : tr("Enter your Gemini API key and model to continue."));
+    }
+
+    if (ok_button) {
+        ok_button->setEnabled(valid);
+    }
+    if (progress_bar) {
+        progress_bar->setVisible(false);
+    }
+    if (download_button) {
+        download_button->setVisible(false);
+        download_button->setEnabled(false);
+    }
+}
+
+bool LLMSelectionDialog::openai_inputs_valid() const
+{
+    const QString key_text = openai_api_key_edit ? openai_api_key_edit->text().trimmed() : QString();
+    const QString model_text = openai_model_edit ? openai_model_edit->text().trimmed() : QString();
+    return !key_text.isEmpty() && !model_text.isEmpty();
+}
+
+bool LLMSelectionDialog::gemini_inputs_valid() const
+{
+    const QString key_text = gemini_api_key_edit ? gemini_api_key_edit->text().trimmed() : QString();
+    const QString model_text = gemini_model_edit ? gemini_model_edit->text().trimmed() : QString();
     return !key_text.isEmpty() && !model_text.isEmpty();
 }
 

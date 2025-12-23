@@ -1,7 +1,8 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.4.5-blue)](#)
+[![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dw/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/2c646c836a9844be964fbf681649c3cd)](https://app.codacy.com/gh/hyperfield/ai-file-sorter/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
@@ -62,6 +63,7 @@ File content–based sorting for certain file types is also in development.
     - [Windows](#windows)
   - [Uninstallation](#uninstallation)
   - [Using your OpenAI API key](#using-your-openai-api-key)
+  - [Using your Gemini API key](#using-your-gemini-api-key)
   - [Testing](#testing)
   - [How to Use](#how-to-use)
   - [Sorting a Remote Directory (e.g., NAS)](#sorting-a-remote-directory-eg-nas)
@@ -86,7 +88,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Features
 
-- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or ChatGPT with your own OpenAI API key (choose any ChatGPT model your key allows).
+- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or a remote model (ChatGPT with your own OpenAI API key, or Gemini with your own Gemini API key).
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
   **Robust Categorization Algorithm**: Consistency across categories is supported by taxonomy and heuristics.
   **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
@@ -101,7 +103,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Sorting Preview**: See how files will be organized before confirming changes.
 - 🧪 **Dry run** / preview-only mode to inspect planned moves without touching files.
 - ↩️ **Persistent Undo** ("Undo last run") even after closing the sort dialog.
-- **Bring your own key**: Paste your OpenAI API key once; it's stored locally and reused for ChatGPT runs.
+- **Bring your own key**: Paste your OpenAI or Gemini API key once; it's stored locally and reused for remote runs.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
 
 ---
@@ -131,13 +133,13 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
-- **OpenAI API Key** (optional): Required only when using the remote ChatGPT workflow.
+- **OpenAI or Gemini API key** (optional): Required only when using the remote ChatGPT or Gemini workflow.
 
 ---
 
 ## Installation
 
-File categorization with local LLMs is completely free of charge. If you prefer to use the ChatGPT workflow you will need an OpenAI API key with a small balance (see [Using your OpenAI API key](#using-your-openai-api-key)).
+File categorization with local LLMs is completely free of charge. If you prefer to use a remote workflow (ChatGPT or Gemini) you will need your own API key with a small balance or within the free tier (see [Using your OpenAI API key](#using-your-openai-api-key) or [Using your Gemini API key](#using-your-gemini-api-key)).
 
 ### Linux
 
@@ -362,6 +364,20 @@ Want to use ChatGPT instead of the bundled local models? Bring your own OpenAI A
 4. An internet connection is only required while this option is selected.
 
 > The app no longer embeds a bundled key; you always provide your own OpenAI key.
+
+---
+
+## Using your Gemini API key
+
+Prefer Google's models? Use your own Gemini API key:
+
+1. Visit **https://aistudio.google.com** and sign in with your Google account.
+2. In the left navigation, open **API keys** (or **Get API key**) and click **Create API key**. Choose *Create API key in new project* (or select an existing project) and copy the generated key.
+3. In the app, open **Settings -> Select LLM**, choose **Gemini (Google AI Studio API key)**, paste your key, and enter the Gemini model you want (for example `gemini-2.5-flash-lite`, `gemini-2.5-flash`, or `gemini-2.5-pro`).
+4. Click **OK**. The key is stored locally in your AI File Sorter config and reused for future runs. Clear the field to remove it.
+
+> AI Studio keys can be used on the free tier until you hit Google’s limits; higher quotas or enterprise use require billing via Google Cloud.
+> The app calls the Gemini `v1` `generateContent` endpoint; use model IDs from `https://generativelanguage.googleapis.com/v1/models?key=YOUR_KEY`. You can enter them with or without the leading `models/` prefix.
 
 ---
 

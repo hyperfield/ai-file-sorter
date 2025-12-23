@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## [1.4.5] - 2025-12-05
+- Added support for Gemini (a remote LLM) - with your own Gemini API key.
+- Fixed compile under Arch Linux.
+
 ## [1.4.0] - 2025-12-05
 - Added dry run / preview-only mode with From/To table, no moves performed until you uncheck.
 - Persistent Undo: the latest sort saves a plan file; use Edit -> "Undo last run" even after closing dialogs.
