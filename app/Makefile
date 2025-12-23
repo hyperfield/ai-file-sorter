@@ -15,10 +15,23 @@ ifeq ($(UNAME), Linux)
 	LD_CONF_FILE := /etc/ld.so.conf.d/aifilesorter.conf
 
     # --- Qt6 setup ---
+    PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
+    QT_PACKAGES := Qt6Widgets Qt6Gui Qt6Core
+    QT_CXXFLAGS :=
+    QT_LDFLAGS :=
+ifneq ($(strip $(PKG_CONFIG)),)
+    QT_CXXFLAGS := $(shell $(PKG_CONFIG) --cflags $(QT_PACKAGES) 2>/dev/null)
+    QT_LDFLAGS := $(shell $(PKG_CONFIG) --libs $(QT_PACKAGES) 2>/dev/null)
+endif
+ifeq ($(strip $(QT_CXXFLAGS)),)
     QT_INCLUDE_BASE ?= /usr/include/x86_64-linux-gnu/qt6
     QT_LIB_BASE     ?= /usr/lib/x86_64-linux-gnu
     CXXFLAGS += -I$(QT_INCLUDE_BASE) -I$(QT_INCLUDE_BASE)/QtCore -I$(QT_INCLUDE_BASE)/QtGui -I$(QT_INCLUDE_BASE)/QtWidgets
     LDFLAGS  += -L$(QT_LIB_BASE) -lQt6Widgets -lQt6Gui -lQt6Core
+else
+    CXXFLAGS += $(QT_CXXFLAGS)
+    LDFLAGS  += $(QT_LDFLAGS)
+endif
 
     # --- Other dependencies ---
 	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lX11 -pthread
@@ -97,7 +110,7 @@ CXXFLAGS += -Wno-array-bounds
 else
 CXXFLAGS += -Wno-array-bounds -Wno-stringop-overflow -Wno-stringop-overread
 endif
-INCLUDE_DIRS = -I./include -I./include/llama
+INCLUDE_DIRS = -I./include -I./include/external/llama.cpp/include -I./include/external/llama.cpp/ggml/include
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
 LIB_DIRS += -L./lib/precompiled/cpu/bin -L./lib/precompiled

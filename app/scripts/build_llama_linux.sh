@@ -14,10 +14,10 @@ fi
 PRECOMPILED_ROOT_DIR="$SCRIPT_DIR/../lib/precompiled"
 HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 
-# Parse optional arguments (cuda=on/off, vulkan=on/off)
+# Parse optional arguments (cuda=on/off, vulkan=on/off, blas=on/off/auto)
 CUDASWITCH="OFF"
 VULKANSWITCH="OFF"
-BLASSWITCH="OFF"
+BLASSWITCH="AUTO"
 for arg in "$@"; do
     case "${arg,,}" in
         cuda=on) CUDASWITCH="ON" ;;
@@ -26,6 +26,7 @@ for arg in "$@"; do
         vulkan=off) VULKANSWITCH="OFF" ;;
         blas=on) BLASSWITCH="ON" ;;
         blas=off) BLASSWITCH="OFF" ;;
+        blas=auto) BLASSWITCH="AUTO" ;;
     esac
 done
 
@@ -36,89 +37,135 @@ fi
 
 echo "CUDA support: $CUDASWITCH"
 echo "VULKAN support: $VULKANSWITCH"
-echo "BLAS support: $BLASSWITCH"
+echo "BLAS support: $BLASSWITCH (auto prefers OpenBLAS for CPU baseline)"
 
-# Enter llama.cpp directory and build
-cd "$LLAMA_DIR"
-rm -rf build
-mkdir -p build
+# Resolve OpenBLAS availability when BLAS is set to AUTO
+resolve_blas_setting() {
+    local requested="$1"
+    if [[ "$requested" == "ON" || "$requested" == "OFF" ]]; then
+        echo "$requested"
+        return 0
+    fi
+    if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists openblas; then
+        echo "ON"
+        return 0
+    fi
+    for candidate in /usr/lib/libopenblas.so /usr/lib64/libopenblas.so /usr/lib/x86_64-linux-gnu/libopenblas.so /usr/lib/aarch64-linux-gnu/libopenblas.so; do
+        if [ -e "$candidate" ]; then
+            echo "ON"
+            return 0
+        fi
+    done
+    echo "OFF"
+}
 
-# Compile shared libs:
-echo "Inside script: CC=$CC, CXX=$CXX"
+build_variant() {
+    local variant="$1"
+    local cuda_flag="$2"
+    local vulkan_flag="$3"
+    local blas_flag="$4"
+    local runtime_subdir="$5"
 
-cmake_args=(
-    -DGGML_CUDA=$CUDASWITCH
-    -DGGML_VULKAN=$VULKANSWITCH
-    -DGGML_OPENCL=OFF
-    -DGGML_BLAS=$BLASSWITCH
-    -DBUILD_SHARED_LIBS=ON
-    -DGGML_NATIVE=OFF
-    -DCMAKE_C_FLAGS="-mavx2 -mfma"
-    -DCMAKE_CXX_FLAGS="-mavx2 -mfma"
-)
+    local build_dir="$LLAMA_DIR/build-$variant"
+    rm -rf "$build_dir"
+    mkdir -p "$build_dir"
 
-if [[ "$BLASSWITCH" == "ON" ]]; then
-    cmake_args+=( -DGGML_BLAS_VENDOR=OpenBLAS )
-fi
+    echo "Building variant '$variant' (CUDA=$cuda_flag, VULKAN=$vulkan_flag, BLAS=$blas_flag)..."
 
-if [[ "$CUDASWITCH" == "ON" ]]; then
-    cmake_args+=( -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-10 )
-fi
+    cd "$LLAMA_DIR"
 
-cmake -S . -B build "${cmake_args[@]}"
-cmake --build build --config Release -- -j$(nproc)
+    local cmake_args=(
+        -DGGML_CUDA="$cuda_flag"
+        -DGGML_VULKAN="$vulkan_flag"
+        -DGGML_OPENCL=OFF
+        -DGGML_BLAS="$blas_flag"
+        -DBUILD_SHARED_LIBS=ON
+        -DGGML_NATIVE=OFF
+        -DCMAKE_C_FLAGS="-mavx2 -mfma"
+        -DCMAKE_CXX_FLAGS="-mavx2 -mfma"
+        -S .
+        -B "$build_dir"
+    )
 
-VARIANT="cpu"
-if [[ "$CUDASWITCH" == "ON" ]]; then
-    VARIANT="cuda"
-elif [[ "$VULKANSWITCH" == "ON" ]]; then
-    VARIANT="vulkan"
-fi
+    if [[ "$blas_flag" == "ON" ]]; then
+        cmake_args+=( -DGGML_BLAS_VENDOR=OpenBLAS )
+    fi
+    if [[ "$cuda_flag" == "ON" ]]; then
+        cmake_args+=( -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-10 )
+    fi
 
-VARIANT_ROOT="$PRECOMPILED_ROOT_DIR/$VARIANT"
-VARIANT_BIN="$VARIANT_ROOT/bin"
-VARIANT_LIB="$VARIANT_ROOT/lib"
-GGML_RUNTIME_ROOT="$SCRIPT_DIR/../lib/ggml"
-RUNTIME_SUBDIR="wocuda"
-if [[ "$VARIANT" == "cuda" ]]; then
-    RUNTIME_SUBDIR="wcuda"
-elif [[ "$VARIANT" == "vulkan" ]]; then
-    RUNTIME_SUBDIR="wvulkan"
-fi
-RUNTIME_DIR="$GGML_RUNTIME_ROOT/$RUNTIME_SUBDIR"
+    cmake "${cmake_args[@]}"
+    cmake --build "$build_dir" --config Release -- -j"$(nproc)"
 
-rm -rf "$VARIANT_BIN" "$VARIANT_LIB" "$RUNTIME_DIR"
-mkdir -p "$VARIANT_BIN" "$VARIANT_LIB" "$RUNTIME_DIR"
+    local variant_root="$PRECOMPILED_ROOT_DIR/$variant"
+    local variant_bin="$variant_root/bin"
+    local variant_lib="$variant_root/lib"
+    local ggml_runtime_root="$SCRIPT_DIR/../lib/ggml"
+    local runtime_dir="$ggml_runtime_root/$runtime_subdir"
 
-shopt -s nullglob
-for so in build/bin/*.so build/bin/*.so.*; do
-    cp -P "$so" "$VARIANT_BIN/"
-    cp -P "$so" "$RUNTIME_DIR/"
-done
-for lib in build/lib/*.a; do
-    cp "$lib" "$VARIANT_LIB/"
-done
-for so in build/lib/*.so build/lib/*.so.*; do
-    cp -P "$so" "$VARIANT_LIB/"
-    cp -P "$so" "$RUNTIME_DIR/"
-done
-shopt -u nullglob
+    rm -rf "$variant_bin" "$variant_lib" "$runtime_dir"
+    mkdir -p "$variant_bin" "$variant_lib" "$runtime_dir"
 
-if command -v patchelf >/dev/null 2>&1; then
-    for dir in "$VARIANT_BIN"; do
-        if compgen -G "$dir/"'*.so*' >/dev/null; then
-            for lib in "$dir"/*.so*; do
+    shopt -s nullglob
+    for so in "$build_dir"/bin/*.so "$build_dir"/bin/*.so.*; do
+        cp -P "$so" "$variant_bin/"
+        cp -P "$so" "$runtime_dir/"
+    done
+    for lib in "$build_dir"/lib/*.a; do
+        cp "$lib" "$variant_lib/"
+    done
+    for so in "$build_dir"/lib/*.so "$build_dir"/lib/*.so.*; do
+        cp -P "$so" "$variant_lib/"
+        cp -P "$so" "$runtime_dir/"
+    done
+    shopt -u nullglob
+
+    if command -v patchelf >/dev/null 2>&1; then
+        if compgen -G "$variant_bin/"'*.so*' >/dev/null; then
+            for lib in "$variant_bin"/*.so*; do
                 patchelf --set-rpath '$ORIGIN' "$lib" || true
             done
         fi
-    done
-else
-    echo "Warning: patchelf not found; skipping RUNPATH fix for llama libraries."
+    else
+        echo "Warning: patchelf not found; skipping RUNPATH fix for llama libraries."
+    fi
+
+    cd "$SCRIPT_DIR"
+}
+
+# Determine BLAS setting (AUTO falls back to OFF if OpenBLAS is missing)
+RESOLVED_BLAS="$(resolve_blas_setting "$BLASSWITCH")"
+if [[ "$BLASSWITCH" == "ON" && "$RESOLVED_BLAS" == "OFF" ]]; then
+    echo "Requested BLAS=ON but OpenBLAS was not found. Install openblas (or set blas=off) and retry." >&2
+    exit 1
+fi
+if [[ "$RESOLVED_BLAS" == "OFF" && "$BLASSWITCH" == "AUTO" ]]; then
+    echo "OpenBLAS not detected; building CPU baseline without BLAS. Install openblas and rerun for BLAS acceleration."
 fi
 
-rm -rf "$HEADERS_DIR" && mkdir -p "$HEADERS_DIR"
-cp include/llama.h "$HEADERS_DIR"
-cp ggml/src/*.h "$HEADERS_DIR"
-cp ggml/include/*.h "$HEADERS_DIR"
+# Always build a CPU baseline (OpenBLAS when available)
+build_variant "cpu" "OFF" "OFF" "$RESOLVED_BLAS" "wocuda"
 
-rm -rf build
+# Build requested accelerator variant if applicable
+REQUESTED_VARIANT="cpu"
+REQUESTED_RUNTIME="wocuda"
+if [[ "$CUDASWITCH" == "ON" ]]; then
+    REQUESTED_VARIANT="cuda"
+    REQUESTED_RUNTIME="wcuda"
+elif [[ "$VULKANSWITCH" == "ON" ]]; then
+    REQUESTED_VARIANT="vulkan"
+    REQUESTED_RUNTIME="wvulkan"
+fi
+
+if [[ "$REQUESTED_VARIANT" != "cpu" ]]; then
+    build_variant "$REQUESTED_VARIANT" "$CUDASWITCH" "$VULKANSWITCH" "$RESOLVED_BLAS" "$REQUESTED_RUNTIME"
+fi
+
+# Copy headers once (from the source tree)
+rm -rf "$HEADERS_DIR" && mkdir -p "$HEADERS_DIR"
+cp "$LLAMA_DIR/include/llama.h" "$HEADERS_DIR"
+cp "$LLAMA_DIR"/ggml/src/*.h "$HEADERS_DIR"
+cp "$LLAMA_DIR"/ggml/include/*.h "$HEADERS_DIR"
+
+# Clean up build directories
+rm -rf "$LLAMA_DIR"/build-*
