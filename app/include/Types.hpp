@@ -77,4 +77,29 @@ struct cudaDeviceProp {
     size_t totalGlobalMem;
 };
 
+struct UserCharacteristic {
+    std::string trait_name;
+    std::string value;
+    float confidence;  // 0.0 to 1.0
+    std::string evidence;
+    std::string timestamp;
+};
+
+struct FolderInsight {
+    std::string folder_path;
+    std::string description;
+    std::string dominant_categories;
+    int file_count;
+    std::string last_analyzed;
+    std::string usage_pattern;  // e.g., "work", "personal", "archive"
+};
+
+struct UserProfile {
+    std::string user_id;
+    std::vector<UserCharacteristic> characteristics;
+    std::vector<FolderInsight> folder_insights;
+    std::string created_at;
+    std::string last_updated;
+};
+
 #endif

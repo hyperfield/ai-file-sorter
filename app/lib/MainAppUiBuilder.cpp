@@ -227,6 +227,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.about_action,
             app.about_qt_action,
             app.about_agpl_action,
+            app.view_profile_action,
             app.support_project_action},
         .language = UiTranslator::LanguageControls{
             app.language_group,
@@ -425,6 +426,14 @@ void MainAppUiBuilder::build_help_menu(MainApp& app) {
     QObject::connect(app.about_agpl_action, &QAction::triggered, &app, [&app]() {
         MainAppHelpActions::show_agpl_info(&app);
     });
+
+    app.help_menu->addSeparator();
+
+    app.view_profile_action = app.help_menu->addAction(icon_for(app, "user-info", QStyle::SP_FileDialogInfoView), QString());
+    app.view_profile_action->setMenuRole(QAction::NoRole);
+    QObject::connect(app.view_profile_action, &QAction::triggered, &app, &MainApp::show_user_profile);
+
+    app.help_menu->addSeparator();
 
     app.support_project_action = app.help_menu->addAction(icon_for(app, "help-donate", QStyle::SP_DialogHelpButton), QString());
     app.support_project_action->setMenuRole(QAction::NoRole);

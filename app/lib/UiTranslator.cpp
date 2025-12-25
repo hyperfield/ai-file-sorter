@@ -182,6 +182,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.about_action, "&About AI File Sorter"},
         {deps_.actions.about_qt_action, "About &Qt"},
         {deps_.actions.about_agpl_action, "About &AGPL"},
+        {deps_.actions.view_profile_action, "View User &Profile"},
         {deps_.actions.support_project_action, "&Support Project"}
     };
 

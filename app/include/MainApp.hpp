@@ -13,6 +13,7 @@
 #include "WhitelistStore.hpp"
 #include "UiTranslator.hpp"
 #include "UndoManager.hpp"
+#include "UserProfileManager.hpp"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -146,6 +147,7 @@ private:
     bool ensure_folder_categorization_style(const std::string& folder_path);
     void show_whitelist_manager();
     void apply_whitelist_to_selector();
+    void show_user_profile();
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
@@ -231,6 +233,7 @@ private:
     QAction* about_qt_action{nullptr};
     QAction* about_agpl_action{nullptr};
     QAction* support_project_action{nullptr};
+    QAction* view_profile_action{nullptr};
 
     std::unique_ptr<CategorizationDialog> categorization_dialog;
     std::unique_ptr<CategorizationProgressDialog> progress_dialog;
@@ -243,6 +246,7 @@ private:
     ConsistencyPassService consistency_pass_service;
     ResultsCoordinator results_coordinator;
     UndoManager undo_manager_;
+    std::unique_ptr<UserProfileManager> profile_manager_;
     bool development_mode_{false};
     bool development_prompt_logging_enabled_{false};
 

@@ -18,6 +18,7 @@
 #include "UiTranslator.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
+#include "UserProfileDialog.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
 #include "MainAppTestAccess.hpp"
 #endif
@@ -160,6 +161,10 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
 {
     TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
     initialize_whitelists();
+
+    // Initialize user profile manager
+    profile_manager_ = std::make_unique<UserProfileManager>(db_manager, core_logger);
+    profile_manager_->initialize_profile("default");
 
     using_local_llm = settings.get_llm_choice() != LLMChoice::Remote;
 
@@ -1117,6 +1122,17 @@ void MainApp::handle_analysis_finished()
         return;
     }
 
+    // Update user profile with analyzed files
+    if (profile_manager_) {
+        try {
+            std::string folder_path = get_folder_path();
+            profile_manager_->analyze_and_update_from_folder(folder_path, new_files_to_sort);
+            core_logger->info("User profile updated with analysis results");
+        } catch (const std::exception& e) {
+            core_logger->warn("Failed to update user profile: {}", e.what());
+        }
+    }
+
     populate_tree_view(new_files_to_sort);
     show_results_dialog(new_files_to_sort);
 }
@@ -1259,6 +1275,24 @@ void MainApp::perform_analysis()
         log_pending_queue();
         if (should_abort_analysis()) {
             return;
+        }
+
+        // Generate and inject user profile context for LLM
+        if (profile_manager_) {
+            try {
+                std::string profile_context = profile_manager_->generate_user_context_for_llm();
+                if (!profile_context.empty()) {
+                    // Prepend profile context to existing user context
+                    std::string existing_context = settings.get_user_context();
+                    if (!existing_context.empty()) {
+                        profile_context += "\n\n" + existing_context;
+                    }
+                    settings.set_user_context(profile_context);
+                    core_logger->debug("Injected user profile context into LLM prompts");
+                }
+            } catch (const std::exception& e) {
+                core_logger->warn("Failed to generate user profile context: {}", e.what());
+            }
         }
 
         append_progress("[PROCESS] Letting the AI do its magic...");
@@ -1580,4 +1614,20 @@ void MainApp::closeEvent(QCloseEvent* event)
     stop_running_analysis();
     save_settings();
     QMainWindow::closeEvent(event);
+}
+
+void MainApp::show_user_profile()
+{
+    if (!profile_manager_) {
+        show_error_dialog("User profile manager not initialized");
+        return;
+    }
+
+    try {
+        UserProfile profile = profile_manager_->get_profile();
+        UserProfileDialog dialog(profile, this);
+        dialog.exec();
+    } catch (const std::exception& e) {
+        show_error_dialog(std::string("Failed to load user profile: ") + e.what());
+    }
 }

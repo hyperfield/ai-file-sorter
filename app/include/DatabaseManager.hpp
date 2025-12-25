@@ -49,6 +49,15 @@ public:
     bool clear_directory_categorizations(const std::string& dir_path);
     std::optional<bool> get_directory_categorization_style(const std::string& dir_path) const;
 
+    // User profile methods
+    bool save_user_profile(const UserProfile& profile);
+    UserProfile load_user_profile(const std::string& user_id);
+    bool save_user_characteristic(const std::string& user_id,
+                                  const UserCharacteristic& characteristic);
+    std::vector<UserCharacteristic> load_user_characteristics(const std::string& user_id);
+    bool save_folder_insight(const std::string& user_id, const FolderInsight& insight);
+    std::vector<FolderInsight> load_folder_insights(const std::string& user_id);
+
 private:
     struct TaxonomyEntry {
         int id;
@@ -60,6 +69,7 @@ private:
 
     void initialize_schema();
     void initialize_taxonomy_schema();
+    void initialize_user_profile_schema();
     void load_taxonomy_cache();
     std::string normalize_label(const std::string& input) const;
     static double string_similarity(const std::string& a, const std::string& b);
