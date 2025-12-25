@@ -1844,15 +1844,21 @@ void CategorizationDialog::on_save_categories_button_clicked()
     std::set<std::string> subcategories_set;
     
     for (int row = 0; row < model->rowCount(); ++row) {
-        std::string category = model->item(row, 3)->text().toStdString();
-        if (!category.empty()) {
-            categories_set.insert(category);
+        auto* category_item = model->item(row, 3);
+        if (category_item) {
+            std::string category = category_item->text().toStdString();
+            if (!category.empty()) {
+                categories_set.insert(category);
+            }
         }
         
         if (show_subcategory_column) {
-            std::string subcategory = model->item(row, 4)->text().toStdString();
-            if (!subcategory.empty()) {
-                subcategories_set.insert(subcategory);
+            auto* subcategory_item = model->item(row, 4);
+            if (subcategory_item) {
+                std::string subcategory = subcategory_item->text().toStdString();
+                if (!subcategory.empty()) {
+                    subcategories_set.insert(subcategory);
+                }
             }
         }
     }

@@ -834,9 +834,10 @@ void MainApp::connect_whitelist_signals()
         if (auto entry = whitelist_store.get(name.toStdString())) {
             settings.set_allowed_categories(entry->categories);
             settings.set_allowed_subcategories(entry->subcategories);
-            // Update context from whitelist entry
-            if (context_input && !entry->context.empty()) {
+            // Always update context from whitelist entry, even if empty
+            if (context_input) {
                 context_input->setText(QString::fromStdString(entry->context));
+                settings.set_user_context(entry->context);
             }
         }
     });
