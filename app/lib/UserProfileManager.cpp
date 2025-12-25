@@ -8,11 +8,32 @@
 #include <unordered_set>
 
 namespace {
+    // Confidence calculation constants
+    constexpr float kMinHobbyConfidence = 0.3f;
+    constexpr float kConfidenceIncrement = 0.05f;
+    constexpr int kMinFilesForHobby = 3;
+    
+    constexpr float kMinWorkConfidence = 0.4f;
+    constexpr float kWorkConfidenceIncrement = 0.03f;
+    constexpr int kMinFilesForWork = 5;
+    
+    constexpr float kExistingCharacteristicWeight = 0.7f;
+    constexpr float kNewCharacteristicWeight = 0.3f;
+
     std::string get_current_timestamp() {
         auto now = std::chrono::system_clock::now();
         auto time_t_now = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
-        ss << std::put_time(std::localtime(&time_t_now), "%Y-%m-%d %H:%M:%S");
+        // Use thread-safe localtime_r on Unix systems
+        #ifdef _WIN32
+        std::tm tm_buf;
+        localtime_s(&tm_buf, &time_t_now);
+        ss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
+        #else
+        std::tm tm_buf;
+        localtime_r(&time_t_now, &tm_buf);
+        ss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
+        #endif
         return ss.str();
     }
 }
@@ -153,8 +174,8 @@ void UserProfileManager::extract_hobbies(const std::vector<CategorizedFile>& fil
     
     // Update characteristics based on hobby indicators
     for (const auto& [hobby, count] : hobby_indicators) {
-        if (count >= 3) {  // Threshold for confidence
-            float confidence = std::min(0.3f + (count * 0.05f), 1.0f);
+        if (count >= kMinFilesForHobby) {  // Threshold for confidence
+            float confidence = std::min(kMinHobbyConfidence + (count * kConfidenceIncrement), 1.0f);
             std::string evidence = "Found " + std::to_string(count) + 
                                   " files related to " + hobby;
             update_characteristic("hobby", hobby, confidence, evidence);
@@ -184,8 +205,8 @@ void UserProfileManager::detect_work_patterns(const std::vector<CategorizedFile>
         }
     }
     
-    if (work_file_count >= 5) {
-        float confidence = std::min(0.4f + (work_file_count * 0.03f), 1.0f);
+    if (work_file_count >= kMinFilesForWork) {
+        float confidence = std::min(kMinWorkConfidence + (work_file_count * kWorkConfidenceIncrement), 1.0f);
         std::string evidence = "Found " + std::to_string(work_file_count) +
                               " work-related files";
         update_characteristic("work_pattern", "Professional/Office Work", confidence, evidence);
@@ -250,7 +271,10 @@ void UserProfileManager::update_characteristic(
     
     if (it != current_profile_.characteristics.end()) {
         // Update existing - boost confidence slightly but cap at 1.0
-        it->confidence = std::min(it->confidence * 0.7f + confidence * 0.3f, 1.0f);
+        it->confidence = std::min(
+            it->confidence * kExistingCharacteristicWeight + confidence * kNewCharacteristicWeight,
+            1.0f
+        );
         it->evidence = evidence;
         it->timestamp = get_current_timestamp();
     } else {

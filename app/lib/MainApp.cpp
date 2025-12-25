@@ -1277,17 +1277,21 @@ void MainApp::perform_analysis()
             return;
         }
 
-        // Generate and inject user profile context for LLM
+        // Generate and inject user profile context for LLM (temporarily)
+        std::string original_user_context;
         if (profile_manager_) {
             try {
                 std::string profile_context = profile_manager_->generate_user_context_for_llm();
                 if (!profile_context.empty()) {
+                    // Save original context to restore later
+                    original_user_context = settings.get_user_context();
+                    
                     // Prepend profile context to existing user context
-                    std::string existing_context = settings.get_user_context();
-                    if (!existing_context.empty()) {
-                        profile_context += "\n\n" + existing_context;
+                    std::string combined_context = profile_context;
+                    if (!original_user_context.empty()) {
+                        combined_context += "\n\n" + original_user_context;
                     }
-                    settings.set_user_context(profile_context);
+                    settings.set_user_context(combined_context);
                     core_logger->debug("Injected user profile context into LLM prompts");
                 }
             } catch (const std::exception& e) {
@@ -1311,6 +1315,12 @@ void MainApp::perform_analysis()
                 notify_recategorization_reset(entry, reason);
             },
             [this]() { return make_llm_client(); });
+
+        // Restore original user context
+        if (profile_manager_ && !original_user_context.empty()) {
+            settings.set_user_context(original_user_context);
+            core_logger->debug("Restored original user context");
+        }
 
         core_logger->info("Categorization produced {} new record(s).",
                           new_files_with_categories.size());
