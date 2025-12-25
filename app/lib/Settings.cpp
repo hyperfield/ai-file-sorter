@@ -341,6 +341,7 @@ void Settings::load_whitelist_settings(const std::function<bool(const char*, boo
     allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
     use_whitelist = load_bool("UseWhitelist", false);
     active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
+    user_context = config.getValue("Settings", "UserContext", "");
 }
 
 void Settings::load_custom_llm_settings()
@@ -460,6 +461,7 @@ void Settings::save_whitelist_settings()
     config.setValue(settings_section, "AllowedSubcategories", join_list(allowed_subcategories));
     set_bool_setting(config, settings_section, "UseWhitelist", use_whitelist);
     set_optional_setting(config, settings_section, "ActiveWhitelist", active_whitelist);
+    set_optional_setting(config, settings_section, "UserContext", user_context);
 }
 
 void Settings::save_custom_llms()
