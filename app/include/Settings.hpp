@@ -25,6 +25,10 @@ public:
     void set_remote_api_key(const std::string& key);
     std::string get_remote_model() const;
     void set_remote_model(const std::string& model);
+    std::string get_gemini_api_key() const;
+    void set_gemini_api_key(const std::string& key);
+    std::string get_gemini_model() const;
+    void set_gemini_model(const std::string& model);
     CategoryLanguage get_category_language() const;
     void set_category_language(CategoryLanguage language);
     std::string get_active_custom_llm_id() const;
@@ -98,6 +102,8 @@ private:
     LLMChoice llm_choice = LLMChoice::Local_7b;
     std::string remote_api_key;
     std::string remote_model{ "gpt-4o-mini" };
+    std::string gemini_api_key;
+    std::string gemini_model{ "gemini-1.5-flash" };
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;

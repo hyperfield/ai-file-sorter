@@ -6,6 +6,7 @@
 enum class LLMChoice {
     Unset,
     Remote,
+    Gemini,
     Local_3b,
     Local_7b,
     Custom

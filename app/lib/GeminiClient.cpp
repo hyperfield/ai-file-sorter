@@ -1,4 +1,4 @@
-#include "LLMClient.hpp"
+#include "GeminiClient.hpp"
 
 #include <Logger.hpp>
 #include <curl/curl.h>
@@ -20,10 +20,12 @@ using namespace std::chrono_literals;
 
 namespace {
 
-constexpr const char* OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+// Gemini API endpoint - using generateContent for free tier
+constexpr const char* GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 constexpr int kMaxRetries = 5;
-constexpr uint64_t kMinTimeoutMs = 15000;  // 15 seconds minimum
-constexpr uint64_t kMaxTimeoutMs = 180000; // 3 minutes maximum
+// More conservative timeouts for free tier - Gemini free tier is slower
+constexpr uint64_t kMinTimeoutMs = 20000;  // 20 seconds minimum
+constexpr uint64_t kMaxTimeoutMs = 240000; // 4 minutes maximum for free tier
 
 inline uint64_t now_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -32,13 +34,14 @@ inline uint64_t now_ms() {
 }
 
 // Per-model state for adaptive timeout and rate limiting
+// Optimized for Gemini free tier: 15 RPM (requests per minute)
 struct ModelState {
-    double tokens = 5.0;            // current tokens in bucket
-    double capacity = 10.0;         // max tokens
-    double refill_per_sec = 2.0;    // tokens added per second
+    double tokens = 3.0;            // current tokens in bucket (lower for free tier)
+    double capacity = 5.0;          // max tokens (conservative for free tier)
+    double refill_per_sec = 0.25;   // ~15 per minute for free tier
     uint64_t last_refill_ms = 0;    // epoch ms
     uint64_t retry_after_until_ms = 0; // if > now_ms(), requests must wait
-    double ewma_ms = 10000.0;       // EWMA of response duration
+    double ewma_ms = 15000.0;       // EWMA of response duration (higher default for Gemini)
 };
 
 class PersistentState {
@@ -112,7 +115,7 @@ private:
 };
 
 static PersistentState& get_state() {
-    static PersistentState state(".llm_state.txt");
+    static PersistentState state(".gemini_state.txt");
     return state;
 }
 
@@ -129,17 +132,17 @@ void refill_tokens(ModelState& s) {
 }
 
 void update_ewma_and_state(const std::string& model, ModelState& s, uint64_t observed_ms) {
-    double alpha = 0.2;
+    double alpha = 0.15; // Slower adaptation for more stable free tier behavior
     s.ewma_ms = alpha * (double)observed_ms + (1.0 - alpha) * s.ewma_ms;
-    s.ewma_ms = std::max(100.0, std::min(300000.0, s.ewma_ms));
+    s.ewma_ms = std::max(1000.0, std::min(300000.0, s.ewma_ms));
     
-    // Adapt capacity based on performance
-    if (s.ewma_ms > 30000) {
-        s.capacity = std::max(1.0, s.capacity * 0.95);
-        s.refill_per_sec = std::max(0.1, s.refill_per_sec * 0.95);
-    } else {
-        s.capacity = std::min(20.0, s.capacity * 1.02);
-        s.refill_per_sec = std::min(10.0, s.refill_per_sec * 1.02);
+    // More conservative capacity adaptation for free tier
+    if (s.ewma_ms > 40000) {
+        s.capacity = std::max(1.0, s.capacity * 0.98);
+        s.refill_per_sec = std::max(0.1, s.refill_per_sec * 0.98);
+    } else if (s.ewma_ms < 15000) {
+        s.capacity = std::min(10.0, s.capacity * 1.01);
+        s.refill_per_sec = std::min(0.5, s.refill_per_sec * 1.01);
     }
 }
 
@@ -238,7 +241,11 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
     // Wait for retry-after if needed
     uint64_t now = now_ms();
     if (s.retry_after_until_ms > now) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(s.retry_after_until_ms - now));
+        uint64_t wait_time = s.retry_after_until_ms - now;
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->info("Gemini rate limit: waiting {} seconds before next request", wait_time / 1000);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(wait_time));
         now = now_ms();
         refill_tokens(s);
     }
@@ -247,6 +254,9 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
     if (s.tokens < 1.0) {
         double needed = 1.0 - s.tokens;
         uint64_t wait_ms = (uint64_t)std::ceil((needed / s.refill_per_sec) * 1000.0);
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->debug("Gemini rate limiting: waiting {} seconds for token", wait_ms / 1000);
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
         refill_tokens(s);
     }
@@ -255,8 +265,8 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
     if (s.tokens >= 1.0) s.tokens -= 1.0;
     else s.tokens = 0.0;
     
-    // Compute adaptive timeout
-    uint64_t timeout_ms = (uint64_t)std::round(s.ewma_ms * 2.5);
+    // Compute adaptive timeout - more generous for free tier
+    uint64_t timeout_ms = (uint64_t)std::round(s.ewma_ms * 3.0);
     timeout_ms = std::max(kMinTimeoutMs, std::min(kMaxTimeoutMs, timeout_ms));
     
     std::mt19937 rng(std::random_device{}());
@@ -279,13 +289,15 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
             } catch (...) {}
         }
         
-        // Retry on 429 or 5xx
+        // Retry on 429 (rate limit) or 5xx (server error)
+        // Gemini free tier is more prone to rate limiting
         if (http.status == 429 || (http.status >= 500 && http.status < 600)) {
             if (s.retry_after_until_ms <= now_ms()) {
-                uint64_t base = 1000ULL * (1ULL << attempt);
-                std::uniform_real_distribution<double> dist(0.5, 1.5);
+                // More aggressive backoff for free tier
+                uint64_t base = 2000ULL * (1ULL << attempt);
+                std::uniform_real_distribution<double> dist(0.7, 1.3);
                 uint64_t jittered = (uint64_t)(base * dist(rng));
-                s.retry_after_until_ms = now_ms() + std::min(jittered, 60000ULL);
+                s.retry_after_until_ms = now_ms() + std::min(jittered, 120000ULL);
             }
             state.put(model, s);
             
@@ -294,6 +306,10 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
                 wait = s.retry_after_until_ms - now_ms();
             }
             if (wait > 0) {
+                if (auto logger = Logger::get_logger("core_logger")) {
+                    logger->warn("Gemini API rate limit hit, waiting {} seconds (attempt {}/{})",
+                               wait / 1000, attempt + 1, kMaxRetries);
+                }
                 std::this_thread::sleep_for(std::chrono::milliseconds(wait));
                 refill_tokens(s);
             }
@@ -319,94 +335,111 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
 
 } // anonymous namespace
 
-LLMClient::LLMClient(std::string api_key, std::string model)
+GeminiClient::GeminiClient(std::string api_key, std::string model)
     : api_key(std::move(api_key)), model(std::move(model)) {
     curl_global_init(CURL_GLOBAL_DEFAULT);
 }
 
-LLMClient::~LLMClient() {
+GeminiClient::~GeminiClient() {
     curl_global_cleanup();
 }
 
-std::string LLMClient::effective_model() const {
+std::string GeminiClient::effective_model() const {
     if (!model.empty()) return model;
-    return "gpt-4o-mini";
+    return "gemini-1.5-flash";  // Default free tier model
 }
 
-std::string LLMClient::make_payload(const std::string& file_name,
+std::string GeminiClient::make_payload(const std::string& file_name,
                                    const std::string& file_path,
                                    const FileType file_type,
                                    const std::string& consistency_context) {
     Json::Value root;
-    root["model"] = effective_model();
-    root["temperature"] = 0.0;
-    root["max_tokens"] = 100;
     
-    Json::Value messages(Json::arrayValue);
+    // Gemini uses different structure than OpenAI
+    Json::Value contents(Json::arrayValue);
+    Json::Value part;
+    Json::Value parts(Json::arrayValue);
     
-    Json::Value system_msg;
-    system_msg["role"] = "system";
-    std::string system_content = "You are a file categorization assistant. "
+    std::string prompt = "You are a file categorization assistant. "
         "Return ONLY a category and subcategory in the format: Category : Subcategory. "
-        "No explanations, no additional text.";
+        "No explanations, no additional text.\n\n";
     
     if (!consistency_context.empty()) {
-        system_content += "\n\nFor consistency, consider these recent categorizations:\n" + consistency_context;
+        prompt += "For consistency, consider these recent categorizations:\n" + 
+                 consistency_context + "\n\n";
     }
-    system_msg["content"] = system_content;
-    messages.append(system_msg);
     
-    Json::Value user_msg;
-    user_msg["role"] = "user";
-    user_msg["content"] = "Categorize this " + to_string(file_type) + ": " + file_name;
-    messages.append(user_msg);
+    prompt += "Categorize this " + to_string(file_type) + ": " + file_name;
     
-    root["messages"] = messages;
+    part["text"] = prompt;
+    parts.append(part);
+    
+    Json::Value content;
+    content["parts"] = parts;
+    contents.append(content);
+    
+    root["contents"] = contents;
+    
+    // Generation config for concise output
+    Json::Value generationConfig;
+    generationConfig["temperature"] = 0.0;
+    generationConfig["maxOutputTokens"] = 100;
+    root["generationConfig"] = generationConfig;
     
     Json::StreamWriterBuilder builder;
     builder["indentation"] = "";
     return Json::writeString(builder, root);
 }
 
-std::string LLMClient::make_generic_payload(const std::string& system_prompt,
+std::string GeminiClient::make_generic_payload(const std::string& system_prompt,
                                            const std::string& user_prompt,
                                            int max_tokens) const {
     Json::Value root;
-    root["model"] = effective_model();
-    root["temperature"] = 0.0;
-    root["max_tokens"] = max_tokens;
     
-    Json::Value messages(Json::arrayValue);
+    Json::Value contents(Json::arrayValue);
+    Json::Value parts(Json::arrayValue);
+    Json::Value part;
     
-    if (!system_prompt.empty()) {
-        Json::Value system_msg;
-        system_msg["role"] = "system";
-        system_msg["content"] = system_prompt;
-        messages.append(system_msg);
-    }
+    std::string full_prompt = system_prompt;
+    if (!system_prompt.empty()) full_prompt += "\n\n";
+    full_prompt += user_prompt;
     
-    Json::Value user_msg;
-    user_msg["role"] = "user";
-    user_msg["content"] = user_prompt;
-    messages.append(user_msg);
+    part["text"] = full_prompt;
+    parts.append(part);
     
-    root["messages"] = messages;
+    Json::Value content;
+    content["parts"] = parts;
+    contents.append(content);
+    
+    root["contents"] = contents;
+    
+    Json::Value generationConfig;
+    generationConfig["temperature"] = 0.0;
+    generationConfig["maxOutputTokens"] = max_tokens;
+    root["generationConfig"] = generationConfig;
     
     Json::StreamWriterBuilder builder;
     builder["indentation"] = "";
     return Json::writeString(builder, root);
 }
 
-std::string LLMClient::send_api_request(std::string json_payload) {
+std::string GeminiClient::send_api_request(std::string json_payload) {
+    // Build Gemini API URL: models/{model}:generateContent?key={api_key}
+    std::string url = std::string(GEMINI_API_BASE) + effective_model() + 
+                     ":generateContent?key=" + api_key;
+    
     std::vector<std::string> headers;
     headers.push_back("Content-Type: application/json");
-    headers.push_back("Authorization: Bearer " + api_key);
     
-    auto http = send_with_retry(effective_model(), OPENAI_API_URL, json_payload, headers);
+    auto http = send_with_retry(effective_model(), url, json_payload, headers);
     
     if (http.status < 200 || http.status >= 300) {
-        throw std::runtime_error("OpenAI API request failed with status " + 
-                               std::to_string(http.status) + ": " + http.body);
+        std::string error_msg = "Gemini API request failed with status " + 
+                               std::to_string(http.status);
+        if (!http.body.empty()) {
+            error_msg += ": " + http.body;
+        }
+        throw std::runtime_error(error_msg);
     }
     
     Json::CharReaderBuilder builder;
@@ -415,25 +448,32 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     std::string errors;
     
     if (!Json::parseFromStream(builder, ss, &response, &errors)) {
-        throw std::runtime_error("Failed to parse API response: " + errors);
+        throw std::runtime_error("Failed to parse Gemini API response: " + errors);
     }
     
-    if (!response.isMember("choices") || response["choices"].empty()) {
-        throw std::runtime_error("API response missing choices");
+    // Gemini response structure: candidates[0].content.parts[0].text
+    if (!response.isMember("candidates") || response["candidates"].empty()) {
+        throw std::runtime_error("Gemini API response missing candidates");
     }
     
-    auto content = response["choices"][0]["message"]["content"].asString();
+    auto& candidate = response["candidates"][0];
+    if (!candidate.isMember("content") || !candidate["content"].isMember("parts") ||
+        candidate["content"]["parts"].empty()) {
+        throw std::runtime_error("Gemini API response missing content parts");
+    }
+    
+    auto content = candidate["content"]["parts"][0]["text"].asString();
     
     if (prompt_logging_enabled) {
         if (auto logger = Logger::get_logger("core_logger")) {
-            logger->debug("API Response: {}", content);
+            logger->debug("Gemini API Response: {}", content);
         }
     }
     
     return content;
 }
 
-std::string LLMClient::categorize_file(const std::string& file_name,
+std::string GeminiClient::categorize_file(const std::string& file_name,
                                       const std::string& file_path,
                                       FileType file_type,
                                       const std::string& consistency_context) {
@@ -442,26 +482,26 @@ std::string LLMClient::categorize_file(const std::string& file_name,
     if (prompt_logging_enabled) {
         last_prompt = payload;
         if (auto logger = Logger::get_logger("core_logger")) {
-            logger->debug("Sending categorization request for: {}", file_name);
+            logger->debug("Sending Gemini categorization request for: {}", file_name);
         }
     }
     
     return send_api_request(payload);
 }
 
-std::string LLMClient::complete_prompt(const std::string& prompt, int max_tokens) {
+std::string GeminiClient::complete_prompt(const std::string& prompt, int max_tokens) {
     auto payload = make_generic_payload("", prompt, max_tokens);
     
     if (prompt_logging_enabled) {
         last_prompt = payload;
         if (auto logger = Logger::get_logger("core_logger")) {
-            logger->debug("Sending completion request");
+            logger->debug("Sending Gemini completion request");
         }
     }
     
     return send_api_request(payload);
 }
 
-void LLMClient::set_prompt_logging_enabled(bool enabled) {
+void GeminiClient::set_prompt_logging_enabled(bool enabled) {
     prompt_logging_enabled = enabled;
 }
