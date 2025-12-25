@@ -106,12 +106,34 @@ private:
         if (save_pending_) return;
         save_pending_ = true;
         
-        std::thread([this]() {
+        // Use a detached thread but ensure we don't access 'this' after potential destruction
+        // Copy what we need by value to avoid use-after-free
+        std::string path_copy = path_;
+        std::map<std::string, ModelState> states_copy;
+        {
+            std::lock_guard<std::mutex> g(mu_);
+            states_copy = states_;
+        }
+        
+        std::thread([path_copy = std::move(path_copy), 
+                     states_copy = std::move(states_copy)]() mutable {
             std::this_thread::sleep_for(250ms);
-            save();
-            std::lock_guard<std::mutex> lock(save_mu_);
-            save_pending_ = false;
+            
+            // Perform save with copied data
+            std::ofstream out(path_copy + ".tmp");
+            if (!out) return;
+            for (auto& p : states_copy) {
+                out << std::quoted(p.first) << ' ' << p.second.tokens << ' ' 
+                    << p.second.capacity << ' ' << p.second.refill_per_sec << ' ' 
+                    << p.second.last_refill_ms << ' ' << p.second.retry_after_until_ms << ' ' 
+                    << p.second.ewma_ms << '\n';
+            }
+            out.close();
+            std::rename((path_copy + ".tmp").c_str(), path_copy.c_str());
         }).detach();
+        
+        // Reset the flag immediately - the save operation is now independent
+        save_pending_ = false;
     }
 
     std::string path_;
