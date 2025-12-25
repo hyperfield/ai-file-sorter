@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QDialogButtonBox>
+#include <QString>
 
 UserCategorizationDialog::UserCategorizationDialog(const std::string& file_name,
                                                  const std::string& error_reason,

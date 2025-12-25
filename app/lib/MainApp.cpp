@@ -3596,37 +3596,38 @@ void MainApp::clear_categorization_cache()
             status_message = tr("Failed to clear cache for current folder.");
         }
     } else if (result == QMessageBox::Yes) {
-        // Clear all cache - delete and reinitialize database
-        QString db_path = QString::fromStdString(
-            db_manager.get_database_path());
+        // Clear all cache by deleting entire database
+        QString db_path = QString::fromStdString(db_manager.get_database_path());
         
         if (core_logger) {
-            core_logger->info("Clearing all categorization cache");
+            core_logger->info("Clearing all categorization cache from: {}", db_path.toStdString());
         }
         
-        // Close and delete database file
+        // Close database connection
         db_manager.close();
         
+        // Delete the database file
         QFile db_file(db_path);
         if (db_file.exists()) {
             success = db_file.remove();
+            if (!success) {
+                if (core_logger) {
+                    core_logger->error("Failed to delete database file: {}", db_path.toStdString());
+                }
+            }
         } else {
             success = true;  // File doesn't exist, consider it success
         }
         
+        // Reinitialize database with fresh schema
         if (success) {
-            // Reinitialize database
             db_manager.initialize();
             status_message = tr("All categorization cache cleared.");
             if (core_logger) {
                 core_logger->info("Successfully cleared all categorization cache");
             }
         } else {
-            status_message = tr("Failed to clear all cache.");
-            if (core_logger) {
-                core_logger->error("Failed to delete database file: {}", 
-                                  db_path.toStdString());
-            }
+            status_message = tr("Failed to delete database file.");
         }
     }
     
