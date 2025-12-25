@@ -506,6 +506,9 @@ void MainApp::restore_tree_settings()
     if (whitelist_selector) {
         apply_whitelist_to_selector();
     }
+    if (context_input) {
+        context_input->setText(QString::fromStdString(settings.get_user_context()));
+    }
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
 }
