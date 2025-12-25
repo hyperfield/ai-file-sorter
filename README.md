@@ -75,6 +75,15 @@ File content–based sorting for certain file types is also in development.
 
 ## Changelog
 
+## [Unreleased]
+- **🧠 User Profiling & Adaptive Organization**: AI File Sorter now learns from your file organization patterns
+  - **Profile Building**: Automatically analyzes folders to understand your hobbies, work patterns, and organizational style
+  - **Adaptive Categorization**: Uses learned profile to provide personalized file categorization suggestions
+  - **Folder Insights**: Tracks category usage, file counts, and dominant patterns per folder over time
+  - **Profile Evolution**: Confidence in characteristics grows as more folders are analyzed
+  - **View User Profile**: New menu option (Help → View User Profile) displays all learned characteristics and folder insights
+  - The system becomes smarter and more tailored to your needs over time
+
 ## [1.5.0] - 2025-12-25
 - **Added Google Gemini API support** with smart free-tier optimization
   - Intelligent rate limiting (15 RPM) prevents quota exhaustion
@@ -97,6 +106,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Features
 
+- **🧠 User Profiling & Adaptive Learning**: AI File Sorter learns from your file organization patterns over time to provide increasingly personalized categorization suggestions
 - **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral), ChatGPT with your own OpenAI API key, or **Google Gemini** with your own Gemini API key (choose any model your key allows).
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
 - **Smart Free-Tier Support**: Gemini integration includes intelligent rate limiting (15 RPM), adaptive timeout handling (20s-240s), and self-operating retry logic optimized for free tier users - no more timeouts!
@@ -422,6 +432,44 @@ Want to use Google Gemini with optimized free-tier support? Bring your own Gemin
 4. Click the **"Analyze"** button. The app will scan each file and/or directory based on your selected options.
 5. A review dialog will appear. Verify the assigned categories (and subcategories, if enabled in step 3).
 6. Click **"Confirm & Sort!"** to move the files, or **"Continue Later"** to postpone. You can always resume where you left off since categorization results are saved.
+
+---
+
+## User Profiling & Adaptive Learning
+
+AI File Sorter includes an intelligent user profiling system that learns from your file organization patterns over time. The more you use it, the better it becomes at understanding your preferences and providing personalized categorization suggestions.
+
+### How It Works
+
+1. **Automatic Analysis**: Every time you analyze a folder, the system:
+   - Examines file categories and patterns
+   - Infers your interests and hobbies (e.g., music, photography, programming)
+   - Detects work patterns and professional activities
+   - Analyzes your organizational style (minimalist, balanced, detailed, power user)
+
+2. **Profile Building**: The system builds a profile containing:
+   - **User Characteristics**: Traits like hobbies, work patterns, and organizational preferences, each with a confidence level
+   - **Folder Insights**: Detailed analysis of each folder including dominant categories, file counts, and usage patterns
+   - **Evolution Over Time**: Confidence levels grow and adapt as more folders are analyzed
+
+3. **Adaptive Categorization**: Your profile is automatically used to:
+   - Provide context to the AI for better categorization suggestions
+   - Understand your preferences and organizational style
+   - Make increasingly accurate predictions based on your history
+
+### Viewing Your Profile
+
+Access your user profile anytime via **Help → View User Profile**. The profile dialog shows:
+
+- **Overview Tab**: Summary of your characteristics, interests, and folder statistics
+- **Characteristics Tab**: All learned traits organized by category (hobbies, work patterns, organization style) with confidence levels and evidence
+- **Folder Insights Tab**: Analysis of each folder you've organized, including file counts, dominant categories, and usage patterns
+
+### Privacy & Storage
+
+- All profile data is stored **locally** in your AI File Sorter database
+- No data is sent to external servers (except when using remote LLM APIs for categorization)
+- The profile helps the AI understand your context without compromising your privacy
 
 ---
 
