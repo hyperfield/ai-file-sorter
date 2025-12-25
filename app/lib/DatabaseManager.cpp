@@ -196,10 +196,37 @@ DatabaseManager::DatabaseManager(std::string config_dir)
 }
 
 DatabaseManager::~DatabaseManager() {
+    close();
+}
+
+void DatabaseManager::close() {
     if (db) {
         sqlite3_close(db);
         db = nullptr;
     }
+}
+
+void DatabaseManager::initialize() {
+    if (db) {
+        close();
+    }
+    
+    if (db_file.empty()) {
+        db_log(spdlog::level::err, "Error: Database path is empty");
+        return;
+    }
+
+    if (sqlite3_open(db_file.c_str(), &db) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Can't open database: {}", sqlite3_errmsg(db));
+        db = nullptr;
+        return;
+    }
+
+    sqlite3_extended_result_codes(db, 1);
+
+    initialize_schema();
+    initialize_taxonomy_schema();
+    load_taxonomy_cache();
 }
 
 void DatabaseManager::initialize_schema() {
@@ -218,6 +245,7 @@ void DatabaseManager::initialize_schema() {
             categorization_style INTEGER DEFAULT 0,
             rename_only INTEGER DEFAULT 0,
             rename_applied INTEGER DEFAULT 0,
+            user_provided INTEGER DEFAULT 0,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(file_name, file_type, dir_path)
         );
@@ -277,6 +305,17 @@ void DatabaseManager::initialize_schema() {
     if (sqlite3_exec(db, add_rename_applied_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         if (!is_duplicate_column_error(error_msg)) {
             db_log(spdlog::level::warn, "Failed to add rename_applied column: {}", error_msg ? error_msg : "");
+        }
+        if (error_msg) {
+            sqlite3_free(error_msg);
+        }
+    }
+
+    const char *add_user_provided_column_sql =
+        "ALTER TABLE file_categorization ADD COLUMN user_provided INTEGER DEFAULT 0;";
+    if (sqlite3_exec(db, add_user_provided_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        if (!is_duplicate_column_error(error_msg)) {
+            db_log(spdlog::level::warn, "Failed to add user_provided column: {}", error_msg ? error_msg : "");
         }
         if (error_msg) {
             sqlite3_free(error_msg);
@@ -730,14 +769,15 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     bool used_consistency_hints,
     const std::string &suggested_name,
     bool rename_only,
-    bool rename_applied) {
+    bool rename_applied,
+    bool user_provided) {
     if (!db) return false;
 
     const char *sql = R"(
         INSERT INTO file_categorization
             (file_name, file_type, dir_path, category, subcategory, suggested_name,
-             taxonomy_id, categorization_style, rename_only, rename_applied)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             taxonomy_id, categorization_style, rename_only, rename_applied, user_provided)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_name, file_type, dir_path)
         DO UPDATE SET
             category = excluded.category,
@@ -749,7 +789,8 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
             rename_applied = CASE
                 WHEN excluded.rename_applied = 1 THEN 1
                 ELSE rename_applied
-            END;
+            END,
+            user_provided = excluded.user_provided;
     )";
 
     sqlite3_stmt *stmt = nullptr;
@@ -773,6 +814,10 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     sqlite3_bind_int(stmt, 8, used_consistency_hints ? 1 : 0);
     sqlite3_bind_int(stmt, 9, rename_only ? 1 : 0);
     sqlite3_bind_int(stmt, 10, rename_applied ? 1 : 0);
+    sqlite3_bind_int(stmt, 8, used_consistency_hints ? 1 : 0);
+    sqlite3_bind_int(stmt, 9, rename_only ? 1 : 0);
+    sqlite3_bind_int(stmt, 10, rename_applied ? 1 : 0);
+    sqlite3_bind_int(stmt, 11, user_provided ? 1 : 0);
 
     bool success = true;
     if (sqlite3_step(stmt) != SQLITE_DONE) {
