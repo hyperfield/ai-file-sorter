@@ -102,18 +102,23 @@ public:
 
 private:
     void schedule_save() {
-        if (save_thread_.joinable()) return;
-        save_thread_ = std::thread([this]() {
+        std::lock_guard<std::mutex> lock(save_mu_);
+        if (save_pending_) return;
+        save_pending_ = true;
+        
+        std::thread([this]() {
             std::this_thread::sleep_for(250ms);
             save();
-        });
-        save_thread_.detach();
+            std::lock_guard<std::mutex> lock(save_mu_);
+            save_pending_ = false;
+        }).detach();
     }
 
     std::string path_;
     std::map<std::string, ModelState> states_;
     std::mutex mu_;
-    std::thread save_thread_;
+    std::mutex save_mu_;
+    bool save_pending_{false};
 };
 
 static PersistentState& get_state() {
@@ -337,14 +342,24 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
 
 } // anonymous namespace
 
+namespace {
+// Ensure curl is initialized once per process
+struct CurlGlobalInit {
+    CurlGlobalInit() { curl_global_init(CURL_GLOBAL_DEFAULT); }
+    ~CurlGlobalInit() { curl_global_cleanup(); }
+};
+
+void ensure_curl_initialized() {
+    static CurlGlobalInit curl_init;
+}
+} // anonymous namespace
+
 GeminiClient::GeminiClient(std::string api_key, std::string model)
     : api_key(std::move(api_key)), model(std::move(model)) {
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    ensure_curl_initialized();
 }
 
-GeminiClient::~GeminiClient() {
-    curl_global_cleanup();
-}
+GeminiClient::~GeminiClient() = default;
 
 std::string GeminiClient::effective_model() const {
     if (!model.empty()) return model;

@@ -97,18 +97,23 @@ public:
 
 private:
     void schedule_save() {
-        if (save_thread_.joinable()) return;
-        save_thread_ = std::thread([this]() {
+        std::lock_guard<std::mutex> lock(save_mu_);
+        if (save_pending_) return;
+        save_pending_ = true;
+        
+        std::thread([this]() {
             std::this_thread::sleep_for(250ms);
             save();
-        });
-        save_thread_.detach();
+            std::lock_guard<std::mutex> lock(save_mu_);
+            save_pending_ = false;
+        }).detach();
     }
 
     std::string path_;
     std::map<std::string, ModelState> states_;
     std::mutex mu_;
-    std::thread save_thread_;
+    std::mutex save_mu_;
+    bool save_pending_{false};
 };
 
 static PersistentState& get_state() {
