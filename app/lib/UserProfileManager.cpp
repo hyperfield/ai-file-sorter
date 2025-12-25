@@ -130,6 +130,10 @@ void UserProfileManager::analyze_and_update_from_folder(
     }
     
     current_profile_.last_updated = get_current_timestamp();
+    
+    // Learn organizational template from this folder
+    learn_organizational_template(folder_path, files);
+    
     save_profile();
     
     logger_->info("User profile updated with insights from: {}", folder_path);
@@ -456,4 +460,176 @@ void UserProfileManager::save_profile() {
 void UserProfileManager::load_profile() {
     current_profile_ = db_manager_.load_user_profile(current_profile_.user_id);
     logger_->debug("User profile loaded from database");
+}
+
+void UserProfileManager::learn_organizational_template(
+    const std::string& folder_path,
+    const std::vector<CategorizedFile>& files)
+{
+    if (files.size() < 3) {
+        // Not enough data to learn a meaningful template
+        return;
+    }
+    
+    // Extract categories and subcategories
+    std::unordered_set<std::string> categories;
+    std::unordered_set<std::string> subcategories;
+    
+    for (const auto& file : files) {
+        if (!file.category.empty()) {
+            categories.insert(file.category);
+        }
+        if (!file.subcategory.empty()) {
+            subcategories.insert(file.subcategory);
+        }
+    }
+    
+    // Determine template name based on folder usage pattern
+    std::string usage_pattern = determine_usage_pattern(files);
+    std::string folder_name = extract_template_name_from_path(folder_path);
+    std::string template_name = usage_pattern + "_" + folder_name;
+    
+    // Check if we already have a similar template
+    OrganizationalTemplate new_template;
+    new_template.template_name = template_name;
+    new_template.description = generate_folder_description(folder_path, files);
+    new_template.suggested_categories = std::vector<std::string>(categories.begin(), categories.end());
+    new_template.suggested_subcategories = std::vector<std::string>(subcategories.begin(), subcategories.end());
+    new_template.based_on_folders = folder_path;
+    new_template.usage_count = 1;
+    new_template.confidence = std::min(0.5f + (files.size() * 0.01f), 0.95f);
+    
+    // Find if similar template exists
+    bool found_similar = false;
+    for (auto& existing_template : current_profile_.learned_templates) {
+        if (is_similar_template(existing_template, new_template)) {
+            // Update existing template
+            existing_template.usage_count++;
+            existing_template.confidence = std::min(
+                existing_template.confidence * 0.7f + new_template.confidence * 0.3f,
+                1.0f
+            );
+            existing_template.based_on_folders += ", " + folder_path;
+            
+            // Merge categories
+            for (const auto& cat : new_template.suggested_categories) {
+                if (std::find(existing_template.suggested_categories.begin(),
+                            existing_template.suggested_categories.end(),
+                            cat) == existing_template.suggested_categories.end()) {
+                    existing_template.suggested_categories.push_back(cat);
+                }
+            }
+            
+            found_similar = true;
+            logger_->info("Updated existing template: {}", existing_template.template_name);
+            break;
+        }
+    }
+    
+    if (!found_similar) {
+        current_profile_.learned_templates.push_back(new_template);
+        logger_->info("Learned new organizational template: {}", template_name);
+    }
+    
+    // Merge similar templates periodically
+    if (current_profile_.learned_templates.size() > 5) {
+        merge_similar_templates();
+    }
+}
+
+std::vector<OrganizationalTemplate> UserProfileManager::get_suggested_templates_for_folder(
+    const std::string& folder_path) const
+{
+    std::vector<OrganizationalTemplate> suggestions;
+    
+    // Extract folder name to find relevant templates
+    std::string folder_name = extract_template_name_from_path(folder_path);
+    std::transform(folder_name.begin(), folder_name.end(), folder_name.begin(), ::tolower);
+    
+    for (const auto& templ : current_profile_.learned_templates) {
+        std::string templ_name_lower = templ.template_name;
+        std::transform(templ_name_lower.begin(), templ_name_lower.end(),
+                      templ_name_lower.begin(), ::tolower);
+        
+        // Check if template name contains folder name or vice versa
+        if (templ_name_lower.find(folder_name) != std::string::npos ||
+            folder_name.find(templ_name_lower) != std::string::npos ||
+            templ.confidence > 0.7f) {  // High confidence templates are always suggested
+            suggestions.push_back(templ);
+        }
+    }
+    
+    // Sort by confidence
+    std::sort(suggestions.begin(), suggestions.end(),
+              [](const OrganizationalTemplate& a, const OrganizationalTemplate& b) {
+                  return a.confidence > b.confidence;
+              });
+    
+    // Return top 3 suggestions
+    if (suggestions.size() > 3) {
+        suggestions.resize(3);
+    }
+    
+    return suggestions;
+}
+
+std::vector<OrganizationalTemplate> UserProfileManager::get_all_templates() const {
+    return current_profile_.learned_templates;
+}
+
+std::string UserProfileManager::extract_template_name_from_path(
+    const std::string& folder_path) const
+{
+    // Extract just the folder name from the full path
+    size_t last_slash = folder_path.find_last_of("/\\");
+    if (last_slash != std::string::npos && last_slash < folder_path.length() - 1) {
+        return folder_path.substr(last_slash + 1);
+    }
+    return folder_path;
+}
+
+bool UserProfileManager::is_similar_template(
+    const OrganizationalTemplate& t1,
+    const OrganizationalTemplate& t2) const
+{
+    // Templates are similar if they share significant category overlap
+    int common_categories = 0;
+    for (const auto& cat1 : t1.suggested_categories) {
+        for (const auto& cat2 : t2.suggested_categories) {
+            if (cat1 == cat2) {
+                common_categories++;
+            }
+        }
+    }
+    
+    float similarity = static_cast<float>(common_categories) /
+                      std::max(t1.suggested_categories.size(), t2.suggested_categories.size());
+    
+    return similarity > 0.6f;  // 60% category overlap
+}
+
+void UserProfileManager::merge_similar_templates() {
+    // Find and merge templates with high similarity
+    for (size_t i = 0; i < current_profile_.learned_templates.size(); ++i) {
+        for (size_t j = i + 1; j < current_profile_.learned_templates.size(); ) {
+            if (is_similar_template(current_profile_.learned_templates[i],
+                                   current_profile_.learned_templates[j])) {
+                // Merge j into i
+                current_profile_.learned_templates[i].usage_count +=
+                    current_profile_.learned_templates[j].usage_count;
+                current_profile_.learned_templates[i].confidence = std::min(
+                    (current_profile_.learned_templates[i].confidence +
+                     current_profile_.learned_templates[j].confidence) / 2.0f,
+                    1.0f
+                );
+                
+                // Erase j
+                current_profile_.learned_templates.erase(
+                    current_profile_.learned_templates.begin() + j);
+                logger_->debug("Merged similar templates");
+            } else {
+                ++j;
+            }
+        }
+    }
 }

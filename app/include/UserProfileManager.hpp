@@ -39,6 +39,15 @@ public:
     
     // Get top characteristics by confidence
     std::vector<UserCharacteristic> get_top_characteristics(int limit = 10) const;
+    
+    // Organizational template management
+    std::vector<OrganizationalTemplate> get_suggested_templates_for_folder(
+        const std::string& folder_path) const;
+    
+    void learn_organizational_template(const std::string& folder_path,
+                                      const std::vector<CategorizedFile>& files);
+    
+    std::vector<OrganizationalTemplate> get_all_templates() const;
 
 private:
     // Analyze file patterns to infer user characteristics
@@ -71,6 +80,12 @@ private:
     
     // Determine usage pattern for folder
     std::string determine_usage_pattern(const std::vector<CategorizedFile>& files);
+    
+    // Template learning helpers
+    std::string extract_template_name_from_path(const std::string& folder_path) const;
+    bool is_similar_template(const OrganizationalTemplate& t1,
+                            const OrganizationalTemplate& t2) const;
+    void merge_similar_templates();
     
     // Save profile to database
     void save_profile();

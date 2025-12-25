@@ -82,6 +82,11 @@ public:
     // Folder learning settings
     std::string get_folder_inclusion_level(const std::string& folder_path);
     void set_folder_inclusion_level(const std::string& folder_path, const std::string& level);
+    
+    // Organizational template methods
+    bool save_organizational_template(const std::string& user_id,
+                                     const OrganizationalTemplate& templ);
+    std::vector<OrganizationalTemplate> load_organizational_templates(const std::string& user_id);
 
 private:
     struct TaxonomyEntry {

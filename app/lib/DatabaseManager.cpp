@@ -1401,6 +1401,34 @@ void DatabaseManager::initialize_user_profile_schema() {
         db_log(spdlog::level::err, "Failed to create folder_learning_settings table: {}", error_msg);
         sqlite3_free(error_msg);
     }
+    
+    // Organizational templates table
+    const char *templates_sql = R"(
+        CREATE TABLE IF NOT EXISTS organizational_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            template_name TEXT NOT NULL,
+            description TEXT,
+            suggested_categories TEXT,
+            suggested_subcategories TEXT,
+            confidence REAL NOT NULL,
+            based_on_folders TEXT,
+            usage_count INTEGER DEFAULT 1,
+            FOREIGN KEY(user_id) REFERENCES user_profile(user_id),
+            UNIQUE(user_id, template_name)
+        );
+    )";
+    if (sqlite3_exec(db, templates_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create organizational_templates table: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
+    
+    const char *create_templates_index_sql =
+        "CREATE INDEX IF NOT EXISTS idx_organizational_templates_user ON organizational_templates(user_id);";
+    if (sqlite3_exec(db, create_templates_index_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create templates index: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
 }
 
 bool DatabaseManager::save_user_profile(const UserProfile& profile) {
@@ -1436,6 +1464,11 @@ bool DatabaseManager::save_user_profile(const UserProfile& profile) {
         for (const auto& insight : profile.folder_insights) {
             save_folder_insight(profile.user_id, insight);
         }
+        
+        // Save organizational templates
+        for (const auto& templ : profile.learned_templates) {
+            save_organizational_template(profile.user_id, templ);
+        }
     }
 
     return success;
@@ -1467,9 +1500,10 @@ UserProfile DatabaseManager::load_user_profile(const std::string& user_id) {
 
     sqlite3_finalize(stmt);
 
-    // Load characteristics and folder insights
+    // Load characteristics, folder insights, and templates
     profile.characteristics = load_user_characteristics(user_id);
     profile.folder_insights = load_folder_insights(user_id);
+    profile.learned_templates = load_organizational_templates(user_id);
 
     return profile;
 }
@@ -1673,4 +1707,126 @@ void DatabaseManager::set_folder_inclusion_level(const std::string& folder_path,
     }
 
     sqlite3_finalize(stmt);
+}
+
+bool DatabaseManager::save_organizational_template(const std::string& user_id,
+                                                   const OrganizationalTemplate& templ) {
+    if (!db) return false;
+
+    // Convert vectors to comma-separated strings
+    std::string categories_str;
+    for (size_t i = 0; i < templ.suggested_categories.size(); ++i) {
+        if (i > 0) categories_str += ",";
+        categories_str += templ.suggested_categories[i];
+    }
+    
+    std::string subcategories_str;
+    for (size_t i = 0; i < templ.suggested_subcategories.size(); ++i) {
+        if (i > 0) subcategories_str += ",";
+        subcategories_str += templ.suggested_subcategories[i];
+    }
+
+    const char *sql = R"(
+        INSERT INTO organizational_templates 
+        (user_id, template_name, description, suggested_categories, 
+         suggested_subcategories, confidence, based_on_folders, usage_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, template_name) DO UPDATE SET
+            description = excluded.description,
+            suggested_categories = excluded.suggested_categories,
+            suggested_subcategories = excluded.suggested_subcategories,
+            confidence = excluded.confidence,
+            based_on_folders = excluded.based_on_folders,
+            usage_count = excluded.usage_count;
+    )";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare save template: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, user_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, templ.template_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, templ.description.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, categories_str.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, subcategories_str.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_double(stmt, 6, templ.confidence);
+    sqlite3_bind_text(stmt, 7, templ.based_on_folders.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 8, templ.usage_count);
+
+    bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+
+    return success;
+}
+
+std::vector<OrganizationalTemplate> DatabaseManager::load_organizational_templates(
+    const std::string& user_id) {
+    std::vector<OrganizationalTemplate> templates;
+
+    if (!db) return templates;
+
+    const char *sql = R"(
+        SELECT template_name, description, suggested_categories, 
+               suggested_subcategories, confidence, based_on_folders, usage_count
+        FROM organizational_templates
+        WHERE user_id = ?
+        ORDER BY confidence DESC, usage_count DESC;
+    )";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::warn, "Failed to prepare load templates: {}", sqlite3_errmsg(db));
+        return templates;
+    }
+
+    sqlite3_bind_text(stmt, 1, user_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        OrganizationalTemplate templ;
+        
+        const char *name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char *desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char *cats = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char *subcats = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        const char *folders = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+
+        templ.template_name = name ? name : "";
+        templ.description = desc ? desc : "";
+        templ.confidence = sqlite3_column_double(stmt, 4);
+        templ.based_on_folders = folders ? folders : "";
+        templ.usage_count = sqlite3_column_int(stmt, 6);
+
+        // Parse comma-separated categories
+        if (cats) {
+            std::string cats_str = cats;
+            size_t pos = 0;
+            while ((pos = cats_str.find(",")) != std::string::npos) {
+                templ.suggested_categories.push_back(cats_str.substr(0, pos));
+                cats_str.erase(0, pos + 1);
+            }
+            if (!cats_str.empty()) {
+                templ.suggested_categories.push_back(cats_str);
+            }
+        }
+
+        // Parse comma-separated subcategories
+        if (subcats) {
+            std::string subcats_str = subcats;
+            size_t pos = 0;
+            while ((pos = subcats_str.find(",")) != std::string::npos) {
+                templ.suggested_subcategories.push_back(subcats_str.substr(0, pos));
+                subcats_str.erase(0, pos + 1);
+            }
+            if (!subcats_str.empty()) {
+                templ.suggested_subcategories.push_back(subcats_str);
+            }
+        }
+
+        templates.push_back(templ);
+    }
+
+    sqlite3_finalize(stmt);
+    return templates;
 }

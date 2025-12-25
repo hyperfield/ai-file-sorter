@@ -40,6 +40,7 @@ void UserProfileDialog::setup_ui() {
     setup_overview_tab();
     setup_characteristics_tab();
     setup_folder_insights_tab();
+    setup_templates_tab();
     
     main_layout->addWidget(tab_widget_);
     
@@ -260,6 +261,71 @@ void UserProfileDialog::populate_folder_insights() {
         QString tooltip = QString("Description: %1\n\nDominant Categories: %2")
             .arg(QString::fromStdString(insight.description))
             .arg(QString::fromStdString(insight.dominant_categories));
+        item->setToolTip(0, tooltip);
+    }
+}
+
+void UserProfileDialog::setup_templates_tab() {
+    auto* templates_widget = new QWidget();
+    auto* templates_layout = new QVBoxLayout(templates_widget);
+    
+    auto* info_label = new QLabel("Learned organizational templates based on your folder patterns:");
+    info_label->setWordWrap(true);
+    templates_layout->addWidget(info_label);
+    
+    templates_tree_ = new QTreeWidget();
+    templates_tree_->setHeaderLabels({"Template Name", "Confidence", "Usage Count", "Categories"});
+    templates_tree_->setAlternatingRowColors(true);
+    templates_tree_->setSelectionMode(QAbstractItemView::SingleSelection);
+    templates_tree_->header()->setStretchLastSection(true);
+    templates_tree_->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    templates_tree_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    templates_tree_->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    
+    templates_layout->addWidget(templates_tree_);
+    
+    populate_templates();
+    
+    tab_widget_->addTab(templates_widget, "Organizational Templates");
+}
+
+void UserProfileDialog::populate_templates() {
+    for (const auto& templ : profile_.learned_templates) {
+        auto* item = new QTreeWidgetItem(templates_tree_);
+        item->setText(0, QString::fromStdString(templ.template_name));
+        
+        int confidence_pct = static_cast<int>(templ.confidence * 100);
+        item->setText(1, QString("%1%").arg(confidence_pct));
+        
+        item->setText(2, QString::number(templ.usage_count));
+        
+        // Join categories
+        QString categories_str;
+        for (size_t i = 0; i < templ.suggested_categories.size() && i < 5; ++i) {
+            if (i > 0) categories_str += ", ";
+            categories_str += QString::fromStdString(templ.suggested_categories[i]);
+        }
+        if (templ.suggested_categories.size() > 5) {
+            categories_str += "...";
+        }
+        item->setText(3, categories_str);
+        
+        // Color code by confidence
+        QColor color;
+        if (templ.confidence >= 0.8f) {
+            color = QColor(0, 200, 0);  // Green
+        } else if (templ.confidence >= 0.5f) {
+            color = QColor(200, 200, 0);  // Yellow
+        } else {
+            color = QColor(200, 0, 0);  // Red
+        }
+        item->setForeground(1, color);
+        
+        // Add detailed tooltip
+        QString tooltip = QString("Description: %1\n\nSuggested Categories:\n%2\n\nBased on folders: %3")
+            .arg(QString::fromStdString(templ.description))
+            .arg(categories_str)
+            .arg(QString::fromStdString(templ.based_on_folders));
         item->setToolTip(0, tooltip);
     }
 }
