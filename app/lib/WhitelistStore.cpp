@@ -6,13 +6,26 @@
 #include <algorithm>
 
 namespace {
+// Changed from comma to semicolon as the primary separator
 std::vector<std::string> split_csv(const QString& value) {
     std::vector<std::string> out;
-    const auto parts = value.split(",");
-    for (const auto& part : parts) {
-        QString trimmed = part.trimmed();
-        if (!trimmed.isEmpty()) {
-            out.emplace_back(trimmed.toStdString());
+    // First try semicolon (new format)
+    if (value.contains(';')) {
+        const auto parts = value.split(";");
+        for (const auto& part : parts) {
+            QString trimmed = part.trimmed();
+            if (!trimmed.isEmpty()) {
+                out.emplace_back(trimmed.toStdString());
+            }
+        }
+    } else {
+        // Fall back to comma for backward compatibility
+        const auto parts = value.split(",");
+        for (const auto& part : parts) {
+            QString trimmed = part.trimmed();
+            if (!trimmed.isEmpty()) {
+                out.emplace_back(trimmed.toStdString());
+            }
         }
     }
     return out;
@@ -23,7 +36,8 @@ QString join_csv(const std::vector<std::string>& values) {
     for (const auto& v : values) {
         list << QString::fromStdString(v);
     }
-    return list.join(", ");
+    // Use semicolon as primary separator now
+    return list.join("; ");
 }
 }
 
@@ -39,9 +53,16 @@ bool WhitelistStore::load()
         settings.beginGroup(group);
         const auto cats = split_csv(settings.value("Categories").toString());
         const auto subs = split_csv(settings.value("Subcategories").toString());
+        const auto context = settings.value("Context", "").toString().toStdString();
+        const bool advanced = settings.value("AdvancedSubcategories", false).toBool();
         settings.endGroup();
         if (!cats.empty() || !subs.empty()) {
-            entries_[group.toStdString()] = WhitelistEntry{cats, subs};
+            WhitelistEntry entry;
+            entry.categories = cats;
+            entry.subcategories = subs;
+            entry.context = context;
+            entry.enable_advanced_subcategories = advanced;
+            entries_[group.toStdString()] = entry;
         }
     }
     if (entries_.empty()) {
@@ -59,6 +80,8 @@ bool WhitelistStore::save() const
         settings.beginGroup(QString::fromStdString(pair.first));
         settings.setValue("Categories", join_csv(pair.second.categories));
         settings.setValue("Subcategories", join_csv(pair.second.subcategories));
+        settings.setValue("Context", QString::fromStdString(pair.second.context));
+        settings.setValue("AdvancedSubcategories", pair.second.enable_advanced_subcategories);
         settings.endGroup();
     }
     settings.sync();
@@ -114,7 +137,12 @@ void WhitelistStore::ensure_default_from_legacy(const std::vector<std::string>& 
     if (use_subs.empty()) {
         use_subs = {};
     }
-    entries_[default_name_] = WhitelistEntry{use_cats, use_subs};
+    WhitelistEntry entry;
+    entry.categories = use_cats;
+    entry.subcategories = use_subs;
+    entry.context = "";
+    entry.enable_advanced_subcategories = false;
+    entries_[default_name_] = entry;
 }
 
 void WhitelistStore::initialize_from_settings(Settings& settings)

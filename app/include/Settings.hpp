@@ -61,6 +61,8 @@ public:
     void set_use_whitelist(bool value);
     std::string get_active_whitelist() const;
     void set_active_whitelist(const std::string& name);
+    std::string get_user_context() const;
+    void set_user_context(const std::string& context);
 
     bool get_development_prompt_logging() const;
     void set_development_prompt_logging(bool value);
@@ -122,6 +124,7 @@ private:
     std::vector<std::string> allowed_categories;
     std::vector<std::string> allowed_subcategories;
     std::string active_whitelist;
+    std::string user_context;  // User-provided context for categorization
     std::vector<CustomLLM> custom_llms;
     std::string active_custom_llm_id;
 };

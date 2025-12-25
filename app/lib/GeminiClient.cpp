@@ -404,16 +404,33 @@ std::string GeminiClient::make_payload(const std::string& file_name,
     Json::Value part;
     Json::Value parts(Json::arrayValue);
     
-    std::string prompt = "You are a file categorization assistant. "
+    std::string prompt = "You are an intelligent file categorization assistant. "
+        "Analyze the file name, extension, and context to understand what the file represents. "
+        "Consider the purpose, content type, and intended use of the file. "
         "Return ONLY a category and subcategory in the format: Category : Subcategory. "
         "No explanations, no additional text.\n\n";
     
     if (!consistency_context.empty()) {
-        prompt += "For consistency, consider these recent categorizations:\n" + 
-                 consistency_context + "\n\n";
+        prompt += "Context and constraints:\n" + consistency_context + "\n\n";
     }
     
-    prompt += "Categorize this " + to_string(file_type) + ": " + file_name;
+    // Enhanced prompt with file type awareness
+    prompt += "File to categorize:\n";
+    prompt += "Type: " + to_string(file_type) + "\n";
+    prompt += "Name: " + file_name + "\n";
+    if (!file_path.empty() && file_path != file_name) {
+        prompt += "Path: " + file_path + "\n";
+    }
+    
+    // Extract and analyze file extension
+    size_t dot_pos = file_name.find_last_of('.');
+    if (dot_pos != std::string::npos && dot_pos < file_name.length() - 1) {
+        std::string extension = file_name.substr(dot_pos + 1);
+        prompt += "\nAnalyze this file based on:\n";
+        prompt += "- What this file type (." + extension + ") is typically used for\n";
+        prompt += "- The semantic meaning of the filename\n";
+        prompt += "- Common purposes and applications for this file format\n";
+    }
     
     part["text"] = prompt;
     parts.append(part);
