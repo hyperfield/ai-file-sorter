@@ -388,19 +388,40 @@ std::string LLMClient::make_payload(const std::string& file_name,
     
     Json::Value system_msg;
     system_msg["role"] = "system";
-    std::string system_content = "You are a file categorization assistant. "
+    std::string system_content = "You are an intelligent file categorization assistant. "
+        "Analyze the file name, extension, and context to understand what the file represents. "
+        "Consider the purpose, content type, and intended use of the file. "
         "Return ONLY a category and subcategory in the format: Category : Subcategory. "
         "No explanations, no additional text.";
     
     if (!consistency_context.empty()) {
-        system_content += "\n\nFor consistency, consider these recent categorizations:\n" + consistency_context;
+        system_content += "\n\nContext and constraints:\n" + consistency_context;
     }
     system_msg["content"] = system_content;
     messages.append(system_msg);
     
     Json::Value user_msg;
     user_msg["role"] = "user";
-    user_msg["content"] = "Categorize this " + to_string(file_type) + ": " + file_name;
+    
+    // Enhanced user message with file analysis
+    std::string user_content = "File to categorize:\n";
+    user_content += "Type: " + to_string(file_type) + "\n";
+    user_content += "Name: " + file_name + "\n";
+    if (!file_path.empty() && file_path != file_name) {
+        user_content += "Path: " + file_path + "\n";
+    }
+    
+    // Extract and analyze file extension
+    size_t dot_pos = file_name.find_last_of('.');
+    if (dot_pos != std::string::npos && dot_pos < file_name.length() - 1) {
+        std::string extension = file_name.substr(dot_pos + 1);
+        user_content += "\nAnalyze this file based on:\n";
+        user_content += "- What this file type (." + extension + ") is typically used for\n";
+        user_content += "- The semantic meaning of the filename\n";
+        user_content += "- Common purposes and applications for this file format\n";
+    }
+    
+    user_msg["content"] = user_content;
     messages.append(user_msg);
     
     root["messages"] = messages;
