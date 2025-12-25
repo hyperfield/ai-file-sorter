@@ -408,7 +408,7 @@ std::string GeminiClient::make_payload(const std::string& file_name,
         "Analyze the file name, extension, and context to understand what the file represents. "
         "Consider the purpose, content type, and intended use of the file.\n\n"
         "IMPORTANT: If you are uncertain about the categorization (confidence < 70%), "
-        "respond with: UNCERTAIN : " + file_name + "\n"
+        "respond with: UNCERTAIN : [filename]\n"
         "Otherwise, respond ONLY with: Category : Subcategory\n"
         "No explanations, no additional text.\n\n";
     
