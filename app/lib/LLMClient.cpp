@@ -5,12 +5,14 @@
 #include <json/json.h>
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
 #include <fstream>
 #include <iomanip>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <sstream>
@@ -97,11 +99,8 @@ public:
 
 private:
     void schedule_save() {
-        std::lock_guard<std::mutex> lock(save_mu_);
-        if (save_pending_) return;
-        save_pending_ = true;
+        if (save_pending_.exchange(true)) return;  // Already pending
         
-        // Use a detached thread but ensure we don't access 'this' after potential destruction
         // Copy what we need by value to avoid use-after-free
         std::string path_copy = path_;
         std::map<std::string, ModelState> states_copy;
@@ -110,32 +109,37 @@ private:
             states_copy = states_;
         }
         
+        // Capture atomic reference for safe reset from detached thread
+        std::atomic<bool>* flag_ptr = &save_pending_;
+        
         std::thread([path_copy = std::move(path_copy), 
-                     states_copy = std::move(states_copy)]() mutable {
+                     states_copy = std::move(states_copy),
+                     flag_ptr]() mutable {
             std::this_thread::sleep_for(250ms);
             
             // Perform save with copied data
             std::ofstream out(path_copy + ".tmp");
-            if (!out) return;
-            for (auto& p : states_copy) {
-                out << std::quoted(p.first) << ' ' << p.second.tokens << ' ' 
-                    << p.second.capacity << ' ' << p.second.refill_per_sec << ' ' 
-                    << p.second.last_refill_ms << ' ' << p.second.retry_after_until_ms << ' ' 
-                    << p.second.ewma_ms << '\n';
+            if (out) {
+                for (auto& p : states_copy) {
+                    out << std::quoted(p.first) << ' ' << p.second.tokens << ' ' 
+                        << p.second.capacity << ' ' << p.second.refill_per_sec << ' ' 
+                        << p.second.last_refill_ms << ' ' << p.second.retry_after_until_ms << ' ' 
+                        << p.second.ewma_ms << '\n';
+                }
+                out.close();
+                std::rename((path_copy + ".tmp").c_str(), path_copy.c_str());
             }
-            out.close();
-            std::rename((path_copy + ".tmp").c_str(), path_copy.c_str());
+            
+            // Reset flag after save completes
+            flag_ptr->store(false);
         }).detach();
-        
-        // Reset the flag immediately - the save operation is now independent
-        save_pending_ = false;
     }
 
     std::string path_;
     std::map<std::string, ModelState> states_;
     std::mutex mu_;
     std::mutex save_mu_;
-    bool save_pending_{false};
+    std::atomic<bool> save_pending_{false};
 };
 
 static PersistentState& get_state() {
