@@ -37,10 +37,10 @@ void FolderLearningDialog::setup_ui() {
     
     // Explanation
     explanation_label_ = new QLabel(
-        "Choose how this folder contributes to your user profile:\n\n"
-        "• <b>Full Learning</b>: Analyze files to learn about your interests and work patterns\n"
-        "• <b>Partial Learning</b>: Track folder statistics only, no personal characteristic inference\n"
-        "• <b>No Learning</b>: Completely exclude this folder from the learning system"
+        "Choose how this folder uses and contributes to your user profile:\n\n"
+        "• <b>Full Learning</b>: Use profile for categorization AND store folder information\n"
+        "• <b>Partial Learning</b>: Don't use profile for categorization but STILL store folder information\n"
+        "• <b>No Learning</b>: Don't use profile AND don't store any information"
     );
     explanation_label_->setWordWrap(true);
     main_layout->addWidget(explanation_label_);

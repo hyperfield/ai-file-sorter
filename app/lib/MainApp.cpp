@@ -2566,22 +2566,30 @@ void MainApp::perform_analysis()
                                     cached_document_entries_for_analysis.end());
         }
 
-        // Generate and inject user profile context for LLM (temporarily, if learning is enabled)
+        // Generate and inject user profile context for LLM (if enabled and folder allows it)
         std::string original_user_context;
         if (profile_manager_ && settings.get_enable_profile_learning()) {
             try {
-                std::string profile_context = profile_manager_->generate_user_context_for_llm();
-                if (!profile_context.empty()) {
-                    // Save original context to restore later
-                    original_user_context = settings.get_user_context();
-                    
-                    // Prepend profile context to existing user context
-                    std::string combined_context = profile_context;
-                    if (!original_user_context.empty()) {
-                        combined_context += "\n\n" + original_user_context;
+                std::string folder_path = directory_path;
+                std::string inclusion_level = db_manager.get_folder_inclusion_level(folder_path);
+                
+                // Only inject profile context if folder is set to "full" learning
+                if (inclusion_level == "full") {
+                    std::string profile_context = profile_manager_->generate_user_context_for_llm();
+                    if (!profile_context.empty()) {
+                        // Save original context to restore later
+                        original_user_context = settings.get_user_context();
+                        
+                        // Prepend profile context to existing user context
+                        std::string combined_context = profile_context;
+                        if (!original_user_context.empty()) {
+                            combined_context += "\n\n" + original_user_context;
+                        }
+                        settings.set_user_context(combined_context);
+                        core_logger->debug("Injected user profile context into LLM prompts for full learning folder");
                     }
-                    settings.set_user_context(combined_context);
-                    core_logger->debug("Injected user profile context into LLM prompts");
+                } else if (inclusion_level == "partial") {
+                    core_logger->debug("Folder set to partial learning - profile context not used for categorization");
                 }
             } catch (const std::exception& e) {
                 core_logger->warn("Failed to generate user profile context: {}", e.what());

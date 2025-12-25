@@ -81,18 +81,19 @@ void UserProfileManager::analyze_and_update_from_folder(
     std::string inclusion_level = db_manager_.get_folder_inclusion_level(folder_path);
     
     if (inclusion_level == "none") {
-        logger_->info("Skipping profile analysis for excluded folder: {}", folder_path);
+        logger_->info("Skipping profile storage for excluded folder: {}", folder_path);
         return;
     }
     
     logger_->info("Analyzing folder for user profile (level: {}): {}", inclusion_level, folder_path);
     
-    // Infer characteristics from the files (unless partial)
+    // For "full" level: infer characteristics from the files
+    // For "partial" level: skip characteristic inference but still store folder stats
     if (inclusion_level == "full") {
         infer_characteristics_from_files(files, folder_path);
     }
     
-    // Generate and store folder insight (always store basic stats)
+    // Always store folder insights for both "full" and "partial" levels
     FolderInsight insight;
     insight.folder_path = folder_path;
     insight.description = generate_folder_description(folder_path, files);

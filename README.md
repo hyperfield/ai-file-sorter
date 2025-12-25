@@ -751,14 +751,15 @@ You have full control over how the system learns from your files:
 1. **Global Toggle**: Check or uncheck **"Learn from my organization patterns"** on the main screen to enable/disable learning system-wide
 
 2. **Per-Folder Control**: Click the settings icon (⚙️) next to any folder path to configure its learning level:
-   - **Full Learning** (default): Analyzes files to learn about your interests and work patterns
-   - **Partial Learning**: Tracks folder statistics only, no personal characteristic inference
-   - **No Learning**: Completely excludes this folder from the learning system
+   - **Full Learning** (default): Use profile for AI categorization AND store folder information
+   - **Partial Learning**: Don't use profile for categorization but STILL store folder information
+   - **No Learning**: Don't use profile AND don't store any folder information
 
 This allows you to:
-- Keep sensitive folders (e.g., private documents) completely isolated
-- Use different learning levels for work vs. personal folders
-- Maintain full privacy control while still benefiting from adaptive categorization
+- Use profile-based categorization only for trusted folders (Full)
+- Gather organization data without affecting AI suggestions (Partial)
+- Keep sensitive folders completely isolated (None)
+- Balance between data collection and privacy per your preferences
 
 ### Privacy & Storage
 
