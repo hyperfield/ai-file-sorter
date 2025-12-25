@@ -338,7 +338,39 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
         const std::string category_subcategory =
             run_llm_with_timeout(llm, item_name, item_path, file_type, is_local_llm, consistency_context);
 
+        // Check if LLM is uncertain (confidence-based detection)
+        if (category_subcategory.find("UNCERTAIN") == 0) {
+            if (progress_callback) {
+                progress_callback(fmt::format("[AI-UNCERTAIN] {} (LLM indicated low confidence < 70%)",
+                                              item_name));
+            }
+            if (core_logger) {
+                core_logger->info("LLM uncertain about '{}', would benefit from user input", item_name);
+            }
+            // Return empty result - in future, this will trigger UserCategorizationDialog
+            return DatabaseManager::ResolvedCategory{-1, "", ""};
+        }
+
         auto [category, subcategory] = split_category_subcategory(category_subcategory);
+        
+        // Heuristic detection: check for generic/uncertain categories
+        const std::string cat_lower = to_lower_copy_str(category);
+        const std::string sub_lower = to_lower_copy_str(subcategory);
+        if (cat_lower == "uncategorized" || cat_lower == "miscellaneous" || 
+            cat_lower == "other" || cat_lower == "unknown" ||
+            sub_lower == "uncategorized" || sub_lower == "miscellaneous" || 
+            sub_lower == "other" || sub_lower == "unknown") {
+            if (progress_callback) {
+                progress_callback(fmt::format("[AI-UNCERTAIN] {} (generic category detected: '{}' : '{}')",
+                                              item_name, category, subcategory));
+            }
+            if (core_logger) {
+                core_logger->info("Generic category detected for '{}', would benefit from user input", item_name);
+            }
+            // Return empty result - in future, this will trigger UserCategorizationDialog
+            return DatabaseManager::ResolvedCategory{-1, "", ""};
+        }
+        
         auto resolved = db_manager.resolve_category(category, subcategory);
         if (settings.get_use_whitelist()) {
             const auto allowed_categories = settings.get_allowed_categories();
@@ -602,7 +634,10 @@ std::string CategorizationService::run_llm_with_timeout(
 
 int CategorizationService::resolve_llm_timeout(bool is_local_llm) const
 {
-    int timeout_seconds = is_local_llm ? 60 : 10;
+    // Local LLMs: 60 seconds default
+    // Remote APIs: 300 seconds (5 minutes) to accommodate Gemini's adaptive timeout system
+    // which can take 20-240 seconds per request with built-in retry logic
+    int timeout_seconds = is_local_llm ? 60 : 300;
     const char* timeout_env = std::getenv(is_local_llm ? kLocalTimeoutEnv : kRemoteTimeoutEnv);
     if (!timeout_env || *timeout_env == '\0') {
         return timeout_seconds;

@@ -217,6 +217,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.toggle_explorer_action,
             app.toggle_llm_action,
             app.manage_whitelists_action,
+            app.clear_cache_action,
             app.development_prompt_logging_action,
             app.consistency_pass_action,
             app.english_action,
@@ -337,6 +338,13 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
 
     app.manage_whitelists_action = app.settings_menu->addAction(QString());
     QObject::connect(app.manage_whitelists_action, &QAction::triggered, &app, &MainApp::show_whitelist_manager);
+
+    app.settings_menu->addSeparator();
+    
+    app.clear_cache_action = app.settings_menu->addAction(icon_for(app, "edit-clear", QStyle::SP_DialogResetButton), QString());
+    QObject::connect(app.clear_cache_action, &QAction::triggered, &app, &MainApp::clear_categorization_cache);
+
+    app.settings_menu->addSeparator();
 
     app.language_menu = app.settings_menu->addMenu(QString());
     app.language_group = new QActionGroup(&app);

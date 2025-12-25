@@ -137,6 +137,7 @@ private:
     SupportPromptResult show_support_prompt_dialog(int categorized_files);
     void undo_last_run();
     bool perform_undo_from_plan(const QString& plan_path);
+    void clear_categorization_cache();
 
     std::unique_ptr<ILLMClient> make_llm_client();
     void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
@@ -213,6 +214,7 @@ private:
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
     QAction* manage_whitelists_action{nullptr};
+    QAction* clear_cache_action{nullptr};
     QAction* development_prompt_logging_action{nullptr};
     QAction* consistency_pass_action{nullptr};
     QActionGroup* language_group{nullptr};
