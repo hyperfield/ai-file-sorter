@@ -192,6 +192,7 @@ DatabaseManager::DatabaseManager(std::string config_dir)
 
     initialize_schema();
     initialize_taxonomy_schema();
+    initialize_user_profile_schema();
     load_taxonomy_cache();
 }
 
@@ -1309,4 +1310,303 @@ bool DatabaseManager::file_exists_in_db(const std::string &file_name, const std:
     bool exists = sqlite3_step(stmt) == SQLITE_ROW;
     sqlite3_finalize(stmt);
     return exists;
+}
+
+void DatabaseManager::initialize_user_profile_schema() {
+    if (!db) return;
+
+    // User profile table
+    const char *user_profile_sql = R"(
+        CREATE TABLE IF NOT EXISTS user_profile (
+            user_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            last_updated TEXT NOT NULL
+        );
+    )";
+
+    char *error_msg = nullptr;
+    if (sqlite3_exec(db, user_profile_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create user_profile table: {}", error_msg);
+        sqlite3_free(error_msg);
+        return;
+    }
+
+    // User characteristics table
+    const char *characteristics_sql = R"(
+        CREATE TABLE IF NOT EXISTS user_characteristics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            trait_name TEXT NOT NULL,
+            value TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            evidence TEXT,
+            timestamp TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES user_profile(user_id),
+            UNIQUE(user_id, trait_name, value)
+        );
+    )";
+
+    if (sqlite3_exec(db, characteristics_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create user_characteristics table: {}", error_msg);
+        sqlite3_free(error_msg);
+        return;
+    }
+
+    // Folder insights table
+    const char *folder_insights_sql = R"(
+        CREATE TABLE IF NOT EXISTS folder_insights (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            folder_path TEXT NOT NULL,
+            description TEXT,
+            dominant_categories TEXT,
+            file_count INTEGER,
+            last_analyzed TEXT NOT NULL,
+            usage_pattern TEXT,
+            FOREIGN KEY(user_id) REFERENCES user_profile(user_id),
+            UNIQUE(user_id, folder_path)
+        );
+    )";
+
+    if (sqlite3_exec(db, folder_insights_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create folder_insights table: {}", error_msg);
+        sqlite3_free(error_msg);
+        return;
+    }
+
+    // Create indices for better performance
+    const char *create_chars_index_sql =
+        "CREATE INDEX IF NOT EXISTS idx_user_characteristics_user ON user_characteristics(user_id);";
+    if (sqlite3_exec(db, create_chars_index_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create characteristics index: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
+
+    const char *create_insights_index_sql =
+        "CREATE INDEX IF NOT EXISTS idx_folder_insights_user ON folder_insights(user_id);";
+    if (sqlite3_exec(db, create_insights_index_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create insights index: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
+}
+
+bool DatabaseManager::save_user_profile(const UserProfile& profile) {
+    if (!db) return false;
+
+    const char *sql = R"(
+        INSERT INTO user_profile (user_id, created_at, last_updated)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET last_updated = excluded.last_updated;
+    )";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare save user profile: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, profile.user_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, profile.created_at.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, profile.last_updated.c_str(), -1, SQLITE_TRANSIENT);
+
+    bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+
+    if (success) {
+        // Save characteristics
+        for (const auto& characteristic : profile.characteristics) {
+            save_user_characteristic(profile.user_id, characteristic);
+        }
+
+        // Save folder insights
+        for (const auto& insight : profile.folder_insights) {
+            save_folder_insight(profile.user_id, insight);
+        }
+    }
+
+    return success;
+}
+
+UserProfile DatabaseManager::load_user_profile(const std::string& user_id) {
+    UserProfile profile;
+    profile.user_id = user_id;
+
+    if (!db) return profile;
+
+    const char *sql = "SELECT created_at, last_updated FROM user_profile WHERE user_id = ?;";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::warn, "Failed to prepare load user profile: {}", sqlite3_errmsg(db));
+        return profile;
+    }
+
+    sqlite3_bind_text(stmt, 1, user_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *created = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char *updated = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+
+        profile.created_at = created ? created : "";
+        profile.last_updated = updated ? updated : "";
+    }
+
+    sqlite3_finalize(stmt);
+
+    // Load characteristics and folder insights
+    profile.characteristics = load_user_characteristics(user_id);
+    profile.folder_insights = load_folder_insights(user_id);
+
+    return profile;
+}
+
+bool DatabaseManager::save_user_characteristic(const std::string& user_id,
+                                               const UserCharacteristic& characteristic) {
+    if (!db) return false;
+
+    const char *sql = R"(
+        INSERT INTO user_characteristics (user_id, trait_name, value, confidence, evidence, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, trait_name, value) DO UPDATE SET
+            confidence = excluded.confidence,
+            evidence = excluded.evidence,
+            timestamp = excluded.timestamp;
+    )";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare save characteristic: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, user_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, characteristic.trait_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, characteristic.value.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_double(stmt, 4, characteristic.confidence);
+    sqlite3_bind_text(stmt, 5, characteristic.evidence.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, characteristic.timestamp.c_str(), -1, SQLITE_TRANSIENT);
+
+    bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+
+    return success;
+}
+
+std::vector<UserCharacteristic> DatabaseManager::load_user_characteristics(const std::string& user_id) {
+    std::vector<UserCharacteristic> characteristics;
+
+    if (!db) return characteristics;
+
+    const char *sql = R"(
+        SELECT trait_name, value, confidence, evidence, timestamp
+        FROM user_characteristics
+        WHERE user_id = ?
+        ORDER BY confidence DESC;
+    )";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::warn, "Failed to prepare load characteristics: {}", sqlite3_errmsg(db));
+        return characteristics;
+    }
+
+    sqlite3_bind_text(stmt, 1, user_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        UserCharacteristic characteristic;
+        const char *trait = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char *value = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char *evidence = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        const char *timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+
+        characteristic.trait_name = trait ? trait : "";
+        characteristic.value = value ? value : "";
+        characteristic.confidence = static_cast<float>(sqlite3_column_double(stmt, 2));
+        characteristic.evidence = evidence ? evidence : "";
+        characteristic.timestamp = timestamp ? timestamp : "";
+
+        characteristics.push_back(characteristic);
+    }
+
+    sqlite3_finalize(stmt);
+    return characteristics;
+}
+
+bool DatabaseManager::save_folder_insight(const std::string& user_id,
+                                          const FolderInsight& insight) {
+    if (!db) return false;
+
+    const char *sql = R"(
+        INSERT INTO folder_insights (user_id, folder_path, description, dominant_categories,
+                                    file_count, last_analyzed, usage_pattern)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, folder_path) DO UPDATE SET
+            description = excluded.description,
+            dominant_categories = excluded.dominant_categories,
+            file_count = excluded.file_count,
+            last_analyzed = excluded.last_analyzed,
+            usage_pattern = excluded.usage_pattern;
+    )";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare save folder insight: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, user_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, insight.folder_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, insight.description.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, insight.dominant_categories.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 5, insight.file_count);
+    sqlite3_bind_text(stmt, 6, insight.last_analyzed.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 7, insight.usage_pattern.c_str(), -1, SQLITE_TRANSIENT);
+
+    bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+
+    return success;
+}
+
+std::vector<FolderInsight> DatabaseManager::load_folder_insights(const std::string& user_id) {
+    std::vector<FolderInsight> insights;
+
+    if (!db) return insights;
+
+    const char *sql = R"(
+        SELECT folder_path, description, dominant_categories, file_count,
+               last_analyzed, usage_pattern
+        FROM folder_insights
+        WHERE user_id = ?
+        ORDER BY last_analyzed DESC;
+    )";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::warn, "Failed to prepare load folder insights: {}", sqlite3_errmsg(db));
+        return insights;
+    }
+
+    sqlite3_bind_text(stmt, 1, user_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        FolderInsight insight;
+        const char *path = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char *desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char *cats = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char *analyzed = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        const char *pattern = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+
+        insight.folder_path = path ? path : "";
+        insight.description = desc ? desc : "";
+        insight.dominant_categories = cats ? cats : "";
+        insight.file_count = sqlite3_column_int(stmt, 3);
+        insight.last_analyzed = analyzed ? analyzed : "";
+        insight.usage_pattern = pattern ? pattern : "";
+
+        insights.push_back(insight);
+    }
+
+    sqlite3_finalize(stmt);
+    return insights;
 }
