@@ -1536,6 +1536,91 @@ void MainApp::show_error_dialog(const std::string& message)
     DialogUtils::show_error_dialog(this, message);
 }
 
+void MainApp::clear_categorization_cache()
+{
+    QMessageBox confirm_dialog(this);
+    confirm_dialog.setWindowTitle(tr("Clear Categorization Cache"));
+    confirm_dialog.setText(tr("This will delete all cached categorization data."));
+    confirm_dialog.setInformativeText(tr(
+        "All previously categorized files will need to be analyzed again.\n"
+        "User-provided categorizations will also be cleared.\n\n"
+        "Do you want to continue?"));
+    confirm_dialog.setIcon(QMessageBox::Warning);
+    confirm_dialog.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    confirm_dialog.setDefaultButton(QMessageBox::No);
+    
+    QPushButton* current_folder_button = confirm_dialog.addButton(
+        tr("Current Folder Only"), QMessageBox::ActionRole);
+    
+    int result = confirm_dialog.exec();
+    
+    if (result == QMessageBox::No) {
+        return;
+    }
+    
+    bool success = false;
+    QString status_message;
+    
+    if (confirm_dialog.clickedButton() == current_folder_button) {
+        // Clear cache for current folder only
+        QString folder_path = folder_path_input->text();
+        if (folder_path.isEmpty()) {
+            show_error_dialog(tr("Please select a folder first.").toStdString());
+            return;
+        }
+        
+        success = db_manager.clear_directory_categorizations(folder_path.toStdString());
+        if (success) {
+            status_message = tr("Cache cleared for current folder.");
+            if (core_logger) {
+                core_logger->info("Cleared categorization cache for folder: {}", 
+                                 folder_path.toStdString());
+            }
+        } else {
+            status_message = tr("Failed to clear cache for current folder.");
+        }
+    } else if (result == QMessageBox::Yes) {
+        // Clear all cache - delete and reinitialize database
+        QString db_path = QString::fromStdString(
+            db_manager.get_database_path());
+        
+        if (core_logger) {
+            core_logger->info("Clearing all categorization cache");
+        }
+        
+        // Close and delete database file
+        db_manager.close();
+        
+        QFile db_file(db_path);
+        if (db_file.exists()) {
+            success = db_file.remove();
+        } else {
+            success = true;  // File doesn't exist, consider it success
+        }
+        
+        if (success) {
+            // Reinitialize database
+            db_manager.initialize();
+            status_message = tr("All categorization cache cleared.");
+            if (core_logger) {
+                core_logger->info("Successfully cleared all categorization cache");
+            }
+        } else {
+            status_message = tr("Failed to clear all cache.");
+            if (core_logger) {
+                core_logger->error("Failed to delete database file: {}", 
+                                  db_path.toStdString());
+            }
+        }
+    }
+    
+    if (success) {
+        QMessageBox::information(this, tr("Cache Cleared"), status_message);
+    } else {
+        show_error_dialog(status_message.toStdString());
+    }
+}
+
 
 void MainApp::report_progress(const std::string& message)
 {

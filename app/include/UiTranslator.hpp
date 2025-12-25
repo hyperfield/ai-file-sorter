@@ -64,6 +64,7 @@ public:
         QAction*& toggle_explorer_action;
         QAction*& toggle_llm_action;
         QAction*& manage_whitelists_action;
+        QAction*& clear_cache_action;
         QAction*& development_prompt_logging_action;
         QAction*& consistency_pass_action;
         QAction*& english_action;

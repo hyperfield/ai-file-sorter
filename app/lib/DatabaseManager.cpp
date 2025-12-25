@@ -147,10 +147,37 @@ DatabaseManager::DatabaseManager(std::string config_dir)
 }
 
 DatabaseManager::~DatabaseManager() {
+    close();
+}
+
+void DatabaseManager::close() {
     if (db) {
         sqlite3_close(db);
         db = nullptr;
     }
+}
+
+void DatabaseManager::initialize() {
+    if (db) {
+        close();
+    }
+    
+    if (db_file.empty()) {
+        db_log(spdlog::level::err, "Error: Database path is empty");
+        return;
+    }
+
+    if (sqlite3_open(db_file.c_str(), &db) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Can't open database: {}", sqlite3_errmsg(db));
+        db = nullptr;
+        return;
+    }
+
+    sqlite3_extended_result_codes(db, 1);
+
+    initialize_schema();
+    initialize_taxonomy_schema();
+    load_taxonomy_cache();
 }
 
 void DatabaseManager::initialize_schema() {
@@ -192,6 +219,17 @@ void DatabaseManager::initialize_schema() {
     if (sqlite3_exec(db, add_style_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         if (!is_duplicate_column_error(error_msg)) {
             db_log(spdlog::level::warn, "Failed to add categorization_style column: {}", error_msg ? error_msg : "");
+        }
+        if (error_msg) {
+            sqlite3_free(error_msg);
+        }
+    }
+
+    const char *add_user_provided_column_sql =
+        "ALTER TABLE file_categorization ADD COLUMN user_provided INTEGER DEFAULT 0;";
+    if (sqlite3_exec(db, add_user_provided_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        if (!is_duplicate_column_error(error_msg)) {
+            db_log(spdlog::level::warn, "Failed to add user_provided column: {}", error_msg ? error_msg : "");
         }
         if (error_msg) {
             sqlite3_free(error_msg);
@@ -599,19 +637,21 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     const std::string &file_type,
     const std::string &dir_path,
     const ResolvedCategory &resolved,
-    bool used_consistency_hints) {
+    bool used_consistency_hints,
+    bool user_provided) {
     if (!db) return false;
 
     const char *sql = R"(
         INSERT INTO file_categorization
-            (file_name, file_type, dir_path, category, subcategory, taxonomy_id, categorization_style)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (file_name, file_type, dir_path, category, subcategory, taxonomy_id, categorization_style, user_provided)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_name, file_type, dir_path)
         DO UPDATE SET
             category = excluded.category,
             subcategory = excluded.subcategory,
             taxonomy_id = excluded.taxonomy_id,
-            categorization_style = excluded.categorization_style;
+            categorization_style = excluded.categorization_style,
+            user_provided = excluded.user_provided;
     )";
 
     sqlite3_stmt *stmt = nullptr;
@@ -632,6 +672,7 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
         sqlite3_bind_null(stmt, 6);
     }
     sqlite3_bind_int(stmt, 7, used_consistency_hints ? 1 : 0);
+    sqlite3_bind_int(stmt, 8, user_provided ? 1 : 0);
 
     bool success = true;
     if (sqlite3_step(stmt) != SQLITE_DONE) {

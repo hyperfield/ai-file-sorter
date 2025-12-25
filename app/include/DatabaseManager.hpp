@@ -14,6 +14,10 @@ public:
     explicit DatabaseManager(std::string config_dir);
     ~DatabaseManager();
 
+    void close();
+    void initialize();
+    std::string get_database_path() const { return db_file; }
+
     bool is_file_already_categorized(const std::string &file_name);
     struct ResolvedCategory {
         int taxonomy_id;
@@ -28,7 +32,8 @@ public:
                                                    const std::string& file_type,
                                                    const std::string& dir_path,
                                                    const ResolvedCategory& resolved,
-                                                   bool used_consistency_hints);
+                                                   bool used_consistency_hints,
+                                                   bool user_provided = false);
     std::vector<std::string> get_dir_contents_from_db(const std::string &dir_path);
     bool remove_file_categorization(const std::string& dir_path,
                                     const std::string& file_name,
