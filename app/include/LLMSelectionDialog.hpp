@@ -48,6 +48,7 @@ private:
     void update_gemini_fields_state();
     bool remote_inputs_valid() const;
     bool gemini_inputs_valid() const;
+    bool validate_text_inputs(QLineEdit* key_edit, QLineEdit* model_edit) const;
     void update_local_choice_ui();
     void update_download_info();
     void start_download();

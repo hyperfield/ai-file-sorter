@@ -83,6 +83,14 @@ std::string llm_choice_to_string(LLMChoice choice) {
     }
 }
 
+std::string trim_string(const std::string& str) {
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto trimmed = str;
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    return trimmed;
+}
+
 void set_bool_setting(IniConfig& config, const std::string& section, const char* key, bool value) {
     config.setValue(section, key, to_bool_string(value));
 }
@@ -382,11 +390,7 @@ std::string Settings::get_remote_api_key() const
 
 void Settings::set_remote_api_key(const std::string& key)
 {
-    auto trimmed = key;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
-    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
-    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
-    remote_api_key = trimmed;
+    remote_api_key = trim_string(key);
 }
 
 std::string Settings::get_remote_model() const
@@ -396,10 +400,7 @@ std::string Settings::get_remote_model() const
 
 void Settings::set_remote_model(const std::string& model)
 {
-    auto trimmed = model;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
-    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
-    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    auto trimmed = trim_string(model);
     if (trimmed.empty()) {
         trimmed = "gpt-4o-mini";
     }
@@ -413,11 +414,7 @@ std::string Settings::get_gemini_api_key() const
 
 void Settings::set_gemini_api_key(const std::string& key)
 {
-    auto trimmed = key;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
-    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
-    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
-    gemini_api_key = trimmed;
+    gemini_api_key = trim_string(key);
 }
 
 std::string Settings::get_gemini_model() const
@@ -427,10 +424,7 @@ std::string Settings::get_gemini_model() const
 
 void Settings::set_gemini_model(const std::string& model)
 {
-    auto trimmed = model;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
-    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
-    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    auto trimmed = trim_string(model);
     if (trimmed.empty()) {
         trimmed = "gemini-1.5-flash";
     }

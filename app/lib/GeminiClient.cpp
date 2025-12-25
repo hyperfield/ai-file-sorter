@@ -26,6 +26,8 @@ constexpr int kMaxRetries = 5;
 // More conservative timeouts for free tier - Gemini free tier is slower
 constexpr uint64_t kMinTimeoutMs = 20000;  // 20 seconds minimum
 constexpr uint64_t kMaxTimeoutMs = 240000; // 4 minutes maximum for free tier
+constexpr uint64_t kBaseBackoffMs = 2000;  // Base backoff time for retries
+constexpr uint64_t kMaxBackoffMs = 120000; // Max backoff time (2 minutes)
 
 inline uint64_t now_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -294,10 +296,10 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
         if (http.status == 429 || (http.status >= 500 && http.status < 600)) {
             if (s.retry_after_until_ms <= now_ms()) {
                 // More aggressive backoff for free tier
-                uint64_t base = 2000ULL * (1ULL << attempt);
+                uint64_t base = kBaseBackoffMs * (1ULL << attempt);
                 std::uniform_real_distribution<double> dist(0.7, 1.3);
                 uint64_t jittered = (uint64_t)(base * dist(rng));
-                s.retry_after_until_ms = now_ms() + std::min(jittered, 120000ULL);
+                s.retry_after_until_ms = now_ms() + std::min(jittered, kMaxBackoffMs);
             }
             state.put(model, s);
             

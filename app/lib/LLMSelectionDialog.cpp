@@ -457,9 +457,7 @@ void LLMSelectionDialog::update_remote_fields_state()
 
 bool LLMSelectionDialog::remote_inputs_valid() const
 {
-    const QString key_text = api_key_edit ? api_key_edit->text().trimmed() : QString();
-    const QString model_text = model_edit ? model_edit->text().trimmed() : QString();
-    return !key_text.isEmpty() && !model_text.isEmpty();
+    return validate_text_inputs(api_key_edit, model_edit);
 }
 
 void LLMSelectionDialog::update_gemini_fields_state()
@@ -494,8 +492,13 @@ void LLMSelectionDialog::update_gemini_fields_state()
 
 bool LLMSelectionDialog::gemini_inputs_valid() const
 {
-    const QString key_text = gemini_api_key_edit ? gemini_api_key_edit->text().trimmed() : QString();
-    const QString model_text = gemini_model_edit ? gemini_model_edit->text().trimmed() : QString();
+    return validate_text_inputs(gemini_api_key_edit, gemini_model_edit);
+}
+
+bool LLMSelectionDialog::validate_text_inputs(QLineEdit* key_edit, QLineEdit* model_edit) const
+{
+    const QString key_text = key_edit ? key_edit->text().trimmed() : QString();
+    const QString model_text = model_edit ? model_edit->text().trimmed() : QString();
     return !key_text.isEmpty() && !model_text.isEmpty();
 }
 
