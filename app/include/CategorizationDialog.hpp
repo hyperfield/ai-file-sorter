@@ -23,6 +23,8 @@ class QStandardItem;
 class CategorizationDialog : public QDialog
 {
 public:
+    using SaveCategoriesCallback = std::function<void(const std::vector<std::string>&, const std::vector<std::string>&)>;
+    
     CategorizationDialog(DatabaseManager* db_manager,
                          bool show_subcategory_col,
                          const std::string& undo_dir,
@@ -30,6 +32,10 @@ public:
 
     void set_show_subcategory_column(bool enabled);
     bool show_subcategory_column_enabled() const { return show_subcategory_column; }
+    
+    void set_save_categories_callback(SaveCategoriesCallback callback) {
+        save_categories_callback_ = std::move(callback);
+    }
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
     void test_set_entries(const std::vector<CategorizedFile>& files);
@@ -78,6 +84,7 @@ private:
     void on_confirm_and_sort_button_clicked();
     void on_continue_later_button_clicked();
     void on_undo_button_clicked();
+    void on_save_categories_button_clicked();  // New method
     void show_close_button();
     void restore_action_buttons();
     void update_status_column(int row, bool success, bool attempted = true);
@@ -128,6 +135,7 @@ private:
     QPushButton* confirm_button{nullptr};
     QPushButton* continue_button{nullptr};
     QPushButton* close_button{nullptr};
+    QPushButton* save_categories_button{nullptr};  // New button to save categories
     QCheckBox* select_all_checkbox{nullptr};
     QCheckBox* show_subcategories_checkbox{nullptr};
     QCheckBox* dry_run_checkbox{nullptr};
@@ -140,6 +148,7 @@ private:
     bool suppress_item_changed_{false};
     std::string undo_dir_;
     std::string base_dir_;
+    SaveCategoriesCallback save_categories_callback_;
 };
 
 #endif // CATEGORIZATIONDIALOG_HPP

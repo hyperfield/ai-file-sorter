@@ -20,6 +20,7 @@
 #include <QPushButton>
 #include <QIcon>
 #include <QLabel>
+#include <QMessageBox>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QStringList>
@@ -37,6 +38,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <set>
 #include <vector>
 #include <filesystem>
 #include <optional>
@@ -246,9 +248,13 @@ void CategorizationDialog::setup_ui()
     undo_button = new QPushButton(this);
     undo_button->setEnabled(false);
     undo_button->setVisible(false);
+    save_categories_button = new QPushButton(this);
+    save_categories_button->setText(tr("Save Categories to Whitelist"));
+    save_categories_button->setToolTip(tr("Save unique categories and subcategories to a whitelist"));
     close_button = new QPushButton(this);
     close_button->setVisible(false);
 
+    button_layout->addWidget(save_categories_button);
     button_layout->addWidget(confirm_button);
     button_layout->addWidget(continue_button);
     button_layout->addWidget(undo_button);
@@ -269,6 +275,7 @@ void CategorizationDialog::setup_ui()
     connect(continue_button, &QPushButton::clicked, this, &CategorizationDialog::on_continue_later_button_clicked);
     connect(close_button, &QPushButton::clicked, this, &CategorizationDialog::accept);
     connect(undo_button, &QPushButton::clicked, this, &CategorizationDialog::on_undo_button_clicked);
+    connect(save_categories_button, &QPushButton::clicked, this, &CategorizationDialog::on_save_categories_button_clicked);
     connect(select_all_checkbox, &QCheckBox::toggled, this, &CategorizationDialog::on_select_all_toggled);
     connect(model, &QStandardItemModel::itemChanged, this, &CategorizationDialog::on_item_changed);
     connect(show_subcategories_checkbox, &QCheckBox::toggled,
@@ -662,6 +669,51 @@ void CategorizationDialog::on_continue_later_button_clicked()
 {
     record_categorization_to_db();
     accept();
+}
+
+void CategorizationDialog::on_save_categories_button_clicked()
+{
+    if (!save_categories_callback_) {
+        QMessageBox::information(this, tr("Save Categories"),
+                               tr("Category saving is not configured."));
+        return;
+    }
+    
+    // Extract unique categories and subcategories from current model
+    std::set<std::string> categories_set;
+    std::set<std::string> subcategories_set;
+    
+    for (int row = 0; row < model->rowCount(); ++row) {
+        std::string category = model->item(row, 3)->text().toStdString();
+        if (!category.empty()) {
+            categories_set.insert(category);
+        }
+        
+        if (show_subcategory_column) {
+            std::string subcategory = model->item(row, 4)->text().toStdString();
+            if (!subcategory.empty()) {
+                subcategories_set.insert(subcategory);
+            }
+        }
+    }
+    
+    std::vector<std::string> categories(categories_set.begin(), categories_set.end());
+    std::vector<std::string> subcategories(subcategories_set.begin(), subcategories_set.end());
+    
+    // Show confirmation with counts
+    QString msg = tr("Save %1 unique categories and %2 unique subcategories to whitelist?")
+                    .arg(categories.size())
+                    .arg(subcategories.size());
+    
+    auto reply = QMessageBox::question(this, tr("Confirm Save"),
+                                      msg,
+                                      QMessageBox::Yes | QMessageBox::No);
+    
+    if (reply == QMessageBox::Yes) {
+        save_categories_callback_(categories, subcategories);
+        QMessageBox::information(this, tr("Categories Saved"),
+                               tr("Categories have been saved to the whitelist."));
+    }
 }
 
 void CategorizationDialog::on_undo_button_clicked()
