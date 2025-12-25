@@ -1713,16 +1713,16 @@ bool DatabaseManager::save_organizational_template(const std::string& user_id,
                                                    const OrganizationalTemplate& templ) {
     if (!db) return false;
 
-    // Convert vectors to comma-separated strings
+    // Convert vectors to semicolon-separated strings (safer than commas which may appear in category names)
     std::string categories_str;
     for (size_t i = 0; i < templ.suggested_categories.size(); ++i) {
-        if (i > 0) categories_str += ",";
+        if (i > 0) categories_str += ";";
         categories_str += templ.suggested_categories[i];
     }
     
     std::string subcategories_str;
     for (size_t i = 0; i < templ.suggested_subcategories.size(); ++i) {
-        if (i > 0) subcategories_str += ",";
+        if (i > 0) subcategories_str += ";";
         subcategories_str += templ.suggested_subcategories[i];
     }
 
@@ -1798,11 +1798,11 @@ std::vector<OrganizationalTemplate> DatabaseManager::load_organizational_templat
         templ.based_on_folders = folders ? folders : "";
         templ.usage_count = sqlite3_column_int(stmt, 6);
 
-        // Parse comma-separated categories
+        // Parse semicolon-separated categories (using semicolon to avoid conflicts with category names containing commas)
         if (cats) {
             std::string cats_str = cats;
             size_t pos = 0;
-            while ((pos = cats_str.find(",")) != std::string::npos) {
+            while ((pos = cats_str.find(";")) != std::string::npos) {
                 templ.suggested_categories.push_back(cats_str.substr(0, pos));
                 cats_str.erase(0, pos + 1);
             }
@@ -1811,11 +1811,11 @@ std::vector<OrganizationalTemplate> DatabaseManager::load_organizational_templat
             }
         }
 
-        // Parse comma-separated subcategories
+        // Parse semicolon-separated subcategories
         if (subcats) {
             std::string subcats_str = subcats;
             size_t pos = 0;
-            while ((pos = subcats_str.find(",")) != std::string::npos) {
+            while ((pos = subcats_str.find(";")) != std::string::npos) {
                 templ.suggested_subcategories.push_back(subcats_str.substr(0, pos));
                 subcats_str.erase(0, pos + 1);
             }
