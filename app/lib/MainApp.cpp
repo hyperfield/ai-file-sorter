@@ -3597,6 +3597,8 @@ void MainApp::clear_categorization_cache()
         }
     } else if (result == QMessageBox::Yes) {
         // Clear all cache by deleting entire database
+        // Note: This assumes single-threaded access to the database during this operation
+        // If categorization is running concurrently, it should be stopped first
         QString db_path = QString::fromStdString(db_manager.get_database_path());
         
         if (core_logger) {

@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QDialogButtonBox>
+#include <QMessageBox>
 #include <QString>
 
 UserCategorizationDialog::UserCategorizationDialog(const std::string& file_name,
@@ -77,11 +78,26 @@ UserCategorizationDialog::UserCategorizationDialog(const std::string& file_name,
 
     // Connect signals
     connect(ok_button, &QPushButton::clicked, this, [this]() {
-        if (!category_input->text().trimmed().isEmpty() && 
-            !subcategory_input->text().trimmed().isEmpty()) {
-            skip_file = false;
-            accept();
+        QString cat = category_input->text().trimmed();
+        QString subcat = subcategory_input->text().trimmed();
+        
+        if (cat.isEmpty() || subcat.isEmpty()) {
+            // Provide user feedback for empty fields
+            QString missing;
+            if (cat.isEmpty() && subcat.isEmpty()) {
+                missing = tr("Please enter both category and subcategory.");
+            } else if (cat.isEmpty()) {
+                missing = tr("Please enter a category.");
+            } else {
+                missing = tr("Please enter a subcategory.");
+            }
+            
+            QMessageBox::warning(this, tr("Missing Information"), missing);
+            return;
         }
+        
+        skip_file = false;
+        accept();
     });
 
     connect(skip_button, &QPushButton::clicked, this, [this]() {
