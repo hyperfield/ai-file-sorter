@@ -211,6 +211,7 @@ private:
     QPointer<QLineEdit> context_input;  // User context input field
     QPointer<QCheckBox> categorize_files_checkbox;
     QPointer<QCheckBox> categorize_directories_checkbox;
+    QPointer<QCheckBox> enable_profile_learning_checkbox;  // Profile learning toggle
     QPointer<QCheckBox> include_subdirectories_checkbox;
     QPointer<QCheckBox> analyze_images_checkbox;
     QPointer<QCheckBox> process_images_only_checkbox;

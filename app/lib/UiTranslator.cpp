@@ -143,6 +143,9 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* button = raw_ptr(deps_.primary.document_options_toggle_button)) {
         button->setToolTip(tr("Show or hide document analysis options"));
     }
+    if (auto* checkbox = raw_ptr(deps_.primary.enable_profile_learning_checkbox)) {
+        checkbox->setText(tr("Learn from my organization patterns"));
+    }
     if (auto* button = raw_ptr(deps_.primary.analyze_button)) {
         button->setText(analysis_in_progress ? tr("Stop analyzing") : tr("Analyze folder"));
     }
