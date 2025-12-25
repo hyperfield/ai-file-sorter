@@ -1393,6 +1393,7 @@ void DatabaseManager::initialize_user_profile_schema() {
 bool DatabaseManager::save_user_profile(const UserProfile& profile) {
     if (!db) return false;
 
+    // On conflict, we only update last_updated to preserve the original created_at
     const char *sql = R"(
         INSERT INTO user_profile (user_id, created_at, last_updated)
         VALUES (?, ?, ?)
