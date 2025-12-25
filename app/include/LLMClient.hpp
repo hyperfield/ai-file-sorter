@@ -23,7 +23,7 @@ private:
     std::string make_payload(const std::string &file_name,
                              const std::string &file_path,
                                 const FileType file_type,
-                                const std::string& consistency_context);
+                                const std::string& consistency_context) const;
     std::string make_generic_payload(const std::string& system_prompt,
                                      const std::string& user_prompt,
                                      int max_tokens) const;

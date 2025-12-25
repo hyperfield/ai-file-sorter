@@ -324,14 +324,24 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
 
 } // anonymous namespace
 
+namespace {
+// Ensure curl is initialized once per process
+struct CurlGlobalInit {
+    CurlGlobalInit() { curl_global_init(CURL_GLOBAL_DEFAULT); }
+    ~CurlGlobalInit() { curl_global_cleanup(); }
+};
+
+void ensure_curl_initialized() {
+    static CurlGlobalInit curl_init;
+}
+} // anonymous namespace
+
 LLMClient::LLMClient(std::string api_key, std::string model)
     : api_key(std::move(api_key)), model(std::move(model)) {
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    ensure_curl_initialized();
 }
 
-LLMClient::~LLMClient() {
-    curl_global_cleanup();
-}
+LLMClient::~LLMClient() = default;
 
 std::string LLMClient::effective_model() const {
     if (!model.empty()) return model;
@@ -341,7 +351,7 @@ std::string LLMClient::effective_model() const {
 std::string LLMClient::make_payload(const std::string& file_name,
                                    const std::string& file_path,
                                    const FileType file_type,
-                                   const std::string& consistency_context) {
+                                   const std::string& consistency_context) const {
     Json::Value root;
     root["model"] = effective_model();
     root["temperature"] = 0.0;
@@ -427,7 +437,12 @@ std::string LLMClient::send_api_request(std::string json_payload) {
         throw std::runtime_error("API response missing choices");
     }
     
-    auto content = response["choices"][0]["message"]["content"].asString();
+    auto& choice = response["choices"][0];
+    if (!choice.isMember("message") || !choice["message"].isMember("content")) {
+        throw std::runtime_error("API response missing message content");
+    }
+    
+    auto content = choice["message"]["content"].asString();
     
     if (prompt_logging_enabled) {
         if (auto logger = Logger::get_logger("core_logger")) {

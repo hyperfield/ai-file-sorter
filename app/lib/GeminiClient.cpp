@@ -369,7 +369,7 @@ std::string GeminiClient::effective_model() const {
 std::string GeminiClient::make_payload(const std::string& file_name,
                                    const std::string& file_path,
                                    const FileType file_type,
-                                   const std::string& consistency_context) {
+                                   const std::string& consistency_context) const {
     Json::Value root;
     
     // Gemini uses different structure than OpenAI
