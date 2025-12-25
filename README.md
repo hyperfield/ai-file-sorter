@@ -89,7 +89,7 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 
 ## [1.6.1] - 2026-02-06
 
-- **User profiling & adaptive organization**: optional profile learning to personalize categorization; view insights under **Help → View User Profile**.
+- **User profiling & adaptive organization**: optional profile learning with a main-screen toggle and per-folder learning levels; view insights under **Help → View User Profile**.
 - Local text LLM now prompts to switch to CPU when GPU initialization or inference fails.
 
 ## [1.6.0] - 2026-02-04
@@ -744,11 +744,28 @@ Access your user profile anytime via **Help → View User Profile**. The profile
 - **Characteristics Tab**: All learned traits organized by category (hobbies, work patterns, organization style) with confidence levels and evidence
 - **Folder Insights Tab**: Analysis of each folder you've organized, including file counts, dominant categories, and usage patterns
 
+### Controlling Profile Learning
+
+You have full control over how the system learns from your files:
+
+1. **Global Toggle**: Check or uncheck **"Learn from my organization patterns"** on the main screen to enable/disable learning system-wide
+
+2. **Per-Folder Control**: Click the settings icon (⚙️) next to any folder path to configure its learning level:
+   - **Full Learning** (default): Analyzes files to learn about your interests and work patterns
+   - **Partial Learning**: Tracks folder statistics only, no personal characteristic inference
+   - **No Learning**: Completely excludes this folder from the learning system
+
+This allows you to:
+- Keep sensitive folders (e.g., private documents) completely isolated
+- Use different learning levels for work vs. personal folders
+- Maintain full privacy control while still benefiting from adaptive categorization
+
 ### Privacy & Storage
 
 - All profile data is stored **locally** in your AI File Sorter database
 - No data is sent to external servers (except when using remote LLM APIs for categorization)
 - The profile helps the AI understand your context without compromising your privacy
+- You can disable learning at any time without losing existing profile data
 
 ---
 
