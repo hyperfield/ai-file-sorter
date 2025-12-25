@@ -43,6 +43,7 @@
 #include <QByteArray>
 #include <QLabel>
 #include <QLineEdit>
+#include <QInputDialog>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -3536,6 +3537,29 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         const std::string undo_dir = settings.get_config_dir() + "/undo";
         categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, undo_dir, this);
+        // Set up callback for saving categories to whitelist
+        categorization_dialog->set_save_categories_callback([this](const std::vector<std::string>& cats,
+                                                                   const std::vector<std::string>& subs) {
+            bool ok = false;
+            const QString name = QInputDialog::getText(this,
+                                                       tr("Save to Whitelist"),
+                                                       tr("Enter a name for this whitelist:"),
+                                                       QLineEdit::Normal,
+                                                       tr("Refined Categories"),
+                                                       &ok);
+            if (!ok || name.isEmpty()) {
+                return;
+            }
+            WhitelistEntry entry;
+            entry.categories = cats;
+            entry.subcategories = subs;
+            entry.context = settings.get_user_context();
+            entry.enable_advanced_subcategories = false;
+            whitelist_store.set(name.toStdString(), entry);
+            whitelist_store.save();
+            apply_whitelist_to_selector();
+        });
+
         categorization_dialog->show_results(results,
                                             get_folder_path(),
                                             settings.get_include_subdirectories(),
