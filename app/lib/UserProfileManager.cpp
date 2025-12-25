@@ -19,6 +19,11 @@ namespace {
     
     constexpr float kExistingCharacteristicWeight = 0.7f;
     constexpr float kNewCharacteristicWeight = 0.3f;
+    
+    // Template confidence constants
+    constexpr float kTemplateBaseConfidence = 0.5f;  // Starting confidence for new template
+    constexpr float kTemplateFileIncrement = 0.01f;  // Confidence boost per file in folder
+    constexpr float kTemplateMaxConfidence = 0.95f;  // Cap to leave room for growth
 
     std::string get_current_timestamp() {
         auto now = std::chrono::system_clock::now();
@@ -497,7 +502,10 @@ void UserProfileManager::learn_organizational_template(
     new_template.suggested_subcategories = std::vector<std::string>(subcategories.begin(), subcategories.end());
     new_template.based_on_folders = folder_path;
     new_template.usage_count = 1;
-    new_template.confidence = std::min(0.5f + (files.size() * 0.01f), 0.95f);
+    new_template.confidence = std::min(
+        kTemplateBaseConfidence + (files.size() * kTemplateFileIncrement),
+        kTemplateMaxConfidence
+    );
     
     // Find if similar template exists
     bool found_similar = false;
@@ -547,13 +555,18 @@ std::vector<OrganizationalTemplate> UserProfileManager::get_suggested_templates_
     std::transform(folder_name.begin(), folder_name.end(), folder_name.begin(), ::tolower);
     
     for (const auto& templ : current_profile_.learned_templates) {
-        std::string templ_name_lower = templ.template_name;
-        std::transform(templ_name_lower.begin(), templ_name_lower.end(),
-                      templ_name_lower.begin(), ::tolower);
+        // Extract just the meaningful part of template name (after usage pattern prefix)
+        std::string templ_name = templ.template_name;
+        size_t underscore_pos = templ_name.find('_');
+        if (underscore_pos != std::string::npos && underscore_pos < templ_name.length() - 1) {
+            templ_name = templ_name.substr(underscore_pos + 1);
+        }
         
-        // Check if template name contains folder name or vice versa
-        if (templ_name_lower.find(folder_name) != std::string::npos ||
-            folder_name.find(templ_name_lower) != std::string::npos ||
+        std::transform(templ_name.begin(), templ_name.end(), templ_name.begin(), ::tolower);
+        
+        // Check if template name parts match folder name or if template has high confidence
+        if (templ_name.find(folder_name) != std::string::npos ||
+            folder_name.find(templ_name) != std::string::npos ||
             templ.confidence > 0.7f) {  // High confidence templates are always suggested
             suggestions.push_back(templ);
         }
@@ -592,6 +605,11 @@ bool UserProfileManager::is_similar_template(
     const OrganizationalTemplate& t1,
     const OrganizationalTemplate& t2) const
 {
+    // Avoid division by zero - if both templates have no categories, they're not meaningfully similar
+    if (t1.suggested_categories.empty() && t2.suggested_categories.empty()) {
+        return false;
+    }
+    
     // Templates are similar if they share significant category overlap
     int common_categories = 0;
     for (const auto& cat1 : t1.suggested_categories) {
@@ -602,8 +620,12 @@ bool UserProfileManager::is_similar_template(
         }
     }
     
-    float similarity = static_cast<float>(common_categories) /
-                      std::max(t1.suggested_categories.size(), t2.suggested_categories.size());
+    size_t max_size = std::max(t1.suggested_categories.size(), t2.suggested_categories.size());
+    if (max_size == 0) {
+        return false;  // Safety check
+    }
+    
+    float similarity = static_cast<float>(common_categories) / max_size;
     
     return similarity > 0.6f;  // 60% category overlap
 }
