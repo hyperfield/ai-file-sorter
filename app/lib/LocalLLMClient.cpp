@@ -1463,28 +1463,42 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
                                         const std::string& consistency_context)
 {
     std::ostringstream user_section;
-    if (!file_path.empty()) {
-        user_section << "\nFull path: " << file_path << "\n";
-    }
+    user_section << "File to categorize:\n";
+    user_section << "Type: " << to_string(file_type) << "\n";
     user_section << "Name: " << file_name << "\n";
+    if (!file_path.empty() && file_path != file_name) {
+        user_section << "Path: " << file_path << "\n";
+    }
+    
+    // Extract and analyze file extension
+    size_t dot_pos = file_name.find_last_of('.');
+    if (dot_pos != std::string::npos && dot_pos < file_name.length() - 1) {
+        std::string extension = file_name.substr(dot_pos + 1);
+        user_section << "\nAnalyze this file based on:\n";
+        user_section << "- What this file type (." << extension << ") is typically used for\n";
+        user_section << "- The semantic meaning of the filename\n";
+        user_section << "- Common purposes and applications for this file format\n";
+    }
 
     std::string prompt = (file_type == FileType::File)
         ? "\nCategorize this file:\n" + user_section.str()
         : "\nCategorize the directory:\n" + user_section.str();
 
     if (!consistency_context.empty()) {
-        prompt += "\n" + consistency_context + "\n";
+        prompt += "\nContext and constraints:\n" + consistency_context + "\n";
     }
 
     std::string instruction = R"(<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-    You are a file categorization assistant. You must always follow the exact format. If the file is an installer, determine the type of software it installs. Base your answer on the filename, extension, and any directory context provided. The output must be:
+    You are an intelligent file categorization assistant. Analyze the file name, extension, and context to understand what the file represents. Consider the purpose, content type, and intended use of the file. You must always follow the exact format. If the file is an installer, determine the type of software it installs. Base your answer on the filename, extension, file format purpose, and any directory context provided. The output must be:
     <Main category> : <Subcategory>
-    Main category must be broad (one or two words, plural). Subcategory must be specific, relevant, and never just repeat the main category. Output exactly one line. Do not explain, add line breaks, or use words like 'Subcategory'. If uncertain, always make your best guess based on the name only. Do not apologize or state uncertainty. Never say you lack information.
+    Main category must be broad (one or two words, plural). Subcategory must be specific, relevant, and never just repeat the main category. Output exactly one line. Do not explain, add line breaks, or use words like 'Subcategory'. If uncertain, always make your best guess based on the name and file type. Do not apologize or state uncertainty. Never say you lack information.
     Examples:
     Texts : Documents
     Productivity : File managers
     Tables : Financial logs
     Utilities : Task managers
+    Audio : VST Plugins
+    Development : Source Code
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     )" + prompt + R"(<|eot_id|><|start_header_id|>assistant<|end_header_id|>)";
 

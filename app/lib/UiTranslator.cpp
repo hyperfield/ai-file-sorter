@@ -85,6 +85,9 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_directories_checkbox)) {
         checkbox->setText(tr("Categorize directories"));
     }
+    if (auto* checkbox = raw_ptr(deps_.primary.enable_profile_learning_checkbox)) {
+        checkbox->setText(tr("Learn from my organization patterns"));
+    }
     if (auto* button = raw_ptr(deps_.primary.analyze_button)) {
         button->setText(analysis_in_progress ? tr("Stop analyzing") : tr("Analyze folder"));
     }
@@ -162,6 +165,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.toggle_explorer_action, "File &Explorer"},
         {deps_.actions.toggle_llm_action, "Select &LLM…"},
         {deps_.actions.manage_whitelists_action, "Manage category whitelists…"},
+        {deps_.actions.clear_cache_action, "&Clear Categorization Cache…"},
         {deps_.actions.development_prompt_logging_action, "Log prompts and responses to stdout"},
         {deps_.actions.consistency_pass_action, "Run &consistency pass"},
         {deps_.actions.english_action, "&English"},
@@ -182,6 +186,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.about_action, "&About AI File Sorter"},
         {deps_.actions.about_qt_action, "About &Qt"},
         {deps_.actions.about_agpl_action, "About &AGPL"},
+        {deps_.actions.view_profile_action, "View User &Profile"},
         {deps_.actions.support_project_action, "&Support Project"}
     };
 

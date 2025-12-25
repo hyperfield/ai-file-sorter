@@ -5,12 +5,14 @@
 #include <json/json.h>
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
 #include <fstream>
 #include <iomanip>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <sstream>
@@ -97,18 +99,47 @@ public:
 
 private:
     void schedule_save() {
-        if (save_thread_.joinable()) return;
-        save_thread_ = std::thread([this]() {
+        if (save_pending_.exchange(true)) return;  // Already pending
+        
+        // Copy what we need by value to avoid use-after-free
+        std::string path_copy = path_;
+        std::map<std::string, ModelState> states_copy;
+        {
+            std::lock_guard<std::mutex> g(mu_);
+            states_copy = states_;
+        }
+        
+        // Capture atomic reference for safe reset from detached thread
+        std::atomic<bool>* flag_ptr = &save_pending_;
+        
+        std::thread([path_copy = std::move(path_copy), 
+                     states_copy = std::move(states_copy),
+                     flag_ptr]() mutable {
             std::this_thread::sleep_for(250ms);
-            save();
-        });
-        save_thread_.detach();
+            
+            // Perform save with copied data
+            std::ofstream out(path_copy + ".tmp");
+            if (out) {
+                for (auto& p : states_copy) {
+                    out << std::quoted(p.first) << ' ' << p.second.tokens << ' ' 
+                        << p.second.capacity << ' ' << p.second.refill_per_sec << ' ' 
+                        << p.second.last_refill_ms << ' ' << p.second.retry_after_until_ms << ' ' 
+                        << p.second.ewma_ms << '\n';
+                }
+                out.close();
+                std::rename((path_copy + ".tmp").c_str(), path_copy.c_str());
+            }
+            
+            // Reset flag after save completes
+            flag_ptr->store(false);
+        }).detach();
     }
 
     std::string path_;
     std::map<std::string, ModelState> states_;
     std::mutex mu_;
-    std::thread save_thread_;
+    std::mutex save_mu_;
+    std::atomic<bool> save_pending_{false};
 };
 
 static PersistentState& get_state() {
@@ -319,14 +350,25 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
 
 } // anonymous namespace
 
+namespace {
+// Ensure curl is initialized once per process
+struct CurlGlobalInit {
+    CurlGlobalInit() { curl_global_init(CURL_GLOBAL_DEFAULT); }
+    ~CurlGlobalInit() { curl_global_cleanup(); }
+};
+
+void ensure_curl_initialized() {
+    static CurlGlobalInit curl_init;
+    (void)curl_init;  // Explicitly mark as used
+}
+} // anonymous namespace
+
 LLMClient::LLMClient(std::string api_key, std::string model)
     : api_key(std::move(api_key)), model(std::move(model)) {
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    ensure_curl_initialized();
 }
 
-LLMClient::~LLMClient() {
-    curl_global_cleanup();
-}
+LLMClient::~LLMClient() = default;
 
 std::string LLMClient::effective_model() const {
     if (!model.empty()) return model;
@@ -336,7 +378,7 @@ std::string LLMClient::effective_model() const {
 std::string LLMClient::make_payload(const std::string& file_name,
                                    const std::string& file_path,
                                    const FileType file_type,
-                                   const std::string& consistency_context) {
+                                   const std::string& consistency_context) const {
     Json::Value root;
     root["model"] = effective_model();
     root["temperature"] = 0.0;
@@ -346,19 +388,42 @@ std::string LLMClient::make_payload(const std::string& file_name,
     
     Json::Value system_msg;
     system_msg["role"] = "system";
-    std::string system_content = "You are a file categorization assistant. "
-        "Return ONLY a category and subcategory in the format: Category : Subcategory. "
+    std::string system_content = "You are an intelligent file categorization assistant. "
+        "Analyze the file name, extension, and context to understand what the file represents. "
+        "Consider the purpose, content type, and intended use of the file.\n\n"
+        "IMPORTANT: If you are uncertain about the categorization (confidence < 70%), "
+        "respond with: UNCERTAIN : [filename]\n"
+        "Otherwise, respond ONLY with: Category : Subcategory\n"
         "No explanations, no additional text.";
     
     if (!consistency_context.empty()) {
-        system_content += "\n\nFor consistency, consider these recent categorizations:\n" + consistency_context;
+        system_content += "\n\nContext and constraints:\n" + consistency_context;
     }
     system_msg["content"] = system_content;
     messages.append(system_msg);
     
     Json::Value user_msg;
     user_msg["role"] = "user";
-    user_msg["content"] = "Categorize this " + to_string(file_type) + ": " + file_name;
+    
+    // Enhanced user message with file analysis
+    std::string user_content = "File to categorize:\n";
+    user_content += "Type: " + to_string(file_type) + "\n";
+    user_content += "Name: " + file_name + "\n";
+    if (!file_path.empty() && file_path != file_name) {
+        user_content += "Path: " + file_path + "\n";
+    }
+    
+    // Extract and analyze file extension
+    size_t dot_pos = file_name.find_last_of('.');
+    if (dot_pos != std::string::npos && dot_pos < file_name.length() - 1) {
+        std::string extension = file_name.substr(dot_pos + 1);
+        user_content += "\nAnalyze this file based on:\n";
+        user_content += "- What this file type (." + extension + ") is typically used for\n";
+        user_content += "- The semantic meaning of the filename\n";
+        user_content += "- Common purposes and applications for this file format\n";
+    }
+    
+    user_msg["content"] = user_content;
     messages.append(user_msg);
     
     root["messages"] = messages;
@@ -422,7 +487,12 @@ std::string LLMClient::send_api_request(std::string json_payload) {
         throw std::runtime_error("API response missing choices");
     }
     
-    auto content = response["choices"][0]["message"]["content"].asString();
+    auto& choice = response["choices"][0];
+    if (!choice.isMember("message") || !choice["message"].isMember("content")) {
+        throw std::runtime_error("API response missing message content");
+    }
+    
+    auto content = choice["message"]["content"].asString();
     
     if (prompt_logging_enabled) {
         if (auto logger = Logger::get_logger("core_logger")) {

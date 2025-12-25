@@ -18,6 +18,8 @@
 #include "UiTranslator.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
+#include "UserProfileDialog.hpp"
+#include "FolderLearningDialog.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
 #include "MainAppTestAccess.hpp"
 #endif
@@ -39,6 +41,7 @@
 #include <QByteArray>
 #include <QLabel>
 #include <QLineEdit>
+#include <QInputDialog>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -159,6 +162,10 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
 {
     TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
     initialize_whitelists();
+
+    // Initialize user profile manager
+    profile_manager_ = std::make_unique<UserProfileManager>(db_manager, core_logger);
+    profile_manager_->initialize_profile("default");
 
     using_local_llm = settings.get_llm_choice() != LLMChoice::Remote;
 
@@ -306,6 +313,10 @@ void MainApp::connect_signals()
         }
     });
 
+    if (folder_learning_button) {
+        connect(folder_learning_button, &QPushButton::clicked, this, &MainApp::show_folder_learning_settings);
+    }
+
     connect(path_entry, &QLineEdit::returnPressed, this, [this]() {
         const QString folder = path_entry->text();
         if (QDir(folder).exists()) {
@@ -398,6 +409,12 @@ void MainApp::connect_checkbox_signals()
         update_file_scan_option(FileScanOptions::Directories, checked);
         settings.set_categorize_directories(checked);
     });
+
+    if (enable_profile_learning_checkbox) {
+        connect(enable_profile_learning_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_enable_profile_learning(checked);
+        });
+    }
 }
 
 void MainApp::connect_whitelist_signals()
@@ -415,8 +432,20 @@ void MainApp::connect_whitelist_signals()
         if (auto entry = whitelist_store.get(name.toStdString())) {
             settings.set_allowed_categories(entry->categories);
             settings.set_allowed_subcategories(entry->subcategories);
+            // Always update context from whitelist entry, even if empty
+            if (context_input) {
+                context_input->setText(QString::fromStdString(entry->context));
+                settings.set_user_context(entry->context);
+            }
         }
     });
+    
+    // Connect context input to settings
+    if (context_input) {
+        connect(context_input, &QLineEdit::textChanged, this, [this](const QString& text) {
+            settings.set_user_context(text.toStdString());
+        });
+    }
 }
 
 
@@ -494,8 +523,14 @@ void MainApp::restore_tree_settings()
     if (whitelist_selector) {
         apply_whitelist_to_selector();
     }
+    if (context_input) {
+        context_input->setText(QString::fromStdString(settings.get_user_context()));
+    }
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
+    if (enable_profile_learning_checkbox) {
+        enable_profile_learning_checkbox->setChecked(settings.get_enable_profile_learning());
+    }
 }
 
 void MainApp::restore_sort_folder_state()
@@ -1101,6 +1136,17 @@ void MainApp::handle_analysis_finished()
         return;
     }
 
+    // Update user profile with analyzed files (if learning is enabled)
+    if (profile_manager_ && settings.get_enable_profile_learning()) {
+        try {
+            std::string folder_path = get_folder_path();
+            profile_manager_->analyze_and_update_from_folder(folder_path, new_files_to_sort);
+            core_logger->info("User profile updated with analysis results");
+        } catch (const std::exception& e) {
+            core_logger->warn("Failed to update user profile: {}", e.what());
+        }
+    }
+
     populate_tree_view(new_files_to_sort);
     show_results_dialog(new_files_to_sort);
 }
@@ -1245,6 +1291,36 @@ void MainApp::perform_analysis()
             return;
         }
 
+        // Generate and inject user profile context for LLM (if enabled and folder allows it)
+        std::string original_user_context;
+        if (profile_manager_ && settings.get_enable_profile_learning()) {
+            try {
+                std::string folder_path = directory_path;
+                std::string inclusion_level = db_manager.get_folder_inclusion_level(folder_path);
+                
+                // Only inject profile context if folder is set to "full" learning
+                if (inclusion_level == "full") {
+                    std::string profile_context = profile_manager_->generate_user_context_for_llm();
+                    if (!profile_context.empty()) {
+                        // Save original context to restore later
+                        original_user_context = settings.get_user_context();
+                        
+                        // Prepend profile context to existing user context
+                        std::string combined_context = profile_context;
+                        if (!original_user_context.empty()) {
+                            combined_context += "\n\n" + original_user_context;
+                        }
+                        settings.set_user_context(combined_context);
+                        core_logger->debug("Injected user profile context into LLM prompts for full learning folder");
+                    }
+                } else if (inclusion_level == "partial") {
+                    core_logger->debug("Folder set to partial learning - profile context not used for categorization");
+                }
+            } catch (const std::exception& e) {
+                core_logger->warn("Failed to generate user profile context: {}", e.what());
+            }
+        }
+
         append_progress("[PROCESS] Letting the AI do its magic...");
 
         new_files_with_categories = categorization_service.categorize_entries(
@@ -1261,6 +1337,12 @@ void MainApp::perform_analysis()
                 notify_recategorization_reset(entry, reason);
             },
             [this]() { return make_llm_client(); });
+
+        // Restore original user context
+        if (profile_manager_ && !original_user_context.empty()) {
+            settings.set_user_context(original_user_context);
+            core_logger->debug("Restored original user context");
+        }
 
         core_logger->info("Categorization produced {} new record(s).",
                           new_files_with_categories.size());
@@ -1476,6 +1558,27 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         const std::string undo_dir = settings.get_config_dir() + "/undo";
         categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, undo_dir, this);
+        
+        // Set up callback for saving categories to whitelist
+        categorization_dialog->set_save_categories_callback([this](const std::vector<std::string>& cats, const std::vector<std::string>& subs) {
+            // Prompt for whitelist name
+            bool ok;
+            QString name = QInputDialog::getText(this, tr("Save to Whitelist"),
+                                               tr("Enter a name for this whitelist:"),
+                                               QLineEdit::Normal,
+                                               tr("Refined Categories"), &ok);
+            if (ok && !name.isEmpty()) {
+                WhitelistEntry entry;
+                entry.categories = cats;
+                entry.subcategories = subs;
+                entry.context = settings.get_user_context();
+                entry.enable_advanced_subcategories = false;
+                whitelist_store.set(name.toStdString(), entry);
+                whitelist_store.save();
+                apply_whitelist_to_selector();
+            }
+        });
+        
         categorization_dialog->show_results(results);
 
         const int newly_analyzed = static_cast<int>(std::count_if(
@@ -1497,6 +1600,94 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
 void MainApp::show_error_dialog(const std::string& message)
 {
     DialogUtils::show_error_dialog(this, message);
+}
+
+void MainApp::clear_categorization_cache()
+{
+    QMessageBox confirm_dialog(this);
+    confirm_dialog.setWindowTitle(tr("Clear Categorization Cache"));
+    confirm_dialog.setText(tr("This will delete all cached categorization data."));
+    confirm_dialog.setInformativeText(tr(
+        "All previously categorized files will need to be analyzed again.\n"
+        "User-provided categorizations will also be cleared.\n\n"
+        "Do you want to continue?"));
+    confirm_dialog.setIcon(QMessageBox::Warning);
+    confirm_dialog.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    confirm_dialog.setDefaultButton(QMessageBox::No);
+    
+    QPushButton* current_folder_button = confirm_dialog.addButton(
+        tr("Current Folder Only"), QMessageBox::ActionRole);
+    
+    int result = confirm_dialog.exec();
+    
+    if (result == QMessageBox::No) {
+        return;
+    }
+    
+    bool success = false;
+    QString status_message;
+    
+    if (confirm_dialog.clickedButton() == current_folder_button) {
+        // Clear cache for current folder only
+        QString folder_path = folder_path_input->text();
+        if (folder_path.isEmpty()) {
+            show_error_dialog(tr("Please select a folder first.").toStdString());
+            return;
+        }
+        
+        success = db_manager.clear_directory_categorizations(folder_path.toStdString());
+        if (success) {
+            status_message = tr("Cache cleared for current folder.");
+            if (core_logger) {
+                core_logger->info("Cleared categorization cache for folder: {}", 
+                                 folder_path.toStdString());
+            }
+        } else {
+            status_message = tr("Failed to clear cache for current folder.");
+        }
+    } else if (result == QMessageBox::Yes) {
+        // Clear all cache by deleting entire database
+        // Note: This assumes single-threaded access to the database during this operation
+        // If categorization is running concurrently, it should be stopped first
+        QString db_path = QString::fromStdString(db_manager.get_database_path());
+        
+        if (core_logger) {
+            core_logger->info("Clearing all categorization cache from: {}", db_path.toStdString());
+        }
+        
+        // Close database connection
+        db_manager.close();
+        
+        // Delete the database file
+        QFile db_file(db_path);
+        if (db_file.exists()) {
+            success = db_file.remove();
+            if (!success) {
+                if (core_logger) {
+                    core_logger->error("Failed to delete database file: {}", db_path.toStdString());
+                }
+            }
+        } else {
+            success = true;  // File doesn't exist, consider it success
+        }
+        
+        // Reinitialize database with fresh schema
+        if (success) {
+            db_manager.initialize();
+            status_message = tr("All categorization cache cleared.");
+            if (core_logger) {
+                core_logger->info("Successfully cleared all categorization cache");
+            }
+        } else {
+            status_message = tr("Failed to delete database file.");
+        }
+    }
+    
+    if (success) {
+        QMessageBox::information(this, tr("Cache Cleared"), status_message);
+    } else {
+        show_error_dialog(status_message.toStdString());
+    }
 }
 
 
@@ -1543,4 +1734,41 @@ void MainApp::closeEvent(QCloseEvent* event)
     stop_running_analysis();
     save_settings();
     QMainWindow::closeEvent(event);
+}
+
+void MainApp::show_user_profile()
+{
+    if (!profile_manager_) {
+        show_error_dialog("User profile manager not initialized");
+        return;
+    }
+
+    try {
+        UserProfile profile = profile_manager_->get_profile();
+        UserProfileDialog dialog(profile, this);
+        dialog.exec();
+    } catch (const std::exception& e) {
+        show_error_dialog(std::string("Failed to load user profile: ") + e.what());
+    }
+}
+
+void MainApp::show_folder_learning_settings()
+{
+    std::string folder_path = get_folder_path();
+    
+    if (folder_path.empty()) {
+        show_error_dialog("Please select a folder first");
+        return;
+    }
+    
+    try {
+        FolderLearningDialog dialog(folder_path, db_manager, this);
+        if (dialog.exec() == QDialog::Accepted) {
+            std::string selected_level = dialog.get_selected_level();
+            db_manager.set_folder_inclusion_level(folder_path, selected_level);
+            core_logger->info("Updated folder learning level for '{}' to '{}'", folder_path, selected_level);
+        }
+    } catch (const std::exception& e) {
+        show_error_dialog(std::string("Failed to manage folder learning settings: ") + e.what());
+    }
 }

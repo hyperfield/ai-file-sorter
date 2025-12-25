@@ -200,6 +200,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     show_file_explorer = load_bool("ShowFileExplorer", true);
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
+    enable_profile_learning = load_bool("EnableProfileLearning", true);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
     if (config.hasValue("Settings", "Language")) {
         language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
@@ -217,6 +218,7 @@ void Settings::load_whitelist_settings(const std::function<bool(const char*, boo
     allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
     use_whitelist = load_bool("UseWhitelist", false);
     active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
+    user_context = config.getValue("Settings", "UserContext", "");
 }
 
 void Settings::load_custom_llm_settings()
@@ -272,6 +274,7 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "ShowFileExplorer", show_file_explorer);
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
     set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
+    set_bool_setting(config, settings_section, "EnableProfileLearning", enable_profile_learning);
     config.setValue(settings_section, "Language", languageToString(language).toStdString());
     config.setValue(settings_section, "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
     config.setValue(settings_section, "CategorizedFileCount", std::to_string(categorized_file_count));
@@ -286,6 +289,7 @@ void Settings::save_whitelist_settings()
     config.setValue(settings_section, "AllowedSubcategories", join_list(allowed_subcategories));
     set_bool_setting(config, settings_section, "UseWhitelist", use_whitelist);
     set_optional_setting(config, settings_section, "ActiveWhitelist", active_whitelist);
+    set_optional_setting(config, settings_section, "UserContext", user_context);
 }
 
 void Settings::save_custom_llms()
@@ -596,6 +600,16 @@ void Settings::set_active_whitelist(const std::string& name)
     active_whitelist = name;
 }
 
+std::string Settings::get_user_context() const
+{
+    return user_context;
+}
+
+void Settings::set_user_context(const std::string& context)
+{
+    user_context = context;
+}
+
 
 void Settings::set_skipped_version(const std::string &version) {
     skipped_version = version;
@@ -675,4 +689,14 @@ std::vector<std::string> Settings::get_allowed_subcategories() const
 void Settings::set_allowed_subcategories(std::vector<std::string> values)
 {
     allowed_subcategories = std::move(values);
+}
+
+bool Settings::get_enable_profile_learning() const
+{
+    return enable_profile_learning;
+}
+
+void Settings::set_enable_profile_learning(bool value)
+{
+    enable_profile_learning = value;
 }
