@@ -1,5 +1,17 @@
 ﻿# Changelog
 
+## [1.5.0] - 2025-12-25
+
+- **Added Google Gemini API support** with smart free-tier optimization
+  - Intelligent rate limiting (15 RPM) prevents quota exhaustion
+  - Adaptive timeout handling (20-240s) eliminates timeout errors for free users
+  - Self-operating retry logic with exponential backoff
+  - Persistent state tracking for optimal request pacing
+- Complete UI integration for Gemini API key management in Select LLM dialog
+- Fixed LLMClient implementation to properly match header interface
+- Enhanced error handling and credential validation for both OpenAI and Gemini
+- Updated settings to support separate API keys and models for Gemini
+
 ## [1.4.0] - 2025-12-05
 - Added dry run / preview-only mode with From/To table, no moves performed until you uncheck.
 - Persistent Undo: the latest sort saves a plan file; use Edit -> "Undo last run" even after closing dialogs.

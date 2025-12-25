@@ -62,6 +62,7 @@ File content–based sorting for certain file types is also in development.
     - [Windows](#windows)
   - [Uninstallation](#uninstallation)
   - [Using your OpenAI API key](#using-your-openai-api-key)
+  - [Using your Google Gemini API key](#using-your-google-gemini-api-key)
   - [Testing](#testing)
   - [How to Use](#how-to-use)
   - [Sorting a Remote Directory (e.g., NAS)](#sorting-a-remote-directory-eg-nas)
@@ -73,6 +74,16 @@ File content–based sorting for certain file types is also in development.
 ---
 
 ## Changelog
+
+## [1.5.0] - 2025-12-25
+- **Added Google Gemini API support** with smart free-tier optimization
+  - Intelligent rate limiting (15 RPM) prevents quota exhaustion
+  - Adaptive timeout handling (20-240s) eliminates timeout errors for free users
+  - Self-operating retry logic with exponential backoff
+  - Persistent state tracking for optimal request pacing
+- Complete UI integration for Gemini API key management
+- Fixed LLMClient implementation to properly match header interface
+- Enhanced error handling and credential validation
 
 ## [1.4.0] - 2025-12-30
 - Added dry run / preview-only mode with From→To table, no moves performed until you uncheck.
@@ -86,8 +97,9 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Features
 
-- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or ChatGPT with your own OpenAI API key (choose any ChatGPT model your key allows).
+- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral), ChatGPT with your own OpenAI API key, or **Google Gemini** with your own Gemini API key (choose any model your key allows).
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
+- **Smart Free-Tier Support**: Gemini integration includes intelligent rate limiting (15 RPM), adaptive timeout handling (20s-240s), and self-operating retry logic optimized for free tier users - no more timeouts!
   **Robust Categorization Algorithm**: Consistency across categories is supported by taxonomy and heuristics.
   **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
 - **Two categorization modes**: Pick **More Refined** for detailed labels or **More Consistent** to bias toward uniform categories within a folder.
@@ -101,7 +113,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Sorting Preview**: See how files will be organized before confirming changes.
 - 🧪 **Dry run** / preview-only mode to inspect planned moves without touching files.
 - ↩️ **Persistent Undo** ("Undo last run") even after closing the sort dialog.
-- **Bring your own key**: Paste your OpenAI API key once; it's stored locally and reused for ChatGPT runs.
+- **Bring your own key**: Paste your OpenAI or Gemini API key once; it's stored locally and reused for subsequent runs.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
 
 ---
@@ -362,6 +374,25 @@ Want to use ChatGPT instead of the bundled local models? Bring your own OpenAI A
 4. An internet connection is only required while this option is selected.
 
 > The app no longer embeds a bundled key; you always provide your own OpenAI key.
+
+---
+
+## Using your Google Gemini API key
+
+Want to use Google Gemini with optimized free-tier support? Bring your own Gemini API key:
+
+1. Open **Settings -> Select LLM** in the app.
+2. Choose **Google Gemini (Gemini API key)**, paste your key, and enter the Gemini model you want to use (for example `gemini-1.5-flash` or `gemini-1.5-pro`).
+3. Click **OK**. The key is stored locally in your AI File Sorter config (`config.ini` in the app data folder) and reused for future runs. Clear the field to remove it.
+4. An internet connection is only required while this option is selected.
+
+**Free Tier Benefits:**
+- Smart rate limiting (15 requests per minute) prevents quota exhaustion
+- Adaptive timeout handling (20-240 seconds) eliminates timeout errors
+- Self-operating retry logic with exponential backoff handles transient failures
+- Persistent state tracking intelligently paces requests for optimal performance
+
+> Get your free Gemini API key at [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
 
 ---
 
