@@ -254,7 +254,6 @@ bool is_allowed(const std::string& value, const std::vector<std::string>& allowe
         return true;
     }
     const std::string norm = to_lower_copy_str(value);
-    // Optimize by avoiding repeated to_lower_copy_str calls in loop
     return std::any_of(allowed.begin(), allowed.end(), [&norm](const std::string& item) {
         return to_lower_copy_str(item) == norm;
     });

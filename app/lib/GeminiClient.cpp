@@ -351,6 +351,7 @@ struct CurlGlobalInit {
 
 void ensure_curl_initialized() {
     static CurlGlobalInit curl_init;
+    (void)curl_init;  // Explicitly mark as used
 }
 } // anonymous namespace
 
