@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QTextEdit>
 #include <QLineEdit>
+#include <QCheckBox>
 #include <QAbstractItemView>
 
 namespace {
@@ -18,15 +19,27 @@ QString join_lines(const std::vector<std::string>& items) {
     for (const auto& i : items) {
         list << QString::fromStdString(i);
     }
-    return list.join(", ");
+    // Use semicolon separator
+    return list.join("; ");
 }
 
 std::vector<std::string> split_lines(const QString& text) {
     std::vector<std::string> items;
-    for (const auto& part : text.split(",")) {
-        const QString trimmed = part.trimmed();
-        if (!trimmed.isEmpty()) {
-            items.emplace_back(trimmed.toStdString());
+    // Try semicolon first (new format)
+    if (text.contains(';')) {
+        for (const auto& part : text.split(";")) {
+            const QString trimmed = part.trimmed();
+            if (!trimmed.isEmpty()) {
+                items.emplace_back(trimmed.toStdString());
+            }
+        }
+    } else {
+        // Fall back to comma for backward compatibility
+        for (const auto& part : text.split(",")) {
+            const QString trimmed = part.trimmed();
+            if (!trimmed.isEmpty()) {
+                items.emplace_back(trimmed.toStdString());
+            }
         }
     }
     return items;
@@ -36,6 +49,8 @@ struct EditDialogResult {
     QString name;
     std::vector<std::string> categories;
     std::vector<std::string> subcategories;
+    std::string context;
+    bool enable_advanced_subcategories;
 };
 
 std::optional<EditDialogResult> show_edit_dialog(QWidget* parent,
@@ -44,6 +59,7 @@ std::optional<EditDialogResult> show_edit_dialog(QWidget* parent,
 {
     QDialog dialog(parent);
     dialog.setWindowTitle(QObject::tr("Edit whitelist"));
+    dialog.resize(600, 500);
     auto* layout = new QVBoxLayout(&dialog);
 
     auto* name_edit = new QLineEdit(&dialog);
@@ -53,13 +69,24 @@ std::optional<EditDialogResult> show_edit_dialog(QWidget* parent,
 
     auto* cats_edit = new QTextEdit(&dialog);
     cats_edit->setPlainText(join_lines(entry.categories));
-    layout->addWidget(new QLabel(QObject::tr("Categories (comma separated):"), &dialog));
+    layout->addWidget(new QLabel(QObject::tr("Categories (semicolon separated):"), &dialog));
     layout->addWidget(cats_edit);
 
     auto* subs_edit = new QTextEdit(&dialog);
     subs_edit->setPlainText(join_lines(entry.subcategories));
-    layout->addWidget(new QLabel(QObject::tr("Subcategories (comma separated):"), &dialog));
+    layout->addWidget(new QLabel(QObject::tr("Subcategories (semicolon separated):"), &dialog));
     layout->addWidget(subs_edit);
+
+    auto* context_edit = new QTextEdit(&dialog);
+    context_edit->setPlainText(QString::fromStdString(entry.context));
+    context_edit->setMaximumHeight(80);
+    layout->addWidget(new QLabel(QObject::tr("Context (describe what files/folders are being sorted):"), &dialog));
+    layout->addWidget(context_edit);
+
+    auto* advanced_checkbox = new QCheckBox(QObject::tr("Enable advanced subcategory generation"), &dialog);
+    advanced_checkbox->setChecked(entry.enable_advanced_subcategories);
+    advanced_checkbox->setToolTip(QObject::tr("Generate dynamic subcategories based on categories and files being processed"));
+    layout->addWidget(advanced_checkbox);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     layout->addWidget(buttons);
@@ -77,6 +104,8 @@ std::optional<EditDialogResult> show_edit_dialog(QWidget* parent,
     }
     result.categories = split_lines(cats_edit->toPlainText());
     result.subcategories = split_lines(subs_edit->toPlainText());
+    result.context = context_edit->toPlainText().toStdString();
+    result.enable_advanced_subcategories = advanced_checkbox->isChecked();
     return result;
 }
 }
@@ -136,7 +165,12 @@ bool WhitelistManagerDialog::edit_entry(const QString& name, WhitelistEntry& ent
     }
 
     store_.remove(name.toStdString());
-    store_.set(result->name.toStdString(), WhitelistEntry{result->categories, result->subcategories});
+    WhitelistEntry new_entry;
+    new_entry.categories = result->categories;
+    new_entry.subcategories = result->subcategories;
+    new_entry.context = result->context;
+    new_entry.enable_advanced_subcategories = result->enable_advanced_subcategories;
+    store_.set(result->name.toStdString(), new_entry);
     store_.save();
     refresh_list();
     notify_changed();

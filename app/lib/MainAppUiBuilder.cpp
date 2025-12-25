@@ -215,6 +215,11 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.whitelist_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     QFontMetrics fm(app.whitelist_selector->font());
     app.whitelist_selector->setMinimumWidth(fm.horizontalAdvance(QString(16, QChar('W'))) + 5);
+    
+    // Add context input field
+    app.context_input = new QLineEdit(central);
+    app.context_input->setPlaceholderText("Add context to help categorize (e.g., 'VST plugins', 'work documents')");
+    app.context_input->setMaxLength(500);
 
     app.analyze_button = new QPushButton(central);
     QIcon analyze_icon = QIcon::fromTheme(QStringLiteral("sparkle"));
@@ -241,11 +246,16 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     whitelist_row->addWidget(app.use_whitelist_checkbox);
     whitelist_row->addWidget(app.whitelist_selector);
     whitelist_row->addStretch();
+    
+    auto* context_row = new QHBoxLayout();
+    context_row->addWidget(app.context_input);
 
     auto* control_block = new QVBoxLayout();
     control_block->addLayout(categorization_layout);
     control_block->addSpacing(4);
     control_block->addLayout(whitelist_row);
+    control_block->addSpacing(4);
+    control_block->addLayout(context_row);
 
     analyze_layout->addLayout(control_block);
     analyze_layout->addSpacing(12);

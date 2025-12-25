@@ -833,8 +833,19 @@ void MainApp::connect_whitelist_signals()
         if (auto entry = whitelist_store.get(name.toStdString())) {
             settings.set_allowed_categories(entry->categories);
             settings.set_allowed_subcategories(entry->subcategories);
+            // Update context from whitelist entry
+            if (context_input && !entry->context.empty()) {
+                context_input->setText(QString::fromStdString(entry->context));
+            }
         }
     });
+    
+    // Connect context input to settings
+    if (context_input) {
+        connect(context_input, &QLineEdit::textChanged, this, [this](const QString& text) {
+            settings.set_user_context(text.toStdString());
+        });
+    }
 }
 
 

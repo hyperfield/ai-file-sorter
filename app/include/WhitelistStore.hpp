@@ -11,6 +11,8 @@ class Settings;
 struct WhitelistEntry {
     std::vector<std::string> categories;
     std::vector<std::string> subcategories;
+    std::string context;  // User-provided context for better categorization
+    bool enable_advanced_subcategories{false};  // Generate subcategories dynamically
 };
 
 class WhitelistStore {

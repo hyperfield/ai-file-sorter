@@ -206,6 +206,7 @@ private:
     QPointer<QRadioButton> categorization_style_consistent_radio;
     QPointer<QCheckBox> use_whitelist_checkbox;
     QPointer<QComboBox> whitelist_selector;
+    QPointer<QLineEdit> context_input;  // User context input field
     QPointer<QCheckBox> categorize_files_checkbox;
     QPointer<QCheckBox> categorize_directories_checkbox;
     QPointer<QCheckBox> include_subdirectories_checkbox;
