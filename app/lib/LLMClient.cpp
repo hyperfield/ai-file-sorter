@@ -390,8 +390,10 @@ std::string LLMClient::make_payload(const std::string& file_name,
     system_msg["role"] = "system";
     std::string system_content = "You are an intelligent file categorization assistant. "
         "Analyze the file name, extension, and context to understand what the file represents. "
-        "Consider the purpose, content type, and intended use of the file. "
-        "Return ONLY a category and subcategory in the format: Category : Subcategory. "
+        "Consider the purpose, content type, and intended use of the file.\n\n"
+        "IMPORTANT: If you are uncertain about the categorization (confidence < 70%), "
+        "respond with: UNCERTAIN : [filename]\n"
+        "Otherwise, respond ONLY with: Category : Subcategory\n"
         "No explanations, no additional text.";
     
     if (!consistency_context.empty()) {
