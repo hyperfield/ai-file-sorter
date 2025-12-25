@@ -89,6 +89,7 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 
 ## [1.6.1] - 2026-02-06
 
+- **User profiling & adaptive organization**: optional profile learning to personalize categorization; view insights under **Help → View User Profile**.
 - Local text LLM now prompts to switch to CPU when GPU initialization or inference fails.
 
 ## [1.6.0] - 2026-02-04
@@ -113,6 +114,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 ## Features
 
 - **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or a remote model (ChatGPT with your own OpenAI API key, or Gemini with your own Gemini API key).
+- **User profiling & adaptive learning**: AI File Sorter learns from your folder organization patterns over time to provide increasingly personalized categorization suggestions.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
   **Robust Categorization Algorithm**: Consistency across categories is supported by taxonomy and heuristics.
   **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
@@ -709,6 +711,44 @@ Prefer Google's models? Use your own Gemini API key:
 4. Click the **"Analyze"** button. The app will scan each file and/or directory based on your selected options.
 5. A review dialog will appear. Verify the assigned categories (and subcategories, if enabled in step 3).
 6. Click **"Confirm & Sort!"** to move the files, or **"Continue Later"** to postpone. You can always resume where you left off since categorization results are saved.
+
+---
+
+## User Profiling & Adaptive Learning
+
+AI File Sorter includes an intelligent user profiling system that learns from your file organization patterns over time. The more you use it, the better it becomes at understanding your preferences and providing personalized categorization suggestions.
+
+### How It Works
+
+1. **Automatic Analysis**: Every time you analyze a folder, the system:
+   - Examines file categories and patterns
+   - Infers your interests and hobbies (e.g., music, photography, programming)
+   - Detects work patterns and professional activities
+   - Analyzes your organizational style (minimalist, balanced, detailed, power user)
+
+2. **Profile Building**: The system builds a profile containing:
+   - **User Characteristics**: Traits like hobbies, work patterns, and organizational preferences, each with a confidence level
+   - **Folder Insights**: Detailed analysis of each folder including dominant categories, file counts, and usage patterns
+   - **Evolution Over Time**: Confidence levels grow and adapt as more folders are analyzed
+
+3. **Adaptive Categorization**: Your profile is automatically used to:
+   - Provide context to the AI for better categorization suggestions
+   - Understand your preferences and organizational style
+   - Make increasingly accurate predictions based on your history
+
+### Viewing Your Profile
+
+Access your user profile anytime via **Help → View User Profile**. The profile dialog shows:
+
+- **Overview Tab**: Summary of your characteristics, interests, and folder statistics
+- **Characteristics Tab**: All learned traits organized by category (hobbies, work patterns, organization style) with confidence levels and evidence
+- **Folder Insights Tab**: Analysis of each folder you've organized, including file counts, dominant categories, and usage patterns
+
+### Privacy & Storage
+
+- All profile data is stored **locally** in your AI File Sorter database
+- No data is sent to external servers (except when using remote LLM APIs for categorization)
+- The profile helps the AI understand your context without compromising your privacy
 
 ---
 
