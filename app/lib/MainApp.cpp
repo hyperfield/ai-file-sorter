@@ -404,6 +404,12 @@ void MainApp::connect_checkbox_signals()
         update_file_scan_option(FileScanOptions::Directories, checked);
         settings.set_categorize_directories(checked);
     });
+
+    if (enable_profile_learning_checkbox) {
+        connect(enable_profile_learning_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_enable_profile_learning(checked);
+        });
+    }
 }
 
 void MainApp::connect_whitelist_signals()
@@ -517,6 +523,9 @@ void MainApp::restore_tree_settings()
     }
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
+    if (enable_profile_learning_checkbox) {
+        enable_profile_learning_checkbox->setChecked(settings.get_enable_profile_learning());
+    }
 }
 
 void MainApp::restore_sort_folder_state()
@@ -1122,8 +1131,8 @@ void MainApp::handle_analysis_finished()
         return;
     }
 
-    // Update user profile with analyzed files
-    if (profile_manager_) {
+    // Update user profile with analyzed files (if learning is enabled)
+    if (profile_manager_ && settings.get_enable_profile_learning()) {
         try {
             std::string folder_path = get_folder_path();
             profile_manager_->analyze_and_update_from_folder(folder_path, new_files_to_sort);
@@ -1277,9 +1286,9 @@ void MainApp::perform_analysis()
             return;
         }
 
-        // Generate and inject user profile context for LLM (temporarily)
+        // Generate and inject user profile context for LLM (temporarily, if learning is enabled)
         std::string original_user_context;
-        if (profile_manager_) {
+        if (profile_manager_ && settings.get_enable_profile_learning()) {
             try {
                 std::string profile_context = profile_manager_->generate_user_context_for_llm();
                 if (!profile_context.empty()) {

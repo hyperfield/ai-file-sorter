@@ -1118,6 +1118,19 @@ void DatabaseManager::initialize_user_profile_schema() {
         db_log(spdlog::level::err, "Failed to create insights index: {}", error_msg);
         sqlite3_free(error_msg);
     }
+
+    // Folder learning settings table for per-folder exclusions
+    const char *folder_learning_sql = R"(
+        CREATE TABLE IF NOT EXISTS folder_learning_settings (
+            folder_path TEXT PRIMARY KEY,
+            inclusion_level TEXT NOT NULL DEFAULT 'full',
+            CHECK(inclusion_level IN ('none', 'partial', 'full'))
+        );
+    )";
+    if (sqlite3_exec(db, folder_learning_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create folder_learning_settings table: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
 }
 
 bool DatabaseManager::save_user_profile(const UserProfile& profile) {
@@ -1340,4 +1353,54 @@ std::vector<FolderInsight> DatabaseManager::load_folder_insights(const std::stri
 
     sqlite3_finalize(stmt);
     return insights;
+}
+
+std::string DatabaseManager::get_folder_inclusion_level(const std::string& folder_path) {
+    if (!db) return "full";  // Default to full inclusion
+
+    const char *sql = "SELECT inclusion_level FROM folder_learning_settings WHERE folder_path = ?;";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::warn, "Failed to prepare get folder inclusion level: {}", sqlite3_errmsg(db));
+        return "full";
+    }
+
+    sqlite3_bind_text(stmt, 1, folder_path.c_str(), -1, SQLITE_TRANSIENT);
+
+    std::string level = "full";  // Default
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *result = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        if (result) {
+            level = result;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return level;
+}
+
+void DatabaseManager::set_folder_inclusion_level(const std::string& folder_path, const std::string& level) {
+    if (!db) return;
+
+    const char *sql = R"(
+        INSERT INTO folder_learning_settings (folder_path, inclusion_level)
+        VALUES (?, ?)
+        ON CONFLICT(folder_path) DO UPDATE SET inclusion_level = excluded.inclusion_level;
+    )";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare set folder inclusion level: {}", sqlite3_errmsg(db));
+        return;
+    }
+
+    sqlite3_bind_text(stmt, 1, folder_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, level.c_str(), -1, SQLITE_TRANSIENT);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        db_log(spdlog::level::err, "Failed to set folder inclusion level: {}", sqlite3_errmsg(db));
+    }
+
+    sqlite3_finalize(stmt);
 }

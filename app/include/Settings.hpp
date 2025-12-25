@@ -85,6 +85,10 @@ public:
     std::vector<std::string> get_allowed_subcategories() const;
     void set_allowed_subcategories(std::vector<std::string> values);
 
+    // User profiling settings
+    bool get_enable_profile_learning() const;
+    void set_enable_profile_learning(bool value);
+
 private:
     LLMChoice parse_llm_choice() const;
     void load_basic_settings(const std::function<bool(const char*, bool)>& load_bool,
@@ -127,6 +131,7 @@ private:
     std::string user_context;  // User-provided context for categorization
     std::vector<CustomLLM> custom_llms;
     std::string active_custom_llm_id;
+    bool enable_profile_learning{true};  // Enable user profile learning
 };
 
 #endif

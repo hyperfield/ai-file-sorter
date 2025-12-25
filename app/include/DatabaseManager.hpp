@@ -58,6 +58,10 @@ public:
     bool save_folder_insight(const std::string& user_id, const FolderInsight& insight);
     std::vector<FolderInsight> load_folder_insights(const std::string& user_id);
 
+    // Folder learning settings
+    std::string get_folder_inclusion_level(const std::string& folder_path);
+    void set_folder_inclusion_level(const std::string& folder_path, const std::string& level);
+
 private:
     struct TaxonomyEntry {
         int id;

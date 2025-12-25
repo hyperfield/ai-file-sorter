@@ -180,6 +180,7 @@ private:
     QPointer<QLineEdit> context_input;  // User context input field
     QPointer<QCheckBox> categorize_files_checkbox;
     QPointer<QCheckBox> categorize_directories_checkbox;
+    QPointer<QCheckBox> enable_profile_learning_checkbox;  // Profile learning toggle
     QPointer<QTreeView> tree_view;
     QPointer<QStandardItemModel> tree_model;
     QPointer<QStackedWidget> results_stack;
