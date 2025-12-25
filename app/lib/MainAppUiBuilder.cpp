@@ -63,19 +63,28 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.path_label = new QLabel(central);
     app.path_entry = new QLineEdit(central);
     app.browse_button = new QPushButton(central);
+    app.folder_learning_button = new QPushButton(central);
+    app.folder_learning_button->setIcon(app.style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    app.folder_learning_button->setToolTip("Configure learning settings for this folder");
+    app.folder_learning_button->setMaximumWidth(40);
     path_layout->addWidget(app.path_label);
     path_layout->addWidget(app.path_entry, 1);
     path_layout->addWidget(app.browse_button);
+    path_layout->addWidget(app.folder_learning_button);
     main_layout->addLayout(path_layout);
 
     auto* options_layout = new QHBoxLayout();
     app.use_subcategories_checkbox = new QCheckBox(central);
     app.categorize_files_checkbox = new QCheckBox(central);
     app.categorize_directories_checkbox = new QCheckBox(central);
+    app.enable_profile_learning_checkbox = new QCheckBox(central);
     app.categorize_files_checkbox->setChecked(true);
+    app.enable_profile_learning_checkbox->setChecked(true);
+    app.enable_profile_learning_checkbox->setToolTip("When enabled, the app learns from your file organization patterns to provide personalized categorization suggestions");
     options_layout->addWidget(app.use_subcategories_checkbox);
     options_layout->addWidget(app.categorize_files_checkbox);
     options_layout->addWidget(app.categorize_directories_checkbox);
+    options_layout->addWidget(app.enable_profile_learning_checkbox);
     options_layout->addStretch(1);
     main_layout->addLayout(options_layout);
 
@@ -185,7 +194,8 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.use_whitelist_checkbox,
             app.whitelist_selector,
             app.categorize_files_checkbox,
-            app.categorize_directories_checkbox},
+            app.categorize_directories_checkbox,
+            app.enable_profile_learning_checkbox},
         .tree_model = app.tree_model,
         .menus = UiTranslator::MenuControls{
             app.file_menu,
@@ -227,6 +237,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.about_action,
             app.about_qt_action,
             app.about_agpl_action,
+            app.view_profile_action,
             app.support_project_action},
         .language = UiTranslator::LanguageControls{
             app.language_group,
@@ -425,6 +436,14 @@ void MainAppUiBuilder::build_help_menu(MainApp& app) {
     QObject::connect(app.about_agpl_action, &QAction::triggered, &app, [&app]() {
         MainAppHelpActions::show_agpl_info(&app);
     });
+
+    app.help_menu->addSeparator();
+
+    app.view_profile_action = app.help_menu->addAction(icon_for(app, "user-info", QStyle::SP_FileDialogInfoView), QString());
+    app.view_profile_action->setMenuRole(QAction::NoRole);
+    QObject::connect(app.view_profile_action, &QAction::triggered, &app, &MainApp::show_user_profile);
+
+    app.help_menu->addSeparator();
 
     app.support_project_action = app.help_menu->addAction(icon_for(app, "help-donate", QStyle::SP_DialogHelpButton), QString());
     app.support_project_action->setMenuRole(QAction::NoRole);

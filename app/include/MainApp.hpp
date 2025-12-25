@@ -13,6 +13,7 @@
 #include "WhitelistStore.hpp"
 #include "UiTranslator.hpp"
 #include "UndoManager.hpp"
+#include "UserProfileManager.hpp"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -146,6 +147,8 @@ private:
     bool ensure_folder_categorization_style(const std::string& folder_path);
     void show_whitelist_manager();
     void apply_whitelist_to_selector();
+    void show_user_profile();
+    void show_folder_learning_settings();
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
@@ -168,6 +171,7 @@ private:
     QPointer<QLineEdit> path_entry;
     QPointer<QPushButton> analyze_button;
     QPointer<QPushButton> browse_button;
+    QPointer<QPushButton> folder_learning_button;
     QPointer<QLabel> path_label;
     QPointer<QCheckBox> use_subcategories_checkbox;
     QPointer<QLabel> categorization_style_heading;
@@ -178,6 +182,7 @@ private:
     QPointer<QLineEdit> context_input;  // User context input field
     QPointer<QCheckBox> categorize_files_checkbox;
     QPointer<QCheckBox> categorize_directories_checkbox;
+    QPointer<QCheckBox> enable_profile_learning_checkbox;  // Profile learning toggle
     QPointer<QTreeView> tree_view;
     QPointer<QStandardItemModel> tree_model;
     QPointer<QStackedWidget> results_stack;
@@ -231,6 +236,7 @@ private:
     QAction* about_qt_action{nullptr};
     QAction* about_agpl_action{nullptr};
     QAction* support_project_action{nullptr};
+    QAction* view_profile_action{nullptr};
 
     std::unique_ptr<CategorizationDialog> categorization_dialog;
     std::unique_ptr<CategorizationProgressDialog> progress_dialog;
@@ -243,6 +249,7 @@ private:
     ConsistencyPassService consistency_pass_service;
     ResultsCoordinator results_coordinator;
     UndoManager undo_manager_;
+    std::unique_ptr<UserProfileManager> profile_manager_;
     bool development_mode_{false};
     bool development_prompt_logging_enabled_{false};
 

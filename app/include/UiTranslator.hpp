@@ -40,6 +40,7 @@ public:
         QPointer<QComboBox>& whitelist_selector;
         QPointer<QCheckBox>& categorize_files_checkbox;
         QPointer<QCheckBox>& categorize_directories_checkbox;
+        QPointer<QCheckBox>& enable_profile_learning_checkbox;
     };
 
     struct MenuControls {
@@ -84,6 +85,7 @@ public:
         QAction*& about_action;
         QAction*& about_qt_action;
         QAction*& about_agpl_action;
+        QAction*& view_profile_action;
         QAction*& support_project_action;
     };
 
