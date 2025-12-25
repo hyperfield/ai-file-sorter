@@ -19,6 +19,7 @@
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
 #include "UserProfileDialog.hpp"
+#include "FolderLearningDialog.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
 #include "MainAppTestAccess.hpp"
 #endif
@@ -311,6 +312,10 @@ void MainApp::connect_signals()
             on_directory_selected(directory);
         }
     });
+
+    if (folder_learning_button) {
+        connect(folder_learning_button, &QPushButton::clicked, this, &MainApp::show_folder_learning_settings);
+    }
 
     connect(path_entry, &QLineEdit::returnPressed, this, [this]() {
         const QString folder = path_entry->text();
@@ -1648,5 +1653,26 @@ void MainApp::show_user_profile()
         dialog.exec();
     } catch (const std::exception& e) {
         show_error_dialog(std::string("Failed to load user profile: ") + e.what());
+    }
+}
+
+void MainApp::show_folder_learning_settings()
+{
+    std::string folder_path = get_folder_path();
+    
+    if (folder_path.empty()) {
+        show_error_dialog("Please select a folder first");
+        return;
+    }
+    
+    try {
+        FolderLearningDialog dialog(folder_path, db_manager, this);
+        if (dialog.exec() == QDialog::Accepted) {
+            std::string selected_level = dialog.get_selected_level();
+            db_manager.set_folder_inclusion_level(folder_path, selected_level);
+            core_logger->info("Updated folder learning level for '{}' to '{}'", folder_path, selected_level);
+        }
+    } catch (const std::exception& e) {
+        show_error_dialog(std::string("Failed to manage folder learning settings: ") + e.what());
     }
 }

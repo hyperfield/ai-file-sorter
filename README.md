@@ -82,6 +82,8 @@ File content–based sorting for certain file types is also in development.
   - **Folder Insights**: Tracks category usage, file counts, and dominant patterns per folder over time
   - **Profile Evolution**: Confidence in characteristics grows as more folders are analyzed
   - **View User Profile**: New menu option (Help → View User Profile) displays all learned characteristics and folder insights
+  - **Optional Learning**: Toggle "Learn from my organization patterns" checkbox on main screen to enable/disable
+  - **Per-Folder Control**: Configure learning level for each folder (Full, Partial, or None)
   - The system becomes smarter and more tailored to your needs over time
 
 ## [1.5.0] - 2025-12-25
@@ -465,11 +467,28 @@ Access your user profile anytime via **Help → View User Profile**. The profile
 - **Characteristics Tab**: All learned traits organized by category (hobbies, work patterns, organization style) with confidence levels and evidence
 - **Folder Insights Tab**: Analysis of each folder you've organized, including file counts, dominant categories, and usage patterns
 
+### Controlling Profile Learning
+
+You have full control over how the system learns from your files:
+
+1. **Global Toggle**: Check or uncheck **"Learn from my organization patterns"** on the main screen to enable/disable learning system-wide
+
+2. **Per-Folder Control**: Click the settings icon (⚙️) next to any folder path to configure its learning level:
+   - **Full Learning** (default): Analyzes files to learn about your interests and work patterns
+   - **Partial Learning**: Tracks folder statistics only, no personal characteristic inference
+   - **No Learning**: Completely excludes this folder from the learning system
+
+This allows you to:
+- Keep sensitive folders (e.g., private documents) completely isolated
+- Use different learning levels for work vs. personal folders
+- Maintain full privacy control while still benefiting from adaptive categorization
+
 ### Privacy & Storage
 
 - All profile data is stored **locally** in your AI File Sorter database
 - No data is sent to external servers (except when using remote LLM APIs for categorization)
 - The profile helps the AI understand your context without compromising your privacy
+- You can disable learning at any time without losing existing profile data
 
 ---
 

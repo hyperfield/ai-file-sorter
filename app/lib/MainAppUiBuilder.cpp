@@ -63,9 +63,14 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.path_label = new QLabel(central);
     app.path_entry = new QLineEdit(central);
     app.browse_button = new QPushButton(central);
+    app.folder_learning_button = new QPushButton(central);
+    app.folder_learning_button->setIcon(app.style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    app.folder_learning_button->setToolTip("Configure learning settings for this folder");
+    app.folder_learning_button->setMaximumWidth(40);
     path_layout->addWidget(app.path_label);
     path_layout->addWidget(app.path_entry, 1);
     path_layout->addWidget(app.browse_button);
+    path_layout->addWidget(app.folder_learning_button);
     main_layout->addLayout(path_layout);
 
     auto* options_layout = new QHBoxLayout();

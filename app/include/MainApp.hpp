@@ -148,6 +148,7 @@ private:
     void show_whitelist_manager();
     void apply_whitelist_to_selector();
     void show_user_profile();
+    void show_folder_learning_settings();
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
@@ -170,6 +171,7 @@ private:
     QPointer<QLineEdit> path_entry;
     QPointer<QPushButton> analyze_button;
     QPointer<QPushButton> browse_button;
+    QPointer<QPushButton> folder_learning_button;
     QPointer<QLabel> path_label;
     QPointer<QCheckBox> use_subcategories_checkbox;
     QPointer<QLabel> categorization_style_heading;
