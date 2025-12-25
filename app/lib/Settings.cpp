@@ -596,6 +596,16 @@ void Settings::set_active_whitelist(const std::string& name)
     active_whitelist = name;
 }
 
+std::string Settings::get_user_context() const
+{
+    return user_context;
+}
+
+void Settings::set_user_context(const std::string& context)
+{
+    user_context = context;
+}
+
 
 void Settings::set_skipped_version(const std::string &version) {
     skipped_version = version;

@@ -221,6 +221,13 @@ std::string CategorizationService::build_whitelist_context() const
     std::ostringstream oss;
     const auto cats = settings.get_allowed_categories();
     const auto subs = settings.get_allowed_subcategories();
+    const auto user_context = settings.get_user_context();
+    
+    // Add user context first if available
+    if (!user_context.empty()) {
+        oss << "Context about the files being sorted:\n" << user_context << "\n\n";
+    }
+    
     if (!cats.empty()) {
         oss << "Allowed main categories (pick exactly one label from the numbered list):\n";
         for (size_t i = 0; i < cats.size(); ++i) {
