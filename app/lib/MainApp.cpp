@@ -4,6 +4,7 @@
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
 #include "LLMClient.hpp"
+#include "GeminiClient.hpp"
 #include "LLMSelectionDialog.hpp"
 #include "Logger.hpp"
 #include "MainAppEditActions.hpp"
@@ -1353,13 +1354,16 @@ void MainApp::show_llm_selection_dialog()
         if (dialog->exec() == QDialog::Accepted) {
             settings.set_remote_api_key(dialog->get_remote_api_key());
             settings.set_remote_model(dialog->get_remote_model());
+            settings.set_gemini_api_key(dialog->get_gemini_api_key());
+            settings.set_gemini_model(dialog->get_gemini_model());
             settings.set_llm_choice(dialog->get_selected_llm_choice());
             if (dialog->get_selected_llm_choice() == LLMChoice::Custom) {
                 settings.set_active_custom_llm_id(dialog->get_selected_custom_llm_id());
             } else {
                 settings.set_active_custom_llm_id("");
             }
-            using_local_llm = settings.get_llm_choice() != LLMChoice::Remote;
+            using_local_llm = (settings.get_llm_choice() != LLMChoice::Remote && 
+                              settings.get_llm_choice() != LLMChoice::Gemini);
             settings.save();
         }
     } catch (const std::exception& ex) {
@@ -1392,8 +1396,18 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         if (api_key.empty()) {
             throw std::runtime_error("OpenAI API key is missing. Please add it from Select LLM.");
         }
-        CategorizationSession session(api_key, model);
-        auto client = std::make_unique<LLMClient>(session.create_llm_client());
+        auto client = std::make_unique<LLMClient>(api_key, model);
+        client->set_prompt_logging_enabled(should_log_prompts());
+        return client;
+    }
+
+    if (settings.get_llm_choice() == LLMChoice::Gemini) {
+        const std::string api_key = settings.get_gemini_api_key();
+        const std::string model = settings.get_gemini_model();
+        if (api_key.empty()) {
+            throw std::runtime_error("Gemini API key is missing. Please add it from Select LLM.");
+        }
+        auto client = std::make_unique<GeminiClient>(api_key, model);
         client->set_prompt_logging_enabled(should_log_prompts());
         return client;
     }

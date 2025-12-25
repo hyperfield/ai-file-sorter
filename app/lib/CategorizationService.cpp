@@ -132,21 +132,33 @@ CategorizationService::CategorizationService(Settings& settings,
 
 bool CategorizationService::ensure_remote_credentials(std::string* error_message) const
 {
-    if (settings.get_llm_choice() != LLMChoice::Remote) {
-        return true;
+    if (settings.get_llm_choice() == LLMChoice::Remote) {
+        if (!settings.get_remote_api_key().empty()) {
+            return true;
+        }
+        if (core_logger) {
+            core_logger->error("Remote LLM selected but OpenAI API key is not configured.");
+        }
+        if (error_message) {
+            *error_message = "Remote model credentials are missing. Enter your OpenAI API key in the Select LLM dialog.";
+        }
+        return false;
     }
 
-    if (!settings.get_remote_api_key().empty()) {
-        return true;
+    if (settings.get_llm_choice() == LLMChoice::Gemini) {
+        if (!settings.get_gemini_api_key().empty()) {
+            return true;
+        }
+        if (core_logger) {
+            core_logger->error("Gemini LLM selected but Gemini API key is not configured.");
+        }
+        if (error_message) {
+            *error_message = "Gemini API key is missing. Enter your Gemini API key in the Select LLM dialog.";
+        }
+        return false;
     }
 
-    if (core_logger) {
-        core_logger->error("Remote LLM selected but OpenAI API key is not configured.");
-    }
-    if (error_message) {
-        *error_message = "Remote model credentials are missing. Enter your OpenAI API key in the Select LLM dialog.";
-    }
-    return false;
+    return true;
 }
 
 std::vector<CategorizedFile> CategorizationService::prune_empty_cached_entries(const std::string& directory_path)
