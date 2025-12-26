@@ -421,6 +421,13 @@ void MainAppUiBuilder::build_development_menu(MainApp& app) {
     app.development_prompt_logging_action->setCheckable(true);
     app.development_prompt_logging_action->setChecked(app.development_prompt_logging_enabled_);
     QObject::connect(app.development_prompt_logging_action, &QAction::toggled, &app, &MainApp::handle_development_prompt_logging);
+    
+    app.consistency_pass_action = app.development_settings_menu->addAction(QString());
+    app.consistency_pass_action->setCheckable(true);
+    app.consistency_pass_action->setChecked(app.settings.get_consistency_pass_enabled());
+    QObject::connect(app.consistency_pass_action, &QAction::toggled, &app, [&app](bool checked) {
+        app.settings.set_consistency_pass_enabled(checked);
+    });
 }
 
 void MainAppUiBuilder::build_help_menu(MainApp& app) {
