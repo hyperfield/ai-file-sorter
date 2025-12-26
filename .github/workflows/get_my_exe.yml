@@ -188,13 +188,18 @@ jobs:
           }
           
           if ($missingFiles.Count -gt 0) {
-            Write-Error "Llama build did not produce all required files. Missing $($missingFiles.Count) files."
             if ("${{ steps.cache-llama.outputs.cache-hit }}" -eq "true") {
-              Write-Error "Cache was restored but files are missing. This may indicate a corrupted cache."
-              Write-Error "You may need to clear the cache and rebuild."
+              Write-Error @"
+Llama build verification failed: Missing $($missingFiles.Count) required files.
+Cache was restored but files are missing - this may indicate a corrupted cache.
+You may need to clear the cache and rebuild from scratch.
+"@
             } else {
-              Write-Error "This usually means the build_llama_windows.ps1 script failed silently."
-              Write-Error "Check the 'Build Llama Engine' step logs for errors."
+              Write-Error @"
+Llama build verification failed: Missing $($missingFiles.Count) required files.
+This usually means the build_llama_windows.ps1 script failed silently.
+Check the 'Build Llama Engine' step logs for errors.
+"@
             }
             exit 1
           }
@@ -225,7 +230,14 @@ jobs:
         run: |
           # The CMake script tries to copy these folders even if they don't exist.
           # We create them as empty folders so the copy command succeeds.
-          # Note: The 'cpu' variant should already exist from the build step.
+          # 
+          # Note: The 'cpu' variant is NOT included here because:
+          # - It's created by build_llama_windows.ps1 in the "Build Llama Engine" step
+          # - It contains actual build artifacts (.lib and .dll files)
+          # - It's verified by the "Verify Llama Build Artifacts" step
+          # - Creating an empty 'cpu' folder here would cause the verification to fail
+          #
+          # Only CUDA and Vulkan variants need empty folders since we're not building those.
           $paths = @(
             "app\lib\precompiled\cuda",
             "app\lib\precompiled\vulkan"
@@ -266,8 +278,10 @@ jobs:
         run: |
           $exePath = "$env:GITHUB_WORKSPACE\build\Release\aifilesorter.exe"
           if (-not (Test-Path $exePath)) {
-            Write-Error "Build did not produce the expected executable: $exePath"
-            Write-Error "Check the 'Build App' step logs for compilation errors."
+            Write-Error @"
+Build verification failed: Expected executable not found at $exePath
+Check the 'Build App' step logs for compilation errors.
+"@
             exit 1
           }
           
@@ -317,8 +331,11 @@ jobs:
           }
           
           if ($missingFiles.Count -gt 0) {
-            Write-Error "Bundle is missing $($missingFiles.Count) critical files"
-            Write-Error "This usually means windeployqt or dependency copying failed"
+            Write-Error @"
+Bundle verification failed: Missing $($missingFiles.Count) critical files.
+This usually means windeployqt or dependency copying failed.
+Check the 'Bundle Files' step logs for errors.
+"@
             exit 1
           }
           
