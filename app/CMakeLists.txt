@@ -241,8 +241,6 @@ if(WIN32)
         if(NOT ${varName})
             message(STATUS "System library '${libName}' not found on disk. Configuring to link by name.")
             set(${varName} ${libName})
-            # If this is inside a function, we must export the variable to the parent scope
-            set(${varName} ${libName} PARENT_SCOPE)
         endif()
         # --- FIX END ---
         target_link_libraries(aifilesorter PRIVATE "${${varName}}")
