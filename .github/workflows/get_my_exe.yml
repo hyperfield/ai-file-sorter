@@ -29,6 +29,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
+          cache: true
 
       # 1. Install OpenBLAS (Required for Llama CPU build)
       - name: Install OpenBLAS & Add to Path
@@ -37,20 +38,64 @@ jobs:
           cmd /c "C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-openblas"
           echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Cache vcpkg
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ github.workspace }}\vcpkg
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('app/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
       - name: Setup Local vcpkg
         shell: powershell
         run: |
-          git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
-          cd $env:GITHUB_WORKSPACE\vcpkg
-          .\bootstrap-vcpkg.bat
+          if (-not (Test-Path "$env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe")) {
+            Write-Host "vcpkg not found in cache, cloning and bootstrapping..."
+            git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
+            cd $env:GITHUB_WORKSPACE\vcpkg
+            .\bootstrap-vcpkg.bat
+          } else {
+            Write-Host "vcpkg found in cache, validating installation..."
+            cd $env:GITHUB_WORKSPACE\vcpkg
+            # Verify vcpkg is functional
+            $vcpkgVersion = & .\vcpkg.exe --version 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "vcpkg is functional: $vcpkgVersion"
+            } else {
+              Write-Host "Cached vcpkg is not functional, re-bootstrapping..."
+              .\bootstrap-vcpkg.bat
+            }
+          }
+
+      - name: Cache vcpkg binary cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ github.workspace }}\vcpkg_binary_cache
+          key: vcpkg-binary-${{ runner.os }}-${{ hashFiles('app/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-binary-${{ runner.os }}-
 
       - name: Install Support Libraries
         shell: powershell
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+          VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}\vcpkg_binary_cache,readwrite"
         run: |
+          # Create binary cache directory if it doesn't exist
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\vcpkg_binary_cache" | Out-Null
           cd $env:VCPKG_ROOT
           .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
+
+      - name: Cache Llama Build
+        uses: actions/cache@v3
+        with:
+          path: |
+            app/include/external/llama.cpp/build
+          key: llama-build-${{ runner.os }}-${{ hashFiles('app/include/external/llama.cpp/**/*.cpp', 'app/include/external/llama.cpp/**/*.h', 'app/include/external/llama.cpp/**/*.cmake') }}
+          restore-keys: |
+            llama-build-${{ runner.os }}-
 
       - name: Build Llama Engine
         shell: powershell
@@ -95,6 +140,16 @@ jobs:
               New-Item -Path $fullPath -ItemType Directory -Force
             }
           }
+
+      - name: Cache CMake Build
+        uses: actions/cache@v3
+        with:
+          path: |
+            build
+          key: cmake-build-${{ runner.os }}-${{ hashFiles('app/CMakeLists.txt', 'app/**/CMakeLists.txt') }}-${{ github.sha }}
+          restore-keys: |
+            cmake-build-${{ runner.os }}-${{ hashFiles('app/CMakeLists.txt', 'app/**/CMakeLists.txt') }}-
+            cmake-build-${{ runner.os }}-
 
       - name: Configure CMake
         env:
