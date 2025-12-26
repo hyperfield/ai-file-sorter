@@ -920,11 +920,15 @@ void MainApp::update_analyze_button_state(bool analyzing)
 {
     analysis_in_progress_ = analyzing;
     if (analyzing) {
-        analyze_button->setText(tr("Stop analyzing"));
+        if (analyze_button) {
+            analyze_button->setText(tr("Stop analyzing"));
+        }
         statusBar()->showMessage(tr("Analyzing…"));
         status_is_ready_ = false;
     } else {
-        analyze_button->setText(tr("Analyze folder"));
+        if (analyze_button) {
+            analyze_button->setText(tr("Analyze folder"));
+        }
         statusBar()->showMessage(tr("Ready"));
         status_is_ready_ = true;
     }
@@ -1703,6 +1707,9 @@ void MainApp::report_progress(const std::string& message)
 
 std::string MainApp::get_folder_path() const
 {
+    if (!path_entry) {
+        return std::string();
+    }
     const QByteArray bytes = path_entry->text().toUtf8();
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
