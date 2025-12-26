@@ -56,8 +56,6 @@ jobs:
             .\bootstrap-vcpkg.bat
           } else {
             Write-Host "vcpkg already exists and is bootstrapped, skipping clone and bootstrap"
-            cd $env:GITHUB_WORKSPACE\vcpkg
-            git pull
           }
 
       - name: Cache vcpkg binary cache
@@ -84,8 +82,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            external/llama.cpp/build
-          key: llama-build-${{ runner.os }}-${{ hashFiles('external/llama.cpp/**/*.cpp', 'external/llama.cpp/**/*.h') }}
+            app/include/external/llama.cpp/build
+          key: llama-build-${{ runner.os }}-${{ hashFiles('app/include/external/llama.cpp/**/*.cpp', 'app/include/external/llama.cpp/**/*.h', 'app/include/external/llama.cpp/**/*.cmake') }}
           restore-keys: |
             llama-build-${{ runner.os }}-
 
