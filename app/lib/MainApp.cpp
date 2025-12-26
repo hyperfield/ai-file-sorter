@@ -3,6 +3,8 @@
 #include "CategorizationSession.hpp"
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
+#include "AppException.hpp"
+#include "ErrorCode.hpp"
 #include "LLMClient.hpp"
 #include "GeminiClient.hpp"
 #include "LLMSelectionDialog.hpp"
@@ -1452,6 +1454,8 @@ void MainApp::show_llm_selection_dialog()
                               settings.get_llm_choice() != LLMChoice::Gemini);
             settings.save();
         }
+    } catch (const ErrorCodes::AppException& ex) {
+        show_error_dialog(ex);
     } catch (const std::exception& ex) {
         show_error_dialog(fmt::format("LLM selection error: {}", ex.what()));
     }
@@ -1480,7 +1484,8 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         const std::string api_key = settings.get_remote_api_key();
         const std::string model = settings.get_remote_model();
         if (api_key.empty()) {
-            throw std::runtime_error("OpenAI API key is missing. Please add it from Select LLM.");
+            throw AppException(Code::API_KEY_MISSING, 
+                "OpenAI API key is required. Please add it in Settings → Select LLM.");
         }
         auto client = std::make_unique<LLMClient>(api_key, model);
         client->set_prompt_logging_enabled(should_log_prompts());
@@ -1491,7 +1496,8 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         const std::string api_key = settings.get_gemini_api_key();
         const std::string model = settings.get_gemini_model();
         if (api_key.empty()) {
-            throw std::runtime_error("Gemini API key is missing. Please add it from Select LLM.");
+            throw AppException(Code::API_KEY_MISSING,
+                "Gemini API key is required. Please add it in Settings → Select LLM.");
         }
         auto client = std::make_unique<GeminiClient>(api_key, model);
         client->set_prompt_logging_enabled(should_log_prompts());
@@ -1502,7 +1508,8 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         const auto id = settings.get_active_custom_llm_id();
         const CustomLLM custom = settings.find_custom_llm(id);
         if (custom.id.empty() || custom.path.empty()) {
-            throw std::runtime_error("Selected custom LLM is missing or invalid. Please re-select it.");
+            throw AppException(Code::LLM_MODEL_NOT_FOUND,
+                "Selected custom LLM is missing or invalid. Please select a valid model in Settings → Select LLM.");
         }
         auto client = std::make_unique<LocalLLMClient>(custom.path);
         client->set_prompt_logging_enabled(should_log_prompts());
@@ -1604,6 +1611,11 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
 void MainApp::show_error_dialog(const std::string& message)
 {
     DialogUtils::show_error_dialog(this, message);
+}
+
+void MainApp::show_error_dialog(const ErrorCodes::AppException& exception)
+{
+    DialogUtils::show_error_dialog(this, exception);
 }
 
 void MainApp::clear_categorization_cache()

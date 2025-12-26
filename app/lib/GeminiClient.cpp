@@ -1,6 +1,8 @@
 #include "GeminiClient.hpp"
 
 #include <Logger.hpp>
+#include <AppException.hpp>
+#include <ErrorCode.hpp>
 #include <curl/curl.h>
 #include <json/json.h>
 #include <spdlog/spdlog.h>
@@ -19,6 +21,7 @@
 #include <thread>
 
 using namespace std::chrono_literals;
+using namespace ErrorCodes;
 
 namespace {
 
@@ -497,12 +500,32 @@ std::string GeminiClient::send_api_request(std::string json_payload) {
     auto http = send_with_retry(effective_model(), url, json_payload, headers);
     
     if (http.status < 200 || http.status >= 300) {
-        std::string error_msg = "Gemini API request failed with status " + 
-                               std::to_string(http.status);
-        if (!http.body.empty()) {
-            error_msg += ": " + http.body;
+        // Determine specific error code based on HTTP status
+        Code error_code = Code::API_SERVER_ERROR;
+        std::string context = "HTTP " + std::to_string(http.status);
+        
+        if (http.status == 401) {
+            error_code = Code::API_AUTHENTICATION_FAILED;
+            context += ": Invalid API key";
+        } else if (http.status == 403) {
+            error_code = Code::API_INSUFFICIENT_PERMISSIONS;
+            context += ": Insufficient permissions";
+        } else if (http.status == 429) {
+            error_code = Code::API_RATE_LIMIT_EXCEEDED;
+            context += ": Rate limit exceeded";
+        } else if (http.status >= 500) {
+            error_code = Code::API_SERVER_ERROR;
+            context += ": Server error";
+        } else if (http.status >= 400) {
+            error_code = Code::API_INVALID_REQUEST;
+            context += ": Bad request";
         }
-        throw std::runtime_error(error_msg);
+        
+        if (!http.body.empty()) {
+            context += " - " + http.body;
+        }
+        
+        throw AppException(error_code, context);
     }
     
     Json::CharReaderBuilder builder;
@@ -511,18 +534,20 @@ std::string GeminiClient::send_api_request(std::string json_payload) {
     std::string errors;
     
     if (!Json::parseFromStream(builder, ss, &response, &errors)) {
-        throw std::runtime_error("Failed to parse Gemini API response: " + errors);
+        throw AppException(Code::API_RESPONSE_PARSE_ERROR, "JSON parse error: " + errors);
     }
     
     // Gemini response structure: candidates[0].content.parts[0].text
     if (!response.isMember("candidates") || response["candidates"].empty()) {
-        throw std::runtime_error("Gemini API response missing candidates");
+        throw AppException(Code::API_INVALID_RESPONSE, 
+            "Response missing 'candidates' field - model may have blocked the request");
     }
     
     auto& candidate = response["candidates"][0];
     if (!candidate.isMember("content") || !candidate["content"].isMember("parts") ||
         candidate["content"]["parts"].empty()) {
-        throw std::runtime_error("Gemini API response missing content parts");
+        throw AppException(Code::API_INVALID_RESPONSE,
+            "Response missing content parts - model response may be incomplete");
     }
     
     auto content = candidate["content"]["parts"][0]["text"].asString();

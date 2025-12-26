@@ -54,6 +54,10 @@ class WhitelistManagerDialog;
 struct CategorizedFile;
 struct FileEntry;
 
+namespace ErrorCodes {
+    class AppException;
+}
+
 #ifdef AI_FILE_SORTER_TEST_BUILD
 class MainAppTestAccess;
 #endif
@@ -70,6 +74,7 @@ public:
 
     void show_results_dialog(const std::vector<CategorizedFile>& categorized_files);
     void show_error_dialog(const std::string& message);
+    void show_error_dialog(const ErrorCodes::AppException& exception);
     void report_progress(const std::string& message);
     void request_stop_analysis();
 
