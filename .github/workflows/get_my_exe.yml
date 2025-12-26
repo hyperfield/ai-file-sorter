@@ -51,11 +51,21 @@ jobs:
         shell: powershell
         run: |
           if (-not (Test-Path "$env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe")) {
+            Write-Host "vcpkg not found in cache, cloning and bootstrapping..."
             git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
             cd $env:GITHUB_WORKSPACE\vcpkg
             .\bootstrap-vcpkg.bat
           } else {
-            Write-Host "vcpkg already exists and is bootstrapped, skipping clone and bootstrap"
+            Write-Host "vcpkg found in cache, validating installation..."
+            cd $env:GITHUB_WORKSPACE\vcpkg
+            # Verify vcpkg is functional
+            $vcpkgVersion = & .\vcpkg.exe --version 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "vcpkg is functional: $vcpkgVersion"
+            } else {
+              Write-Host "Cached vcpkg is not functional, re-bootstrapping..."
+              .\bootstrap-vcpkg.bat
+            }
           }
 
       - name: Cache vcpkg binary cache
@@ -136,8 +146,9 @@ jobs:
         with:
           path: |
             build
-          key: cmake-build-${{ runner.os }}-${{ hashFiles('app/CMakeLists.txt', 'app/**/*.cpp', 'app/**/*.h') }}
+          key: cmake-build-${{ runner.os }}-${{ hashFiles('app/CMakeLists.txt', 'app/**/CMakeLists.txt') }}-${{ github.sha }}
           restore-keys: |
+            cmake-build-${{ runner.os }}-${{ hashFiles('app/CMakeLists.txt', 'app/**/CMakeLists.txt') }}-
             cmake-build-${{ runner.os }}-
 
       - name: Configure CMake
