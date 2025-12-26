@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: windows-2022
+    timeout-minutes: 120  # 2 hours max to prevent runaway builds
 
     steps:
       - name: Checkout Code
@@ -35,8 +36,23 @@ jobs:
       - name: Install OpenBLAS & Add to Path
         shell: powershell
         run: |
+          Write-Host "Installing OpenBLAS via MSYS2..."
           cmd /c "C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-openblas"
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "OpenBLAS installation failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+          
+          # Verify OpenBLAS was installed
+          $openblasPath = "C:\msys64\mingw64\bin\libopenblas.dll"
+          if (-not (Test-Path $openblasPath)) {
+            Write-Error "OpenBLAS DLL not found at $openblasPath after installation"
+            exit 1
+          }
+          
           echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "✓ OpenBLAS installed successfully"
 
       - name: Cache vcpkg
         uses: actions/cache@v3
@@ -53,8 +69,19 @@ jobs:
           if (-not (Test-Path "$env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe")) {
             Write-Host "vcpkg not found in cache, cloning and bootstrapping..."
             git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to clone vcpkg repository"
+              exit $LASTEXITCODE
+            }
+            
             cd $env:GITHUB_WORKSPACE\vcpkg
             .\bootstrap-vcpkg.bat
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to bootstrap vcpkg"
+              exit $LASTEXITCODE
+            }
           } else {
             Write-Host "vcpkg found in cache, validating installation..."
             cd $env:GITHUB_WORKSPACE\vcpkg
@@ -65,6 +92,11 @@ jobs:
             } else {
               Write-Host "Cached vcpkg is not functional, re-bootstrapping..."
               .\bootstrap-vcpkg.bat
+              
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to re-bootstrap vcpkg"
+                exit $LASTEXITCODE
+              }
             }
           }
 
@@ -87,17 +119,29 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\vcpkg_binary_cache" | Out-Null
           cd $env:VCPKG_ROOT
           .\vcpkg install curl[ssl] fmt spdlog jsoncpp sqlite3 --triplet x64-windows
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "vcpkg install failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+          
+          Write-Host "All support libraries installed successfully."
 
       - name: Cache Llama Build
+        id: cache-llama
         uses: actions/cache@v3
         with:
           path: |
             app/include/external/llama.cpp/build
+            app/lib/precompiled/cpu
+            app/lib/ggml
+            app/include/llama
           key: llama-build-${{ runner.os }}-${{ hashFiles('app/include/external/llama.cpp/**/*.cpp', 'app/include/external/llama.cpp/**/*.h', 'app/include/external/llama.cpp/**/*.cmake') }}
           restore-keys: |
             llama-build-${{ runner.os }}-
 
       - name: Build Llama Engine
+        if: steps.cache-llama.outputs.cache-hit != 'true'
         shell: powershell
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
@@ -107,6 +151,64 @@ jobs:
             -cuda off `
             -vcpkgroot "$env:VCPKG_ROOT" `
             -openblasroot "C:\msys64\mingw64"
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Llama build script failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+      # Verify Llama Build Output
+      - name: Verify Llama Build Artifacts
+        shell: powershell
+        run: |
+          $precompiledDir = "$env:GITHUB_WORKSPACE\app\lib\precompiled\cpu"
+          $requiredLibs = @("llama.lib", "ggml.lib", "ggml-base.lib", "ggml-cpu.lib")
+          $requiredDlls = @("llama.dll", "ggml.dll", "ggml-base.dll", "ggml-cpu.dll")
+          
+          $missingFiles = @()
+          
+          foreach ($lib in $requiredLibs) {
+            $libPath = Join-Path "$precompiledDir\lib" $lib
+            if (-not (Test-Path $libPath)) {
+              $missingFiles += $libPath
+              Write-Warning "Missing required library: $libPath"
+            } else {
+              Write-Host "✓ Found: $libPath"
+            }
+          }
+          
+          foreach ($dll in $requiredDlls) {
+            $dllPath = Join-Path "$precompiledDir\bin" $dll
+            if (-not (Test-Path $dllPath)) {
+              $missingFiles += $dllPath
+              Write-Warning "Missing required DLL: $dllPath"
+            } else {
+              Write-Host "✓ Found: $dllPath"
+            }
+          }
+          
+          if ($missingFiles.Count -gt 0) {
+            if ("${{ steps.cache-llama.outputs.cache-hit }}" -eq "true") {
+              Write-Error @"
+Llama build verification failed: Missing $($missingFiles.Count) required files.
+Cache was restored but files are missing - this may indicate a corrupted cache.
+You may need to clear the cache and rebuild from scratch.
+"@
+            } else {
+              Write-Error @"
+Llama build verification failed: Missing $($missingFiles.Count) required files.
+This usually means the build_llama_windows.ps1 script failed silently.
+Check the 'Build Llama Engine' step logs for errors.
+"@
+            }
+            exit 1
+          }
+          
+          if ("${{ steps.cache-llama.outputs.cache-hit }}" -eq "true") {
+            Write-Host "✓ All required Llama build artifacts verified from cache."
+          } else {
+            Write-Host "✓ All required Llama build artifacts verified from fresh build."
+          }
 
       # 2. FIND AND STAGE LLAMA.DLL (Prevents 'missing file' errors)
       - name: Locate and Stage Llama DLL
@@ -122,14 +224,21 @@ jobs:
               Write-Warning "llama.dll not found. The app might fail to run, but we will try to finish the build."
           }
 
-      # 3. FIX: CREATE DUMMY FOLDERS (Fixes MSB3073 Error)
-      - name: Create Dummy Precompiled Folders
+      # 3. CREATE EMPTY VARIANT FOLDERS (Fixes MSB3073 Error)
+      - name: Create Empty Variant Folders
         shell: powershell
         run: |
           # The CMake script tries to copy these folders even if they don't exist.
           # We create them as empty folders so the copy command succeeds.
+          # 
+          # Note: The 'cpu' variant is NOT included here because:
+          # - It's created by build_llama_windows.ps1 in the "Build Llama Engine" step
+          # - It contains actual build artifacts (.lib and .dll files)
+          # - It's verified by the "Verify Llama Build Artifacts" step
+          # - Creating an empty 'cpu' folder here would cause the verification to fail
+          #
+          # Only CUDA and Vulkan variants need empty folders since we're not building those.
           $paths = @(
-            "app\lib\precompiled\cpu",
             "app\lib\precompiled\cuda",
             "app\lib\precompiled\vulkan"
           )
@@ -164,6 +273,21 @@ jobs:
       - name: Build App
         run: cmake --build build --config Release
 
+      - name: Verify Build Output
+        shell: powershell
+        run: |
+          $exePath = "$env:GITHUB_WORKSPACE\build\Release\aifilesorter.exe"
+          if (-not (Test-Path $exePath)) {
+            Write-Error @"
+Build verification failed: Expected executable not found at $exePath
+Check the 'Build App' step logs for compilation errors.
+"@
+            exit 1
+          }
+          
+          $exeSize = (Get-Item $exePath).Length
+          Write-Host "✓ Build successful! aifilesorter.exe created ($([math]::Round($exeSize/1MB, 2)) MB)"
+
       - name: Bundle Files
         shell: cmd
         env:
@@ -188,6 +312,35 @@ jobs:
           if exist C:\msys64\mingw64\bin\libgfortran*.dll copy C:\msys64\mingw64\bin\libgfortran*.dll output\
           if exist C:\msys64\mingw64\bin\libgcc*.dll copy C:\msys64\mingw64\bin\libgcc*.dll output\
           if exist C:\msys64\mingw64\bin\libwinpthread*.dll copy C:\msys64\mingw64\bin\libwinpthread*.dll output\
+
+      - name: Verify Bundle
+        shell: powershell
+        run: |
+          $outputDir = "$env:GITHUB_WORKSPACE\output"
+          $criticalFiles = @("aifilesorter.exe", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll")
+          
+          $missingFiles = @()
+          foreach ($file in $criticalFiles) {
+            $filePath = Join-Path $outputDir $file
+            if (-not (Test-Path $filePath)) {
+              $missingFiles += $file
+              Write-Warning "Missing critical file in bundle: $file"
+            } else {
+              Write-Host "✓ Found: $file"
+            }
+          }
+          
+          if ($missingFiles.Count -gt 0) {
+            Write-Error @"
+Bundle verification failed: Missing $($missingFiles.Count) critical files.
+This usually means windeployqt or dependency copying failed.
+Check the 'Bundle Files' step logs for errors.
+"@
+            exit 1
+          }
+          
+          $fileCount = (Get-ChildItem $outputDir -File).Count
+          Write-Host "✓ Bundle verified successfully! Total files: $fileCount"
 
       - name: Upload Finished App
         uses: actions/upload-artifact@v4
