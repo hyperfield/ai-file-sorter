@@ -1,6 +1,8 @@
 #include "Utils.hpp"
 #include "Logger.hpp"
 #include "TestHooks.hpp"
+#include "AppException.hpp"
+#include "ErrorCode.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>  // for memset
@@ -20,6 +22,8 @@
 #include <QString>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
+
+using namespace ErrorCodes;
 
 namespace {
 template <typename... Args>
@@ -209,10 +213,10 @@ std::string Utils::get_executable_path()
     if (_NSGetExecutablePath(result, &size) == 0) {
         return std::string(result);
     } else {
-        throw std::runtime_error("Path buffer too small");
+        throw AppException(Code::SYSTEM_LIBRARY_LOAD_FAILED, "Path buffer too small when getting executable path");
     }
 #else
-    throw std::runtime_error("Unsupported platform");
+    throw AppException(Code::SYSTEM_UNSUPPORTED_PLATFORM, "Get executable path not supported on this platform");
 #endif
 }
 
@@ -240,18 +244,21 @@ std::filesystem::path Utils::ensure_ca_bundle() {
 
                 QFile resource(QStringLiteral(":/net/quicknode/AIFileSorter/certs/cacert.pem"));
                 if (!resource.open(QIODevice::ReadOnly)) {
-                    throw std::runtime_error("Failed to open embedded CA bundle resource");
+                    throw AppException(Code::FILE_OPEN_FAILED, 
+                        "Failed to open embedded CA bundle resource - this is a bug");
                 }
                 const QByteArray data = resource.readAll();
                 resource.close();
 
                 QFile output(QString::fromStdString(cert_file.string()));
                 if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                    throw std::runtime_error("Failed to create CA bundle file at " + cert_file.string());
+                    throw AppException(Code::FILE_WRITE_FAILED,
+                        "Failed to create CA bundle file at " + cert_file.string());
                 }
                 if (output.write(data) != data.size()) {
                     output.close();
-                    throw std::runtime_error("Failed to write CA bundle file at " + cert_file.string());
+                    throw AppException(Code::FILE_WRITE_FAILED,
+                        "Failed to write CA bundle file at " + cert_file.string());
                 }
                 output.close();
             }
@@ -608,7 +615,10 @@ std::string Utils::get_default_llm_destination()
 
     if (Utils::is_os_windows()) {
         const char* appdata = std::getenv("APPDATA");
-        if (!appdata) throw std::runtime_error("APPDATA not set");
+        if (!appdata) {
+            throw AppException(Code::SYSTEM_ENVIRONMENT_VARIABLE_NOT_SET,
+                "APPDATA environment variable is not set");
+        }
         std::filesystem::path legacy = std::filesystem::path(appdata) / "aifilesorter" / "llms";
 
 #ifdef _WIN32
@@ -623,7 +633,10 @@ std::string Utils::get_default_llm_destination()
         return legacy.string();
     }
 
-    if (!home) throw std::runtime_error("HOME not set");
+    if (!home) {
+        throw AppException(Code::SYSTEM_ENVIRONMENT_VARIABLE_NOT_SET,
+            "HOME environment variable is not set");
+    }
 
     if (Utils::is_os_macos()) {
         return (std::filesystem::path(home) / "Library" / "Application Support" / "aifilesorter" / "llms").string();
@@ -637,7 +650,8 @@ std::string Utils::get_file_name_from_url(std::string url)
 {
     auto last_slash = url.find_last_of('/');
     if (last_slash == std::string::npos || last_slash == url.length() - 1) {
-        throw std::runtime_error("Invalid download URL: can't extract filename");
+        throw AppException(Code::DOWNLOAD_INVALID_URL,
+            "Invalid download URL - cannot extract filename from: " + url);
     }
     std::string filename = url.substr(last_slash + 1);
 

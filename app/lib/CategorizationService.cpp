@@ -5,6 +5,8 @@
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
 #include "Utils.hpp"
+#include "AppException.hpp"
+#include "ErrorCode.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -18,6 +20,8 @@
 #include <sstream>
 #include <thread>
 #include <vector>
+
+using namespace ErrorCodes;
 
 namespace {
 constexpr const char* kLocalTimeoutEnv = "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT";
@@ -187,7 +191,8 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
 
     auto llm = llm_factory ? llm_factory() : nullptr;
     if (!llm) {
-        throw std::runtime_error("Failed to create LLM client.");
+        throw AppException(Code::LLM_CLIENT_CREATION_FAILED, 
+            "LLM factory returned null - check LLM configuration");
     }
 
     categorized.reserve(files.size());
@@ -626,7 +631,8 @@ std::string CategorizationService::run_llm_with_timeout(
     auto future = start_llm_future(llm, item_name, item_path, file_type, consistency_context);
 
     if (future.wait_for(std::chrono::seconds(timeout_seconds)) == std::future_status::timeout) {
-        throw std::runtime_error("Timed out waiting for LLM response");
+        throw AppException(Code::LLM_TIMEOUT, 
+            "Timed out after " + std::to_string(timeout_seconds) + " seconds waiting for LLM response");
     }
 
     return future.get();
