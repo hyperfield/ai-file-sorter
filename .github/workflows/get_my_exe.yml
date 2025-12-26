@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: windows-2022
+    timeout-minutes: 120  # 2 hours max to prevent runaway builds
 
     steps:
       - name: Checkout Code
@@ -68,8 +69,19 @@ jobs:
           if (-not (Test-Path "$env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe")) {
             Write-Host "vcpkg not found in cache, cloning and bootstrapping..."
             git clone https://github.com/microsoft/vcpkg.git $env:GITHUB_WORKSPACE\vcpkg
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to clone vcpkg repository"
+              exit $LASTEXITCODE
+            }
+            
             cd $env:GITHUB_WORKSPACE\vcpkg
             .\bootstrap-vcpkg.bat
+            
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to bootstrap vcpkg"
+              exit $LASTEXITCODE
+            }
           } else {
             Write-Host "vcpkg found in cache, validating installation..."
             cd $env:GITHUB_WORKSPACE\vcpkg
@@ -80,6 +92,11 @@ jobs:
             } else {
               Write-Host "Cached vcpkg is not functional, re-bootstrapping..."
               .\bootstrap-vcpkg.bat
+              
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to re-bootstrap vcpkg"
+                exit $LASTEXITCODE
+              }
             }
           }
 
@@ -111,15 +128,20 @@ jobs:
           Write-Host "All support libraries installed successfully."
 
       - name: Cache Llama Build
+        id: cache-llama
         uses: actions/cache@v3
         with:
           path: |
             app/include/external/llama.cpp/build
+            app/lib/precompiled/cpu
+            app/lib/ggml
+            app/include/llama
           key: llama-build-${{ runner.os }}-${{ hashFiles('app/include/external/llama.cpp/**/*.cpp', 'app/include/external/llama.cpp/**/*.h', 'app/include/external/llama.cpp/**/*.cmake') }}
           restore-keys: |
             llama-build-${{ runner.os }}-
 
       - name: Build Llama Engine
+        if: steps.cache-llama.outputs.cache-hit != 'true'
         shell: powershell
         env:
           VCPKG_ROOT: ${{ github.workspace }}\vcpkg
@@ -167,12 +189,21 @@ jobs:
           
           if ($missingFiles.Count -gt 0) {
             Write-Error "Llama build did not produce all required files. Missing $($missingFiles.Count) files."
-            Write-Error "This usually means the build_llama_windows.ps1 script failed silently."
-            Write-Error "Check the 'Build Llama Engine' step logs for errors."
+            if ("${{ steps.cache-llama.outputs.cache-hit }}" -eq "true") {
+              Write-Error "Cache was restored but files are missing. This may indicate a corrupted cache."
+              Write-Error "You may need to clear the cache and rebuild."
+            } else {
+              Write-Error "This usually means the build_llama_windows.ps1 script failed silently."
+              Write-Error "Check the 'Build Llama Engine' step logs for errors."
+            }
             exit 1
           }
           
-          Write-Host "All required Llama build artifacts verified successfully."
+          if ("${{ steps.cache-llama.outputs.cache-hit }}" -eq "true") {
+            Write-Host "✓ All required Llama build artifacts verified from cache."
+          } else {
+            Write-Host "✓ All required Llama build artifacts verified from fresh build."
+          }
 
       # 2. FIND AND STAGE LLAMA.DLL (Prevents 'missing file' errors)
       - name: Locate and Stage Llama DLL
@@ -267,6 +298,32 @@ jobs:
           if exist C:\msys64\mingw64\bin\libgfortran*.dll copy C:\msys64\mingw64\bin\libgfortran*.dll output\
           if exist C:\msys64\mingw64\bin\libgcc*.dll copy C:\msys64\mingw64\bin\libgcc*.dll output\
           if exist C:\msys64\mingw64\bin\libwinpthread*.dll copy C:\msys64\mingw64\bin\libwinpthread*.dll output\
+
+      - name: Verify Bundle
+        shell: powershell
+        run: |
+          $outputDir = "$env:GITHUB_WORKSPACE\output"
+          $criticalFiles = @("aifilesorter.exe", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll")
+          
+          $missingFiles = @()
+          foreach ($file in $criticalFiles) {
+            $filePath = Join-Path $outputDir $file
+            if (-not (Test-Path $filePath)) {
+              $missingFiles += $file
+              Write-Warning "Missing critical file in bundle: $file"
+            } else {
+              Write-Host "✓ Found: $file"
+            }
+          }
+          
+          if ($missingFiles.Count -gt 0) {
+            Write-Error "Bundle is missing $($missingFiles.Count) critical files"
+            Write-Error "This usually means windeployqt or dependency copying failed"
+            exit 1
+          }
+          
+          $fileCount = (Get-ChildItem $outputDir -File).Count
+          Write-Host "✓ Bundle verified successfully! Total files: $fileCount"
 
       - name: Upload Finished App
         uses: actions/upload-artifact@v4
