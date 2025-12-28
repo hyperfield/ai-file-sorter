@@ -36,6 +36,10 @@ constexpr uint64_t kMaxBackoffMs = 120000; // Max backoff time (2 minutes)
 // Circuit breaker configuration
 constexpr int kCircuitBreakerThreshold = 3;  // consecutive failures before opening
 constexpr uint64_t kCircuitBreakerResetMs = 60000;  // 1 minute cooldown
+// Timeout scaling parameters
+constexpr size_t kTimeoutBytesPerMs = 100;  // Add 1ms timeout per 100 bytes payload
+constexpr uint64_t kTimeoutSizeCap = 30000; // Max timeout adjustment from size (30s)
+constexpr int kMaxExponentShift = 6;        // Max bit shift for exponential backoff
 
 /*
  * Smart Gemini LLM Integration Features:
@@ -242,9 +246,9 @@ uint64_t calculate_adaptive_timeout(const ModelState& s, size_t payload_size) {
     // Base timeout on EWMA
     uint64_t timeout_ms = (uint64_t)std::round(s.ewma_ms * 3.0);
     
-    // Scale by payload size (rough heuristic: add 1ms per 100 bytes)
-    uint64_t size_factor = payload_size / 100;
-    timeout_ms += std::min(size_factor, 30000ULL);  // Cap size adjustment at 30s
+    // Scale by payload size using configured parameters
+    uint64_t size_factor = payload_size / kTimeoutBytesPerMs;
+    timeout_ms += std::min(size_factor, kTimeoutSizeCap);
     
     // If we've had timeout issues, be more generous
     if (s.timeout_extensions > 0) {
@@ -271,11 +275,12 @@ uint64_t calculate_jittered_backoff(int attempt, uint64_t last_backoff_ms) {
     uint64_t base = kBaseBackoffMs;
     uint64_t cap = kMaxBackoffMs;
     
-    std::mt19937 rng(std::random_device{}());
+    // Use thread-local RNG for efficiency
+    thread_local std::mt19937 rng(std::random_device{}());
     
     if (last_backoff_ms == 0) {
         // First attempt - use exponential backoff
-        uint64_t exp_backoff = base * (1ULL << std::min(attempt, 6));
+        uint64_t exp_backoff = base * (1ULL << std::min(attempt, kMaxExponentShift));
         std::uniform_int_distribution<uint64_t> dist(base, exp_backoff);
         return std::min(cap, dist(rng));
     } else {
@@ -369,6 +374,7 @@ struct HttpResponse {
     std::string body;
     std::map<std::string, std::string> headers;
     uint64_t duration_ms = 0;
+    CURLcode curl_code = CURLE_OK;  // Store curl error code for better timeout detection
 };
 
 HttpResponse perform_http_request(const std::string& url, const std::string& payload,
@@ -413,6 +419,7 @@ HttpResponse perform_http_request(const std::string& url, const std::string& pay
     auto stop = std::chrono::steady_clock::now();
     uint64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
     r.duration_ms = elapsed;
+    r.curl_code = code;
     
     if (code != CURLE_OK) {
         r.status = 0;
@@ -482,7 +489,6 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
     uint64_t timeout_ms = calculate_adaptive_timeout(s, payload.size());
     s.last_timeout_ms = timeout_ms;
     
-    std::mt19937 rng(std::random_device{}());
     uint64_t last_backoff_ms = 0;  // Track last backoff for decorrelated jitter
     
     // Retry loop with exponential backoff
@@ -508,15 +514,19 @@ HttpResponse send_with_retry(const std::string& model, const std::string& url,
             } catch (...) {}
         }
         
-        // Special handling for timeout errors (status == 0 typically means timeout)
-        if (http.status == 0 && http.body.find("Timeout") != std::string::npos) {
+        // Special handling for timeout errors - use CURLcode for robust detection
+        bool is_timeout = (http.curl_code == CURLE_OPERATION_TIMEDOUT || 
+                          http.curl_code == CURLE_OPERATION_TIMEOUT ||
+                          (http.status == 0 && http.body.find("Timeout") != std::string::npos));
+        
+        if (is_timeout) {
             // Progressive timeout extension for timeout errors
             s.timeout_extensions++;
             uint64_t extended_timeout = calculate_adaptive_timeout(s, payload.size());
             
             if (auto logger = Logger::get_logger("core_logger")) {
-                logger->warn("Gemini request timeout, extending timeout to {} seconds for next attempt (attempt {}/{})",
-                           extended_timeout / 1000, attempt + 1, kMaxRetries);
+                logger->warn("Gemini request timeout (curl code: {}), extending timeout to {} seconds for next attempt (attempt {}/{})",
+                           static_cast<int>(http.curl_code), extended_timeout / 1000, attempt + 1, kMaxRetries);
             }
             
             timeout_ms = extended_timeout;
