@@ -168,6 +168,13 @@ File categorization with local LLMs is completely free of charge. If you prefer 
        libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
      ```
    - Fedora / RHEL:
+
+     ```bash
+     export PATH="/usr/lib64/qt6/libexec:$PATH"
+     sudo mkdir -p /usr/include/jsoncpp/json
+     sudo ln -s /usr/include/json/json.h /usr/include/jsoncpp/json/json.h
+     ```
+
      ```bash
      sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
        libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
