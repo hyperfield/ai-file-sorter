@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.4.5-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.5.0-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dw/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -76,11 +76,8 @@ File content–based sorting for certain file types is also in development.
 
 ## Changelog
 
-## [1.4.0] - 2025-12-30
-- Added dry run / preview-only mode with From→To table, no moves performed until you uncheck.
-- Persistent Undo: the latest sort saves a plan file; use Edit → “Undo last run” even after closing dialogs.
-- UI tweaks: Name column auto-resizes, new translations for dry run/undo strings, Undo moved to top of Edit menu.
-- A few more guard rails added.
+## [1.5.0] - 2025-12-30
+
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -368,8 +365,8 @@ Catch2-based unit tests are optional. Enable them via CMake:
 
 ```bash
 cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
-cmake --build build-tests --target ai_file_sorter_tests
-ctest --test-dir build-tests --output-on-failure
+cmake --build build-tests --target ai_file_sorter_tests --parallel $(nproc)
+ctest --test-dir build-tests --output-on-failure -j $(nproc)
 ```
 
 On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
