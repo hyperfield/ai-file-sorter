@@ -114,6 +114,42 @@ Language system_default_language()
         default: return Language::English;
     }
 }
+
+bool visual_llm_files_available()
+{
+    const char* model_url = std::getenv("LLAVA_MODEL_URL");
+    const char* mmproj_url = std::getenv("LLAVA_MMPROJ_URL");
+    if (!model_url || *model_url == '\0' || !mmproj_url || *mmproj_url == '\0') {
+        return false;
+    }
+
+    const auto model_path = std::filesystem::path(
+        Utils::make_default_path_to_file_from_download_url(model_url));
+    const auto mmproj_path = std::filesystem::path(
+        Utils::make_default_path_to_file_from_download_url(mmproj_url));
+
+    const bool model_exists = std::filesystem::exists(model_path);
+    if (!model_exists) {
+        return false;
+    }
+
+    if (std::filesystem::exists(mmproj_path)) {
+        return true;
+    }
+
+    const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
+    static const char* kAltMmprojNames[] = {
+        "mmproj-model-f16.gguf",
+        "llava-v1.6-mistral-7b-mmproj-f16.gguf"
+    };
+    for (const char* alt_name : kAltMmprojNames) {
+        if (std::filesystem::exists(llm_dir / alt_name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
 }
 
 
@@ -163,6 +199,7 @@ Settings::Settings()
     // Default language follows system locale on first run (before any config file exists).
     language = system_default_language();
     category_language = CategoryLanguage::English;
+    analyze_images_by_content = visual_llm_files_available();
 }
 
 LLMChoice Settings::parse_llm_choice() const
@@ -188,6 +225,12 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
+    analyze_images_by_content = load_bool("AnalyzeImagesByContent", visual_llm_files_available());
+    offer_rename_images = load_bool("OfferRenameImages", false);
+    rename_images_only = load_bool("RenameImagesOnly", false);
+    if (rename_images_only && !offer_rename_images) {
+        offer_rename_images = true;
+    }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = load_bool("ShowFileExplorer", true);
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
@@ -257,6 +300,12 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
     set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
     set_bool_setting(config, settings_section, "CategorizeDirectories", categorize_directories);
+    if (rename_images_only) {
+        offer_rename_images = true;
+    }
+    set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
+    set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
+    set_bool_setting(config, settings_section, "RenameImagesOnly", rename_images_only);
     config.setValue(settings_section, "SortFolder", this->sort_folder);
 
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
@@ -548,6 +597,36 @@ bool Settings::get_categorize_directories() const
 void Settings::set_categorize_directories(bool value)
 {
     categorize_directories = value;
+}
+
+bool Settings::get_analyze_images_by_content() const
+{
+    return analyze_images_by_content;
+}
+
+void Settings::set_analyze_images_by_content(bool value)
+{
+    analyze_images_by_content = value;
+}
+
+bool Settings::get_offer_rename_images() const
+{
+    return offer_rename_images;
+}
+
+void Settings::set_offer_rename_images(bool value)
+{
+    offer_rename_images = value;
+}
+
+bool Settings::get_rename_images_only() const
+{
+    return rename_images_only;
+}
+
+void Settings::set_rename_images_only(bool value)
+{
+    rename_images_only = value;
 }
 
 

@@ -85,6 +85,15 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_directories_checkbox)) {
         checkbox->setText(tr("Categorize directories"));
     }
+    if (auto* checkbox = raw_ptr(deps_.primary.analyze_images_checkbox)) {
+        checkbox->setText(tr("Analyze picture files by content (can be slow)"));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.offer_rename_images_checkbox)) {
+        checkbox->setText(tr("Offer to rename image files"));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.rename_images_only_checkbox)) {
+        checkbox->setText(tr("Do not categorize image files (only rename)"));
+    }
     if (auto* button = raw_ptr(deps_.primary.analyze_button)) {
         button->setText(analysis_in_progress ? tr("Stop analyzing") : tr("Analyze folder"));
     }

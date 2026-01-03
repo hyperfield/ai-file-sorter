@@ -79,6 +79,21 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     options_layout->addStretch(1);
     main_layout->addLayout(options_layout);
 
+    auto* image_options_layout = new QVBoxLayout();
+    image_options_layout->setSpacing(4);
+    app.analyze_images_checkbox = new QCheckBox(central);
+    image_options_layout->addWidget(app.analyze_images_checkbox);
+
+    auto* image_rename_layout = new QVBoxLayout();
+    image_rename_layout->setContentsMargins(24, 0, 0, 0);
+    image_rename_layout->setSpacing(2);
+    app.offer_rename_images_checkbox = new QCheckBox(central);
+    app.rename_images_only_checkbox = new QCheckBox(central);
+    image_rename_layout->addWidget(app.offer_rename_images_checkbox);
+    image_rename_layout->addWidget(app.rename_images_only_checkbox);
+    image_options_layout->addLayout(image_rename_layout);
+    main_layout->addLayout(image_options_layout);
+
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);
     app.categorization_style_consistent_radio = new QRadioButton(central);
@@ -175,7 +190,10 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.use_whitelist_checkbox,
             app.whitelist_selector,
             app.categorize_files_checkbox,
-            app.categorize_directories_checkbox},
+            app.categorize_directories_checkbox,
+            app.analyze_images_checkbox,
+            app.offer_rename_images_checkbox,
+            app.rename_images_only_checkbox},
         .tree_model = app.tree_model,
         .menus = UiTranslator::MenuControls{
             app.file_menu,

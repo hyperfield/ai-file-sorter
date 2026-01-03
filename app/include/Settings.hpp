@@ -51,6 +51,13 @@ public:
     bool get_categorize_directories() const;
     void set_categorize_directories(bool value);
 
+    bool get_analyze_images_by_content() const;
+    void set_analyze_images_by_content(bool value);
+    bool get_offer_rename_images() const;
+    void set_offer_rename_images(bool value);
+    bool get_rename_images_only() const;
+    void set_rename_images_only(bool value);
+
     std::string get_sort_folder() const;
     void set_sort_folder(const std::string &path);
 
@@ -107,6 +114,9 @@ private:
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;
+    bool analyze_images_by_content{false};
+    bool offer_rename_images{false};
+    bool rename_images_only{false};
     bool use_consistency_hints{false};
     bool use_whitelist{false};
     std::string default_sort_folder;

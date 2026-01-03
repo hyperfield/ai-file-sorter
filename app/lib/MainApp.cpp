@@ -398,6 +398,40 @@ void MainApp::connect_checkbox_signals()
         update_file_scan_option(FileScanOptions::Directories, checked);
         settings.set_categorize_directories(checked);
     });
+
+    if (analyze_images_checkbox) {
+        connect(analyze_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            handle_image_analysis_toggle(checked);
+        });
+    }
+
+    if (offer_rename_images_checkbox) {
+        connect(offer_rename_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (!checked && rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) {
+                QSignalBlocker blocker(rename_images_only_checkbox);
+                rename_images_only_checkbox->setChecked(false);
+            }
+            settings.set_offer_rename_images(checked);
+            if (rename_images_only_checkbox) {
+                settings.set_rename_images_only(rename_images_only_checkbox->isChecked());
+            }
+            update_image_analysis_controls();
+        });
+    }
+
+    if (rename_images_only_checkbox) {
+        connect(rename_images_only_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (checked && offer_rename_images_checkbox && !offer_rename_images_checkbox->isChecked()) {
+                QSignalBlocker blocker(offer_rename_images_checkbox);
+                offer_rename_images_checkbox->setChecked(true);
+            }
+            settings.set_rename_images_only(checked);
+            if (offer_rename_images_checkbox) {
+                settings.set_offer_rename_images(offer_rename_images_checkbox->isChecked());
+            }
+            update_image_analysis_controls();
+        });
+    }
 }
 
 void MainApp::connect_whitelist_signals()
@@ -496,6 +530,19 @@ void MainApp::restore_tree_settings()
     }
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
+    if (analyze_images_checkbox) {
+        QSignalBlocker blocker(analyze_images_checkbox);
+        analyze_images_checkbox->setChecked(settings.get_analyze_images_by_content());
+    }
+    if (offer_rename_images_checkbox) {
+        QSignalBlocker blocker(offer_rename_images_checkbox);
+        offer_rename_images_checkbox->setChecked(settings.get_offer_rename_images());
+    }
+    if (rename_images_only_checkbox) {
+        QSignalBlocker blocker(rename_images_only_checkbox);
+        rename_images_only_checkbox->setChecked(settings.get_rename_images_only());
+    }
+    update_image_analysis_controls();
 }
 
 void MainApp::restore_sort_folder_state()
@@ -567,6 +614,15 @@ void MainApp::sync_ui_to_settings()
     }
     settings.set_categorize_files(categorize_files_checkbox->isChecked());
     settings.set_categorize_directories(categorize_directories_checkbox->isChecked());
+    if (analyze_images_checkbox) {
+        settings.set_analyze_images_by_content(analyze_images_checkbox->isChecked());
+    }
+    if (offer_rename_images_checkbox) {
+        settings.set_offer_rename_images(offer_rename_images_checkbox->isChecked());
+    }
+    if (rename_images_only_checkbox) {
+        settings.set_rename_images_only(rename_images_only_checkbox->isChecked());
+    }
     const QByteArray folder_bytes = path_entry->text().toUtf8();
     settings.set_sort_folder(std::string(folder_bytes.constData(), static_cast<std::size_t>(folder_bytes.size())));
     if (file_explorer_menu_action) {
@@ -610,6 +666,30 @@ QString MainAppTestAccess::analyze_button_text(const MainApp& app) {
 
 QString MainAppTestAccess::path_label_text(const MainApp& app) {
     return app.path_label ? app.path_label->text() : QString();
+}
+
+QCheckBox* MainAppTestAccess::analyze_images_checkbox(MainApp& app) {
+    return app.analyze_images_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::offer_rename_images_checkbox(MainApp& app) {
+    return app.offer_rename_images_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::rename_images_only_checkbox(MainApp& app) {
+    return app.rename_images_only_checkbox;
+}
+
+void MainAppTestAccess::set_visual_llm_available_probe(MainApp& app, std::function<bool()> probe) {
+    app.visual_llm_available_probe_ = std::move(probe);
+}
+
+void MainAppTestAccess::set_llm_selection_runner(MainApp& app, std::function<void()> runner) {
+    app.llm_selection_runner_override_ = std::move(runner);
+}
+
+void MainAppTestAccess::set_image_analysis_prompt_override(MainApp& app, std::function<bool()> prompt) {
+    app.image_analysis_prompt_override_ = std::move(prompt);
 }
 
 void MainAppTestAccess::trigger_retranslate(MainApp& app) {
@@ -878,6 +958,123 @@ void MainApp::update_file_scan_option(FileScanOptions option, bool enabled)
     } else {
         file_scan_options = file_scan_options & ~option;
     }
+}
+
+bool MainApp::visual_llm_files_available() const
+{
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (visual_llm_available_probe_) {
+        return visual_llm_available_probe_();
+    }
+#endif
+    const char* model_url = std::getenv("LLAVA_MODEL_URL");
+    const char* mmproj_url = std::getenv("LLAVA_MMPROJ_URL");
+    if (!model_url || *model_url == '\0' || !mmproj_url || *mmproj_url == '\0') {
+        return false;
+    }
+
+    const auto model_path = std::filesystem::path(
+        Utils::make_default_path_to_file_from_download_url(model_url));
+    const auto mmproj_path = std::filesystem::path(
+        Utils::make_default_path_to_file_from_download_url(mmproj_url));
+
+    if (!std::filesystem::exists(model_path)) {
+        return false;
+    }
+
+    if (std::filesystem::exists(mmproj_path)) {
+        return true;
+    }
+
+    const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
+    static const char* kAltMmprojNames[] = {
+        "mmproj-model-f16.gguf",
+        "llava-v1.6-mistral-7b-mmproj-f16.gguf"
+    };
+    for (const char* alt_name : kAltMmprojNames) {
+        if (std::filesystem::exists(llm_dir / alt_name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void MainApp::update_image_analysis_controls()
+{
+    if (!analyze_images_checkbox || !offer_rename_images_checkbox || !rename_images_only_checkbox) {
+        return;
+    }
+
+    const bool analysis_enabled = analyze_images_checkbox->isChecked();
+    offer_rename_images_checkbox->setEnabled(analysis_enabled);
+    rename_images_only_checkbox->setEnabled(analysis_enabled);
+
+    if (analysis_enabled &&
+        rename_images_only_checkbox->isChecked() &&
+        !offer_rename_images_checkbox->isChecked()) {
+        QSignalBlocker blocker(offer_rename_images_checkbox);
+        offer_rename_images_checkbox->setChecked(true);
+    }
+}
+
+void MainApp::run_llm_selection_dialog_for_visual()
+{
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (llm_selection_runner_override_) {
+        llm_selection_runner_override_();
+        return;
+    }
+#endif
+    show_llm_selection_dialog();
+}
+
+void MainApp::handle_image_analysis_toggle(bool checked)
+{
+    if (!analyze_images_checkbox) {
+        return;
+    }
+
+    if (checked && !visual_llm_files_available()) {
+        bool should_open_dialog = false;
+#ifdef AI_FILE_SORTER_TEST_BUILD
+        if (image_analysis_prompt_override_) {
+            should_open_dialog = image_analysis_prompt_override_();
+        } else
+#endif
+        {
+            QMessageBox box(this);
+            box.setIcon(QMessageBox::Information);
+            box.setWindowTitle(tr("Download required"));
+            box.setText(tr("Image analysis requires visual LLM files. Download them now?"));
+            QPushButton* ok_button = box.addButton(tr("OK"), QMessageBox::AcceptRole);
+            QPushButton* cancel_button = box.addButton(QMessageBox::Cancel);
+            box.setDefaultButton(ok_button);
+            box.exec();
+            should_open_dialog = (box.clickedButton() != cancel_button);
+        }
+
+        if (!should_open_dialog) {
+            QSignalBlocker blocker(analyze_images_checkbox);
+            analyze_images_checkbox->setChecked(false);
+            settings.set_analyze_images_by_content(false);
+            update_image_analysis_controls();
+            return;
+        }
+
+        run_llm_selection_dialog_for_visual();
+
+        if (!visual_llm_files_available()) {
+            QSignalBlocker blocker(analyze_images_checkbox);
+            analyze_images_checkbox->setChecked(false);
+            settings.set_analyze_images_by_content(false);
+            update_image_analysis_controls();
+            return;
+        }
+    }
+
+    settings.set_analyze_images_by_content(analyze_images_checkbox->isChecked());
+    update_image_analysis_controls();
 }
 
 
