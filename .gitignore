@@ -110,6 +110,7 @@ app/include/llama/*.h
 /Testing/
 /changelog/
 /models/
+/rd/
 
 # Build artifacts
 
