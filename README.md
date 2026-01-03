@@ -179,19 +179,27 @@ File categorization with local LLMs is completely free of charge. If you prefer 
      sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
        libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
      ```
+
    - Arch / Manjaro:
+
      ```bash
      sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog
      ```
+
      Optional GPU acceleration also requires either the distro Vulkan 1.2+ driver/runtime (Mesa, AMD, Intel, NVIDIA) or CUDA packages for NVIDIA cards. Install whichever stack you plan to use; the app will fall back to CPU automatically if none are detected.
+
 2. **Clone the repository**
+
    ```bash
    git clone https://github.com/hyperfield/ai-file-sorter.git
    cd ai-file-sorter
    git submodule update --init --recursive --remote
    ```
+
    > **Submodule tip:** If you previously downloaded `llama.cpp` or Catch2 manually, remove or rename `app/include/external/llama.cpp` and `external/Catch2` before running the `git submodule` command. Git needs those directories to be empty so it can populate them with the tracked submodules.
+
 3. **Build the llama runtime variants** (run once per backend you plan to ship/test)
+
    ```bash
    # CPU / OpenBLAS
    ./app/scripts/build_llama_linux.sh cuda=off vulkan=off
@@ -200,14 +208,20 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    # Vulkan (optional; requires a working Vulkan 1.2+ stack, e.g. mesa-vulkan-drivers + vulkan-tools)
    ./app/scripts/build_llama_linux.sh cuda=off vulkan=on
    ```
+
    Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick Vulkan when available, then CUDA, and otherwise stay on CPU—no CUDA-only dependency remains.
+
 4. **Compile the application**
+
    ```bash
    cd app
    make -j4
    ```
+
    The binary is produced at `app/bin/aifilesorter`.
+
 5. **Install system-wide (optional)**
+
    ```bash
    sudo make install
    ```
@@ -217,28 +231,39 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 1. **Install Xcode command-line tools** (`xcode-select --install`).
 2. **Install Homebrew** (if required).
 3. **Install dependencies**
+
    ```bash
    brew install qt curl jsoncpp sqlite openssl fmt spdlog cmake git pkgconfig libffi
    ```
+
    Add Qt to your environment if it is not already present:
+
    ```bash
    export PATH="$(brew --prefix)/opt/qt/bin:$PATH"
    export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$PKG_CONFIG_PATH"
    ```
+
 4. **Clone the repository and submodules** (same commands as Linux).
    > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=11.0` so the Mach-O `LC_BUILD_VERSION` covers Apple Silicon and newer releases (including Sequoia). Raise or lower it (e.g., `export MACOSX_DEPLOYMENT_TARGET=15.0`) if you need a different floor.
+
 5. **Build the llama runtime (Metal-only on macOS)**
+
    ```bash
    ./app/scripts/build_llama_macos.sh
    ```
+
    The macOS helper already produces the Metal-enabled variant the app needs, so no extra GPU-specific invocations are required on this platform.
+
 6. **Compile the application**
+
    ```bash
    cd app
    make -j4
    sudo make install   # optional
    ```
+
    > **Fix for the 1.1.0 macOS build:** That package shipped with `LC_BUILD_VERSION` set to macOS 26.0, which Sequoia blocks. If you still have that build, you can patch it in place:
+
    > ```bash
    > APP="/Applications/AI File Sorter.app"
    > BIN="$APP/Contents/MacOS/aifilesorter"
@@ -246,6 +271,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    > codesign --force --deep --sign - "$APP"
    > xattr -d com.apple.quarantine "$APP" || true
    > ```
+
    > (`vtool` ships with the Xcode command line tools.) Future releases are built with the corrected deployment target.
 
 ### Windows
@@ -260,18 +286,23 @@ Option A - CMake + vcpkg (recommended)
    - vcpkg: <https://github.com/microsoft/vcpkg> (clone and bootstrap)
    - **MSYS2 MinGW64 + OpenBLAS**: install MSYS2 from <https://www.msys2.org>, open an *MSYS2 MINGW64* shell, and run `pacman -S --needed mingw-w64-x86_64-openblas`. The `build_llama_windows.ps1` script uses this OpenBLAS copy for CPU-only builds (the vcpkg variant is not suitable), defaulting to `C:\msys64\mingw64` unless you pass `openblasroot=<path>` or set `OPENBLAS_ROOT`.
 2. Clone repo and submodules:
+
    ```powershell
    git clone https://github.com/hyperfield/ai-file-sorter.git
    cd ai-file-sorter
    git submodule update --init --recursive
    ```
+
 3. Determine your vcpkg root. It is the folder that contains `vcpkg.exe` (for example `C:\dev\vcpkg`).
     - If `vcpkg` is on your `PATH`, run this command to print the location:
+
       ```powershell
       Split-Path -Parent (Get-Command vcpkg).Source
       ```
+
     - Otherwise use the directory where you cloned vcpkg.
 4. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
+
    ```powershell
    # CPU / OpenBLAS only
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=off vcpkgroot=C:\dev\vcpkg
@@ -280,14 +311,18 @@ Option A - CMake + vcpkg (recommended)
    # Vulkan (requires LunarG Vulkan SDK or vendor Vulkan 1.2+ runtime)
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=on vcpkgroot=C:\dev\vcpkg
    ```
+  
   Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan>` and copies the runtime DLLs into `app\lib\ggml\w<variant>`. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. Supplying both Vulkan and (optionally) CUDA artifacts lets `StartAiFileSorter.exe` detect the best backend at launch—Vulkan is preferred, CUDA is used when Vulkan is missing, and CPU remains the fallback, so CUDA is not required.
+
 5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
+
    ```powershell
    # One-time per shell if script execution is blocked:
    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
    app\build_windows.ps1 -Configuration Release -VcpkgRoot C:\dev\vcpkg
    ```
+
    - Replace `C:\dev\vcpkg` with the path where you cloned vcpkg; it must contain `scripts\buildsystems\vcpkg.cmake`.
    - Always launch the app via `StartAiFileSorter.exe`. This small bootstrapper configures the GGML/CUDA/Vulkan DLLs, auto-selects Vulkan → CUDA → CPU at runtime, and sets the environment before spawning `aifilesorter.exe`. Launching `aifilesorter.exe` directly now shows a reminder dialog; developers can bypass it (for debugging) by adding `--allow-direct-launch` when invoking the GUI manually.
    - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
@@ -302,11 +337,14 @@ Option B - CMake + Qt online installer
    - CMake 3.21+
    - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext
 2. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
+
    ```powershell
    pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [vcpkgroot=C:\dev\vcpkg]
    ```
+
    This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
 3. Configure CMake to see Qt (adapt `CMAKE_PREFIX_PATH` to your Qt install):
+
     ```powershell
     $env:VCPKG_ROOT = "C:\path\to\vcpkg" (e.g., `C:\dev\vcpkg`)
     $qt = "C:\Qt\6.6.3\msvc2019_64"  # example
@@ -318,6 +356,7 @@ Option B - CMake + Qt online installer
    ```
 
 Notes
+
 - To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
@@ -391,11 +430,13 @@ Prefer Google's models? Use your own Gemini API key:
 ## Testing
 
 - From the repo root, clean any old cache and run the CTest wrapper:
+  
   ```bash
   cd app
   rm -rf ../build-tests      # clear a cache from another checkout
   ./scripts/rebuild_and_test.sh
   ```
+
 - The script configures to `../build-tests`, builds, then runs `ctest`.
 - If you have multiple copies of the repo (e.g., `ai-file-sorter` and `ai-file-sorter-mac-dist`), each needs its own `build-tests` folder; reusing one from a different path will make CMake complain about mismatched source/build directories.
 
@@ -410,6 +451,7 @@ Prefer Google's models? Use your own Gemini API key:
 
 - In the results dialog, you can enable **"Dry run (preview only, do not move files)"** to preview planned moves. A preview dialog shows From/To without moving any files.
 - After a real sort, the app saves a persistent undo plan. You can revert later via **Edit → "Undo last run"** (best-effort; skips conflicts/changes).
+
 3. Tick off the checkboxes on the main window according to your preferences.
 4. Click the **"Analyze"** button. The app will scan each file and/or directory based on your selected options.
 5. A review dialog will appear. Verify the assigned categories (and subcategories, if enabled in step 3).
