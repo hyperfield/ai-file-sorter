@@ -25,6 +25,10 @@ class QCheckBox;
 
 class Settings;
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+class LLMSelectionDialogTestAccess;
+#endif
+
 class LLMSelectionDialog : public QDialog
 {
 public:
@@ -39,6 +43,24 @@ public:
     std::string get_gemini_model() const;
 
 private:
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend class LLMSelectionDialogTestAccess;
+#endif
+
+    struct VisualLlmDownloadEntry {
+        std::string env_var;
+        QWidget* container{nullptr};
+        QLabel* title_label{nullptr};
+        QLabel* remote_url_label{nullptr};
+        QLabel* local_path_label{nullptr};
+        QLabel* file_size_label{nullptr};
+        QLabel* status_label{nullptr};
+        QProgressBar* progress_bar{nullptr};
+        QPushButton* download_button{nullptr};
+        std::unique_ptr<LLMDownloader> downloader;
+        std::atomic<bool> is_downloading{false};
+    };
+
     void setup_ui();
     void connect_signals();
     void update_ui_for_choice();
@@ -60,6 +82,15 @@ private:
     void handle_delete_custom();
     void update_custom_buttons();
     void select_custom_by_id(const std::string& id);
+    void setup_visual_llm_download_entry(VisualLlmDownloadEntry& entry,
+                                     QWidget* parent,
+                                     const QString& title,
+                                     const std::string& env_var);
+    void refresh_visual_llm_download_entry(VisualLlmDownloadEntry& entry);
+    void update_visual_llm_download_entry(VisualLlmDownloadEntry& entry);
+    void update_visual_llm_downloads();
+    void start_visual_llm_download(VisualLlmDownloadEntry& entry);
+    void set_visual_status_message(VisualLlmDownloadEntry& entry, const QString& message);
 
     Settings& settings;
     LLMChoice selected_choice{LLMChoice::Unset};
@@ -87,6 +118,7 @@ private:
     QPushButton* ok_button{nullptr};
     QDialogButtonBox* button_box{nullptr};
     QWidget* download_section{nullptr};
+    QWidget* visual_llm_download_section{nullptr};
     QWidget* openai_inputs{nullptr};
     QWidget* gemini_inputs{nullptr};
     QLineEdit* openai_api_key_edit{nullptr};
@@ -103,6 +135,14 @@ private:
     std::unique_ptr<LLMDownloader> downloader;
     std::atomic<bool> is_downloading{false};
     std::mutex download_mutex;
+
+    VisualLlmDownloadEntry llava_model_download;
+    VisualLlmDownloadEntry llava_mmproj_download;
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+    bool use_network_available_override_{false};
+    bool network_available_override_{true};
+#endif
 };
 
 #endif // LLMSELECTIONDIALOG_HPP

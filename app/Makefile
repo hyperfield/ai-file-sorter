@@ -124,6 +124,9 @@ endif
 QRC_FILE := resources/app.qrc
 QRC_CPP := $(OBJ_DIR)/qrc_app.cpp
 QRC_OBJ := $(OBJ_DIR)/qrc_app.o
+QRC_DIR := $(dir $(QRC_FILE))
+QRC_RESOURCES := $(shell sed -n 's/.*<file>\\(.*\\)<\\/file>.*/\\1/p' $(QRC_FILE))
+QRC_RESOURCES := $(addprefix $(QRC_DIR),$(QRC_RESOURCES))
 
 ifndef RCC
 RCC := $(shell command -v qt6-rcc 2>/dev/null)
@@ -175,7 +178,7 @@ $(OBJ_DIR)/main.o: main.cpp
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
-$(QRC_CPP): $(QRC_FILE)
+$(QRC_CPP): $(QRC_FILE) $(QRC_RESOURCES)
 	mkdir -p $(OBJ_DIR)
 	$(RCC) -o $@ $<
 

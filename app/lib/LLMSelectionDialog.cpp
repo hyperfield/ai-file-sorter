@@ -5,6 +5,9 @@
 #include "Settings.hpp"
 #include "Utils.hpp"
 #include "CustomLLMDialog.hpp"
+#ifdef AI_FILE_SORTER_TEST_BUILD
+#include "LLMSelectionDialogTestAccess.hpp"
+#endif
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -100,6 +103,12 @@ LLMSelectionDialog::~LLMSelectionDialog()
 {
     if (downloader && is_downloading.load()) {
         downloader->cancel_download();
+    }
+    if (llava_model_download.downloader && llava_model_download.is_downloading.load()) {
+        llava_model_download.downloader->cancel_download();
+    }
+    if (llava_mmproj_download.downloader && llava_mmproj_download.is_downloading.load()) {
+        llava_mmproj_download.downloader->cancel_download();
     }
 }
 
@@ -258,6 +267,26 @@ void LLMSelectionDialog::setup_ui()
     layout->addWidget(download_section);
     download_section->setVisible(false);
 
+    visual_llm_download_section = new QGroupBox(tr("Image analysis models (LLaVA)"), this);
+    auto* visual_layout = new QVBoxLayout(visual_llm_download_section);
+    auto* visual_hint = new QLabel(tr("Download the visual LLM files required for image analysis."), visual_llm_download_section);
+    visual_hint->setWordWrap(true);
+    visual_layout->addWidget(visual_hint);
+
+    setup_visual_llm_download_entry(llava_model_download,
+                                visual_llm_download_section,
+                                tr("LLaVA 1.6 Mistral 7B (text model)"),
+                                "LLAVA_MODEL_URL");
+    visual_layout->addWidget(llava_model_download.container);
+
+    setup_visual_llm_download_entry(llava_mmproj_download,
+                                visual_llm_download_section,
+                                tr("LLaVA mmproj (vision encoder)"),
+                                "LLAVA_MMPROJ_URL");
+    visual_layout->addWidget(llava_mmproj_download.container);
+
+    layout->addWidget(visual_llm_download_section);
+
     button_box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     ok_button = button_box->button(QDialogButtonBox::Ok);
     layout->addWidget(button_box);
@@ -298,6 +327,16 @@ void LLMSelectionDialog::connect_signals()
     }
 
     connect(download_button, &QPushButton::clicked, this, &LLMSelectionDialog::start_download);
+    if (llava_model_download.download_button) {
+        connect(llava_model_download.download_button, &QPushButton::clicked, this, [this]() {
+            start_visual_llm_download(llava_model_download);
+        });
+    }
+    if (llava_mmproj_download.download_button) {
+        connect(llava_mmproj_download.download_button, &QPushButton::clicked, this, [this]() {
+            start_visual_llm_download(llava_mmproj_download);
+        });
+    }
     connect(button_box, &QDialogButtonBox::accepted, this, &LLMSelectionDialog::accept);
     connect(button_box, &QDialogButtonBox::rejected, this, &LLMSelectionDialog::reject);
 }
@@ -345,6 +384,7 @@ void LLMSelectionDialog::update_ui_for_choice()
 
     update_radio_selection();
     update_custom_choice_ui();
+    update_visual_llm_downloads();
 
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
 
@@ -718,6 +758,253 @@ void LLMSelectionDialog::update_custom_buttons()
     }
 }
 
+void LLMSelectionDialog::setup_visual_llm_download_entry(VisualLlmDownloadEntry& entry,
+                                                     QWidget* parent,
+                                                     const QString& title,
+                                                     const std::string& env_var)
+{
+    entry.env_var = env_var;
+    auto* group = new QGroupBox(title, parent);
+    entry.container = group;
+
+    auto* entry_layout = new QVBoxLayout(group);
+    entry_layout->setSpacing(6);
+
+    entry.remote_url_label = new QLabel(group);
+    entry.remote_url_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    entry.local_path_label = new QLabel(group);
+    entry.local_path_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    entry.file_size_label = new QLabel(group);
+    entry.file_size_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    entry.status_label = new QLabel(group);
+    entry.status_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    entry.progress_bar = new QProgressBar(group);
+    entry.progress_bar->setRange(0, 100);
+    entry.progress_bar->setValue(0);
+    entry.progress_bar->setVisible(false);
+
+    entry.download_button = new QPushButton(tr("Download"), group);
+    entry.download_button->setEnabled(false);
+
+    entry_layout->addWidget(entry.remote_url_label);
+    entry_layout->addWidget(entry.local_path_label);
+    entry_layout->addWidget(entry.file_size_label);
+    entry_layout->addWidget(entry.status_label);
+    entry_layout->addWidget(entry.progress_bar);
+    entry_layout->addWidget(entry.download_button, 0, Qt::AlignLeft);
+}
+
+void LLMSelectionDialog::set_visual_status_message(VisualLlmDownloadEntry& entry, const QString& message)
+{
+    if (entry.status_label) {
+        entry.status_label->setText(message);
+    }
+}
+
+void LLMSelectionDialog::refresh_visual_llm_download_entry(VisualLlmDownloadEntry& entry)
+{
+    if (entry.env_var.empty()) {
+        entry.downloader.reset();
+        set_visual_status_message(entry, tr("Missing download URL environment variable."));
+        if (entry.download_button) {
+            entry.download_button->setEnabled(false);
+        }
+        return;
+    }
+
+    const char* env_url = std::getenv(entry.env_var.c_str());
+    if (!env_url) {
+        entry.downloader.reset();
+        set_visual_status_message(entry,
+                                  tr("Missing download URL environment variable (%1).")
+                                      .arg(QString::fromStdString(entry.env_var)));
+        if (entry.download_button) {
+            entry.download_button->setEnabled(false);
+        }
+        return;
+    }
+
+    if (!entry.downloader) {
+        entry.downloader = std::make_unique<LLMDownloader>(env_url);
+    } else {
+        entry.downloader->set_download_url(env_url);
+    }
+
+    try {
+        entry.downloader->init_if_needed();
+    } catch (const std::exception& ex) {
+        set_visual_status_message(entry, QString::fromStdString(ex.what()));
+        entry.downloader.reset();
+    }
+}
+
+void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry& entry)
+{
+    if (!entry.downloader) {
+        if (entry.progress_bar) {
+            entry.progress_bar->setVisible(false);
+        }
+        if (entry.download_button) {
+            entry.download_button->setVisible(true);
+            entry.download_button->setEnabled(false);
+        }
+        return;
+    }
+
+    if (entry.remote_url_label) {
+        entry.remote_url_label->setText(format_markup_label(tr("Remote URL"),
+                                                            QString::fromStdString(entry.downloader->get_download_url()),
+                                                            QStringLiteral("#1565c0")));
+    }
+    if (entry.local_path_label) {
+        entry.local_path_label->setText(format_markup_label(tr("Local path"),
+                                                            QString::fromStdString(entry.downloader->get_download_destination()),
+                                                            QStringLiteral("#2e7d32")));
+    }
+    if (entry.file_size_label) {
+        const auto size = entry.downloader->get_real_content_length();
+        if (size > 0) {
+            entry.file_size_label->setText(format_markup_label(tr("File size"),
+                                                               QString::fromStdString(Utils::format_size(size)),
+                                                               QStringLiteral("#333")));
+        } else {
+            entry.file_size_label->setText(tr("File size: unknown"));
+        }
+    }
+
+    const auto status = entry.downloader->get_download_status();
+    switch (status) {
+    case LLMDownloader::DownloadStatus::Complete:
+        if (entry.progress_bar) {
+            entry.progress_bar->setVisible(true);
+            entry.progress_bar->setValue(100);
+        }
+        if (entry.download_button) {
+            entry.download_button->setEnabled(false);
+            entry.download_button->setVisible(false);
+        }
+        set_visual_status_message(entry, tr("Model ready."));
+        break;
+    case LLMDownloader::DownloadStatus::InProgress:
+        if (entry.progress_bar) {
+            entry.progress_bar->setVisible(true);
+        }
+        if (entry.download_button) {
+            entry.download_button->setVisible(true);
+            entry.download_button->setEnabled(!entry.is_downloading.load());
+            entry.download_button->setText(tr("Resume download"));
+        }
+        set_visual_status_message(entry, tr("Partial download detected. You can resume."));
+        break;
+    case LLMDownloader::DownloadStatus::NotStarted:
+    default:
+        if (entry.progress_bar) {
+            entry.progress_bar->setVisible(false);
+            entry.progress_bar->setValue(0);
+        }
+        if (entry.download_button) {
+            entry.download_button->setVisible(true);
+            entry.download_button->setEnabled(!entry.is_downloading.load());
+            entry.download_button->setText(tr("Download"));
+        }
+        set_visual_status_message(entry, tr("Download required."));
+        break;
+    }
+}
+
+void LLMSelectionDialog::update_visual_llm_downloads()
+{
+    if (!visual_llm_download_section) {
+        return;
+    }
+
+    refresh_visual_llm_download_entry(llava_model_download);
+    update_visual_llm_download_entry(llava_model_download);
+
+    refresh_visual_llm_download_entry(llava_mmproj_download);
+    update_visual_llm_download_entry(llava_mmproj_download);
+}
+
+void LLMSelectionDialog::start_visual_llm_download(VisualLlmDownloadEntry& entry)
+{
+    if (!entry.downloader || entry.is_downloading.load()) {
+        return;
+    }
+
+    bool network_available = Utils::is_network_available();
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (use_network_available_override_) {
+        network_available = network_available_override_;
+    }
+#endif
+    if (!network_available) {
+        DialogUtils::show_error_dialog(this, ERR_NO_INTERNET_CONNECTION);
+        return;
+    }
+
+    try {
+        entry.downloader->init_if_needed();
+    } catch (const std::exception& ex) {
+        DialogUtils::show_error_dialog(this, ex.what());
+        return;
+    }
+
+    entry.is_downloading = true;
+    if (entry.download_button) {
+        entry.download_button->setEnabled(false);
+    }
+    if (entry.progress_bar) {
+        entry.progress_bar->setVisible(true);
+        entry.progress_bar->setValue(0);
+    }
+    set_visual_status_message(entry, tr("Downloading…"));
+
+    auto* entry_ptr = &entry;
+    entry.downloader->start_download(
+        [this, entry_ptr](double fraction) {
+            QMetaObject::invokeMethod(this, [entry_ptr, fraction]() {
+                if (entry_ptr->progress_bar) {
+                    entry_ptr->progress_bar->setVisible(true);
+                    entry_ptr->progress_bar->setValue(static_cast<int>(fraction * 100));
+                }
+            }, Qt::QueuedConnection);
+        },
+        [this, entry_ptr]() {
+            QMetaObject::invokeMethod(this, [this, entry_ptr]() {
+                entry_ptr->is_downloading = false;
+                set_visual_status_message(*entry_ptr, tr("Download complete."));
+                update_visual_llm_download_entry(*entry_ptr);
+            }, Qt::QueuedConnection);
+        },
+        [this, entry_ptr](const std::string& text) {
+            QMetaObject::invokeMethod(this, [this, entry_ptr, text]() {
+                set_visual_status_message(*entry_ptr, QString::fromStdString(text));
+            }, Qt::QueuedConnection);
+        },
+        [this, entry_ptr](const std::string& error_text) {
+            QMetaObject::invokeMethod(this, [this, entry_ptr, error_text]() {
+                entry_ptr->is_downloading = false;
+                if (entry_ptr->progress_bar) {
+                    entry_ptr->progress_bar->setVisible(false);
+                }
+                if (entry_ptr->download_button) {
+                    entry_ptr->download_button->setEnabled(true);
+                }
+
+                const QString error = QString::fromStdString(error_text);
+                if (error.compare(QStringLiteral("Download cancelled"), Qt::CaseInsensitive) == 0) {
+                    set_visual_status_message(*entry_ptr, tr("Download cancelled."));
+                } else {
+                    set_visual_status_message(*entry_ptr, tr("Download error: %1").arg(error));
+                }
+            }, Qt::QueuedConnection);
+        });
+}
+
 
 void LLMSelectionDialog::start_download()
 {
@@ -791,3 +1078,53 @@ std::string LLMSelectionDialog::current_download_env_var() const
     }
     return std::string();
 }
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+
+LLMSelectionDialogTestAccess::VisualEntryRefs LLMSelectionDialogTestAccess::llava_model_entry(LLMSelectionDialog& dialog)
+{
+    return {
+        dialog.llava_model_download.status_label,
+        dialog.llava_model_download.download_button,
+        dialog.llava_model_download.progress_bar,
+        dialog.llava_model_download.downloader.get()
+    };
+}
+
+LLMSelectionDialogTestAccess::VisualEntryRefs LLMSelectionDialogTestAccess::llava_mmproj_entry(LLMSelectionDialog& dialog)
+{
+    return {
+        dialog.llava_mmproj_download.status_label,
+        dialog.llava_mmproj_download.download_button,
+        dialog.llava_mmproj_download.progress_bar,
+        dialog.llava_mmproj_download.downloader.get()
+    };
+}
+
+void LLMSelectionDialogTestAccess::refresh_visual_downloads(LLMSelectionDialog& dialog)
+{
+    dialog.update_visual_llm_downloads();
+}
+
+void LLMSelectionDialogTestAccess::update_llava_model_entry(LLMSelectionDialog& dialog)
+{
+    dialog.update_visual_llm_download_entry(dialog.llava_model_download);
+}
+
+void LLMSelectionDialogTestAccess::start_llava_model_download(LLMSelectionDialog& dialog)
+{
+    dialog.start_visual_llm_download(dialog.llava_model_download);
+}
+
+void LLMSelectionDialogTestAccess::set_network_available_override(LLMSelectionDialog& dialog,
+                                                                   std::optional<bool> value)
+{
+    if (value.has_value()) {
+        dialog.use_network_available_override_ = true;
+        dialog.network_available_override_ = *value;
+    } else {
+        dialog.use_network_available_override_ = false;
+    }
+}
+
+#endif // AI_FILE_SORTER_TEST_BUILD
