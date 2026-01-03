@@ -42,6 +42,9 @@ struct UiTranslatorTestHarness {
     QPointer<QComboBox> whitelist_selector{new QComboBox(&window)};
     QPointer<QCheckBox> files_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> directories_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> analyze_images_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> offer_rename_images_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> rename_images_only_checkbox{new QCheckBox(&window)};
 
     QPointer<QStandardItemModel> tree_model{new QStandardItemModel(0, 5, &window)};
     QMenu* file_menu = new QMenu(&window);
@@ -147,7 +150,10 @@ struct UiTranslatorTestHarness {
                 use_whitelist,
                 whitelist_selector,
                 files_checkbox,
-                directories_checkbox},
+                directories_checkbox,
+                analyze_images_checkbox,
+                offer_rename_images_checkbox,
+                rename_images_only_checkbox},
             .tree_model = tree_model,
             .menus = UiTranslator::MenuControls{
                 file_menu,
@@ -230,6 +236,9 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.use_whitelist->text() == QStringLiteral("Use a whitelist"));
     REQUIRE(h.files_checkbox->text() == QStringLiteral("Categorize files"));
     REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize directories"));
+    REQUIRE(h.analyze_images_checkbox->text() == QStringLiteral("Analyze picture files by content (can be slow)"));
+    REQUIRE(h.offer_rename_images_checkbox->text() == QStringLiteral("Offer to rename image files"));
+    REQUIRE(h.rename_images_only_checkbox->text() == QStringLiteral("Do not categorize image files (only rename)"));
 }
 
 void verify_menus_and_actions(const UiTranslatorTestHarness& h)
