@@ -4,9 +4,9 @@
 
 #include <optional>
 
-class QLabel;
-class QPushButton;
-class QProgressBar;
+#include <QLabel>
+#include <QProgressBar>
+#include <QPushButton>
 class LLMDownloader;
 class LLMSelectionDialog;
 

@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CategorizationDialog.hpp"
+#include "DatabaseManager.hpp"
 #include "TestHooks.hpp"
 #include "TestHelpers.hpp"
 #include <QTableView>
@@ -105,9 +106,9 @@ TEST_CASE("CategorizationDialog supports sorting by columns") {
     }
 
     SECTION("Sorts by category descending") {
-        table->sortByColumn(3, Qt::DescendingOrder); // category column
-        REQUIRE(model->item(0, 3)->text() == QStringLiteral("Beta"));
-        REQUIRE(model->item(1, 3)->text() == QStringLiteral("Alpha"));
+        table->sortByColumn(4, Qt::DescendingOrder); // category column
+        REQUIRE(model->item(0, 4)->text() == QStringLiteral("Beta"));
+        REQUIRE(model->item(1, 4)->text() == QStringLiteral("Alpha"));
     }
 }
 #endif
@@ -148,6 +149,83 @@ TEST_CASE("CategorizationDialog undo restores moved files") {
     REQUIRE(std::filesystem::exists(source));
     REQUIRE_FALSE(std::filesystem::exists(destination));
     REQUIRE_FALSE(dialog.test_undo_enabled());
+}
+
+TEST_CASE("CategorizationDialog undo allows renaming again") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "photo.jpg";
+    const std::string renamed = "sunset.jpg";
+    const std::filesystem::path source = base / file_name;
+    const std::filesystem::path destination = base / renamed;
+    std::ofstream(source).put('x');
+
+    CategorizedFile file;
+    file.file_path = base.string();
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.rename_only = true;
+    file.suggested_name = renamed;
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    dialog.test_trigger_undo();
+    REQUIRE(std::filesystem::exists(source));
+    REQUIRE_FALSE(std::filesystem::exists(destination));
+
+    dialog.test_trigger_confirm();
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+}
+
+TEST_CASE("CategorizationDialog rename-only updates cached filename") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    DatabaseManager db(config_dir.path().string());
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "photo.jpg";
+    const std::string renamed = "sunset.jpg";
+    const std::filesystem::path source = base / file_name;
+    const std::filesystem::path destination = base / renamed;
+    std::ofstream(source).put('x');
+
+    CategorizedFile file;
+    file.file_path = base.string();
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.rename_only = true;
+    file.suggested_name = renamed;
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(&db, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    const auto old_cache = db.get_categorization_from_db(file_name, FileType::File);
+    REQUIRE(old_cache.empty());
+
+    const auto cached = db.get_categorized_files(base.string());
+    REQUIRE(cached.size() == 1);
+    CHECK(cached.front().file_name == renamed);
+    CHECK(cached.front().rename_only);
+    CHECK(cached.front().suggested_name == renamed);
 }
 #endif
 
