@@ -1286,6 +1286,7 @@ void LocalLLMClient::configure_llama_logging(const std::shared_ptr<spdlog::logge
 
 llama_model_params build_model_params_for_path(const std::string& model_path,
                                                const std::shared_ptr<spdlog::logger>& logger) {
+    load_ggml_backends_once(logger);
     llama_model_params model_params = llama_model_default_params();
 
 #ifdef GGML_USE_METAL
