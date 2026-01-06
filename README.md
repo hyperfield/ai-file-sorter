@@ -386,6 +386,33 @@ Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and
 
 When no flags are provided the app auto-detects available runtimes in priority order (Vulkan → CUDA → CPU). Use the flags to skip a backend (`--cuda=off` forces Vulkan/CPU even if CUDA is installed, `--vulkan=off` tests CUDA explicitly) or to validate a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected, and if neither GPU backend is detected the app automatically stays on CPU.
 
+### Environment variables
+
+Runtime and GPU:
+
+- `AI_FILE_SORTER_GPU_BACKEND` - select GPU backend: `auto` (default), `vulkan`, `cuda`, or `cpu`.
+- `AI_FILE_SORTER_N_GPU_LAYERS` - override `n_gpu_layers` for llama.cpp; `-1` = auto, `0` = force CPU.
+- `AI_FILE_SORTER_CTX_TOKENS` - override local LLM context length (default 2048; clamped 512-8192).
+- `AI_FILE_SORTER_GGML_DIR` - directory to load ggml backend shared libraries from.
+
+Visual LLM:
+
+- `LLAVA_MODEL_URL` - download URL for the visual LLM GGUF model (required to enable image analysis).
+- `LLAVA_MMPROJ_URL` - download URL for the visual LLM mmproj GGUF file (required to enable image analysis).
+- `AI_FILE_SORTER_VISUAL_USE_GPU` - force visual encoder GPU usage (`1`) or CPU (`0`). Defaults to auto; Vulkan may fall back to CPU if VRAM is low.
+
+Timeouts and logging:
+
+- `AI_FILE_SORTER_LOCAL_LLM_TIMEOUT` - seconds to wait for local LLM responses (default 60).
+- `AI_FILE_SORTER_REMOTE_LLM_TIMEOUT` - seconds to wait for remote LLM responses (default 10).
+- `AI_FILE_SORTER_LLAMA_LOGS` - enable verbose llama.cpp logs (`1`/`true`); also honors `LLAMA_CPP_DEBUG_LOGS`.
+
+Storage and updates:
+
+- `AI_FILE_SORTER_CONFIG_DIR` - override the base config directory (where `config.ini` lives).
+- `CATEGORIZATION_CACHE_FILE` - override the SQLite cache filename inside the config dir.
+- `UPDATE_SPEC_FILE_URL` - override the update feed spec URL (dev/testing).
+
 ---
 
 ## Uninstallation
@@ -487,6 +514,7 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 - Hugging Face: <https://huggingface.co>
 - JSONCPP: <https://github.com/open-source-parsers/jsoncpp>
 - LLaMa: <https://www.llama.com>
+- Local File Organizer <https://github.com/QiuYannnn/Local-File-Organizer>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
 - Mistral AI: <https://mistral.ai>
 - OpenAI: <https://platform.openai.com/docs/overview>
