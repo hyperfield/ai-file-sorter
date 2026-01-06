@@ -31,7 +31,7 @@ The app intelligently assigns categories and optional subcategories, which you c
 
 AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* and *Mistral 7B*, and does not require an internet connection unless you choose to use a remote model.
 
-File content–based sorting for certain file types is also in development.
+Image content analysis for supported image files is available; broader file-content sorting is still in development.
 
 ---
 
@@ -56,11 +56,15 @@ File content–based sorting for certain file types is also in development.
   - [Categorization](#categorization)
     - [Categorization modes](#categorization-modes)
     - [Category whitelists](#category-whitelists)
+  - [Image analysis (Visual LLM)](#image-analysis-visual-llm)
+    - [Required visual LLM files](#required-visual-llm-files)
+    - [Main window options](#main-window-options)
   - [Requirements](#requirements)
   - [Installation](#installation)
     - [Linux](#linux)
     - [macOS](#macos)
     - [Windows](#windows)
+  - [Categorization cache database](#categorization-cache-database)
   - [Uninstallation](#uninstallation)
   - [Using your OpenAI API key](#using-your-openai-api-key)
   - [Using your Gemini API key](#using-your-gemini-api-key)
@@ -93,6 +97,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
 - **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
+- **Image content analysis (Visual LLM)**: Analyze supported image files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
@@ -119,6 +124,29 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - Manage lists (add, edit, remove) under **Settings → Manage category whitelists…**. A default list is auto-created only when no lists exist, and multiple named lists can be kept for different projects.
 - Keep each whitelist to roughly **15–20 categories/subcategories** to avoid overlong prompts on smaller local models. Use several narrower lists instead of a single very long one.
 - Whitelists apply in either categorization mode; pair them with **More consistent** when you want the strongest adherence to a constrained vocabulary.
+
+---
+
+## Image analysis (Visual LLM)
+
+Image analysis uses a local LLaVA-based visual LLM to describe image contents and (optionally) suggest a better filename. This runs locally and does not require an API key.
+
+### Required visual LLM files
+
+The **Select LLM** dialog now includes an "Image analysis models (LLaVA)" section with two downloads:
+
+- **LLaVA text model (GGUF)**: The main language model that produces the description and the filename suggestion.
+- **LLaVA mmproj (vision encoder projection, GGUF)**: The adapter that maps vision embeddings into the LLM token space so the model can accept images.
+
+Both files are required. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+
+### Main window options
+
+Image analysis adds three checkboxes to the main window:
+
+- **Analyze picture files by content (can be slow)**: Runs the visual LLM on supported image files and reports progress in the analysis dialog.
+- **Offer to rename image files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
+- **Do not categorize image files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
 ---
 
@@ -386,6 +414,14 @@ Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and
 
 When no flags are provided the app auto-detects available runtimes in priority order (Vulkan → CUDA → CPU). Use the flags to skip a backend (`--cuda=off` forces Vulkan/CPU even if CUDA is installed, `--vulkan=off` tests CUDA explicitly) or to validate a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected, and if neither GPU backend is detected the app automatically stays on CPU.
 
+#### Vulkan and VRAM notes
+
+- Vulkan is preferred when available; CUDA is used only if Vulkan is missing or explicitly requested.
+- The app auto-estimates `n_gpu_layers` based on available VRAM. Integrated GPUs are capped to 4 GiB for safety, which can limit offloading.
+- If VRAM is tight, the app may fall back to CPU or reduce offload. As a rule of thumb, 8 GB+ VRAM provides a smoother experience for Vulkan offload and image analysis; 4 GB often results in partial offload or CPU fallback.
+- Override auto-estimation with `AI_FILE_SORTER_N_GPU_LAYERS` (`-1` auto, `0` force CPU) or `AI_FILE_SORTER_GPU_BACKEND=cpu`.
+- For image analysis, `AI_FILE_SORTER_VISUAL_USE_GPU=0` forces the visual encoder to run on CPU to avoid VRAM allocation errors.
+
 ### Environment variables
 
 Runtime and GPU:
@@ -412,6 +448,21 @@ Storage and updates:
 - `AI_FILE_SORTER_CONFIG_DIR` - override the base config directory (where `config.ini` lives).
 - `CATEGORIZATION_CACHE_FILE` - override the SQLite cache filename inside the config dir.
 - `UPDATE_SPEC_FILE_URL` - override the update feed spec URL (dev/testing).
+
+---
+
+## Categorization cache database
+
+AI File Sorter stores categorization results in a local SQLite database next to `config.ini` (the base directory can be overridden via `AI_FILE_SORTER_CONFIG_DIR`). This cache allows the app to skip already-processed files and preserve rename suggestions between runs.
+
+What is stored:
+
+- Directory path, file name, and file type (used as a unique key).
+- Category/subcategory, taxonomy id, categorization style, and timestamp.
+- Suggested filename (for image rename suggestions).
+- Rename-only flag (used when "Do not categorize image files (only rename)" is enabled).
+
+If you rename or move a file from the Review dialog, the cache entry is updated to the new name. To reset a folder's cache, accept the recategorization prompt or delete the cache file (or point `CATEGORIZATION_CACHE_FILE` to a new filename).
 
 ---
 
