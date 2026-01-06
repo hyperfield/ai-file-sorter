@@ -1,10 +1,19 @@
 ﻿# Changelog
 
+## [1.5.0] - 2026-01-06
+
+- Added image content analysis via LLaVA (visual LLM), with separate model + mmproj downloads in the Select LLM dialog.
+- Added image analysis options in the main window (analyze images, offer rename suggestions, rename-only mode).
+- Review dialog now supports rename-only flows, suggested filename edits, and status labels for Renamed / Renamed & Moved.
+- Build/test updates: mtmd progress callback auto-detection, mtmd-cli build fix, and new Catch2 tests for rename-only caching.
+
 ## [1.4.5] - 2025-12-05
+
 - Added support for Gemini (a remote LLM) - with your own Gemini API key.
 - Fixed compile under Arch Linux.
 
 ## [1.4.0] - 2025-12-05
+
 - Added dry run / preview-only mode with From/To table, no moves performed until you uncheck.
 - Persistent Undo: the latest sort saves a plan file; use Edit -> "Undo last run" even after closing dialogs.
 - UI tweaks: Name column auto-resizes, new translations for dry run/undo strings, Undo moved to top of Edit menu.
@@ -69,7 +78,3 @@
 - LLM selection and download dialog.
 - Improved `Makefile` for a more hassle-free build and installation.
 - Minor bug fixes and improvements.
-
-
-
-
