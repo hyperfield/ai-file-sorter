@@ -92,30 +92,41 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     const char *file_type = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
     const char *category = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
     const char *subcategory = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
+    const char *suggested_name = nullptr;
+    if (sqlite3_column_count(stmt) > 5) {
+        suggested_name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
+    }
 
     std::string dir_path = file_dir_path ? file_dir_path : "";
     std::string name = file_name ? file_name : "";
     std::string type_str = file_type ? file_type : "";
     std::string cat = category ? category : "";
     std::string subcat = subcategory ? subcategory : "";
-
-    if (!has_label_content(cat) || !has_label_content(subcat)) {
-        return std::nullopt;
-    }
+    std::string suggested = suggested_name ? suggested_name : "";
 
     int taxonomy_id = 0;
-    if (sqlite3_column_type(stmt, 5) != SQLITE_NULL) {
-        taxonomy_id = sqlite3_column_int(stmt, 5);
+    if (sqlite3_column_count(stmt) > 6 && sqlite3_column_type(stmt, 6) != SQLITE_NULL) {
+        taxonomy_id = sqlite3_column_int(stmt, 6);
     }
     bool used_consistency = false;
-    if (sqlite3_column_count(stmt) > 6 && sqlite3_column_type(stmt, 6) != SQLITE_NULL) {
-        used_consistency = sqlite3_column_int(stmt, 6) != 0;
+    if (sqlite3_column_count(stmt) > 7 && sqlite3_column_type(stmt, 7) != SQLITE_NULL) {
+        used_consistency = sqlite3_column_int(stmt, 7) != 0;
+    }
+    bool rename_only = false;
+    if (sqlite3_column_count(stmt) > 8 && sqlite3_column_type(stmt, 8) != SQLITE_NULL) {
+        rename_only = sqlite3_column_int(stmt, 8) != 0;
+    }
+
+    if (!rename_only && (!has_label_content(cat) || !has_label_content(subcat))) {
+        return std::nullopt;
     }
 
     FileType file_type_enum = (type_str == "F") ? FileType::File : FileType::Directory;
     CategorizedFile entry{dir_path, name, file_type_enum, cat, subcat, taxonomy_id};
     entry.from_cache = true;
     entry.used_consistency_hints = used_consistency;
+    entry.suggested_name = suggested;
+    entry.rename_only = rename_only;
     return entry;
 }
 
@@ -164,8 +175,10 @@ void DatabaseManager::initialize_schema() {
             dir_path TEXT NOT NULL,
             category TEXT NOT NULL,
             subcategory TEXT,
+            suggested_name TEXT,
             taxonomy_id INTEGER,
             categorization_style INTEGER DEFAULT 0,
+            rename_only INTEGER DEFAULT 0,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(file_name, file_type, dir_path)
         );
@@ -192,6 +205,28 @@ void DatabaseManager::initialize_schema() {
     if (sqlite3_exec(db, add_style_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         if (!is_duplicate_column_error(error_msg)) {
             db_log(spdlog::level::warn, "Failed to add categorization_style column: {}", error_msg ? error_msg : "");
+        }
+        if (error_msg) {
+            sqlite3_free(error_msg);
+        }
+    }
+
+    const char *add_suggested_name_column_sql =
+        "ALTER TABLE file_categorization ADD COLUMN suggested_name TEXT;";
+    if (sqlite3_exec(db, add_suggested_name_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        if (!is_duplicate_column_error(error_msg)) {
+            db_log(spdlog::level::warn, "Failed to add suggested_name column: {}", error_msg ? error_msg : "");
+        }
+        if (error_msg) {
+            sqlite3_free(error_msg);
+        }
+    }
+
+    const char *add_rename_only_column_sql =
+        "ALTER TABLE file_categorization ADD COLUMN rename_only INTEGER DEFAULT 0;";
+    if (sqlite3_exec(db, add_rename_only_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        if (!is_duplicate_column_error(error_msg)) {
+            db_log(spdlog::level::warn, "Failed to add rename_only column: {}", error_msg ? error_msg : "");
         }
         if (error_msg) {
             sqlite3_free(error_msg);
@@ -599,19 +634,24 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     const std::string &file_type,
     const std::string &dir_path,
     const ResolvedCategory &resolved,
-    bool used_consistency_hints) {
+    bool used_consistency_hints,
+    const std::string &suggested_name,
+    bool rename_only) {
     if (!db) return false;
 
     const char *sql = R"(
         INSERT INTO file_categorization
-            (file_name, file_type, dir_path, category, subcategory, taxonomy_id, categorization_style)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (file_name, file_type, dir_path, category, subcategory, suggested_name,
+             taxonomy_id, categorization_style, rename_only)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_name, file_type, dir_path)
         DO UPDATE SET
             category = excluded.category,
             subcategory = excluded.subcategory,
+            suggested_name = excluded.suggested_name,
             taxonomy_id = excluded.taxonomy_id,
-            categorization_style = excluded.categorization_style;
+            categorization_style = excluded.categorization_style,
+            rename_only = excluded.rename_only;
     )";
 
     sqlite3_stmt *stmt = nullptr;
@@ -625,13 +665,15 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     sqlite3_bind_text(stmt, 3, dir_path.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 4, resolved.category.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 5, resolved.subcategory.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, suggested_name.c_str(), -1, SQLITE_TRANSIENT);
 
     if (resolved.taxonomy_id > 0) {
-        sqlite3_bind_int(stmt, 6, resolved.taxonomy_id);
+        sqlite3_bind_int(stmt, 7, resolved.taxonomy_id);
     } else {
-        sqlite3_bind_null(stmt, 6);
+        sqlite3_bind_null(stmt, 7);
     }
-    sqlite3_bind_int(stmt, 7, used_consistency_hints ? 1 : 0);
+    sqlite3_bind_int(stmt, 8, used_consistency_hints ? 1 : 0);
+    sqlite3_bind_int(stmt, 9, rename_only ? 1 : 0);
 
     bool success = true;
     if (sqlite3_step(stmt) != SQLITE_DONE) {
@@ -738,7 +780,8 @@ DatabaseManager::remove_empty_categorizations(const std::string& dir_path) {
         SELECT file_name, file_type, IFNULL(category, ''), IFNULL(subcategory, ''), taxonomy_id
         FROM file_categorization
         WHERE dir_path = ?
-          AND (category IS NULL OR TRIM(category) = '' OR subcategory IS NULL OR TRIM(subcategory) = '');
+          AND (category IS NULL OR TRIM(category) = '' OR subcategory IS NULL OR TRIM(subcategory) = '')
+          AND IFNULL(rename_only, 0) = 0;
     )";
 
     sqlite3_stmt* stmt = nullptr;
@@ -810,7 +853,8 @@ DatabaseManager::get_categorized_files(const std::string &directory_path) {
     if (!db) return categorized_files;
 
     const char *sql =
-        "SELECT dir_path, file_name, file_type, category, subcategory, taxonomy_id, categorization_style "
+        "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
+        "categorization_style, rename_only "
         "FROM file_categorization WHERE dir_path = ?;";
     StatementPtr stmt = prepare_statement(db, sql);
     if (!stmt) {

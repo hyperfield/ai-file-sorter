@@ -62,6 +62,14 @@ std::string to_lower_copy_str(std::string value) {
     return value;
 }
 
+std::string trim_copy(const std::string& value) {
+    std::string result = value;
+    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    result.erase(result.begin(), std::find_if(result.begin(), result.end(), not_space));
+    result.erase(std::find_if(result.rbegin(), result.rend(), not_space).base(), result.end());
+    return result;
+}
+
 bool contains_only_allowed_chars(const std::string& value) {
     for (unsigned char ch : value) {
         if (std::iscntrl(ch)) {
@@ -74,6 +82,15 @@ bool contains_only_allowed_chars(const std::string& value) {
         // Everything else is allowed (including non-ASCII letters and punctuation).
     }
     return true;
+}
+
+bool has_leading_or_trailing_space_or_dot(const std::string& value) {
+    if (value.empty()) {
+        return false;
+    }
+    const unsigned char first = static_cast<unsigned char>(value.front());
+    const unsigned char last = static_cast<unsigned char>(value.back());
+    return std::isspace(first) || std::isspace(last) || value.front() == '.' || value.back() == '.';
 }
 
 bool is_reserved_windows_name(const std::string& value) {
@@ -181,6 +198,11 @@ bool CategorizationDialog::is_dialog_valid() const
 void CategorizationDialog::show_results(const std::vector<CategorizedFile>& files)
 {
     categorized_files = files;
+    set_show_rename_column(std::any_of(categorized_files.begin(),
+                                       categorized_files.end(),
+                                       [](const CategorizedFile& file) {
+                                           return !file.suggested_name.empty();
+                                       }));
     base_dir_.clear();
     dry_run_plan_.clear();
     if (!categorized_files.empty()) {
@@ -216,7 +238,7 @@ void CategorizationDialog::setup_ui()
     layout->addWidget(dry_run_checkbox);
 
     model = new QStandardItemModel(this);
-    model->setColumnCount(7);
+    model->setColumnCount(8);
 
     table_view = new QTableView(this);
     table_view->setModel(model);
@@ -227,12 +249,13 @@ void CategorizationDialog::setup_ui()
     table_view->horizontalHeader()->setSectionsClickable(true);
     table_view->horizontalHeader()->setSortIndicatorShown(true);
     table_view->setSortingEnabled(true);
-    table_view->setColumnHidden(2, false);
-    table_view->setColumnHidden(4, !show_subcategory_column);
-    table_view->setColumnHidden(6, false);
-    table_view->setColumnWidth(0, 70);
+    table_view->setColumnHidden(ColumnType, false);
+    table_view->setColumnHidden(ColumnSuggestedName, !show_rename_column);
+    table_view->setColumnHidden(ColumnSubcategory, !show_subcategory_column);
+    table_view->setColumnHidden(ColumnPreview, false);
+    table_view->setColumnWidth(ColumnSelect, 70);
     table_view->setIconSize(QSize(16, 16));
-    table_view->setColumnWidth(2, table_view->iconSize().width() + 12);
+    table_view->setColumnWidth(ColumnType, table_view->iconSize().width() + 12);
     layout->addWidget(table_view, 1);
 
     auto* bottom_layout = new QHBoxLayout();
@@ -326,7 +349,10 @@ void CategorizationDialog::populate_model()
 
         auto* file_item = new QStandardItem(QString::fromStdString(file.file_name));
         file_item->setEditable(false);
-        file_item->setData(QString::fromStdString(file.file_path), Qt::UserRole + 1);
+        file_item->setData(QString::fromStdString(file.file_path), kFilePathRole);
+        file_item->setData(file.used_consistency_hints, kUsedConsistencyRole);
+        file_item->setData(file.rename_only, kRenameOnlyRole);
+        file_item->setData(static_cast<int>(file.type), kFileTypeRole);
 
         auto* type_item = new QStandardItem;
         type_item->setEditable(false);
@@ -334,13 +360,24 @@ void CategorizationDialog::populate_model()
         type_item->setTextAlignment(Qt::AlignCenter);
         update_type_icon(type_item);
 
+        auto* suggested_item = new QStandardItem(QString::fromStdString(file.suggested_name));
+        const bool allow_rename = !file.suggested_name.empty();
+        suggested_item->setEditable(allow_rename);
+        if (allow_rename) {
+            suggested_item->setIcon(edit_icon());
+        }
+
         auto* category_item = new QStandardItem(QString::fromStdString(file.category));
-        category_item->setEditable(true);
-        category_item->setIcon(edit_icon());
+        category_item->setEditable(!file.rename_only);
+        if (!file.rename_only) {
+            category_item->setIcon(edit_icon());
+        }
 
         auto* subcategory_item = new QStandardItem(QString::fromStdString(file.subcategory));
-        subcategory_item->setEditable(true);
-        subcategory_item->setIcon(edit_icon());
+        subcategory_item->setEditable(!file.rename_only);
+        if (!file.rename_only) {
+            subcategory_item->setIcon(edit_icon());
+        }
 
         auto* status_item = new QStandardItem;
         status_item->setEditable(false);
@@ -351,13 +388,21 @@ void CategorizationDialog::populate_model()
         auto* preview_item = new QStandardItem;
         preview_item->setEditable(false);
 
-        row << select_item << file_item << type_item << category_item << subcategory_item << status_item << preview_item;
+        row << select_item
+            << file_item
+            << type_item
+            << suggested_item
+            << category_item
+            << subcategory_item
+            << status_item
+            << preview_item;
         model->appendRow(row);
         update_preview_column(model->rowCount() - 1);
     }
 
     updating_select_all = false;
     apply_subcategory_visibility();
+    apply_rename_visibility();
     table_view->resizeColumnsToContents();
     update_select_all_state();
 }
@@ -381,54 +426,52 @@ void CategorizationDialog::record_categorization_to_db()
     }
 
     for (int row = 0; row < model->rowCount(); ++row) {
-        if (row >= static_cast<int>(categorized_files.size())) {
-            break;
+        auto* file_item = model->item(row, ColumnFile);
+        if (!file_item) {
+            continue;
+        }
+        const bool rename_only = file_item->data(kRenameOnlyRole).toBool();
+        const auto* suggested_item = model->item(row, ColumnSuggestedName);
+        const std::string suggested_name = suggested_item
+                                               ? suggested_item->text().toStdString()
+                                               : std::string();
+
+        const std::string file_name = file_item->text().toStdString();
+        const std::string file_path = file_item->data(kFilePathRole).toString().toStdString();
+        const bool used_consistency = file_item->data(kUsedConsistencyRole).toBool();
+        const FileType file_type = static_cast<FileType>(file_item->data(kFileTypeRole).toInt());
+        if (rename_only) {
+            DatabaseManager::ResolvedCategory resolved{0, "", ""};
+            const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
+            db_manager->insert_or_update_file_with_categorization(
+                file_name, file_type_label, file_path, resolved, used_consistency, suggested_name, true);
+            continue;
         }
 
-        auto& entry = categorized_files[static_cast<size_t>(row)];
-        std::string category = model->item(row, 3)->text().toStdString();
-        std::string subcategory = show_subcategory_column
-                                      ? model->item(row, 4)->text().toStdString()
+        auto* category_item = model->item(row, ColumnCategory);
+        auto* subcategory_item = model->item(row, ColumnSubcategory);
+        if (!category_item) {
+            continue;
+        }
+
+        std::string category = category_item->text().toStdString();
+        std::string subcategory = show_subcategory_column && subcategory_item
+                                      ? subcategory_item->text().toStdString()
                                       : "";
 
         auto resolved = db_manager->resolve_category(category, subcategory);
 
-        const std::string file_type = (entry.type == FileType::Directory) ? "D" : "F";
+        const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
         db_manager->insert_or_update_file_with_categorization(
-            entry.file_name, file_type, entry.file_path, resolved, entry.used_consistency_hints);
+            file_name, file_type_label, file_path, resolved, used_consistency, suggested_name);
 
-        entry.category = resolved.category;
-        entry.subcategory = resolved.subcategory;
-        entry.taxonomy_id = resolved.taxonomy_id;
-
-        model->item(row, 3)->setText(QString::fromStdString(resolved.category));
+        category_item->setText(QString::fromStdString(resolved.category));
         if (show_subcategory_column) {
-            model->item(row, 4)->setText(QString::fromStdString(resolved.subcategory));
+            if (subcategory_item) {
+                subcategory_item->setText(QString::fromStdString(resolved.subcategory));
+            }
         }
     }
-}
-
-
-std::vector<std::tuple<bool, std::string, std::string, std::string>>
-CategorizationDialog::get_rows() const
-{
-    std::vector<std::tuple<bool, std::string, std::string, std::string>> rows;
-    rows.reserve(model->rowCount());
-
-    for (int row = 0; row < model->rowCount(); ++row) {
-        const bool selected = model->item(row, 0)->checkState() == Qt::Checked;
-        const QString file_name = model->item(row, 1)->text();
-        const QString category = model->item(row, 3)->text();
-        const QString subcategory = show_subcategory_column
-                                        ? model->item(row, 4)->text()
-                                        : QString();
-        rows.emplace_back(selected,
-                          file_name.toStdString(),
-                          category.toStdString(),
-                          subcategory.toStdString());
-    }
-
-    return rows;
 }
 
 
@@ -445,8 +488,6 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
 
     const std::string base_dir = categorized_files.front().file_path;
     dry_run_plan_.clear();
-    auto rows = get_rows();
-
     clear_move_history();
     if (undo_button) {
         undo_button->setEnabled(false);
@@ -460,21 +501,50 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
 
     std::vector<std::string> files_not_moved;
     ScopedFlag guard(suppress_item_changed_);
-    int row_index = 0;
-    for (const auto& [selected, file_name, category, subcategory] : rows) {
-        if (!selected) {
+    for (int row_index = 0; row_index < model->rowCount(); ++row_index) {
+        auto* select_item = model->item(row_index, ColumnSelect);
+        if (select_item && select_item->checkState() != Qt::Checked) {
             update_status_column(row_index, false, false);
-            ++row_index;
             continue;
         }
+
+        auto* file_item = model->item(row_index, ColumnFile);
+        auto* category_item = model->item(row_index, ColumnCategory);
+        auto* subcategory_item = model->item(row_index, ColumnSubcategory);
+        auto* rename_item = model->item(row_index, ColumnSuggestedName);
+        if (!file_item || !category_item) {
+            update_status_column(row_index, false);
+            continue;
+        }
+
+        bool rename_only = false;
+        bool used_consistency_hints = false;
+        FileType file_type = FileType::File;
+        if (!resolve_row_flags(row_index, rename_only, used_consistency_hints, file_type)) {
+            update_status_column(row_index, false);
+            continue;
+        }
+
+        const std::string file_name = file_item->text().toStdString();
+        const std::string category = category_item->text().toStdString();
+        const std::string subcategory = show_subcategory_column && subcategory_item
+                                            ? subcategory_item->text().toStdString()
+                                            : std::string();
+        const std::string rename_candidate = rename_item
+                                                 ? rename_item->text().toStdString()
+                                                 : std::string();
+
         handle_selected_row(row_index,
                             file_name,
+                            rename_candidate,
                             category,
                             subcategory,
                             base_dir,
                             files_not_moved,
+                            file_type,
+                            rename_only,
+                            used_consistency_hints,
                             dry_run);
-        ++row_index;
     }
 
     if (files_not_moved.empty()) {
@@ -490,22 +560,16 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
         std::vector<DryRunPreviewDialog::Entry> entries;
         entries.reserve(static_cast<size_t>(model->rowCount()));
         for (int row = 0; row < model->rowCount(); ++row) {
-            if (auto* select_item = model->item(row, 0)) {
+            if (auto* select_item = model->item(row, ColumnSelect)) {
                 if (select_item->checkState() != Qt::Checked) {
                     continue;
                 }
             }
-            const auto* file_item = model->item(row, 1);
-            const auto* cat_item = model->item(row, 3);
-            const auto* sub_item = model->item(row, 4);
+            const auto* file_item = model->item(row, ColumnFile);
+            const auto* cat_item = model->item(row, ColumnCategory);
             if (!file_item || !cat_item) {
                 continue;
             }
-            const std::string file_name = file_item->text().toStdString();
-            const std::string category = cat_item->text().toStdString();
-            const std::string subcategory = show_subcategory_column && sub_item
-                                                ? sub_item->text().toStdString()
-                                                : std::string();
             std::string debug_reason;
             auto rec = build_preview_record_for_row(row, &debug_reason);
             if (!rec) {
@@ -514,16 +578,21 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
                 }
                 continue;
             }
-            std::string to_label = rec->category;
+            std::string to_label;
 #ifdef _WIN32
             const char sep = '\\\\';
 #else
             const char sep = '/';
 #endif
-            if (rec->use_subcategory && !rec->subcategory.empty()) {
-                to_label += std::string(1, sep) + rec->subcategory;
+            if (rec->rename_only) {
+                to_label = rec->destination_file_name;
+            } else {
+                to_label = rec->category;
+                if (rec->use_subcategory && !rec->subcategory.empty()) {
+                    to_label += std::string(1, sep) + rec->subcategory;
+                }
+                to_label += std::string(1, sep) + rec->destination_file_name;
             }
-            to_label += std::string(1, sep) + rec->file_name;
 
             std::string destination = rec->destination;
 #ifdef _WIN32
@@ -535,7 +604,7 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
 #endif
 
             entries.push_back(DryRunPreviewDialog::Entry{
-                /*from_label*/ rec->file_name,
+                /*from_label*/ rec->source_file_name,
                 /*to_label*/ to_label,
                 /*source_tooltip*/ source_tooltip,
                 /*destination_tooltip*/ destination});
@@ -569,25 +638,149 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
 
 void CategorizationDialog::handle_selected_row(int row_index,
                                                const std::string& file_name,
+                                               const std::string& rename_candidate,
                                                const std::string& category,
                                                const std::string& subcategory,
                                                const std::string& base_dir,
                                                std::vector<std::string>& files_not_moved,
+                                               FileType file_type,
+                                               bool rename_only,
+                                               bool used_consistency_hints,
                                                bool dry_run)
 {
-    const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
+    const std::string destination_name = resolve_destination_name(file_name, rename_candidate);
+    const bool rename_active = destination_name != file_name;
+    auto apply_successful_rename = [this, row_index, &destination_name]() {
+        if (!model) {
+            return;
+        }
+        if (auto* file_item = model->item(row_index, ColumnFile)) {
+            file_item->setText(QString::fromStdString(destination_name));
+        }
+        if (auto* rename_item = model->item(row_index, ColumnSuggestedName)) {
+            rename_item->setText(QString::fromStdString(destination_name));
+        }
+        update_preview_column(row_index);
+    };
 
     if (auto& probe = move_probe_slot()) {
+        const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
         probe(TestHooks::CategorizationMoveInfo{
             show_subcategory_column,
             category,
             effective_subcategory,
             file_name
         });
-        update_status_column(row_index, true);
+        update_status_column(row_index, true, true, rename_active, !rename_only);
         return;
     }
 
+    if (rename_active) {
+        std::string rename_error;
+        if (!validate_filename(destination_name, rename_error)) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            if (core_logger) {
+                core_logger->warn("Skipping rename for '{}' due to invalid filename: {} (rename='{}')",
+                                  file_name,
+                                  rename_error,
+                                  destination_name);
+            }
+            return;
+        }
+    }
+
+    if (rename_only) {
+        if (!rename_active) {
+            update_status_column(row_index, true, true, false, false);
+            return;
+        }
+
+        const auto source_path = Utils::utf8_to_path(base_dir) / Utils::utf8_to_path(file_name);
+        const auto dest_path = Utils::utf8_to_path(base_dir) / Utils::utf8_to_path(destination_name);
+
+        if (dry_run) {
+            const std::string source_display = Utils::path_to_utf8(source_path);
+            const std::string dest_display = Utils::path_to_utf8(dest_path);
+            set_preview_status(row_index, dest_display);
+            dry_run_plan_.push_back(PreviewRecord{
+                source_display,
+                dest_display,
+                file_name,
+                destination_name,
+                std::string(),
+                std::string(),
+                false,
+                true});
+            if (core_logger) {
+                core_logger->info("Dry run: would rename '{}' to '{}'",
+                                  source_display,
+                                  dest_display);
+            }
+            return;
+        }
+
+        if (!std::filesystem::exists(source_path)) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            if (core_logger) {
+                core_logger->warn("Source file missing when renaming '{}'", file_name);
+            }
+            return;
+        }
+        if (std::filesystem::exists(dest_path)) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            if (core_logger) {
+                core_logger->warn("Destination already exists for rename '{}'", destination_name);
+            }
+            return;
+        }
+
+        try {
+            std::filesystem::rename(source_path, dest_path);
+            update_status_column(row_index, true, true, rename_active, false);
+
+            std::error_code ec;
+            const std::uintmax_t size_bytes = std::filesystem::file_size(dest_path, ec);
+            std::time_t mtime_value = 0;
+            if (!ec) {
+                const auto ftime = std::filesystem::last_write_time(dest_path, ec);
+                if (!ec) {
+                    const auto sys = to_system_clock(ftime);
+                    mtime_value = std::chrono::system_clock::to_time_t(sys);
+                }
+            }
+            record_move_for_undo(row_index,
+                                 Utils::path_to_utf8(source_path),
+                                 Utils::path_to_utf8(dest_path),
+                                 size_bytes,
+                                 mtime_value);
+            if (db_manager) {
+                DatabaseManager::ResolvedCategory resolved{0, "", ""};
+                const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
+                db_manager->remove_file_categorization(base_dir, file_name, file_type);
+                db_manager->insert_or_update_file_with_categorization(
+                    destination_name,
+                    file_type_label,
+                    base_dir,
+                    resolved,
+                    used_consistency_hints,
+                    destination_name,
+                    true);
+            }
+            apply_successful_rename();
+        } catch (const std::exception& ex) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            if (core_logger) {
+                core_logger->error("Failed to rename '{}': {}", file_name, ex.what());
+            }
+        }
+        return;
+    }
+
+    const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
     std::string validation_error;
     const bool allow_identical = !show_subcategory_column;
     if (!validate_labels(category, effective_subcategory, validation_error, allow_identical)) {
@@ -605,7 +798,7 @@ void CategorizationDialog::handle_selected_row(int row_index,
 
     try {
         MovableCategorizedFile categorized_file(
-            base_dir, category, effective_subcategory, file_name);
+            base_dir, category, effective_subcategory, file_name, destination_name);
 
         const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
 
@@ -615,9 +808,11 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 preview_paths.source,
                 preview_paths.destination,
                 file_name,
+                destination_name,
                 category,
                 effective_subcategory,
-                show_subcategory_column});
+                show_subcategory_column,
+                false});
             if (core_logger) {
                 core_logger->info("Dry run: would move '{}' to '{}'",
                                   preview_paths.source,
@@ -628,7 +823,7 @@ void CategorizationDialog::handle_selected_row(int row_index,
 
         categorized_file.create_cat_dirs(show_subcategory_column);
         bool moved = categorized_file.move_file(show_subcategory_column);
-        update_status_column(row_index, moved);
+        update_status_column(row_index, moved, true, rename_active && moved, moved);
 
         if (!moved) {
             files_not_moved.push_back(file_name);
@@ -647,6 +842,21 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 }
             }
             record_move_for_undo(row_index, preview_paths.source, preview_paths.destination, size_bytes, mtime_value);
+
+            if (rename_active && db_manager) {
+                auto resolved = db_manager->resolve_category(category, effective_subcategory);
+                db_manager->remove_file_categorization(base_dir, file_name, file_type);
+                db_manager->insert_or_update_file_with_categorization(
+                    destination_name,
+                    file_type == FileType::Directory ? "D" : "F",
+                    base_dir,
+                    resolved,
+                    used_consistency_hints,
+                    destination_name);
+            }
+            if (rename_active) {
+                apply_successful_rename();
+            }
         }
     } catch (const std::exception& ex) {
         update_status_column(row_index, false);
@@ -707,15 +917,25 @@ void CategorizationDialog::restore_action_buttons()
 }
 
 
-void CategorizationDialog::update_status_column(int row, bool success, bool attempted)
+void CategorizationDialog::update_status_column(int row,
+                                                bool success,
+                                                bool attempted,
+                                                bool renamed,
+                                                bool moved)
 {
-    if (auto* status_item = model->item(row, 5)) {
+    if (auto* status_item = model->item(row, ColumnStatus)) {
         RowStatus status = RowStatus::None;
         if (!attempted) {
             status = RowStatus::NotSelected;
             status_item->setForeground(QBrush(Qt::gray));
         } else if (success) {
-            status = RowStatus::Moved;
+            if (renamed && moved) {
+                status = RowStatus::RenamedAndMoved;
+            } else if (renamed) {
+                status = RowStatus::Renamed;
+            } else {
+                status = RowStatus::Moved;
+            }
             status_item->setForeground(QBrush(Qt::darkGreen));
         } else {
             status = RowStatus::Skipped;
@@ -816,8 +1036,22 @@ bool CategorizationDialog::undo_move_history()
 
 void CategorizationDialog::update_status_after_undo()
 {
+    ScopedFlag guard(suppress_item_changed_);
     for (const auto& record : move_history_) {
         update_status_column(record.row_index, false, false);
+        if (!model) {
+            continue;
+        }
+        auto* file_item = model->item(record.row_index, ColumnFile);
+        if (!file_item) {
+            continue;
+        }
+        const auto source_path = Utils::utf8_to_path(record.source_path);
+        const std::string source_name = Utils::path_to_utf8(source_path.filename());
+        if (!source_name.empty() && file_item->text().toStdString() != source_name) {
+            file_item->setText(QString::fromStdString(source_name));
+        }
+        update_preview_column(record.row_index);
     }
 }
 
@@ -826,7 +1060,7 @@ void CategorizationDialog::apply_select_all(bool checked)
 {
     updating_select_all = true;
     for (int row = 0; row < model->rowCount(); ++row) {
-        if (auto* item = model->item(row, 0)) {
+        if (auto* item = model->item(row, ColumnSelect)) {
             item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
         }
         update_preview_column(row);
@@ -847,8 +1081,15 @@ void CategorizationDialog::on_show_subcategories_toggled(bool checked)
 void CategorizationDialog::apply_subcategory_visibility()
 {
     if (table_view) {
-        table_view->setColumnHidden(4, !show_subcategory_column);
-        table_view->setColumnHidden(6, false);
+        table_view->setColumnHidden(ColumnSubcategory, !show_subcategory_column);
+        table_view->setColumnHidden(ColumnPreview, false);
+    }
+}
+
+void CategorizationDialog::apply_rename_visibility()
+{
+    if (table_view) {
+        table_view->setColumnHidden(ColumnSuggestedName, !show_rename_column);
     }
 }
 
@@ -878,14 +1119,47 @@ CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_r
         return fail("Base dir empty");
     }
 
-    const auto* file_item = model->item(row, 1);
-    const auto* category_item = model->item(row, 3);
-    const auto* subcategory_item = model->item(row, 4);
+    const auto* file_item = model->item(row, ColumnFile);
+    const auto* category_item = model->item(row, ColumnCategory);
+    const auto* subcategory_item = model->item(row, ColumnSubcategory);
+    const auto* rename_item = model->item(row, ColumnSuggestedName);
     if (!file_item || !category_item) {
         return fail("Missing file/category item");
     }
 
     const std::string file_name = file_item->text().toStdString();
+    const std::string rename_candidate = rename_item ? rename_item->text().toStdString() : std::string();
+    const std::string destination_name = resolve_destination_name(file_name, rename_candidate);
+    const bool rename_active = destination_name != file_name;
+    bool rename_only = false;
+    bool used_consistency_hints = false;
+    FileType file_type = FileType::File;
+    if (!resolve_row_flags(row, rename_only, used_consistency_hints, file_type)) {
+        return fail("Missing row metadata");
+    }
+    (void)used_consistency_hints;
+    (void)file_type;
+    if (rename_active) {
+        std::string rename_error;
+        if (!validate_filename(destination_name, rename_error)) {
+            return fail("Invalid rename: " + rename_error);
+        }
+    }
+
+    if (rename_only) {
+        const auto source_path = Utils::utf8_to_path(base_dir_) / Utils::utf8_to_path(file_name);
+        const auto destination_path = Utils::utf8_to_path(base_dir_) / Utils::utf8_to_path(destination_name);
+        return PreviewRecord{
+            Utils::path_to_utf8(source_path),
+            Utils::path_to_utf8(destination_path),
+            file_name,
+            destination_name,
+            std::string(),
+            std::string(),
+            false,
+            true};
+    }
+
     const std::string category = category_item->text().toStdString();
     const std::string subcategory = show_subcategory_column && subcategory_item
         ? subcategory_item->text().toStdString()
@@ -899,18 +1173,95 @@ CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_r
     }
 
     try {
-        MovableCategorizedFile categorized_file(base_dir_, category, effective_subcategory, file_name);
+        MovableCategorizedFile categorized_file(base_dir_,
+                                                category,
+                                                effective_subcategory,
+                                                file_name,
+                                                destination_name);
         const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
         return PreviewRecord{
             preview_paths.source,
             preview_paths.destination,
             file_name,
+            destination_name,
             category,
             effective_subcategory,
-            show_subcategory_column};
+            show_subcategory_column,
+            false};
     } catch (...) {
         return fail("Exception building preview record");
     }
+}
+
+std::string CategorizationDialog::resolve_destination_name(const std::string& original_name,
+                                                           const std::string& rename_candidate) const
+{
+    std::string trimmed = trim_copy(rename_candidate);
+    if (trimmed.empty()) {
+        return original_name;
+    }
+    if (trimmed == original_name) {
+        return original_name;
+    }
+
+    const std::filesystem::path original_path = Utils::utf8_to_path(original_name);
+    const std::filesystem::path candidate_path = Utils::utf8_to_path(trimmed);
+    if (!candidate_path.has_extension() && original_path.has_extension()) {
+        return Utils::path_to_utf8(candidate_path) + original_path.extension().string();
+    }
+
+    return trimmed;
+}
+
+bool CategorizationDialog::validate_filename(const std::string& name, std::string& error) const
+{
+    if (name.empty()) {
+        error = "Filename is empty";
+        return false;
+    }
+    if (name == "." || name == "..") {
+        error = "Filename is invalid";
+        return false;
+    }
+    if (!contains_only_allowed_chars(name)) {
+        error = "Filename contains disallowed characters";
+        return false;
+    }
+    if (has_leading_or_trailing_space_or_dot(name)) {
+        error = "Filename has leading/trailing space or dot";
+        return false;
+    }
+
+    const auto path = Utils::utf8_to_path(name);
+    const std::string stem = Utils::path_to_utf8(path.stem());
+    if (stem.empty()) {
+        error = "Filename is missing a base name";
+        return false;
+    }
+    if (is_reserved_windows_name(stem)) {
+        error = "Filename is a reserved name";
+        return false;
+    }
+    return true;
+}
+
+bool CategorizationDialog::resolve_row_flags(int row,
+                                             bool& rename_only,
+                                             bool& used_consistency_hints,
+                                             FileType& file_type) const
+{
+    if (!model || row < 0 || row >= model->rowCount()) {
+        return false;
+    }
+    auto* file_item = model->item(row, ColumnFile);
+    if (!file_item) {
+        return false;
+    }
+
+    rename_only = file_item->data(kRenameOnlyRole).toBool();
+    used_consistency_hints = file_item->data(kUsedConsistencyRole).toBool();
+    file_type = static_cast<FileType>(file_item->data(kFileTypeRole).toInt());
+    return true;
 }
 
 void CategorizationDialog::update_preview_column(int row)
@@ -918,7 +1269,7 @@ void CategorizationDialog::update_preview_column(int row)
     if (!model || row < 0 || row >= model->rowCount()) {
         return;
     }
-    auto* preview_item = model->item(row, 6);
+    auto* preview_item = model->item(row, ColumnPreview);
     if (!preview_item) {
         return;
     }
@@ -941,7 +1292,7 @@ void CategorizationDialog::set_preview_status(int row, const std::string& destin
     if (!model || row < 0 || row >= model->rowCount()) {
         return;
     }
-    if (auto* status_item = model->item(row, 5)) {
+    if (auto* status_item = model->item(row, ColumnStatus)) {
         status_item->setData(static_cast<int>(RowStatus::Preview), kStatusRole);
         status_item->setText(tr("Preview"));
         status_item->setForeground(QBrush(Qt::blue));
@@ -1001,6 +1352,7 @@ void CategorizationDialog::retranslate_ui()
             tr("Move"),
             tr("File"),
             tr("Type"),
+            tr("Suggested filename"),
             tr("Category"),
             tr("Subcategory"),
             tr("Status"),
@@ -1008,11 +1360,11 @@ void CategorizationDialog::retranslate_ui()
         });
 
         for (int row = 0; row < model->rowCount(); ++row) {
-            if (auto* type_item = model->item(row, 2)) {
+            if (auto* type_item = model->item(row, ColumnType)) {
                 update_type_icon(type_item);
                 type_item->setTextAlignment(Qt::AlignCenter);
             }
-            if (auto* status_item = model->item(row, 5)) {
+            if (auto* status_item = model->item(row, ColumnStatus)) {
                 apply_status_text(status_item);
             }
         }
@@ -1028,6 +1380,12 @@ void CategorizationDialog::apply_status_text(QStandardItem* item) const
     switch (status_from_item(item)) {
     case RowStatus::Moved:
         item->setText(tr("Moved"));
+        break;
+    case RowStatus::Renamed:
+        item->setText(tr("Renamed"));
+        break;
+    case RowStatus::RenamedAndMoved:
+        item->setText(tr("Renamed & Moved"));
         break;
     case RowStatus::Skipped:
         item->setText(tr("Skipped"));
@@ -1061,6 +1419,8 @@ CategorizationDialog::RowStatus CategorizationDialog::status_from_item(const QSt
     switch (status) {
     case RowStatus::None:
     case RowStatus::Moved:
+    case RowStatus::Renamed:
+    case RowStatus::RenamedAndMoved:
     case RowStatus::Skipped:
     case RowStatus::NotSelected:
     case RowStatus::Preview:
@@ -1077,13 +1437,18 @@ void CategorizationDialog::on_item_changed(QStandardItem* item)
         return;
     }
 
-    if (item->column() == 0) {
+    if (item->column() == ColumnSelect) {
         update_select_all_state();
-    } else if (item->column() == 3 || item->column() == 4) {
+    } else if (item->column() == ColumnCategory ||
+               item->column() == ColumnSubcategory ||
+               item->column() == ColumnSuggestedName) {
         update_preview_column(item->row());
     }
     // invalidate preview plan only on user-facing edits (selection/category fields)
-    if (item->column() == 0 || item->column() == 3 || item->column() == 4) {
+    if (item->column() == ColumnSelect ||
+        item->column() == ColumnCategory ||
+        item->column() == ColumnSubcategory ||
+        item->column() == ColumnSuggestedName) {
         dry_run_plan_.clear();
     }
 }
@@ -1097,7 +1462,7 @@ void CategorizationDialog::update_select_all_state()
 
     bool all_checked = true;
     for (int row = 0; row < model->rowCount(); ++row) {
-        if (auto* item = model->item(row, 0)) {
+        if (auto* item = model->item(row, ColumnSelect)) {
             if (item->checkState() != Qt::Checked) {
                 all_checked = false;
                 break;
@@ -1138,9 +1503,23 @@ void CategorizationDialog::set_show_subcategory_column(bool enabled)
     }
     apply_subcategory_visibility();
 }
+
+void CategorizationDialog::set_show_rename_column(bool enabled)
+{
+    if (show_rename_column == enabled) {
+        return;
+    }
+    show_rename_column = enabled;
+    apply_rename_visibility();
+}
 #ifdef AI_FILE_SORTER_TEST_BUILD
 void CategorizationDialog::test_set_entries(const std::vector<CategorizedFile>& files) {
     categorized_files = files;
+    set_show_rename_column(std::any_of(categorized_files.begin(),
+                                       categorized_files.end(),
+                                       [](const CategorizedFile& file) {
+                                           return !file.suggested_name.empty();
+                                       }));
     populate_model();
 }
 

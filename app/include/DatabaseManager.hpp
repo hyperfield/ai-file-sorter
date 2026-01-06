@@ -28,7 +28,9 @@ public:
                                                    const std::string& file_type,
                                                    const std::string& dir_path,
                                                    const ResolvedCategory& resolved,
-                                                   bool used_consistency_hints);
+                                                   bool used_consistency_hints,
+                                                   const std::string& suggested_name = "",
+                                                   bool rename_only = false);
     std::vector<std::string> get_dir_contents_from_db(const std::string &dir_path);
     bool remove_file_categorization(const std::string& dir_path,
                                     const std::string& file_name,
