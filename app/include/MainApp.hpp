@@ -122,6 +122,7 @@ private:
     void focus_file_explorer_on_path(const QString& path);
 
     void handle_analysis_finished();
+    void handle_analysis_cancelled();
     void handle_analysis_failure(const std::string& message);
     void handle_no_files_to_sort();
     void populate_tree_view(const std::vector<CategorizedFile>& files);
