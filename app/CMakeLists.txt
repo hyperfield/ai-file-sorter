@@ -57,6 +57,7 @@ endif()
 target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
 )
 
 # Resources (equivalent to rcc generation in Makefile)
@@ -145,9 +146,14 @@ if(WIN32)
     endforeach()
 else()
     # Build llama.cpp from the included submodule for non-Windows platforms
+    set(LLAMA_BUILD_COMMON ON CACHE BOOL "llama: build common utils library" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libs" FORCE)
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp" "${CMAKE_CURRENT_BINARY_DIR}/llama-build")
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd" "${CMAKE_CURRENT_BINARY_DIR}/mtmd-build")
     target_link_libraries(aifilesorter PRIVATE llama)
+    target_link_libraries(aifilesorter PRIVATE mtmd)
+    target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
+    target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
     if(MSVC)
         target_compile_options(llama PRIVATE /Zc:char8_t-)
     endif()
@@ -363,6 +369,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_support_prompt.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_whitelist_and_prompt.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_database_manager_rename_only.cpp"
     )
 
     target_include_directories(ai_file_sorter_tests PRIVATE
