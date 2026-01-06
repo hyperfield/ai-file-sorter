@@ -80,8 +80,12 @@ Image content analysis for supported image files is available; broader file-cont
 
 ## Changelog
 
-## [1.5.0] - 2025-12-30
+## [1.5.0] - 2026-01-06
 
+- Added image content analysis via LLaVA.
+- Added image analysis options in the main window.
+- Review dialog now supports rename-only flows, suggested filename edits, and status labels.
+- Build and tests updates.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
