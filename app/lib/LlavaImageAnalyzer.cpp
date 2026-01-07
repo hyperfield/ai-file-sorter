@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -306,7 +307,6 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     mtmd_context_params mm_params = mtmd_context_params_default();
     mm_params.use_gpu = mmproj_gpu_enabled_;
     mm_params.n_threads = settings_.n_threads;
-    mm_params.verbosity = GGML_LOG_LEVEL_ERROR;
     vision_ctx_ = mtmd_init_from_file(mmproj_path.string().c_str(), model_, mm_params);
     if (!vision_ctx_) {
         llama_free(context_);
@@ -426,6 +426,33 @@ void LlavaImageAnalyzer::mtmd_progress_callback(const char* name,
     self->settings_.batch_progress(current_batch, total_batches);
 }
 
+#ifndef AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
+void LlavaImageAnalyzer::mtmd_log_callback(enum ggml_log_level level,
+                                           const char* text,
+                                           void* user_data) {
+    (void)level;
+    if (!text) {
+        return;
+    }
+    if (user_data) {
+        auto* self = static_cast<LlavaImageAnalyzer*>(user_data);
+        if (self->settings_.batch_progress) {
+            int current_batch = 0;
+            int total_batches = 0;
+            if (std::sscanf(text, "decoding image batch %d/%d",
+                            &current_batch,
+                            &total_batches) == 2) {
+                if (current_batch > 0 && total_batches > 0) {
+                    self->settings_.batch_progress(current_batch, total_batches);
+                }
+            }
+        }
+    }
+    std::fputs(text, stderr);
+    std::fflush(stderr);
+}
+#endif
+
 #endif
 
 #ifdef AI_FILE_SORTER_HAS_MTMD
@@ -533,10 +560,24 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
             }
         }
     };
+#else
+    struct ProgressGuard {
+        bool active{false};
+        ProgressGuard(bool enabled, LlavaImageAnalyzer* self) : active(enabled) {
+            if (active) {
+                mtmd_helper_log_set(&LlavaImageAnalyzer::mtmd_log_callback, self);
+            }
+        }
+        ~ProgressGuard() {
+            if (active) {
+                mtmd_helper_log_set(nullptr, nullptr);
+            }
+        }
+    };
+#endif
 
     const bool enable_progress = bitmap && settings_.batch_progress;
     ProgressGuard progress_guard(enable_progress, this);
-#endif
 
     llama_pos new_n_past = 0;
     if (mtmd_helper_eval_chunks(vision_ctx_,

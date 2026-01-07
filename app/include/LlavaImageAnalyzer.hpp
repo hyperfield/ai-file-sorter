@@ -7,6 +7,7 @@
 #include <string>
 
 #ifdef AI_FILE_SORTER_HAS_MTMD
+#include "ggml.h"
 struct llama_model;
 struct llama_context;
 struct llama_vocab;
@@ -81,6 +82,11 @@ private:
                                        int32_t current_batch,
                                        int32_t total_batches,
                                        void* user_data);
+#ifndef AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
+    static void mtmd_log_callback(enum ggml_log_level level,
+                                  const char* text,
+                                  void* user_data);
+#endif
 #endif
     Settings settings_;
 };
