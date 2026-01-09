@@ -22,6 +22,22 @@
 #include "mtmd-helper.h"
 #endif
 
+#ifdef AI_FILE_SORTER_HAS_MTMD
+extern "C" {
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+typedef void (*mtmd_progress_callback_t)(const char* name,
+                                         int32_t current_batch,
+                                         int32_t total_batches,
+                                         void* user_data);
+MTMD_API void mtmd_helper_set_progress_callback(mtmd_progress_callback_t callback,
+                                                void* user_data);
+#endif
+#if defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+MTMD_API void mtmd_helper_log_set(ggml_log_callback log_callback, void* user_data);
+#endif
+}
+#endif
+
 namespace {
 constexpr size_t kMaxFilenameWords = 3;
 constexpr size_t kMaxFilenameLength = 50;
@@ -426,7 +442,7 @@ void LlavaImageAnalyzer::mtmd_progress_callback(const char* name,
     self->settings_.batch_progress(current_batch, total_batches);
 }
 
-#ifndef AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
+#if defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
 void LlavaImageAnalyzer::mtmd_log_callback(enum ggml_log_level level,
                                            const char* text,
                                            void* user_data) {
@@ -546,38 +562,34 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
         throw std::runtime_error("mtmd_tokenize failed with code " + std::to_string(tokenize_res));
     }
 
-#ifdef AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK) || defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
     struct ProgressGuard {
         bool active{false};
         ProgressGuard(bool enabled, LlavaImageAnalyzer* self) : active(enabled) {
-            if (active) {
-                mtmd_helper_set_progress_callback(&LlavaImageAnalyzer::mtmd_progress_callback, self);
+            if (!active) {
+                return;
             }
-        }
-        ~ProgressGuard() {
-            if (active) {
-                mtmd_helper_set_progress_callback(nullptr, nullptr);
-            }
-        }
-    };
-#else
-    struct ProgressGuard {
-        bool active{false};
-        ProgressGuard(bool enabled, LlavaImageAnalyzer* self) : active(enabled) {
-            if (active) {
-                mtmd_helper_log_set(&LlavaImageAnalyzer::mtmd_log_callback, self);
-            }
-        }
-        ~ProgressGuard() {
-            if (active) {
-                mtmd_helper_log_set(nullptr, nullptr);
-            }
-        }
-    };
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+            mtmd_helper_set_progress_callback(&LlavaImageAnalyzer::mtmd_progress_callback, self);
+#elif defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+            mtmd_helper_log_set(&LlavaImageAnalyzer::mtmd_log_callback, self);
 #endif
+        }
+        ~ProgressGuard() {
+            if (!active) {
+                return;
+            }
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+            mtmd_helper_set_progress_callback(nullptr, nullptr);
+#elif defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+            mtmd_helper_log_set(nullptr, nullptr);
+#endif
+        }
+    };
 
     const bool enable_progress = bitmap && settings_.batch_progress;
     ProgressGuard progress_guard(enable_progress, this);
+#endif
 
     llama_pos new_n_past = 0;
     if (mtmd_helper_eval_chunks(vision_ctx_,
