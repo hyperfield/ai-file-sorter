@@ -84,6 +84,7 @@ Image content analysis for supported image files is available; broader file-cont
 
 - Added image content analysis via LLaVA.
 - Added image analysis options in the main window.
+- Added an image-only processing toggle to focus runs on supported image files.
 - Review dialog now supports rename-only flows, suggested filename edits, and status labels.
 - Build and tests updates.
 
@@ -146,9 +147,10 @@ Both files are required. If either one is missing, image analysis is disabled an
 
 ### Main window options
 
-Image analysis adds three checkboxes to the main window:
+Image analysis adds four checkboxes to the main window:
 
 - **Analyze picture files by content (can be slow)**: Runs the visual LLM on supported image files and reports progress in the analysis dialog.
+- **Process image files only (ignore any other files)**: Restricts the run to supported image files and disables the categorization controls while active.
 - **Offer to rename image files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
 - **Do not categorize image files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
