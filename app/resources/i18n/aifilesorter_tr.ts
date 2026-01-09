@@ -67,7 +67,7 @@
     <message><source>Review Categorization</source><translation>Kategoriyi gözden geçir</translation></message>
     <message><source>Select all</source><translation>Tümünü seç</translation></message>
     <message><source>Move</source><translation>Taşı</translation></message>
-    <message><source>Confirm and Sort</source><translation>Onayla ve sırala</translation></message>
+    <message><source>Confirm and Process</source><translation>Onayla ve işle</translation></message>
     <message><source>Continue Later</source><translation>Daha sonra devam et</translation></message>
     <message><source>Close</source><translation>Kapat</translation></message>
     <message><source>Not selected</source><translation>Seçilmedi</translation></message>

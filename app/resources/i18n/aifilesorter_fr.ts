@@ -67,7 +67,7 @@
     <message><source>Review Categorization</source><translation>Vérifier la catégorisation</translation></message>
     <message><source>Select all</source><translation>Tout sélectionner</translation></message>
     <message><source>Move</source><translation>Déplacer</translation></message>
-    <message><source>Confirm and Sort</source><translation>Confirmer et trier</translation></message>
+    <message><source>Confirm and Process</source><translation>Confirmer et traiter</translation></message>
     <message><source>Continue Later</source><translation>Continuer plus tard</translation></message>
     <message><source>Close</source><translation>Fermer</translation></message>
     <message><source>Not selected</source><translation>Non sélectionné</translation></message>
