@@ -371,6 +371,7 @@ LlavaImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path
     (void)image_path;
     throw std::runtime_error("Visual LLM support is not available in this build.");
 #else
+    auto logger = Logger::get_logger("core_logger");
     BitmapPtr bitmap(mtmd_helper_bitmap_init_from_file(vision_ctx_, image_path.string().c_str()));
     if (!bitmap) {
         throw std::runtime_error("Failed to load image for LLaVA: " + image_path.string());
@@ -383,6 +384,9 @@ LlavaImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path
     const std::string raw_filename = infer_text(nullptr,
                                                 build_filename_prompt(description),
                                                 settings_.n_predict);
+    if (logger) {
+        logger->info("LLaVA raw filename: {}", raw_filename);
+    }
     std::string filename_base = sanitize_filename(raw_filename, kMaxFilenameWords, kMaxFilenameLength);
     if (filename_base.empty()) {
         filename_base = sanitize_filename(description, kMaxFilenameWords, kMaxFilenameLength);
@@ -394,6 +398,9 @@ LlavaImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path
     LlavaImageAnalysisResult result;
     result.description = description;
     result.suggested_name = normalize_filename(filename_base, image_path);
+    if (logger) {
+        logger->info("LLaVA suggested filename: {}", result.suggested_name);
+    }
     return result;
 #endif
 }
