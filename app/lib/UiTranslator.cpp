@@ -88,6 +88,9 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* checkbox = raw_ptr(deps_.primary.analyze_images_checkbox)) {
         checkbox->setText(tr("Analyze picture files by content (can be slow)"));
     }
+    if (auto* checkbox = raw_ptr(deps_.primary.process_images_only_checkbox)) {
+        checkbox->setText(tr("Process image files only (ignore any other files)"));
+    }
     if (auto* checkbox = raw_ptr(deps_.primary.offer_rename_images_checkbox)) {
         checkbox->setText(tr("Offer to rename image files"));
     }

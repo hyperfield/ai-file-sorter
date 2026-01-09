@@ -65,10 +65,12 @@ TEST_CASE("Settings enforces rename-only implies offer rename") {
     settings.set_analyze_images_by_content(true);
     settings.set_offer_rename_images(false);
     settings.set_rename_images_only(true);
+    settings.set_process_images_only(true);
     REQUIRE(settings.save());
 
     Settings reloaded;
     REQUIRE(reloaded.load());
     REQUIRE(reloaded.get_offer_rename_images());
     REQUIRE(reloaded.get_rename_images_only());
+    REQUIRE(reloaded.get_process_images_only());
 }

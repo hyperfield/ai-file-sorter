@@ -15,6 +15,7 @@ public:
     static QString analyze_button_text(const MainApp& app);
     static QString path_label_text(const MainApp& app);
     static QCheckBox* analyze_images_checkbox(MainApp& app);
+    static QCheckBox* process_images_only_checkbox(MainApp& app);
     static QCheckBox* offer_rename_images_checkbox(MainApp& app);
     static QCheckBox* rename_images_only_checkbox(MainApp& app);
     static void set_visual_llm_available_probe(MainApp& app, std::function<bool()> probe);

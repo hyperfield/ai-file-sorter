@@ -475,6 +475,13 @@ void MainApp::connect_checkbox_signals()
         });
     }
 
+    if (process_images_only_checkbox) {
+        connect(process_images_only_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_process_images_only(checked);
+            update_image_only_controls();
+        });
+    }
+
     if (offer_rename_images_checkbox) {
         connect(offer_rename_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
             if (!checked && rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) {
@@ -604,6 +611,10 @@ void MainApp::restore_tree_settings()
         QSignalBlocker blocker(analyze_images_checkbox);
         analyze_images_checkbox->setChecked(settings.get_analyze_images_by_content());
     }
+    if (process_images_only_checkbox) {
+        QSignalBlocker blocker(process_images_only_checkbox);
+        process_images_only_checkbox->setChecked(settings.get_process_images_only());
+    }
     if (offer_rename_images_checkbox) {
         QSignalBlocker blocker(offer_rename_images_checkbox);
         offer_rename_images_checkbox->setChecked(settings.get_offer_rename_images());
@@ -687,6 +698,9 @@ void MainApp::sync_ui_to_settings()
     if (analyze_images_checkbox) {
         settings.set_analyze_images_by_content(analyze_images_checkbox->isChecked());
     }
+    if (process_images_only_checkbox) {
+        settings.set_process_images_only(process_images_only_checkbox->isChecked());
+    }
     if (offer_rename_images_checkbox) {
         settings.set_offer_rename_images(offer_rename_images_checkbox->isChecked());
     }
@@ -740,6 +754,10 @@ QString MainAppTestAccess::path_label_text(const MainApp& app) {
 
 QCheckBox* MainAppTestAccess::analyze_images_checkbox(MainApp& app) {
     return app.analyze_images_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::process_images_only_checkbox(MainApp& app) {
+    return app.process_images_only_checkbox;
 }
 
 QCheckBox* MainAppTestAccess::offer_rename_images_checkbox(MainApp& app) {
@@ -1030,6 +1048,14 @@ void MainApp::update_file_scan_option(FileScanOptions option, bool enabled)
     }
 }
 
+FileScanOptions MainApp::effective_scan_options() const
+{
+    if (settings.get_process_images_only() && settings.get_analyze_images_by_content()) {
+        return FileScanOptions::Files;
+    }
+    return file_scan_options;
+}
+
 bool MainApp::visual_llm_files_available() const
 {
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -1072,11 +1098,15 @@ bool MainApp::visual_llm_files_available() const
 
 void MainApp::update_image_analysis_controls()
 {
-    if (!analyze_images_checkbox || !offer_rename_images_checkbox || !rename_images_only_checkbox) {
+    if (!analyze_images_checkbox ||
+        !process_images_only_checkbox ||
+        !offer_rename_images_checkbox ||
+        !rename_images_only_checkbox) {
         return;
     }
 
     const bool analysis_enabled = analyze_images_checkbox->isChecked();
+    process_images_only_checkbox->setEnabled(analysis_enabled);
     offer_rename_images_checkbox->setEnabled(analysis_enabled);
     rename_images_only_checkbox->setEnabled(analysis_enabled);
 
@@ -1085,6 +1115,47 @@ void MainApp::update_image_analysis_controls()
         !offer_rename_images_checkbox->isChecked()) {
         QSignalBlocker blocker(offer_rename_images_checkbox);
         offer_rename_images_checkbox->setChecked(true);
+    }
+
+    update_image_only_controls();
+}
+
+void MainApp::update_image_only_controls()
+{
+    if (!process_images_only_checkbox) {
+        return;
+    }
+
+    const bool analyze_images = analyze_images_checkbox && analyze_images_checkbox->isChecked();
+    const bool images_only_active = analyze_images && process_images_only_checkbox->isChecked();
+    const bool enable_categorization = !images_only_active;
+
+    if (use_subcategories_checkbox) {
+        use_subcategories_checkbox->setEnabled(enable_categorization);
+    }
+    if (categorize_files_checkbox) {
+        categorize_files_checkbox->setEnabled(enable_categorization);
+    }
+    if (categorize_directories_checkbox) {
+        categorize_directories_checkbox->setEnabled(enable_categorization);
+    }
+    if (categorization_style_heading) {
+        categorization_style_heading->setEnabled(enable_categorization);
+    }
+    if (categorization_style_refined_radio) {
+        categorization_style_refined_radio->setEnabled(enable_categorization);
+    }
+    if (categorization_style_consistent_radio) {
+        categorization_style_consistent_radio->setEnabled(enable_categorization);
+    }
+    if (use_whitelist_checkbox) {
+        use_whitelist_checkbox->setEnabled(enable_categorization);
+    }
+    if (whitelist_selector) {
+        const bool whitelist_enabled = enable_categorization &&
+                                       use_whitelist_checkbox &&
+                                       use_whitelist_checkbox->isChecked();
+        whitelist_selector->setEnabled(whitelist_enabled);
     }
 }
 
@@ -1518,13 +1589,43 @@ void MainApp::perform_analysis()
     try {
         prune_empty_cached_entries_for(directory_path);
         already_categorized_files = categorization_service.load_cached_entries(directory_path);
+        const bool analyze_images = settings.get_analyze_images_by_content();
+        const bool process_images_only = analyze_images && settings.get_process_images_only();
+
+        if (process_images_only) {
+            already_categorized_files.erase(
+                std::remove_if(already_categorized_files.begin(),
+                               already_categorized_files.end(),
+                               [](const CategorizedFile& entry) {
+                                   if (entry.type != FileType::File) {
+                                       return true;
+                                   }
+                                   const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                                          Utils::utf8_to_path(entry.file_name);
+                                   return !LlavaImageAnalyzer::is_supported_image(full_path);
+                               }),
+                already_categorized_files.end());
+        }
 
         update_stop();
 
         log_cached_highlights();
 
         const auto cached_file_names = results_coordinator.extract_file_names(already_categorized_files);
-        files_to_categorize = results_coordinator.find_files_to_categorize(directory_path, file_scan_options, cached_file_names);
+        const auto scan_options = effective_scan_options();
+        files_to_categorize = results_coordinator.find_files_to_categorize(directory_path, scan_options, cached_file_names);
+        if (process_images_only) {
+            files_to_categorize.erase(
+                std::remove_if(files_to_categorize.begin(),
+                               files_to_categorize.end(),
+                               [](const FileEntry& entry) {
+                                   if (entry.type != FileType::File) {
+                                       return true;
+                                   }
+                                   return !LlavaImageAnalyzer::is_supported_image(entry.full_path);
+                               }),
+                files_to_categorize.end());
+        }
         core_logger->debug("Found {} item(s) pending categorization in '{}'.",
                            files_to_categorize.size(), directory_path);
 
@@ -1533,7 +1634,6 @@ void MainApp::perform_analysis()
 
         append_progress("[PROCESS] Letting the AI do its magic...");
 
-        const bool analyze_images = settings.get_analyze_images_by_content();
         const bool offer_image_renames = settings.get_offer_rename_images();
         const bool rename_images_only = settings.get_rename_images_only();
 
@@ -1547,7 +1647,7 @@ void MainApp::perform_analysis()
                 entry.type == FileType::File &&
                 LlavaImageAnalyzer::is_supported_image(entry.full_path)) {
                 image_entries.push_back(entry);
-            } else {
+            } else if (!process_images_only) {
                 other_entries.push_back(entry);
             }
         }
@@ -1733,8 +1833,11 @@ void MainApp::perform_analysis()
             new_files_with_categories.begin(),
             new_files_with_categories.end());
 
-        const auto actual_files = results_coordinator.list_directory(get_folder_path(), file_scan_options);
-        new_files_to_sort = results_coordinator.compute_files_to_sort(get_folder_path(), file_scan_options, actual_files, already_categorized_files);
+        const auto actual_files = results_coordinator.list_directory(get_folder_path(), scan_options);
+        new_files_to_sort = results_coordinator.compute_files_to_sort(get_folder_path(),
+                                                                      scan_options,
+                                                                      actual_files,
+                                                                      already_categorized_files);
         core_logger->debug("{} file(s) queued for sorting after analysis.",
                            new_files_to_sort.size());
 

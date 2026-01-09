@@ -87,8 +87,10 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     auto* image_rename_layout = new QVBoxLayout();
     image_rename_layout->setContentsMargins(24, 0, 0, 0);
     image_rename_layout->setSpacing(2);
+    app.process_images_only_checkbox = new QCheckBox(central);
     app.offer_rename_images_checkbox = new QCheckBox(central);
     app.rename_images_only_checkbox = new QCheckBox(central);
+    image_rename_layout->addWidget(app.process_images_only_checkbox);
     image_rename_layout->addWidget(app.offer_rename_images_checkbox);
     image_rename_layout->addWidget(app.rename_images_only_checkbox);
     image_options_layout->addLayout(image_rename_layout);
@@ -192,6 +194,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.categorize_files_checkbox,
             app.categorize_directories_checkbox,
             app.analyze_images_checkbox,
+            app.process_images_only_checkbox,
             app.offer_rename_images_checkbox,
             app.rename_images_only_checkbox},
         .tree_model = app.tree_model,

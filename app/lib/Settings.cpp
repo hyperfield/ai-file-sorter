@@ -228,6 +228,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     analyze_images_by_content = load_bool("AnalyzeImagesByContent", visual_llm_files_available());
     offer_rename_images = load_bool("OfferRenameImages", false);
     rename_images_only = load_bool("RenameImagesOnly", false);
+    process_images_only = load_bool("ProcessImagesOnly", false);
     if (rename_images_only && !offer_rename_images) {
         offer_rename_images = true;
     }
@@ -306,6 +307,7 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
     set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
     set_bool_setting(config, settings_section, "RenameImagesOnly", rename_images_only);
+    set_bool_setting(config, settings_section, "ProcessImagesOnly", process_images_only);
     config.setValue(settings_section, "SortFolder", this->sort_folder);
 
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
@@ -627,6 +629,16 @@ bool Settings::get_rename_images_only() const
 void Settings::set_rename_images_only(bool value)
 {
     rename_images_only = value;
+}
+
+bool Settings::get_process_images_only() const
+{
+    return process_images_only;
+}
+
+void Settings::set_process_images_only(bool value)
+{
+    process_images_only = value;
 }
 
 

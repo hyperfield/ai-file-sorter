@@ -114,6 +114,7 @@ private:
     void update_file_scan_option(FileScanOptions option, bool enabled);
     bool visual_llm_files_available() const;
     void update_image_analysis_controls();
+    void update_image_only_controls();
     void handle_image_analysis_toggle(bool checked);
     void run_llm_selection_dialog_for_visual();
     void update_analyze_button_state(bool analyzing);
@@ -155,6 +156,7 @@ private:
 
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
+    FileScanOptions effective_scan_options() const;
 
     friend class MainAppUiBuilder;
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -184,6 +186,7 @@ private:
     QPointer<QCheckBox> categorize_files_checkbox;
     QPointer<QCheckBox> categorize_directories_checkbox;
     QPointer<QCheckBox> analyze_images_checkbox;
+    QPointer<QCheckBox> process_images_only_checkbox;
     QPointer<QCheckBox> offer_rename_images_checkbox;
     QPointer<QCheckBox> rename_images_only_checkbox;
     QPointer<QTreeView> tree_view;

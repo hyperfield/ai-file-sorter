@@ -43,6 +43,7 @@ struct UiTranslatorTestHarness {
     QPointer<QCheckBox> files_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> directories_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> analyze_images_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> process_images_only_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> offer_rename_images_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> rename_images_only_checkbox{new QCheckBox(&window)};
 
@@ -152,6 +153,7 @@ struct UiTranslatorTestHarness {
                 files_checkbox,
                 directories_checkbox,
                 analyze_images_checkbox,
+                process_images_only_checkbox,
                 offer_rename_images_checkbox,
                 rename_images_only_checkbox},
             .tree_model = tree_model,
@@ -237,6 +239,8 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.files_checkbox->text() == QStringLiteral("Categorize files"));
     REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize directories"));
     REQUIRE(h.analyze_images_checkbox->text() == QStringLiteral("Analyze picture files by content (can be slow)"));
+    REQUIRE(h.process_images_only_checkbox->text() ==
+            QStringLiteral("Process image files only (ignore any other files)"));
     REQUIRE(h.offer_rename_images_checkbox->text() == QStringLiteral("Offer to rename image files"));
     REQUIRE(h.rename_images_only_checkbox->text() == QStringLiteral("Do not categorize image files (only rename)"));
 }

@@ -51,18 +51,22 @@ TEST_CASE("Image analysis checkboxes enable and enforce rename-only behavior") {
     MainApp window(settings, /*development_mode=*/false);
 
     QCheckBox* analyze = MainAppTestAccess::analyze_images_checkbox(window);
+    QCheckBox* process_only = MainAppTestAccess::process_images_only_checkbox(window);
     QCheckBox* offer = MainAppTestAccess::offer_rename_images_checkbox(window);
     QCheckBox* rename_only = MainAppTestAccess::rename_images_only_checkbox(window);
 
     REQUIRE(analyze != nullptr);
+    REQUIRE(process_only != nullptr);
     REQUIRE(offer != nullptr);
     REQUIRE(rename_only != nullptr);
 
     REQUIRE_FALSE(analyze->isChecked());
+    REQUIRE_FALSE(process_only->isEnabled());
     REQUIRE_FALSE(offer->isEnabled());
     REQUIRE_FALSE(rename_only->isEnabled());
 
     analyze->setChecked(true);
+    REQUIRE(process_only->isEnabled());
     REQUIRE(offer->isEnabled());
     REQUIRE(rename_only->isEnabled());
 
