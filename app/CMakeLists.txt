@@ -9,6 +9,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
 
+include(CheckSymbolExists)
+
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -153,7 +155,20 @@ else()
     target_link_libraries(aifilesorter PRIVATE llama)
     target_link_libraries(aifilesorter PRIVATE mtmd)
     target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
-    target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+    set(CMAKE_REQUIRED_INCLUDES
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/ggml/include"
+    )
+    check_symbol_exists(mtmd_helper_set_progress_callback "mtmd-helper.h" HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+    check_symbol_exists(mtmd_helper_log_set "mtmd-helper.h" HAVE_MTMD_HELPER_LOG_SET)
+    set(CMAKE_REQUIRED_INCLUDES)
+    if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+    endif()
+    if(HAVE_MTMD_HELPER_LOG_SET)
+        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+    endif()
     if(MSVC)
         target_compile_options(llama PRIVATE /Zc:char8_t-)
     endif()

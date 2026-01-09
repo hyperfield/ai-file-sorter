@@ -129,7 +129,7 @@ ifeq ($(UNAME), Linux)
 MTMD_LIB_CANDIDATES := ./lib/precompiled/cpu/bin/libmtmd.so ./lib/precompiled/libmtmd.so
 endif
 ifeq ($(UNAME), Darwin)
-MTMD_LIB_CANDIDATES := ./lib/precompiled/libmtmd.dylib
+MTMD_LIB_CANDIDATES := ./lib/precompiled/libmtmd.dylib $(BREW_PREFIX)/lib/libmtmd.dylib
 endif
 ifeq ($(MTMD_PROGRESS_CALLBACK),auto)
 MTMD_PROGRESS_CALLBACK := $(shell \
@@ -155,6 +155,34 @@ ifeq ($(MTMD_PROGRESS_CALLBACK),1)
 CXXFLAGS += -DAI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
 else
 CXXFLAGS += -UAI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
+endif
+
+# Enable mtmd log callback only when the linked libmtmd provides it.
+MTMD_LOG_CALLBACK ?= auto
+ifeq ($(MTMD_LOG_CALLBACK),auto)
+MTMD_LOG_CALLBACK := $(shell \
+	if command -v nm >/dev/null 2>&1; then \
+		for lib in $(MTMD_LIB_CANDIDATES); do \
+			if [ -e "$$lib" ] && nm -D --defined-only "$$lib" 2>/dev/null | grep -q "mtmd_helper_log_set"; then \
+				echo 1; exit 0; \
+			fi; \
+			if [ -e "$$lib" ] && nm -g "$$lib" 2>/dev/null | grep -q "[Tt] _mtmd_helper_log_set"; then \
+				echo 1; exit 0; \
+			fi; \
+		done; \
+	elif command -v objdump >/dev/null 2>&1; then \
+		for lib in $(MTMD_LIB_CANDIDATES); do \
+			if [ -e "$$lib" ] && objdump -T "$$lib" 2>/dev/null | grep -q "mtmd_helper_log_set"; then \
+				echo 1; exit 0; \
+			fi; \
+		done; \
+	fi; \
+	echo 0)
+endif
+ifeq ($(MTMD_LOG_CALLBACK),1)
+CXXFLAGS += -DAI_FILE_SORTER_MTMD_LOG_CALLBACK
+else
+CXXFLAGS += -UAI_FILE_SORTER_MTMD_LOG_CALLBACK
 endif
 
 QRC_FILE := resources/app.qrc

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -19,6 +20,22 @@
 #include "llama.h"
 #include "mtmd.h"
 #include "mtmd-helper.h"
+#endif
+
+#ifdef AI_FILE_SORTER_HAS_MTMD
+extern "C" {
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+typedef void (*mtmd_progress_callback_t)(const char* name,
+                                         int32_t current_batch,
+                                         int32_t total_batches,
+                                         void* user_data);
+MTMD_API void mtmd_helper_set_progress_callback(mtmd_progress_callback_t callback,
+                                                void* user_data);
+#endif
+#if defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+MTMD_API void mtmd_helper_log_set(ggml_log_callback log_callback, void* user_data);
+#endif
+}
 #endif
 
 namespace {
@@ -306,7 +323,6 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     mtmd_context_params mm_params = mtmd_context_params_default();
     mm_params.use_gpu = mmproj_gpu_enabled_;
     mm_params.n_threads = settings_.n_threads;
-    mm_params.verbosity = GGML_LOG_LEVEL_ERROR;
     vision_ctx_ = mtmd_init_from_file(mmproj_path.string().c_str(), model_, mm_params);
     if (!vision_ctx_) {
         llama_free(context_);
@@ -426,6 +442,33 @@ void LlavaImageAnalyzer::mtmd_progress_callback(const char* name,
     self->settings_.batch_progress(current_batch, total_batches);
 }
 
+#if defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+void LlavaImageAnalyzer::mtmd_log_callback(enum ggml_log_level level,
+                                           const char* text,
+                                           void* user_data) {
+    (void)level;
+    if (!text) {
+        return;
+    }
+    if (user_data) {
+        auto* self = static_cast<LlavaImageAnalyzer*>(user_data);
+        if (self->settings_.batch_progress) {
+            int current_batch = 0;
+            int total_batches = 0;
+            if (std::sscanf(text, "decoding image batch %d/%d",
+                            &current_batch,
+                            &total_batches) == 2) {
+                if (current_batch > 0 && total_batches > 0) {
+                    self->settings_.batch_progress(current_batch, total_batches);
+                }
+            }
+        }
+    }
+    std::fputs(text, stderr);
+    std::fflush(stderr);
+}
+#endif
+
 #endif
 
 #ifdef AI_FILE_SORTER_HAS_MTMD
@@ -519,18 +562,28 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
         throw std::runtime_error("mtmd_tokenize failed with code " + std::to_string(tokenize_res));
     }
 
-#ifdef AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK) || defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
     struct ProgressGuard {
         bool active{false};
         ProgressGuard(bool enabled, LlavaImageAnalyzer* self) : active(enabled) {
-            if (active) {
-                mtmd_helper_set_progress_callback(&LlavaImageAnalyzer::mtmd_progress_callback, self);
+            if (!active) {
+                return;
             }
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+            mtmd_helper_set_progress_callback(&LlavaImageAnalyzer::mtmd_progress_callback, self);
+#elif defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+            mtmd_helper_log_set(&LlavaImageAnalyzer::mtmd_log_callback, self);
+#endif
         }
         ~ProgressGuard() {
-            if (active) {
-                mtmd_helper_set_progress_callback(nullptr, nullptr);
+            if (!active) {
+                return;
             }
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+            mtmd_helper_set_progress_callback(nullptr, nullptr);
+#elif defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+            mtmd_helper_log_set(nullptr, nullptr);
+#endif
         }
     };
 
