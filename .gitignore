@@ -120,6 +120,9 @@ build/
 dist/
 app/lib/ggml/
 
+# No longer relevant
+api-key-encryption/
+
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
 
 
