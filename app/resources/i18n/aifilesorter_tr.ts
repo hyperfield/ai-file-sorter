@@ -88,6 +88,17 @@
     <message><source>Skipped</source><translation>Atlandı</translation></message>
     <message><source>Analyzing Files</source><translation>Dosyalar analiz ediliyor</translation></message>
     <message><source>Stop Analysis</source><translation>Analizi durdur</translation></message>
+    <message><source>[ARCHIVE] Already categorized highlights:</source><translation>[ARŞİV] Zaten kategorize edilen öğeler:</translation></message>
+    <message><source>[DONE] No files to categorize.</source><translation>[BİTTİ] Kategorize edilecek dosya yok.</translation></message>
+    <message><source>[QUEUE] Items waiting for categorization:</source><translation>[SIRA] Kategorizasyon için bekleyen öğeler:</translation></message>
+    <message><source>[SCAN] Exploring %1</source><translation>[TARAMA] %1 keşfediliyor</translation></message>
+    <message><source>[PROCESS] Letting the AI do its magic...</source><translation>[İŞLEM] Yapay zeka sihrini yapıyor...</translation></message>
+    <message><source>[VISION] Decoding image batch %1/%2 (%3%)</source><translation>[GÖRSEL] Görüntü grubu %1/%2 çözümleniyor (%3%)</translation></message>
+    <message><source>[VISION] Analyzing %1</source><translation>[GÖRSEL] %1 analiz ediliyor</translation></message>
+    <message><source>[VISION-ERROR] %1 (%2)</source><translation>[GÖRSEL-HATA] %1 (%2)</translation></message>
+    <message><source>[SORT] %1 (%2)</source><translation>[SIRALAMA] %1 (%2)</translation></message>
+    <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[UYARI] %1 yeniden kategorize edilecek: %2</translation></message>
+    <message><source>[STOP] Analysis will stop after the current item is processed.</source><translation>[DUR] Analiz, geçerli öğe işlendiğinde duracaktır.</translation></message>
     <message><source>Download complete.</source><translation>İndirme tamamlandı.</translation></message>
     <message><source>Download cancelled.</source><translation>İndirme iptal edildi.</translation></message>
     <message><source>Download error: %1</source><translation>İndirme hatası: %1</translation></message>

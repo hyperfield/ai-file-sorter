@@ -88,6 +88,17 @@
     <message><source>Skipped</source><translation>Omitido</translation></message>
     <message><source>Analyzing Files</source><translation>Analizando archivos</translation></message>
     <message><source>Stop Analysis</source><translation>Detener análisis</translation></message>
+    <message><source>[ARCHIVE] Already categorized highlights:</source><translation>[ARCHIVO] Elementos ya categorizados:</translation></message>
+    <message><source>[DONE] No files to categorize.</source><translation>[LISTO] No hay archivos para categorizar.</translation></message>
+    <message><source>[QUEUE] Items waiting for categorization:</source><translation>[COLA] Elementos en espera de categorización:</translation></message>
+    <message><source>[SCAN] Exploring %1</source><translation>[ESCANEO] Explorando %1</translation></message>
+    <message><source>[PROCESS] Letting the AI do its magic...</source><translation>[PROCESO] La IA hace su magia...</translation></message>
+    <message><source>[VISION] Decoding image batch %1/%2 (%3%)</source><translation>[VISIÓN] Decodificando lote de imágenes %1/%2 (%3%)</translation></message>
+    <message><source>[VISION] Analyzing %1</source><translation>[VISIÓN] Analizando %1</translation></message>
+    <message><source>[VISION-ERROR] %1 (%2)</source><translation>[ERROR-VISIÓN] %1 (%2)</translation></message>
+    <message><source>[SORT] %1 (%2)</source><translation>[ORDENAR] %1 (%2)</translation></message>
+    <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[ADVERTENCIA] %1 se recategorizará: %2</translation></message>
+    <message><source>[STOP] Analysis will stop after the current item is processed.</source><translation>[DETENER] El análisis se detendrá después del elemento actual.</translation></message>
     <message><source>Download complete.</source><translation>Descarga completa.</translation></message>
     <message><source>Download cancelled.</source><translation>Descarga cancelada.</translation></message>
     <message><source>Download error: %1</source><translation>Error de descarga: %1</translation></message>

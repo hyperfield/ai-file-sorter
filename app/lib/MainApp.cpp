@@ -143,6 +143,12 @@ void record_categorized_metrics_impl(Settings& settings,
     maybe_show_support_prompt(settings, prompt_active, std::move(show_prompt));
 }
 
+std::string to_utf8(const QString& value)
+{
+    const QByteArray bytes = value.toUtf8();
+    return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+}
+
 struct VisualLlmPaths {
     std::filesystem::path model_path;
     std::filesystem::path mmproj_path;
@@ -1594,11 +1600,17 @@ void MainApp::log_cached_highlights()
     if (already_categorized_files.empty()) {
         return;
     }
-    append_progress("[ARCHIVE] Already categorized highlights:");
+    append_progress(to_utf8(tr("[ARCHIVE] Already categorized highlights:")));
     for (const auto& file_entry : already_categorized_files) {
-        const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
-        const std::string sub = file_entry.subcategory.empty() ? "-" : file_entry.subcategory;
-        append_progress(fmt::format("  - [{}] {} -> {} / {}", symbol, file_entry.file_name, file_entry.category, sub));
+        const QString type_label = file_entry.type == FileType::Directory ? tr("Directory") : tr("File");
+        const QString sub = file_entry.subcategory.empty()
+            ? QStringLiteral("-")
+            : QString::fromStdString(file_entry.subcategory);
+        append_progress(to_utf8(QStringLiteral("  - [%1] %2 -> %3 / %4")
+                                    .arg(type_label,
+                                         QString::fromStdString(file_entry.file_name),
+                                         QString::fromStdString(file_entry.category),
+                                         sub)));
     }
 }
 
@@ -1608,14 +1620,15 @@ void MainApp::log_pending_queue()
         return;
     }
     if (files_to_categorize.empty()) {
-        append_progress("[DONE] No files to categorize.");
+        append_progress(to_utf8(tr("[DONE] No files to categorize.")));
         return;
     }
 
-    append_progress("[QUEUE] Items waiting for categorization:");
+    append_progress(to_utf8(tr("[QUEUE] Items waiting for categorization:")));
     for (const auto& file_entry : files_to_categorize) {
-        const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
-        append_progress(fmt::format("  - [{}] {}", symbol, file_entry.file_name));
+        const QString type_label = file_entry.type == FileType::Directory ? tr("Directory") : tr("File");
+        append_progress(to_utf8(QStringLiteral("  - [%1] %2")
+                                    .arg(type_label, QString::fromStdString(file_entry.file_name))));
     }
 }
 
@@ -1632,7 +1645,8 @@ void MainApp::perform_analysis()
         return stop_requested;
     };
 
-    append_progress(fmt::format("[SCAN] Exploring {}", directory_path));
+    append_progress(to_utf8(tr("[SCAN] Exploring %1")
+                                .arg(QString::fromStdString(directory_path))));
     update_stop();
 
     try {
@@ -1722,7 +1736,7 @@ void MainApp::perform_analysis()
         log_pending_queue();
         update_stop();
 
-        append_progress("[PROCESS] Letting the AI do its magic...");
+        append_progress(to_utf8(tr("[PROCESS] Letting the AI do its magic...")));
 
         const bool offer_image_renames = settings.get_offer_rename_images();
 
@@ -1763,10 +1777,10 @@ void MainApp::perform_analysis()
                 }
                 const double percent = (static_cast<double>(current_batch) /
                                         static_cast<double>(total_batches)) * 100.0;
-                append_progress(fmt::format("[VISION] Decoding image batch {}/{} ({:.2f}%)",
-                                            current_batch,
-                                            total_batches,
-                                            percent));
+                append_progress(to_utf8(tr("[VISION] Decoding image batch %1/%2 (%3%)")
+                                            .arg(current_batch)
+                                            .arg(total_batches)
+                                            .arg(percent, 0, 'f', 2)));
             };
             vision_settings.log_visual_output = should_log_prompts();
             LlavaImageAnalyzer analyzer(visual_paths->model_path,
@@ -1781,7 +1795,8 @@ void MainApp::perform_analysis()
                 if (already_renamed && rename_images_only) {
                     continue;
                 }
-                append_progress(fmt::format("[VISION] Analyzing {}", entry.file_name));
+                append_progress(to_utf8(tr("[VISION] Analyzing %1")
+                                            .arg(QString::fromStdString(entry.file_name))));
                 analyzed_image_entries.push_back(entry);
 
                 try {
@@ -1799,7 +1814,9 @@ void MainApp::perform_analysis()
                         image_entries_for_llm.push_back(entry);
                     }
                 } catch (const std::exception& ex) {
-                    append_progress(fmt::format("[VISION-ERROR] {} ({})", entry.file_name, ex.what()));
+                    append_progress(to_utf8(tr("[VISION-ERROR] %1 (%2)")
+                                                .arg(QString::fromStdString(entry.file_name),
+                                                     QString::fromStdString(ex.what()))));
                     if (!rename_images_only) {
                         other_entries.push_back(entry);
                     }
@@ -1823,9 +1840,9 @@ void MainApp::perform_analysis()
                 stop_analysis,
                 [this](const std::string& message) { append_progress(message); },
                 [this](const FileEntry& entry) {
-                    append_progress(fmt::format("[SORT] {} ({})",
-                                                entry.file_name,
-                                                entry.type == FileType::Directory ? "directory" : "file"));
+                    const QString type_label = entry.type == FileType::Directory ? tr("Directory") : tr("File");
+                    append_progress(to_utf8(tr("[SORT] %1 (%2)")
+                                                .arg(QString::fromStdString(entry.file_name), type_label)));
                 },
                 [this](const CategorizedFile& entry, const std::string& reason) {
                     notify_recategorization_reset(entry, reason);
@@ -1882,9 +1899,9 @@ void MainApp::perform_analysis()
                     stop_flag,
                     [this](const std::string& message) { append_progress(message); },
                     [this](const FileEntry& entry) {
-                        append_progress(fmt::format("[SORT] {} ({})",
-                                                    entry.file_name,
-                                                    entry.type == FileType::Directory ? "directory" : "file"));
+                        const QString type_label = entry.type == FileType::Directory ? tr("Directory") : tr("File");
+                        append_progress(to_utf8(tr("[SORT] %1 (%2)")
+                                                    .arg(QString::fromStdString(entry.file_name), type_label)));
                     },
                     [this](const CategorizedFile& entry, const std::string& reason) {
                         notify_recategorization_reset(entry, reason);
@@ -2124,10 +2141,10 @@ void MainApp::notify_recategorization_reset(const std::vector<CategorizedFile>& 
             return;
         }
         for (const auto& entry : *shared_entries) {
-            progress_dialog->append_text(
-                fmt::format("[WARN] {} will be re-categorized: {}",
-                            entry.file_name,
-                            *shared_reason));
+            const QString message = tr("[WARN] %1 will be re-categorized: %2")
+                                        .arg(QString::fromStdString(entry.file_name),
+                                             QString::fromStdString(*shared_reason));
+            progress_dialog->append_text(to_utf8(message));
         }
     });
 }

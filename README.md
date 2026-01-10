@@ -88,6 +88,7 @@ Image content analysis for supported picture files is available; broader file-co
 - Added a picture-only processing toggle to focus runs on supported picture files.
 - Review dialog now supports rename-only flows, suggested filename edits, and status labels.
 - Added Dutch as a selectable interface language.
+- Analysis progress dialog output is now localized in all available UI languages.
 - Build and tests updates.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.

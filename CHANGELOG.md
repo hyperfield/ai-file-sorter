@@ -8,6 +8,7 @@
 - Review dialog now supports rename-only flows, suggested filename edits, and status labels for Renamed / Renamed & Moved.
 - Track applied picture renames so already-renamed files are not reprocessed; rename-only review hides them while categorization review keeps them visible for folder moves.
 - Added Dutch as a selectable interface language.
+- Analysis progress dialog output is now fully localized (status tags, scan/process lines, and file/directory labels) to match the selected UI language.
 - Build/test updates: mtmd progress callback auto-detection, mtmd-cli build fix, and new Catch2 tests for rename-only caching.
 
 ## [1.4.5] - 2025-12-05

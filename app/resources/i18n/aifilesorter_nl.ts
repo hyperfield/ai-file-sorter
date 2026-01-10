@@ -99,6 +99,17 @@
     <message><source>Skipped</source><translation>Overgeslagen</translation></message>
     <message><source>Analyzing Files</source><translation>Bestanden analyseren</translation></message>
     <message><source>Stop Analysis</source><translation>Analyse stoppen</translation></message>
+    <message><source>[ARCHIVE] Already categorized highlights:</source><translation>[ARCHIEF] Reeds gecategoriseerde items:</translation></message>
+    <message><source>[DONE] No files to categorize.</source><translation>[KLAAR] Geen bestanden om te categoriseren.</translation></message>
+    <message><source>[QUEUE] Items waiting for categorization:</source><translation>[WACHTRIJ] Items in afwachting van categorisatie:</translation></message>
+    <message><source>[SCAN] Exploring %1</source><translation>[SCAN] Verkennen van %1</translation></message>
+    <message><source>[PROCESS] Letting the AI do its magic...</source><translation>[VERWERKING] De AI doet zijn magie...</translation></message>
+    <message><source>[VISION] Decoding image batch %1/%2 (%3%)</source><translation>[VISIE] Afbeeldingsbatch %1/%2 decoderen (%3%)</translation></message>
+    <message><source>[VISION] Analyzing %1</source><translation>[VISIE] Analyseren van %1</translation></message>
+    <message><source>[VISION-ERROR] %1 (%2)</source><translation>[VISIE-FOUT] %1 (%2)</translation></message>
+    <message><source>[SORT] %1 (%2)</source><translation>[SORTEREN] %1 (%2)</translation></message>
+    <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[WAARSCHUWING] %1 wordt opnieuw gecategoriseerd: %2</translation></message>
+    <message><source>[STOP] Analysis will stop after the current item is processed.</source><translation>[STOP] Analyse stopt na het huidige item.</translation></message>
     <message><source>Analyze picture files by content (can be slow)</source><translation>Afbeeldingsbestanden op inhoud analyseren (kan traag zijn)</translation></message>
     <message><source>Run the visual LLM on supported picture files.</source><translation>Voer de visuele LLM uit op ondersteunde afbeeldingsbestanden.</translation></message>
     <message><source>Process picture files only (ignore any other files)</source><translation>Alleen afbeeldingsbestanden verwerken (alle andere bestanden negeren)</translation></message>
