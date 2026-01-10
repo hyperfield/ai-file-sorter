@@ -29,6 +29,7 @@ public:
         int32_t n_threads = 0;
         float temperature = 0.2f;
         bool use_gpu = true;
+        bool log_visual_output = false;
         std::function<void(int32_t current_batch, int32_t total_batches)> batch_progress;
     };
 

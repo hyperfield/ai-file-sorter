@@ -1768,6 +1768,7 @@ void MainApp::perform_analysis()
                                             total_batches,
                                             percent));
             };
+            vision_settings.log_visual_output = should_log_prompts();
             LlavaImageAnalyzer analyzer(visual_paths->model_path,
                                         visual_paths->mmproj_path,
                                         vision_settings);

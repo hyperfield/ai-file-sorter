@@ -42,6 +42,12 @@ namespace {
 constexpr size_t kMaxFilenameWords = 3;
 constexpr size_t kMaxFilenameLength = 50;
 
+#if defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+bool is_mtmd_prompt_log_line(std::string_view line) {
+    return line.starts_with("add_text:");
+}
+#endif
+
 std::string to_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));
@@ -457,19 +463,25 @@ void LlavaImageAnalyzer::mtmd_log_callback(enum ggml_log_level level,
     if (!text) {
         return;
     }
-    if (user_data) {
-        auto* self = static_cast<LlavaImageAnalyzer*>(user_data);
-        if (self->settings_.batch_progress) {
-            int current_batch = 0;
-            int total_batches = 0;
-            if (std::sscanf(text, "decoding image batch %d/%d",
-                            &current_batch,
-                            &total_batches) == 2) {
-                if (current_batch > 0 && total_batches > 0) {
-                    self->settings_.batch_progress(current_batch, total_batches);
-                }
+    auto* self = static_cast<LlavaImageAnalyzer*>(user_data);
+#if !defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+    if (self && self->settings_.batch_progress) {
+        int current_batch = 0;
+        int total_batches = 0;
+        if (std::sscanf(text, "decoding image batch %d/%d",
+                        &current_batch,
+                        &total_batches) == 2) {
+            if (current_batch > 0 && total_batches > 0) {
+                self->settings_.batch_progress(current_batch, total_batches);
             }
         }
+    }
+#endif
+    if (!self || !self->settings_.log_visual_output) {
+        return;
+    }
+    if (is_mtmd_prompt_log_line(text)) {
+        return;
     }
     std::fputs(text, stderr);
     std::fflush(stderr);
@@ -559,6 +571,23 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
         bitmap_count = 1;
     }
 
+#if defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+    struct LogGuard {
+        bool active{false};
+        explicit LogGuard(LlavaImageAnalyzer* self) : active(true) {
+            mtmd_helper_log_set(&LlavaImageAnalyzer::mtmd_log_callback, self);
+        }
+        ~LogGuard() {
+            if (!active) {
+                return;
+            }
+            mtmd_helper_log_set(nullptr, nullptr);
+        }
+    };
+
+    LogGuard log_guard(this);
+#endif
+
     const int32_t tokenize_res = mtmd_tokenize(
         vision_ctx_,
         chunks.get(),
@@ -569,28 +598,20 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
         throw std::runtime_error("mtmd_tokenize failed with code " + std::to_string(tokenize_res));
     }
 
-#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK) || defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
     struct ProgressGuard {
         bool active{false};
         ProgressGuard(bool enabled, LlavaImageAnalyzer* self) : active(enabled) {
             if (!active) {
                 return;
             }
-#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
             mtmd_helper_set_progress_callback(&LlavaImageAnalyzer::mtmd_progress_callback, self);
-#elif defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
-            mtmd_helper_log_set(&LlavaImageAnalyzer::mtmd_log_callback, self);
-#endif
         }
         ~ProgressGuard() {
             if (!active) {
                 return;
             }
-#if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
             mtmd_helper_set_progress_callback(nullptr, nullptr);
-#elif defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
-            mtmd_helper_log_set(nullptr, nullptr);
-#endif
         }
     };
 

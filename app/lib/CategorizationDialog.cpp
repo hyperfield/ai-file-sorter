@@ -698,6 +698,7 @@ void CategorizationDialog::populate_model()
         select_item->setCheckable(true);
         select_item->setCheckState(Qt::Checked);
         select_item->setEditable(false);
+        select_item->setData(Qt::AlignCenter, Qt::TextAlignmentRole);
 
         auto* file_item = new QStandardItem(QString::fromStdString(file.file_name));
         file_item->setEditable(false);
@@ -722,7 +723,7 @@ void CategorizationDialog::populate_model()
         } else {
             type_item->setData(QStringLiteral("F"), Qt::UserRole);
         }
-        type_item->setTextAlignment(Qt::AlignCenter);
+        type_item->setData(Qt::AlignCenter, Qt::TextAlignmentRole);
         update_type_icon(type_item);
 
         const std::string suggested_name = rename_locked ? std::string() : file.suggested_name;
