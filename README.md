@@ -82,9 +82,10 @@ Image content analysis for supported picture files is available; broader file-co
 
 ## [1.5.0] - 2026-01-06
 
-- Added image content analysis via LLaVA.
-- Added image analysis options in the main window.
-- Added an image-only processing toggle to focus runs on supported picture files.
+- Added content analysis for picture files via LLaVA.
+- Added picture analysis options in the main window.
+- Review dialog now supports rename-only flows, suggested filename edits, and status labels for Renamed / Renamed & Moved.
+- Added a picture-only processing toggle to focus runs on supported picture files.
 - Review dialog now supports rename-only flows, suggested filename edits, and status labels.
 - Build and tests updates.
 
@@ -465,10 +466,11 @@ What is stored:
 
 - Directory path, file name, and file type (used as a unique key).
 - Category/subcategory, taxonomy id, categorization style, and timestamp.
-- Suggested filename (for image rename suggestions).
+- Suggested filename (for picture rename suggestions).
 - Rename-only flag (used when "Do not categorize picture files (only rename)" is enabled).
+- Rename-applied flag (marks when a rename was executed so it is not offered again).
 
-If you rename or move a file from the Review dialog, the cache entry is updated to the new name. To reset a folder's cache, accept the recategorization prompt or delete the cache file (or point `CATEGORIZATION_CACHE_FILE` to a new filename).
+If you rename or move a file from the Review dialog, the cache entry is updated to the new name. Already-renamed picture files are skipped for visual analysis and rename suggestions on later runs. In the Review dialog, those already-renamed rows are hidden when rename-only is enabled, but they stay visible when categorization is enabled so you can still move them into category folders. To reset a folder's cache, accept the recategorization prompt or delete the cache file (or point `CATEGORIZATION_CACHE_FILE` to a new filename).
 
 ---
 
