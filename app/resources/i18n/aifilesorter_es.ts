@@ -6,17 +6,29 @@
     <message><source>Analyze folder</source><translation>Analizar carpeta</translation></message>
     <message><source>Stop analyzing</source><translation>Detener análisis</translation></message>
     <message><source>Use subcategories</source><translation>Usar subcategorías</translation></message>
+    <message><source>Create subcategory folders within each category.</source><translation>Crear subcarpetas dentro de cada categoría.</translation></message>
     <message><source>Categorization type</source><translation>Tipo de categorización</translation></message>
+    <message><source>Choose how strict the category labels should be.</source><translation>Elegir cuán estrictas deben ser las etiquetas de categoría.</translation></message>
     <message><source>More refined</source><translation>Más detallada</translation></message>
+    <message><source>Favor detailed labels even if similar items vary.</source><translation>Prioriza etiquetas detalladas aunque elementos similares varíen.</translation></message>
     <message><source>More consistent</source><translation>Más coherente</translation></message>
+    <message><source>Favor consistent labels across similar items.</source><translation>Prioriza etiquetas coherentes entre elementos similares.</translation></message>
     <message><source>Use a whitelist</source><translation>Usar lista blanca</translation></message>
+    <message><source>Restrict categories and subcategories to the selected whitelist.</source><translation>Restringir categorías y subcategorías a la lista blanca seleccionada.</translation></message>
+    <message><source>Select the whitelist used for this run.</source><translation>Selecciona la lista blanca usada en esta ejecución.</translation></message>
     <message><source>Recategorize folder?</source><translation>¿Recategorizar la carpeta?</translation></message>
     <message><source>This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?</source><translation>Esta carpeta se categorizó con el modo %1. ¿Quieres recategorizarla ahora con el modo %2?</translation></message>
     <message><source>Recategorize</source><translation>Recategorizar</translation></message>
     <message><source>Keep existing</source><translation>Mantener existente</translation></message>
     <message><source>Failed to reset cached categorization for this folder.</source><translation>No se pudo restablecer la categorización en caché para esta carpeta.</translation></message>
     <message><source>Categorize files</source><translation>Categorizar archivos</translation></message>
+    <message><source>Include files in the categorization pass.</source><translation>Incluir archivos en la categorización.</translation></message>
     <message><source>Categorize directories</source><translation>Categorizar directorios</translation></message>
+    <message><source>Include directories in the categorization pass.</source><translation>Incluir directorios en la categorización.</translation></message>
+    <message><source>Run the visual LLM on supported picture files.</source><translation>Ejecutar el LLM visual en archivos de imagen compatibles.</translation></message>
+    <message><source>Ignore non-picture files in this run.</source><translation>Ignorar archivos que no sean de imagen en esta ejecución.</translation></message>
+    <message><source>Show suggested filenames for picture files.</source><translation>Mostrar nombres sugeridos para archivos de imagen.</translation></message>
+    <message><source>Skip categorization for picture files and only rename them.</source><translation>Omitir la categorización de archivos de imagen y solo renombrarlos.</translation></message>
     <message><source>Ready</source><translation>Listo</translation></message>
     <message><source>Set folder to %1</source><translation>Carpeta establecida en %1</translation></message>
     <message><source>Loaded folder %1</source><translation>Carpeta %1 cargada</translation></message>

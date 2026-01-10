@@ -6,17 +6,29 @@
     <message><source>Analyze folder</source><translation>Analyser le dossier</translation></message>
     <message><source>Stop analyzing</source><translation>Arrêter l'analyse</translation></message>
     <message><source>Use subcategories</source><translation>Utiliser les sous-catégories</translation></message>
+    <message><source>Create subcategory folders within each category.</source><translation>Créer des sous-dossiers dans chaque catégorie.</translation></message>
     <message><source>Categorization type</source><translation>Type de catégorisation</translation></message>
+    <message><source>Choose how strict the category labels should be.</source><translation>Choisir le niveau de précision des libellés de catégorie.</translation></message>
     <message><source>More refined</source><translation>Plus précis</translation></message>
+    <message><source>Favor detailed labels even if similar items vary.</source><translation>Privilégie des libellés détaillés même si les éléments similaires varient.</translation></message>
     <message><source>More consistent</source><translation>Plus cohérent</translation></message>
+    <message><source>Favor consistent labels across similar items.</source><translation>Privilégie des libellés cohérents pour les éléments similaires.</translation></message>
     <message><source>Use a whitelist</source><translation>Utiliser une liste blanche</translation></message>
+    <message><source>Restrict categories and subcategories to the selected whitelist.</source><translation>Limiter les catégories et sous-catégories à la liste blanche sélectionnée.</translation></message>
+    <message><source>Select the whitelist used for this run.</source><translation>Sélectionner la liste blanche utilisée pour cette analyse.</translation></message>
     <message><source>Recategorize folder?</source><translation>Recatégoriser le dossier ?</translation></message>
     <message><source>This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?</source><translation>Ce dossier a été catégorisé en mode %1. Voulez-vous le recatégoriser maintenant en mode %2 ?</translation></message>
     <message><source>Recategorize</source><translation>Recatégoriser</translation></message>
     <message><source>Keep existing</source><translation>Conserver l'existant</translation></message>
     <message><source>Failed to reset cached categorization for this folder.</source><translation>Impossible de réinitialiser la catégorisation en cache pour ce dossier.</translation></message>
     <message><source>Categorize files</source><translation>Catégoriser les fichiers</translation></message>
+    <message><source>Include files in the categorization pass.</source><translation>Inclure les fichiers dans la catégorisation.</translation></message>
     <message><source>Categorize directories</source><translation>Catégoriser les dossiers</translation></message>
+    <message><source>Include directories in the categorization pass.</source><translation>Inclure les dossiers dans la catégorisation.</translation></message>
+    <message><source>Run the visual LLM on supported picture files.</source><translation>Exécuter le LLM visuel sur les fichiers image pris en charge.</translation></message>
+    <message><source>Ignore non-picture files in this run.</source><translation>Ignorer les fichiers non image lors de cette analyse.</translation></message>
+    <message><source>Show suggested filenames for picture files.</source><translation>Afficher des noms de fichiers suggérés pour les fichiers image.</translation></message>
+    <message><source>Skip categorization for picture files and only rename them.</source><translation>Ignorer la catégorisation des fichiers image et les renommer uniquement.</translation></message>
     <message><source>Ready</source><translation>Prêt</translation></message>
     <message><source>Set folder to %1</source><translation>Dossier défini sur %1</translation></message>
     <message><source>Loaded folder %1</source><translation>Dossier chargé %1</translation></message>

@@ -8,6 +8,7 @@
 #include <QActionGroup>
 #include <QChar>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDockWidget>
 #include <QLabel>
 #include <QMainWindow>
@@ -66,36 +67,50 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_subcategories_checkbox)) {
         checkbox->setText(tr("Use subcategories"));
+        checkbox->setToolTip(tr("Create subcategory folders within each category."));
     }
     if (auto* heading = raw_ptr(deps_.primary.categorization_style_heading)) {
         heading->setText(tr("Categorization type"));
+        heading->setToolTip(tr("Choose how strict the category labels should be."));
     }
     if (auto* refined_radio = raw_ptr(deps_.primary.categorization_style_refined_radio)) {
         refined_radio->setText(tr("More refined"));
+        refined_radio->setToolTip(tr("Favor detailed labels even if similar items vary."));
     }
     if (auto* consistent_radio = raw_ptr(deps_.primary.categorization_style_consistent_radio)) {
         consistent_radio->setText(tr("More consistent"));
+        consistent_radio->setToolTip(tr("Favor consistent labels across similar items."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_whitelist_checkbox)) {
         checkbox->setText(tr("Use a whitelist"));
+        checkbox->setToolTip(tr("Restrict categories and subcategories to the selected whitelist."));
+    }
+    if (auto* selector = raw_ptr(deps_.primary.whitelist_selector)) {
+        selector->setToolTip(tr("Select the whitelist used for this run."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_files_checkbox)) {
         checkbox->setText(tr("Categorize files"));
+        checkbox->setToolTip(tr("Include files in the categorization pass."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_directories_checkbox)) {
         checkbox->setText(tr("Categorize directories"));
+        checkbox->setToolTip(tr("Include directories in the categorization pass."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.analyze_images_checkbox)) {
         checkbox->setText(tr("Analyze picture files by content (can be slow)"));
+        checkbox->setToolTip(tr("Run the visual LLM on supported picture files."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.process_images_only_checkbox)) {
         checkbox->setText(tr("Process picture files only (ignore any other files)"));
+        checkbox->setToolTip(tr("Ignore non-picture files in this run."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.offer_rename_images_checkbox)) {
         checkbox->setText(tr("Offer to rename picture files"));
+        checkbox->setToolTip(tr("Show suggested filenames for picture files."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.rename_images_only_checkbox)) {
         checkbox->setText(tr("Do not categorize picture files (only rename)"));
+        checkbox->setToolTip(tr("Skip categorization for picture files and only rename them."));
     }
     if (auto* button = raw_ptr(deps_.primary.analyze_button)) {
         button->setText(analysis_in_progress ? tr("Stop analyzing") : tr("Analyze folder"));

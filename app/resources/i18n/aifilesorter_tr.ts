@@ -6,17 +6,29 @@
     <message><source>Analyze folder</source><translation>Klasörü analiz et</translation></message>
     <message><source>Stop analyzing</source><translation>Analizi durdur</translation></message>
     <message><source>Use subcategories</source><translation>Alt kategorileri kullan</translation></message>
+    <message><source>Create subcategory folders within each category.</source><translation>Her kategori içinde alt klasörler oluştur.</translation></message>
     <message><source>Categorization type</source><translation>Kategorilendirme türü</translation></message>
+    <message><source>Choose how strict the category labels should be.</source><translation>Kategori etiketlerinin ne kadar katı olacağını seç.</translation></message>
     <message><source>More refined</source><translation>Daha ayrıntılı</translation></message>
+    <message><source>Favor detailed labels even if similar items vary.</source><translation>Benzer öğeler değişse bile ayrıntılı etiketleri tercih eder.</translation></message>
     <message><source>More consistent</source><translation>Daha tutarlı</translation></message>
+    <message><source>Favor consistent labels across similar items.</source><translation>Benzer öğelerde tutarlı etiketleri tercih eder.</translation></message>
     <message><source>Use a whitelist</source><translation>Beyaz liste kullan</translation></message>
+    <message><source>Restrict categories and subcategories to the selected whitelist.</source><translation>Kategorileri ve alt kategorileri seçili beyaz listeyle sınırla.</translation></message>
+    <message><source>Select the whitelist used for this run.</source><translation>Bu çalışma için kullanılacak beyaz listeyi seç.</translation></message>
     <message><source>Recategorize folder?</source><translation>Klasör yeniden kategorilendirilsin mi?</translation></message>
     <message><source>This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?</source><translation>Bu klasör %1 modunda kategorilendirildi. Şimdi %2 moduyla yeniden kategorilendirmek ister misiniz?</translation></message>
     <message><source>Recategorize</source><translation>Yeniden kategorilendir</translation></message>
     <message><source>Keep existing</source><translation>Mevcut kalsın</translation></message>
     <message><source>Failed to reset cached categorization for this folder.</source><translation>Bu klasör için önbellekteki kategorilendirme sıfırlanamadı.</translation></message>
     <message><source>Categorize files</source><translation>Dosyaları kategorilendir</translation></message>
+    <message><source>Include files in the categorization pass.</source><translation>Dosyaları kategorizasyona dahil et.</translation></message>
     <message><source>Categorize directories</source><translation>Dizinleri kategorilendir</translation></message>
+    <message><source>Include directories in the categorization pass.</source><translation>Dizinleri kategorizasyona dahil et.</translation></message>
+    <message><source>Run the visual LLM on supported picture files.</source><translation>Görsel LLM'yi desteklenen resim dosyaları üzerinde çalıştır.</translation></message>
+    <message><source>Ignore non-picture files in this run.</source><translation>Bu çalışmada resim olmayan dosyaları yok say.</translation></message>
+    <message><source>Show suggested filenames for picture files.</source><translation>Resim dosyaları için önerilen dosya adlarını göster.</translation></message>
+    <message><source>Skip categorization for picture files and only rename them.</source><translation>Resim dosyalarını kategorize etme, yalnızca yeniden adlandır.</translation></message>
     <message><source>Ready</source><translation>Hazır</translation></message>
     <message><source>Set folder to %1</source><translation>Klasör %1 olarak ayarlandı</translation></message>
     <message><source>Loaded folder %1</source><translation>%1 klasörü yüklendi</translation></message>
