@@ -43,10 +43,10 @@ CUDA_OVERRIDE=""
 VULKAN_OVERRIDE=""
 for arg in "$@"; do
     case "$arg" in
-        --cuda=on) CUDA_OVERRIDE="on" ;;
-        --cuda=off) CUDA_OVERRIDE="off" ;;
-        --vulkan=on) VULKAN_OVERRIDE="on" ;;
-        --vulkan=off) VULKAN_OVERRIDE="off" ;;
+        --cuda=on|cuda=on) CUDA_OVERRIDE="on" ;;
+        --cuda=off|cuda=off) CUDA_OVERRIDE="off" ;;
+        --vulkan=on|vulkan=on) VULKAN_OVERRIDE="on" ;;
+        --vulkan=off|vulkan=off) VULKAN_OVERRIDE="off" ;;
     esac
 done
 
@@ -96,9 +96,9 @@ elif [ "$VULKAN_OVERRIDE" = "off" ]; then
 fi
 
 if [ $USE_CUDA -eq 0 ] && [ $USE_VULKAN -eq 0 ]; then
-    if [ -n "$SELECTED_VK_DIR" ]; then
+    if [ "$VULKAN_OVERRIDE" != "off" ] && [ -n "$SELECTED_VK_DIR" ]; then
         USE_VULKAN=1
-    elif [ -n "$SELECTED_CUDA_DIR" ]; then
+    elif [ "$CUDA_OVERRIDE" != "off" ] && [ -n "$SELECTED_CUDA_DIR" ]; then
         USE_CUDA=1
     fi
 fi
