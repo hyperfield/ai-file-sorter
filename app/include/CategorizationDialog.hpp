@@ -146,6 +146,10 @@ private:
     bool resolve_row_flags(int row, bool& rename_only, bool& used_consistency_hints, FileType& file_type) const;
     void set_show_rename_column(bool enabled);
     void apply_rename_visibility();
+    void apply_category_visibility();
+    void update_rename_only_checkbox_state();
+    void on_rename_images_only_toggled(bool checked);
+    bool row_is_supported_image(int row) const;
 
     DatabaseManager* db_manager;
     bool show_subcategory_column;
@@ -164,6 +168,7 @@ private:
     QCheckBox* select_all_checkbox{nullptr};
     QCheckBox* show_subcategories_checkbox{nullptr};
     QCheckBox* dry_run_checkbox{nullptr};
+    QCheckBox* rename_images_only_checkbox{nullptr};
     QPushButton* undo_button{nullptr};
 
     std::vector<MoveRecord> move_history_;

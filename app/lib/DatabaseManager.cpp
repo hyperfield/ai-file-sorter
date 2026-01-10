@@ -875,6 +875,43 @@ DatabaseManager::get_categorized_files(const std::string &directory_path) {
     return categorized_files;
 }
 
+std::optional<CategorizedFile>
+DatabaseManager::get_categorized_file(const std::string& dir_path,
+                                      const std::string& file_name,
+                                      FileType file_type) {
+    if (!db) {
+        return std::nullopt;
+    }
+
+    const char *sql =
+        "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
+        "categorization_style, rename_only "
+        "FROM file_categorization "
+        "WHERE dir_path = ? AND file_name = ? AND file_type = ? "
+        "LIMIT 1;";
+    StatementPtr stmt = prepare_statement(db, sql);
+    if (!stmt) {
+        return std::nullopt;
+    }
+
+    if (sqlite3_bind_text(stmt.get(), 1, dir_path.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+        return std::nullopt;
+    }
+    if (sqlite3_bind_text(stmt.get(), 2, file_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+        return std::nullopt;
+    }
+    const std::string type_str = (file_type == FileType::File) ? "F" : "D";
+    if (sqlite3_bind_text(stmt.get(), 3, type_str.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+        return std::nullopt;
+    }
+
+    if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+        return build_categorized_entry(stmt.get());
+    }
+
+    return std::nullopt;
+}
+
 std::vector<std::string>
 DatabaseManager::get_categorization_from_db(const std::string &file_name, const FileType file_type) {
     std::vector<std::string> categorization;
