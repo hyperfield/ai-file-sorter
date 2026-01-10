@@ -64,9 +64,9 @@
     <message><source>&amp;Support Project</source><translation>Supporta il progetto</translation></message>
     <message><source>About the AGPL License</source><translation>Informazioni sulla licenza AGPL</translation></message>
     <message><source>AI File Sorter is distributed under the GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;You can access the full source code at &lt;a href=&quot;https://github.com/hyperfield/ai-file-sorter&quot;&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;A full copy of the license is provided with this application and available online at &lt;a href=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;&gt;gnu.org&lt;/a&gt;.</source><translation>AI File Sorter è distribuito sotto la GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;Puoi accedere al codice sorgente completo su &lt;a href=&quot;https://github.com/hyperfield/ai-file-sorter&quot;&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;Una copia completa della licenza è fornita con l'applicazione ed è disponibile online su &lt;a href=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;&gt;gnu.org&lt;/a&gt;.</translation></message>
-    <message><source>Review Categorization</source><translation>Rivedi categorizzazione</translation></message>
+    <message><source>Review and Confirm</source><translation>Rivedi e conferma</translation></message>
     <message><source>Select all</source><translation>Seleziona tutto</translation></message>
-    <message><source>Move</source><translation>Sposta</translation></message>
+    <message><source>Process</source><translation>Elabora</translation></message>
     <message><source>Confirm and Process</source><translation>Conferma e elabora</translation></message>
     <message><source>Continue Later</source><translation>Continua più tardi</translation></message>
     <message><source>Close</source><translation>Chiudi</translation></message>

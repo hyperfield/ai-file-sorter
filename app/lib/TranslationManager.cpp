@@ -110,9 +110,9 @@ static const QHash<QString, QString> kFrenchTranslations = {
                     "<br><br>"
                     "Une copie complète de la licence est fournie avec cette application et disponible en ligne sur "
                     "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
-    {QStringLiteral("Review Categorization"), QStringLiteral("Vérifier la catégorisation")},
+    {QStringLiteral("Review and Confirm"), QStringLiteral("Vérifier et confirmer")},
     {QStringLiteral("Select all"), QStringLiteral("Tout sélectionner")},
-    {QStringLiteral("Move"), QStringLiteral("Déplacer")},
+    {QStringLiteral("Process"), QStringLiteral("Traiter")},
     {QStringLiteral("Suggested filename"), QStringLiteral("Nom de fichier suggéré")},
     {QStringLiteral("Confirm and Process"), QStringLiteral("Confirmer et traiter")},
     {QStringLiteral("Continue Later"), QStringLiteral("Continuer plus tard")},
@@ -251,9 +251,9 @@ static const QHash<QString, QString> kGermanTranslations = {
                     "<br><br>"
                     "Eine vollständige Lizenzkopie liegt bei und ist online verfügbar unter "
                     "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
-    {QStringLiteral("Review Categorization"), QStringLiteral("Kategorisierung überprüfen")},
+    {QStringLiteral("Review and Confirm"), QStringLiteral("Prüfen und bestätigen")},
     {QStringLiteral("Select all"), QStringLiteral("Alle auswählen")},
-    {QStringLiteral("Move"), QStringLiteral("Verschieben")},
+    {QStringLiteral("Process"), QStringLiteral("Verarbeiten")},
     {QStringLiteral("Suggested filename"), QStringLiteral("Vorgeschlagener Dateiname")},
     {QStringLiteral("Confirm and Process"), QStringLiteral("Bestätigen und verarbeiten")},
     {QStringLiteral("Continue Later"), QStringLiteral("Später fortsetzen")},
@@ -392,9 +392,9 @@ static const QHash<QString, QString> kItalianTranslations = {
                     "<br><br>"
                     "Una copia completa della licenza è fornita con l'applicazione ed è disponibile online su "
                     "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
-    {QStringLiteral("Review Categorization"), QStringLiteral("Rivedi categorizzazione")},
+    {QStringLiteral("Review and Confirm"), QStringLiteral("Rivedi e conferma")},
     {QStringLiteral("Select all"), QStringLiteral("Seleziona tutto")},
-    {QStringLiteral("Move"), QStringLiteral("Sposta")},
+    {QStringLiteral("Process"), QStringLiteral("Elabora")},
     {QStringLiteral("Suggested filename"), QStringLiteral("Nome file suggerito")},
     {QStringLiteral("Confirm and Process"), QStringLiteral("Conferma e elabora")},
     {QStringLiteral("Continue Later"), QStringLiteral("Continua più tardi")},
@@ -533,9 +533,9 @@ static const QHash<QString, QString> kSpanishTranslations = {
                     "<br><br>"
                     "Se incluye una copia completa de la licencia y está disponible en línea en "
                     "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
-    {QStringLiteral("Review Categorization"), QStringLiteral("Revisar categorización")},
+    {QStringLiteral("Review and Confirm"), QStringLiteral("Revisar y confirmar")},
     {QStringLiteral("Select all"), QStringLiteral("Seleccionar todo")},
-    {QStringLiteral("Move"), QStringLiteral("Mover")},
+    {QStringLiteral("Process"), QStringLiteral("Procesar")},
     {QStringLiteral("Suggested filename"), QStringLiteral("Nombre de archivo sugerido")},
     {QStringLiteral("Confirm and Process"), QStringLiteral("Confirmar y procesar")},
     {QStringLiteral("Continue Later"), QStringLiteral("Continuar más tarde")},
@@ -658,9 +658,9 @@ static const QHash<QString, QString> kTurkishTranslations = {
                     "<br><br>"
                     "Lisansın tam kopyası uygulama ile birlikte gelir ve çevrimiçi olarak "
                     "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a> adresinde bulunur.")},
-    {QStringLiteral("Review Categorization"), QStringLiteral("Kategoriyi gözden geçir")},
+    {QStringLiteral("Review and Confirm"), QStringLiteral("Gözden geçir ve onayla")},
     {QStringLiteral("Select all"), QStringLiteral("Tümünü seç")},
-    {QStringLiteral("Move"), QStringLiteral("Taşı")},
+    {QStringLiteral("Process"), QStringLiteral("İşle")},
     {QStringLiteral("Suggested filename"), QStringLiteral("Önerilen dosya adı")},
     {QStringLiteral("Confirm and Process"), QStringLiteral("Onayla ve işle")},
     {QStringLiteral("Continue Later"), QStringLiteral("Daha sonra devam et")},

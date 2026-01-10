@@ -336,9 +336,20 @@ namespace {
 QIcon type_icon(const QString& code)
 {
     if (auto* style = QApplication::style()) {
-        return code == QStringLiteral("D")
-                   ? style->standardIcon(QStyle::SP_DirIcon)
-                   : style->standardIcon(QStyle::SP_FileIcon);
+        if (code == QStringLiteral("D")) {
+            return style->standardIcon(QStyle::SP_DirIcon);
+        }
+        if (code == QStringLiteral("I")) {
+            QIcon icon = QIcon::fromTheme(QStringLiteral("image-x-generic"));
+            if (icon.isNull()) {
+                icon = QIcon::fromTheme(QStringLiteral("image"));
+            }
+            if (icon.isNull()) {
+                icon = QIcon::fromTheme(QStringLiteral("image-x-generic-symbolic"));
+            }
+            return icon.isNull() ? style->standardIcon(QStyle::SP_FileIcon) : icon;
+        }
+        return style->standardIcon(QStyle::SP_FileIcon);
     }
     return {};
 }
@@ -700,9 +711,17 @@ void CategorizationDialog::populate_model()
         file_item->setData(file.rename_applied, kRenameAppliedRole);
         file_item->setData(rename_locked, kRenameLockedRole);
 
+        const bool is_image_entry = is_supported_image_entry(file.file_path, file.file_name, file.type);
+
         auto* type_item = new QStandardItem;
         type_item->setEditable(false);
-        type_item->setData(file.type == FileType::Directory ? QStringLiteral("D") : QStringLiteral("F"), Qt::UserRole);
+        if (file.type == FileType::Directory) {
+            type_item->setData(QStringLiteral("D"), Qt::UserRole);
+        } else if (is_image_entry) {
+            type_item->setData(QStringLiteral("I"), Qt::UserRole);
+        } else {
+            type_item->setData(QStringLiteral("F"), Qt::UserRole);
+        }
         type_item->setTextAlignment(Qt::AlignCenter);
         update_type_icon(type_item);
 
@@ -714,7 +733,6 @@ void CategorizationDialog::populate_model()
             suggested_item->setIcon(edit_icon());
         }
 
-        const bool is_image_entry = is_supported_image_entry(file.file_path, file.file_name, file.type);
         std::string category_text = file.category;
         if (is_image_entry && is_missing_category_label(category_text)) {
             category_text.clear();
@@ -1909,7 +1927,7 @@ void CategorizationDialog::clear_move_history()
 
 void CategorizationDialog::retranslate_ui()
 {
-    setWindowTitle(tr("Review Categorization"));
+    setWindowTitle(tr("Review and Confirm"));
 
     const auto set_text_if = [](auto* widget, const QString& text) {
         if (widget) {
@@ -1928,7 +1946,7 @@ void CategorizationDialog::retranslate_ui()
 
     if (model) {
         model->setHorizontalHeaderLabels(QStringList{
-            tr("Move"),
+            tr("Process"),
             tr("File"),
             tr("Type"),
             tr("Suggested filename"),

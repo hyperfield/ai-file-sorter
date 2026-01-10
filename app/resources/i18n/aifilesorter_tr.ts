@@ -64,9 +64,9 @@
     <message><source>&amp;Support Project</source><translation>Projeyi destekle</translation></message>
     <message><source>About the AGPL License</source><translation>AGPL lisansı hakkında</translation></message>
     <message><source>AI File Sorter is distributed under the GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;You can access the full source code at &lt;a href=&quot;https://github.com/hyperfield/ai-file-sorter&quot;&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;A full copy of the license is provided with this application and available online at &lt;a href=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;&gt;gnu.org&lt;/a&gt;.</source><translation>AI File Sorter, GNU Affero General Public License v3.0 kapsamında dağıtılmaktadır.&lt;br&gt;&lt;br&gt;Tam kaynak koduna şu adresten erişebilirsiniz: &lt;a href=&quot;https://github.com/hyperfield/ai-file-sorter&quot;&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;Lisansın tam kopyası uygulama ile birlikte gelir ve çevrimiçi olarak &lt;a href=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;&gt;gnu.org&lt;/a&gt; adresinde bulunur.</translation></message>
-    <message><source>Review Categorization</source><translation>Kategoriyi gözden geçir</translation></message>
+    <message><source>Review and Confirm</source><translation>Gözden geçir ve onayla</translation></message>
     <message><source>Select all</source><translation>Tümünü seç</translation></message>
-    <message><source>Move</source><translation>Taşı</translation></message>
+    <message><source>Process</source><translation>İşle</translation></message>
     <message><source>Confirm and Process</source><translation>Onayla ve işle</translation></message>
     <message><source>Continue Later</source><translation>Daha sonra devam et</translation></message>
     <message><source>Close</source><translation>Kapat</translation></message>
