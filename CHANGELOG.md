@@ -2,10 +2,11 @@
 
 ## [1.5.0] - 2026-01-06
 
-- Added image content analysis via LLaVA (visual LLM), with separate model + mmproj downloads in the Select LLM dialog.
+- Added content analysis for picture files via LLaVA (visual LLM), with separate model + mmproj downloads in the Select LLM dialog.
 - Added image analysis options in the main window (analyze images, offer rename suggestions, rename-only mode).
 - Added an image-only processing toggle to focus runs on supported picture files and disable standard categorization controls.
 - Review dialog now supports rename-only flows, suggested filename edits, and status labels for Renamed / Renamed & Moved.
+- Track applied picture renames so already-renamed files are not reprocessed; rename-only review hides them while categorization review keeps them visible for folder moves.
 - Build/test updates: mtmd progress callback auto-detection, mtmd-cli build fix, and new Catch2 tests for rename-only caching.
 
 ## [1.4.5] - 2025-12-05
