@@ -29,6 +29,7 @@ struct CategorizedFile {
     bool used_consistency_hints{false};
     std::string suggested_name;
     bool rename_only{false};
+    bool rename_applied{false};
 };
 
 inline std::string to_string(FileType type) {

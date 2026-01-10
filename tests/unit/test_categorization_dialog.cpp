@@ -3,6 +3,7 @@
 #include "DatabaseManager.hpp"
 #include "TestHooks.hpp"
 #include "TestHelpers.hpp"
+#include <QCheckBox>
 #include <QTableView>
 #include <QStandardItemModel>
 #include <filesystem>
@@ -226,6 +227,256 @@ TEST_CASE("CategorizationDialog rename-only updates cached filename") {
     CHECK(cached.front().file_name == renamed);
     CHECK(cached.front().rename_only);
     CHECK(cached.front().suggested_name == renamed);
+}
+
+TEST_CASE("CategorizationDialog allows editing when rename-only checkbox is off") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    CategorizedFile rename_only_entry;
+    rename_only_entry.file_path = "/tmp";
+    rename_only_entry.file_name = "a.png";
+    rename_only_entry.type = FileType::File;
+    rename_only_entry.rename_only = true;
+    rename_only_entry.suggested_name = "example.png";
+
+    CategorizedFile categorized_entry;
+    categorized_entry.file_path = "/tmp";
+    categorized_entry.file_name = "b.png";
+    categorized_entry.type = FileType::File;
+    categorized_entry.category = "Images";
+    categorized_entry.subcategory = "Screens";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, false, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({rename_only_entry, categorized_entry});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    CHECK(model->item(0, 4)->isEditable());
+    CHECK(model->item(1, 4)->isEditable());
+}
+
+TEST_CASE("CategorizationDialog deduplicates suggested names when rename-only is toggled") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    CategorizedFile first;
+    first.file_path = "/tmp";
+    first.file_name = "a.png";
+    first.type = FileType::File;
+    first.category = "Images";
+    first.subcategory = "Screens";
+    first.suggested_name = "computer_screen_youtube.png";
+
+    CategorizedFile second = first;
+    second.file_name = "b.png";
+    second.category = "Media";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({first, second});
+
+    QCheckBox* rename_checkbox = nullptr;
+    const auto checkboxes = dialog.findChildren<QCheckBox*>();
+    for (auto* checkbox : checkboxes) {
+        if (checkbox && checkbox->text() == QStringLiteral("Do not categorize picture files (only rename)")) {
+            rename_checkbox = checkbox;
+            break;
+        }
+    }
+    REQUIRE(rename_checkbox != nullptr);
+    rename_checkbox->setChecked(true);
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    const QString first_suggestion = model->item(0, 3)->text();
+    const QString second_suggestion = model->item(1, 3)->text();
+
+    CHECK(first_suggestion == QStringLiteral("computer_screen_youtube_1.png"));
+    CHECK(second_suggestion == QStringLiteral("computer_screen_youtube_2.png"));
+}
+
+TEST_CASE("CategorizationDialog avoids double suffixes for numbered suggestions") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    CategorizedFile first;
+    first.file_path = "/tmp";
+    first.file_name = "a.png";
+    first.type = FileType::File;
+    first.rename_only = true;
+    first.suggested_name = "computer_screen_youtube_1.png";
+
+    CategorizedFile second = first;
+    second.file_name = "b.png";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, false, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({first, second});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    const QString first_suggestion = model->item(0, 3)->text();
+    const QString second_suggestion = model->item(1, 3)->text();
+
+    CHECK(first_suggestion == QStringLiteral("computer_screen_youtube_1.png"));
+    CHECK(second_suggestion == QStringLiteral("computer_screen_youtube_2.png"));
+}
+
+TEST_CASE("CategorizationDialog hides suggested names for renamed entries") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    CategorizedFile entry;
+    entry.file_path = "/tmp";
+    entry.file_name = "already_renamed.png";
+    entry.type = FileType::File;
+    entry.suggested_name = "new_name.png";
+    entry.rename_applied = true;
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, false, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({entry});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    CHECK(model->item(0, 3)->text().isEmpty());
+    CHECK_FALSE(model->item(0, 3)->isEditable());
+}
+
+TEST_CASE("CategorizationDialog hides already renamed rows when rename-only is on") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    CategorizedFile renamed;
+    renamed.file_path = "/tmp";
+    renamed.file_name = "renamed.png";
+    renamed.type = FileType::File;
+    renamed.category = "Images";
+    renamed.subcategory = "Screens";
+    renamed.rename_applied = true;
+
+    CategorizedFile pending;
+    pending.file_path = "/tmp";
+    pending.file_name = "pending.png";
+    pending.type = FileType::File;
+    pending.category = "Images";
+    pending.subcategory = "Screens";
+    pending.suggested_name = "pending_new.png";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({renamed, pending});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    auto find_row = [&](const QString& name) -> int {
+        for (int row = 0; row < model->rowCount(); ++row) {
+            if (model->item(row, 1)->text() == name) {
+                return row;
+            }
+        }
+        return -1;
+    };
+
+    const int renamed_row = find_row(QStringLiteral("renamed.png"));
+    const int pending_row = find_row(QStringLiteral("pending.png"));
+    REQUIRE(renamed_row >= 0);
+    REQUIRE(pending_row >= 0);
+
+    CHECK_FALSE(table->isRowHidden(renamed_row));
+    CHECK_FALSE(table->isRowHidden(pending_row));
+
+    QCheckBox* rename_checkbox = nullptr;
+    const auto checkboxes = dialog.findChildren<QCheckBox*>();
+    for (auto* checkbox : checkboxes) {
+        if (checkbox && checkbox->text() == QStringLiteral("Do not categorize picture files (only rename)")) {
+            rename_checkbox = checkbox;
+            break;
+        }
+    }
+    REQUIRE(rename_checkbox != nullptr);
+
+    rename_checkbox->setChecked(true);
+    CHECK(table->isRowHidden(renamed_row));
+}
+
+TEST_CASE("CategorizationDialog deduplicates suggested picture filenames") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+
+    CategorizedFile first;
+    first.file_path = base.string();
+    first.file_name = "a.png";
+    first.type = FileType::File;
+    first.suggested_name = "sunny_barbeque_dinner.png";
+    first.rename_only = true;
+
+    CategorizedFile second = first;
+    second.file_name = "b.png";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, false, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({first, second});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    const QString first_suggestion = model->item(0, 3)->text();
+    const QString second_suggestion = model->item(1, 3)->text();
+
+    CHECK(first_suggestion == QStringLiteral("sunny_barbeque_dinner_1.png"));
+    CHECK(second_suggestion == QStringLiteral("sunny_barbeque_dinner_2.png"));
+}
+
+TEST_CASE("CategorizationDialog avoids existing picture filename collisions") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string existing_name = "sunny_barbeque_dinner.png";
+    std::ofstream(base / existing_name).put('x');
+
+    CategorizedFile entry;
+    entry.file_path = base.string();
+    entry.file_name = "c.png";
+    entry.type = FileType::File;
+    entry.suggested_name = existing_name;
+    entry.rename_only = true;
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, false, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({entry});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    const QString suggestion = model->item(0, 3)->text();
+    CHECK(suggestion == QStringLiteral("sunny_barbeque_dinner_1.png"));
 }
 
 TEST_CASE("CategorizationDialog rename-only preserves cached categories without renaming") {

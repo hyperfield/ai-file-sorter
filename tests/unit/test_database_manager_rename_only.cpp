@@ -25,6 +25,7 @@ TEST_CASE("DatabaseManager keeps rename-only entries with empty labels") {
     REQUIRE(entries.size() == 1);
     CHECK(entries.front().file_name == "rename.png");
     CHECK(entries.front().rename_only);
+    CHECK_FALSE(entries.front().rename_applied);
     CHECK(entries.front().suggested_name == suggested_name);
     CHECK(entries.front().category.empty());
     CHECK(entries.front().subcategory.empty());

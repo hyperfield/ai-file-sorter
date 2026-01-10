@@ -61,6 +61,8 @@ private:
     static constexpr int kUsedConsistencyRole = Qt::UserRole + 2;
     static constexpr int kRenameOnlyRole = Qt::UserRole + 3;
     static constexpr int kFileTypeRole = Qt::UserRole + 4;
+    static constexpr int kRenameAppliedRole = Qt::UserRole + 5;
+    static constexpr int kRenameLockedRole = Qt::UserRole + 6;
 
     enum Column {
         ColumnSelect = 0,
@@ -93,6 +95,7 @@ private:
 
     void setup_ui();
     void populate_model();
+    void ensure_unique_suggested_names_in_model();
     void record_categorization_to_db();
     void on_confirm_and_sort_button_clicked();
     void on_continue_later_button_clicked();
@@ -147,8 +150,10 @@ private:
     void set_show_rename_column(bool enabled);
     void apply_rename_visibility();
     void apply_category_visibility();
+    void apply_rename_only_row_visibility();
     void update_rename_only_checkbox_state();
     void on_rename_images_only_toggled(bool checked);
+    bool row_is_already_renamed_with_category(int row) const;
     bool row_is_supported_image(int row) const;
 
     DatabaseManager* db_manager;

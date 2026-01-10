@@ -116,6 +116,10 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     if (sqlite3_column_count(stmt) > 8 && sqlite3_column_type(stmt, 8) != SQLITE_NULL) {
         rename_only = sqlite3_column_int(stmt, 8) != 0;
     }
+    bool rename_applied = false;
+    if (sqlite3_column_count(stmt) > 9 && sqlite3_column_type(stmt, 9) != SQLITE_NULL) {
+        rename_applied = sqlite3_column_int(stmt, 9) != 0;
+    }
 
     if (!rename_only && (!has_label_content(cat) || !has_label_content(subcat))) {
         return std::nullopt;
@@ -127,6 +131,7 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     entry.used_consistency_hints = used_consistency;
     entry.suggested_name = suggested;
     entry.rename_only = rename_only;
+    entry.rename_applied = rename_applied;
     return entry;
 }
 
@@ -179,6 +184,7 @@ void DatabaseManager::initialize_schema() {
             taxonomy_id INTEGER,
             categorization_style INTEGER DEFAULT 0,
             rename_only INTEGER DEFAULT 0,
+            rename_applied INTEGER DEFAULT 0,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(file_name, file_type, dir_path)
         );
@@ -227,6 +233,17 @@ void DatabaseManager::initialize_schema() {
     if (sqlite3_exec(db, add_rename_only_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         if (!is_duplicate_column_error(error_msg)) {
             db_log(spdlog::level::warn, "Failed to add rename_only column: {}", error_msg ? error_msg : "");
+        }
+        if (error_msg) {
+            sqlite3_free(error_msg);
+        }
+    }
+
+    const char *add_rename_applied_column_sql =
+        "ALTER TABLE file_categorization ADD COLUMN rename_applied INTEGER DEFAULT 0;";
+    if (sqlite3_exec(db, add_rename_applied_column_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        if (!is_duplicate_column_error(error_msg)) {
+            db_log(spdlog::level::warn, "Failed to add rename_applied column: {}", error_msg ? error_msg : "");
         }
         if (error_msg) {
             sqlite3_free(error_msg);
@@ -636,14 +653,15 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     const ResolvedCategory &resolved,
     bool used_consistency_hints,
     const std::string &suggested_name,
-    bool rename_only) {
+    bool rename_only,
+    bool rename_applied) {
     if (!db) return false;
 
     const char *sql = R"(
         INSERT INTO file_categorization
             (file_name, file_type, dir_path, category, subcategory, suggested_name,
-             taxonomy_id, categorization_style, rename_only)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             taxonomy_id, categorization_style, rename_only, rename_applied)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_name, file_type, dir_path)
         DO UPDATE SET
             category = excluded.category,
@@ -651,7 +669,11 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
             suggested_name = excluded.suggested_name,
             taxonomy_id = excluded.taxonomy_id,
             categorization_style = excluded.categorization_style,
-            rename_only = excluded.rename_only;
+            rename_only = excluded.rename_only,
+            rename_applied = CASE
+                WHEN excluded.rename_applied = 1 THEN 1
+                ELSE rename_applied
+            END;
     )";
 
     sqlite3_stmt *stmt = nullptr;
@@ -674,6 +696,7 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     }
     sqlite3_bind_int(stmt, 8, used_consistency_hints ? 1 : 0);
     sqlite3_bind_int(stmt, 9, rename_only ? 1 : 0);
+    sqlite3_bind_int(stmt, 10, rename_applied ? 1 : 0);
 
     bool success = true;
     if (sqlite3_step(stmt) != SQLITE_DONE) {
@@ -854,7 +877,7 @@ DatabaseManager::get_categorized_files(const std::string &directory_path) {
 
     const char *sql =
         "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
-        "categorization_style, rename_only "
+        "categorization_style, rename_only, rename_applied "
         "FROM file_categorization WHERE dir_path = ?;";
     StatementPtr stmt = prepare_statement(db, sql);
     if (!stmt) {
@@ -885,7 +908,7 @@ DatabaseManager::get_categorized_file(const std::string& dir_path,
 
     const char *sql =
         "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
-        "categorization_style, rename_only "
+        "categorization_style, rename_only, rename_applied "
         "FROM file_categorization "
         "WHERE dir_path = ? AND file_name = ? AND file_type = ? "
         "LIMIT 1;";

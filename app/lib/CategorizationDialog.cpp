@@ -42,6 +42,8 @@
 #include <filesystem>
 #include <optional>
 #include <chrono>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace {
 
@@ -55,6 +57,8 @@ struct ScopedFlag {
     explicit ScopedFlag(bool& target) : ref(target) { ref = true; }
     ~ScopedFlag() { ref = false; }
 };
+
+void ensure_unique_image_suggested_names(std::vector<CategorizedFile>& files, bool use_subcategory);
 
 std::string to_lower_copy_str(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -215,6 +219,7 @@ bool CategorizationDialog::is_dialog_valid() const
 void CategorizationDialog::show_results(const std::vector<CategorizedFile>& files)
 {
     categorized_files = files;
+    ensure_unique_image_suggested_names(categorized_files, show_subcategory_column);
     set_show_rename_column(std::any_of(categorized_files.begin(),
                                        categorized_files.end(),
                                        [](const CategorizedFile& file) {
@@ -237,6 +242,7 @@ void CategorizationDialog::show_results(const std::vector<CategorizedFile>& file
         ScopedFlag guard(suppress_item_changed_);
         populate_model();
     }
+    on_rename_images_only_toggled(rename_images_only_checkbox && rename_images_only_checkbox->isChecked());
     exec();
 }
 
@@ -363,6 +369,303 @@ bool is_supported_image_entry(const std::string& file_path,
     const auto full_path = Utils::utf8_to_path(file_path) / Utils::utf8_to_path(file_name);
     return LlavaImageAnalyzer::is_supported_image(full_path);
 }
+
+std::filesystem::path build_suggested_target_dir(const CategorizedFile& file, bool use_subcategory)
+{
+    const auto base_dir = Utils::utf8_to_path(file.file_path);
+    if (file.rename_only || file.category.empty()) {
+        return base_dir;
+    }
+
+    const auto category = Utils::utf8_to_path(file.category);
+    if (use_subcategory && !file.subcategory.empty()) {
+        const auto subcategory = Utils::utf8_to_path(file.subcategory);
+        return base_dir / category / subcategory;
+    }
+    return base_dir / category;
+}
+
+struct NumericSuffix {
+    std::string base;
+    int value{0};
+    bool has_suffix{false};
+};
+
+NumericSuffix split_numeric_suffix(const std::string& stem) {
+    NumericSuffix result{stem, 0, false};
+    const auto pos = stem.rfind('_');
+    if (pos == std::string::npos || pos + 1 >= stem.size()) {
+        return result;
+    }
+    const std::string suffix = stem.substr(pos + 1);
+    if (suffix.empty()) {
+        return result;
+    }
+    for (unsigned char ch : suffix) {
+        if (!std::isdigit(ch)) {
+            return result;
+        }
+    }
+    int value = 0;
+    try {
+        value = std::stoi(suffix);
+    } catch (...) {
+        return result;
+    }
+    if (value <= 0) {
+        return result;
+    }
+    const std::string base = stem.substr(0, pos);
+    if (base.empty()) {
+        return result;
+    }
+    result.base = base;
+    result.value = value;
+    result.has_suffix = true;
+    return result;
+}
+
+std::string build_unique_suggested_name(const std::string& desired_name,
+                                        const std::filesystem::path& target_dir,
+                                        std::unordered_set<std::string>& used_names,
+                                        std::unordered_map<std::string, int>& next_index,
+                                        bool force_numbering)
+{
+    auto conflicts = [&](const std::string& candidate) -> bool {
+        const std::string candidate_lower = to_lower_copy_str(candidate);
+        if (used_names.count(candidate_lower) > 0) {
+            return true;
+        }
+        if (!target_dir.empty()) {
+            std::error_code ec;
+            const auto candidate_path = target_dir / Utils::utf8_to_path(candidate);
+            if (std::filesystem::exists(candidate_path, ec)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const auto desired_path = Utils::utf8_to_path(desired_name);
+    std::string stem = Utils::path_to_utf8(desired_path.stem());
+    std::string ext = Utils::path_to_utf8(desired_path.extension());
+    if (stem.empty()) {
+        stem = desired_name;
+        ext.clear();
+    }
+
+    const NumericSuffix suffix = split_numeric_suffix(stem);
+    std::string base_stem = stem;
+    int index = 1;
+    bool has_suffix = false;
+    if (suffix.has_suffix) {
+        base_stem = suffix.base;
+        index = suffix.value;
+        has_suffix = true;
+    }
+
+    if (!force_numbering && !conflicts(desired_name)) {
+        return desired_name;
+    }
+    if (has_suffix && !conflicts(desired_name)) {
+        return desired_name;
+    }
+
+    const std::string key = has_suffix
+                                ? to_lower_copy_str(base_stem + ext)
+                                : to_lower_copy_str(desired_name);
+    auto it = next_index.find(key);
+    if (it != next_index.end()) {
+        index = it->second;
+    }
+
+    while (true) {
+        std::string candidate = base_stem + "_" + std::to_string(index) + ext;
+        if (!conflicts(candidate)) {
+            next_index[key] = index + 1;
+            return candidate;
+        }
+        ++index;
+    }
+}
+
+void ensure_unique_image_suggested_names(std::vector<CategorizedFile>& files, bool use_subcategory)
+{
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> counts;
+    counts.reserve(files.size());
+
+    for (const auto& file : files) {
+        if (file.suggested_name.empty()) {
+            continue;
+        }
+        if (file.rename_applied) {
+            continue;
+        }
+        if (to_lower_copy_str(file.suggested_name) == to_lower_copy_str(file.file_name)) {
+            continue;
+        }
+        if (!is_supported_image_entry(file.file_path, file.file_name, file.type)) {
+            continue;
+        }
+        const auto target_dir = build_suggested_target_dir(file, use_subcategory);
+        const std::string dir_key = Utils::path_to_utf8(target_dir);
+        const std::string name_key = to_lower_copy_str(file.suggested_name);
+        counts[dir_key][name_key] += 1;
+    }
+
+    std::unordered_map<std::string, std::unordered_set<std::string>> used_names;
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> next_index;
+
+    for (auto& file : files) {
+        if (file.suggested_name.empty()) {
+            continue;
+        }
+        if (file.rename_applied) {
+            continue;
+        }
+        if (to_lower_copy_str(file.suggested_name) == to_lower_copy_str(file.file_name)) {
+            continue;
+        }
+        if (!is_supported_image_entry(file.file_path, file.file_name, file.type)) {
+            continue;
+        }
+        const auto target_dir = build_suggested_target_dir(file, use_subcategory);
+        const std::string dir_key = Utils::path_to_utf8(target_dir);
+        const std::string name_key = to_lower_copy_str(file.suggested_name);
+        const bool force_numbering = counts[dir_key][name_key] > 1;
+        auto& dir_used = used_names[dir_key];
+        auto& dir_next = next_index[dir_key];
+
+        const std::string unique_name = build_unique_suggested_name(file.suggested_name,
+                                                                    target_dir,
+                                                                    dir_used,
+                                                                    dir_next,
+                                                                    force_numbering);
+        file.suggested_name = unique_name;
+        dir_used.insert(to_lower_copy_str(unique_name));
+    }
+}
+}
+
+void CategorizationDialog::ensure_unique_suggested_names_in_model()
+{
+    if (!model) {
+        return;
+    }
+
+    struct RowEntry {
+        int row{0};
+        std::string file_path;
+        std::string file_name;
+        FileType type{FileType::File};
+        std::string category;
+        std::string subcategory;
+        std::string suggested_name;
+        bool rename_only{false};
+        bool rename_applied{false};
+    };
+
+    std::vector<RowEntry> entries;
+    entries.reserve(model->rowCount());
+
+    for (int row = 0; row < model->rowCount(); ++row) {
+        if (!row_is_supported_image(row)) {
+            continue;
+        }
+        auto* file_item = model->item(row, ColumnFile);
+        auto* rename_item = model->item(row, ColumnSuggestedName);
+        if (!file_item || !rename_item) {
+            continue;
+        }
+        const std::string suggested = rename_item->text().toStdString();
+        if (suggested.empty()) {
+            continue;
+        }
+
+        RowEntry entry;
+        entry.row = row;
+        entry.file_path = file_item->data(kFilePathRole).toString().toStdString();
+        if (entry.file_path.empty()) {
+            entry.file_path = base_dir_;
+        }
+        entry.file_name = file_item->text().toStdString();
+        if (to_lower_copy_str(suggested) == to_lower_copy_str(entry.file_name)) {
+            continue;
+        }
+        entry.type = static_cast<FileType>(file_item->data(kFileTypeRole).toInt());
+        entry.rename_only = file_item->data(kRenameOnlyRole).toBool();
+        entry.rename_applied = file_item->data(kRenameAppliedRole).toBool();
+        if (entry.rename_applied) {
+            continue;
+        }
+        if (auto* category_item = model->item(row, ColumnCategory)) {
+            entry.category = category_item->text().toStdString();
+            if (is_missing_category_label(entry.category)) {
+                entry.category.clear();
+            }
+        }
+        if (auto* subcategory_item = model->item(row, ColumnSubcategory)) {
+            entry.subcategory = subcategory_item->text().toStdString();
+            if (is_missing_category_label(entry.subcategory)) {
+                entry.subcategory.clear();
+            }
+        }
+        entry.suggested_name = suggested;
+        entries.push_back(std::move(entry));
+    }
+
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> counts;
+    counts.reserve(entries.size());
+
+    for (const auto& entry : entries) {
+        CategorizedFile file;
+        file.file_path = entry.file_path;
+        file.file_name = entry.file_name;
+        file.type = entry.type;
+        file.category = entry.category;
+        file.subcategory = entry.subcategory;
+        file.rename_only = entry.rename_only;
+        file.suggested_name = entry.suggested_name;
+        file.rename_applied = entry.rename_applied;
+        const auto target_dir = build_suggested_target_dir(file, show_subcategory_column);
+        const std::string dir_key = Utils::path_to_utf8(target_dir);
+        const std::string name_key = to_lower_copy_str(entry.suggested_name);
+        counts[dir_key][name_key] += 1;
+    }
+
+    std::unordered_map<std::string, std::unordered_set<std::string>> used_names;
+    std::unordered_map<std::string, std::unordered_map<std::string, int>> next_index;
+
+    for (auto& entry : entries) {
+        CategorizedFile file;
+        file.file_path = entry.file_path;
+        file.file_name = entry.file_name;
+        file.type = entry.type;
+        file.category = entry.category;
+        file.subcategory = entry.subcategory;
+        file.rename_only = entry.rename_only;
+        file.suggested_name = entry.suggested_name;
+        file.rename_applied = entry.rename_applied;
+        const auto target_dir = build_suggested_target_dir(file, show_subcategory_column);
+        const std::string dir_key = Utils::path_to_utf8(target_dir);
+        const std::string name_key = to_lower_copy_str(entry.suggested_name);
+        const bool force_numbering = counts[dir_key][name_key] > 1;
+        auto& dir_used = used_names[dir_key];
+        auto& dir_next = next_index[dir_key];
+
+        const std::string unique_name = build_unique_suggested_name(entry.suggested_name,
+                                                                    target_dir,
+                                                                    dir_used,
+                                                                    dir_next,
+                                                                    force_numbering);
+        dir_used.insert(to_lower_copy_str(unique_name));
+        if (unique_name != entry.suggested_name) {
+            if (auto* rename_item = model->item(entry.row, ColumnSuggestedName)) {
+                rename_item->setText(QString::fromStdString(unique_name));
+            }
+            entry.suggested_name = unique_name;
+        }
+    }
 }
 
 void CategorizationDialog::populate_model()
@@ -391,6 +694,11 @@ void CategorizationDialog::populate_model()
         file_item->setData(file.used_consistency_hints, kUsedConsistencyRole);
         file_item->setData(file.rename_only, kRenameOnlyRole);
         file_item->setData(static_cast<int>(file.type), kFileTypeRole);
+        const bool rename_locked = file.rename_applied ||
+                                   (!file.suggested_name.empty() &&
+                                    to_lower_copy_str(file.suggested_name) == to_lower_copy_str(file.file_name));
+        file_item->setData(file.rename_applied, kRenameAppliedRole);
+        file_item->setData(rename_locked, kRenameLockedRole);
 
         auto* type_item = new QStandardItem;
         type_item->setEditable(false);
@@ -398,8 +706,9 @@ void CategorizationDialog::populate_model()
         type_item->setTextAlignment(Qt::AlignCenter);
         update_type_icon(type_item);
 
-        auto* suggested_item = new QStandardItem(QString::fromStdString(file.suggested_name));
-        const bool allow_rename = !file.suggested_name.empty();
+        const std::string suggested_name = rename_locked ? std::string() : file.suggested_name;
+        auto* suggested_item = new QStandardItem(QString::fromStdString(suggested_name));
+        const bool allow_rename = !suggested_name.empty();
         suggested_item->setEditable(allow_rename);
         if (allow_rename) {
             suggested_item->setIcon(edit_icon());
@@ -754,6 +1063,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
         }
         if (auto* file_item = model->item(row_index, ColumnFile)) {
             file_item->setText(QString::fromStdString(destination_name));
+            file_item->setData(true, kRenameAppliedRole);
+            file_item->setData(true, kRenameLockedRole);
         }
         if (auto* rename_item = model->item(row_index, ColumnSuggestedName)) {
             rename_item->setText(QString::fromStdString(destination_name));
@@ -874,6 +1185,7 @@ void CategorizationDialog::handle_selected_row(int row_index,
                     resolved,
                     used_consistency_hints,
                     destination_name,
+                    true,
                     true);
             }
             apply_successful_rename();
@@ -959,7 +1271,9 @@ void CategorizationDialog::handle_selected_row(int row_index,
                     base_dir,
                     resolved,
                     used_consistency_hints,
-                    destination_name);
+                    destination_name,
+                    false,
+                    true);
             }
             if (rename_active) {
                 apply_successful_rename();
@@ -1180,6 +1494,7 @@ void CategorizationDialog::on_show_subcategories_toggled(bool checked)
 {
     show_subcategory_column = checked;
     apply_subcategory_visibility();
+    apply_rename_only_row_visibility();
     for (int row = 0; row < model->rowCount(); ++row) {
         update_preview_column(row);
     }
@@ -1210,13 +1525,20 @@ void CategorizationDialog::on_rename_images_only_toggled(bool checked)
             subcategory_item->setEditable(!checked);
             subcategory_item->setIcon(checked ? QIcon() : edit_icon());
         }
+    }
 
+    ensure_unique_suggested_names_in_model();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        if (!row_is_supported_image(row)) {
+            continue;
+        }
         update_preview_column(row);
     }
 
     dry_run_plan_.clear();
     apply_category_visibility();
     apply_subcategory_visibility();
+    apply_rename_only_row_visibility();
 }
 
 void CategorizationDialog::apply_subcategory_visibility()
@@ -1235,6 +1557,20 @@ void CategorizationDialog::apply_category_visibility()
         const bool hide_category = rename_images_only_checkbox &&
                                    rename_images_only_checkbox->isChecked();
         table_view->setColumnHidden(ColumnCategory, hide_category);
+    }
+}
+
+void CategorizationDialog::apply_rename_only_row_visibility()
+{
+    if (!table_view || !model) {
+        return;
+    }
+
+    const bool hide_inactive_rows = rename_images_only_checkbox &&
+                                    rename_images_only_checkbox->isChecked();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const bool hide_row = hide_inactive_rows && row_is_already_renamed_with_category(row);
+        table_view->setRowHidden(row, hide_row);
     }
 }
 
@@ -1281,6 +1617,42 @@ bool CategorizationDialog::row_is_supported_image(int row) const
     const std::string file_path = file_item->data(kFilePathRole).toString().toStdString();
     const FileType file_type = static_cast<FileType>(file_item->data(kFileTypeRole).toInt());
     return is_supported_image_entry(file_path, file_name, file_type);
+}
+
+bool CategorizationDialog::row_is_already_renamed_with_category(int row) const
+{
+    if (!model || row < 0 || row >= model->rowCount()) {
+        return false;
+    }
+    if (!row_is_supported_image(row)) {
+        return false;
+    }
+    auto* file_item = model->item(row, ColumnFile);
+    if (!file_item) {
+        return false;
+    }
+    if (!file_item->data(kRenameLockedRole).toBool()) {
+        return false;
+    }
+
+    auto* category_item = model->item(row, ColumnCategory);
+    std::string category = category_item ? category_item->text().toStdString() : std::string();
+    if (is_missing_category_label(category)) {
+        category.clear();
+    }
+    if (category.empty()) {
+        return false;
+    }
+    if (!show_subcategory_column) {
+        return true;
+    }
+
+    auto* subcategory_item = model->item(row, ColumnSubcategory);
+    std::string subcategory = subcategory_item ? subcategory_item->text().toStdString() : std::string();
+    if (is_missing_category_label(subcategory)) {
+        subcategory.clear();
+    }
+    return !subcategory.empty();
 }
 
 std::optional<std::string> CategorizationDialog::compute_preview_path(int row) const
@@ -1730,6 +2102,7 @@ void CategorizationDialog::set_show_rename_column(bool enabled)
 #ifdef AI_FILE_SORTER_TEST_BUILD
 void CategorizationDialog::test_set_entries(const std::vector<CategorizedFile>& files) {
     categorized_files = files;
+    ensure_unique_image_suggested_names(categorized_files, show_subcategory_column);
     set_show_rename_column(std::any_of(categorized_files.begin(),
                                        categorized_files.end(),
                                        [](const CategorizedFile& file) {
@@ -1739,6 +2112,7 @@ void CategorizationDialog::test_set_entries(const std::vector<CategorizedFile>& 
     apply_category_visibility();
     apply_subcategory_visibility();
     populate_model();
+    on_rename_images_only_toggled(rename_images_only_checkbox && rename_images_only_checkbox->isChecked());
 }
 
 void CategorizationDialog::test_trigger_confirm() {

@@ -7,8 +7,11 @@
 #include "Utils.hpp"
 
 #include <QCheckBox>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <unordered_set>
+#include <vector>
 
 #ifndef _WIN32
 namespace {
@@ -135,5 +138,54 @@ TEST_CASE("Image analysis toggle cancels when user declines download") {
     REQUIRE_FALSE(analyze->isChecked());
     REQUIRE_FALSE(settings.get_analyze_images_by_content());
     REQUIRE_FALSE(dialog_opened);
+}
+
+TEST_CASE("Already-renamed images skip vision analysis") {
+    std::vector<FileEntry> files = {
+        {"/tmp/renamed.png", "renamed.png", FileType::File},
+        {"/tmp/other.png", "other.png", FileType::File},
+        {"/tmp/doc.txt", "doc.txt", FileType::File},
+        {"/tmp/folder", "folder", FileType::Directory}
+    };
+    std::unordered_set<std::string> renamed_files = {"renamed.png"};
+
+    auto contains = [](const std::vector<FileEntry>& entries, const std::string& name) {
+        return std::any_of(entries.begin(),
+                           entries.end(),
+                           [&name](const FileEntry& entry) { return entry.file_name == name; });
+    };
+
+    std::vector<FileEntry> image_entries;
+    std::vector<FileEntry> other_entries;
+
+    SECTION("categorization uses filename when already renamed") {
+        MainAppTestAccess::split_entries_for_analysis(files,
+                                                      true,
+                                                      false,
+                                                      false,
+                                                      renamed_files,
+                                                      image_entries,
+                                                      other_entries);
+
+        CHECK_FALSE(contains(image_entries, "renamed.png"));
+        CHECK(contains(other_entries, "renamed.png"));
+        CHECK(contains(image_entries, "other.png"));
+        CHECK(contains(other_entries, "doc.txt"));
+        CHECK(contains(other_entries, "folder"));
+    }
+
+    SECTION("rename-only skips already-renamed images entirely") {
+        MainAppTestAccess::split_entries_for_analysis(files,
+                                                      true,
+                                                      false,
+                                                      true,
+                                                      renamed_files,
+                                                      image_entries,
+                                                      other_entries);
+
+        CHECK_FALSE(contains(image_entries, "renamed.png"));
+        CHECK_FALSE(contains(other_entries, "renamed.png"));
+        CHECK(contains(image_entries, "other.png"));
+    }
 }
 #endif
