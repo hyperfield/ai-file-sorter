@@ -31,7 +31,7 @@ The app intelligently assigns categories and optional subcategories, which you c
 
 AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* and *Mistral 7B*, and does not require an internet connection unless you choose to use a remote model.
 
-Image content analysis for supported image files is available; broader file-content sorting is still in development.
+Image content analysis for supported picture files is available; broader file-content sorting is still in development.
 
 ---
 
@@ -84,7 +84,7 @@ Image content analysis for supported image files is available; broader file-cont
 
 - Added image content analysis via LLaVA.
 - Added image analysis options in the main window.
-- Added an image-only processing toggle to focus runs on supported image files.
+- Added an image-only processing toggle to focus runs on supported picture files.
 - Review dialog now supports rename-only flows, suggested filename edits, and status labels.
 - Build and tests updates.
 
@@ -102,7 +102,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
 - **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
-- **Image content analysis (Visual LLM)**: Analyze supported image files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
+- **Image content analysis (Visual LLM)**: Analyze supported picture files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
@@ -149,10 +149,10 @@ Both files are required. If either one is missing, image analysis is disabled an
 
 Image analysis adds four checkboxes to the main window:
 
-- **Analyze picture files by content (can be slow)**: Runs the visual LLM on supported image files and reports progress in the analysis dialog.
-- **Process image files only (ignore any other files)**: Restricts the run to supported image files and disables the categorization controls while active.
-- **Offer to rename image files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
-- **Do not categorize image files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
+- **Analyze picture files by content (can be slow)**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
+- **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
+- **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
+- **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
 ---
 
@@ -466,7 +466,7 @@ What is stored:
 - Directory path, file name, and file type (used as a unique key).
 - Category/subcategory, taxonomy id, categorization style, and timestamp.
 - Suggested filename (for image rename suggestions).
-- Rename-only flag (used when "Do not categorize image files (only rename)" is enabled).
+- Rename-only flag (used when "Do not categorize picture files (only rename)" is enabled).
 
 If you rename or move a file from the Review dialog, the cache entry is updated to the new name. To reset a folder's cache, accept the recategorization prompt or delete the cache file (or point `CATEGORIZATION_CACHE_FILE` to a new filename).
 

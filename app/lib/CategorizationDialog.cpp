@@ -1342,6 +1342,7 @@ void CategorizationDialog::retranslate_ui()
     set_text_if(select_all_checkbox, tr("Select all"));
     set_text_if(show_subcategories_checkbox, tr("Create subcategory folders"));
     set_text_if(dry_run_checkbox, tr("Dry run (preview only, do not move files)"));
+    set_text_if(rename_images_only_checkbox, tr("Do not categorize picture files (only rename)"));
     set_text_if(confirm_button, tr("Confirm and Process"));
     set_text_if(continue_button, tr("Continue Later"));
     set_text_if(undo_button, tr("Undo this change"));

@@ -240,9 +240,9 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize directories"));
     REQUIRE(h.analyze_images_checkbox->text() == QStringLiteral("Analyze picture files by content (can be slow)"));
     REQUIRE(h.process_images_only_checkbox->text() ==
-            QStringLiteral("Process image files only (ignore any other files)"));
-    REQUIRE(h.offer_rename_images_checkbox->text() == QStringLiteral("Offer to rename image files"));
-    REQUIRE(h.rename_images_only_checkbox->text() == QStringLiteral("Do not categorize image files (only rename)"));
+            QStringLiteral("Process picture files only (ignore any other files)"));
+    REQUIRE(h.offer_rename_images_checkbox->text() == QStringLiteral("Offer to rename picture files"));
+    REQUIRE(h.rename_images_only_checkbox->text() == QStringLiteral("Do not categorize picture files (only rename)"));
 }
 
 void verify_menus_and_actions(const UiTranslatorTestHarness& h)
