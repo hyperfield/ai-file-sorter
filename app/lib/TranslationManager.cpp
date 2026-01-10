@@ -66,6 +66,7 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("Run &consistency pass"), QStringLiteral("Lancer le &signalement de cohérence")},
     {QStringLiteral("Interface &language"), QStringLiteral("&Langue de l'interface")},
     {QStringLiteral("&English"), QStringLiteral("&Anglais")},
+    {QStringLiteral("&Dutch"), QStringLiteral("&Néerlandais")},
     {QStringLiteral("&French"), QStringLiteral("&Français")},
     {QStringLiteral("&German"), QStringLiteral("&Allemand")},
     {QStringLiteral("&Italian"), QStringLiteral("&Italien")},
@@ -219,6 +220,7 @@ static const QHash<QString, QString> kGermanTranslations = {
     {QStringLiteral("Run &consistency pass"), QStringLiteral("Konsistenzdurchlauf ausführen")},
     {QStringLiteral("Interface &language"), QStringLiteral("&Oberflächensprache")},
     {QStringLiteral("&English"), QStringLiteral("&Englisch")},
+    {QStringLiteral("&Dutch"), QStringLiteral("&Niederländisch")},
     {QStringLiteral("&French"), QStringLiteral("&Französisch")},
     {QStringLiteral("&German"), QStringLiteral("&Deutsch")},
     {QStringLiteral("&Italian"), QStringLiteral("&Italienisch")},
@@ -372,6 +374,7 @@ static const QHash<QString, QString> kItalianTranslations = {
     {QStringLiteral("Run &consistency pass"), QStringLiteral("Esegui controllo di &coerenza")},
     {QStringLiteral("Interface &language"), QStringLiteral("Lingua dell'&interfaccia")},
     {QStringLiteral("&English"), QStringLiteral("&Inglese")},
+    {QStringLiteral("&Dutch"), QStringLiteral("&Olandese")},
     {QStringLiteral("&French"), QStringLiteral("&Francese")},
     {QStringLiteral("&German"), QStringLiteral("&Tedesco")},
     {QStringLiteral("&Italian"), QStringLiteral("&Italiano")},
@@ -525,6 +528,7 @@ static const QHash<QString, QString> kSpanishTranslations = {
     {QStringLiteral("Run &consistency pass"), QStringLiteral("Ejecutar pase de &consistencia")},
     {QStringLiteral("Interface &language"), QStringLiteral("&Idioma de la interfaz")},
     {QStringLiteral("&English"), QStringLiteral("&Inglés")},
+    {QStringLiteral("&Dutch"), QStringLiteral("&Neerlandés")},
     {QStringLiteral("&French"), QStringLiteral("&Francés")},
     {QStringLiteral("&German"), QStringLiteral("&Alemán")},
     {QStringLiteral("&Italian"), QStringLiteral("&Italiano")},
@@ -620,6 +624,152 @@ static const QHash<QString, QString> kSpanishTranslations = {
     {QStringLiteral("Download error: %1"), QStringLiteral("Error de descarga: %1")}
 };
 
+static const QHash<QString, QString> kDutchTranslations = {
+    {QStringLiteral("Analyze folder"), QStringLiteral("Map analyseren")},
+    {QStringLiteral("Stop analyzing"), QStringLiteral("Analyse stoppen")},
+    {QStringLiteral("Use subcategories"), QStringLiteral("Subcategorieën gebruiken")},
+    {QStringLiteral("Create subcategory folders within each category."), QStringLiteral("Subcategorie-mappen binnen elke categorie maken.")},
+    {QStringLiteral("Categorization type"), QStringLiteral("Categorisatietype")},
+    {QStringLiteral("Choose how strict the category labels should be."), QStringLiteral("Kies hoe strikt de categorielabels moeten zijn.")},
+    {QStringLiteral("More refined"), QStringLiteral("Meer verfijnd")},
+    {QStringLiteral("Favor detailed labels even if similar items vary."), QStringLiteral("Geef de voorkeur aan gedetailleerde labels, ook als vergelijkbare items verschillen.")},
+    {QStringLiteral("More consistent"), QStringLiteral("Meer consistent")},
+    {QStringLiteral("Favor consistent labels across similar items."), QStringLiteral("Geef de voorkeur aan consistente labels voor vergelijkbare items.")},
+    {QStringLiteral("Use a whitelist"), QStringLiteral("Whitelist gebruiken")},
+    {QStringLiteral("Restrict categories and subcategories to the selected whitelist."), QStringLiteral("Beperk categorieën en subcategorieën tot de geselecteerde whitelist.")},
+    {QStringLiteral("Select the whitelist used for this run."), QStringLiteral("Selecteer de whitelist die voor deze run wordt gebruikt.")},
+    {QStringLiteral("Recategorize folder?"), QStringLiteral("Map opnieuw categoriseren?")},
+    {QStringLiteral("This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?"),
+     QStringLiteral("Deze map is gecategoriseerd met de modus %1. Wilt u deze nu opnieuw categoriseren met de modus %2?")},
+    {QStringLiteral("Recategorize"), QStringLiteral("Opnieuw categoriseren")},
+    {QStringLiteral("Keep existing"), QStringLiteral("Bestaande behouden")},
+    {QStringLiteral("Failed to reset cached categorization for this folder."), QStringLiteral("Kon de in cache opgeslagen categorisatie voor deze map niet resetten.")},
+    {QStringLiteral("Categorize files"), QStringLiteral("Bestanden categoriseren")},
+    {QStringLiteral("Include files in the categorization pass."), QStringLiteral("Neem bestanden op in de categorisatieronde.")},
+    {QStringLiteral("Categorize directories"), QStringLiteral("Mappen categoriseren")},
+    {QStringLiteral("Include directories in the categorization pass."), QStringLiteral("Neem mappen op in de categorisatieronde.")},
+    {QStringLiteral("Ready"), QStringLiteral("Gereed")},
+    {QStringLiteral("Set folder to %1"), QStringLiteral("Map ingesteld op %1")},
+    {QStringLiteral("Loaded folder %1"), QStringLiteral("Map %1 geladen")},
+    {QStringLiteral("Analysis cancelled"), QStringLiteral("Analyse geannuleerd")},
+    {QStringLiteral("Folder selected: %1"), QStringLiteral("Map geselecteerd: %1")},
+    {QStringLiteral("Analyzing…"), QStringLiteral("Bezig met analyseren…")},
+    {QStringLiteral("Cancelling analysis…"), QStringLiteral("Analyse wordt geannuleerd…")},
+    {QStringLiteral("Folder:"), QStringLiteral("Map:")},
+    {QStringLiteral("Browse…"), QStringLiteral("Bladeren…")},
+    {QStringLiteral("File"), QStringLiteral("Bestand")},
+    {QStringLiteral("Type"), QStringLiteral("Type")},
+    {QStringLiteral("Category"), QStringLiteral("Categorie")},
+    {QStringLiteral("Subcategory"), QStringLiteral("Subcategorie")},
+    {QStringLiteral("Status"), QStringLiteral("Status")},
+    {QStringLiteral("Select Directory"), QStringLiteral("Map selecteren")},
+    {QStringLiteral("Directory"), QStringLiteral("Map")},
+    {QStringLiteral("&File"), QStringLiteral("&Bestand")},
+    {QStringLiteral("&Quit"), QStringLiteral("&Afsluiten")},
+    {QStringLiteral("&Edit"), QStringLiteral("&Bewerken")},
+    {QStringLiteral("&Copy"), QStringLiteral("&Kopiëren")},
+    {QStringLiteral("Cu&t"), QStringLiteral("Kn&ippen")},
+    {QStringLiteral("&Paste"), QStringLiteral("&Plakken")},
+    {QStringLiteral("&Delete"), QStringLiteral("&Verwijderen")},
+    {QStringLiteral("&View"), QStringLiteral("&Weergave")},
+    {QStringLiteral("File &Explorer"), QStringLiteral("Bestands&verkenner")},
+    {QStringLiteral("File Explorer"), QStringLiteral("Bestandsverkenner")},
+    {QStringLiteral("&Settings"), QStringLiteral("&Instellingen")},
+    {QStringLiteral("Select &LLM…"), QStringLiteral("Selecteer &LLM…")},
+    {QStringLiteral("Manage category whitelists…"), QStringLiteral("Categorie-whitelists beheren…")},
+    {QStringLiteral("&Development"), QStringLiteral("&Ontwikkeling")},
+    {QStringLiteral("Log prompts and responses to stdout"), QStringLiteral("Log prompts en antwoorden naar stdout")},
+    {QStringLiteral("Run &consistency pass"), QStringLiteral("Consistentie&controle uitvoeren")},
+    {QStringLiteral("Interface &language"), QStringLiteral("Interface &taal")},
+    {QStringLiteral("&English"), QStringLiteral("&Engels")},
+    {QStringLiteral("&Dutch"), QStringLiteral("&Nederlands")},
+    {QStringLiteral("&French"), QStringLiteral("&Frans")},
+    {QStringLiteral("&German"), QStringLiteral("&Duits")},
+    {QStringLiteral("&Italian"), QStringLiteral("&Italiaans")},
+    {QStringLiteral("&Spanish"), QStringLiteral("&Spaans")},
+    {QStringLiteral("&Turkish"), QStringLiteral("&Turks")},
+    {QStringLiteral("&Help"), QStringLiteral("&Help")},
+    {QStringLiteral("&About"), QStringLiteral("&Over")},
+    {QStringLiteral("&About AI File Sorter"), QStringLiteral("Over AI File Sorter")},
+    {QStringLiteral("About &Qt"), QStringLiteral("Over &Qt")},
+    {QStringLiteral("About &AGPL"), QStringLiteral("Over &AGPL")},
+    {QStringLiteral("&Support Project"), QStringLiteral("Project ondersteunen")},
+    {QStringLiteral("Support AI File Sorter"), QStringLiteral("Ondersteun AI File Sorter")},
+    {QStringLiteral("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you."),
+     QStringLiteral("Bedankt voor het gebruiken van AI File Sorter! U heeft tot nu toe %1 bestanden gecategoriseerd. Ik, de auteur, hoop echt dat deze app nuttig voor u was.")},
+    {QStringLiteral("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+                    "If the app saves you time or brings value, please consider supporting it so it can keep improving."),
+     QStringLiteral("AI File Sorter kost honderden uren ontwikkeling, feature-werk, supportreacties en doorlopende kosten zoals servers en infrastructuur voor externe modellen. "
+                    "Als de app u tijd bespaart of waarde biedt, overweeg dan om te ondersteunen zodat hij kan blijven verbeteren.")},
+    {QStringLiteral("Support"), QStringLiteral("Ondersteunen")},
+    {QStringLiteral("I'm not yet sure"), QStringLiteral("Ik weet het nog niet")},
+    {QStringLiteral("I cannot donate"), QStringLiteral("Ik kan niet doneren")},
+    {QStringLiteral("About the AGPL License"), QStringLiteral("Over de AGPL-licentie")},
+    {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "You can access the full source code at "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "A full copy of the license is provided with this application and available online at "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>."),
+     QStringLiteral("AI File Sorter wordt verspreid onder de GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "U kunt de volledige broncode vinden op "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "Een volledige kopie van de licentie wordt met deze applicatie meegeleverd en is online beschikbaar op "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>.")},
+    {QStringLiteral("Review and Confirm"), QStringLiteral("Beoordelen en bevestigen")},
+    {QStringLiteral("Select all"), QStringLiteral("Alles selecteren")},
+    {QStringLiteral("Process"), QStringLiteral("Verwerken")},
+    {QStringLiteral("Suggested filename"), QStringLiteral("Voorgestelde bestandsnaam")},
+    {QStringLiteral("Confirm and Process"), QStringLiteral("Bevestigen en verwerken")},
+    {QStringLiteral("Continue Later"), QStringLiteral("Later doorgaan")},
+    {QStringLiteral("Close"), QStringLiteral("Sluiten")},
+    {QStringLiteral("Not selected"), QStringLiteral("Niet geselecteerd")},
+    {QStringLiteral("Moved"), QStringLiteral("Verplaatst")},
+    {QStringLiteral("Skipped"), QStringLiteral("Overgeslagen")},
+    {QStringLiteral("Analyzing Files"), QStringLiteral("Bestanden analyseren")},
+    {QStringLiteral("Stop Analysis"), QStringLiteral("Analyse stoppen")},
+    {QStringLiteral("Analyze picture files by content (can be slow)"), QStringLiteral("Afbeeldingsbestanden op inhoud analyseren (kan traag zijn)")},
+    {QStringLiteral("Run the visual LLM on supported picture files."), QStringLiteral("Voer de visuele LLM uit op ondersteunde afbeeldingsbestanden.")},
+    {QStringLiteral("Process picture files only (ignore any other files)"), QStringLiteral("Alleen afbeeldingsbestanden verwerken (alle andere bestanden negeren)")},
+    {QStringLiteral("Ignore non-picture files in this run."), QStringLiteral("Niet-afbeeldingsbestanden in deze run negeren.")},
+    {QStringLiteral("Offer to rename picture files"), QStringLiteral("Aanbieden om afbeeldingsbestanden te hernoemen")},
+    {QStringLiteral("Show suggested filenames for picture files."), QStringLiteral("Toon voorgestelde bestandsnamen voor afbeeldingsbestanden.")},
+    {QStringLiteral("Do not categorize picture files (only rename)"), QStringLiteral("Afbeeldingsbestanden niet categoriseren (alleen hernoemen)")},
+    {QStringLiteral("Skip categorization for picture files and only rename them."), QStringLiteral("Categorisatie voor afbeeldingsbestanden overslaan en alleen hernoemen.")},
+    {QStringLiteral("Download required"), QStringLiteral("Download vereist")},
+    {QStringLiteral("Download required."), QStringLiteral("Download vereist.")},
+    {QStringLiteral("Image analysis requires visual LLM files. Download them now?"), QStringLiteral("Beeldanalyse vereist visuele LLM-bestanden. Nu downloaden?")},
+    {QStringLiteral("Image analysis models (LLaVA)"), QStringLiteral("Beeldanalysemodellen (LLaVA)")},
+    {QStringLiteral("Download the visual LLM files required for image analysis."), QStringLiteral("Download de visuele LLM-bestanden die nodig zijn voor beeldanalyse.")},
+    {QStringLiteral("LLaVA 1.6 Mistral 7B (text model)"), QStringLiteral("LLaVA 1.6 Mistral 7B (tekstmodel)")},
+    {QStringLiteral("LLaVA mmproj (vision encoder)"), QStringLiteral("LLaVA mmproj (visie-encoder)")},
+    {QStringLiteral("Remote URL"), QStringLiteral("Externe URL")},
+    {QStringLiteral("Local path"), QStringLiteral("Lokaal pad")},
+    {QStringLiteral("File size"), QStringLiteral("Bestandsgrootte")},
+    {QStringLiteral("File size: unknown"), QStringLiteral("Bestandsgrootte: onbekend")},
+    {QStringLiteral("Model ready."), QStringLiteral("Model gereed.")},
+    {QStringLiteral("Partial download detected. You can resume."), QStringLiteral("Gedeeltelijke download gedetecteerd. U kunt hervatten.")},
+    {QStringLiteral("Resume download"), QStringLiteral("Download hervatten")},
+    {QStringLiteral("Download"), QStringLiteral("Downloaden")},
+    {QStringLiteral("Downloading…"), QStringLiteral("Bezig met downloaden…")},
+    {QStringLiteral("Missing download URL environment variable (%1)."), QStringLiteral("Ontbrekende download-URL-omgevingsvariabele (%1).")},
+    {QStringLiteral("Missing download URL environment variable."), QStringLiteral("Ontbrekende download-URL-omgevingsvariabele.")},
+    {QStringLiteral("Download complete."), QStringLiteral("Download voltooid.")},
+    {QStringLiteral("Download cancelled."), QStringLiteral("Download geannuleerd.")},
+    {QStringLiteral("Download error: %1"), QStringLiteral("Downloadfout: %1")},
+    {QStringLiteral("Undo last run"), QStringLiteral("Laatste run ongedaan maken")},
+    {QStringLiteral("Plan file:"), QStringLiteral("Planbestand:")},
+    {QStringLiteral("Dry run (preview only, do not move files)"), QStringLiteral("Proefrun (alleen voorbeeld, verplaats geen bestanden)")},
+    {QStringLiteral("Dry run preview"), QStringLiteral("Proefrun-voorbeeld")},
+    {QStringLiteral("From"), QStringLiteral("Van")},
+    {QStringLiteral("To"), QStringLiteral("Naar")},
+    {QStringLiteral("Planned destination"), QStringLiteral("Geplande bestemming")},
+    {QStringLiteral("Preview"), QStringLiteral("Voorbeeld")}
+};
+
 static const QHash<QString, QString> kTurkishTranslations = {
     {QStringLiteral("Analyze folder"), QStringLiteral("Klasörü analiz et")},
     {QStringLiteral("Stop analyzing"), QStringLiteral("Analizi durdur")},
@@ -678,6 +828,7 @@ static const QHash<QString, QString> kTurkishTranslations = {
     {QStringLiteral("Run &consistency pass"), QStringLiteral("&Tutarlılık geçişi çalıştır")},
     {QStringLiteral("Interface &language"), QStringLiteral("Arayüz &dili")},
     {QStringLiteral("&English"), QStringLiteral("&İngilizce")},
+    {QStringLiteral("&Dutch"), QStringLiteral("&Felemenkçe")},
     {QStringLiteral("&French"), QStringLiteral("&Fransızca")},
     {QStringLiteral("&German"), QStringLiteral("&Almanca")},
     {QStringLiteral("&Italian"), QStringLiteral("&İtalyanca")},
@@ -772,6 +923,7 @@ const QHash<QString, QString>* translations_for(Language lang)
     case Language::German: return &kGermanTranslations;
     case Language::Italian: return &kItalianTranslations;
     case Language::Spanish: return &kSpanishTranslations;
+    case Language::Dutch: return &kDutchTranslations;
     case Language::Turkish: return &kTurkishTranslations;
     default: return nullptr;
     }
@@ -831,6 +983,7 @@ void TranslationManager::initialize(QApplication* app)
     }
     if (languages_.empty()) {
         languages_.push_back(LanguageInfo{Language::English, QStringLiteral("en"), QStringLiteral("English"), QString()});
+        languages_.push_back(LanguageInfo{Language::Dutch, QStringLiteral("nl"), QStringLiteral("Dutch"), QString()});
         languages_.push_back(LanguageInfo{Language::French, QStringLiteral("fr"), QStringLiteral("French"), QString()});
         languages_.push_back(LanguageInfo{Language::German, QStringLiteral("de"), QStringLiteral("German"), QString()});
         languages_.push_back(LanguageInfo{Language::Italian, QStringLiteral("it"), QStringLiteral("Italian"), QString()});

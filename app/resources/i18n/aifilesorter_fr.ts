@@ -63,6 +63,7 @@
     <message><source>Run &amp;consistency pass</source><translation>Lancer le &amp;signalement de cohérence</translation></message>
     <message><source>Interface &amp;language</source><translation>&amp;Langue de l'interface</translation></message>
     <message><source>&amp;English</source><translation>&amp;Anglais</translation></message>
+    <message><source>&amp;Dutch</source><translation>&amp;Néerlandais</translation></message>
     <message><source>&amp;French</source><translation>&amp;Français</translation></message>
     <message><source>&amp;German</source><translation>&amp;Allemand</translation></message>
     <message><source>&amp;Italian</source><translation>&amp;Italien</translation></message>

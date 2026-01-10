@@ -71,6 +71,7 @@ public:
         QAction*& development_prompt_logging_action;
         QAction*& consistency_pass_action;
         QAction*& english_action;
+        QAction*& dutch_action;
         QAction*& french_action;
         QAction*& german_action;
         QAction*& italian_action;
@@ -94,6 +95,7 @@ public:
     struct LanguageControls {
         QActionGroup*& language_group;
         QAction*& english_action;
+        QAction*& dutch_action;
         QAction*& french_action;
         QAction*& german_action;
         QAction*& italian_action;

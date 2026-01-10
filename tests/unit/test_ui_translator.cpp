@@ -70,6 +70,7 @@ struct UiTranslatorTestHarness {
     QAction* development_prompt_logging_action = new QAction(&window);
     QAction* consistency_pass_action = new QAction(&window);
     QAction* english_action = new QAction(&window);
+    QAction* dutch_action = new QAction(&window);
     QAction* french_action = new QAction(&window);
     QAction* german_action = new QAction(&window);
     QAction* italian_action = new QAction(&window);
@@ -122,6 +123,8 @@ struct UiTranslatorTestHarness {
         language_group->setExclusive(true);
         english_action->setCheckable(true);
         english_action->setData(static_cast<int>(Language::English));
+        dutch_action->setCheckable(true);
+        dutch_action->setData(static_cast<int>(Language::Dutch));
         french_action->setCheckable(true);
         french_action->setData(static_cast<int>(Language::French));
         german_action->setCheckable(true);
@@ -129,6 +132,7 @@ struct UiTranslatorTestHarness {
         spanish_action->setCheckable(true);
         turkish_action->setCheckable(true);
         language_group->addAction(english_action);
+        language_group->addAction(dutch_action);
         language_group->addAction(french_action);
         language_group->addAction(german_action);
         language_group->addAction(italian_action);
@@ -180,6 +184,7 @@ struct UiTranslatorTestHarness {
                 development_prompt_logging_action,
                 consistency_pass_action,
                 english_action,
+                dutch_action,
                 french_action,
                 german_action,
                 italian_action,
@@ -201,6 +206,7 @@ struct UiTranslatorTestHarness {
             .language = UiTranslator::LanguageControls{
                 language_group,
                 english_action,
+                dutch_action,
                 french_action,
                 german_action,
                 italian_action,

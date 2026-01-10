@@ -223,6 +223,7 @@ private:
     QAction* consistency_pass_action{nullptr};
     QActionGroup* language_group{nullptr};
     QAction* english_action{nullptr};
+    QAction* dutch_action{nullptr};
     QAction* french_action{nullptr};
     QAction* german_action{nullptr};
     QAction* italian_action{nullptr};

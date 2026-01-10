@@ -221,6 +221,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.development_prompt_logging_action,
             app.consistency_pass_action,
             app.english_action,
+            app.dutch_action,
             app.french_action,
             app.german_action,
             app.italian_action,
@@ -242,6 +243,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
         .language = UiTranslator::LanguageControls{
             app.language_group,
             app.english_action,
+            app.dutch_action,
             app.french_action,
             app.german_action,
             app.italian_action,
@@ -346,6 +348,11 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.english_action->setCheckable(true);
     app.english_action->setData(static_cast<int>(Language::English));
     app.language_group->addAction(app.english_action);
+
+    app.dutch_action = app.language_menu->addAction(QString());
+    app.dutch_action->setCheckable(true);
+    app.dutch_action->setData(static_cast<int>(Language::Dutch));
+    app.language_group->addAction(app.dutch_action);
 
     app.french_action = app.language_menu->addAction(QString());
     app.french_action->setCheckable(true);

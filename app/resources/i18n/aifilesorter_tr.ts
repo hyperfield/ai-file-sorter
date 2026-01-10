@@ -63,6 +63,7 @@
     <message><source>Run &amp;consistency pass</source><translation>&amp;Tutarlılık geçişi çalıştır</translation></message>
     <message><source>Interface &amp;language</source><translation>Arayüz &amp;dili</translation></message>
     <message><source>&amp;English</source><translation>&amp;İngilizce</translation></message>
+    <message><source>&amp;Dutch</source><translation>&amp;Felemenkçe</translation></message>
     <message><source>&amp;French</source><translation>&amp;Fransızca</translation></message>
     <message><source>&amp;German</source><translation>&amp;Almanca</translation></message>
     <message><source>&amp;Italian</source><translation>&amp;İtalyanca</translation></message>

@@ -192,6 +192,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.development_prompt_logging_action, "Log prompts and responses to stdout"},
         {deps_.actions.consistency_pass_action, "Run &consistency pass"},
         {deps_.actions.english_action, "&English"},
+        {deps_.actions.dutch_action, "&Dutch"},
         {deps_.actions.french_action, "&French"},
         {deps_.actions.german_action, "&German"},
         {deps_.actions.italian_action, "&Italian"},
@@ -266,6 +267,9 @@ void UiTranslator::update_language_group_checks(Language configured) const
     QSignalBlocker blocker(deps_.language.language_group);
     if (deps_.language.english_action) {
         deps_.language.english_action->setChecked(configured == Language::English);
+    }
+    if (deps_.language.dutch_action) {
+        deps_.language.dutch_action->setChecked(configured == Language::Dutch);
     }
     if (deps_.language.french_action) {
         deps_.language.french_action->setChecked(configured == Language::French);
