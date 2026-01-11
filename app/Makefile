@@ -280,6 +280,7 @@ ifeq ($(PLATFORM), Linux)
 		--binary '$(WRAPPED_BINARY)' \
 		--output '$(INSTALL_DIR)/run_aifilesorter.sh'
 	chmod 755 $(INSTALL_DIR)/run_aifilesorter.sh
+	ln -sf $(INSTALL_DIR)/run_aifilesorter.sh $(INSTALL_DIR)/aifilesorter
 	@echo "Installation complete."
 
 else ifeq ($(PLATFORM), MacOS)
