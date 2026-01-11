@@ -88,7 +88,7 @@ namespace {
 
 void schedule_next_support_prompt(Settings& settings, int total_files, int increment) {
     if (increment <= 0) {
-        increment = 200;
+        increment = 100;
     }
     settings.set_next_support_prompt_threshold(total_files + increment);
     settings.save();
@@ -105,7 +105,7 @@ void maybe_show_support_prompt(Settings& settings,
     int threshold = settings.get_next_support_prompt_threshold();
     if (threshold <= 0) {
         const int base = std::max(total, 0);
-        threshold = ((base / 200) + 1) * 200;
+        threshold = ((base / 100) + 1) * 100;
         settings.set_next_support_prompt_threshold(threshold);
         settings.save();
     }
@@ -121,10 +121,11 @@ void maybe_show_support_prompt(Settings& settings,
     }
     prompt_active = false;
 
-    int increment = 200;
-    if (result == MainApp::SupportPromptResult::Support ||
-        result == MainApp::SupportPromptResult::CannotDonate) {
-        increment = 750;
+    int increment = 100;
+    if (result == MainApp::SupportPromptResult::Support) {
+        increment = 400;
+    } else if (result == MainApp::SupportPromptResult::CannotDonate) {
+        increment = 200;
     }
 
     schedule_next_support_prompt(settings, total, increment);
