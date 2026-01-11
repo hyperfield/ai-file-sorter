@@ -30,6 +30,10 @@
 #include <QFile>
 #include <QFileIconProvider>
 #include <QFileInfo>
+#include <QPainter>
+#include <QPen>
+#include <QPixmap>
+#include <QPolygonF>
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -341,6 +345,58 @@ QFileIconProvider& file_icon_provider()
     return provider;
 }
 
+bool icons_match(const QIcon& lhs, const QIcon& rhs, const QSize& size)
+{
+    const QPixmap lhs_pixmap = lhs.pixmap(size);
+    const QPixmap rhs_pixmap = rhs.pixmap(size);
+    if (lhs_pixmap.isNull() || rhs_pixmap.isNull()) {
+        return false;
+    }
+    return lhs_pixmap.toImage() == rhs_pixmap.toImage();
+}
+
+QIcon fallback_image_icon()
+{
+    static QIcon icon;
+    if (!icon.isNull()) {
+        return icon;
+    }
+
+    auto make_pixmap = [](int size) {
+        QPixmap pixmap(size, size);
+        pixmap.fill(Qt::transparent);
+
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QPen frame_pen(QColor(120, 120, 120));
+        frame_pen.setWidthF(1.0);
+        painter.setPen(frame_pen);
+        painter.setBrush(QColor(240, 240, 240));
+        painter.drawRoundedRect(QRectF(1, 1, size - 2, size - 2), 2, 2);
+
+        QRectF image_rect(3, 4, size - 6, size - 7);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(140, 200, 245));
+        painter.drawRect(image_rect);
+
+        QPolygonF mountain;
+        mountain << QPointF(image_rect.left() + 1, image_rect.bottom() - 1)
+                 << QPointF(image_rect.center().x() - 1, image_rect.top() + 2)
+                 << QPointF(image_rect.right() - 1, image_rect.bottom() - 1);
+        painter.setBrush(QColor(90, 170, 125));
+        painter.drawPolygon(mountain);
+
+        painter.setBrush(QColor(255, 210, 80));
+        painter.drawEllipse(QPointF(image_rect.right() - 3, image_rect.top() + 3), 1.6, 1.6);
+
+        return pixmap;
+    };
+
+    icon.addPixmap(make_pixmap(16));
+    icon.addPixmap(make_pixmap(32));
+    return icon;
+}
+
 QIcon type_icon(const QString& code, const QString& file_path)
 {
     if (auto* style = QApplication::style()) {
@@ -358,6 +414,14 @@ QIcon type_icon(const QString& code, const QString& file_path)
             if (icon.isNull() && !file_path.isEmpty()) {
                 icon = file_icon_provider().icon(QFileInfo(file_path));
             }
+            if (icon.isNull()) {
+                icon = fallback_image_icon();
+            }
+#if defined(Q_OS_WIN)
+            if (icons_match(icon, style->standardIcon(QStyle::SP_FileIcon), QSize(16, 16))) {
+                icon = fallback_image_icon();
+            }
+#endif
             return icon.isNull() ? style->standardIcon(QStyle::SP_FileIcon) : icon;
         }
         return style->standardIcon(QStyle::SP_FileIcon);
