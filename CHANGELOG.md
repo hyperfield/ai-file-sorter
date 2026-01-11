@@ -1,6 +1,6 @@
 ﻿# Changelog
 
-## [1.5.0] - 2026-01-06
+## [1.5.0] - 2026-01-11
 
 - Added content analysis for picture files via LLaVA (visual LLM), with separate model + mmproj downloads in the Select LLM dialog.
 - Added image analysis options in the main window (analyze images, offer rename suggestions, rename-only mode).
