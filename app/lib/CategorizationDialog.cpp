@@ -28,6 +28,8 @@
 #include <QVBoxLayout>
 #include <QSignalBlocker>
 #include <QFile>
+#include <QFileIconProvider>
+#include <QFileInfo>
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -333,7 +335,13 @@ void CategorizationDialog::setup_ui()
 
 
 namespace {
-QIcon type_icon(const QString& code)
+QFileIconProvider& file_icon_provider()
+{
+    static QFileIconProvider provider;
+    return provider;
+}
+
+QIcon type_icon(const QString& code, const QString& file_path)
 {
     if (auto* style = QApplication::style()) {
         if (code == QStringLiteral("D")) {
@@ -346,6 +354,9 @@ QIcon type_icon(const QString& code)
             }
             if (icon.isNull()) {
                 icon = QIcon::fromTheme(QStringLiteral("image-x-generic-symbolic"));
+            }
+            if (icon.isNull() && !file_path.isEmpty()) {
+                icon = file_icon_provider().icon(QFileInfo(file_path));
             }
             return icon.isNull() ? style->standardIcon(QStyle::SP_FileIcon) : icon;
         }
@@ -789,7 +800,21 @@ void CategorizationDialog::update_type_icon(QStandardItem* item)
     }
 
     const QString code = item->data(Qt::UserRole).toString();
-    item->setIcon(type_icon(code));
+    QString full_path;
+    if (code == QStringLiteral("I") && model) {
+        if (auto* file_item = model->item(item->row(), ColumnFile)) {
+            const QString file_name = file_item->text();
+            const QString base_dir = file_item->data(kFilePathRole).toString();
+            if (!base_dir.isEmpty()) {
+                full_path = QDir(base_dir).filePath(file_name);
+            } else if (!base_dir_.empty()) {
+                full_path = QDir(QString::fromStdString(base_dir_)).filePath(file_name);
+            } else {
+                full_path = file_name;
+            }
+        }
+    }
+    item->setIcon(type_icon(code, full_path));
     item->setText(QString());
 }
 

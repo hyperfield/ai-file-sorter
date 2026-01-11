@@ -1670,8 +1670,17 @@ void MainApp::perform_analysis()
         auto has_category = [](const CategorizedFile& entry) {
             return !entry.category.empty() && !entry.subcategory.empty();
         };
+        auto is_supported_image_entry = [](const CategorizedFile& entry) {
+            if (entry.type != FileType::File) {
+                return false;
+            }
+            const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                   Utils::utf8_to_path(entry.file_name);
+            return LlavaImageAnalyzer::is_supported_image(full_path);
+        };
 
         for (const auto& entry : cached_entries) {
+            const bool is_image_entry = is_supported_image_entry(entry);
             const bool suggested_matches = !entry.suggested_name.empty() &&
                                            to_lower(entry.suggested_name) == to_lower(entry.file_name);
             const bool already_renamed = entry.rename_applied || suggested_matches;
@@ -1682,6 +1691,15 @@ void MainApp::perform_analysis()
                 if (!already_renamed) {
                     pending_renames.push_back(entry);
                 }
+                continue;
+            }
+            if (rename_images_only && analyze_images && is_image_entry) {
+                if (!already_renamed && entry.suggested_name.empty()) {
+                    continue;
+                }
+                CategorizedFile adjusted = entry;
+                adjusted.rename_only = true;
+                already_categorized_files.push_back(std::move(adjusted));
                 continue;
             }
             already_categorized_files.push_back(entry);

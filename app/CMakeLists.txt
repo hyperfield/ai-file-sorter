@@ -10,6 +10,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
 
 include(CheckSymbolExists)
+include(CheckCXXSourceCompiles)
 
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -146,6 +147,43 @@ if(WIN32)
             IMPORTED_LOCATION "${dll_path}"
         )
     endforeach()
+
+    set(MTMD_IMPORT "${PRECOMPILED_CPU_LIB_DIR}/mtmd.lib")
+    set(MTMD_DLL "${PRECOMPILED_CPU_BIN_DIR}/mtmd.dll")
+    if(EXISTS "${MTMD_IMPORT}" AND EXISTS "${MTMD_DLL}")
+        add_library(mtmd SHARED IMPORTED)
+        set_target_properties(mtmd PROPERTIES
+            IMPORTED_IMPLIB "${MTMD_IMPORT}"
+            IMPORTED_LOCATION "${MTMD_DLL}"
+        )
+        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
+        set(_aifs_saved_required_libs "${CMAKE_REQUIRED_LIBRARIES}")
+        set(CMAKE_REQUIRED_LIBRARIES "${MTMD_IMPORT}")
+        check_cxx_source_compiles([[
+            extern "C" void mtmd_helper_set_progress_callback(void*, void*);
+            int main() {
+                mtmd_helper_set_progress_callback(0, 0);
+                return 0;
+            }
+        ]] HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+        check_cxx_source_compiles([[
+            extern "C" void mtmd_helper_log_set(void*, void*);
+            int main() {
+                mtmd_helper_log_set(0, 0);
+                return 0;
+            }
+        ]] HAVE_MTMD_HELPER_LOG_SET)
+        set(CMAKE_REQUIRED_LIBRARIES "${_aifs_saved_required_libs}")
+        unset(_aifs_saved_required_libs)
+        if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+            target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+        endif()
+        if(HAVE_MTMD_HELPER_LOG_SET)
+            target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+        endif()
+    else()
+        message(WARNING "Visual LLM support disabled: missing mtmd.lib/mtmd.dll under app/lib/precompiled/cpu. Run app/scripts/build_llama_windows.ps1 to stage mtmd.")
+    endif()
 else()
     # Build llama.cpp from the included submodule for non-Windows platforms
     set(LLAMA_BUILD_COMMON ON CACHE BOOL "llama: build common utils library" FORCE)
@@ -189,6 +227,9 @@ target_link_libraries(aifilesorter PRIVATE
 
 if(WIN32)
     target_link_libraries(aifilesorter PRIVATE ggml ggml_base ggml_cpu)
+    if(TARGET mtmd)
+        target_link_libraries(aifilesorter PRIVATE mtmd)
+    endif()
 endif()
 
 if(WIN32)
