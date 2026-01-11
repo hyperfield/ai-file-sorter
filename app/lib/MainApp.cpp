@@ -16,6 +16,7 @@
 #include "CategoryLanguage.hpp"
 #include "MainAppUiBuilder.hpp"
 #include "UiTranslator.hpp"
+#include "LlavaImageAnalyzer.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -65,6 +66,7 @@
 #include <chrono>
 #include <filesystem>
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <exception>
 #include <optional>
@@ -139,6 +141,113 @@ void record_categorized_metrics_impl(Settings& settings,
     settings.add_categorized_files(count);
     settings.save();
     maybe_show_support_prompt(settings, prompt_active, std::move(show_prompt));
+}
+
+std::string to_utf8(const QString& value)
+{
+    const QByteArray bytes = value.toUtf8();
+    return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+}
+
+struct VisualLlmPaths {
+    std::filesystem::path model_path;
+    std::filesystem::path mmproj_path;
+};
+
+std::optional<std::filesystem::path> resolve_mmproj_path(const std::filesystem::path& primary) {
+    if (std::filesystem::exists(primary)) {
+        return primary;
+    }
+
+    const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
+    static const char* kAltMmprojNames[] = {
+        "mmproj-model-f16.gguf",
+        "llava-v1.6-mistral-7b-mmproj-f16.gguf"
+    };
+    for (const char* alt_name : kAltMmprojNames) {
+        const auto candidate = llm_dir / alt_name;
+        if (std::filesystem::exists(candidate)) {
+            return candidate;
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<VisualLlmPaths> resolve_visual_llm_paths(std::string* error) {
+    const char* model_url = std::getenv("LLAVA_MODEL_URL");
+    const char* mmproj_url = std::getenv("LLAVA_MMPROJ_URL");
+    if (!model_url || !*model_url || !mmproj_url || !*mmproj_url) {
+        if (error) {
+            *error = "Missing visual LLM download URLs. Check LLAVA_MODEL_URL and LLAVA_MMPROJ_URL.";
+        }
+        return std::nullopt;
+    }
+
+    const auto model_path = std::filesystem::path(
+        Utils::make_default_path_to_file_from_download_url(model_url));
+    if (!std::filesystem::exists(model_path)) {
+        if (error) {
+            *error = "Visual LLM model file is missing: " + model_path.string();
+        }
+        return std::nullopt;
+    }
+
+    const auto mmproj_primary = std::filesystem::path(
+        Utils::make_default_path_to_file_from_download_url(mmproj_url));
+    const auto mmproj_path = resolve_mmproj_path(mmproj_primary);
+    if (!mmproj_path) {
+        if (error) {
+            *error = "Visual LLM mmproj file is missing: " + mmproj_primary.string();
+        }
+        return std::nullopt;
+    }
+
+    return VisualLlmPaths{model_path, *mmproj_path};
+}
+
+bool should_use_visual_gpu() {
+    const char* backend = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
+    if (!backend || !*backend) {
+        return true;
+    }
+    std::string value = backend;
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value != "cpu";
+}
+
+void split_entries_for_analysis(const std::vector<FileEntry>& files,
+                                bool analyze_images,
+                                bool process_images_only,
+                                bool rename_images_only,
+                                const std::unordered_set<std::string>& renamed_files,
+                                std::vector<FileEntry>& image_entries,
+                                std::vector<FileEntry>& other_entries) {
+    image_entries.clear();
+    other_entries.clear();
+    image_entries.reserve(files.size());
+    other_entries.reserve(files.size());
+
+    for (const auto& entry : files) {
+        const bool is_image_entry = entry.type == FileType::File &&
+                                    LlavaImageAnalyzer::is_supported_image(entry.full_path);
+        if (analyze_images && is_image_entry) {
+            const bool already_renamed = renamed_files.contains(entry.file_name);
+            if (already_renamed) {
+                if (rename_images_only) {
+                    continue;
+                }
+                // Already-renamed images skip vision analysis and use filename/path categorization.
+                other_entries.push_back(entry);
+            } else {
+                image_entries.push_back(entry);
+            }
+        } else if (!process_images_only) {
+            other_entries.push_back(entry);
+        }
+    }
 }
 
 } // namespace
@@ -398,6 +507,47 @@ void MainApp::connect_checkbox_signals()
         update_file_scan_option(FileScanOptions::Directories, checked);
         settings.set_categorize_directories(checked);
     });
+
+    if (analyze_images_checkbox) {
+        connect(analyze_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            handle_image_analysis_toggle(checked);
+        });
+    }
+
+    if (process_images_only_checkbox) {
+        connect(process_images_only_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_process_images_only(checked);
+            update_image_only_controls();
+        });
+    }
+
+    if (offer_rename_images_checkbox) {
+        connect(offer_rename_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (!checked && rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) {
+                QSignalBlocker blocker(rename_images_only_checkbox);
+                rename_images_only_checkbox->setChecked(false);
+            }
+            settings.set_offer_rename_images(checked);
+            if (rename_images_only_checkbox) {
+                settings.set_rename_images_only(rename_images_only_checkbox->isChecked());
+            }
+            update_image_analysis_controls();
+        });
+    }
+
+    if (rename_images_only_checkbox) {
+        connect(rename_images_only_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (checked && offer_rename_images_checkbox && !offer_rename_images_checkbox->isChecked()) {
+                QSignalBlocker blocker(offer_rename_images_checkbox);
+                offer_rename_images_checkbox->setChecked(true);
+            }
+            settings.set_rename_images_only(checked);
+            if (offer_rename_images_checkbox) {
+                settings.set_offer_rename_images(offer_rename_images_checkbox->isChecked());
+            }
+            update_image_analysis_controls();
+        });
+    }
 }
 
 void MainApp::connect_whitelist_signals()
@@ -496,6 +646,23 @@ void MainApp::restore_tree_settings()
     }
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
+    if (analyze_images_checkbox) {
+        QSignalBlocker blocker(analyze_images_checkbox);
+        analyze_images_checkbox->setChecked(settings.get_analyze_images_by_content());
+    }
+    if (process_images_only_checkbox) {
+        QSignalBlocker blocker(process_images_only_checkbox);
+        process_images_only_checkbox->setChecked(settings.get_process_images_only());
+    }
+    if (offer_rename_images_checkbox) {
+        QSignalBlocker blocker(offer_rename_images_checkbox);
+        offer_rename_images_checkbox->setChecked(settings.get_offer_rename_images());
+    }
+    if (rename_images_only_checkbox) {
+        QSignalBlocker blocker(rename_images_only_checkbox);
+        rename_images_only_checkbox->setChecked(settings.get_rename_images_only());
+    }
+    update_image_analysis_controls();
 }
 
 void MainApp::restore_sort_folder_state()
@@ -567,6 +734,18 @@ void MainApp::sync_ui_to_settings()
     }
     settings.set_categorize_files(categorize_files_checkbox->isChecked());
     settings.set_categorize_directories(categorize_directories_checkbox->isChecked());
+    if (analyze_images_checkbox) {
+        settings.set_analyze_images_by_content(analyze_images_checkbox->isChecked());
+    }
+    if (process_images_only_checkbox) {
+        settings.set_process_images_only(process_images_only_checkbox->isChecked());
+    }
+    if (offer_rename_images_checkbox) {
+        settings.set_offer_rename_images(offer_rename_images_checkbox->isChecked());
+    }
+    if (rename_images_only_checkbox) {
+        settings.set_rename_images_only(rename_images_only_checkbox->isChecked());
+    }
     const QByteArray folder_bytes = path_entry->text().toUtf8();
     settings.set_sort_folder(std::string(folder_bytes.constData(), static_cast<std::size_t>(folder_bytes.size())));
     if (file_explorer_menu_action) {
@@ -610,6 +789,50 @@ QString MainAppTestAccess::analyze_button_text(const MainApp& app) {
 
 QString MainAppTestAccess::path_label_text(const MainApp& app) {
     return app.path_label ? app.path_label->text() : QString();
+}
+
+QCheckBox* MainAppTestAccess::analyze_images_checkbox(MainApp& app) {
+    return app.analyze_images_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::process_images_only_checkbox(MainApp& app) {
+    return app.process_images_only_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::offer_rename_images_checkbox(MainApp& app) {
+    return app.offer_rename_images_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::rename_images_only_checkbox(MainApp& app) {
+    return app.rename_images_only_checkbox;
+}
+
+void MainAppTestAccess::split_entries_for_analysis(const std::vector<FileEntry>& files,
+                                                   bool analyze_images,
+                                                   bool process_images_only,
+                                                   bool rename_images_only,
+                                                   const std::unordered_set<std::string>& renamed_files,
+                                                   std::vector<FileEntry>& image_entries,
+                                                   std::vector<FileEntry>& other_entries) {
+    ::split_entries_for_analysis(files,
+                                 analyze_images,
+                                 process_images_only,
+                                 rename_images_only,
+                                 renamed_files,
+                                 image_entries,
+                                 other_entries);
+}
+
+void MainAppTestAccess::set_visual_llm_available_probe(MainApp& app, std::function<bool()> probe) {
+    app.visual_llm_available_probe_ = std::move(probe);
+}
+
+void MainAppTestAccess::set_llm_selection_runner(MainApp& app, std::function<void()> runner) {
+    app.llm_selection_runner_override_ = std::move(runner);
+}
+
+void MainAppTestAccess::set_image_analysis_prompt_override(MainApp& app, std::function<bool()> prompt) {
+    app.image_analysis_prompt_override_ = std::move(prompt);
 }
 
 void MainAppTestAccess::trigger_retranslate(MainApp& app) {
@@ -880,6 +1103,176 @@ void MainApp::update_file_scan_option(FileScanOptions option, bool enabled)
     }
 }
 
+FileScanOptions MainApp::effective_scan_options() const
+{
+    if (settings.get_process_images_only() && settings.get_analyze_images_by_content()) {
+        return FileScanOptions::Files;
+    }
+    return file_scan_options;
+}
+
+bool MainApp::visual_llm_files_available() const
+{
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (visual_llm_available_probe_) {
+        return visual_llm_available_probe_();
+    }
+#endif
+    const char* model_url = std::getenv("LLAVA_MODEL_URL");
+    const char* mmproj_url = std::getenv("LLAVA_MMPROJ_URL");
+    if (!model_url || *model_url == '\0' || !mmproj_url || *mmproj_url == '\0') {
+        return false;
+    }
+
+    const auto model_path = std::filesystem::path(
+        Utils::make_default_path_to_file_from_download_url(model_url));
+    const auto mmproj_path = std::filesystem::path(
+        Utils::make_default_path_to_file_from_download_url(mmproj_url));
+
+    if (!std::filesystem::exists(model_path)) {
+        return false;
+    }
+
+    if (std::filesystem::exists(mmproj_path)) {
+        return true;
+    }
+
+    const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
+    static const char* kAltMmprojNames[] = {
+        "mmproj-model-f16.gguf",
+        "llava-v1.6-mistral-7b-mmproj-f16.gguf"
+    };
+    for (const char* alt_name : kAltMmprojNames) {
+        if (std::filesystem::exists(llm_dir / alt_name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void MainApp::update_image_analysis_controls()
+{
+    if (!analyze_images_checkbox ||
+        !process_images_only_checkbox ||
+        !offer_rename_images_checkbox ||
+        !rename_images_only_checkbox) {
+        return;
+    }
+
+    const bool analysis_enabled = analyze_images_checkbox->isChecked();
+    process_images_only_checkbox->setEnabled(analysis_enabled);
+    offer_rename_images_checkbox->setEnabled(analysis_enabled);
+    rename_images_only_checkbox->setEnabled(analysis_enabled);
+
+    if (analysis_enabled &&
+        rename_images_only_checkbox->isChecked() &&
+        !offer_rename_images_checkbox->isChecked()) {
+        QSignalBlocker blocker(offer_rename_images_checkbox);
+        offer_rename_images_checkbox->setChecked(true);
+    }
+
+    update_image_only_controls();
+}
+
+void MainApp::update_image_only_controls()
+{
+    if (!process_images_only_checkbox) {
+        return;
+    }
+
+    const bool analyze_images = analyze_images_checkbox && analyze_images_checkbox->isChecked();
+    const bool images_only_active = analyze_images && process_images_only_checkbox->isChecked();
+    const bool enable_categorization = !images_only_active;
+
+    if (use_subcategories_checkbox) {
+        use_subcategories_checkbox->setEnabled(enable_categorization);
+    }
+    if (categorize_files_checkbox) {
+        categorize_files_checkbox->setEnabled(enable_categorization);
+    }
+    if (categorize_directories_checkbox) {
+        categorize_directories_checkbox->setEnabled(enable_categorization);
+    }
+    if (categorization_style_heading) {
+        categorization_style_heading->setEnabled(enable_categorization);
+    }
+    if (categorization_style_refined_radio) {
+        categorization_style_refined_radio->setEnabled(enable_categorization);
+    }
+    if (categorization_style_consistent_radio) {
+        categorization_style_consistent_radio->setEnabled(enable_categorization);
+    }
+    if (use_whitelist_checkbox) {
+        use_whitelist_checkbox->setEnabled(enable_categorization);
+    }
+    if (whitelist_selector) {
+        const bool whitelist_enabled = enable_categorization &&
+                                       use_whitelist_checkbox &&
+                                       use_whitelist_checkbox->isChecked();
+        whitelist_selector->setEnabled(whitelist_enabled);
+    }
+}
+
+void MainApp::run_llm_selection_dialog_for_visual()
+{
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (llm_selection_runner_override_) {
+        llm_selection_runner_override_();
+        return;
+    }
+#endif
+    show_llm_selection_dialog();
+}
+
+void MainApp::handle_image_analysis_toggle(bool checked)
+{
+    if (!analyze_images_checkbox) {
+        return;
+    }
+
+    if (checked && !visual_llm_files_available()) {
+        bool should_open_dialog = false;
+#ifdef AI_FILE_SORTER_TEST_BUILD
+        if (image_analysis_prompt_override_) {
+            should_open_dialog = image_analysis_prompt_override_();
+        } else
+#endif
+        {
+            QMessageBox box(this);
+            box.setIcon(QMessageBox::Information);
+            box.setWindowTitle(tr("Download required"));
+            box.setText(tr("Image analysis requires visual LLM files. Download them now?"));
+            QPushButton* ok_button = box.addButton(tr("OK"), QMessageBox::AcceptRole);
+            box.addButton(QMessageBox::Cancel);
+            box.setDefaultButton(ok_button);
+            box.exec();
+            should_open_dialog = (box.clickedButton() == ok_button);
+        }
+
+        if (!should_open_dialog) {
+            QSignalBlocker blocker(analyze_images_checkbox);
+            analyze_images_checkbox->setChecked(false);
+            settings.set_analyze_images_by_content(false);
+            update_image_analysis_controls();
+            return;
+        }
+
+        run_llm_selection_dialog_for_visual();
+
+        if (!visual_llm_files_available()) {
+            QSignalBlocker blocker(analyze_images_checkbox);
+            analyze_images_checkbox->setChecked(false);
+            settings.set_analyze_images_by_content(false);
+            update_image_analysis_controls();
+            return;
+        }
+    }
+
+    settings.set_analyze_images_by_content(analyze_images_checkbox->isChecked());
+    update_image_analysis_controls();
+}
+
 
 void MainApp::update_analyze_button_state(bool analyzing)
 {
@@ -1105,6 +1498,23 @@ void MainApp::handle_analysis_finished()
     show_results_dialog(new_files_to_sort);
 }
 
+void MainApp::handle_analysis_cancelled()
+{
+    update_analyze_button_state(false);
+
+    if (analyze_thread.joinable()) {
+        analyze_thread.join();
+    }
+
+    if (progress_dialog) {
+        progress_dialog->hide();
+        progress_dialog.reset();
+    }
+
+    stop_analysis = false;
+    statusBar()->showMessage(tr("Analysis cancelled"), 4000);
+}
+
 
 void MainApp::handle_analysis_failure(const std::string& message)
 {
@@ -1190,11 +1600,17 @@ void MainApp::log_cached_highlights()
     if (already_categorized_files.empty()) {
         return;
     }
-    append_progress("[ARCHIVE] Already categorized highlights:");
+    append_progress(to_utf8(tr("[ARCHIVE] Already categorized highlights:")));
     for (const auto& file_entry : already_categorized_files) {
-        const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
-        const std::string sub = file_entry.subcategory.empty() ? "-" : file_entry.subcategory;
-        append_progress(fmt::format("  - [{}] {} -> {} / {}", symbol, file_entry.file_name, file_entry.category, sub));
+        const QString type_label = file_entry.type == FileType::Directory ? tr("Directory") : tr("File");
+        const QString sub = file_entry.subcategory.empty()
+            ? QStringLiteral("-")
+            : QString::fromStdString(file_entry.subcategory);
+        append_progress(to_utf8(QStringLiteral("  - [%1] %2 -> %3 / %4")
+                                    .arg(type_label,
+                                         QString::fromStdString(file_entry.file_name),
+                                         QString::fromStdString(file_entry.category),
+                                         sub)));
     }
 }
 
@@ -1204,14 +1620,15 @@ void MainApp::log_pending_queue()
         return;
     }
     if (files_to_categorize.empty()) {
-        append_progress("[DONE] No files to categorize.");
+        append_progress(to_utf8(tr("[DONE] No files to categorize.")));
         return;
     }
 
-    append_progress("[QUEUE] Items waiting for categorization:");
+    append_progress(to_utf8(tr("[QUEUE] Items waiting for categorization:")));
     for (const auto& file_entry : files_to_categorize) {
-        const char* symbol = file_entry.type == FileType::Directory ? "DIR" : "FILE";
-        append_progress(fmt::format("  - [{}] {}", symbol, file_entry.file_name));
+        const QString type_label = file_entry.type == FileType::Directory ? tr("Directory") : tr("File");
+        append_progress(to_utf8(QStringLiteral("  - [%1] %2")
+                                    .arg(type_label, QString::fromStdString(file_entry.file_name))));
     }
 }
 
@@ -1220,47 +1637,319 @@ void MainApp::perform_analysis()
     const std::string directory_path = get_folder_path();
     core_logger->info("Starting analysis for directory '{}'", directory_path);
 
-    append_progress(fmt::format("[SCAN] Exploring {}", directory_path));
-    if (should_abort_analysis()) {
-        return;
-    }
+    bool stop_requested = false;
+    auto update_stop = [this, &stop_requested]() {
+        if (!stop_requested && should_abort_analysis()) {
+            stop_requested = true;
+        }
+        return stop_requested;
+    };
+
+    append_progress(to_utf8(tr("[SCAN] Exploring %1")
+                                .arg(QString::fromStdString(directory_path))));
+    update_stop();
 
     try {
         prune_empty_cached_entries_for(directory_path);
-        already_categorized_files = categorization_service.load_cached_entries(directory_path);
+        const bool analyze_images = settings.get_analyze_images_by_content();
+        const bool process_images_only = analyze_images && settings.get_process_images_only();
+        const bool rename_images_only = settings.get_rename_images_only();
 
-        if (should_abort_analysis()) {
-            return;
+        const auto cached_entries = categorization_service.load_cached_entries(directory_path);
+        std::vector<CategorizedFile> pending_renames;
+        pending_renames.reserve(cached_entries.size());
+        std::unordered_set<std::string> renamed_files;
+        already_categorized_files.clear();
+        already_categorized_files.reserve(cached_entries.size());
+
+        auto to_lower = [](std::string value) {
+            std::transform(value.begin(), value.end(), value.begin(),
+                           [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+            return value;
+        };
+        auto has_category = [](const CategorizedFile& entry) {
+            return !entry.category.empty() && !entry.subcategory.empty();
+        };
+        auto is_supported_image_entry = [](const CategorizedFile& entry) {
+            if (entry.type != FileType::File) {
+                return false;
+            }
+            const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                   Utils::utf8_to_path(entry.file_name);
+            return LlavaImageAnalyzer::is_supported_image(full_path);
+        };
+
+        for (const auto& entry : cached_entries) {
+            const bool is_image_entry = is_supported_image_entry(entry);
+            const bool suggested_matches = !entry.suggested_name.empty() &&
+                                           to_lower(entry.suggested_name) == to_lower(entry.file_name);
+            const bool already_renamed = entry.rename_applied || suggested_matches;
+            if (already_renamed) {
+                renamed_files.insert(entry.file_name);
+            }
+            if (entry.rename_only && !has_category(entry)) {
+                if (!already_renamed) {
+                    pending_renames.push_back(entry);
+                }
+                continue;
+            }
+            if (rename_images_only && analyze_images && is_image_entry) {
+                if (!already_renamed && entry.suggested_name.empty()) {
+                    continue;
+                }
+                CategorizedFile adjusted = entry;
+                adjusted.rename_only = true;
+                already_categorized_files.push_back(std::move(adjusted));
+                continue;
+            }
+            already_categorized_files.push_back(entry);
         }
+
+        if (process_images_only) {
+            auto filter_images = [](std::vector<CategorizedFile>& entries) {
+                entries.erase(
+                    std::remove_if(entries.begin(),
+                                   entries.end(),
+                                   [](const CategorizedFile& entry) {
+                                       if (entry.type != FileType::File) {
+                                           return true;
+                                       }
+                                       const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                                              Utils::utf8_to_path(entry.file_name);
+                                       return !LlavaImageAnalyzer::is_supported_image(full_path);
+                                   }),
+                    entries.end());
+            };
+            filter_images(already_categorized_files);
+            filter_images(pending_renames);
+        }
+
+        update_stop();
 
         log_cached_highlights();
 
-        const auto cached_file_names = results_coordinator.extract_file_names(already_categorized_files);
-        files_to_categorize = results_coordinator.find_files_to_categorize(directory_path, file_scan_options, cached_file_names);
+        auto cached_file_names = results_coordinator.extract_file_names(already_categorized_files);
+        if (rename_images_only && !pending_renames.empty()) {
+            for (const auto& entry : pending_renames) {
+                cached_file_names.insert(entry.file_name);
+            }
+        }
+        const auto scan_options = effective_scan_options();
+        files_to_categorize = results_coordinator.find_files_to_categorize(directory_path, scan_options, cached_file_names);
+        if (process_images_only) {
+            files_to_categorize.erase(
+                std::remove_if(files_to_categorize.begin(),
+                               files_to_categorize.end(),
+                               [](const FileEntry& entry) {
+                                   if (entry.type != FileType::File) {
+                                       return true;
+                                   }
+                                   return !LlavaImageAnalyzer::is_supported_image(entry.full_path);
+                               }),
+                files_to_categorize.end());
+        }
         core_logger->debug("Found {} item(s) pending categorization in '{}'.",
                            files_to_categorize.size(), directory_path);
 
         log_pending_queue();
-        if (should_abort_analysis()) {
-            return;
+        update_stop();
+
+        append_progress(to_utf8(tr("[PROCESS] Letting the AI do its magic...")));
+
+        const bool offer_image_renames = settings.get_offer_rename_images();
+
+        std::vector<FileEntry> image_entries;
+        std::vector<FileEntry> other_entries;
+        split_entries_for_analysis(files_to_categorize,
+                                   analyze_images,
+                                   process_images_only,
+                                   rename_images_only,
+                                   renamed_files,
+                                   image_entries,
+                                   other_entries);
+
+        struct ImageAnalysisInfo {
+            std::string suggested_name;
+            std::string prompt_name;
+            std::string prompt_path;
+        };
+
+        std::unordered_map<std::string, ImageAnalysisInfo> image_info;
+        std::vector<FileEntry> image_entries_for_llm;
+        image_entries_for_llm.reserve(image_entries.size());
+        std::vector<FileEntry> analyzed_image_entries;
+        analyzed_image_entries.reserve(image_entries.size());
+
+        if (analyze_images && !image_entries.empty()) {
+            std::string error;
+            auto visual_paths = resolve_visual_llm_paths(&error);
+            if (!visual_paths) {
+                throw std::runtime_error(error);
+            }
+
+            LlavaImageAnalyzer::Settings vision_settings;
+            vision_settings.use_gpu = should_use_visual_gpu();
+            vision_settings.batch_progress = [this](int current_batch, int total_batches) {
+                if (total_batches <= 0 || current_batch <= 0) {
+                    return;
+                }
+                const double percent = (static_cast<double>(current_batch) /
+                                        static_cast<double>(total_batches)) * 100.0;
+                append_progress(to_utf8(tr("[VISION] Decoding image batch %1/%2 (%3%)")
+                                            .arg(current_batch)
+                                            .arg(total_batches)
+                                            .arg(percent, 0, 'f', 2)));
+            };
+            vision_settings.log_visual_output = should_log_prompts();
+            LlavaImageAnalyzer analyzer(visual_paths->model_path,
+                                        visual_paths->mmproj_path,
+                                        vision_settings);
+
+            for (const auto& entry : image_entries) {
+                if (update_stop()) {
+                    break;
+                }
+                const bool already_renamed = renamed_files.contains(entry.file_name);
+                if (already_renamed && rename_images_only) {
+                    continue;
+                }
+                append_progress(to_utf8(tr("[VISION] Analyzing %1")
+                                            .arg(QString::fromStdString(entry.file_name))));
+                analyzed_image_entries.push_back(entry);
+
+                try {
+                    const auto analysis = analyzer.analyze(entry.full_path);
+                    const auto entry_path = Utils::utf8_to_path(entry.full_path);
+                    const auto prompt_path = Utils::path_to_utf8(
+                        entry_path.parent_path() / Utils::utf8_to_path(analysis.suggested_name));
+
+                    const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
+                    image_info.emplace(
+                        entry.file_name,
+                        ImageAnalysisInfo{suggested_name, analysis.suggested_name, prompt_path});
+
+                    if (!rename_images_only) {
+                        image_entries_for_llm.push_back(entry);
+                    }
+                } catch (const std::exception& ex) {
+                    append_progress(to_utf8(tr("[VISION-ERROR] %1 (%2)")
+                                                .arg(QString::fromStdString(entry.file_name),
+                                                     QString::fromStdString(ex.what()))));
+                    if (!rename_images_only) {
+                        other_entries.push_back(entry);
+                    }
+                    if (offer_image_renames || rename_images_only) {
+                        const std::string suggested_name = already_renamed ? std::string() : entry.file_name;
+                        image_info.emplace(
+                            entry.file_name,
+                            ImageAnalysisInfo{suggested_name, entry.file_name, entry.full_path});
+                    }
+                }
+            }
         }
 
-        append_progress("[PROCESS] Letting the AI do its magic...");
+        update_stop();
 
-        new_files_with_categories = categorization_service.categorize_entries(
-            files_to_categorize,
-            using_local_llm,
-            stop_analysis,
-            [this](const std::string& message) { append_progress(message); },
-            [this](const FileEntry& entry) {
-                append_progress(fmt::format("[SORT] {} ({})",
-                                            entry.file_name,
-                                            entry.type == FileType::Directory ? "directory" : "file"));
-            },
-            [this](const CategorizedFile& entry, const std::string& reason) {
-                notify_recategorization_reset(entry, reason);
-            },
-            [this]() { return make_llm_client(); });
+        std::vector<CategorizedFile> other_results;
+        if (!stop_requested && !other_entries.empty()) {
+            other_results = categorization_service.categorize_entries(
+                other_entries,
+                using_local_llm,
+                stop_analysis,
+                [this](const std::string& message) { append_progress(message); },
+                [this](const FileEntry& entry) {
+                    const QString type_label = entry.type == FileType::Directory ? tr("Directory") : tr("File");
+                    append_progress(to_utf8(tr("[SORT] %1 (%2)")
+                                                .arg(QString::fromStdString(entry.file_name), type_label)));
+                },
+                [this](const CategorizedFile& entry, const std::string& reason) {
+                    notify_recategorization_reset(entry, reason);
+                },
+                [this]() { return make_llm_client(); });
+        }
+        update_stop();
+        if (offer_image_renames && !image_info.empty()) {
+            for (auto& result : other_results) {
+                const auto info_it = image_info.find(result.file_name);
+                if (info_it != image_info.end()) {
+                    result.suggested_name = info_it->second.suggested_name;
+                }
+            }
+        }
+
+        std::vector<CategorizedFile> image_results;
+        if (analyze_images && !analyzed_image_entries.empty()) {
+            if (rename_images_only) {
+                image_results.reserve(analyzed_image_entries.size());
+                for (const auto& entry : analyzed_image_entries) {
+                    const auto entry_path = Utils::utf8_to_path(entry.full_path);
+                    CategorizedFile result{Utils::path_to_utf8(entry_path.parent_path()),
+                                           entry.file_name,
+                                           entry.type,
+                                           "", "", 0};
+                    result.rename_only = true;
+                    if (offer_image_renames || rename_images_only) {
+                        const auto info_it = image_info.find(entry.file_name);
+                        if (info_it != image_info.end()) {
+                            result.suggested_name = info_it->second.suggested_name;
+                        }
+                    }
+                    image_results.push_back(std::move(result));
+                }
+            } else if (!image_entries_for_llm.empty()) {
+                const bool stop_before_image_categorization = stop_requested;
+                const bool bypass_stop = stop_before_image_categorization && other_results.empty();
+                std::atomic<bool> image_stop{false};
+                std::atomic<bool>& stop_flag = bypass_stop ? image_stop : stop_analysis;
+
+                auto override_provider = [&image_info](const FileEntry& entry)
+                    -> std::optional<CategorizationService::PromptOverride> {
+                    const auto it = image_info.find(entry.file_name);
+                    if (it == image_info.end()) {
+                        return std::nullopt;
+                    }
+                    return CategorizationService::PromptOverride{it->second.prompt_name, it->second.prompt_path};
+                };
+
+                image_results = categorization_service.categorize_entries(
+                    image_entries_for_llm,
+                    using_local_llm,
+                    stop_flag,
+                    [this](const std::string& message) { append_progress(message); },
+                    [this](const FileEntry& entry) {
+                        const QString type_label = entry.type == FileType::Directory ? tr("Directory") : tr("File");
+                        append_progress(to_utf8(tr("[SORT] %1 (%2)")
+                                                    .arg(QString::fromStdString(entry.file_name), type_label)));
+                    },
+                    [this](const CategorizedFile& entry, const std::string& reason) {
+                        notify_recategorization_reset(entry, reason);
+                    },
+                    [this]() { return make_llm_client(); },
+                    override_provider);
+
+                update_stop();
+
+                if (offer_image_renames) {
+                    for (auto& result : image_results) {
+                        const auto info_it = image_info.find(result.file_name);
+                        if (info_it != image_info.end()) {
+                            result.suggested_name = info_it->second.suggested_name;
+                        }
+                    }
+                }
+            }
+        }
+
+        update_stop();
+
+        new_files_with_categories.clear();
+        new_files_with_categories.reserve(other_results.size() + image_results.size());
+        new_files_with_categories.insert(new_files_with_categories.end(),
+                                         other_results.begin(),
+                                         other_results.end());
+        new_files_with_categories.insert(new_files_with_categories.end(),
+                                         image_results.begin(),
+                                         image_results.end());
 
         core_logger->info("Categorization produced {} new record(s).",
                           new_files_with_categories.size());
@@ -1270,13 +1959,28 @@ void MainApp::perform_analysis()
             new_files_with_categories.begin(),
             new_files_with_categories.end());
 
-        const auto actual_files = results_coordinator.list_directory(get_folder_path(), file_scan_options);
-        new_files_to_sort = results_coordinator.compute_files_to_sort(get_folder_path(), file_scan_options, actual_files, already_categorized_files);
+        std::vector<CategorizedFile> review_entries = already_categorized_files;
+        if (rename_images_only && !pending_renames.empty()) {
+            review_entries.insert(review_entries.end(),
+                                  pending_renames.begin(),
+                                  pending_renames.end());
+        }
+
+        const auto actual_files = results_coordinator.list_directory(get_folder_path(), scan_options);
+        new_files_to_sort = results_coordinator.compute_files_to_sort(get_folder_path(),
+                                                                      scan_options,
+                                                                      actual_files,
+                                                                      review_entries);
         core_logger->debug("{} file(s) queued for sorting after analysis.",
                            new_files_to_sort.size());
 
-        run_on_ui([this]() {
-            handle_analysis_finished();
+        const bool cancelled = stop_requested;
+        run_on_ui([this, cancelled]() {
+            if (cancelled && new_files_to_sort.empty()) {
+                handle_analysis_cancelled();
+            } else {
+                handle_analysis_finished();
+            }
         });
     } catch (const std::exception& ex) {
         core_logger->error("Exception during analysis: {}", ex.what());
@@ -1455,10 +2159,10 @@ void MainApp::notify_recategorization_reset(const std::vector<CategorizedFile>& 
             return;
         }
         for (const auto& entry : *shared_entries) {
-            progress_dialog->append_text(
-                fmt::format("[WARN] {} will be re-categorized: {}",
-                            entry.file_name,
-                            *shared_reason));
+            const QString message = tr("[WARN] %1 will be re-categorized: %2")
+                                        .arg(QString::fromStdString(entry.file_name),
+                                             QString::fromStdString(*shared_reason));
+            progress_dialog->append_text(to_utf8(message));
         }
     });
 }

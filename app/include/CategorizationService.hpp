@@ -24,6 +24,11 @@ public:
     using ProgressCallback = std::function<void(const std::string&)>;
     using QueueCallback = std::function<void(const FileEntry&)>;
     using RecategorizationCallback = std::function<void(const CategorizedFile&, const std::string&)>;
+    struct PromptOverride {
+        std::string name;
+        std::string path;
+    };
+    using PromptOverrideProvider = std::function<std::optional<PromptOverride>(const FileEntry&)>;
 
     CategorizationService(Settings& settings,
                           DatabaseManager& db_manager,
@@ -40,7 +45,8 @@ public:
         const ProgressCallback& progress_callback,
         const QueueCallback& queue_callback,
         const RecategorizationCallback& recategorization_callback,
-        std::function<std::unique_ptr<ILLMClient>()> llm_factory) const;
+        std::function<std::unique_ptr<ILLMClient>()> llm_factory,
+        const PromptOverrideProvider& prompt_override = {}) const;
 
 private:
     using CategoryPair = std::pair<std::string, std::string>;
@@ -50,8 +56,10 @@ private:
     DatabaseManager::ResolvedCategory categorize_with_cache(
         ILLMClient& llm,
         bool is_local_llm,
-        const std::string& item_name,
-        const std::string& item_path,
+        const std::string& display_name,
+        const std::string& display_path,
+        const std::string& prompt_name,
+        const std::string& prompt_path,
         FileType file_type,
         const ProgressCallback& progress_callback,
         const std::string& consistency_context) const;
@@ -60,6 +68,7 @@ private:
         ILLMClient& llm,
         bool is_local_llm,
         const FileEntry& entry,
+        const std::optional<PromptOverride>& prompt_override,
         std::atomic<bool>& stop_flag,
         const ProgressCallback& progress_callback,
     const RecategorizationCallback& recategorization_callback,
@@ -70,6 +79,9 @@ private:
         ILLMClient& llm,
         bool is_local_llm,
         const FileEntry& entry,
+        const std::string& display_path,
+        const std::string& prompt_name,
+        const std::string& prompt_path,
         const ProgressCallback& progress_callback,
         const std::string& combined_context) const;
     std::optional<CategorizedFile> handle_empty_result(
@@ -121,8 +133,10 @@ private:
     DatabaseManager::ResolvedCategory categorize_via_llm(
         ILLMClient& llm,
         bool is_local_llm,
-        const std::string& item_name,
-        const std::string& item_path,
+        const std::string& display_name,
+        const std::string& display_path,
+        const std::string& prompt_name,
+        const std::string& prompt_path,
         FileType file_type,
         const ProgressCallback& progress_callback,
         const std::string& consistency_context) const;

@@ -79,6 +79,23 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     options_layout->addStretch(1);
     main_layout->addLayout(options_layout);
 
+    auto* image_options_layout = new QVBoxLayout();
+    image_options_layout->setSpacing(4);
+    app.analyze_images_checkbox = new QCheckBox(central);
+    image_options_layout->addWidget(app.analyze_images_checkbox);
+
+    auto* image_rename_layout = new QVBoxLayout();
+    image_rename_layout->setContentsMargins(24, 0, 0, 0);
+    image_rename_layout->setSpacing(2);
+    app.process_images_only_checkbox = new QCheckBox(central);
+    app.offer_rename_images_checkbox = new QCheckBox(central);
+    app.rename_images_only_checkbox = new QCheckBox(central);
+    image_rename_layout->addWidget(app.process_images_only_checkbox);
+    image_rename_layout->addWidget(app.offer_rename_images_checkbox);
+    image_rename_layout->addWidget(app.rename_images_only_checkbox);
+    image_options_layout->addLayout(image_rename_layout);
+    main_layout->addLayout(image_options_layout);
+
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);
     app.categorization_style_consistent_radio = new QRadioButton(central);
@@ -175,7 +192,11 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.use_whitelist_checkbox,
             app.whitelist_selector,
             app.categorize_files_checkbox,
-            app.categorize_directories_checkbox},
+            app.categorize_directories_checkbox,
+            app.analyze_images_checkbox,
+            app.process_images_only_checkbox,
+            app.offer_rename_images_checkbox,
+            app.rename_images_only_checkbox},
         .tree_model = app.tree_model,
         .menus = UiTranslator::MenuControls{
             app.file_menu,
@@ -200,6 +221,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.development_prompt_logging_action,
             app.consistency_pass_action,
             app.english_action,
+            app.dutch_action,
             app.french_action,
             app.german_action,
             app.italian_action,
@@ -221,6 +243,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
         .language = UiTranslator::LanguageControls{
             app.language_group,
             app.english_action,
+            app.dutch_action,
             app.french_action,
             app.german_action,
             app.italian_action,
@@ -325,6 +348,11 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.english_action->setCheckable(true);
     app.english_action->setData(static_cast<int>(Language::English));
     app.language_group->addAction(app.english_action);
+
+    app.dutch_action = app.language_menu->addAction(QString());
+    app.dutch_action->setCheckable(true);
+    app.dutch_action->setData(static_cast<int>(Language::Dutch));
+    app.language_group->addAction(app.dutch_action);
 
     app.french_action = app.language_menu->addAction(QString());
     app.french_action->setCheckable(true);

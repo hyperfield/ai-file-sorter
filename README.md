@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.4.5-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.5.0-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dw/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -31,7 +31,7 @@ The app intelligently assigns categories and optional subcategories, which you c
 
 AI File Sorter runs **local large language models (LLMs)** such as *LLaMa 3B* and *Mistral 7B*, and does not require an internet connection unless you choose to use a remote model.
 
-File content–based sorting for certain file types is also in development.
+Image content analysis for supported picture files is available; broader file-content sorting is still in development.
 
 ---
 
@@ -46,6 +46,8 @@ File content–based sorting for certain file types is also in development.
 
 [![Download ai-file-sorter](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 
+[![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9npk4dzd6r6s)
+
 ![AI File Sorter Screenshot](images/screenshots/ai-file-sorter-win.gif) ![AI File Sorter Screenshot](images/screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](images/screenshots/categorization-dialog-macos.png)
 
 ---
@@ -56,11 +58,15 @@ File content–based sorting for certain file types is also in development.
   - [Categorization](#categorization)
     - [Categorization modes](#categorization-modes)
     - [Category whitelists](#category-whitelists)
+  - [Image analysis (Visual LLM)](#image-analysis-visual-llm)
+    - [Required visual LLM files](#required-visual-llm-files)
+    - [Main window options](#main-window-options)
   - [Requirements](#requirements)
   - [Installation](#installation)
     - [Linux](#linux)
     - [macOS](#macos)
     - [Windows](#windows)
+  - [Categorization cache database](#categorization-cache-database)
   - [Uninstallation](#uninstallation)
   - [Using your OpenAI API key](#using-your-openai-api-key)
   - [Using your Gemini API key](#using-your-gemini-api-key)
@@ -76,11 +82,16 @@ File content–based sorting for certain file types is also in development.
 
 ## Changelog
 
-## [1.4.0] - 2025-12-30
-- Added dry run / preview-only mode with From→To table, no moves performed until you uncheck.
-- Persistent Undo: the latest sort saves a plan file; use Edit → “Undo last run” even after closing dialogs.
-- UI tweaks: Name column auto-resizes, new translations for dry run/undo strings, Undo moved to top of Edit menu.
-- A few more guard rails added.
+## [1.5.0] - 2026-01-06
+
+- Added content analysis for picture files via LLaVA.
+- Added picture analysis options in the main window.
+- Review dialog now supports rename-only flows, suggested filename edits, and status labels for Renamed / Renamed & Moved.
+- Added a picture-only processing toggle to focus runs on supported picture files.
+- Review dialog now supports rename-only flows, suggested filename edits, and status labels.
+- Added Dutch as a selectable interface language.
+- Analysis progress dialog output is now localized in all available UI languages.
+- Build and tests updates.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -96,8 +107,10 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
 - **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
+- **Image content analysis (Visual LLM)**: Analyze supported picture files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
+- **Interface languages**: English, Dutch, French, German, Italian, Spanish, and Turkish.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
 - **Local Database Caching**: Speeds up repeated categorization and minimizes remote LLM usage costs.
 - **Sorting Preview**: See how files will be organized before confirming changes.
@@ -122,6 +135,30 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - Manage lists (add, edit, remove) under **Settings → Manage category whitelists…**. A default list is auto-created only when no lists exist, and multiple named lists can be kept for different projects.
 - Keep each whitelist to roughly **15–20 categories/subcategories** to avoid overlong prompts on smaller local models. Use several narrower lists instead of a single very long one.
 - Whitelists apply in either categorization mode; pair them with **More consistent** when you want the strongest adherence to a constrained vocabulary.
+
+---
+
+## Image analysis (Visual LLM)
+
+Image analysis uses a local LLaVA-based visual LLM to describe image contents and (optionally) suggest a better filename. This runs locally and does not require an API key.
+
+### Required visual LLM files
+
+The **Select LLM** dialog now includes an "Image analysis models (LLaVA)" section with two downloads:
+
+- **LLaVA text model (GGUF)**: The main language model that produces the description and the filename suggestion.
+- **LLaVA mmproj (vision encoder projection, GGUF)**: The adapter that maps vision embeddings into the LLM token space so the model can accept images.
+
+Both files are required. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+
+### Main window options
+
+Image analysis adds four checkboxes to the main window:
+
+- **Analyze picture files by content (can be slow)**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
+- **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
+- **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
+- **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
 ---
 
@@ -368,8 +405,8 @@ Catch2-based unit tests are optional. Enable them via CMake:
 
 ```bash
 cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
-cmake --build build-tests --target ai_file_sorter_tests
-ctest --test-dir build-tests --output-on-failure
+cmake --build build-tests --target ai_file_sorter_tests --parallel $(nproc)
+ctest --test-dir build-tests --output-on-failure -j $(nproc)
 ```
 
 On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
@@ -388,6 +425,57 @@ Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and
 - `--vulkan={on|off}` – force-enable or disable the Vulkan backend.
 
 When no flags are provided the app auto-detects available runtimes in priority order (Vulkan → CUDA → CPU). Use the flags to skip a backend (`--cuda=off` forces Vulkan/CPU even if CUDA is installed, `--vulkan=off` tests CUDA explicitly) or to validate a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected, and if neither GPU backend is detected the app automatically stays on CPU.
+
+#### Vulkan and VRAM notes
+
+- Vulkan is preferred when available; CUDA is used only if Vulkan is missing or explicitly requested.
+- The app auto-estimates `n_gpu_layers` based on available VRAM. Integrated GPUs are capped to 4 GiB for safety, which can limit offloading.
+- If VRAM is tight, the app may fall back to CPU or reduce offload. As a rule of thumb, 8 GB+ VRAM provides a smoother experience for Vulkan offload and image analysis; 4 GB often results in partial offload or CPU fallback.
+- Override auto-estimation with `AI_FILE_SORTER_N_GPU_LAYERS` (`-1` auto, `0` force CPU) or `AI_FILE_SORTER_GPU_BACKEND=cpu`.
+- For image analysis, `AI_FILE_SORTER_VISUAL_USE_GPU=0` forces the visual encoder to run on CPU to avoid VRAM allocation errors.
+
+### Environment variables
+
+Runtime and GPU:
+
+- `AI_FILE_SORTER_GPU_BACKEND` - select GPU backend: `auto` (default), `vulkan`, `cuda`, or `cpu`.
+- `AI_FILE_SORTER_N_GPU_LAYERS` - override `n_gpu_layers` for llama.cpp; `-1` = auto, `0` = force CPU.
+- `AI_FILE_SORTER_CTX_TOKENS` - override local LLM context length (default 2048; clamped 512-8192).
+- `AI_FILE_SORTER_GGML_DIR` - directory to load ggml backend shared libraries from.
+
+Visual LLM:
+
+- `LLAVA_MODEL_URL` - download URL for the visual LLM GGUF model (required to enable image analysis).
+- `LLAVA_MMPROJ_URL` - download URL for the visual LLM mmproj GGUF file (required to enable image analysis).
+- `AI_FILE_SORTER_VISUAL_USE_GPU` - force visual encoder GPU usage (`1`) or CPU (`0`). Defaults to auto; Vulkan may fall back to CPU if VRAM is low.
+
+Timeouts and logging:
+
+- `AI_FILE_SORTER_LOCAL_LLM_TIMEOUT` - seconds to wait for local LLM responses (default 60).
+- `AI_FILE_SORTER_REMOTE_LLM_TIMEOUT` - seconds to wait for remote LLM responses (default 10).
+- `AI_FILE_SORTER_LLAMA_LOGS` - enable verbose llama.cpp logs (`1`/`true`); also honors `LLAMA_CPP_DEBUG_LOGS`.
+
+Storage and updates:
+
+- `AI_FILE_SORTER_CONFIG_DIR` - override the base config directory (where `config.ini` lives).
+- `CATEGORIZATION_CACHE_FILE` - override the SQLite cache filename inside the config dir.
+- `UPDATE_SPEC_FILE_URL` - override the update feed spec URL (dev/testing).
+
+---
+
+## Categorization cache database
+
+AI File Sorter stores categorization results in a local SQLite database next to `config.ini` (the base directory can be overridden via `AI_FILE_SORTER_CONFIG_DIR`). This cache allows the app to skip already-processed files and preserve rename suggestions between runs.
+
+What is stored:
+
+- Directory path, file name, and file type (used as a unique key).
+- Category/subcategory, taxonomy id, categorization style, and timestamp.
+- Suggested filename (for picture rename suggestions).
+- Rename-only flag (used when "Do not categorize picture files (only rename)" is enabled).
+- Rename-applied flag (marks when a rename was executed so it is not offered again).
+
+If you rename or move a file from the Review dialog, the cache entry is updated to the new name. Already-renamed picture files are skipped for visual analysis and rename suggestions on later runs. In the Review dialog, those already-renamed rows are hidden when rename-only is enabled, but they stay visible when categorization is enabled so you can still move them into category folders. To reset a folder's cache, accept the recategorization prompt or delete the cache file (or point `CATEGORIZATION_CACHE_FILE` to a new filename).
 
 ---
 
@@ -490,6 +578,7 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 - Hugging Face: <https://huggingface.co>
 - JSONCPP: <https://github.com/open-source-parsers/jsoncpp>
 - LLaMa: <https://www.llama.com>
+- Local File Organizer <https://github.com/QiuYannnn/Local-File-Organizer>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
 - Mistral AI: <https://mistral.ai>
 - OpenAI: <https://platform.openai.com/docs/overview>

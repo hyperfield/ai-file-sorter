@@ -273,7 +273,9 @@ void apply_harmonized_update(
         update.target->type == FileType::File ? "F" : "D",
         update.target->file_path,
         resolved,
-        update.target->used_consistency_hints);
+        update.target->used_consistency_hints,
+        update.target->suggested_name,
+        update.target->rename_only);
 
     if (auto new_it = new_items_by_key.find(update.id); new_it != new_items_by_key.end() && new_it->second) {
         new_it->second->category = resolved.category;

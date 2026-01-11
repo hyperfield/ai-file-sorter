@@ -42,6 +42,10 @@ struct UiTranslatorTestHarness {
     QPointer<QComboBox> whitelist_selector{new QComboBox(&window)};
     QPointer<QCheckBox> files_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> directories_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> analyze_images_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> process_images_only_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> offer_rename_images_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> rename_images_only_checkbox{new QCheckBox(&window)};
 
     QPointer<QStandardItemModel> tree_model{new QStandardItemModel(0, 5, &window)};
     QMenu* file_menu = new QMenu(&window);
@@ -66,6 +70,7 @@ struct UiTranslatorTestHarness {
     QAction* development_prompt_logging_action = new QAction(&window);
     QAction* consistency_pass_action = new QAction(&window);
     QAction* english_action = new QAction(&window);
+    QAction* dutch_action = new QAction(&window);
     QAction* french_action = new QAction(&window);
     QAction* german_action = new QAction(&window);
     QAction* italian_action = new QAction(&window);
@@ -118,6 +123,8 @@ struct UiTranslatorTestHarness {
         language_group->setExclusive(true);
         english_action->setCheckable(true);
         english_action->setData(static_cast<int>(Language::English));
+        dutch_action->setCheckable(true);
+        dutch_action->setData(static_cast<int>(Language::Dutch));
         french_action->setCheckable(true);
         french_action->setData(static_cast<int>(Language::French));
         german_action->setCheckable(true);
@@ -125,6 +132,7 @@ struct UiTranslatorTestHarness {
         spanish_action->setCheckable(true);
         turkish_action->setCheckable(true);
         language_group->addAction(english_action);
+        language_group->addAction(dutch_action);
         language_group->addAction(french_action);
         language_group->addAction(german_action);
         language_group->addAction(italian_action);
@@ -147,7 +155,11 @@ struct UiTranslatorTestHarness {
                 use_whitelist,
                 whitelist_selector,
                 files_checkbox,
-                directories_checkbox},
+                directories_checkbox,
+                analyze_images_checkbox,
+                process_images_only_checkbox,
+                offer_rename_images_checkbox,
+                rename_images_only_checkbox},
             .tree_model = tree_model,
             .menus = UiTranslator::MenuControls{
                 file_menu,
@@ -172,6 +184,7 @@ struct UiTranslatorTestHarness {
                 development_prompt_logging_action,
                 consistency_pass_action,
                 english_action,
+                dutch_action,
                 french_action,
                 german_action,
                 italian_action,
@@ -193,6 +206,7 @@ struct UiTranslatorTestHarness {
             .language = UiTranslator::LanguageControls{
                 language_group,
                 english_action,
+                dutch_action,
                 french_action,
                 german_action,
                 italian_action,
@@ -230,6 +244,11 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.use_whitelist->text() == QStringLiteral("Use a whitelist"));
     REQUIRE(h.files_checkbox->text() == QStringLiteral("Categorize files"));
     REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize directories"));
+    REQUIRE(h.analyze_images_checkbox->text() == QStringLiteral("Analyze picture files by content (can be slow)"));
+    REQUIRE(h.process_images_only_checkbox->text() ==
+            QStringLiteral("Process picture files only (ignore any other files)"));
+    REQUIRE(h.offer_rename_images_checkbox->text() == QStringLiteral("Offer to rename picture files"));
+    REQUIRE(h.rename_images_only_checkbox->text() == QStringLiteral("Do not categorize picture files (only rename)"));
 }
 
 void verify_menus_and_actions(const UiTranslatorTestHarness& h)

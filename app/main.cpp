@@ -190,7 +190,7 @@ public:
     }
 
 private:
-    QApplication& app_;
+    [[maybe_unused]] QApplication& app_;
     bool finished_{false};
     QWidget* target_{nullptr};
 };

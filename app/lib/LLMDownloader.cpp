@@ -548,4 +548,5 @@ void LLMDownloader::LLMDownloaderTestAccess::set_resume_headers(LLMDownloader& d
     downloader.curl_headers["content-length"] = std::to_string(content_length);
     downloader.real_content_length = content_length;
 }
+
 #endif

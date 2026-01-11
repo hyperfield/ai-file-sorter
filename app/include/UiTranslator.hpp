@@ -40,6 +40,10 @@ public:
         QPointer<QComboBox>& whitelist_selector;
         QPointer<QCheckBox>& categorize_files_checkbox;
         QPointer<QCheckBox>& categorize_directories_checkbox;
+        QPointer<QCheckBox>& analyze_images_checkbox;
+        QPointer<QCheckBox>& process_images_only_checkbox;
+        QPointer<QCheckBox>& offer_rename_images_checkbox;
+        QPointer<QCheckBox>& rename_images_only_checkbox;
     };
 
     struct MenuControls {
@@ -67,6 +71,7 @@ public:
         QAction*& development_prompt_logging_action;
         QAction*& consistency_pass_action;
         QAction*& english_action;
+        QAction*& dutch_action;
         QAction*& french_action;
         QAction*& german_action;
         QAction*& italian_action;
@@ -90,6 +95,7 @@ public:
     struct LanguageControls {
         QActionGroup*& language_group;
         QAction*& english_action;
+        QAction*& dutch_action;
         QAction*& french_action;
         QAction*& german_action;
         QAction*& italian_action;

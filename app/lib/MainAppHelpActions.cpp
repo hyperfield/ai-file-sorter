@@ -44,7 +44,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
     about_layout->addWidget(version_label);
 
     auto* copyright_label =
-        new QLabel(QStringLiteral("© 2024-2025 QuickNode. All rights reserved."), about_tab);
+        new QLabel(QStringLiteral("© 2024-2026 QuickNode. All rights reserved."), about_tab);
     copyright_label->setAlignment(Qt::AlignHCenter);
     about_layout->addWidget(copyright_label);
 

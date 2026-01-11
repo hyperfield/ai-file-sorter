@@ -84,6 +84,7 @@ cp build/bin/libmtmd.dylib "$PRECOMPILED_LIBS_DIR"
 (
   cd "$PRECOMPILED_LIBS_DIR"
   ln -sf libllama.dylib libllama.0.dylib
+  ln -sf libmtmd.dylib libmtmd.0.dylib
 )
 
 # Copy headers

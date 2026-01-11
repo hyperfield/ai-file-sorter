@@ -172,10 +172,14 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
     const ProgressCallback& progress_callback,
     const QueueCallback& queue_callback,
     const RecategorizationCallback& recategorization_callback,
-    std::function<std::unique_ptr<ILLMClient>()> llm_factory) const
+    std::function<std::unique_ptr<ILLMClient>()> llm_factory,
+    const PromptOverrideProvider& prompt_override) const
 {
     std::vector<CategorizedFile> categorized;
     if (files.empty()) {
+        return categorized;
+    }
+    if (stop_flag.load()) {
         return categorized;
     }
 
@@ -196,9 +200,11 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
             queue_callback(entry);
         }
 
+        const auto override_value = prompt_override ? prompt_override(entry) : std::nullopt;
         if (auto categorized_entry = categorize_single_entry(*llm,
                                                              is_local_llm,
                                                              entry,
+                                                             override_value,
                                                              stop_flag,
                                                              progress_callback,
                                                              recategorization_callback,
@@ -327,15 +333,17 @@ bool CategorizationService::ensure_remote_credentials_for_request(
 DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
     ILLMClient& llm,
     bool is_local_llm,
-    const std::string& item_name,
-    const std::string& item_path,
+    const std::string& display_name,
+    const std::string& display_path,
+    const std::string& prompt_name,
+    const std::string& prompt_path,
     FileType file_type,
     const ProgressCallback& progress_callback,
     const std::string& consistency_context) const
 {
     try {
         const std::string category_subcategory =
-            run_llm_with_timeout(llm, item_name, item_path, file_type, is_local_llm, consistency_context);
+            run_llm_with_timeout(llm, prompt_name, prompt_path, file_type, is_local_llm, consistency_context);
 
         auto [category, subcategory] = split_category_subcategory(category_subcategory);
         auto resolved = db_manager.resolve_category(category, subcategory);
@@ -353,12 +361,12 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
         if (!validation.valid) {
             if (progress_callback) {
                 progress_callback(fmt::format("[LLM-ERROR] {} (invalid category/subcategory: {})",
-                                              item_name,
+                                              display_name,
                                               validation.error));
             }
             if (core_logger) {
                 core_logger->warn("Invalid LLM output for '{}': {} (cat='{}', sub='{}')",
-                                  item_name,
+                                  display_name,
                                   validation.error,
                                   resolved.category,
                                   resolved.subcategory);
@@ -368,15 +376,15 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
         if (resolved.category.empty()) {
             resolved.category = "Uncategorized";
         }
-        emit_progress_message(progress_callback, "AI", item_name, resolved, item_path);
+        emit_progress_message(progress_callback, "AI", display_name, resolved, display_path);
         return resolved;
     } catch (const std::exception& ex) {
-        const std::string err_msg = fmt::format("[LLM-ERROR] {} ({})", item_name, ex.what());
+        const std::string err_msg = fmt::format("[LLM-ERROR] {} ({})", display_name, ex.what());
         if (progress_callback) {
             progress_callback(err_msg);
         }
         if (core_logger) {
-            core_logger->error("LLM error while categorizing '{}': {}", item_name, ex.what());
+            core_logger->error("LLM error while categorizing '{}': {}", display_name, ex.what());
         }
         throw;
     }
@@ -402,24 +410,28 @@ void CategorizationService::emit_progress_message(const ProgressCallback& progre
 DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     ILLMClient& llm,
     bool is_local_llm,
-    const std::string& item_name,
-    const std::string& item_path,
+    const std::string& display_name,
+    const std::string& display_path,
+    const std::string& prompt_name,
+    const std::string& prompt_path,
     FileType file_type,
     const ProgressCallback& progress_callback,
     const std::string& consistency_context) const
 {
-    if (auto cached = try_cached_categorization(item_name, item_path, file_type, progress_callback)) {
+    if (auto cached = try_cached_categorization(display_name, display_path, file_type, progress_callback)) {
         return *cached;
     }
 
-    if (!is_local_llm && !ensure_remote_credentials_for_request(item_name, progress_callback)) {
+    if (!is_local_llm && !ensure_remote_credentials_for_request(display_name, progress_callback)) {
         return DatabaseManager::ResolvedCategory{-1, "", ""};
     }
 
     return categorize_via_llm(llm,
                               is_local_llm,
-                              item_name,
-                              item_path,
+                              display_name,
+                              display_path,
+                              prompt_name,
+                              prompt_path,
                               file_type,
                               progress_callback,
                               consistency_context);
@@ -429,6 +441,7 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     ILLMClient& llm,
     bool is_local_llm,
     const FileEntry& entry,
+    const std::optional<PromptOverride>& prompt_override,
     std::atomic<bool>& stop_flag,
     const ProgressCallback& progress_callback,
     const RecategorizationCallback& recategorization_callback,
@@ -438,7 +451,10 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
 
     const std::filesystem::path entry_path = Utils::utf8_to_path(entry.full_path);
     const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
-    const std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
+    const std::string display_path = Utils::abbreviate_user_path(entry.full_path);
+    const std::string prompt_name = prompt_override ? prompt_override->name : entry.file_name;
+    const std::string prompt_path = prompt_override ? prompt_override->path : entry.full_path;
+    const std::string prompt_path_display = Utils::abbreviate_user_path(prompt_path);
     const bool use_consistency_hints = settings.get_use_consistency_hints();
     const std::string extension = extract_extension(entry.file_name);
     const std::string signature = make_file_signature(entry.type, extension);
@@ -456,6 +472,9 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
             resolved = run_categorization_with_cache(llm,
                                                      is_local_llm,
                                                      entry,
+                                                     display_path,
+                                                     prompt_name,
+                                                     prompt_path_display,
                                                      progress_callback,
                                                      combined_context);
             break;
@@ -535,14 +554,18 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
     ILLMClient& llm,
     bool is_local_llm,
     const FileEntry& entry,
+    const std::string& display_path,
+    const std::string& prompt_name,
+    const std::string& prompt_path,
     const ProgressCallback& progress_callback,
     const std::string& combined_context) const
 {
-    const std::string abbreviated_path = Utils::abbreviate_user_path(entry.full_path);
     return categorize_with_cache(llm,
                                  is_local_llm,
                                  entry.file_name,
-                                 abbreviated_path,
+                                 display_path,
+                                 prompt_name,
+                                 prompt_path,
                                  entry.type,
                                  progress_callback,
                                  combined_context);
@@ -602,7 +625,8 @@ void CategorizationService::update_storage_with_result(const FileEntry& entry,
         entry.type == FileType::File ? "F" : "D",
         dir_path,
         resolved,
-        used_consistency_hints);
+        used_consistency_hints,
+        std::string());
 
     const std::string signature = make_file_signature(entry.type, extract_extension(entry.file_name));
     if (!signature.empty()) {

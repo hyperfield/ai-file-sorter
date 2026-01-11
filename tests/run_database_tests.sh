@@ -52,13 +52,13 @@ int main() {
     DatabaseManager::ResolvedCategory empty_cat{0, "", ""};
     DatabaseManager::ResolvedCategory whitespace_cat{0, "   ", "   "};
 
-    if (!manager.insert_or_update_file_with_categorization("valid.txt", "F", test_dir, valid, false)) {
+    if (!manager.insert_or_update_file_with_categorization("valid.txt", "F", test_dir, valid, false, "")) {
         fail("Failed to insert valid row");
     }
-    if (!manager.insert_or_update_file_with_categorization("empty.txt", "F", test_dir, empty_cat, false)) {
+    if (!manager.insert_or_update_file_with_categorization("empty.txt", "F", test_dir, empty_cat, false, "")) {
         fail("Failed to insert empty row");
     }
-    if (!manager.insert_or_update_file_with_categorization("space.txt", "F", test_dir, whitespace_cat, false)) {
+    if (!manager.insert_or_update_file_with_categorization("space.txt", "F", test_dir, whitespace_cat, false, "")) {
         fail("Failed to insert whitespace row");
     }
 

@@ -49,12 +49,31 @@ private:
     enum class RowStatus {
         None = 0,
         Moved,
+        Renamed,
+        RenamedAndMoved,
         Skipped,
         NotSelected,
         Preview
     };
 
     static constexpr int kStatusRole = Qt::UserRole + 100;
+    static constexpr int kFilePathRole = Qt::UserRole + 1;
+    static constexpr int kUsedConsistencyRole = Qt::UserRole + 2;
+    static constexpr int kRenameOnlyRole = Qt::UserRole + 3;
+    static constexpr int kFileTypeRole = Qt::UserRole + 4;
+    static constexpr int kRenameAppliedRole = Qt::UserRole + 5;
+    static constexpr int kRenameLockedRole = Qt::UserRole + 6;
+
+    enum Column {
+        ColumnSelect = 0,
+        ColumnFile = 1,
+        ColumnType = 2,
+        ColumnSuggestedName = 3,
+        ColumnCategory = 4,
+        ColumnSubcategory = 5,
+        ColumnStatus = 6,
+        ColumnPreview = 7
+    };
 
     struct MoveRecord {
         int row_index;
@@ -66,21 +85,28 @@ private:
     struct PreviewRecord {
         std::string source;
         std::string destination;
-        std::string file_name;
+        std::string source_file_name;
+        std::string destination_file_name;
         std::string category;
         std::string subcategory;
         bool use_subcategory{false};
+        bool rename_only{false};
     };
 
     void setup_ui();
     void populate_model();
+    void ensure_unique_suggested_names_in_model();
     void record_categorization_to_db();
     void on_confirm_and_sort_button_clicked();
     void on_continue_later_button_clicked();
     void on_undo_button_clicked();
     void show_close_button();
     void restore_action_buttons();
-    void update_status_column(int row, bool success, bool attempted = true);
+    void update_status_column(int row,
+                              bool success,
+                              bool attempted = true,
+                              bool renamed = false,
+                              bool moved = false);
     void on_select_all_toggled(bool checked);
     void apply_select_all(bool checked);
     void on_item_changed(QStandardItem* item);
@@ -89,7 +115,6 @@ private:
     void retranslate_ui();
     void apply_status_text(QStandardItem* item) const;
     RowStatus status_from_item(const QStandardItem* item) const;
-    std::vector<std::tuple<bool, std::string, std::string, std::string>> get_rows() const;
     void on_show_subcategories_toggled(bool checked);
     void apply_subcategory_visibility();
     void clear_move_history();
@@ -100,10 +125,14 @@ private:
                               std::time_t mtime);
     void handle_selected_row(int row_index,
                              const std::string& file_name,
+                             const std::string& rename_candidate,
                              const std::string& category,
                              const std::string& subcategory,
                              const std::string& base_dir,
                              std::vector<std::string>& files_not_moved,
+                             FileType file_type,
+                             bool rename_only,
+                             bool used_consistency_hints,
                              bool dry_run);
     void persist_move_plan();
     bool undo_move_history();
@@ -114,9 +143,22 @@ private:
     void update_preview_column(int row);
     std::optional<std::string> compute_preview_path(int row) const;
     std::optional<PreviewRecord> build_preview_record_for_row(int row, std::string* debug_reason = nullptr) const;
+    std::string resolve_destination_name(const std::string& original_name,
+                                         const std::string& rename_candidate) const;
+    bool validate_filename(const std::string& name, std::string& error) const;
+    bool resolve_row_flags(int row, bool& rename_only, bool& used_consistency_hints, FileType& file_type) const;
+    void set_show_rename_column(bool enabled);
+    void apply_rename_visibility();
+    void apply_category_visibility();
+    void apply_rename_only_row_visibility();
+    void update_rename_only_checkbox_state();
+    void on_rename_images_only_toggled(bool checked);
+    bool row_is_already_renamed_with_category(int row) const;
+    bool row_is_supported_image(int row) const;
 
     DatabaseManager* db_manager;
     bool show_subcategory_column;
+    bool show_rename_column{false};
     std::vector<CategorizedFile> categorized_files;
 
     std::shared_ptr<spdlog::logger> core_logger;
@@ -131,6 +173,7 @@ private:
     QCheckBox* select_all_checkbox{nullptr};
     QCheckBox* show_subcategories_checkbox{nullptr};
     QCheckBox* dry_run_checkbox{nullptr};
+    QCheckBox* rename_images_only_checkbox{nullptr};
     QPushButton* undo_button{nullptr};
 
     std::vector<MoveRecord> move_history_;

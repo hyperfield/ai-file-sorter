@@ -108,6 +108,7 @@ MovableCategorizedFile::build_move_paths(bool use_subcategory) const
     const std::filesystem::path category_segment = Utils::utf8_to_path(category);
     const std::filesystem::path subcategory_segment = Utils::utf8_to_path(subcategory);
     const std::filesystem::path file_segment = Utils::utf8_to_path(file_name);
+    const std::filesystem::path destination_segment = Utils::utf8_to_path(destination_file_name);
 
     const std::filesystem::path categorized_root = use_subcategory
         ? base_dir / category_segment / subcategory_segment
@@ -115,7 +116,7 @@ MovableCategorizedFile::build_move_paths(bool use_subcategory) const
 
     return MovePaths{
         base_dir / file_segment,
-        categorized_root / file_segment
+        categorized_root / destination_segment
     };
 }
 
@@ -163,8 +164,9 @@ bool MovableCategorizedFile::perform_move(const std::filesystem::path& source_pa
 
 MovableCategorizedFile::MovableCategorizedFile(
     const std::string& dir_path, const std::string& cat, const std::string& subcat,
-    const std::string& file_name)
+    const std::string& file_name, const std::string& destination_name)
     : file_name(file_name),
+      destination_file_name(destination_name.empty() ? file_name : destination_name),
       dir_path(dir_path),
       category(cat),
       subcategory(subcat)
@@ -188,7 +190,7 @@ MovableCategorizedFile::MovableCategorizedFile(
     const std::filesystem::path base_dir = Utils::utf8_to_path(dir_path);
     category_path = base_dir / Utils::utf8_to_path(category);
     subcategory_path = category_path / Utils::utf8_to_path(subcategory);
-    destination_path = subcategory_path / Utils::utf8_to_path(file_name);
+    destination_path = subcategory_path / Utils::utf8_to_path(destination_file_name);
 }
 
 

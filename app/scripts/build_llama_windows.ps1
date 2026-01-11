@@ -384,7 +384,7 @@ if ($useVulkan -eq "ON" -and $vulkanDllPath -and (Test-Path $vulkanDllPath)) {
     Copy-Item $vulkanDllPath -Destination $runtimeDir -Force
 }
 
-$importLibNames = @("llama.lib", "ggml.lib", "ggml-base.lib", "ggml-cpu.lib")
+$importLibNames = @("llama.lib", "ggml.lib", "ggml-base.lib", "ggml-cpu.lib", "mtmd.lib")
 $optionalLibs = @("ggml-blas.lib", "ggml-openblas.lib")
 if ($useCuda -eq "ON") {
     $importLibNames += "ggml-cuda.lib"

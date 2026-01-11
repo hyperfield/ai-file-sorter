@@ -9,6 +9,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
 
+include(CheckSymbolExists)
+include(CheckCXXSourceCompiles)
+
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -57,6 +60,7 @@ endif()
 target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
 )
 
 # Resources (equivalent to rcc generation in Makefile)
@@ -143,11 +147,66 @@ if(WIN32)
             IMPORTED_LOCATION "${dll_path}"
         )
     endforeach()
+
+    set(MTMD_IMPORT "${PRECOMPILED_CPU_LIB_DIR}/mtmd.lib")
+    set(MTMD_DLL "${PRECOMPILED_CPU_BIN_DIR}/mtmd.dll")
+    if(EXISTS "${MTMD_IMPORT}" AND EXISTS "${MTMD_DLL}")
+        add_library(mtmd SHARED IMPORTED)
+        set_target_properties(mtmd PROPERTIES
+            IMPORTED_IMPLIB "${MTMD_IMPORT}"
+            IMPORTED_LOCATION "${MTMD_DLL}"
+        )
+        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
+        set(_aifs_saved_required_libs "${CMAKE_REQUIRED_LIBRARIES}")
+        set(CMAKE_REQUIRED_LIBRARIES "${MTMD_IMPORT}")
+        check_cxx_source_compiles([[
+            extern "C" void mtmd_helper_set_progress_callback(void*, void*);
+            int main() {
+                mtmd_helper_set_progress_callback(0, 0);
+                return 0;
+            }
+        ]] HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+        check_cxx_source_compiles([[
+            extern "C" void mtmd_helper_log_set(void*, void*);
+            int main() {
+                mtmd_helper_log_set(0, 0);
+                return 0;
+            }
+        ]] HAVE_MTMD_HELPER_LOG_SET)
+        set(CMAKE_REQUIRED_LIBRARIES "${_aifs_saved_required_libs}")
+        unset(_aifs_saved_required_libs)
+        if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+            target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+        endif()
+        if(HAVE_MTMD_HELPER_LOG_SET)
+            target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+        endif()
+    else()
+        message(WARNING "Visual LLM support disabled: missing mtmd.lib/mtmd.dll under app/lib/precompiled/cpu. Run app/scripts/build_llama_windows.ps1 to stage mtmd.")
+    endif()
 else()
     # Build llama.cpp from the included submodule for non-Windows platforms
+    set(LLAMA_BUILD_COMMON ON CACHE BOOL "llama: build common utils library" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libs" FORCE)
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp" "${CMAKE_CURRENT_BINARY_DIR}/llama-build")
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd" "${CMAKE_CURRENT_BINARY_DIR}/mtmd-build")
     target_link_libraries(aifilesorter PRIVATE llama)
+    target_link_libraries(aifilesorter PRIVATE mtmd)
+    target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
+    set(CMAKE_REQUIRED_INCLUDES
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/ggml/include"
+    )
+    check_symbol_exists(mtmd_helper_set_progress_callback "mtmd-helper.h" HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+    check_symbol_exists(mtmd_helper_log_set "mtmd-helper.h" HAVE_MTMD_HELPER_LOG_SET)
+    set(CMAKE_REQUIRED_INCLUDES)
+    if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+    endif()
+    if(HAVE_MTMD_HELPER_LOG_SET)
+        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+    endif()
     if(MSVC)
         target_compile_options(llama PRIVATE /Zc:char8_t-)
     endif()
@@ -168,6 +227,9 @@ target_link_libraries(aifilesorter PRIVATE
 
 if(WIN32)
     target_link_libraries(aifilesorter PRIVATE ggml ggml_base ggml_cpu)
+    if(TARGET mtmd)
+        target_link_libraries(aifilesorter PRIVATE mtmd)
+    endif()
 endif()
 
 if(WIN32)
@@ -355,11 +417,15 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_visual.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_image_options.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_settings_image_options.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_support_prompt.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_whitelist_and_prompt.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_database_manager_rename_only.cpp"
     )
 
     target_include_directories(ai_file_sorter_tests PRIVATE

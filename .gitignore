@@ -55,6 +55,14 @@ create_macos_bundle.sh
 create_dmg.sh
 package_deb.sh
 
+# Packaging
+*.nsi
+*.msix
+msix/
+package_msix.ps1
+appcert-AIFileSorter.xml
+msix-layout/
+
 # References
 # includePaths.txt
 
@@ -119,6 +127,9 @@ build-tests/
 build/
 dist/
 app/lib/ggml/
+
+# No longer relevant
+api-key-encryption/
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
 

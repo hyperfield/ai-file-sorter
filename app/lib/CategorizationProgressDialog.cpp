@@ -92,7 +92,10 @@ void CategorizationProgressDialog::request_stop()
     if (!main_app) {
         return;
     }
-    main_app->report_progress("[STOP] Cancelling analysis...");
+    main_app->report_progress(
+        tr("[STOP] Analysis will stop after the current item is processed.")
+            .toUtf8()
+            .toStdString());
     main_app->request_stop_analysis();
 }
 

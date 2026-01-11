@@ -12,6 +12,8 @@
 #include <vector>
 #include <cstring>
 #include <QApplication>
+#include "TranslationManager.hpp"
+#include "Language.hpp"
 
 inline std::string make_unique_token(std::string_view prefix) {
     static std::atomic<uint64_t> counter{0};
@@ -144,5 +146,7 @@ public:
             static QApplication* app = new QApplication(argc, argv);
             Q_UNUSED(app);
         }
+        TranslationManager::instance().initialize(qApp);
+        TranslationManager::instance().set_language(Language::English);
     }
 };

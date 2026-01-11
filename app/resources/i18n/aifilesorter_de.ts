@@ -6,17 +6,29 @@
     <message><source>Analyze folder</source><translation>Ordner analysieren</translation></message>
     <message><source>Stop analyzing</source><translation>Analyse stoppen</translation></message>
     <message><source>Use subcategories</source><translation>Unterkategorien verwenden</translation></message>
+    <message><source>Create subcategory folders within each category.</source><translation>Unterordner innerhalb jeder Kategorie anlegen.</translation></message>
     <message><source>Categorization type</source><translation>Kategorisierungstyp</translation></message>
+    <message><source>Choose how strict the category labels should be.</source><translation>Festlegen, wie strikt die Kategoriebezeichnungen sein sollen.</translation></message>
     <message><source>More refined</source><translation>Ausführlicher</translation></message>
+    <message><source>Favor detailed labels even if similar items vary.</source><translation>Bevorzugt detaillierte Bezeichnungen, auch wenn ähnliche Elemente variieren.</translation></message>
     <message><source>More consistent</source><translation>Einheitlicher</translation></message>
+    <message><source>Favor consistent labels across similar items.</source><translation>Bevorzugt konsistente Bezeichnungen für ähnliche Elemente.</translation></message>
     <message><source>Use a whitelist</source><translation>Whitelist verwenden</translation></message>
+    <message><source>Restrict categories and subcategories to the selected whitelist.</source><translation>Kategorien und Unterkategorien auf die ausgewählte Whitelist beschränken.</translation></message>
+    <message><source>Select the whitelist used for this run.</source><translation>Whitelist für diesen Lauf auswählen.</translation></message>
     <message><source>Recategorize folder?</source><translation>Ordner neu kategorisieren?</translation></message>
     <message><source>This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?</source><translation>Dieser Ordner wurde im Modus %1 kategorisiert. Möchten Sie ihn jetzt im Modus %2 neu kategorisieren?</translation></message>
     <message><source>Recategorize</source><translation>Neu kategorisieren</translation></message>
     <message><source>Keep existing</source><translation>Beibehalten</translation></message>
     <message><source>Failed to reset cached categorization for this folder.</source><translation>Zurücksetzen der zwischengespeicherten Kategorisierung für diesen Ordner fehlgeschlagen.</translation></message>
     <message><source>Categorize files</source><translation>Dateien kategorisieren</translation></message>
+    <message><source>Include files in the categorization pass.</source><translation>Dateien in die Kategorisierung einbeziehen.</translation></message>
     <message><source>Categorize directories</source><translation>Ordner kategorisieren</translation></message>
+    <message><source>Include directories in the categorization pass.</source><translation>Ordner in die Kategorisierung einbeziehen.</translation></message>
+    <message><source>Run the visual LLM on supported picture files.</source><translation>Visuelles LLM auf unterstützte Bilddateien anwenden.</translation></message>
+    <message><source>Ignore non-picture files in this run.</source><translation>Nicht-Bilddateien in diesem Lauf ignorieren.</translation></message>
+    <message><source>Show suggested filenames for picture files.</source><translation>Vorgeschlagene Dateinamen für Bilddateien anzeigen.</translation></message>
+    <message><source>Skip categorization for picture files and only rename them.</source><translation>Bilddateien nicht kategorisieren und nur umbenennen.</translation></message>
     <message><source>Ready</source><translation>Bereit</translation></message>
     <message><source>Set folder to %1</source><translation>Ordner auf %1 gesetzt</translation></message>
     <message><source>Loaded folder %1</source><translation>Ordner %1 geladen</translation></message>
@@ -51,6 +63,7 @@
     <message><source>Run &amp;consistency pass</source><translation>Konsistenzdurchlauf ausführen</translation></message>
     <message><source>Interface &amp;language</source><translation>&amp;Oberflächensprache</translation></message>
     <message><source>&amp;English</source><translation>&amp;Englisch</translation></message>
+    <message><source>&amp;Dutch</source><translation>&amp;Niederländisch</translation></message>
     <message><source>&amp;French</source><translation>&amp;Französisch</translation></message>
     <message><source>&amp;German</source><translation>&amp;Deutsch</translation></message>
     <message><source>&amp;Italian</source><translation>&amp;Italienisch</translation></message>
@@ -64,10 +77,10 @@
     <message><source>&amp;Support Project</source><translation>Projekt unterstützen</translation></message>
     <message><source>About the AGPL License</source><translation>Über die AGPL-Lizenz</translation></message>
     <message><source>AI File Sorter is distributed under the GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;You can access the full source code at &lt;a href=&quot;https://github.com/hyperfield/ai-file-sorter&quot;&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;A full copy of the license is provided with this application and available online at &lt;a href=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;&gt;gnu.org&lt;/a&gt;.</source><translation>AI File Sorter wird unter der GNU Affero General Public License v3.0 vertrieben.&lt;br&gt;&lt;br&gt;Den vollständigen Quellcode finden Sie unter &lt;a href=&quot;https://github.com/hyperfield/ai-file-sorter&quot;&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;Eine vollständige Lizenzkopie liegt bei und ist online verfügbar unter &lt;a href=&quot;https://www.gnu.org/licenses/agpl-3.0.html&quot;&gt;gnu.org&lt;/a&gt;.</translation></message>
-    <message><source>Review Categorization</source><translation>Kategorisierung überprüfen</translation></message>
+    <message><source>Review and Confirm</source><translation>Prüfen und bestätigen</translation></message>
     <message><source>Select all</source><translation>Alle auswählen</translation></message>
-    <message><source>Move</source><translation>Verschieben</translation></message>
-    <message><source>Confirm and Sort</source><translation>Bestätigen und sortieren</translation></message>
+    <message><source>Process</source><translation>Verarbeiten</translation></message>
+    <message><source>Confirm and Process</source><translation>Bestätigen und verarbeiten</translation></message>
     <message><source>Continue Later</source><translation>Später fortsetzen</translation></message>
     <message><source>Close</source><translation>Schließen</translation></message>
     <message><source>Not selected</source><translation>Nicht ausgewählt</translation></message>
@@ -75,6 +88,17 @@
     <message><source>Skipped</source><translation>Übersprungen</translation></message>
     <message><source>Analyzing Files</source><translation>Dateien analysieren</translation></message>
     <message><source>Stop Analysis</source><translation>Analyse stoppen</translation></message>
+    <message><source>[ARCHIVE] Already categorized highlights:</source><translation>[ARCHIV] Bereits kategorisierte Einträge:</translation></message>
+    <message><source>[DONE] No files to categorize.</source><translation>[FERTIG] Keine Dateien zu kategorisieren.</translation></message>
+    <message><source>[QUEUE] Items waiting for categorization:</source><translation>[WARTESCHLANGE] Elemente warten auf Kategorisierung:</translation></message>
+    <message><source>[SCAN] Exploring %1</source><translation>[SCAN] Durchsuche %1</translation></message>
+    <message><source>[PROCESS] Letting the AI do its magic...</source><translation>[VERARBEITUNG] Die KI macht ihre Magie...</translation></message>
+    <message><source>[VISION] Decoding image batch %1/%2 (%3%)</source><translation>[VISION] Bildbatch %1/%2 wird decodiert (%3%)</translation></message>
+    <message><source>[VISION] Analyzing %1</source><translation>[VISION] Analysiere %1</translation></message>
+    <message><source>[VISION-ERROR] %1 (%2)</source><translation>[VISION-FEHLER] %1 (%2)</translation></message>
+    <message><source>[SORT] %1 (%2)</source><translation>[SORTIEREN] %1 (%2)</translation></message>
+    <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[WARNUNG] %1 wird neu kategorisiert: %2</translation></message>
+    <message><source>[STOP] Analysis will stop after the current item is processed.</source><translation>[STOPP] Analyse wird nach dem aktuellen Element beendet.</translation></message>
     <message><source>Download complete.</source><translation>Download abgeschlossen.</translation></message>
     <message><source>Download cancelled.</source><translation>Download abgebrochen.</translation></message>
     <message><source>Download error: %1</source><translation>Download-Fehler: %1</translation></message>

@@ -9,6 +9,7 @@ SRC_DIR := ./lib
 ifeq ($(UNAME), Linux)
     PLATFORM := Linux
     CXXFLAGS += -DLINUX
+    CXXFLAGS += -DAI_FILE_SORTER_HAS_MTMD
     TARGET := $(BIN_DIR)/aifilesorter-bin
     INSTALL_DIR := /usr/local/bin
     INSTALL_LIB_DIR := /usr/local/lib/aifilesorter
@@ -34,7 +35,7 @@ else
 endif
 
     # --- Other dependencies ---
-	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lX11 -pthread
+	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lmtmd -lX11 -pthread
 	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled/cpu/bin' -Wl,-rpath,'$$ORIGIN/../lib/precompiled'
 	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin -Wl,-rpath-link=./lib/precompiled
 
@@ -59,7 +60,7 @@ else ifeq ($(UNAME), Darwin)
     export LDFLAGS += -L$(LIBFFI_PREFIX)/lib
     export CPPFLAGS += -I$(LIBFFI_PREFIX)/include
     PLATFORM := MacOS
-    CXXFLAGS += -DMACOS -DENABLE_METAL -DGGML_USE_METAL -Wno-deprecated -Iinclude/llama -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+    CXXFLAGS += -DMACOS -DENABLE_METAL -DGGML_USE_METAL -DAI_FILE_SORTER_HAS_MTMD -Wno-deprecated -Iinclude/llama -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
     ifneq ($(strip $(SDKROOT)),)
     export SDKROOT
     CXXFLAGS += -isysroot $(SDKROOT) -stdlib=libc++ -I$(SDKROOT)/usr/include/c++/v1
@@ -87,7 +88,7 @@ endif
     CXXFLAGS += $(QT_CXXFLAGS)
     LDFLAGS += $(QT_LDFLAGS)
 
-    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lintl -pthread
+    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lmtmd -lintl -pthread
 	LDFLAGS += -framework Metal -framework Foundation
     LDFLAGS += -Wl,-rpath,@loader_path/lib -Wl,-rpath,@loader_path/../lib/precompiled
 
@@ -110,7 +111,7 @@ CXXFLAGS += -Wno-array-bounds
 else
 CXXFLAGS += -Wno-array-bounds -Wno-stringop-overflow -Wno-stringop-overread
 endif
-INCLUDE_DIRS = -I./include -I./include/external/llama.cpp/include -I./include/external/llama.cpp/ggml/include
+INCLUDE_DIRS = -I./include -I./include/external/llama.cpp/include -I./include/external/llama.cpp/ggml/include -I./include/external/llama.cpp/tools/mtmd
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
 LIB_DIRS += -L./lib/precompiled/cpu/bin -L./lib/precompiled
@@ -121,9 +122,75 @@ ifeq ($(UNAME), Darwin)
 LIB_DIRS += -L$(BREW_PREFIX)/lib
 endif
 
+# Enable mtmd progress callback only when the linked libmtmd provides it.
+MTMD_PROGRESS_CALLBACK ?= auto
+MTMD_LIB_CANDIDATES :=
+ifeq ($(UNAME), Linux)
+MTMD_LIB_CANDIDATES := ./lib/precompiled/cpu/bin/libmtmd.so ./lib/precompiled/libmtmd.so
+endif
+ifeq ($(UNAME), Darwin)
+MTMD_LIB_CANDIDATES := ./lib/precompiled/libmtmd.dylib $(BREW_PREFIX)/lib/libmtmd.dylib
+endif
+ifeq ($(MTMD_PROGRESS_CALLBACK),auto)
+MTMD_PROGRESS_CALLBACK := $(shell \
+	if command -v nm >/dev/null 2>&1; then \
+		for lib in $(MTMD_LIB_CANDIDATES); do \
+			if [ -e "$$lib" ] && nm -D --defined-only "$$lib" 2>/dev/null | grep -q "mtmd_helper_set_progress_callback"; then \
+				echo 1; exit 0; \
+			fi; \
+			if [ -e "$$lib" ] && nm -g "$$lib" 2>/dev/null | grep -q "[Tt] _mtmd_helper_set_progress_callback"; then \
+				echo 1; exit 0; \
+			fi; \
+		done; \
+	elif command -v objdump >/dev/null 2>&1; then \
+		for lib in $(MTMD_LIB_CANDIDATES); do \
+			if [ -e "$$lib" ] && objdump -T "$$lib" 2>/dev/null | grep -q "mtmd_helper_set_progress_callback"; then \
+				echo 1; exit 0; \
+			fi; \
+		done; \
+	fi; \
+	echo 0)
+endif
+ifeq ($(MTMD_PROGRESS_CALLBACK),1)
+CXXFLAGS += -DAI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
+else
+CXXFLAGS += -UAI_FILE_SORTER_MTMD_PROGRESS_CALLBACK
+endif
+
+# Enable mtmd log callback only when the linked libmtmd provides it.
+MTMD_LOG_CALLBACK ?= auto
+ifeq ($(MTMD_LOG_CALLBACK),auto)
+MTMD_LOG_CALLBACK := $(shell \
+	if command -v nm >/dev/null 2>&1; then \
+		for lib in $(MTMD_LIB_CANDIDATES); do \
+			if [ -e "$$lib" ] && nm -D --defined-only "$$lib" 2>/dev/null | grep -q "mtmd_helper_log_set"; then \
+				echo 1; exit 0; \
+			fi; \
+			if [ -e "$$lib" ] && nm -g "$$lib" 2>/dev/null | grep -q "[Tt] _mtmd_helper_log_set"; then \
+				echo 1; exit 0; \
+			fi; \
+		done; \
+	elif command -v objdump >/dev/null 2>&1; then \
+		for lib in $(MTMD_LIB_CANDIDATES); do \
+			if [ -e "$$lib" ] && objdump -T "$$lib" 2>/dev/null | grep -q "mtmd_helper_log_set"; then \
+				echo 1; exit 0; \
+			fi; \
+		done; \
+	fi; \
+	echo 0)
+endif
+ifeq ($(MTMD_LOG_CALLBACK),1)
+CXXFLAGS += -DAI_FILE_SORTER_MTMD_LOG_CALLBACK
+else
+CXXFLAGS += -UAI_FILE_SORTER_MTMD_LOG_CALLBACK
+endif
+
 QRC_FILE := resources/app.qrc
 QRC_CPP := $(OBJ_DIR)/qrc_app.cpp
 QRC_OBJ := $(OBJ_DIR)/qrc_app.o
+QRC_DIR := $(dir $(QRC_FILE))
+QRC_RESOURCES := $(shell sed -n -E 's|.*<file>([^<]*)</file>.*|\1|p' $(QRC_FILE))
+QRC_RESOURCES := $(addprefix $(QRC_DIR),$(QRC_RESOURCES))
 
 ifndef RCC
 RCC := $(shell command -v qt6-rcc 2>/dev/null)
@@ -175,7 +242,7 @@ $(OBJ_DIR)/main.o: main.cpp
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
-$(QRC_CPP): $(QRC_FILE)
+$(QRC_CPP): $(QRC_FILE) $(QRC_RESOURCES)
 	mkdir -p $(OBJ_DIR)
 	$(RCC) -o $@ $<
 

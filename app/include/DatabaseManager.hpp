@@ -28,7 +28,10 @@ public:
                                                    const std::string& file_type,
                                                    const std::string& dir_path,
                                                    const ResolvedCategory& resolved,
-                                                   bool used_consistency_hints);
+                                                   bool used_consistency_hints,
+                                                   const std::string& suggested_name = "",
+                                                   bool rename_only = false,
+                                                   bool rename_applied = false);
     std::vector<std::string> get_dir_contents_from_db(const std::string &dir_path);
     bool remove_file_categorization(const std::string& dir_path,
                                     const std::string& file_name,
@@ -36,6 +39,9 @@ public:
     std::vector<CategorizedFile> remove_empty_categorizations(const std::string& dir_path);
 
     std::vector<CategorizedFile> get_categorized_files(const std::string &directory_path);
+    std::optional<CategorizedFile> get_categorized_file(const std::string& dir_path,
+                                                        const std::string& file_name,
+                                                        FileType file_type);
 
     std::vector<std::string>
         get_categorization_from_db(const std::string& file_name, const FileType file_type);
