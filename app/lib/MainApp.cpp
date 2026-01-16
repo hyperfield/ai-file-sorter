@@ -915,13 +915,12 @@ void MainApp::on_analyze_clicked()
         return;
     }
 
-    if (!Utils::is_network_available()) {
-        show_error_dialog(ERR_NO_INTERNET_CONNECTION);
-        core_logger->warn("Network unavailable when attempting to analyze '{}'", folder_path);
-        return;
-    }
-
     if (!using_local_llm) {
+        if (!Utils::is_network_available()) {
+            show_error_dialog(ERR_NO_INTERNET_CONNECTION);
+            core_logger->warn("Network unavailable when attempting to analyze '{}'", folder_path);
+            return;
+        }
         std::string credential_error;
         if (!categorization_service.ensure_remote_credentials(&credential_error)) {
             show_error_dialog(credential_error.empty()
