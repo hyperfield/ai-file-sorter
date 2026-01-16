@@ -201,6 +201,7 @@ Settings::Settings()
     language = system_default_language();
     category_language = CategoryLanguage::English;
     analyze_images_by_content = visual_llm_files_available();
+    offer_rename_images = analyze_images_by_content;
 }
 
 LLMChoice Settings::parse_llm_choice() const
