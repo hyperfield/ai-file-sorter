@@ -227,7 +227,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
     analyze_images_by_content = load_bool("AnalyzeImagesByContent", visual_llm_files_available());
-    offer_rename_images = load_bool("OfferRenameImages", false);
+    offer_rename_images = load_bool("OfferRenameImages", analyze_images_by_content);
     rename_images_only = load_bool("RenameImagesOnly", false);
     process_images_only = load_bool("ProcessImagesOnly", false);
     if (rename_images_only && !offer_rename_images) {

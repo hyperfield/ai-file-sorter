@@ -39,6 +39,7 @@ TEST_CASE("Settings defaults image analysis based on available visual LLM files"
     const bool loaded = settings.load();
     REQUIRE_FALSE(loaded);
     REQUIRE(settings.get_analyze_images_by_content());
+    REQUIRE(settings.get_offer_rename_images());
 }
 
 TEST_CASE("Settings defaults image analysis off when visual LLM files are missing") {
@@ -52,6 +53,7 @@ TEST_CASE("Settings defaults image analysis off when visual LLM files are missin
     const bool loaded = settings.load();
     REQUIRE_FALSE(loaded);
     REQUIRE_FALSE(settings.get_analyze_images_by_content());
+    REQUIRE_FALSE(settings.get_offer_rename_images());
 }
 
 TEST_CASE("Settings enforces rename-only implies offer rename") {

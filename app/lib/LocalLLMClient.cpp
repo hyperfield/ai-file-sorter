@@ -1266,7 +1266,7 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path)
         logger->info("Configured context length {} token(s) for local LLM", context_length);
     }
 
-    load_model_or_throw(model_params, logger);
+    model_params = load_model_or_throw(model_params, logger);
     configure_context(context_length, model_params);
 }
 
@@ -1424,22 +1424,41 @@ llama_model_params prepare_model_params_for_testing(const std::string& model_pat
 #endif // AI_FILE_SORTER_TEST_BUILD && !GGML_USE_METAL
 
 
-void LocalLLMClient::load_model_or_throw(const llama_model_params& model_params,
-                                         const std::shared_ptr<spdlog::logger>& logger)
+llama_model_params LocalLLMClient::load_model_or_throw(llama_model_params model_params,
+                                                       const std::shared_ptr<spdlog::logger>& logger)
 {
-    model = llama_model_load_from_file(model_path.c_str(), model_params);
-    if (!model) {
-        if (logger) {
-            logger->error("Failed to load model from '{}'", model_path);
+    auto try_load = [&](const llama_model_params& params) {
+        model = llama_model_load_from_file(model_path.c_str(), params);
+        if (!model) {
+            return false;
         }
-        throw std::runtime_error("Failed to load model");
+        if (logger) {
+            logger->info("Loaded local model '{}'", model_path);
+        }
+        vocab = llama_model_get_vocab(model);
+        return true;
+    };
+
+    if (try_load(model_params)) {
+        return model_params;
+    }
+
+    if (model_params.n_gpu_layers != 0) {
+        if (logger) {
+            logger->warn("Failed to load model with GPU backend; retrying on CPU.");
+        }
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+        set_env_var("LLAMA_ARG_DEVICE", "cpu");
+        model_params.n_gpu_layers = 0;
+        if (try_load(model_params)) {
+            return model_params;
+        }
     }
 
     if (logger) {
-        logger->info("Loaded local model '{}'", model_path);
+        logger->error("Failed to load model from '{}'", model_path);
     }
-
-    vocab = llama_model_get_vocab(model);
+    throw std::runtime_error("Failed to load model");
 }
 
 
