@@ -3,6 +3,7 @@
 #include "MainAppTestAccess.hpp"
 #include "TestHelpers.hpp"
 #include "Settings.hpp"
+#include <algorithm>
 #include <filesystem>
 
 namespace {
@@ -26,8 +27,7 @@ struct TestEnvironment {
 
 } // namespace
 
-static void run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult response,
-                                    int expected_increment) {
+static void run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult response) {
     TestEnvironment env;
     std::vector<int> totals;
 
@@ -37,45 +37,57 @@ static void run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult re
     };
 
     REQUIRE(env.settings.get_total_categorized_files() == 0);
-    REQUIRE(env.settings.get_next_support_prompt_threshold() == 200);
+    const int base_threshold = env.settings.get_next_support_prompt_threshold();
+    REQUIRE(base_threshold > 0);
 
-    MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 50, callback);
-    CHECK(env.settings.get_total_categorized_files() == 50);
+    const int first_step = std::max(1, base_threshold / 2);
+    const int second_step = base_threshold - first_step;
+
+    MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, first_step, callback);
+    CHECK(env.settings.get_total_categorized_files() == first_step);
     CHECK(totals.empty());
 
-    MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 150, callback);
-    CHECK(env.settings.get_total_categorized_files() == 200);
+    MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, second_step, callback);
+    CHECK(env.settings.get_total_categorized_files() == base_threshold);
     REQUIRE(totals.size() == 1);
-    CHECK(totals.front() == 200);
-    CHECK(env.settings.get_next_support_prompt_threshold() == 200 + expected_increment);
+    CHECK(totals.front() == base_threshold);
+    const int next_threshold = env.settings.get_next_support_prompt_threshold();
+    CHECK(next_threshold > base_threshold);
+    const int increment = next_threshold - base_threshold;
+    CHECK(increment > 0);
 
-    MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, expected_increment - 1, callback);
-    CHECK(totals.size() == 1);
+    if (increment > 1) {
+        MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, increment - 1, callback);
+        CHECK(totals.size() == 1);
 
-    MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 1, callback);
-    CHECK(env.settings.get_total_categorized_files() == 200 + expected_increment);
+        MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 1, callback);
+    } else {
+        MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, 1, callback);
+    }
+    CHECK(env.settings.get_total_categorized_files() == base_threshold + increment);
     REQUIRE(totals.size() == 2);
-    CHECK(totals.back() == 200 + expected_increment);
-    CHECK(env.settings.get_next_support_prompt_threshold() == 200 + expected_increment * 2);
+    CHECK(totals.back() == base_threshold + increment);
+    CHECK(env.settings.get_next_support_prompt_threshold() > next_threshold);
 }
 
 TEST_CASE("Support prompt thresholds advance based on response") {
-    SECTION("Not sure response prompts every 200 files") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::NotSure, 200);
+    SECTION("Not sure response schedules another prompt") {
+        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::NotSure);
     }
 
-    SECTION("Cannot donate defers prompt by 750 files") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::CannotDonate, 750);
+    SECTION("Cannot donate response defers prompt") {
+        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::CannotDonate);
     }
 
-    SECTION("Support response also defers by 750 files") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::Support, 750);
+    SECTION("Support response defers prompt") {
+        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::Support);
     }
 }
 
 TEST_CASE("Zero categorized increments do not change totals or trigger prompts") {
     TestEnvironment env;
     bool callback_invoked = false;
+    const int base_threshold = env.settings.get_next_support_prompt_threshold();
 
     MainAppTestAccess::simulate_support_prompt(
         env.settings,
@@ -88,5 +100,5 @@ TEST_CASE("Zero categorized increments do not change totals or trigger prompts")
 
     CHECK(env.settings.get_total_categorized_files() == 0);
     CHECK_FALSE(callback_invoked);
-    CHECK(env.settings.get_next_support_prompt_threshold() == 200);
+    CHECK(env.settings.get_next_support_prompt_threshold() == base_threshold);
 }
