@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## [1.6.0] - 2026-01-16
+
+- Local 3B model download now defaults to Q4 for better GPU compatibility.
+- Legacy Local 3B Q8 is still selectable when an existing download is found.
+- LLM selection dialog now uses local file sizes for completed downloads when remote size metadata is unavailable.
+
 ## [1.5.0] - 2026-01-11
 
 - Added content analysis for picture files via LLaVA (visual LLM), with separate model + mmproj downloads in the Select LLM dialog.
