@@ -32,7 +32,7 @@ Instead of relying on fixed rules, the app gradually builds an internal understa
 Categories (and optional subcategories) are suggested for each file, and for supported file types, rename suggestions are provided as well. Once you confirm, the required folders are created automatically and files are sorted accordingly.
 
 Privacy-first by design:
-AI File Sorter runs entirely on your device, using local AI models such as LLaMa 3B and Mistral 7B. No files, filenames, images, or metadata are uploaded anywhere, and no telemetry is sent. An internet connection is only used if you explicitly choose to enable a remote model.
+AI File Sorter runs entirely on your device, using local AI models such as LLaMa 3B (Q4) and Mistral 7B. No files, filenames, images, or metadata are uploaded anywhere, and no telemetry is sent. An internet connection is only used if you explicitly choose to enable a remote model.
 
 ---
 

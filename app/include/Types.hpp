@@ -8,6 +8,7 @@ enum class LLMChoice {
     Remote_OpenAI,
     Remote_Gemini,
     Local_3b,
+    Local_3b_legacy,
     Local_7b,
     Custom
 };

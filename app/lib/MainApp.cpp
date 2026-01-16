@@ -2130,11 +2130,22 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         return client;
     }
 
-    const char* env_var = choice == LLMChoice::Local_3b
-        ? "LOCAL_LLM_3B_DOWNLOAD_URL"
-        : "LOCAL_LLM_7B_DOWNLOAD_URL";
+    const char* env_var = nullptr;
+    switch (choice) {
+        case LLMChoice::Local_3b:
+            env_var = "LOCAL_LLM_3B_DOWNLOAD_URL";
+            break;
+        case LLMChoice::Local_3b_legacy:
+            env_var = "LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL";
+            break;
+        case LLMChoice::Local_7b:
+            env_var = "LOCAL_LLM_7B_DOWNLOAD_URL";
+            break;
+        default:
+            break;
+    }
 
-    const char* env_url = std::getenv(env_var);
+    const char* env_url = env_var ? std::getenv(env_var) : nullptr;
     if (!env_url) {
         throw std::runtime_error("Required environment variable for selected model is not set");
     }

@@ -64,6 +64,7 @@ private:
     void setup_ui();
     void connect_signals();
     void update_ui_for_choice();
+    void update_legacy_local_3b_visibility();
     void update_radio_selection();
     void update_custom_choice_ui();
     void update_openai_fields_state();
@@ -91,6 +92,7 @@ private:
     void update_visual_llm_downloads();
     void start_visual_llm_download(VisualLlmDownloadEntry& entry);
     void set_visual_status_message(VisualLlmDownloadEntry& entry, const QString& message);
+    bool legacy_local_3b_available() const;
 
     Settings& settings;
     LLMChoice selected_choice{LLMChoice::Unset};
@@ -103,6 +105,7 @@ private:
     QRadioButton* openai_radio{nullptr};
     QRadioButton* gemini_radio{nullptr};
     QRadioButton* local3_radio{nullptr};
+    QRadioButton* local3_legacy_radio{nullptr};
     QRadioButton* local7_radio{nullptr};
     QRadioButton* custom_radio{nullptr};
     QComboBox* custom_combo{nullptr};
@@ -113,6 +116,7 @@ private:
     QLabel* local_path_label{nullptr};
     QLabel* file_size_label{nullptr};
     QLabel* status_label{nullptr};
+    QLabel* local3_legacy_desc{nullptr};
     QProgressBar* progress_bar{nullptr};
     QPushButton* download_button{nullptr};
     QPushButton* ok_button{nullptr};

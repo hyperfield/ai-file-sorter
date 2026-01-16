@@ -27,6 +27,7 @@
 #include <QString>
 
 #include <cstdlib>
+#include <filesystem>
 
 
 namespace {
@@ -35,6 +36,16 @@ QString format_markup_label(const QString& title, const QString& value, const QS
 {
     return QStringLiteral("<b>%1:</b> <span style=\"color:%2\">%3</span>")
         .arg(title, color, value.toHtmlEscaped());
+}
+
+long long local_file_size_or_zero(const std::string& path)
+{
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(path, ec);
+    if (ec) {
+        return 0;
+    }
+    return static_cast<long long>(size);
 }
 
 } // namespace
@@ -77,6 +88,14 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
         break;
     case LLMChoice::Local_3b:
         local3_radio->setChecked(true);
+        break;
+    case LLMChoice::Local_3b_legacy:
+        if (local3_legacy_radio && local3_legacy_radio->isVisible()) {
+            local3_legacy_radio->setChecked(true);
+        } else {
+            local3_radio->setChecked(true);
+            selected_choice = LLMChoice::Local_3b;
+        }
         break;
     case LLMChoice::Local_7b:
         local7_radio->setChecked(true);
@@ -129,9 +148,16 @@ void LLMSelectionDialog::setup_ui()
     auto* local7_desc = new QLabel(tr("Quite precise. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."), radio_container);
     local7_desc->setWordWrap(true);
 
-    local3_radio = new QRadioButton(tr("Local LLM (LLaMa 3b v3.2 Instruct Q8)"), radio_container);
+    local3_radio = new QRadioButton(tr("Local LLM (LLaMa 3b v3.2 Instruct Q4)"), radio_container);
     auto* local3_desc = new QLabel(tr("Less precise, but works quickly even on CPUs. Good for lightweight local use."), radio_container);
     local3_desc->setWordWrap(true);
+
+    local3_legacy_radio = new QRadioButton(tr("Local LLM (LLaMa 3b v3.2 Instruct Q8, legacy)"), radio_container);
+    local3_legacy_desc = new QLabel(tr("Legacy model kept for existing downloads."), radio_container);
+    local3_legacy_desc->setWordWrap(true);
+    const bool has_legacy_3b = legacy_local_3b_available();
+    local3_legacy_radio->setVisible(has_legacy_3b);
+    local3_legacy_desc->setVisible(has_legacy_3b);
 
     gemini_radio = new QRadioButton(tr("Gemini (Google AI Studio API key)"), radio_container);
     auto* gemini_desc = new QLabel(tr("Use Google's Gemini models with your AI Studio API key (internet required)."), radio_container);
@@ -222,6 +248,8 @@ void LLMSelectionDialog::setup_ui()
     radio_layout->addWidget(local7_desc);
     radio_layout->addWidget(local3_radio);
     radio_layout->addWidget(local3_desc);
+    radio_layout->addWidget(local3_legacy_radio);
+    radio_layout->addWidget(local3_legacy_desc);
     radio_layout->addWidget(gemini_radio);
     radio_layout->addWidget(gemini_desc);
     radio_layout->addWidget(gemini_inputs);
@@ -299,6 +327,9 @@ void LLMSelectionDialog::connect_signals()
     connect(openai_radio, &QRadioButton::toggled, this, update_handler);
     connect(gemini_radio, &QRadioButton::toggled, this, update_handler);
     connect(local3_radio, &QRadioButton::toggled, this, update_handler);
+    if (local3_legacy_radio) {
+        connect(local3_legacy_radio, &QRadioButton::toggled, this, update_handler);
+    }
     connect(local7_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_combo, &QComboBox::currentTextChanged, this, update_handler);
@@ -378,15 +409,47 @@ void LLMSelectionDialog::set_status_message(const QString& message)
     status_label->setText(message);
 }
 
+bool LLMSelectionDialog::legacy_local_3b_available() const
+{
+    const char* env_url = std::getenv("LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL");
+    if (!env_url || *env_url == '\0') {
+        return false;
+    }
+    std::string path;
+    try {
+        path = Utils::make_default_path_to_file_from_download_url(env_url);
+    } catch (...) {
+        return false;
+    }
+    std::error_code ec;
+    return !path.empty() && std::filesystem::exists(path, ec);
+}
+
+void LLMSelectionDialog::update_legacy_local_3b_visibility()
+{
+    if (!local3_legacy_radio || !local3_legacy_desc) {
+        return;
+    }
+    const bool available = legacy_local_3b_available();
+    local3_legacy_radio->setVisible(available);
+    local3_legacy_desc->setVisible(available);
+    if (!available && local3_legacy_radio->isChecked() && local3_radio) {
+        local3_radio->setChecked(true);
+    }
+}
+
 void LLMSelectionDialog::update_ui_for_choice()
 {
+    update_legacy_local_3b_visibility();
     update_custom_buttons();
 
     update_radio_selection();
     update_custom_choice_ui();
     update_visual_llm_downloads();
 
-    const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
+    const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b
+        || selected_choice == LLMChoice::Local_3b_legacy
+        || selected_choice == LLMChoice::Local_7b);
 
     if (selected_choice == LLMChoice::Custom || is_remote_choice(selected_choice) || !is_local_builtin) {
         return;
@@ -401,6 +464,8 @@ void LLMSelectionDialog::update_radio_selection()
         selected_choice = LLMChoice::Remote_OpenAI;
     } else if (gemini_radio->isChecked()) {
         selected_choice = LLMChoice::Remote_Gemini;
+    } else if (local3_legacy_radio && local3_legacy_radio->isChecked()) {
+        selected_choice = LLMChoice::Local_3b_legacy;
     } else if (local3_radio->isChecked()) {
         selected_choice = LLMChoice::Local_3b;
     } else if (local7_radio->isChecked()) {
@@ -415,7 +480,9 @@ void LLMSelectionDialog::update_custom_choice_ui()
     if (!ok_button && button_box) {
         ok_button = button_box->button(QDialogButtonBox::Ok);
     }
-    const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b || selected_choice == LLMChoice::Local_7b);
+    const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b
+        || selected_choice == LLMChoice::Local_3b_legacy
+        || selected_choice == LLMChoice::Local_7b);
     const bool is_remote_openai = selected_choice == LLMChoice::Remote_OpenAI;
     const bool is_remote_gemini = selected_choice == LLMChoice::Remote_Gemini;
     const bool is_custom = selected_choice == LLMChoice::Custom;
@@ -643,7 +710,10 @@ void LLMSelectionDialog::update_download_info()
                                                  QString::fromStdString(downloader->get_download_destination()),
                                                  QStringLiteral("#2e7d32")));
 
-    const auto size = downloader->get_real_content_length();
+    long long size = downloader->get_real_content_length();
+    if (size <= 0 && downloader->get_local_download_status() == LLMDownloader::DownloadStatus::Complete) {
+        size = local_file_size_or_zero(downloader->get_download_destination());
+    }
     if (size > 0) {
         file_size_label->setText(format_markup_label(tr("File size"),
                                                      QString::fromStdString(Utils::format_size(size)),
@@ -869,8 +939,12 @@ void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry
                                                             QString::fromStdString(entry.downloader->get_download_destination()),
                                                             QStringLiteral("#2e7d32")));
     }
+    const auto local_status = entry.downloader->get_local_download_status();
     if (entry.file_size_label) {
-        const auto size = entry.downloader->get_real_content_length();
+        long long size = entry.downloader->get_real_content_length();
+        if (size <= 0 && local_status == LLMDownloader::DownloadStatus::Complete) {
+            size = local_file_size_or_zero(entry.downloader->get_download_destination());
+        }
         if (size > 0) {
             entry.file_size_label->setText(format_markup_label(tr("File size"),
                                                                QString::fromStdString(Utils::format_size(size)),
@@ -1076,6 +1150,9 @@ std::string LLMSelectionDialog::current_download_env_var() const
 {
     if (selected_choice == LLMChoice::Local_3b) {
         return "LOCAL_LLM_3B_DOWNLOAD_URL";
+    }
+    if (selected_choice == LLMChoice::Local_3b_legacy) {
+        return "LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL";
     }
     if (selected_choice == LLMChoice::Local_7b) {
         return "LOCAL_LLM_7B_DOWNLOAD_URL";

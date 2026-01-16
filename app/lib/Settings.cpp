@@ -77,6 +77,7 @@ std::string llm_choice_to_string(LLMChoice choice) {
         case LLMChoice::Remote_OpenAI: return "Remote_OpenAI";
         case LLMChoice::Remote_Gemini: return "Remote_Gemini";
         case LLMChoice::Local_3b: return "Local_3b";
+        case LLMChoice::Local_3b_legacy: return "Local_3b_legacy";
         case LLMChoice::Local_7b: return "Local_7b";
         case LLMChoice::Custom: return "Custom";
         default: return "Unset";
@@ -151,6 +152,29 @@ bool visual_llm_files_available()
 
     return false;
 }
+
+std::string path_from_env_url(const char* env_key)
+{
+    const char* url = std::getenv(env_key);
+    if (!url || *url == '\0') {
+        return {};
+    }
+    try {
+        return Utils::make_default_path_to_file_from_download_url(url);
+    } catch (...) {
+        return {};
+    }
+}
+
+bool file_exists_for_env_url(const char* env_key)
+{
+    const std::string path = path_from_env_url(env_key);
+    if (path.empty()) {
+        return false;
+    }
+    std::error_code ec;
+    return std::filesystem::exists(path, ec);
+}
 }
 
 
@@ -210,6 +234,7 @@ LLMChoice Settings::parse_llm_choice() const
     if (value == "Remote" || value == "Remote_OpenAI") return LLMChoice::Remote_OpenAI;
     if (value == "Remote_Gemini") return LLMChoice::Remote_Gemini;
     if (value == "Local_3b") return LLMChoice::Local_3b;
+    if (value == "Local_3b_legacy") return LLMChoice::Local_3b_legacy;
     if (value == "Local_7b") return LLMChoice::Local_7b;
     if (value == "Custom")   return LLMChoice::Custom;
     return LLMChoice::Unset;
@@ -400,6 +425,11 @@ bool Settings::load()
     };
 
     load_basic_settings(load_bool, load_int);
+    if (llm_choice == LLMChoice::Local_3b
+        && !file_exists_for_env_url("LOCAL_LLM_3B_DOWNLOAD_URL")
+        && file_exists_for_env_url("LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL")) {
+        llm_choice = LLMChoice::Local_3b_legacy;
+    }
     load_whitelist_settings(load_bool);
     load_custom_llm_settings();
     log_loaded_settings();
