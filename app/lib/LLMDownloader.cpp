@@ -6,11 +6,14 @@
 #include <cstdlib>
 #include <curl/curl.h>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <system_error>
 #include <stdexcept>
 
 namespace {
+
+constexpr const char kMetadataSuffix[] = ".aifs.meta";
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
 TestHooks::LLMDownloadProbe& download_probe_slot() {
@@ -34,6 +37,65 @@ LLMDownloader::LLMDownloader(const std::string& download_url)
 void LLMDownloader::set_download_destination() {
     std::filesystem::create_directories(destination_dir);
     download_destination = Utils::make_default_path_to_file_from_download_url(url);
+    load_cached_metadata();
+}
+
+std::string LLMDownloader::metadata_path() const
+{
+    return download_destination + kMetadataSuffix;
+}
+
+void LLMDownloader::load_cached_metadata()
+{
+    if (real_content_length > 0) {
+        return;
+    }
+
+    std::ifstream in(metadata_path());
+    if (!in.is_open()) {
+        return;
+    }
+
+    std::string cached_url;
+    long long cached_length = 0;
+    std::string line;
+    constexpr const char kUrlPrefix[] = "url=";
+    constexpr const char kLengthPrefix[] = "content_length=";
+    while (std::getline(in, line)) {
+        if (line.rfind(kUrlPrefix, 0) == 0) {
+            cached_url = line.substr(sizeof(kUrlPrefix) - 1);
+            continue;
+        }
+        if (line.rfind(kLengthPrefix, 0) == 0) {
+            try {
+                cached_length = std::stoll(line.substr(sizeof(kLengthPrefix) - 1));
+            } catch (const std::exception&) {
+                cached_length = 0;
+            }
+        }
+    }
+
+    if (!cached_url.empty() && cached_url != url) {
+        return;
+    }
+    if (cached_length > 0) {
+        real_content_length = cached_length;
+    }
+}
+
+void LLMDownloader::persist_cached_metadata() const
+{
+    if (real_content_length <= 0) {
+        return;
+    }
+
+    std::ofstream out(metadata_path(), std::ios::trunc);
+    if (!out.is_open()) {
+        return;
+    }
+
+    out << "url=" << url << "\n";
+    out << "content_length=" << real_content_length << "\n";
 }
 
 
@@ -95,6 +157,8 @@ void LLMDownloader::parse_headers()
     if (res != CURLE_OK) {
         throw std::runtime_error("CURL HEAD request failed: " + std::string(curl_easy_strerror(res)));
     }
+
+    persist_cached_metadata();
 }
 
 
@@ -305,6 +369,16 @@ void LLMDownloader::mark_download_resumable()
 
 void LLMDownloader::notify_download_complete()
 {
+    if (real_content_length <= 0) {
+        std::error_code ec;
+        const auto size = std::filesystem::file_size(download_destination, ec);
+        if (!ec) {
+            real_content_length = static_cast<long long>(size);
+        }
+    }
+
+    persist_cached_metadata();
+
     if (on_download_complete) {
         on_download_complete();
     }
@@ -462,6 +536,22 @@ long long LLMDownloader::get_real_content_length() const
     return real_content_length;
 }
 
+LLMDownloader::DownloadStatus LLMDownloader::get_local_download_status() const
+{
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(download_destination, ec);
+    if (ec || size == 0) {
+        return DownloadStatus::NotStarted;
+    }
+
+    const auto local_size = static_cast<long long>(size);
+    if (real_content_length > 0 && local_size < real_content_length) {
+        return DownloadStatus::InProgress;
+    }
+
+    return DownloadStatus::Complete;
+}
+
 
 std::string LLMDownloader::get_download_destination() const
 {
@@ -470,6 +560,15 @@ std::string LLMDownloader::get_download_destination() const
 
 
 LLMDownloader::DownloadStatus LLMDownloader::get_download_status() const {
+    const auto local_status = get_local_download_status();
+    if (local_status != DownloadStatus::InProgress) {
+        return local_status;
+    }
+
+    if (!initialized) {
+        return DownloadStatus::InProgress;
+    }
+
     if (is_download_complete()) {
         return DownloadStatus::Complete;
     }
@@ -501,11 +600,13 @@ void LLMDownloader::set_download_url(const std::string& new_url) {
 
     url = new_url;
     initialized = false;
+    curl_headers.clear();
+    resumable = false;
+    real_content_length = 0;
+    resume_offset = 0;
 
     try {
-        parse_headers();
         set_download_destination();
-        initialized = true;
     } catch (const std::exception& ex) {
         // Log errors
     }
