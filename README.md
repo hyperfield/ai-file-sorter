@@ -411,6 +411,11 @@ cmake --build build-tests --target ai_file_sorter_tests --parallel $(nproc)
 ctest --test-dir build-tests --output-on-failure -j $(nproc)
 ```
 
+Notes
+
+- List individual Catch2 cases: `./build-tests/ai_file_sorter_tests --list-tests`
+- Print each case name (including successes): `./build-tests/ai_file_sorter_tests --verbosity high --success`
+
 On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
 
 ```powershell

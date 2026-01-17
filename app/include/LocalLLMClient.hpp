@@ -30,8 +30,8 @@ private:
     void load_model_if_needed();
     void configure_llama_logging(const std::shared_ptr<spdlog::logger>& logger) const;
     llama_model_params prepare_model_params(const std::shared_ptr<spdlog::logger>& logger);
-    void load_model_or_throw(const llama_model_params& model_params,
-                             const std::shared_ptr<spdlog::logger>& logger);
+    llama_model_params load_model_or_throw(llama_model_params model_params,
+                                           const std::shared_ptr<spdlog::logger>& logger);
     void configure_context(int context_length, const llama_model_params& model_params);
 
     std::string model_path;

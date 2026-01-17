@@ -618,11 +618,13 @@ void LLMSelectionDialog::refresh_downloader()
         downloader->set_download_url(env_url);
     }
 
-    try {
-        downloader->init_if_needed();
-    } catch (const std::exception& ex) {
-        set_status_message(QString::fromStdString(ex.what()));
-        downloader.reset();
+    if (downloader->get_local_download_status() == LLMDownloader::DownloadStatus::InProgress) {
+        try {
+            downloader->init_if_needed();
+        } catch (const std::exception& ex) {
+            set_status_message(QString::fromStdString(ex.what()));
+            downloader.reset();
+        }
     }
 }
 
@@ -834,11 +836,13 @@ void LLMSelectionDialog::refresh_visual_llm_download_entry(VisualLlmDownloadEntr
         entry.downloader->set_download_url(env_url);
     }
 
-    try {
-        entry.downloader->init_if_needed();
-    } catch (const std::exception& ex) {
-        set_visual_status_message(entry, QString::fromStdString(ex.what()));
-        entry.downloader.reset();
+    if (entry.downloader->get_local_download_status() == LLMDownloader::DownloadStatus::InProgress) {
+        try {
+            entry.downloader->init_if_needed();
+        } catch (const std::exception& ex) {
+            set_visual_status_message(entry, QString::fromStdString(ex.what()));
+            entry.downloader.reset();
+        }
     }
 }
 

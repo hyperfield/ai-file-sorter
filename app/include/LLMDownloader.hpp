@@ -40,6 +40,7 @@ public:
         Complete
     };
     
+    DownloadStatus get_local_download_status() const;
     DownloadStatus get_download_status() const;
     void cancel_download();
     void set_download_url(const std::string& new_url);
@@ -82,6 +83,9 @@ private:
 
     std::string get_default_llm_destination();
     void set_download_destination();
+    std::string metadata_path() const;
+    void load_cached_metadata();
+    void persist_cached_metadata() const;
     void parse_headers();
     void perform_download();
     void mark_download_resumable();
