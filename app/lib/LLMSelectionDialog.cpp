@@ -215,21 +215,26 @@ void LLMSelectionDialog::setup_ui()
     openai_form->addRow(tr("OpenAI API key"), openai_key_row);
 
     openai_model_edit = new QLineEdit(openai_inputs);
-    openai_model_edit->setPlaceholderText(tr("e.g. gpt-4o-mini, gpt-4.1, o3-mini"));
+    openai_model_edit->setPlaceholderText(
+        tr("e.g. gpt-4o-mini, gpt-4.1, o3-mini"));
     openai_form->addRow(tr("Model"), openai_model_edit);
 
-    openai_help_label = new QLabel(tr("Your key is stored locally in the config file for this device."), openai_inputs);
+    openai_help_label = new QLabel(
+        tr("Your key is stored locally in the config file for this device."),
+        openai_inputs);
     openai_help_label->setWordWrap(true);
     openai_form->addRow(openai_help_label);
     openai_link_label = new QLabel(openai_inputs);
     openai_link_label->setTextFormat(Qt::RichText);
     openai_link_label->setTextInteractionFlags(Qt::TextBrowserInteraction);
     openai_link_label->setOpenExternalLinks(true);
-    openai_link_label->setText(tr("<a href=\"https://platform.openai.com/api-keys\">Get an OpenAI API key</a>"));
+    openai_link_label->setText(
+        tr("<a href=\"https://platform.openai.com/api-keys\">Get an OpenAI API key</a>"));
     openai_form->addRow(openai_link_label);
     openai_inputs->setVisible(false);
 
-    custom_radio = new QRadioButton(tr("Custom local LLM (gguf) (experimental)"), radio_container);
+    custom_radio = new QRadioButton(
+        tr("Custom local LLM (gguf)"), radio_container);
     auto* custom_row = new QWidget(radio_container);
     auto* custom_layout = new QHBoxLayout(custom_row);
     custom_layout->setContentsMargins(24, 0, 0, 0);
