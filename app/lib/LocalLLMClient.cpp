@@ -1521,13 +1521,146 @@ std::string LocalLLMClient::generate_response(const std::string &prompt,
         logger->debug("Generating response with prompt length {} tokens target {}", prompt.size(), n_predict);
     }
 
-    auto* ctx = llama_init_from_model(model, ctx_params);
+    struct ContextAttempt {
+        int n_ctx;
+        int n_batch;
+    };
+
+    auto build_context_attempts = [](int n_ctx, int n_batch) {
+        std::vector<ContextAttempt> attempts;
+        auto add_attempt = [&](int ctx, int batch) {
+            ctx = std::max(ctx, 512);
+            batch = std::clamp(batch, 1, ctx);
+            if (ctx > n_ctx || batch > n_batch) {
+                return;
+            }
+            if (ctx == n_ctx && batch == n_batch) {
+                return;
+            }
+            for (const auto& existing : attempts) {
+                if (existing.n_ctx == ctx && existing.n_batch == batch) {
+                    return;
+                }
+            }
+            attempts.push_back({ctx, batch});
+        };
+
+        add_attempt(std::min(n_ctx, 2048), std::min(n_batch, 1024));
+        add_attempt(std::min(n_ctx, 1024), std::min(n_batch, 512));
+        add_attempt(std::min(n_ctx, 512), std::min(n_batch, 256));
+        return attempts;
+    };
+
+    auto try_init_context = [&](const llama_context_params& base_params,
+                                int n_ctx,
+                                int n_batch,
+                                llama_context_params& resolved_params) -> llama_context* {
+        llama_context_params attempt = base_params;
+        attempt.n_ctx = n_ctx;
+        attempt.n_batch = std::min(n_batch, n_ctx);
+        auto* ctx = llama_init_from_model(model, attempt);
+        if (ctx) {
+            resolved_params = attempt;
+        }
+        return ctx;
+    };
+
+    auto init_context_with_retries = [&](const llama_context_params& base_params,
+                                         bool cpu_attempt,
+                                         llama_context_params& resolved_params) -> llama_context* {
+        auto* ctx = try_init_context(base_params, base_params.n_ctx, base_params.n_batch, resolved_params);
+        if (ctx) {
+            return ctx;
+        }
+        if (logger) {
+            logger->warn("Failed to initialize llama context (n_ctx={}, n_batch={}); retrying with smaller buffers{}",
+                         base_params.n_ctx,
+                         base_params.n_batch,
+                         cpu_attempt ? " on CPU" : "");
+        }
+        for (const auto& attempt : build_context_attempts(base_params.n_ctx, base_params.n_batch)) {
+            if (logger) {
+                logger->warn("Retrying llama context init with n_ctx={}, n_batch={}{}",
+                             attempt.n_ctx,
+                             attempt.n_batch,
+                             cpu_attempt ? " on CPU" : "");
+            }
+            ctx = try_init_context(base_params, attempt.n_ctx, attempt.n_batch, resolved_params);
+            if (ctx) {
+                return ctx;
+            }
+        }
+        return nullptr;
+    };
+
+    llama_context_params resolved_params = ctx_params;
+    llama_context_params base_params = ctx_params;
+    auto* ctx = init_context_with_retries(base_params, false, resolved_params);
+
+    if (!ctx) {
+        bool cpu_backend_requested = false;
+        const char* backend_env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
+        const char* device_env = std::getenv("LLAMA_ARG_DEVICE");
+        auto is_cpu_env = [](const char* value) {
+            if (!value || *value == '\0') {
+                return false;
+            }
+            std::string lowered(value);
+            std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+            return lowered == "cpu";
+        };
+        if (is_cpu_env(backend_env) || is_cpu_env(device_env)) {
+            cpu_backend_requested = true;
+        }
+        const int override_layers = resolve_gpu_layer_override();
+        if (override_layers != INT_MIN && override_layers <= 0) {
+            cpu_backend_requested = true;
+        }
+
+        if (!cpu_backend_requested) {
+            if (logger) {
+                logger->warn("Context init failed on GPU; reloading model on CPU and retrying.");
+            }
+            llama_model_params cpu_params = llama_model_default_params();
+            cpu_params.n_gpu_layers = 0;
+            set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+            set_env_var("LLAMA_ARG_DEVICE", "cpu");
+            set_env_var("GGML_DISABLE_CUDA", "1");
+
+            llama_model* old_model = model;
+            llama_model* cpu_model = llama_model_load_from_file(model_path.c_str(), cpu_params);
+            if (!cpu_model) {
+                if (logger) {
+                    logger->error("Failed to reload model on CPU after context init failure");
+                }
+            } else {
+                if (old_model) {
+                    llama_model_free(old_model);
+                }
+                model = cpu_model;
+                vocab = llama_model_get_vocab(model);
+#ifdef GGML_USE_METAL
+                base_params = ctx_params;
+                base_params.offload_kqv = false;
+#else
+                base_params = ctx_params;
+#endif
+                resolved_params = base_params;
+                ctx = init_context_with_retries(base_params, true, resolved_params);
+            }
+        }
+    }
+
     if (!ctx) {
         if (logger) {
             logger->error("Failed to initialize llama context");
         }
         return "";
     }
+
+    ctx_params = resolved_params;
 
     auto* smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
     llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
