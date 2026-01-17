@@ -104,6 +104,8 @@ else
 CXX := g++
 endif
 CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
+# Use system fmt with distro spdlog packages (openSUSE disables bundled fmt headers).
+CXXFLAGS += -DSPDLOG_FMT_EXTERNAL
 CXX_VERSION_INFO := $(shell $(CXX) --version 2>/dev/null)
 # Suppress GCC-only diagnostics; clang (macOS) does not support some of them
 ifneq (,$(findstring clang,$(CXX_VERSION_INFO)))
