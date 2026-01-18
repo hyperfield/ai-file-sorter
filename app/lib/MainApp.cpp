@@ -2066,6 +2066,11 @@ void MainApp::show_llm_selection_dialog()
             } else {
                 settings.set_active_custom_llm_id("");
             }
+            if (dialog->get_selected_llm_choice() == LLMChoice::Remote_Custom) {
+                settings.set_active_custom_api_id(dialog->get_selected_custom_api_id());
+            } else {
+                settings.set_active_custom_api_id("");
+            }
             using_local_llm = !is_remote_choice(settings.get_llm_choice());
             settings.save();
         }
@@ -2114,6 +2119,17 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
             throw std::runtime_error("Gemini API key is missing. Please add it from Select LLM.");
         }
         auto client = std::make_unique<GeminiClient>(api_key, model);
+        client->set_prompt_logging_enabled(should_log_prompts());
+        return client;
+    }
+
+    if (choice == LLMChoice::Remote_Custom) {
+        const auto id = settings.get_active_custom_api_id();
+        const CustomApiEndpoint endpoint = settings.find_custom_api_endpoint(id);
+        if (endpoint.id.empty() || endpoint.base_url.empty() || endpoint.model.empty()) {
+            throw std::runtime_error("Selected custom API endpoint is missing or invalid. Please re-select it.");
+        }
+        auto client = std::make_unique<LLMClient>(endpoint.api_key, endpoint.model, endpoint.base_url);
         client->set_prompt_logging_enabled(should_log_prompts());
         return client;
     }

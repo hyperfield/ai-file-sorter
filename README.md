@@ -459,7 +459,8 @@ Visual LLM:
 Timeouts and logging:
 
 - `AI_FILE_SORTER_LOCAL_LLM_TIMEOUT` - seconds to wait for local LLM responses (default 60).
-- `AI_FILE_SORTER_REMOTE_LLM_TIMEOUT` - seconds to wait for remote LLM responses (default 10).
+- `AI_FILE_SORTER_REMOTE_LLM_TIMEOUT` - seconds to wait for OpenAI/Gemini responses (default 10).
+- `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT` - seconds to wait for custom OpenAI-compatible API responses (default 60).
 - `AI_FILE_SORTER_LLAMA_LOGS` - enable verbose llama.cpp logs (`1`/`true`); also honors `LLAMA_CPP_DEBUG_LOGS`.
 
 Storage and updates:

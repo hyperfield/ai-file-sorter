@@ -5,6 +5,7 @@
 - Local 3B model download now defaults to Q4 for better GPU compatibility.
 - Legacy Local 3B Q8 is still selectable when an existing download is found.
 - LLM selection dialog now uses local file sizes for completed downloads when remote size metadata is unavailable.
+- Added custom OpenAI-compatible API endpoints (base URL + model + optional key) to the Select LLM dialog.
 - Bug fixes
 
 ## [1.5.0] - 2026-01-11

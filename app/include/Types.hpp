@@ -7,6 +7,7 @@ enum class LLMChoice {
     Unset,
     Remote_OpenAI,
     Remote_Gemini,
+    Remote_Custom,
     Local_3b,
     Local_3b_legacy,
     Local_7b,
@@ -14,7 +15,9 @@ enum class LLMChoice {
 };
 
 inline bool is_remote_choice(LLMChoice choice) {
-    return choice == LLMChoice::Remote_OpenAI || choice == LLMChoice::Remote_Gemini;
+    return choice == LLMChoice::Remote_OpenAI
+        || choice == LLMChoice::Remote_Gemini
+        || choice == LLMChoice::Remote_Custom;
 }
 
 enum class FileType {File, Directory};
@@ -56,6 +59,22 @@ struct CustomLLM {
 
 inline bool is_valid_custom_llm(const CustomLLM& entry) {
     return !entry.id.empty() && !entry.name.empty() && !entry.path.empty();
+}
+
+struct CustomApiEndpoint {
+    std::string id;
+    std::string name;
+    std::string description;
+    std::string base_url;
+    std::string api_key;
+    std::string model;
+};
+
+inline bool is_valid_custom_api_endpoint(const CustomApiEndpoint& entry) {
+    return !entry.id.empty()
+        && !entry.name.empty()
+        && !entry.base_url.empty()
+        && !entry.model.empty();
 }
 
 enum class FileScanOptions {

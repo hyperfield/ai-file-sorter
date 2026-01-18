@@ -3,6 +3,7 @@
 #include "Utils.hpp"
 #include "Logger.hpp"
 #include <curl/curl.h>
+#include <cstdlib>
 #include <filesystem>
 #if __has_include(<jsoncpp/json/json.h>)
     #include <jsoncpp/json/json.h>
@@ -14,6 +15,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -26,6 +28,8 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, std::stri
 }
 
 namespace {
+std::string trim_ws(const std::string& value);
+
 std::string escape_json(const std::string& input) {
     std::string out;
     out.reserve(input.size() * 2);
@@ -41,6 +45,54 @@ std::string escape_json(const std::string& input) {
         }
     }
     return out;
+}
+
+long resolve_custom_timeout_seconds() {
+    const char* env = std::getenv("AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT");
+    if (env && *env) {
+        char* end = nullptr;
+        const long value = std::strtol(env, &end, 10);
+        if (end != env && value > 0) {
+            return value;
+        }
+    }
+    return 60L;
+}
+
+long resolve_openai_timeout_seconds() {
+    return 5L;
+}
+
+long resolve_timeout_seconds(const std::string& base_url) {
+    const std::string trimmed = trim_ws(base_url);
+    if (trimmed.empty()) {
+        return resolve_openai_timeout_seconds();
+    }
+    return resolve_custom_timeout_seconds();
+}
+
+std::string trim_ws(const std::string& value) {
+    const char* whitespace = " \t\n\r\f\v";
+    const auto start = value.find_first_not_of(whitespace);
+    const auto end = value.find_last_not_of(whitespace);
+    if (start == std::string::npos || end == std::string::npos) {
+        return std::string();
+    }
+    return value.substr(start, end - start + 1);
+}
+
+std::string trim_trailing_slashes(std::string value) {
+    while (!value.empty() && value.back() == '/') {
+        value.pop_back();
+    }
+    return value;
+}
+
+bool ends_with(const std::string& value, const std::string& suffix) {
+    if (suffix.size() > value.size()) {
+        return false;
+    }
+    return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
 }
 
 struct CurlRequest {
@@ -115,15 +167,18 @@ void configure_request_payload(CurlRequest& request,
                                const std::string& api_url,
                                const std::string& payload,
                                const std::string& api_key,
+                               long timeout_seconds,
                                std::string& response_buffer)
 {
     curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
     curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
-    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, 5L);
+    curl_easy_setopt(request.handle, CURLOPT_TIMEOUT, timeout_seconds);
 
     request.headers = curl_slist_append(request.headers, "Content-Type: application/json");
-    const std::string auth = "Authorization: Bearer " + api_key;
-    request.headers = curl_slist_append(request.headers, auth.c_str());
+    if (!api_key.empty()) {
+        const std::string auth = "Authorization: Bearer " + api_key;
+        request.headers = curl_slist_append(request.headers, auth.c_str());
+    }
     curl_easy_setopt(request.handle, CURLOPT_HTTPHEADER, request.headers);
 
     curl_easy_setopt(request.handle, CURLOPT_POSTFIELDS, payload.c_str());
@@ -169,7 +224,7 @@ std::string parse_category_response(const std::string& payload,
         throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
     }
     if (http_code >= 500) {
-        throw std::runtime_error("Server Error: OpenAI server returned an error. Status code: " + std::to_string(http_code));
+        throw std::runtime_error("Server Error: Remote LLM server returned an error. Status code: " + std::to_string(http_code));
     }
     if (http_code >= 400) {
         const std::string error_message = root["error"]["message"].asString();
@@ -181,8 +236,8 @@ std::string parse_category_response(const std::string& payload,
 }
 
 
-LLMClient::LLMClient(std::string api_key, std::string model)
-    : api_key(std::move(api_key)), model(std::move(model))
+LLMClient::LLMClient(std::string api_key, std::string model, std::string base_url)
+    : api_key(std::move(api_key)), model(std::move(model)), base_url(std::move(base_url))
 {}
 
 
@@ -196,12 +251,8 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 
 std::string LLMClient::send_api_request(std::string json_payload) {
-    if (api_key.empty()) {
-        throw std::runtime_error("Missing OpenAI API key.");
-    }
-
     std::string response_string;
-    const std::string api_url = "https://api.openai.com/v1/chat/completions";
+    const std::string api_url = resolve_api_url();
     auto logger = Logger::get_logger("core_logger");
 
     if (logger) {
@@ -209,7 +260,7 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     }
 
     CurlRequest request = create_curl_request(logger);
-    configure_request_payload(request, api_url, json_payload, api_key, response_string);
+    configure_request_payload(request, api_url, json_payload, api_key, resolve_timeout_seconds(base_url), response_string);
 
     const long http_code = perform_request(request, logger);
     return parse_category_response(response_string, http_code, logger);
@@ -218,6 +269,28 @@ std::string LLMClient::send_api_request(std::string json_payload) {
 std::string LLMClient::effective_model() const
 {
     return model.empty() ? "gpt-4o-mini" : model;
+}
+
+std::string LLMClient::resolve_api_url() const
+{
+    static const std::string kDefaultApi = "https://api.openai.com/v1/chat/completions";
+    static const std::string kChatSuffix = "/chat/completions";
+
+    if (base_url.empty()) {
+        return kDefaultApi;
+    }
+
+    std::string trimmed = trim_ws(base_url);
+    if (trimmed.empty()) {
+        return kDefaultApi;
+    }
+
+    trimmed = trim_trailing_slashes(trimmed);
+    if (ends_with(trimmed, kChatSuffix)) {
+        return trimmed;
+    }
+
+    return trimmed + kChatSuffix;
 }
 
 

@@ -7,7 +7,7 @@
 
 class LLMClient : public ILLMClient {
 public:
-    LLMClient(std::string api_key, std::string model);
+    LLMClient(std::string api_key, std::string model, std::string base_url = std::string());
     ~LLMClient() override;
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,
@@ -28,9 +28,11 @@ private:
                                      const std::string& user_prompt,
                                      int max_tokens) const;
     std::string effective_model() const;
+    std::string resolve_api_url() const;
     bool prompt_logging_enabled{false};
     std::string last_prompt;
     std::string model;
+    std::string base_url;
 };
 
 #endif

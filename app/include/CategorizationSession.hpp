@@ -7,9 +7,10 @@
 class CategorizationSession {
     std::string key;
     std::string model;
+    std::string base_url;
 
 public:
-    CategorizationSession(std::string api_key, std::string model);
+    CategorizationSession(std::string api_key, std::string model, std::string base_url = std::string());
     ~CategorizationSession();
 
     LLMClient create_llm_client() const;

@@ -5,6 +5,7 @@
 #include "Settings.hpp"
 #include "Utils.hpp"
 #include "CustomLLMDialog.hpp"
+#include "CustomApiDialog.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
 #include "LLMSelectionDialogTestAccess.hpp"
 #endif
@@ -79,12 +80,16 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
 
     selected_choice = settings.get_llm_choice();
     selected_custom_id = settings.get_active_custom_llm_id();
+    selected_custom_api_id = settings.get_active_custom_api_id();
     switch (selected_choice) {
     case LLMChoice::Remote_OpenAI:
         openai_radio->setChecked(true);
         break;
     case LLMChoice::Remote_Gemini:
         gemini_radio->setChecked(true);
+        break;
+    case LLMChoice::Remote_Custom:
+        custom_api_radio->setChecked(true);
         break;
     case LLMChoice::Local_3b:
         local3_radio->setChecked(true);
@@ -109,8 +114,12 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
         break;
     }
     refresh_custom_lists();
+    refresh_custom_api_lists();
     if (selected_choice == LLMChoice::Custom) {
         select_custom_by_id(selected_custom_id);
+    }
+    if (selected_choice == LLMChoice::Remote_Custom) {
+        select_custom_api_by_id(selected_custom_api_id);
     }
 
     update_ui_for_choice();
@@ -233,6 +242,26 @@ void LLMSelectionDialog::setup_ui()
     openai_form->addRow(openai_link_label);
     openai_inputs->setVisible(false);
 
+    custom_api_radio = new QRadioButton(
+        tr("Custom OpenAI-compatible API (advanced)"), radio_container);
+    auto* custom_api_desc = new QLabel(
+        tr("Use OpenAI-compatible endpoints such as LM Studio or Ollama (local or remote)."),
+        radio_container);
+    custom_api_desc->setWordWrap(true);
+    auto* custom_api_row = new QWidget(radio_container);
+    auto* custom_api_layout = new QHBoxLayout(custom_api_row);
+    custom_api_layout->setContentsMargins(24, 0, 0, 0);
+    custom_api_combo = new QComboBox(custom_api_row);
+    custom_api_combo->setMinimumContentsLength(18);
+    custom_api_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    add_custom_api_button = new QPushButton(tr("Add…"), custom_api_row);
+    edit_custom_api_button = new QPushButton(tr("Edit…"), custom_api_row);
+    delete_custom_api_button = new QPushButton(tr("Delete"), custom_api_row);
+    custom_api_layout->addWidget(custom_api_combo, 1);
+    custom_api_layout->addWidget(add_custom_api_button);
+    custom_api_layout->addWidget(edit_custom_api_button);
+    custom_api_layout->addWidget(delete_custom_api_button);
+
     custom_radio = new QRadioButton(
         tr("Custom local LLM (gguf)"), radio_container);
     auto* custom_row = new QWidget(radio_container);
@@ -261,6 +290,9 @@ void LLMSelectionDialog::setup_ui()
     radio_layout->addWidget(openai_radio);
     radio_layout->addWidget(openai_desc);
     radio_layout->addWidget(openai_inputs);
+    radio_layout->addWidget(custom_api_radio);
+    radio_layout->addWidget(custom_api_desc);
+    radio_layout->addWidget(custom_api_row);
     radio_layout->addWidget(custom_radio);
     radio_layout->addWidget(custom_row);
 
@@ -331,6 +363,7 @@ void LLMSelectionDialog::connect_signals()
     auto update_handler = [this]() { update_ui_for_choice(); };
     connect(openai_radio, &QRadioButton::toggled, this, update_handler);
     connect(gemini_radio, &QRadioButton::toggled, this, update_handler);
+    connect(custom_api_radio, &QRadioButton::toggled, this, update_handler);
     connect(local3_radio, &QRadioButton::toggled, this, update_handler);
     if (local3_legacy_radio) {
         connect(local3_legacy_radio, &QRadioButton::toggled, this, update_handler);
@@ -338,6 +371,7 @@ void LLMSelectionDialog::connect_signals()
     connect(local7_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_combo, &QComboBox::currentTextChanged, this, update_handler);
+    connect(custom_api_combo, &QComboBox::currentTextChanged, this, update_handler);
     connect(openai_api_key_edit, &QLineEdit::textChanged, this, update_handler);
     connect(openai_model_edit, &QLineEdit::textChanged, this, update_handler);
     connect(gemini_api_key_edit, &QLineEdit::textChanged, this, update_handler);
@@ -345,6 +379,9 @@ void LLMSelectionDialog::connect_signals()
     connect(add_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_add_custom);
     connect(edit_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_edit_custom);
     connect(delete_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_custom);
+    connect(add_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_add_custom_api);
+    connect(edit_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_edit_custom_api);
+    connect(delete_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_custom_api);
 
     if (show_openai_api_key_checkbox) {
         connect(show_openai_api_key_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
@@ -386,6 +423,11 @@ LLMChoice LLMSelectionDialog::get_selected_llm_choice() const
 std::string LLMSelectionDialog::get_selected_custom_llm_id() const
 {
     return selected_custom_id;
+}
+
+std::string LLMSelectionDialog::get_selected_custom_api_id() const
+{
+    return selected_custom_api_id;
 }
 
 std::string LLMSelectionDialog::get_openai_api_key() const
@@ -447,9 +489,11 @@ void LLMSelectionDialog::update_ui_for_choice()
 {
     update_legacy_local_3b_visibility();
     update_custom_buttons();
+    update_custom_api_buttons();
 
     update_radio_selection();
     update_custom_choice_ui();
+    update_custom_api_choice_ui();
     update_visual_llm_downloads();
 
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_3b
@@ -469,6 +513,8 @@ void LLMSelectionDialog::update_radio_selection()
         selected_choice = LLMChoice::Remote_OpenAI;
     } else if (gemini_radio->isChecked()) {
         selected_choice = LLMChoice::Remote_Gemini;
+    } else if (custom_api_radio->isChecked()) {
+        selected_choice = LLMChoice::Remote_Custom;
     } else if (local3_legacy_radio && local3_legacy_radio->isChecked()) {
         selected_choice = LLMChoice::Local_3b_legacy;
     } else if (local3_radio->isChecked()) {
@@ -490,6 +536,7 @@ void LLMSelectionDialog::update_custom_choice_ui()
         || selected_choice == LLMChoice::Local_7b);
     const bool is_remote_openai = selected_choice == LLMChoice::Remote_OpenAI;
     const bool is_remote_gemini = selected_choice == LLMChoice::Remote_Gemini;
+    const bool is_remote_custom = selected_choice == LLMChoice::Remote_Custom;
     const bool is_custom = selected_choice == LLMChoice::Custom;
     download_section->setVisible(is_local_builtin);
     if (openai_inputs) {
@@ -518,6 +565,10 @@ void LLMSelectionDialog::update_custom_choice_ui()
         return;
     }
 
+    if (is_remote_custom) {
+        return;
+    }
+
     if (is_remote_openai) {
         update_openai_fields_state();
         return;
@@ -534,6 +585,49 @@ void LLMSelectionDialog::update_custom_choice_ui()
         set_status_message(tr("Selection ready."));
         return;
     }
+}
+
+void LLMSelectionDialog::update_custom_api_choice_ui()
+{
+    if (!ok_button && button_box) {
+        ok_button = button_box->button(QDialogButtonBox::Ok);
+    }
+
+    const bool is_custom_api = selected_choice == LLMChoice::Remote_Custom;
+    if (custom_api_combo) {
+        custom_api_combo->setEnabled(is_custom_api);
+    }
+    if (edit_custom_api_button) {
+        edit_custom_api_button->setEnabled(is_custom_api && custom_api_combo
+            && custom_api_combo->currentIndex() >= 0 && custom_api_combo->count() > 0);
+    }
+    if (delete_custom_api_button) {
+        delete_custom_api_button->setEnabled(is_custom_api && custom_api_combo
+            && custom_api_combo->currentIndex() >= 0 && custom_api_combo->count() > 0);
+    }
+
+    if (!is_custom_api) {
+        return;
+    }
+
+    if (custom_api_combo && custom_api_combo->currentIndex() >= 0) {
+        selected_custom_api_id = custom_api_combo->currentData().toString().toStdString();
+    } else {
+        selected_custom_api_id.clear();
+    }
+
+    if (ok_button) {
+        ok_button->setEnabled(!selected_custom_api_id.empty());
+    }
+    if (progress_bar) {
+        progress_bar->setVisible(false);
+    }
+    if (download_button) {
+        download_button->setVisible(false);
+    }
+    set_status_message(selected_custom_api_id.empty()
+        ? tr("Choose or add a custom API endpoint.")
+        : tr("Custom API selected."));
 }
 
 void LLMSelectionDialog::update_openai_fields_state()
@@ -750,6 +844,28 @@ void LLMSelectionDialog::refresh_custom_lists()
     update_custom_buttons();
 }
 
+void LLMSelectionDialog::refresh_custom_api_lists()
+{
+    if (!custom_api_combo) {
+        return;
+    }
+
+    custom_api_combo->blockSignals(true);
+    custom_api_combo->clear();
+    for (const auto& entry : settings.get_custom_api_endpoints()) {
+        custom_api_combo->addItem(QString::fromStdString(entry.name),
+                                  QString::fromStdString(entry.id));
+    }
+    if (!selected_custom_api_id.empty()) {
+        select_custom_api_by_id(selected_custom_api_id);
+    } else if (custom_api_combo->count() > 0) {
+        custom_api_combo->setCurrentIndex(0);
+        selected_custom_api_id = custom_api_combo->currentData().toString().toStdString();
+    }
+    custom_api_combo->blockSignals(false);
+    update_custom_api_buttons();
+}
+
 void LLMSelectionDialog::select_custom_by_id(const std::string& id)
 {
     for (int i = 0; i < custom_combo->count(); ++i) {
@@ -760,6 +876,22 @@ void LLMSelectionDialog::select_custom_by_id(const std::string& id)
     }
     if (custom_combo->count() > 0) {
         custom_combo->setCurrentIndex(0);
+    }
+}
+
+void LLMSelectionDialog::select_custom_api_by_id(const std::string& id)
+{
+    if (!custom_api_combo) {
+        return;
+    }
+    for (int i = 0; i < custom_api_combo->count(); ++i) {
+        if (custom_api_combo->itemData(i).toString().toStdString() == id) {
+            custom_api_combo->setCurrentIndex(i);
+            return;
+        }
+    }
+    if (custom_api_combo->count() > 0) {
+        custom_api_combo->setCurrentIndex(0);
     }
 }
 
@@ -774,6 +906,20 @@ void LLMSelectionDialog::handle_add_custom()
     refresh_custom_lists();
     select_custom_by_id(selected_custom_id);
     custom_radio->setChecked(true);
+    update_ui_for_choice();
+}
+
+void LLMSelectionDialog::handle_add_custom_api()
+{
+    CustomApiDialog editor(this);
+    if (editor.exec() != QDialog::Accepted) {
+        return;
+    }
+    CustomApiEndpoint entry = editor.result();
+    selected_custom_api_id = settings.upsert_custom_api_endpoint(entry);
+    refresh_custom_api_lists();
+    select_custom_api_by_id(selected_custom_api_id);
+    custom_api_radio->setChecked(true);
     update_ui_for_choice();
 }
 
@@ -801,6 +947,30 @@ void LLMSelectionDialog::handle_edit_custom()
     update_ui_for_choice();
 }
 
+void LLMSelectionDialog::handle_edit_custom_api()
+{
+    if (!custom_api_combo || custom_api_combo->currentIndex() < 0) {
+        return;
+    }
+    const std::string id = custom_api_combo->currentData().toString().toStdString();
+    CustomApiEndpoint entry = settings.find_custom_api_endpoint(id);
+    if (entry.id.empty()) {
+        return;
+    }
+
+    CustomApiDialog editor(this, entry);
+    if (editor.exec() != QDialog::Accepted) {
+        return;
+    }
+    CustomApiEndpoint updated = editor.result();
+    updated.id = entry.id;
+    selected_custom_api_id = settings.upsert_custom_api_endpoint(updated);
+    refresh_custom_api_lists();
+    select_custom_api_by_id(selected_custom_api_id);
+    custom_api_radio->setChecked(true);
+    update_ui_for_choice();
+}
+
 void LLMSelectionDialog::handle_delete_custom()
 {
     if (!custom_combo || custom_combo->currentIndex() < 0) {
@@ -824,6 +994,29 @@ void LLMSelectionDialog::handle_delete_custom()
     update_ui_for_choice();
 }
 
+void LLMSelectionDialog::handle_delete_custom_api()
+{
+    if (!custom_api_combo || custom_api_combo->currentIndex() < 0) {
+        return;
+    }
+    const std::string id = custom_api_combo->currentData().toString().toStdString();
+    const QString name = custom_api_combo->currentText();
+    const auto response = QMessageBox::question(this,
+                                                tr("Delete custom API"),
+                                                tr("Remove '%1' from your custom API list? This does not affect the server.")
+                                                    .arg(name));
+    if (response != QMessageBox::Yes) {
+        return;
+    }
+    settings.remove_custom_api_endpoint(id);
+    if (selected_custom_api_id == id) {
+        selected_custom_api_id.clear();
+    }
+    refresh_custom_api_lists();
+    custom_api_radio->setChecked(custom_api_combo->count() > 0);
+    update_ui_for_choice();
+}
+
 void LLMSelectionDialog::update_custom_buttons()
 {
     const bool has_selection = custom_combo && custom_combo->currentIndex() >= 0 && custom_combo->count() > 0;
@@ -832,6 +1025,17 @@ void LLMSelectionDialog::update_custom_buttons()
     }
     if (delete_custom_button) {
         delete_custom_button->setEnabled(has_selection && custom_radio->isChecked());
+    }
+}
+
+void LLMSelectionDialog::update_custom_api_buttons()
+{
+    const bool has_selection = custom_api_combo && custom_api_combo->currentIndex() >= 0 && custom_api_combo->count() > 0;
+    if (edit_custom_api_button) {
+        edit_custom_api_button->setEnabled(has_selection && custom_api_radio->isChecked());
+    }
+    if (delete_custom_api_button) {
+        delete_custom_api_button->setEnabled(has_selection && custom_api_radio->isChecked());
     }
 }
 

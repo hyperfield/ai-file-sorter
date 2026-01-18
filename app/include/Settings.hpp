@@ -37,6 +37,12 @@ public:
     std::string upsert_custom_llm(const CustomLLM& llm);
     void remove_custom_llm(const std::string& id);
     CustomLLM find_custom_llm(const std::string& id) const;
+    std::string get_active_custom_api_id() const;
+    void set_active_custom_api_id(const std::string& id);
+    const std::vector<CustomApiEndpoint>& get_custom_api_endpoints() const;
+    std::string upsert_custom_api_endpoint(const CustomApiEndpoint& endpoint);
+    void remove_custom_api_endpoint(const std::string& id);
+    CustomApiEndpoint find_custom_api_endpoint(const std::string& id) const;
     bool is_llm_chosen() const;
 
     bool get_use_subcategories() const;
@@ -98,11 +104,13 @@ private:
                              const std::function<int(const char*, int, int)>& load_int);
     void load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool);
     void load_custom_llm_settings();
+    void load_custom_api_settings();
     void log_loaded_settings() const;
 
     void save_core_settings();
     void save_whitelist_settings();
     void save_custom_llms();
+    void save_custom_api_endpoints();
 
     std::string config_path;
     std::filesystem::path config_dir;
@@ -137,6 +145,8 @@ private:
     std::string active_whitelist;
     std::vector<CustomLLM> custom_llms;
     std::string active_custom_llm_id;
+    std::vector<CustomApiEndpoint> custom_api_endpoints;
+    std::string active_custom_api_id;
 };
 
 #endif

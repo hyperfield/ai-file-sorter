@@ -23,6 +23,7 @@
 namespace {
 constexpr const char* kLocalTimeoutEnv = "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT";
 constexpr const char* kRemoteTimeoutEnv = "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT";
+constexpr const char* kCustomTimeoutEnv = "AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT";
 constexpr size_t kMaxConsistencyHints = 5;
 constexpr size_t kMaxLabelLength = 80;
 
@@ -136,6 +137,21 @@ bool CategorizationService::ensure_remote_credentials(std::string* error_message
     const LLMChoice choice = settings.get_llm_choice();
     if (!is_remote_choice(choice)) {
         return true;
+    }
+
+    if (choice == LLMChoice::Remote_Custom) {
+        const auto id = settings.get_active_custom_api_id();
+        const CustomApiEndpoint endpoint = settings.find_custom_api_endpoint(id);
+        if (is_valid_custom_api_endpoint(endpoint)) {
+            return true;
+        }
+        if (core_logger) {
+            core_logger->error("Custom API endpoint selected but is missing required settings.");
+        }
+        if (error_message) {
+            *error_message = "Custom API endpoint is missing required settings. Please edit it in the Select LLM dialog.";
+        }
+        return false;
     }
 
     const bool has_key = (choice == LLMChoice::Remote_OpenAI)
@@ -312,6 +328,22 @@ bool CategorizationService::ensure_remote_credentials_for_request(
     }
 
     const LLMChoice choice = settings.get_llm_choice();
+    if (choice == LLMChoice::Remote_Custom) {
+        const auto id = settings.get_active_custom_api_id();
+        const CustomApiEndpoint endpoint = settings.find_custom_api_endpoint(id);
+        if (is_valid_custom_api_endpoint(endpoint)) {
+            return true;
+        }
+        const std::string err_msg = fmt::format("[REMOTE] {} (missing custom API settings)", item_name);
+        if (progress_callback) {
+            progress_callback(err_msg);
+        }
+        if (core_logger) {
+            core_logger->error("{}", err_msg);
+        }
+        return false;
+    }
+
     const bool has_key = (choice == LLMChoice::Remote_OpenAI)
         ? !settings.get_openai_api_key().empty()
         : !settings.get_gemini_api_key().empty();
@@ -657,6 +689,10 @@ int CategorizationService::resolve_llm_timeout(bool is_local_llm) const
 {
     int timeout_seconds = is_local_llm ? 60 : 10;
     const char* timeout_env = std::getenv(is_local_llm ? kLocalTimeoutEnv : kRemoteTimeoutEnv);
+    if (!is_local_llm && settings.get_llm_choice() == LLMChoice::Remote_Custom) {
+        timeout_seconds = 60;
+        timeout_env = std::getenv(kCustomTimeoutEnv);
+    }
     if (!timeout_env || *timeout_env == '\0') {
         return timeout_seconds;
     }

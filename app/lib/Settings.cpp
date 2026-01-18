@@ -57,6 +57,14 @@ std::vector<std::string> parse_list(const std::string& value) {
     return result;
 }
 
+std::string trim_copy(const std::string& value) {
+    auto trimmed = value;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    return trimmed;
+}
+
 std::string join_list(const std::vector<std::string>& items) {
     std::ostringstream oss;
     for (size_t i = 0; i < items.size(); ++i) {
@@ -76,6 +84,7 @@ std::string llm_choice_to_string(LLMChoice choice) {
     switch (choice) {
         case LLMChoice::Remote_OpenAI: return "Remote_OpenAI";
         case LLMChoice::Remote_Gemini: return "Remote_Gemini";
+        case LLMChoice::Remote_Custom: return "Remote_Custom";
         case LLMChoice::Local_3b: return "Local_3b";
         case LLMChoice::Local_3b_legacy: return "Local_3b_legacy";
         case LLMChoice::Local_7b: return "Local_7b";
@@ -101,6 +110,16 @@ std::string generate_custom_llm_id() {
     const uint64_t value = rng();
     std::ostringstream oss;
     oss << "llm_" << std::hex << value;
+    return oss.str();
+}
+
+std::string generate_custom_api_id() {
+    using clock = std::chrono::steady_clock;
+    const auto now = clock::now().time_since_epoch().count();
+    std::mt19937_64 rng(static_cast<std::mt19937_64::result_type>(now));
+    const uint64_t value = rng();
+    std::ostringstream oss;
+    oss << "api_" << std::hex << value;
     return oss.str();
 }
 
@@ -233,6 +252,7 @@ LLMChoice Settings::parse_llm_choice() const
     const std::string value = config.getValue("Settings", "LLMChoice", "Unset");
     if (value == "Remote" || value == "Remote_OpenAI") return LLMChoice::Remote_OpenAI;
     if (value == "Remote_Gemini") return LLMChoice::Remote_Gemini;
+    if (value == "Remote_Custom") return LLMChoice::Remote_Custom;
     if (value == "Local_3b") return LLMChoice::Local_3b;
     if (value == "Local_3b_legacy") return LLMChoice::Local_3b_legacy;
     if (value == "Local_7b") return LLMChoice::Local_7b;
@@ -301,16 +321,43 @@ void Settings::load_custom_llm_settings()
     }
 }
 
+void Settings::load_custom_api_settings()
+{
+    active_custom_api_id = config.getValue("CustomApis", "ActiveCustomApiId", "");
+
+    custom_api_endpoints.clear();
+    const auto api_ids = parse_list(config.getValue("CustomApis", "CustomApiIds", ""));
+    for (const auto& id : api_ids) {
+        const std::string section = "CustomApi_" + id;
+        CustomApiEndpoint entry;
+        entry.id = id;
+        entry.name = config.getValue(section, "Name", "");
+        entry.description = config.getValue(section, "Description", "");
+        entry.base_url = config.getValue(section, "BaseUrl", "");
+        entry.api_key = config.getValue(section, "ApiKey", "");
+        entry.model = config.getValue(section, "Model", "");
+        entry.name = trim_copy(entry.name);
+        entry.description = trim_copy(entry.description);
+        entry.base_url = trim_copy(entry.base_url);
+        entry.api_key = trim_copy(entry.api_key);
+        entry.model = trim_copy(entry.model);
+        if (is_valid_custom_api_endpoint(entry)) {
+            custom_api_endpoints.push_back(entry);
+        }
+    }
+}
+
 void Settings::log_loaded_settings() const
 {
     if (auto logger = Logger::get_logger("core_logger")) {
-        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {}, category language: {})",
+        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {}, custom apis: {}, category language: {})",
                      config_path,
                      allowed_categories.size(),
                      allowed_subcategories.size(),
                      use_whitelist,
                      active_whitelist,
                      custom_llms.size(),
+                     custom_api_endpoints.size(),
                      categoryLanguageDisplay(category_language));
     }
 }
@@ -379,6 +426,28 @@ void Settings::save_custom_llms()
     config.setValue(llm_section, "CustomIds", join_list(ids));
 }
 
+void Settings::save_custom_api_endpoints()
+{
+    static const std::string api_section = "CustomApis";
+
+    set_optional_setting(config, api_section, "ActiveCustomApiId", active_custom_api_id);
+
+    std::vector<std::string> ids;
+    ids.reserve(custom_api_endpoints.size());
+    for (const auto& entry : custom_api_endpoints) {
+        if (!is_valid_custom_api_endpoint(entry)) {
+            continue;
+        }
+        ids.push_back(entry.id);
+        const std::string section = "CustomApi_" + entry.id;
+        config.setValue(section, "Name", entry.name);
+        config.setValue(section, "Description", entry.description);
+        config.setValue(section, "BaseUrl", entry.base_url);
+        config.setValue(section, "ApiKey", entry.api_key);
+        config.setValue(section, "Model", entry.model);
+    }
+    config.setValue(api_section, "CustomApiIds", join_list(ids));
+}
 
 std::string Settings::define_config_path()
 {
@@ -432,6 +501,7 @@ bool Settings::load()
     }
     load_whitelist_settings(load_bool);
     load_custom_llm_settings();
+    load_custom_api_settings();
     log_loaded_settings();
 
     return true;
@@ -443,6 +513,7 @@ bool Settings::save()
     save_core_settings();
     save_whitelist_settings();
     save_custom_llms();
+    save_custom_api_endpoints();
     return config.save(config_path);
 }
 
@@ -569,6 +640,63 @@ void Settings::remove_custom_llm(const std::string& id)
                       custom_llms.end());
     if (active_custom_llm_id == id) {
         active_custom_llm_id.clear();
+    }
+}
+
+std::string Settings::get_active_custom_api_id() const
+{
+    return active_custom_api_id;
+}
+
+void Settings::set_active_custom_api_id(const std::string& id)
+{
+    active_custom_api_id = id;
+}
+
+const std::vector<CustomApiEndpoint>& Settings::get_custom_api_endpoints() const
+{
+    return custom_api_endpoints;
+}
+
+CustomApiEndpoint Settings::find_custom_api_endpoint(const std::string& id) const
+{
+    const auto it = std::find_if(custom_api_endpoints.begin(), custom_api_endpoints.end(),
+                                 [&id](const CustomApiEndpoint& item) { return item.id == id; });
+    if (it != custom_api_endpoints.end()) {
+        return *it;
+    }
+    return {};
+}
+
+std::string Settings::upsert_custom_api_endpoint(const CustomApiEndpoint& endpoint)
+{
+    CustomApiEndpoint copy = endpoint;
+    if (copy.id.empty()) {
+        copy.id = generate_custom_api_id();
+    }
+    copy.name = trim_copy(copy.name);
+    copy.description = trim_copy(copy.description);
+    copy.base_url = trim_copy(copy.base_url);
+    copy.api_key = trim_copy(copy.api_key);
+    copy.model = trim_copy(copy.model);
+    const auto it = std::find_if(custom_api_endpoints.begin(), custom_api_endpoints.end(),
+                                 [&copy](const CustomApiEndpoint& item) { return item.id == copy.id; });
+    if (it != custom_api_endpoints.end()) {
+        *it = copy;
+    } else {
+        custom_api_endpoints.push_back(copy);
+    }
+    return copy.id;
+}
+
+void Settings::remove_custom_api_endpoint(const std::string& id)
+{
+    custom_api_endpoints.erase(std::remove_if(custom_api_endpoints.begin(),
+                                             custom_api_endpoints.end(),
+                                             [&id](const CustomApiEndpoint& item) { return item.id == id; }),
+                               custom_api_endpoints.end());
+    if (active_custom_api_id == id) {
+        active_custom_api_id.clear();
     }
 }
 

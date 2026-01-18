@@ -37,6 +37,7 @@ public:
 
     LLMChoice get_selected_llm_choice() const;
     std::string get_selected_custom_llm_id() const;
+    std::string get_selected_custom_api_id() const;
     std::string get_openai_api_key() const;
     std::string get_openai_model() const;
     std::string get_gemini_api_key() const;
@@ -67,6 +68,7 @@ private:
     void update_legacy_local_3b_visibility();
     void update_radio_selection();
     void update_custom_choice_ui();
+    void update_custom_api_choice_ui();
     void update_openai_fields_state();
     void update_gemini_fields_state();
     bool openai_inputs_valid() const;
@@ -78,11 +80,17 @@ private:
     void set_status_message(const QString& message);
     std::string current_download_env_var() const;
     void refresh_custom_lists();
+    void refresh_custom_api_lists();
     void handle_add_custom();
     void handle_edit_custom();
     void handle_delete_custom();
     void update_custom_buttons();
     void select_custom_by_id(const std::string& id);
+    void handle_add_custom_api();
+    void handle_edit_custom_api();
+    void handle_delete_custom_api();
+    void update_custom_api_buttons();
+    void select_custom_api_by_id(const std::string& id);
     void setup_visual_llm_download_entry(VisualLlmDownloadEntry& entry,
                                      QWidget* parent,
                                      const QString& title,
@@ -97,6 +105,7 @@ private:
     Settings& settings;
     LLMChoice selected_choice{LLMChoice::Unset};
     std::string selected_custom_id;
+    std::string selected_custom_api_id;
     std::string openai_api_key;
     std::string openai_model;
     std::string gemini_api_key;
@@ -104,6 +113,7 @@ private:
 
     QRadioButton* openai_radio{nullptr};
     QRadioButton* gemini_radio{nullptr};
+    QRadioButton* custom_api_radio{nullptr};
     QRadioButton* local3_radio{nullptr};
     QRadioButton* local3_legacy_radio{nullptr};
     QRadioButton* local7_radio{nullptr};
@@ -112,6 +122,10 @@ private:
     QPushButton* add_custom_button{nullptr};
     QPushButton* edit_custom_button{nullptr};
     QPushButton* delete_custom_button{nullptr};
+    QComboBox* custom_api_combo{nullptr};
+    QPushButton* add_custom_api_button{nullptr};
+    QPushButton* edit_custom_api_button{nullptr};
+    QPushButton* delete_custom_api_button{nullptr};
     QLabel* remote_url_label{nullptr};
     QLabel* local_path_label{nullptr};
     QLabel* file_size_label{nullptr};

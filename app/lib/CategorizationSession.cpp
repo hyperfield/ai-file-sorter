@@ -4,9 +4,10 @@
 #include <utility>
 
 
-CategorizationSession::CategorizationSession(std::string api_key, std::string model)
+CategorizationSession::CategorizationSession(std::string api_key, std::string model, std::string base_url)
     : key(std::move(api_key)),
-      model(std::move(model))
+      model(std::move(model)),
+      base_url(std::move(base_url))
 {
 }
 
@@ -20,5 +21,5 @@ CategorizationSession::~CategorizationSession()
 
 LLMClient CategorizationSession::create_llm_client() const
 {
-    return LLMClient(key, model);
+    return LLMClient(key, model, base_url);
 }
