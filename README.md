@@ -187,8 +187,10 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```bash
    sudo apt update && sudo apt install -y \
      libqt6widgets6 libcurl4 libjsoncpp25 libfmt9 libopenblas0-pthread \
-     libvulkan1 mesa-vulkan-drivers glslc
+     libvulkan1 mesa-vulkan-drivers glslang-tools
    ```
+   `glslc` is a binary provided by `glslang-tools` (or `shaderc` on some distros).
+   On Debian 13, use `libjsoncpp26` (and `libcurl4t64` if `libcurl4` is not available).
    Ensure that the Qt platform plugins are installed (on Ubuntu 22.04 this is provided by `qt6-wayland`).
    GPU acceleration additionally requires either a working Vulkan 1.2+ stack (Mesa, AMD/Intel/NVIDIA drivers) or, for NVIDIA users, the matching CUDA runtime (`nvidia-cuda-toolkit` or vendor packages). The launcher automatically prefers Vulkan when both are present and falls back to CPU if neither is available.
 2. **Install the package**
