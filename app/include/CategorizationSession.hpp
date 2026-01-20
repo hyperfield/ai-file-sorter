@@ -10,6 +10,9 @@ class CategorizationSession {
     std::string base_url;
 
 public:
+    /**
+     * @brief Construct a session for OpenAI-compatible requests.
+     */
     CategorizationSession(std::string api_key, std::string model, std::string base_url = std::string());
     ~CategorizationSession();
 

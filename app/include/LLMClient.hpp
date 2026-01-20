@@ -7,6 +7,9 @@
 
 class LLMClient : public ILLMClient {
 public:
+    /**
+     * @brief Create an OpenAI-compatible client, optionally targeting a custom base URL.
+     */
     LLMClient(std::string api_key, std::string model, std::string base_url = std::string());
     ~LLMClient() override;
     std::string categorize_file(const std::string& file_name,
@@ -28,6 +31,9 @@ private:
                                      const std::string& user_prompt,
                                      int max_tokens) const;
     std::string effective_model() const;
+    /**
+     * @brief Resolve the final /chat/completions URL from the base URL or default.
+     */
     std::string resolve_api_url() const;
     bool prompt_logging_enabled{false};
     std::string last_prompt;

@@ -37,6 +37,9 @@ public:
 
     LLMChoice get_selected_llm_choice() const;
     std::string get_selected_custom_llm_id() const;
+    /**
+     * @brief Return the active custom API endpoint id.
+     */
     std::string get_selected_custom_api_id() const;
     std::string get_openai_api_key() const;
     std::string get_openai_model() const;
@@ -68,6 +71,9 @@ private:
     void update_legacy_local_3b_visibility();
     void update_radio_selection();
     void update_custom_choice_ui();
+    /**
+     * @brief Update UI state for the custom API selection.
+     */
     void update_custom_api_choice_ui();
     void update_openai_fields_state();
     void update_gemini_fields_state();
@@ -80,16 +86,34 @@ private:
     void set_status_message(const QString& message);
     std::string current_download_env_var() const;
     void refresh_custom_lists();
+    /**
+     * @brief Refresh the custom API dropdown list.
+     */
     void refresh_custom_api_lists();
     void handle_add_custom();
     void handle_edit_custom();
     void handle_delete_custom();
     void update_custom_buttons();
     void select_custom_by_id(const std::string& id);
+    /**
+     * @brief Open the dialog to add a custom API entry.
+     */
     void handle_add_custom_api();
+    /**
+     * @brief Open the dialog to edit the selected custom API entry.
+     */
     void handle_edit_custom_api();
+    /**
+     * @brief Remove the selected custom API entry.
+     */
     void handle_delete_custom_api();
+    /**
+     * @brief Update enabled states for custom API controls.
+     */
     void update_custom_api_buttons();
+    /**
+     * @brief Select a custom API entry by id.
+     */
     void select_custom_api_by_id(const std::string& id);
     void setup_visual_llm_download_entry(VisualLlmDownloadEntry& entry,
                                      QWidget* parent,

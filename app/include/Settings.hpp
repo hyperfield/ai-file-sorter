@@ -37,11 +37,29 @@ public:
     std::string upsert_custom_llm(const CustomLLM& llm);
     void remove_custom_llm(const std::string& id);
     CustomLLM find_custom_llm(const std::string& id) const;
+    /**
+     * @brief Return the active custom API endpoint id.
+     */
     std::string get_active_custom_api_id() const;
+    /**
+     * @brief Set the active custom API endpoint id.
+     */
     void set_active_custom_api_id(const std::string& id);
+    /**
+     * @brief Return the configured custom API endpoints.
+     */
     const std::vector<CustomApiEndpoint>& get_custom_api_endpoints() const;
+    /**
+     * @brief Add or update a custom API endpoint entry.
+     */
     std::string upsert_custom_api_endpoint(const CustomApiEndpoint& endpoint);
+    /**
+     * @brief Remove a custom API endpoint by id.
+     */
     void remove_custom_api_endpoint(const std::string& id);
+    /**
+     * @brief Find a custom API endpoint by id.
+     */
     CustomApiEndpoint find_custom_api_endpoint(const std::string& id) const;
     bool is_llm_chosen() const;
 
@@ -104,12 +122,18 @@ private:
                              const std::function<int(const char*, int, int)>& load_int);
     void load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool);
     void load_custom_llm_settings();
+    /**
+     * @brief Load custom API endpoint entries from config.
+     */
     void load_custom_api_settings();
     void log_loaded_settings() const;
 
     void save_core_settings();
     void save_whitelist_settings();
     void save_custom_llms();
+    /**
+     * @brief Save custom API endpoint entries to config.
+     */
     void save_custom_api_endpoints();
 
     std::string config_path;

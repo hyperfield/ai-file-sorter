@@ -7,7 +7,7 @@ enum class LLMChoice {
     Unset,
     Remote_OpenAI,
     Remote_Gemini,
-    Remote_Custom,
+    Remote_Custom, ///< Custom OpenAI-compatible endpoint.
     Local_3b,
     Local_3b_legacy,
     Local_7b,
@@ -61,6 +61,9 @@ inline bool is_valid_custom_llm(const CustomLLM& entry) {
     return !entry.id.empty() && !entry.name.empty() && !entry.path.empty();
 }
 
+/**
+ * @brief Defines a custom OpenAI-compatible API endpoint.
+ */
 struct CustomApiEndpoint {
     std::string id;
     std::string name;
@@ -70,6 +73,9 @@ struct CustomApiEndpoint {
     std::string model;
 };
 
+/**
+ * @brief Returns true when the custom endpoint has the required fields.
+ */
 inline bool is_valid_custom_api_endpoint(const CustomApiEndpoint& entry) {
     return !entry.id.empty()
         && !entry.name.empty()
