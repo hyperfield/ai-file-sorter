@@ -2,11 +2,12 @@
 
 ## [1.6.0] - 2026-01-16
 
-- Local 3B model download now defaults to Q4 for better GPU compatibility.
-- Legacy Local 3B Q8 is still selectable when an existing download is found.
-- LLM selection dialog now uses local file sizes for completed downloads when remote size metadata is unavailable.
-- Added custom OpenAI-compatible API endpoints (base URL + model + optional key) to the Select LLM dialog.
-- Bug fixes
+- Local 3B model download now defaults to Q4 for better GPU compatibility. The legacy Local 3B Q8 is still selectable when an existing download is found.
+- Improved the LLM selection dialog latency.
+- Added custom API endpoints to the Select LLM dialog. Custom endpoints accept base URLs or full /chat/completions endpoints, with optional API keys for local servers.
+- Image rename suggestions are now saved as you go, so progress isn't lost if the app closes unexpectedly.
+- Image analysis now falls back (with a user prompt) to CPU if the GPU has insufficient available memory.
+- Improved subcategory consistency by merging labels that only differ by generic suffixes (e.g., “files”).
 
 ## [1.5.0] - 2026-01-11
 
