@@ -10,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -375,6 +376,44 @@ std::string DatabaseManager::normalize_label(const std::string &input) const {
     return result;
 }
 
+static std::string strip_trailing_stopwords(const std::string& normalized) {
+    if (normalized.empty()) {
+        return normalized;
+    }
+    static const std::unordered_set<std::string> kStopwords = {
+        "file", "files",
+        "doc", "docs", "document", "documents",
+        "image", "images",
+        "photo", "photos",
+        "pic", "pics"
+    };
+
+    std::istringstream iss(normalized);
+    std::vector<std::string> tokens;
+    std::string token;
+    while (iss >> token) {
+        tokens.push_back(token);
+    }
+    if (tokens.size() <= 1) {
+        return normalized;
+    }
+    while (tokens.size() > 1 && kStopwords.contains(tokens.back())) {
+        tokens.pop_back();
+    }
+    if (tokens.empty()) {
+        return normalized;
+    }
+
+    std::string joined;
+    for (size_t index = 0; index < tokens.size(); ++index) {
+        if (index > 0) {
+            joined.push_back(' ');
+        }
+        joined += tokens[index];
+    }
+    return joined;
+}
+
 double DatabaseManager::string_similarity(const std::string &a, const std::string &b) {
     if (a == b) {
         return 1.0;
@@ -636,14 +675,19 @@ DatabaseManager::resolve_category(const std::string &category,
 
     std::string norm_category = normalize_label(trimmed_category);
     std::string norm_subcategory = normalize_label(trimmed_subcategory);
-    std::string key = make_key(norm_category, norm_subcategory);
+    const std::string match_subcategory = strip_trailing_stopwords(norm_subcategory);
+    std::string key = make_key(norm_category, match_subcategory);
 
-    int taxonomy_id = resolve_existing_taxonomy(key, norm_category, norm_subcategory);
+    int taxonomy_id = resolve_existing_taxonomy(key, norm_category, match_subcategory);
+    if (taxonomy_id == -1 && match_subcategory != norm_subcategory) {
+        const std::string raw_key = make_key(norm_category, norm_subcategory);
+        taxonomy_id = resolve_existing_taxonomy(raw_key, norm_category, norm_subcategory);
+    }
     return build_resolved_category(taxonomy_id,
                                    trimmed_category,
                                    trimmed_subcategory,
                                    norm_category,
-                                   norm_subcategory);
+                                   match_subcategory);
 }
 
 bool DatabaseManager::insert_or_update_file_with_categorization(
