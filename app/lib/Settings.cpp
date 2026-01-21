@@ -243,8 +243,8 @@ Settings::Settings()
     // Default language follows system locale on first run (before any config file exists).
     language = system_default_language();
     category_language = CategoryLanguage::English;
-    analyze_images_by_content = visual_llm_files_available();
-    offer_rename_images = analyze_images_by_content;
+    analyze_images_by_content = false;
+    offer_rename_images = false;
 }
 
 LLMChoice Settings::parse_llm_choice() const
@@ -272,7 +272,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
-    analyze_images_by_content = load_bool("AnalyzeImagesByContent", visual_llm_files_available());
+    analyze_images_by_content = load_bool("AnalyzeImagesByContent", false);
     offer_rename_images = load_bool("OfferRenameImages", analyze_images_by_content);
     rename_images_only = load_bool("RenameImagesOnly", false);
     process_images_only = load_bool("ProcessImagesOnly", false);

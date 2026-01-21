@@ -62,6 +62,7 @@
 #include <QStyle>
 #include <QEvent>
 #include <QStackedWidget>
+#include <QThread>
 
 #include <chrono>
 #include <filesystem>
@@ -217,6 +218,24 @@ bool should_use_visual_gpu() {
         return static_cast<char>(std::tolower(c));
     });
     return value != "cpu";
+}
+
+std::optional<bool> read_env_bool(const char* key) {
+    const char* value = std::getenv(key);
+    if (!value || value[0] == '\0') {
+        return std::nullopt;
+    }
+    std::string lowered = value;
+    std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    if (lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on") {
+        return true;
+    }
+    if (lowered == "0" || lowered == "false" || lowered == "no" || lowered == "off") {
+        return false;
+    }
+    return std::nullopt;
 }
 
 void split_entries_for_analysis(const std::vector<FileEntry>& files,
@@ -1654,6 +1673,8 @@ void MainApp::perform_analysis()
         const bool analyze_images = settings.get_analyze_images_by_content();
         const bool process_images_only = analyze_images && settings.get_process_images_only();
         const bool rename_images_only = settings.get_rename_images_only();
+        const bool offer_image_renames = settings.get_offer_rename_images();
+        const bool wants_visual_rename = analyze_images && offer_image_renames && !rename_images_only;
 
         const auto cached_entries = categorization_service.load_cached_entries(directory_path);
         std::vector<CategorizedFile> pending_renames;
@@ -1661,6 +1682,12 @@ void MainApp::perform_analysis()
         std::unordered_set<std::string> renamed_files;
         already_categorized_files.clear();
         already_categorized_files.reserve(cached_entries.size());
+        std::vector<FileEntry> cached_image_entries_for_visual;
+        std::unordered_map<std::string, size_t> cached_visual_indices;
+        if (wants_visual_rename) {
+            cached_image_entries_for_visual.reserve(cached_entries.size());
+            cached_visual_indices.reserve(cached_entries.size());
+        }
 
         auto to_lower = [](std::string value) {
             std::transform(value.begin(), value.end(), value.begin(),
@@ -1677,6 +1704,71 @@ void MainApp::perform_analysis()
             const auto full_path = Utils::utf8_to_path(entry.file_path) /
                                    Utils::utf8_to_path(entry.file_name);
             return LlavaImageAnalyzer::is_supported_image(full_path);
+        };
+        auto is_missing_category_label = [](const std::string& value) {
+            std::string trimmed = value;
+            const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+            trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+            trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+            if (trimmed.empty()) {
+                return true;
+            }
+            std::transform(trimmed.begin(), trimmed.end(), trimmed.begin(),
+                           [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+            return trimmed == "uncategorized";
+        };
+        auto persist_rename_only_progress = [this, &is_missing_category_label](const FileEntry& entry,
+                                                                              const std::string& suggested_name) {
+            // Persist rename-only progress during analysis to avoid losing image suggestions on crash.
+            const auto entry_path = Utils::utf8_to_path(entry.full_path);
+            const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
+            const auto cached_entry = db_manager.get_categorized_file(dir_path, entry.file_name, entry.type);
+
+            std::string category;
+            std::string subcategory;
+            bool used_consistency = false;
+            DatabaseManager::ResolvedCategory resolved{0, "", ""};
+
+            if (cached_entry) {
+                category = cached_entry->category;
+                subcategory = cached_entry->subcategory;
+                if (is_missing_category_label(category)) {
+                    category.clear();
+                }
+                if (is_missing_category_label(subcategory)) {
+                    subcategory.clear();
+                }
+                if (!category.empty()) {
+                    resolved.category = category;
+                    resolved.subcategory = subcategory;
+                    resolved.taxonomy_id = cached_entry->taxonomy_id;
+                }
+                used_consistency = cached_entry->used_consistency_hints;
+            }
+
+            const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
+            db_manager.insert_or_update_file_with_categorization(
+                entry.file_name,
+                file_type_label,
+                dir_path,
+                resolved,
+                used_consistency,
+                suggested_name,
+                true);
+        };
+        auto persist_cached_image_suggestion = [this](const CategorizedFile& entry,
+                                                      const std::string& suggested_name) {
+            DatabaseManager::ResolvedCategory resolved{entry.taxonomy_id, entry.category, entry.subcategory};
+            const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
+            db_manager.insert_or_update_file_with_categorization(
+                entry.file_name,
+                file_type_label,
+                entry.file_path,
+                resolved,
+                entry.used_consistency_hints,
+                suggested_name,
+                entry.rename_only,
+                entry.rename_applied);
         };
 
         for (const auto& entry : cached_entries) {
@@ -1702,6 +1794,16 @@ void MainApp::perform_analysis()
                 already_categorized_files.push_back(std::move(adjusted));
                 continue;
             }
+            if (wants_visual_rename && is_image_entry && entry.suggested_name.empty() && !already_renamed) {
+                const auto entry_index = already_categorized_files.size();
+                already_categorized_files.push_back(entry);
+                cached_visual_indices.emplace(entry.file_name, entry_index);
+                const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                       Utils::utf8_to_path(entry.file_name);
+                cached_image_entries_for_visual.push_back(
+                    FileEntry{Utils::path_to_utf8(full_path), entry.file_name, entry.type});
+                continue;
+            }
             already_categorized_files.push_back(entry);
         }
 
@@ -1722,6 +1824,14 @@ void MainApp::perform_analysis()
             };
             filter_images(already_categorized_files);
             filter_images(pending_renames);
+            if (!cached_visual_indices.empty()) {
+                for (size_t index = 0; index < already_categorized_files.size(); ++index) {
+                    auto it = cached_visual_indices.find(already_categorized_files[index].file_name);
+                    if (it != cached_visual_indices.end()) {
+                        it->second = index;
+                    }
+                }
+            }
         }
 
         update_stop();
@@ -1756,8 +1866,6 @@ void MainApp::perform_analysis()
 
         append_progress(to_utf8(tr("[PROCESS] Letting the AI do its magic...")));
 
-        const bool offer_image_renames = settings.get_offer_rename_images();
-
         std::vector<FileEntry> image_entries;
         std::vector<FileEntry> other_entries;
         split_entries_for_analysis(files_to_categorize,
@@ -1767,6 +1875,11 @@ void MainApp::perform_analysis()
                                    renamed_files,
                                    image_entries,
                                    other_entries);
+        if (!cached_image_entries_for_visual.empty()) {
+            image_entries.insert(image_entries.end(),
+                                 cached_image_entries_for_visual.begin(),
+                                 cached_image_entries_for_visual.end());
+        }
 
         struct ImageAnalysisInfo {
             std::string suggested_name;
@@ -1789,6 +1902,10 @@ void MainApp::perform_analysis()
 
             LlavaImageAnalyzer::Settings vision_settings;
             vision_settings.use_gpu = should_use_visual_gpu();
+            const auto visual_gpu_override = read_env_bool("AI_FILE_SORTER_VISUAL_USE_GPU");
+            if (visual_gpu_override.has_value()) {
+                vision_settings.use_gpu = *visual_gpu_override;
+            }
             vision_settings.batch_progress = [this](int current_batch, int total_batches) {
                 if (total_batches <= 0 || current_batch <= 0) {
                     return;
@@ -1801,54 +1918,236 @@ void MainApp::perform_analysis()
                                             .arg(percent, 0, 'f', 2)));
             };
             vision_settings.log_visual_output = should_log_prompts();
-            LlavaImageAnalyzer analyzer(visual_paths->model_path,
-                                        visual_paths->mmproj_path,
-                                        vision_settings);
 
-            for (const auto& entry : image_entries) {
-                if (update_stop()) {
-                    break;
+            const bool allow_visual_cpu_fallback = vision_settings.use_gpu && !visual_gpu_override.has_value();
+            std::optional<bool> visual_cpu_fallback_choice;
+            bool visual_cpu_fallback_active = false;
+
+            auto should_retry_on_cpu = [](const std::exception& ex) {
+                const std::string message = ex.what();
+                return message.find("Failed to create llama_context") != std::string::npos;
+            };
+
+            auto prompt_visual_cpu_fallback = [this]() -> bool {
+                auto show_dialog = [this]() -> bool {
+                    QMessageBox box(this);
+                    box.setIcon(QMessageBox::Question);
+                    box.setWindowTitle(tr("Switch image analysis to CPU?"));
+                    box.setText(tr("Image analysis ran out of GPU memory."));
+                    box.setInformativeText(tr("Retry on CPU instead? Cancel will skip visual analysis and fall back to "
+                                              "filename-based categorization."));
+                    box.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+                    box.setDefaultButton(QMessageBox::Ok);
+                    return box.exec() == QMessageBox::Ok;
+                };
+                if (QThread::currentThread() == thread()) {
+                    return show_dialog();
                 }
-                const bool already_renamed = renamed_files.contains(entry.file_name);
-                if (already_renamed && rename_images_only) {
-                    continue;
+                bool decision = false;
+                QMetaObject::invokeMethod(
+                    this,
+                    [&decision, show_dialog]() mutable { decision = show_dialog(); },
+                    Qt::BlockingQueuedConnection);
+                return decision;
+            };
+
+            auto update_cached_image_suggestion = [&](const FileEntry& entry,
+                                                      const std::string& suggested_name) {
+                const auto it = cached_visual_indices.find(entry.file_name);
+                if (it == cached_visual_indices.end()) {
+                    return;
                 }
-                append_progress(to_utf8(tr("[VISION] Analyzing %1")
-                                            .arg(QString::fromStdString(entry.file_name))));
-                analyzed_image_entries.push_back(entry);
+                auto& cached_entry = already_categorized_files[it->second];
+                if (cached_entry.suggested_name == suggested_name) {
+                    return;
+                }
+                cached_entry.suggested_name = suggested_name;
+                persist_cached_image_suggestion(cached_entry, suggested_name);
+            };
 
-                try {
-                    const auto analysis = analyzer.analyze(entry.full_path);
-                    const auto entry_path = Utils::utf8_to_path(entry.full_path);
-                    const auto prompt_path = Utils::path_to_utf8(
-                        entry_path.parent_path() / Utils::utf8_to_path(analysis.suggested_name));
-
-                    const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
-                    image_info.emplace(
-                        entry.file_name,
-                        ImageAnalysisInfo{suggested_name, analysis.suggested_name, prompt_path});
-
-                    if (!rename_images_only) {
-                        image_entries_for_llm.push_back(entry);
-                    }
-                } catch (const std::exception& ex) {
+            auto handle_visual_failure = [&](const FileEntry& entry,
+                                             const std::string& reason,
+                                             bool already_renamed,
+                                             bool log_failure,
+                                             bool visual_only) {
+                if (log_failure) {
                     append_progress(to_utf8(tr("[VISION-ERROR] %1 (%2)")
                                                 .arg(QString::fromStdString(entry.file_name),
-                                                     QString::fromStdString(ex.what()))));
-                    if (!rename_images_only) {
-                        other_entries.push_back(entry);
+                                                     QString::fromStdString(reason))));
+                }
+                if (!rename_images_only && !visual_only) {
+                    other_entries.push_back(entry);
+                }
+                const std::string suggested_name = already_renamed ? std::string() : entry.file_name;
+                if (offer_image_renames || rename_images_only) {
+                    image_info.emplace(
+                        entry.file_name,
+                        ImageAnalysisInfo{suggested_name, entry.file_name, entry.full_path});
+                    if (rename_images_only) {
+                        persist_rename_only_progress(entry, suggested_name);
                     }
-                    if (offer_image_renames || rename_images_only) {
-                        const std::string suggested_name = already_renamed ? std::string() : entry.file_name;
-                        image_info.emplace(
-                            entry.file_name,
-                            ImageAnalysisInfo{suggested_name, entry.file_name, entry.full_path});
+                }
+                if (visual_only) {
+                    update_cached_image_suggestion(entry, suggested_name);
+                }
+            };
+
+            auto create_analyzer = [&]() -> std::unique_ptr<LlavaImageAnalyzer> {
+                return std::make_unique<LlavaImageAnalyzer>(
+                    visual_paths->model_path,
+                    visual_paths->mmproj_path,
+                    vision_settings);
+            };
+
+            std::unique_ptr<LlavaImageAnalyzer> analyzer;
+            bool skip_visual_analysis = false;
+            std::string skip_visual_reason;
+            try {
+                analyzer = create_analyzer();
+            } catch (const std::exception& ex) {
+                if (!allow_visual_cpu_fallback) {
+                    throw;
+                }
+                if (!visual_cpu_fallback_choice.has_value()) {
+                    visual_cpu_fallback_choice = prompt_visual_cpu_fallback();
+                }
+                if (!visual_cpu_fallback_choice.value()) {
+                    skip_visual_analysis = true;
+                    skip_visual_reason = ex.what();
+                } else {
+                    append_progress(to_utf8(tr("[VISION] Switching visual analysis to CPU.")));
+                    vision_settings.use_gpu = false;
+                    visual_cpu_fallback_active = true;
+                    try {
+                        analyzer = create_analyzer();
+                    } catch (const std::exception& init_ex) {
+                        skip_visual_analysis = true;
+                        skip_visual_reason = init_ex.what();
+                    }
+                }
+            }
+
+            if (skip_visual_analysis) {
+                if (!skip_visual_reason.empty()) {
+                    append_progress(to_utf8(tr("[VISION-ERROR] %1")
+                                                .arg(QString::fromStdString(skip_visual_reason))));
+                }
+                append_progress(to_utf8(tr("[VISION] Visual analysis disabled; falling back to filenames.")));
+                for (const auto& entry : image_entries) {
+                    if (update_stop()) {
+                        break;
+                    }
+                    const bool already_renamed = renamed_files.contains(entry.file_name);
+                    if (already_renamed && rename_images_only) {
+                        continue;
+                    }
+                    const bool visual_only = cached_visual_indices.contains(entry.file_name);
+                    analyzed_image_entries.push_back(entry);
+                    handle_visual_failure(entry, std::string(), already_renamed, false, visual_only);
+                }
+            } else {
+                bool stop_visual_analysis = false;
+                for (size_t index = 0; index < image_entries.size(); ++index) {
+                    const auto& entry = image_entries[index];
+                    if (update_stop()) {
+                        break;
+                    }
+                    const bool already_renamed = renamed_files.contains(entry.file_name);
+                    if (already_renamed && rename_images_only) {
+                        continue;
+                    }
+                    const bool visual_only = cached_visual_indices.contains(entry.file_name);
+                    append_progress(to_utf8(tr("[VISION] Analyzing %1")
+                                                .arg(QString::fromStdString(entry.file_name))));
+                    analyzed_image_entries.push_back(entry);
+
+                    while (true) {
+                        try {
+                            const auto analysis = analyzer->analyze(entry.full_path);
+                            const auto entry_path = Utils::utf8_to_path(entry.full_path);
+                            const auto prompt_path = Utils::path_to_utf8(
+                                entry_path.parent_path() / Utils::utf8_to_path(analysis.suggested_name));
+
+                            const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
+                            image_info.emplace(
+                                entry.file_name,
+                                ImageAnalysisInfo{suggested_name, analysis.suggested_name, prompt_path});
+                            if (rename_images_only) {
+                                persist_rename_only_progress(entry, suggested_name);
+                            }
+                            if (visual_only) {
+                                update_cached_image_suggestion(entry, suggested_name);
+                            }
+
+                            if (!rename_images_only && !visual_only) {
+                                image_entries_for_llm.push_back(entry);
+                            }
+                            break;
+                        } catch (const std::exception& ex) {
+                            if (!visual_cpu_fallback_active &&
+                                allow_visual_cpu_fallback &&
+                                should_retry_on_cpu(ex)) {
+                                if (!visual_cpu_fallback_choice.has_value()) {
+                                    visual_cpu_fallback_choice = prompt_visual_cpu_fallback();
+                                }
+                                if (visual_cpu_fallback_choice.value()) {
+                                    append_progress(to_utf8(tr("[VISION] GPU memory issue detected. Switching to CPU.")));
+                                    vision_settings.use_gpu = false;
+                                    visual_cpu_fallback_active = true;
+                                    try {
+                                        analyzer = create_analyzer();
+                                    } catch (const std::exception& init_ex) {
+                                        handle_visual_failure(entry, init_ex.what(), already_renamed, true, visual_only);
+                                        append_progress(to_utf8(tr("[VISION] Visual analysis disabled for remaining images.")));
+                                        stop_visual_analysis = true;
+                                    }
+                                    if (!stop_visual_analysis) {
+                                        continue;
+                                    }
+                                } else {
+                                    append_progress(to_utf8(tr("[VISION] Visual analysis disabled; falling back to filenames.")));
+                                    handle_visual_failure(entry, ex.what(), already_renamed, true, visual_only);
+                                    stop_visual_analysis = true;
+                                }
+                            } else {
+                                handle_visual_failure(entry, ex.what(), already_renamed, true, visual_only);
+                            }
+                            break;
+                        }
+                    }
+
+                    if (stop_visual_analysis) {
+                        for (size_t remaining = index + 1; remaining < image_entries.size(); ++remaining) {
+                            if (update_stop()) {
+                                break;
+                            }
+                            const auto& pending = image_entries[remaining];
+                            const bool pending_renamed = renamed_files.contains(pending.file_name);
+                            if (pending_renamed && rename_images_only) {
+                                continue;
+                            }
+                            const bool pending_visual_only = cached_visual_indices.contains(pending.file_name);
+                            analyzed_image_entries.push_back(pending);
+                            handle_visual_failure(pending, std::string(), pending_renamed, false, pending_visual_only);
+                        }
+                        break;
                     }
                 }
             }
         }
 
         update_stop();
+
+        auto suggested_name_provider = [offer_image_renames, &image_info](const FileEntry& entry) -> std::string {
+            if (!offer_image_renames) {
+                return std::string();
+            }
+            const auto it = image_info.find(entry.file_name);
+            if (it == image_info.end()) {
+                return std::string();
+            }
+            return it->second.suggested_name;
+        };
 
         std::vector<CategorizedFile> other_results;
         if (!stop_requested && !other_entries.empty()) {
@@ -1865,17 +2164,11 @@ void MainApp::perform_analysis()
                 [this](const CategorizedFile& entry, const std::string& reason) {
                     notify_recategorization_reset(entry, reason);
                 },
-                [this]() { return make_llm_client(); });
+                [this]() { return make_llm_client(); },
+                {},
+                suggested_name_provider);
         }
         update_stop();
-        if (offer_image_renames && !image_info.empty()) {
-            for (auto& result : other_results) {
-                const auto info_it = image_info.find(result.file_name);
-                if (info_it != image_info.end()) {
-                    result.suggested_name = info_it->second.suggested_name;
-                }
-            }
-        }
 
         std::vector<CategorizedFile> image_results;
         if (analyze_images && !analyzed_image_entries.empty()) {
@@ -1925,18 +2218,10 @@ void MainApp::perform_analysis()
                         notify_recategorization_reset(entry, reason);
                     },
                     [this]() { return make_llm_client(); },
-                    override_provider);
+                    override_provider,
+                    suggested_name_provider);
 
                 update_stop();
-
-                if (offer_image_renames) {
-                    for (auto& result : image_results) {
-                        const auto info_it = image_info.find(result.file_name);
-                        if (info_it != image_info.end()) {
-                            result.suggested_name = info_it->second.suggested_name;
-                        }
-                    }
-                }
             }
         }
 

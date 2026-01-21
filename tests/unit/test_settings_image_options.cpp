@@ -26,7 +26,7 @@ void create_visual_llm_files()
 
 } // namespace
 
-TEST_CASE("Settings defaults image analysis based on available visual LLM files") {
+TEST_CASE("Settings defaults image analysis off even when visual LLM files exist") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
@@ -38,8 +38,8 @@ TEST_CASE("Settings defaults image analysis based on available visual LLM files"
     Settings settings;
     const bool loaded = settings.load();
     REQUIRE_FALSE(loaded);
-    REQUIRE(settings.get_analyze_images_by_content());
-    REQUIRE(settings.get_offer_rename_images());
+    REQUIRE_FALSE(settings.get_analyze_images_by_content());
+    REQUIRE_FALSE(settings.get_offer_rename_images());
 }
 
 TEST_CASE("Settings defaults image analysis off when visual LLM files are missing") {

@@ -189,7 +189,8 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
     const QueueCallback& queue_callback,
     const RecategorizationCallback& recategorization_callback,
     std::function<std::unique_ptr<ILLMClient>()> llm_factory,
-    const PromptOverrideProvider& prompt_override) const
+    const PromptOverrideProvider& prompt_override,
+    const SuggestedNameProvider& suggested_name_provider) const
 {
     std::vector<CategorizedFile> categorized;
     if (files.empty()) {
@@ -216,11 +217,15 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
             queue_callback(entry);
         }
 
+        const std::string suggested_name = suggested_name_provider
+            ? suggested_name_provider(entry)
+            : std::string();
         const auto override_value = prompt_override ? prompt_override(entry) : std::nullopt;
         if (auto categorized_entry = categorize_single_entry(*llm,
                                                              is_local_llm,
                                                              entry,
                                                              override_value,
+                                                             suggested_name,
                                                              stop_flag,
                                                              progress_callback,
                                                              recategorization_callback,
@@ -474,6 +479,7 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     bool is_local_llm,
     const FileEntry& entry,
     const std::optional<PromptOverride>& prompt_override,
+    const std::string& suggested_name,
     std::atomic<bool>& stop_flag,
     const ProgressCallback& progress_callback,
     const RecategorizationCallback& recategorization_callback,
@@ -546,11 +552,17 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
         return retry;
     }
 
-    update_storage_with_result(entry, dir_path, resolved, use_consistency_hints, session_history);
+    update_storage_with_result(entry,
+                               dir_path,
+                               resolved,
+                               use_consistency_hints,
+                               suggested_name,
+                               session_history);
 
     CategorizedFile result{dir_path, entry.file_name, entry.type,
                            resolved.category, resolved.subcategory, resolved.taxonomy_id};
     result.used_consistency_hints = use_consistency_hints;
+    result.suggested_name = suggested_name;
     return result;
 }
 
@@ -643,6 +655,7 @@ void CategorizationService::update_storage_with_result(const FileEntry& entry,
                                                        const std::string& dir_path,
                                                        const DatabaseManager::ResolvedCategory& resolved,
                                                        bool used_consistency_hints,
+                                                       const std::string& suggested_name,
                                                        SessionHistoryMap& session_history) const
 {
     if (core_logger) {
@@ -658,7 +671,7 @@ void CategorizationService::update_storage_with_result(const FileEntry& entry,
         dir_path,
         resolved,
         used_consistency_hints,
-        std::string());
+        suggested_name);
 
     const std::string signature = make_file_signature(entry.type, extract_extension(entry.file_name));
     if (!signature.empty()) {

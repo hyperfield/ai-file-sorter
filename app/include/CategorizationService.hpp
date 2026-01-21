@@ -29,6 +29,8 @@ public:
         std::string path;
     };
     using PromptOverrideProvider = std::function<std::optional<PromptOverride>(const FileEntry&)>;
+    /** Supplies an optional suggested rename for an entry during categorization. */
+    using SuggestedNameProvider = std::function<std::string(const FileEntry&)>;
 
     CategorizationService(Settings& settings,
                           DatabaseManager& db_manager,
@@ -46,7 +48,8 @@ public:
         const QueueCallback& queue_callback,
         const RecategorizationCallback& recategorization_callback,
         std::function<std::unique_ptr<ILLMClient>()> llm_factory,
-        const PromptOverrideProvider& prompt_override = {}) const;
+        const PromptOverrideProvider& prompt_override = {},
+        const SuggestedNameProvider& suggested_name_provider = {}) const;
 
 private:
     using CategoryPair = std::pair<std::string, std::string>;
@@ -69,10 +72,11 @@ private:
         bool is_local_llm,
         const FileEntry& entry,
         const std::optional<PromptOverride>& prompt_override,
+        const std::string& suggested_name,
         std::atomic<bool>& stop_flag,
         const ProgressCallback& progress_callback,
-    const RecategorizationCallback& recategorization_callback,
-    SessionHistoryMap& session_history) const;
+        const RecategorizationCallback& recategorization_callback,
+        SessionHistoryMap& session_history) const;
 
     std::string build_combined_context(const std::string& hint_block) const;
     DatabaseManager::ResolvedCategory run_categorization_with_cache(
@@ -95,6 +99,7 @@ private:
                                     const std::string& dir_path,
                                     const DatabaseManager::ResolvedCategory& resolved,
                                     bool used_consistency_hints,
+                                    const std::string& suggested_name,
                                     SessionHistoryMap& session_history) const;
 
     std::string run_llm_with_timeout(

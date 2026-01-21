@@ -889,6 +889,31 @@ void CategorizationDialog::record_categorization_to_db()
         return;
     }
 
+    auto entry_is_unchanged = [](const CategorizedFile& cached,
+                                 const std::string& category,
+                                 const std::string& subcategory,
+                                 const DatabaseManager::ResolvedCategory& resolved,
+                                 const std::string& suggested_name,
+                                 bool rename_only,
+                                 bool used_consistency) {
+        if (cached.rename_only != rename_only) {
+            return false;
+        }
+        if (cached.suggested_name != suggested_name) {
+            return false;
+        }
+        if (cached.used_consistency_hints != used_consistency) {
+            return false;
+        }
+        if (cached.category != category || cached.subcategory != subcategory) {
+            return false;
+        }
+        if (!resolved.category.empty() && cached.taxonomy_id != resolved.taxonomy_id) {
+            return false;
+        }
+        return true;
+    };
+
     for (int row = 0; row < model->rowCount(); ++row) {
         auto* file_item = model->item(row, ColumnFile);
         if (!file_item) {
@@ -922,9 +947,8 @@ void CategorizationDialog::record_categorization_to_db()
         const std::string file_path = file_item->data(kFilePathRole).toString().toStdString();
         const bool used_consistency = file_item->data(kUsedConsistencyRole).toBool();
         const FileType file_type = static_cast<FileType>(file_item->data(kFileTypeRole).toInt());
-        std::optional<CategorizedFile> cached_entry;
+        const auto cached_entry = db_manager->get_categorized_file(file_path, file_name, file_type);
         if (rename_only) {
-            cached_entry = db_manager->get_categorized_file(file_path, file_name, file_type);
             if (cached_entry) {
                 category = cached_entry->category;
                 subcategory = cached_entry->subcategory;
@@ -953,6 +977,16 @@ void CategorizationDialog::record_categorization_to_db()
                 resolved.subcategory = subcategory;
             }
             const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
+            if (cached_entry &&
+                entry_is_unchanged(*cached_entry,
+                                   category,
+                                   subcategory,
+                                   resolved,
+                                   suggested_name,
+                                   rename_only,
+                                   used_consistency)) {
+                continue;
+            }
             db_manager->insert_or_update_file_with_categorization(
                 file_name, file_type_label, file_path, resolved, used_consistency, suggested_name, true);
             continue;
@@ -965,6 +999,16 @@ void CategorizationDialog::record_categorization_to_db()
         auto resolved = db_manager->resolve_category(category, subcategory);
 
         const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
+        if (cached_entry &&
+            entry_is_unchanged(*cached_entry,
+                               category,
+                               subcategory,
+                               resolved,
+                               suggested_name,
+                               rename_only,
+                               used_consistency)) {
+            continue;
+        }
         db_manager->insert_or_update_file_with_categorization(
             file_name, file_type_label, file_path, resolved, used_consistency, suggested_name);
 
