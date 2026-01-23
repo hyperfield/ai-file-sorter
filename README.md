@@ -111,7 +111,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
-- **Interface languages**: English, Dutch, French, German, Italian, Spanish, and Turkish.
+- **Interface languages**: English, Dutch, French, German, Italian, Korean, Spanish, and Turkish.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
 - **Local Database Caching**: Speeds up repeated categorization and minimizes remote LLM usage costs.
 - **Sorting Preview**: See how files will be organized before confirming changes.
