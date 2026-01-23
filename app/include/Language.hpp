@@ -10,6 +10,7 @@ enum class Language {
     Italian,
     Spanish,
     Turkish,
+    Korean,
     Dutch
 };
 
@@ -24,6 +25,8 @@ inline QString languageToString(Language language)
         return QStringLiteral("Spanish");
     case Language::Turkish:
         return QStringLiteral("Turkish");
+    case Language::Korean:
+        return QStringLiteral("Korean");
     case Language::Dutch:
         return QStringLiteral("Dutch");
     case Language::French:
@@ -51,6 +54,9 @@ inline Language languageFromString(const QString& value)
     }
     if (lowered == QStringLiteral("turkish") || lowered == QStringLiteral("tr")) {
         return Language::Turkish;
+    }
+    if (lowered == QStringLiteral("korean") || lowered == QStringLiteral("ko")) {
+        return Language::Korean;
     }
     if (lowered == QStringLiteral("dutch") || lowered == QStringLiteral("nl")) {
         return Language::Dutch;

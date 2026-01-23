@@ -72,6 +72,7 @@ static const QHash<QString, QString> kFrenchTranslations = {
     {QStringLiteral("&Italian"), QStringLiteral("&Italien")},
     {QStringLiteral("&Spanish"), QStringLiteral("&Espagnol")},
     {QStringLiteral("&Turkish"), QStringLiteral("&Turc")},
+    {QStringLiteral("&Korean"), QStringLiteral("&Coréen")},
     {QStringLiteral("&Help"), QStringLiteral("&Aide")},
     {QStringLiteral("&About"), QStringLiteral("À propos")},
     {QStringLiteral("&About AI File Sorter"), QStringLiteral("À propos d'AI File Sorter")},
@@ -237,6 +238,7 @@ static const QHash<QString, QString> kGermanTranslations = {
     {QStringLiteral("&Italian"), QStringLiteral("&Italienisch")},
     {QStringLiteral("&Spanish"), QStringLiteral("&Spanisch")},
     {QStringLiteral("&Turkish"), QStringLiteral("&Türkisch")},
+    {QStringLiteral("&Korean"), QStringLiteral("&Koreanisch")},
     {QStringLiteral("&Help"), QStringLiteral("&Hilfe")},
     {QStringLiteral("&About"), QStringLiteral("&Über")},
     {QStringLiteral("&About AI File Sorter"), QStringLiteral("Über AI File Sorter")},
@@ -402,6 +404,7 @@ static const QHash<QString, QString> kItalianTranslations = {
     {QStringLiteral("&Italian"), QStringLiteral("&Italiano")},
     {QStringLiteral("&Spanish"), QStringLiteral("&Spagnolo")},
     {QStringLiteral("&Turkish"), QStringLiteral("&Turco")},
+    {QStringLiteral("&Korean"), QStringLiteral("&Coreano")},
     {QStringLiteral("&Help"), QStringLiteral("&Aiuto")},
     {QStringLiteral("&About"), QStringLiteral("Informazioni")},
     {QStringLiteral("&About AI File Sorter"), QStringLiteral("Informazioni su AI File Sorter")},
@@ -567,6 +570,7 @@ static const QHash<QString, QString> kSpanishTranslations = {
     {QStringLiteral("&Italian"), QStringLiteral("&Italiano")},
     {QStringLiteral("&Spanish"), QStringLiteral("&Español")},
     {QStringLiteral("&Turkish"), QStringLiteral("&Turco")},
+    {QStringLiteral("&Korean"), QStringLiteral("&Coreano")},
     {QStringLiteral("&Help"), QStringLiteral("&Ayuda")},
     {QStringLiteral("&About"), QStringLiteral("&Acerca de")},
     {QStringLiteral("&About AI File Sorter"), QStringLiteral("Acerca de AI File Sorter")},
@@ -732,6 +736,7 @@ static const QHash<QString, QString> kDutchTranslations = {
     {QStringLiteral("&Italian"), QStringLiteral("&Italiaans")},
     {QStringLiteral("&Spanish"), QStringLiteral("&Spaans")},
     {QStringLiteral("&Turkish"), QStringLiteral("&Turks")},
+    {QStringLiteral("&Korean"), QStringLiteral("&Koreaans")},
     {QStringLiteral("&Help"), QStringLiteral("&Help")},
     {QStringLiteral("&About"), QStringLiteral("&Over")},
     {QStringLiteral("&About AI File Sorter"), QStringLiteral("Over AI File Sorter")},
@@ -889,6 +894,7 @@ static const QHash<QString, QString> kTurkishTranslations = {
     {QStringLiteral("&Italian"), QStringLiteral("&İtalyanca")},
     {QStringLiteral("&Spanish"), QStringLiteral("&İspanyolca")},
     {QStringLiteral("&Turkish"), QStringLiteral("&Türkçe")},
+    {QStringLiteral("&Korean"), QStringLiteral("&Korece")},
     {QStringLiteral("&Help"), QStringLiteral("&Yardım")},
     {QStringLiteral("&About"), QStringLiteral("&Hakkında")},
     {QStringLiteral("&About AI File Sorter"), QStringLiteral("AI File Sorter hakkında")},
@@ -982,6 +988,164 @@ static const QHash<QString, QString> kTurkishTranslations = {
     {QStringLiteral("Preview"), QStringLiteral("Önizleme")}
 };
 
+static const QHash<QString, QString> kKoreanTranslations = {
+    {QStringLiteral("Analyze folder"), QStringLiteral("폴더 분석")},
+    {QStringLiteral("Stop analyzing"), QStringLiteral("분석 중지")},
+    {QStringLiteral("Use subcategories"), QStringLiteral("하위 카테고리 사용")},
+    {QStringLiteral("Create subcategory folders within each category."), QStringLiteral("각 카테고리 안에 하위 카테고리 폴더를 생성합니다.")},
+    {QStringLiteral("Categorization type"), QStringLiteral("분류 유형")},
+    {QStringLiteral("Choose how strict the category labels should be."), QStringLiteral("카테고리 레이블의 엄격함을 선택합니다.")},
+    {QStringLiteral("More refined"), QStringLiteral("더 세분화")},
+    {QStringLiteral("Favor detailed labels even if similar items vary."), QStringLiteral("유사한 항목 간 차이가 있더라도 자세한 레이블을 선호합니다.")},
+    {QStringLiteral("More consistent"), QStringLiteral("더 일관적")},
+    {QStringLiteral("Favor consistent labels across similar items."), QStringLiteral("유사한 항목에 일관된 레이블을 선호합니다.")},
+    {QStringLiteral("Use a whitelist"), QStringLiteral("화이트리스트 사용")},
+    {QStringLiteral("Restrict categories and subcategories to the selected whitelist."), QStringLiteral("선택한 화이트리스트로 카테고리와 하위 카테고리를 제한합니다.")},
+    {QStringLiteral("Select the whitelist used for this run."), QStringLiteral("이번 실행에 사용할 화이트리스트를 선택합니다.")},
+    {QStringLiteral("Recategorize folder?"), QStringLiteral("폴더를 다시 분류할까요?")},
+    {QStringLiteral("This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?"),
+     QStringLiteral("이 폴더는 %1 모드로 분류되었습니다. 지금 %2 모드로 다시 분류할까요?")},
+    {QStringLiteral("Recategorize"), QStringLiteral("다시 분류")},
+    {QStringLiteral("Keep existing"), QStringLiteral("기존 유지")},
+    {QStringLiteral("Failed to reset cached categorization for this folder."), QStringLiteral("이 폴더의 캐시된 분류를 초기화하지 못했습니다.")},
+    {QStringLiteral("Categorize files"), QStringLiteral("파일 분류")},
+    {QStringLiteral("Include files in the categorization pass."), QStringLiteral("분류 단계에 파일을 포함합니다.")},
+    {QStringLiteral("Categorize directories"), QStringLiteral("폴더 분류")},
+    {QStringLiteral("Include directories in the categorization pass."), QStringLiteral("분류 단계에 폴더를 포함합니다.")},
+    {QStringLiteral("Ready"), QStringLiteral("준비됨")},
+    {QStringLiteral("Set folder to %1"), QStringLiteral("폴더를 %1로 설정")},
+    {QStringLiteral("Loaded folder %1"), QStringLiteral("폴더 %1 불러옴")},
+    {QStringLiteral("Analysis cancelled"), QStringLiteral("분석이 취소됨")},
+    {QStringLiteral("Folder selected: %1"), QStringLiteral("선택한 폴더: %1")},
+    {QStringLiteral("Analyzing…"), QStringLiteral("분석 중…")},
+    {QStringLiteral("Cancelling analysis…"), QStringLiteral("분석 취소 중…")},
+    {QStringLiteral("Folder:"), QStringLiteral("폴더:")},
+    {QStringLiteral("Browse…"), QStringLiteral("찾아보기…")},
+    {QStringLiteral("File"), QStringLiteral("파일")},
+    {QStringLiteral("Type"), QStringLiteral("유형")},
+    {QStringLiteral("Category"), QStringLiteral("카테고리")},
+    {QStringLiteral("Subcategory"), QStringLiteral("하위 카테고리")},
+    {QStringLiteral("Status"), QStringLiteral("상태")},
+    {QStringLiteral("Select Directory"), QStringLiteral("폴더 선택")},
+    {QStringLiteral("Directory"), QStringLiteral("폴더")},
+    {QStringLiteral("&File"), QStringLiteral("&파일")},
+    {QStringLiteral("&Quit"), QStringLiteral("&종료")},
+    {QStringLiteral("&Edit"), QStringLiteral("&편집")},
+    {QStringLiteral("&Copy"), QStringLiteral("&복사")},
+    {QStringLiteral("Cu&t"), QStringLiteral("잘&라내기")},
+    {QStringLiteral("&Paste"), QStringLiteral("&붙여넣기")},
+    {QStringLiteral("&Delete"), QStringLiteral("&삭제")},
+    {QStringLiteral("&View"), QStringLiteral("&보기")},
+    {QStringLiteral("File &Explorer"), QStringLiteral("파일 &탐색기")},
+    {QStringLiteral("File Explorer"), QStringLiteral("파일 탐색기")},
+    {QStringLiteral("&Settings"), QStringLiteral("&설정")},
+    {QStringLiteral("Select &LLM…"), QStringLiteral("&LLM 선택…")},
+    {QStringLiteral("Manage category whitelists…"), QStringLiteral("카테고리 화이트리스트 관리…")},
+    {QStringLiteral("&Development"), QStringLiteral("&개발")},
+    {QStringLiteral("Log prompts and responses to stdout"), QStringLiteral("프롬프트와 응답을 stdout에 기록")},
+    {QStringLiteral("Run &consistency pass"), QStringLiteral("&일관성 검사 실행")},
+    {QStringLiteral("Interface &language"), QStringLiteral("인터페이스 &언어")},
+    {QStringLiteral("&English"), QStringLiteral("&영어")},
+    {QStringLiteral("&Dutch"), QStringLiteral("&네덜란드어")},
+    {QStringLiteral("&French"), QStringLiteral("&프랑스어")},
+    {QStringLiteral("&German"), QStringLiteral("&독일어")},
+    {QStringLiteral("&Italian"), QStringLiteral("&이탈리아어")},
+    {QStringLiteral("&Spanish"), QStringLiteral("&스페인어")},
+    {QStringLiteral("&Turkish"), QStringLiteral("&터키어")},
+    {QStringLiteral("&Korean"), QStringLiteral("&한국어")},
+    {QStringLiteral("&Help"), QStringLiteral("&도움말")},
+    {QStringLiteral("&About"), QStringLiteral("&정보")},
+    {QStringLiteral("&About AI File Sorter"), QStringLiteral("AI File Sorter &정보")},
+    {QStringLiteral("About &Qt"), QStringLiteral("&Qt 정보")},
+    {QStringLiteral("About &AGPL"), QStringLiteral("&AGPL 정보")},
+    {QStringLiteral("&Support Project"), QStringLiteral("&프로젝트 지원")},
+    {QStringLiteral("Undo last run"), QStringLiteral("마지막 실행 취소")},
+    {QStringLiteral("Plan file:"), QStringLiteral("계획 파일:")},
+    {QStringLiteral("Dry run (preview only, do not move files)"), QStringLiteral("드라이 런(미리보기만, 파일 이동 안 함)")},
+    {QStringLiteral("Dry run preview"), QStringLiteral("드라이 런 미리보기")},
+    {QStringLiteral("From"), QStringLiteral("원본")},
+    {QStringLiteral("To"), QStringLiteral("대상")},
+    {QStringLiteral("Planned destination"), QStringLiteral("계획된 대상")},
+    {QStringLiteral("Preview"), QStringLiteral("미리보기")},
+    {QStringLiteral("Support AI File Sorter"), QStringLiteral("AI File Sorter 지원")},
+    {QStringLiteral("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you."),
+     QStringLiteral("AI File Sorter를 사용해 주셔서 감사합니다! 지금까지 %1개의 파일을 분류하셨습니다. 이 앱이 도움이 되었기를 바랍니다.")},
+    {QStringLiteral("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+                    "If the app saves you time or brings value, please consider supporting it so it can keep improving."),
+     QStringLiteral("AI File Sorter는 수백 시간의 개발, 기능 작업, 지원 답변과 서버 및 원격 모델 인프라 같은 지속 비용이 필요합니다. "
+                    "이 앱이 시간을 절약하거나 가치를 제공한다면, 지속적인 개선을 위해 지원을 고려해 주세요.")},
+    {QStringLiteral("Support"), QStringLiteral("지원")},
+    {QStringLiteral("I'm not yet sure"), QStringLiteral("아직 모르겠어요")},
+    {QStringLiteral("I cannot donate"), QStringLiteral("기부할 수 없습니다")},
+    {QStringLiteral("About the AGPL License"), QStringLiteral("AGPL 라이선스 정보")},
+    {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
+                    "<br><br>"
+                    "You can access the full source code at "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>."
+                    "<br><br>"
+                    "A full copy of the license is provided with this application and available online at "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>."),
+     QStringLiteral("AI File Sorter는 GNU Affero General Public License v3.0으로 배포됩니다."
+                    "<br><br>"
+                    "전체 소스 코드는 "
+                    "<a href=\"https://github.com/hyperfield/ai-file-sorter\">github.com/hyperfield/ai-file-sorter</a>에서 확인할 수 있습니다."
+                    "<br><br>"
+                    "라이선스 전문은 애플리케이션에 포함되어 있으며 온라인에서는 "
+                    "<a href=\"https://www.gnu.org/licenses/agpl-3.0.html\">gnu.org</a>에서 확인할 수 있습니다.")},
+    {QStringLiteral("Review and Confirm"), QStringLiteral("검토 및 확인")},
+    {QStringLiteral("Select all"), QStringLiteral("모두 선택")},
+    {QStringLiteral("Process"), QStringLiteral("처리")},
+    {QStringLiteral("Suggested filename"), QStringLiteral("추천 파일명")},
+    {QStringLiteral("Confirm and Process"), QStringLiteral("확인 및 처리")},
+    {QStringLiteral("Continue Later"), QStringLiteral("나중에 계속")},
+    {QStringLiteral("Close"), QStringLiteral("닫기")},
+    {QStringLiteral("Not selected"), QStringLiteral("선택되지 않음")},
+    {QStringLiteral("Moved"), QStringLiteral("이동됨")},
+    {QStringLiteral("Skipped"), QStringLiteral("건너뜀")},
+    {QStringLiteral("Analyzing Files"), QStringLiteral("파일 분석 중")},
+    {QStringLiteral("Stop Analysis"), QStringLiteral("분석 중지")},
+    {QStringLiteral("[ARCHIVE] Already categorized highlights:"), QStringLiteral("[ARCHIVE] 이미 분류된 항목:")},
+    {QStringLiteral("[DONE] No files to categorize."), QStringLiteral("[DONE] 분류할 파일이 없습니다.")},
+    {QStringLiteral("[QUEUE] Items waiting for categorization:"), QStringLiteral("[QUEUE] 분류 대기 항목:")},
+    {QStringLiteral("[SCAN] Exploring %1"), QStringLiteral("[SCAN] %1 탐색 중")},
+    {QStringLiteral("[PROCESS] Letting the AI do its magic..."), QStringLiteral("[PROCESS] AI가 작업 중...")},
+    {QStringLiteral("[VISION] Decoding image batch %1/%2 (%3%)"), QStringLiteral("[VISION] 이미지 배치 %1/%2 디코딩 중 (%3%)")},
+    {QStringLiteral("[VISION] Analyzing %1"), QStringLiteral("[VISION] %1 분석 중")},
+    {QStringLiteral("[VISION-ERROR] %1 (%2)"), QStringLiteral("[VISION-ERROR] %1 (%2)")},
+    {QStringLiteral("[SORT] %1 (%2)"), QStringLiteral("[SORT] %1 (%2)")},
+    {QStringLiteral("[WARN] %1 will be re-categorized: %2"), QStringLiteral("[WARN] %1 재분류 예정: %2")},
+    {QStringLiteral("[STOP] Analysis will stop after the current item is processed."), QStringLiteral("[STOP] 현재 항목 처리가 끝나면 분석이 중지됩니다.")},
+    {QStringLiteral("Analyze picture files by content (can be slow)"), QStringLiteral("이미지 파일을 내용으로 분석(느릴 수 있음)")},
+    {QStringLiteral("Run the visual LLM on supported picture files."), QStringLiteral("지원되는 이미지 파일에 비전 LLM을 실행합니다.")},
+    {QStringLiteral("Process picture files only (ignore any other files)"), QStringLiteral("이미지 파일만 처리(다른 파일 무시)")},
+    {QStringLiteral("Ignore non-picture files in this run."), QStringLiteral("이번 실행에서 이미지가 아닌 파일은 무시합니다.")},
+    {QStringLiteral("Offer to rename picture files"), QStringLiteral("이미지 파일 이름 바꾸기 제안")},
+    {QStringLiteral("Show suggested filenames for picture files."), QStringLiteral("이미지 파일에 대한 추천 파일명을 표시합니다.")},
+    {QStringLiteral("Do not categorize picture files (only rename)"), QStringLiteral("이미지 파일 분류 안 함(이름만 변경)")},
+    {QStringLiteral("Skip categorization for picture files and only rename them."), QStringLiteral("이미지 파일의 분류를 건너뛰고 이름만 변경합니다.")},
+    {QStringLiteral("Download required"), QStringLiteral("다운로드 필요")},
+    {QStringLiteral("Download required."), QStringLiteral("다운로드가 필요합니다.")},
+    {QStringLiteral("Image analysis requires visual LLM files. Download them now?"), QStringLiteral("이미지 분석에는 비전 LLM 파일이 필요합니다. 지금 다운로드할까요?")},
+    {QStringLiteral("Image analysis models (LLaVA)"), QStringLiteral("이미지 분석 모델(LLaVA)")},
+    {QStringLiteral("Download the visual LLM files required for image analysis."), QStringLiteral("이미지 분석에 필요한 비전 LLM 파일을 다운로드합니다.")},
+    {QStringLiteral("LLaVA 1.6 Mistral 7B (text model)"), QStringLiteral("LLaVA 1.6 Mistral 7B(텍스트 모델)")},
+    {QStringLiteral("LLaVA mmproj (vision encoder)"), QStringLiteral("LLaVA mmproj(비전 인코더)")},
+    {QStringLiteral("Remote URL"), QStringLiteral("원격 URL")},
+    {QStringLiteral("Local path"), QStringLiteral("로컬 경로")},
+    {QStringLiteral("File size"), QStringLiteral("파일 크기")},
+    {QStringLiteral("File size: unknown"), QStringLiteral("파일 크기: 알 수 없음")},
+    {QStringLiteral("Model ready."), QStringLiteral("모델 준비 완료.")},
+    {QStringLiteral("Partial download detected. You can resume."), QStringLiteral("부분 다운로드가 감지되었습니다. 재개할 수 있습니다.")},
+    {QStringLiteral("Resume download"), QStringLiteral("다운로드 재개")},
+    {QStringLiteral("Download"), QStringLiteral("다운로드")},
+    {QStringLiteral("Downloading…"), QStringLiteral("다운로드 중…")},
+    {QStringLiteral("Missing download URL environment variable (%1)."), QStringLiteral("다운로드 URL 환경 변수가 없습니다(%1).")},
+    {QStringLiteral("Missing download URL environment variable."), QStringLiteral("다운로드 URL 환경 변수가 없습니다.")},
+    {QStringLiteral("Download complete."), QStringLiteral("다운로드 완료.")},
+    {QStringLiteral("Download cancelled."), QStringLiteral("다운로드가 취소되었습니다.")},
+    {QStringLiteral("Download error: %1"), QStringLiteral("다운로드 오류: %1")}
+};
+
 const QHash<QString, QString>* translations_for(Language lang)
 {
     switch (lang) {
@@ -991,6 +1155,7 @@ const QHash<QString, QString>* translations_for(Language lang)
     case Language::Spanish: return &kSpanishTranslations;
     case Language::Dutch: return &kDutchTranslations;
     case Language::Turkish: return &kTurkishTranslations;
+    case Language::Korean: return &kKoreanTranslations;
     default: return nullptr;
     }
 }
@@ -1055,6 +1220,7 @@ void TranslationManager::initialize(QApplication* app)
         languages_.push_back(LanguageInfo{Language::Italian, QStringLiteral("it"), QStringLiteral("Italian"), QString()});
         languages_.push_back(LanguageInfo{Language::Spanish, QStringLiteral("es"), QStringLiteral("Spanish"), QString()});
         languages_.push_back(LanguageInfo{Language::Turkish, QStringLiteral("tr"), QStringLiteral("Turkish"), QString()});
+        languages_.push_back(LanguageInfo{Language::Korean, QStringLiteral("ko"), QStringLiteral("Korean"), QString()});
     }
 }
 

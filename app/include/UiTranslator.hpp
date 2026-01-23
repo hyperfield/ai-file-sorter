@@ -77,6 +77,7 @@ public:
         QAction*& italian_action;
         QAction*& spanish_action;
         QAction*& turkish_action;
+        QAction*& korean_action;
         QAction*& category_language_english;
         QAction*& category_language_french;
         QAction*& category_language_german;
@@ -101,6 +102,7 @@ public:
         QAction*& italian_action;
         QAction*& spanish_action;
         QAction*& turkish_action;
+        QAction*& korean_action;
     };
 
     struct CategoryLanguageControls {
