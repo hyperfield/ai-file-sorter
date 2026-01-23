@@ -108,7 +108,15 @@ private:
                               bool renamed = false,
                               bool moved = false);
     void on_select_all_toggled(bool checked);
+    /**
+     * @brief Selects all highlighted rows for processing.
+     */
+    void on_select_highlighted_clicked();
     void apply_select_all(bool checked);
+    /**
+     * @brief Applies a check state to the given rows in the Process column.
+     */
+    void apply_check_state_to_rows(const std::vector<int>& rows, Qt::CheckState state);
     void on_item_changed(QStandardItem* item);
     void update_select_all_state();
     void update_type_icon(QStandardItem* item);
@@ -155,6 +163,14 @@ private:
     void on_rename_images_only_toggled(bool checked);
     bool row_is_already_renamed_with_category(int row) const;
     bool row_is_supported_image(int row) const;
+    /**
+     * @brief Returns unique row indices that are highlighted in the table view.
+     */
+    std::vector<int> selected_row_indices() const;
+    /**
+     * @brief Opens a dialog to bulk edit categories for highlighted rows.
+     */
+    void on_bulk_edit_clicked();
 
     DatabaseManager* db_manager;
     bool show_subcategory_column;
@@ -171,6 +187,8 @@ private:
     QPushButton* continue_button{nullptr};
     QPushButton* close_button{nullptr};
     QCheckBox* select_all_checkbox{nullptr};
+    QPushButton* select_highlighted_button{nullptr};
+    QPushButton* bulk_edit_button{nullptr};
     QCheckBox* show_subcategories_checkbox{nullptr};
     QCheckBox* dry_run_checkbox{nullptr};
     QCheckBox* rename_images_only_checkbox{nullptr};

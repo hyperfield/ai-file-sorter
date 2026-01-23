@@ -15,15 +15,21 @@
 #include <QBrush>
 #include <QCheckBox>
 #include <QCloseEvent>
+#include <QDialogButtonBox>
 #include <QEvent>
+#include <QFormLayout>
+#include <QFrame>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QIcon>
 #include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QStringList>
+#include <QShortcut>
 #include <QTableView>
 #include <QVBoxLayout>
 #include <QSignalBlocker>
@@ -34,6 +40,8 @@
 #include <QPen>
 #include <QPixmap>
 #include <QPolygonF>
+#include <QScrollArea>
+#include <QScreen>
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -88,6 +96,74 @@ bool is_missing_category_label(const std::string& value) {
     }
     return to_lower_copy_str(trimmed) == "uncategorized";
 }
+
+/**
+ * @brief Dialog for bulk editing category and subcategory values.
+ */
+class BulkEditDialog final : public QDialog {
+public:
+    explicit BulkEditDialog(bool allow_subcategory, QWidget* parent = nullptr)
+        : QDialog(parent),
+          allow_subcategory_(allow_subcategory) {
+        setWindowTitle(QObject::tr("Edit selected items"));
+
+        auto* layout = new QVBoxLayout(this);
+        auto* form_layout = new QFormLayout();
+
+        category_edit_ = new QLineEdit(this);
+        category_edit_->setPlaceholderText(QObject::tr("Leave empty to keep existing"));
+        form_layout->addRow(QObject::tr("Category"), category_edit_);
+
+        if (allow_subcategory_) {
+            subcategory_edit_ = new QLineEdit(this);
+            subcategory_edit_->setPlaceholderText(QObject::tr("Leave empty to keep existing"));
+            form_layout->addRow(QObject::tr("Subcategory"), subcategory_edit_);
+        }
+
+        layout->addLayout(form_layout);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+        ok_button_ = buttons->button(QDialogButtonBox::Ok);
+        if (ok_button_) {
+            ok_button_->setEnabled(false);
+        }
+        connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        connect(category_edit_, &QLineEdit::textChanged, this, &BulkEditDialog::update_ok_state);
+        if (subcategory_edit_) {
+            connect(subcategory_edit_, &QLineEdit::textChanged, this, &BulkEditDialog::update_ok_state);
+        }
+
+        layout->addWidget(buttons);
+        update_ok_state();
+    }
+
+    std::string category() const {
+        return category_edit_ ? category_edit_->text().trimmed().toStdString() : std::string();
+    }
+
+    std::string subcategory() const {
+        if (!allow_subcategory_ || !subcategory_edit_) {
+            return std::string();
+        }
+        return subcategory_edit_->text().trimmed().toStdString();
+    }
+
+private:
+    void update_ok_state() {
+        const bool has_category = category_edit_ && !category_edit_->text().trimmed().isEmpty();
+        const bool has_subcategory = allow_subcategory_ && subcategory_edit_ &&
+                                     !subcategory_edit_->text().trimmed().isEmpty();
+        if (ok_button_) {
+            ok_button_->setEnabled(has_category || has_subcategory);
+        }
+    }
+
+    QLineEdit* category_edit_{nullptr};
+    QLineEdit* subcategory_edit_{nullptr};
+    QPushButton* ok_button_{nullptr};
+    bool allow_subcategory_{false};
+};
 
 bool contains_only_allowed_chars(const std::string& value) {
     for (unsigned char ch : value) {
@@ -257,22 +333,40 @@ void CategorizationDialog::setup_ui()
 {
     auto* layout = new QVBoxLayout(this);
 
+    auto* scroll_area = new QScrollArea(this);
+    scroll_area->setWidgetResizable(true);
+    scroll_area->setFrameShape(QFrame::NoFrame);
+
+    auto* scroll_widget = new QWidget(scroll_area);
+    auto* scroll_layout = new QVBoxLayout(scroll_widget);
+    scroll_layout->setContentsMargins(0, 0, 0, 0);
+
+    auto* select_layout = new QHBoxLayout();
+    select_layout->setContentsMargins(0, 0, 0, 0);
+
     select_all_checkbox = new QCheckBox(this);
     select_all_checkbox->setChecked(true);
-    layout->addWidget(select_all_checkbox);
+    select_highlighted_button = new QPushButton(this);
+    bulk_edit_button = new QPushButton(this);
+
+    select_layout->addWidget(select_all_checkbox);
+    select_layout->addWidget(select_highlighted_button);
+    select_layout->addWidget(bulk_edit_button);
+    select_layout->addStretch(1);
+    scroll_layout->addLayout(select_layout);
 
     show_subcategories_checkbox = new QCheckBox(this);
     show_subcategories_checkbox->setChecked(show_subcategory_column);
-    layout->addWidget(show_subcategories_checkbox);
+    scroll_layout->addWidget(show_subcategories_checkbox);
 
     dry_run_checkbox = new QCheckBox(this);
     dry_run_checkbox->setChecked(false);
-    layout->addWidget(dry_run_checkbox);
+    scroll_layout->addWidget(dry_run_checkbox);
 
     rename_images_only_checkbox = new QCheckBox(this);
     rename_images_only_checkbox->setChecked(false);
     rename_images_only_checkbox->setEnabled(false);
-    layout->addWidget(rename_images_only_checkbox);
+    scroll_layout->addWidget(rename_images_only_checkbox);
 
     model = new QStandardItemModel(this);
     model->setColumnCount(8);
@@ -280,6 +374,7 @@ void CategorizationDialog::setup_ui()
     table_view = new QTableView(this);
     table_view->setModel(model);
     table_view->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table_view->setSelectionMode(QAbstractItemView::ExtendedSelection);
     table_view->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked | QAbstractItemView::EditKeyPressed);
     table_view->horizontalHeader()->setStretchLastSection(true);
     table_view->verticalHeader()->setVisible(false);
@@ -293,13 +388,15 @@ void CategorizationDialog::setup_ui()
     table_view->setColumnWidth(ColumnSelect, 70);
     table_view->setIconSize(QSize(16, 16));
     table_view->setColumnWidth(ColumnType, table_view->iconSize().width() + 12);
-    layout->addWidget(table_view, 1);
+    scroll_layout->addWidget(table_view, 1);
 
-    auto* bottom_layout = new QHBoxLayout();
-    bottom_layout->setContentsMargins(0, 0, 0, 0);
-    bottom_layout->setSpacing(8);
-    auto* button_layout = new QHBoxLayout();
-    button_layout->addStretch(1);
+    auto* tip_label = new QLabel(this);
+    tip_label->setWordWrap(true);
+    QFont tip_font = tip_label->font();
+    tip_font.setItalic(true);
+    tip_label->setFont(tip_font);
+    tip_label->setText(tr("Tip: Click Category or Subcategory cells to rename them."));
+    scroll_layout->addWidget(tip_label);
 
     confirm_button = new QPushButton(this);
     continue_button = new QPushButton(this);
@@ -309,32 +406,42 @@ void CategorizationDialog::setup_ui()
     close_button = new QPushButton(this);
     close_button->setVisible(false);
 
-    button_layout->addWidget(confirm_button);
-    button_layout->addWidget(continue_button);
-    button_layout->addWidget(undo_button);
-    button_layout->addWidget(close_button);
+    scroll_area->setWidget(scroll_widget);
+    layout->addWidget(scroll_area, 1);
 
-    auto* tip_label = new QLabel(this);
-    tip_label->setWordWrap(true);
-    QFont tip_font = tip_label->font();
-    tip_font.setItalic(true);
-    tip_label->setFont(tip_font);
-    tip_label->setText(tr("Tip: Click Category or Subcategory cells to rename them."));
+    auto* bottom_layout = new QHBoxLayout();
+    bottom_layout->setContentsMargins(0, 0, 0, 0);
+    bottom_layout->setSpacing(8);
+    bottom_layout->addStretch(1);
+    bottom_layout->addWidget(confirm_button);
+    bottom_layout->addWidget(continue_button);
+    bottom_layout->addWidget(undo_button);
+    bottom_layout->addWidget(close_button);
 
-    bottom_layout->addWidget(tip_label, /*stretch*/1, Qt::AlignVCenter);
-    bottom_layout->addLayout(button_layout);
     layout->addLayout(bottom_layout);
+
+    if (auto* screen = this->screen()) {
+        const QRect available = screen->availableGeometry();
+        const int max_height = static_cast<int>(available.height() * 0.9);
+        setMaximumHeight(max_height);
+    }
 
     connect(confirm_button, &QPushButton::clicked, this, &CategorizationDialog::on_confirm_and_sort_button_clicked);
     connect(continue_button, &QPushButton::clicked, this, &CategorizationDialog::on_continue_later_button_clicked);
     connect(close_button, &QPushButton::clicked, this, &CategorizationDialog::accept);
     connect(undo_button, &QPushButton::clicked, this, &CategorizationDialog::on_undo_button_clicked);
     connect(select_all_checkbox, &QCheckBox::toggled, this, &CategorizationDialog::on_select_all_toggled);
+    connect(select_highlighted_button, &QPushButton::clicked, this, &CategorizationDialog::on_select_highlighted_clicked);
+    connect(bulk_edit_button, &QPushButton::clicked, this, &CategorizationDialog::on_bulk_edit_clicked);
     connect(model, &QStandardItemModel::itemChanged, this, &CategorizationDialog::on_item_changed);
     connect(show_subcategories_checkbox, &QCheckBox::toggled,
             this, &CategorizationDialog::on_show_subcategories_toggled);
     connect(rename_images_only_checkbox, &QCheckBox::toggled,
             this, &CategorizationDialog::on_rename_images_only_toggled);
+
+    auto* select_highlighted_shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space), this);
+    connect(select_highlighted_shortcut, &QShortcut::activated,
+            this, &CategorizationDialog::on_select_highlighted_clicked);
 }
 
 
@@ -1530,6 +1637,35 @@ void CategorizationDialog::on_select_all_toggled(bool checked)
     apply_select_all(checked);
 }
 
+std::vector<int> CategorizationDialog::selected_row_indices() const
+{
+    std::vector<int> rows;
+    if (!table_view || !table_view->selectionModel()) {
+        return rows;
+    }
+
+    const QModelIndexList selected = table_view->selectionModel()->selectedRows();
+    rows.reserve(selected.size());
+    for (const auto& index : selected) {
+        rows.push_back(index.row());
+    }
+    std::sort(rows.begin(), rows.end());
+    rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+    return rows;
+}
+
+void CategorizationDialog::on_select_highlighted_clicked()
+{
+    const auto rows = selected_row_indices();
+    if (rows.empty()) {
+        QMessageBox::information(this,
+                                 tr("No items selected"),
+                                 tr("Highlight one or more rows to select them for processing."));
+        return;
+    }
+    apply_check_state_to_rows(rows, Qt::Checked);
+}
+
 void CategorizationDialog::record_move_for_undo(int row,
                                                 const std::string& source,
                                                 const std::string& destination,
@@ -1642,6 +1778,79 @@ void CategorizationDialog::apply_select_all(bool checked)
     update_select_all_state();
 }
 
+void CategorizationDialog::apply_check_state_to_rows(const std::vector<int>& rows, Qt::CheckState state)
+{
+    if (!model) {
+        return;
+    }
+    updating_select_all = true;
+    for (int row : rows) {
+        if (row < 0 || row >= model->rowCount()) {
+            continue;
+        }
+        if (auto* item = model->item(row, ColumnSelect)) {
+            item->setCheckState(state);
+        }
+        update_preview_column(row);
+    }
+    updating_select_all = false;
+    update_select_all_state();
+}
+
+void CategorizationDialog::on_bulk_edit_clicked()
+{
+    if (!model || !table_view) {
+        return;
+    }
+    if (table_view->isColumnHidden(ColumnCategory)) {
+        QMessageBox::information(this,
+                                 tr("Bulk edit unavailable"),
+                                 tr("Bulk editing categories is unavailable while picture rename-only mode is active."));
+        return;
+    }
+    const auto rows = selected_row_indices();
+    if (rows.empty()) {
+        QMessageBox::information(this,
+                                 tr("No items selected"),
+                                 tr("Highlight one or more rows to edit their categories."));
+        return;
+    }
+
+    const bool allow_subcategory = !table_view->isColumnHidden(ColumnSubcategory);
+    BulkEditDialog dialog(allow_subcategory, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    const std::string category = dialog.category();
+    const std::string subcategory = dialog.subcategory();
+    if (category.empty() && subcategory.empty()) {
+        return;
+    }
+
+    for (int row : rows) {
+        bool rename_only = false;
+        bool used_consistency_hints = false;
+        FileType file_type = FileType::File;
+        if (!resolve_row_flags(row, rename_only, used_consistency_hints, file_type)) {
+            continue;
+        }
+        if (rename_only) {
+            continue;
+        }
+        if (!category.empty()) {
+            if (auto* category_item = model->item(row, ColumnCategory)) {
+                category_item->setText(QString::fromStdString(category));
+            }
+        }
+        if (allow_subcategory && !subcategory.empty()) {
+            if (auto* subcategory_item = model->item(row, ColumnSubcategory)) {
+                subcategory_item->setText(QString::fromStdString(subcategory));
+            }
+        }
+    }
+}
+
 void CategorizationDialog::on_show_subcategories_toggled(bool checked)
 {
     show_subcategory_column = checked;
@@ -1709,6 +1918,9 @@ void CategorizationDialog::apply_category_visibility()
         const bool hide_category = rename_images_only_checkbox &&
                                    rename_images_only_checkbox->isChecked();
         table_view->setColumnHidden(ColumnCategory, hide_category);
+        if (bulk_edit_button) {
+            bulk_edit_button->setEnabled(!hide_category);
+        }
     }
 }
 
@@ -2070,6 +2282,8 @@ void CategorizationDialog::retranslate_ui()
     };
 
     set_text_if(select_all_checkbox, tr("Select all"));
+    set_text_if(select_highlighted_button, tr("Select highlighted"));
+    set_text_if(bulk_edit_button, tr("Edit selected..."));
     set_text_if(show_subcategories_checkbox, tr("Create subcategory folders"));
     set_text_if(dry_run_checkbox, tr("Dry run (preview only, do not move files)"));
     set_text_if(rename_images_only_checkbox, tr("Do not categorize picture files (only rename)"));
@@ -2077,6 +2291,13 @@ void CategorizationDialog::retranslate_ui()
     set_text_if(continue_button, tr("Continue Later"));
     set_text_if(undo_button, tr("Undo this change"));
     set_text_if(close_button, tr("Close"));
+
+    if (select_highlighted_button) {
+        select_highlighted_button->setToolTip(tr("Mark highlighted rows for processing (Ctrl+Space)."));
+    }
+    if (bulk_edit_button) {
+        bulk_edit_button->setToolTip(tr("Apply category/subcategory values to highlighted rows."));
+    }
 
     if (model) {
         model->setHorizontalHeaderLabels(QStringList{
