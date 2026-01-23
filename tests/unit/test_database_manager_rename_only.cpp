@@ -30,3 +30,20 @@ TEST_CASE("DatabaseManager keeps rename-only entries with empty labels") {
     CHECK(entries.front().category.empty());
     CHECK(entries.front().subcategory.empty());
 }
+
+TEST_CASE("DatabaseManager normalizes subcategory stopword suffixes for taxonomy matching") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    DatabaseManager db(base_dir.path().string());
+
+    auto base = db.resolve_category("Images", "Graphics");
+    auto with_suffix = db.resolve_category("Images", "Graphics files");
+
+    REQUIRE(base.taxonomy_id > 0);
+    CHECK(with_suffix.taxonomy_id == base.taxonomy_id);
+    CHECK(with_suffix.category == base.category);
+    CHECK(with_suffix.subcategory == base.subcategory);
+
+    auto photos = db.resolve_category("Images", "Photos");
+    CHECK(photos.subcategory == "Photos");
+}
