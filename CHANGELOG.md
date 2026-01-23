@@ -10,6 +10,7 @@
 - Review dialog now lets you select highlighted rows and bulk edit their categories.
 - Review dialog is now scrollable on smaller screens so action buttons stay visible.
 - Improved subcategory consistency by merging labels that only differ by generic suffixes (e.g., “files”).
+- Added Korean as an interface language.
 
 ## [1.5.0] - 2026-01-11
 
