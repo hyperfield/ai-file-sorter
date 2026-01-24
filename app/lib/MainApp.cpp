@@ -52,6 +52,7 @@
 #include <QStandardItemModel>
 #include <QCoreApplication>
 #include <QStatusBar>
+#include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QSizePolicy>
@@ -568,6 +569,66 @@ void MainApp::connect_checkbox_signals()
             update_image_analysis_controls();
         });
     }
+
+    if (image_options_toggle_button) {
+        connect(image_options_toggle_button, &QToolButton::toggled, this, [this](bool) {
+            update_image_analysis_controls();
+        });
+    }
+
+    if (analyze_documents_checkbox) {
+        connect(analyze_documents_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_analyze_documents_by_content(checked);
+            update_document_analysis_controls();
+        });
+    }
+
+    if (process_documents_only_checkbox) {
+        connect(process_documents_only_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_process_documents_only(checked);
+            update_document_analysis_controls();
+        });
+    }
+
+    if (offer_rename_documents_checkbox) {
+        connect(offer_rename_documents_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (!checked && rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked()) {
+                QSignalBlocker blocker(rename_documents_only_checkbox);
+                rename_documents_only_checkbox->setChecked(false);
+            }
+            settings.set_offer_rename_documents(checked);
+            if (rename_documents_only_checkbox) {
+                settings.set_rename_documents_only(rename_documents_only_checkbox->isChecked());
+            }
+            update_document_analysis_controls();
+        });
+    }
+
+    if (rename_documents_only_checkbox) {
+        connect(rename_documents_only_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            if (checked && offer_rename_documents_checkbox && !offer_rename_documents_checkbox->isChecked()) {
+                QSignalBlocker blocker(offer_rename_documents_checkbox);
+                offer_rename_documents_checkbox->setChecked(true);
+            }
+            settings.set_rename_documents_only(checked);
+            if (offer_rename_documents_checkbox) {
+                settings.set_offer_rename_documents(offer_rename_documents_checkbox->isChecked());
+            }
+            update_document_analysis_controls();
+        });
+    }
+
+    if (add_document_date_to_category_checkbox) {
+        connect(add_document_date_to_category_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_add_document_date_to_category(checked);
+        });
+    }
+
+    if (document_options_toggle_button) {
+        connect(document_options_toggle_button, &QToolButton::toggled, this, [this](bool) {
+            update_document_analysis_controls();
+        });
+    }
 }
 
 void MainApp::connect_whitelist_signals()
@@ -682,7 +743,43 @@ void MainApp::restore_tree_settings()
         QSignalBlocker blocker(rename_images_only_checkbox);
         rename_images_only_checkbox->setChecked(settings.get_rename_images_only());
     }
+    if (image_options_toggle_button) {
+        const bool expand_images = settings.get_process_images_only() ||
+                                   settings.get_offer_rename_images() ||
+                                   settings.get_rename_images_only();
+        QSignalBlocker blocker(image_options_toggle_button);
+        image_options_toggle_button->setChecked(expand_images);
+    }
+    if (analyze_documents_checkbox) {
+        QSignalBlocker blocker(analyze_documents_checkbox);
+        analyze_documents_checkbox->setChecked(settings.get_analyze_documents_by_content());
+    }
+    if (process_documents_only_checkbox) {
+        QSignalBlocker blocker(process_documents_only_checkbox);
+        process_documents_only_checkbox->setChecked(settings.get_process_documents_only());
+    }
+    if (offer_rename_documents_checkbox) {
+        QSignalBlocker blocker(offer_rename_documents_checkbox);
+        offer_rename_documents_checkbox->setChecked(settings.get_offer_rename_documents());
+    }
+    if (rename_documents_only_checkbox) {
+        QSignalBlocker blocker(rename_documents_only_checkbox);
+        rename_documents_only_checkbox->setChecked(settings.get_rename_documents_only());
+    }
+    if (add_document_date_to_category_checkbox) {
+        QSignalBlocker blocker(add_document_date_to_category_checkbox);
+        add_document_date_to_category_checkbox->setChecked(settings.get_add_document_date_to_category());
+    }
+    if (document_options_toggle_button) {
+        const bool expand_documents = settings.get_process_documents_only() ||
+                                      settings.get_offer_rename_documents() ||
+                                      settings.get_rename_documents_only() ||
+                                      settings.get_add_document_date_to_category();
+        QSignalBlocker blocker(document_options_toggle_button);
+        document_options_toggle_button->setChecked(expand_documents);
+    }
     update_image_analysis_controls();
+    update_document_analysis_controls();
 }
 
 void MainApp::restore_sort_folder_state()
@@ -765,6 +862,21 @@ void MainApp::sync_ui_to_settings()
     }
     if (rename_images_only_checkbox) {
         settings.set_rename_images_only(rename_images_only_checkbox->isChecked());
+    }
+    if (analyze_documents_checkbox) {
+        settings.set_analyze_documents_by_content(analyze_documents_checkbox->isChecked());
+    }
+    if (process_documents_only_checkbox) {
+        settings.set_process_documents_only(process_documents_only_checkbox->isChecked());
+    }
+    if (offer_rename_documents_checkbox) {
+        settings.set_offer_rename_documents(offer_rename_documents_checkbox->isChecked());
+    }
+    if (rename_documents_only_checkbox) {
+        settings.set_rename_documents_only(rename_documents_only_checkbox->isChecked());
+    }
+    if (add_document_date_to_category_checkbox) {
+        settings.set_add_document_date_to_category(add_document_date_to_category_checkbox->isChecked());
     }
     const QByteArray folder_bytes = path_entry->text().toUtf8();
     settings.set_sort_folder(std::string(folder_bytes.constData(), static_cast<std::size_t>(folder_bytes.size())));
@@ -1183,6 +1295,16 @@ void MainApp::update_image_analysis_controls()
     process_images_only_checkbox->setEnabled(analysis_enabled);
     offer_rename_images_checkbox->setEnabled(analysis_enabled);
     rename_images_only_checkbox->setEnabled(analysis_enabled);
+    if (image_options_toggle_button) {
+        image_options_toggle_button->setEnabled(analysis_enabled);
+        const bool expanded = image_options_toggle_button->isChecked();
+        image_options_toggle_button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        if (image_options_container) {
+            image_options_container->setVisible(analysis_enabled && expanded);
+        }
+    } else if (image_options_container) {
+        image_options_container->setVisible(analysis_enabled);
+    }
 
     if (analysis_enabled &&
         rename_images_only_checkbox->isChecked() &&
@@ -1196,13 +1318,19 @@ void MainApp::update_image_analysis_controls()
 
 void MainApp::update_image_only_controls()
 {
-    if (!process_images_only_checkbox) {
+    if (!process_images_only_checkbox && !process_documents_only_checkbox) {
         return;
     }
 
     const bool analyze_images = analyze_images_checkbox && analyze_images_checkbox->isChecked();
-    const bool images_only_active = analyze_images && process_images_only_checkbox->isChecked();
-    const bool enable_categorization = !images_only_active;
+    const bool analyze_documents = analyze_documents_checkbox && analyze_documents_checkbox->isChecked();
+    const bool images_only_active = process_images_only_checkbox &&
+                                    analyze_images &&
+                                    process_images_only_checkbox->isChecked();
+    const bool documents_only_active = process_documents_only_checkbox &&
+                                       analyze_documents &&
+                                       process_documents_only_checkbox->isChecked();
+    const bool enable_categorization = !(images_only_active || documents_only_active);
 
     if (use_subcategories_checkbox) {
         use_subcategories_checkbox->setEnabled(enable_categorization);
@@ -1231,6 +1359,45 @@ void MainApp::update_image_only_controls()
                                        use_whitelist_checkbox->isChecked();
         whitelist_selector->setEnabled(whitelist_enabled);
     }
+}
+
+void MainApp::update_document_analysis_controls()
+{
+    if (!analyze_documents_checkbox ||
+        !process_documents_only_checkbox ||
+        !offer_rename_documents_checkbox ||
+        !rename_documents_only_checkbox ||
+        !add_document_date_to_category_checkbox) {
+        return;
+    }
+
+    const bool analysis_enabled = analyze_documents_checkbox->isChecked();
+    process_documents_only_checkbox->setEnabled(analysis_enabled);
+    offer_rename_documents_checkbox->setEnabled(analysis_enabled);
+    rename_documents_only_checkbox->setEnabled(analysis_enabled);
+
+    const bool rename_only = analysis_enabled && rename_documents_only_checkbox->isChecked();
+    add_document_date_to_category_checkbox->setEnabled(analysis_enabled && !rename_only);
+
+    if (analysis_enabled &&
+        rename_documents_only_checkbox->isChecked() &&
+        !offer_rename_documents_checkbox->isChecked()) {
+        QSignalBlocker blocker(offer_rename_documents_checkbox);
+        offer_rename_documents_checkbox->setChecked(true);
+    }
+
+    if (document_options_toggle_button) {
+        document_options_toggle_button->setEnabled(analysis_enabled);
+        const bool expanded = document_options_toggle_button->isChecked();
+        document_options_toggle_button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        if (document_options_container) {
+            document_options_container->setVisible(analysis_enabled && expanded);
+        }
+    } else if (document_options_container) {
+        document_options_container->setVisible(analysis_enabled);
+    }
+
+    update_image_only_controls();
 }
 
 void MainApp::run_llm_selection_dialog_for_visual()

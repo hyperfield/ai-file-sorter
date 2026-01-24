@@ -137,42 +137,6 @@ Language system_default_language()
     }
 }
 
-bool visual_llm_files_available()
-{
-    const char* model_url = std::getenv("LLAVA_MODEL_URL");
-    const char* mmproj_url = std::getenv("LLAVA_MMPROJ_URL");
-    if (!model_url || *model_url == '\0' || !mmproj_url || *mmproj_url == '\0') {
-        return false;
-    }
-
-    const auto model_path = std::filesystem::path(
-        Utils::make_default_path_to_file_from_download_url(model_url));
-    const auto mmproj_path = std::filesystem::path(
-        Utils::make_default_path_to_file_from_download_url(mmproj_url));
-
-    const bool model_exists = std::filesystem::exists(model_path);
-    if (!model_exists) {
-        return false;
-    }
-
-    if (std::filesystem::exists(mmproj_path)) {
-        return true;
-    }
-
-    const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
-    static const char* kAltMmprojNames[] = {
-        "mmproj-model-f16.gguf",
-        "llava-v1.6-mistral-7b-mmproj-f16.gguf"
-    };
-    for (const char* alt_name : kAltMmprojNames) {
-        if (std::filesystem::exists(llm_dir / alt_name)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 std::string path_from_env_url(const char* env_key)
 {
     const char* url = std::getenv(env_key);
@@ -246,6 +210,11 @@ Settings::Settings()
     category_language = CategoryLanguage::English;
     analyze_images_by_content = false;
     offer_rename_images = false;
+    analyze_documents_by_content = false;
+    offer_rename_documents = false;
+    rename_documents_only = false;
+    process_documents_only = false;
+    add_document_date_to_category = false;
 }
 
 LLMChoice Settings::parse_llm_choice() const
@@ -277,8 +246,16 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     offer_rename_images = load_bool("OfferRenameImages", analyze_images_by_content);
     rename_images_only = load_bool("RenameImagesOnly", false);
     process_images_only = load_bool("ProcessImagesOnly", false);
+    analyze_documents_by_content = load_bool("AnalyzeDocumentsByContent", false);
+    offer_rename_documents = load_bool("OfferRenameDocuments", analyze_documents_by_content);
+    rename_documents_only = load_bool("RenameDocumentsOnly", false);
+    process_documents_only = load_bool("ProcessDocumentsOnly", false);
+    add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
     if (rename_images_only && !offer_rename_images) {
         offer_rename_images = true;
+    }
+    if (rename_documents_only && !offer_rename_documents) {
+        offer_rename_documents = true;
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = load_bool("ShowFileExplorer", true);
@@ -379,10 +356,18 @@ void Settings::save_core_settings()
     if (rename_images_only) {
         offer_rename_images = true;
     }
+    if (rename_documents_only) {
+        offer_rename_documents = true;
+    }
     set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
     set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
     set_bool_setting(config, settings_section, "RenameImagesOnly", rename_images_only);
     set_bool_setting(config, settings_section, "ProcessImagesOnly", process_images_only);
+    set_bool_setting(config, settings_section, "AnalyzeDocumentsByContent", analyze_documents_by_content);
+    set_bool_setting(config, settings_section, "OfferRenameDocuments", offer_rename_documents);
+    set_bool_setting(config, settings_section, "RenameDocumentsOnly", rename_documents_only);
+    set_bool_setting(config, settings_section, "ProcessDocumentsOnly", process_documents_only);
+    set_bool_setting(config, settings_section, "AddDocumentDateToCategory", add_document_date_to_category);
     config.setValue(settings_section, "SortFolder", this->sort_folder);
 
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
@@ -800,6 +785,56 @@ bool Settings::get_process_images_only() const
 void Settings::set_process_images_only(bool value)
 {
     process_images_only = value;
+}
+
+bool Settings::get_analyze_documents_by_content() const
+{
+    return analyze_documents_by_content;
+}
+
+void Settings::set_analyze_documents_by_content(bool value)
+{
+    analyze_documents_by_content = value;
+}
+
+bool Settings::get_offer_rename_documents() const
+{
+    return offer_rename_documents;
+}
+
+void Settings::set_offer_rename_documents(bool value)
+{
+    offer_rename_documents = value;
+}
+
+bool Settings::get_rename_documents_only() const
+{
+    return rename_documents_only;
+}
+
+void Settings::set_rename_documents_only(bool value)
+{
+    rename_documents_only = value;
+}
+
+bool Settings::get_process_documents_only() const
+{
+    return process_documents_only;
+}
+
+void Settings::set_process_documents_only(bool value)
+{
+    process_documents_only = value;
+}
+
+bool Settings::get_add_document_date_to_category() const
+{
+    return add_document_date_to_category;
+}
+
+void Settings::set_add_document_date_to_category(bool value)
+{
+    add_document_date_to_category = value;
 }
 
 

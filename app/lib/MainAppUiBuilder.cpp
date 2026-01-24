@@ -31,6 +31,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSlider>
+#include <QToolButton>
 #include <QPainter>
 #include <QSize>
 #include <QSizePolicy>
@@ -81,10 +82,23 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
 
     auto* image_options_layout = new QVBoxLayout();
     image_options_layout->setSpacing(4);
+    auto* image_header_layout = new QHBoxLayout();
+    image_header_layout->setSpacing(6);
     app.analyze_images_checkbox = new QCheckBox(central);
-    image_options_layout->addWidget(app.analyze_images_checkbox);
+    app.image_options_toggle_button = new QToolButton(central);
+    app.image_options_toggle_button->setCheckable(true);
+    app.image_options_toggle_button->setChecked(false);
+    app.image_options_toggle_button->setArrowType(Qt::RightArrow);
+    app.image_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    app.image_options_toggle_button->setAutoRaise(false);
+    app.image_options_toggle_button->setMinimumSize(QSize(22, 22));
+    image_header_layout->addWidget(app.analyze_images_checkbox);
+    image_header_layout->addWidget(app.image_options_toggle_button);
+    image_header_layout->addStretch(1);
+    image_options_layout->addLayout(image_header_layout);
 
-    auto* image_rename_layout = new QVBoxLayout();
+    app.image_options_container = new QWidget(central);
+    auto* image_rename_layout = new QVBoxLayout(app.image_options_container);
     image_rename_layout->setContentsMargins(24, 0, 0, 0);
     image_rename_layout->setSpacing(2);
     app.process_images_only_checkbox = new QCheckBox(central);
@@ -93,8 +107,42 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     image_rename_layout->addWidget(app.process_images_only_checkbox);
     image_rename_layout->addWidget(app.offer_rename_images_checkbox);
     image_rename_layout->addWidget(app.rename_images_only_checkbox);
-    image_options_layout->addLayout(image_rename_layout);
+    app.image_options_container->setVisible(false);
+    image_options_layout->addWidget(app.image_options_container);
     main_layout->addLayout(image_options_layout);
+
+    auto* document_options_layout = new QVBoxLayout();
+    document_options_layout->setSpacing(4);
+    auto* document_header_layout = new QHBoxLayout();
+    document_header_layout->setSpacing(6);
+    app.analyze_documents_checkbox = new QCheckBox(central);
+    app.document_options_toggle_button = new QToolButton(central);
+    app.document_options_toggle_button->setCheckable(true);
+    app.document_options_toggle_button->setChecked(false);
+    app.document_options_toggle_button->setArrowType(Qt::RightArrow);
+    app.document_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    app.document_options_toggle_button->setAutoRaise(false);
+    app.document_options_toggle_button->setMinimumSize(QSize(22, 22));
+    document_header_layout->addWidget(app.analyze_documents_checkbox);
+    document_header_layout->addWidget(app.document_options_toggle_button);
+    document_header_layout->addStretch(1);
+    document_options_layout->addLayout(document_header_layout);
+
+    app.document_options_container = new QWidget(central);
+    auto* document_rename_layout = new QVBoxLayout(app.document_options_container);
+    document_rename_layout->setContentsMargins(24, 0, 0, 0);
+    document_rename_layout->setSpacing(2);
+    app.process_documents_only_checkbox = new QCheckBox(central);
+    app.offer_rename_documents_checkbox = new QCheckBox(central);
+    app.rename_documents_only_checkbox = new QCheckBox(central);
+    app.add_document_date_to_category_checkbox = new QCheckBox(central);
+    document_rename_layout->addWidget(app.process_documents_only_checkbox);
+    document_rename_layout->addWidget(app.offer_rename_documents_checkbox);
+    document_rename_layout->addWidget(app.rename_documents_only_checkbox);
+    document_rename_layout->addWidget(app.add_document_date_to_category_checkbox);
+    app.document_options_container->setVisible(false);
+    document_options_layout->addWidget(app.document_options_container);
+    main_layout->addLayout(document_options_layout);
 
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);
@@ -196,7 +244,14 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.analyze_images_checkbox,
             app.process_images_only_checkbox,
             app.offer_rename_images_checkbox,
-            app.rename_images_only_checkbox},
+            app.rename_images_only_checkbox,
+            app.image_options_toggle_button,
+            app.analyze_documents_checkbox,
+            app.process_documents_only_checkbox,
+            app.offer_rename_documents_checkbox,
+            app.rename_documents_only_checkbox,
+            app.add_document_date_to_category_checkbox,
+            app.document_options_toggle_button},
         .tree_model = app.tree_model,
         .menus = UiTranslator::MenuControls{
             app.file_menu,

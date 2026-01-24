@@ -21,6 +21,7 @@
 #include <QStandardItemModel>
 #include <QStatusBar>
 #include <QString>
+#include <QToolButton>
 
 #ifndef _WIN32
 namespace {
@@ -46,6 +47,13 @@ struct UiTranslatorTestHarness {
     QPointer<QCheckBox> process_images_only_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> offer_rename_images_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> rename_images_only_checkbox{new QCheckBox(&window)};
+    QPointer<QToolButton> image_options_toggle_button{new QToolButton(&window)};
+    QPointer<QCheckBox> analyze_documents_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> process_documents_only_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> offer_rename_documents_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> rename_documents_only_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> add_document_date_to_category_checkbox{new QCheckBox(&window)};
+    QPointer<QToolButton> document_options_toggle_button{new QToolButton(&window)};
 
     QPointer<QStandardItemModel> tree_model{new QStandardItemModel(0, 5, &window)};
     QMenu* file_menu = new QMenu(&window);
@@ -167,7 +175,14 @@ struct UiTranslatorTestHarness {
                 analyze_images_checkbox,
                 process_images_only_checkbox,
                 offer_rename_images_checkbox,
-                rename_images_only_checkbox},
+                rename_images_only_checkbox,
+                image_options_toggle_button,
+                analyze_documents_checkbox,
+                process_documents_only_checkbox,
+                offer_rename_documents_checkbox,
+                rename_documents_only_checkbox,
+                add_document_date_to_category_checkbox,
+                document_options_toggle_button},
             .tree_model = tree_model,
             .menus = UiTranslator::MenuControls{
                 file_menu,
@@ -259,6 +274,13 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
             QStringLiteral("Process picture files only (ignore any other files)"));
     REQUIRE(h.offer_rename_images_checkbox->text() == QStringLiteral("Offer to rename picture files"));
     REQUIRE(h.rename_images_only_checkbox->text() == QStringLiteral("Do not categorize picture files (only rename)"));
+    REQUIRE(h.analyze_documents_checkbox->text() == QStringLiteral("Analyze document files by content"));
+    REQUIRE(h.process_documents_only_checkbox->text() ==
+            QStringLiteral("Process document files only (ignore any other files)"));
+    REQUIRE(h.offer_rename_documents_checkbox->text() == QStringLiteral("Offer to rename document files"));
+    REQUIRE(h.rename_documents_only_checkbox->text() == QStringLiteral("Do not categorize document files (only rename)"));
+    REQUIRE(h.add_document_date_to_category_checkbox->text() ==
+            QStringLiteral("Add document creation date (if available) to category name"));
 }
 
 void verify_menus_and_actions(const UiTranslatorTestHarness& h)

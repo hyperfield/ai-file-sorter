@@ -19,6 +19,7 @@ class QMenu;
 class QPushButton;
 class QComboBox;
 class QStandardItemModel;
+class QToolButton;
 
 class Settings;
 
@@ -44,6 +45,13 @@ public:
         QPointer<QCheckBox>& process_images_only_checkbox;
         QPointer<QCheckBox>& offer_rename_images_checkbox;
         QPointer<QCheckBox>& rename_images_only_checkbox;
+        QPointer<QToolButton>& image_options_toggle_button;
+        QPointer<QCheckBox>& analyze_documents_checkbox;
+        QPointer<QCheckBox>& process_documents_only_checkbox;
+        QPointer<QCheckBox>& offer_rename_documents_checkbox;
+        QPointer<QCheckBox>& rename_documents_only_checkbox;
+        QPointer<QCheckBox>& add_document_date_to_category_checkbox;
+        QPointer<QToolButton>& document_options_toggle_button;
     };
 
     struct MenuControls {

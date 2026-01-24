@@ -83,6 +83,16 @@ public:
     void set_rename_images_only(bool value);
     bool get_process_images_only() const;
     void set_process_images_only(bool value);
+    bool get_analyze_documents_by_content() const;
+    void set_analyze_documents_by_content(bool value);
+    bool get_offer_rename_documents() const;
+    void set_offer_rename_documents(bool value);
+    bool get_rename_documents_only() const;
+    void set_rename_documents_only(bool value);
+    bool get_process_documents_only() const;
+    void set_process_documents_only(bool value);
+    bool get_add_document_date_to_category() const;
+    void set_add_document_date_to_category(bool value);
 
     std::string get_sort_folder() const;
     void set_sort_folder(const std::string &path);
@@ -152,6 +162,11 @@ private:
     bool offer_rename_images{false};
     bool rename_images_only{false};
     bool process_images_only{false};
+    bool analyze_documents_by_content{false};
+    bool offer_rename_documents{false};
+    bool rename_documents_only{false};
+    bool process_documents_only{false};
+    bool add_document_date_to_category{false};
     bool use_consistency_hints{false};
     bool use_whitelist{false};
     std::string default_sort_folder;

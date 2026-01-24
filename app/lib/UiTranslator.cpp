@@ -16,6 +16,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QPushButton>
+#include <QToolButton>
 #include <QSignalBlocker>
 #include <QStandardItem>
 #include <QStandardItemModel>
@@ -111,6 +112,32 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* checkbox = raw_ptr(deps_.primary.rename_images_only_checkbox)) {
         checkbox->setText(tr("Do not categorize picture files (only rename)"));
         checkbox->setToolTip(tr("Skip categorization for picture files and only rename them."));
+    }
+    if (auto* button = raw_ptr(deps_.primary.image_options_toggle_button)) {
+        button->setToolTip(tr("Show or hide picture analysis options"));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.analyze_documents_checkbox)) {
+        checkbox->setText(tr("Analyze document files by content"));
+        checkbox->setToolTip(tr("Summarize document contents with the selected LLM."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.process_documents_only_checkbox)) {
+        checkbox->setText(tr("Process document files only (ignore any other files)"));
+        checkbox->setToolTip(tr("Ignore non-document files in this run."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.offer_rename_documents_checkbox)) {
+        checkbox->setText(tr("Offer to rename document files"));
+        checkbox->setToolTip(tr("Show suggested filenames for document files."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.rename_documents_only_checkbox)) {
+        checkbox->setText(tr("Do not categorize document files (only rename)"));
+        checkbox->setToolTip(tr("Skip categorization for document files and only rename them."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.add_document_date_to_category_checkbox)) {
+        checkbox->setText(tr("Add document creation date (if available) to category name"));
+        checkbox->setToolTip(tr("Append the document creation date from metadata to the category label."));
+    }
+    if (auto* button = raw_ptr(deps_.primary.document_options_toggle_button)) {
+        button->setToolTip(tr("Show or hide document analysis options"));
     }
     if (auto* button = raw_ptr(deps_.primary.analyze_button)) {
         button->setText(analysis_in_progress ? tr("Stop analyzing") : tr("Analyze folder"));
