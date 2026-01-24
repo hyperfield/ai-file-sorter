@@ -452,16 +452,6 @@ QFileIconProvider& file_icon_provider()
     return provider;
 }
 
-bool icons_match(const QIcon& lhs, const QIcon& rhs, const QSize& size)
-{
-    const QPixmap lhs_pixmap = lhs.pixmap(size);
-    const QPixmap rhs_pixmap = rhs.pixmap(size);
-    if (lhs_pixmap.isNull() || rhs_pixmap.isNull()) {
-        return false;
-    }
-    return lhs_pixmap.toImage() == rhs_pixmap.toImage();
-}
-
 QIcon fallback_image_icon()
 {
     static QIcon icon;

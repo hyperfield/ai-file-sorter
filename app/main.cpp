@@ -172,6 +172,7 @@ public:
     explicit SplashController(QApplication& app)
         : app_(app)
     {
+        Q_UNUSED(app_);
     }
 
     void set_target(QWidget* target)
@@ -190,7 +191,7 @@ public:
     }
 
 private:
-    [[maybe_unused]] QApplication& app_;
+    QApplication& app_;
     bool finished_{false};
     QWidget* target_{nullptr};
 };
