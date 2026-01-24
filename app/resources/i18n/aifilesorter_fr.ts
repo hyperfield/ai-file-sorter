@@ -102,5 +102,22 @@
     <message><source>Download complete.</source><translation>Téléchargement terminé.</translation></message>
     <message><source>Download cancelled.</source><translation>Téléchargement annulé.</translation></message>
     <message><source>Download error: %1</source><translation>Erreur de téléchargement : %1</translation></message>
+
+    <message><source>Analyze picture files by content (can be slow)</source><translation>Analyser les fichiers image par contenu (peut être lent)</translation></message>
+    <message><source>Process picture files only (ignore any other files)</source><translation>Traiter uniquement les fichiers image (ignorer tous les autres fichiers)</translation></message>
+    <message><source>Offer to rename picture files</source><translation>Proposer de renommer les fichiers image</translation></message>
+    <message><source>Do not categorize picture files (only rename)</source><translation>Ne pas catégoriser les fichiers image (renommer uniquement)</translation></message>
+    <message><source>Show or hide picture analysis options</source><translation>Afficher ou masquer les options d'analyse des images</translation></message>
+    <message><source>Analyze document files by content</source><translation>Analyser les fichiers de documents par contenu</translation></message>
+    <message><source>Summarize document contents with the selected LLM.</source><translation>Résumer le contenu des documents avec le LLM sélectionné.</translation></message>
+    <message><source>Process document files only (ignore any other files)</source><translation>Traiter uniquement les fichiers de documents (ignorer tous les autres fichiers)</translation></message>
+    <message><source>Ignore non-document files in this run.</source><translation>Ignorer les fichiers non document lors de cette analyse.</translation></message>
+    <message><source>Offer to rename document files</source><translation>Proposer de renommer les fichiers de documents</translation></message>
+    <message><source>Show suggested filenames for document files.</source><translation>Afficher des noms de fichiers suggérés pour les fichiers de documents.</translation></message>
+    <message><source>Do not categorize document files (only rename)</source><translation>Ne pas catégoriser les fichiers de documents (renommer uniquement)</translation></message>
+    <message><source>Skip categorization for document files and only rename them.</source><translation>Ignorer la catégorisation des fichiers de documents et les renommer uniquement.</translation></message>
+    <message><source>Add document creation date (if available) to category name</source><translation>Ajouter la date de création du document (si disponible) au nom de la catégorie</translation></message>
+    <message><source>Append the document creation date from metadata to the category label.</source><translation>Ajouter la date de création du document depuis les métadonnées au libellé de la catégorie.</translation></message>
+    <message><source>Show or hide document analysis options</source><translation>Afficher ou masquer les options d'analyse des documents</translation></message>
 </context>
 </TS>

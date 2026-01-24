@@ -139,5 +139,18 @@
     <message><source>Download complete.</source><translation>Download voltooid.</translation></message>
     <message><source>Download cancelled.</source><translation>Download geannuleerd.</translation></message>
     <message><source>Download error: %1</source><translation>Downloadfout: %1</translation></message>
+
+    <message><source>Show or hide picture analysis options</source><translation>Opties voor afbeeldingsanalyse tonen of verbergen</translation></message>
+    <message><source>Analyze document files by content</source><translation>Documentbestanden op inhoud analyseren</translation></message>
+    <message><source>Summarize document contents with the selected LLM.</source><translation>Documentinhoud samenvatten met het geselecteerde LLM.</translation></message>
+    <message><source>Process document files only (ignore any other files)</source><translation>Alleen documentbestanden verwerken (alle andere bestanden negeren)</translation></message>
+    <message><source>Ignore non-document files in this run.</source><translation>Niet-documentbestanden in deze run negeren.</translation></message>
+    <message><source>Offer to rename document files</source><translation>Aanbieden om documentbestanden te hernoemen</translation></message>
+    <message><source>Show suggested filenames for document files.</source><translation>Toon voorgestelde bestandsnamen voor documentbestanden.</translation></message>
+    <message><source>Do not categorize document files (only rename)</source><translation>Documentbestanden niet categoriseren (alleen hernoemen)</translation></message>
+    <message><source>Skip categorization for document files and only rename them.</source><translation>Categorisatie voor documentbestanden overslaan en alleen hernoemen.</translation></message>
+    <message><source>Add document creation date (if available) to category name</source><translation>Voeg de aanmaakdatum van het document (indien beschikbaar) toe aan de categorienaam</translation></message>
+    <message><source>Append the document creation date from metadata to the category label.</source><translation>Voeg de aanmaakdatum van het document uit metadata toe aan het categorielabel.</translation></message>
+    <message><source>Show or hide document analysis options</source><translation>Opties voor documentanalyse tonen of verbergen</translation></message>
 </context>
 </TS>

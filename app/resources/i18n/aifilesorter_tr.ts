@@ -102,5 +102,22 @@
     <message><source>Download complete.</source><translation>İndirme tamamlandı.</translation></message>
     <message><source>Download cancelled.</source><translation>İndirme iptal edildi.</translation></message>
     <message><source>Download error: %1</source><translation>İndirme hatası: %1</translation></message>
+
+    <message><source>Analyze picture files by content (can be slow)</source><translation>Resim dosyalarını içeriğe göre analiz et (yavaş olabilir)</translation></message>
+    <message><source>Process picture files only (ignore any other files)</source><translation>Yalnızca resim dosyalarını işle (diğer tüm dosyaları yok say)</translation></message>
+    <message><source>Offer to rename picture files</source><translation>Resim dosyalarını yeniden adlandırmayı öner</translation></message>
+    <message><source>Do not categorize picture files (only rename)</source><translation>Resim dosyalarını kategorize etme (yalnızca yeniden adlandır)</translation></message>
+    <message><source>Show or hide picture analysis options</source><translation>Görsel analiz seçeneklerini göster veya gizle</translation></message>
+    <message><source>Analyze document files by content</source><translation>Belge dosyalarını içeriğe göre analiz et</translation></message>
+    <message><source>Summarize document contents with the selected LLM.</source><translation>Belge içeriğini seçilen LLM ile özetle.</translation></message>
+    <message><source>Process document files only (ignore any other files)</source><translation>Yalnızca belge dosyalarını işle (diğer tüm dosyaları yok say)</translation></message>
+    <message><source>Ignore non-document files in this run.</source><translation>Bu çalışmada belge olmayan dosyaları yok say.</translation></message>
+    <message><source>Offer to rename document files</source><translation>Belge dosyalarını yeniden adlandırmayı öner</translation></message>
+    <message><source>Show suggested filenames for document files.</source><translation>Belge dosyaları için önerilen dosya adlarını göster.</translation></message>
+    <message><source>Do not categorize document files (only rename)</source><translation>Belge dosyalarını kategorize etme (yalnızca yeniden adlandır)</translation></message>
+    <message><source>Skip categorization for document files and only rename them.</source><translation>Belge dosyalarını kategorize etme, yalnızca yeniden adlandır.</translation></message>
+    <message><source>Add document creation date (if available) to category name</source><translation>Belge oluşturma tarihini (varsa) kategori adına ekle</translation></message>
+    <message><source>Append the document creation date from metadata to the category label.</source><translation>Belge oluşturma tarihini meta verilerden kategori etiketine ekle.</translation></message>
+    <message><source>Show or hide document analysis options</source><translation>Belge analiz seçeneklerini göster veya gizle</translation></message>
 </context>
 </TS>
