@@ -24,10 +24,14 @@ public:
     static QCheckBox* rename_images_only_checkbox(MainApp& app);
     static void split_entries_for_analysis(const std::vector<FileEntry>& files,
                                            bool analyze_images,
+                                           bool analyze_documents,
                                            bool process_images_only,
+                                           bool process_documents_only,
                                            bool rename_images_only,
+                                           bool rename_documents_only,
                                            const std::unordered_set<std::string>& renamed_files,
                                            std::vector<FileEntry>& image_entries,
+                                           std::vector<FileEntry>& document_entries,
                                            std::vector<FileEntry>& other_entries);
     static void set_visual_llm_available_probe(MainApp& app, std::function<bool()> probe);
     static void set_llm_selection_runner(MainApp& app, std::function<void()> runner);

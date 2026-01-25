@@ -156,6 +156,7 @@ TEST_CASE("Already-renamed images skip vision analysis") {
     };
 
     std::vector<FileEntry> image_entries;
+    std::vector<FileEntry> document_entries;
     std::vector<FileEntry> other_entries;
 
     SECTION("categorization uses filename when already renamed") {
@@ -163,13 +164,19 @@ TEST_CASE("Already-renamed images skip vision analysis") {
                                                       true,
                                                       false,
                                                       false,
+                                                      false,
+                                                      false,
+                                                      false,
                                                       renamed_files,
                                                       image_entries,
+                                                      document_entries,
                                                       other_entries);
 
         CHECK_FALSE(contains(image_entries, "renamed.png"));
+        CHECK_FALSE(contains(document_entries, "renamed.png"));
         CHECK(contains(other_entries, "renamed.png"));
         CHECK(contains(image_entries, "other.png"));
+        CHECK_FALSE(contains(document_entries, "other.png"));
         CHECK(contains(other_entries, "doc.txt"));
         CHECK(contains(other_entries, "folder"));
     }
@@ -178,14 +185,20 @@ TEST_CASE("Already-renamed images skip vision analysis") {
         MainAppTestAccess::split_entries_for_analysis(files,
                                                       true,
                                                       false,
+                                                      false,
+                                                      false,
                                                       true,
+                                                      false,
                                                       renamed_files,
                                                       image_entries,
+                                                      document_entries,
                                                       other_entries);
 
         CHECK_FALSE(contains(image_entries, "renamed.png"));
+        CHECK_FALSE(contains(document_entries, "renamed.png"));
         CHECK_FALSE(contains(other_entries, "renamed.png"));
         CHECK(contains(image_entries, "other.png"));
+        CHECK_FALSE(contains(document_entries, "other.png"));
     }
 }
 #endif

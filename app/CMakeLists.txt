@@ -45,7 +45,7 @@ find_package(Intl REQUIRED) # libintl/gettext
 
 # Sources
 set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
-file(GLOB APP_LIB_SOURCES
+file(GLOB APP_LIB_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
 set(APP_SOURCES ${APP_MAIN_SOURCE} ${APP_LIB_SOURCES})
