@@ -7,6 +7,7 @@
 #include "Utils.hpp"
 #include "UndoManager.hpp"
 #include "DryRunPreviewDialog.hpp"
+#include "DocumentTextAnalyzer.hpp"
 #include "LlavaImageAnalyzer.hpp"
 
 #include <QAbstractItemView>
@@ -325,6 +326,8 @@ void CategorizationDialog::show_results(const std::vector<CategorizedFile>& file
         populate_model();
     }
     on_rename_images_only_toggled(rename_images_only_checkbox && rename_images_only_checkbox->isChecked());
+    on_rename_documents_only_toggled(rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked());
+    update_subcategory_checkbox_state();
     exec();
 }
 
@@ -367,6 +370,11 @@ void CategorizationDialog::setup_ui()
     rename_images_only_checkbox->setChecked(false);
     rename_images_only_checkbox->setEnabled(false);
     scroll_layout->addWidget(rename_images_only_checkbox);
+
+    rename_documents_only_checkbox = new QCheckBox(this);
+    rename_documents_only_checkbox->setChecked(false);
+    rename_documents_only_checkbox->setEnabled(false);
+    scroll_layout->addWidget(rename_documents_only_checkbox);
 
     model = new QStandardItemModel(this);
     model->setColumnCount(8);
@@ -438,6 +446,8 @@ void CategorizationDialog::setup_ui()
             this, &CategorizationDialog::on_show_subcategories_toggled);
     connect(rename_images_only_checkbox, &QCheckBox::toggled,
             this, &CategorizationDialog::on_rename_images_only_toggled);
+    connect(rename_documents_only_checkbox, &QCheckBox::toggled,
+            this, &CategorizationDialog::on_rename_documents_only_toggled);
 
     auto* select_highlighted_shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space), this);
     connect(select_highlighted_shortcut, &QShortcut::activated,
@@ -551,6 +561,17 @@ bool is_supported_image_entry(const std::string& file_path,
     }
     const auto full_path = Utils::utf8_to_path(file_path) / Utils::utf8_to_path(file_name);
     return LlavaImageAnalyzer::is_supported_image(full_path);
+}
+
+bool is_supported_document_entry(const std::string& file_path,
+                                 const std::string& file_name,
+                                 FileType file_type)
+{
+    if (file_type != FileType::File) {
+        return false;
+    }
+    const auto full_path = Utils::utf8_to_path(file_path) / Utils::utf8_to_path(file_name);
+    return DocumentTextAnalyzer::is_supported_document(full_path);
 }
 
 std::filesystem::path build_suggested_target_dir(const CategorizedFile& file, bool use_subcategory)
@@ -1024,7 +1045,8 @@ void CategorizationDialog::record_categorization_to_db()
                                       ? subcategory_item->text().toStdString()
                                       : std::string();
         const bool is_image = row_is_supported_image(row);
-        if (is_image) {
+        const bool is_document = row_is_supported_document(row);
+        if (is_image || is_document) {
             if (is_missing_category_label(category)) {
                 category.clear();
             }
@@ -1032,7 +1054,7 @@ void CategorizationDialog::record_categorization_to_db()
                 subcategory.clear();
             }
         }
-        if (!rename_only && is_image && category.empty()) {
+        if (!rename_only && (is_image || is_document) && category.empty()) {
             rename_only = true;
         }
         const auto* suggested_item = model->item(row, ColumnSuggestedName);
@@ -1890,13 +1912,57 @@ void CategorizationDialog::on_rename_images_only_toggled(bool checked)
     apply_category_visibility();
     apply_subcategory_visibility();
     apply_rename_only_row_visibility();
+    update_subcategory_checkbox_state();
+}
+
+void CategorizationDialog::on_rename_documents_only_toggled(bool checked)
+{
+    if (!model) {
+        return;
+    }
+
+    ScopedFlag guard(suppress_item_changed_);
+    for (int row = 0; row < model->rowCount(); ++row) {
+        if (!row_is_supported_document(row)) {
+            continue;
+        }
+        auto* file_item = model->item(row, ColumnFile);
+        if (!file_item) {
+            continue;
+        }
+        file_item->setData(checked, kRenameOnlyRole);
+
+        if (auto* category_item = model->item(row, ColumnCategory)) {
+            category_item->setEditable(!checked);
+            category_item->setIcon(checked ? QIcon() : edit_icon());
+        }
+        if (auto* subcategory_item = model->item(row, ColumnSubcategory)) {
+            subcategory_item->setEditable(!checked);
+            subcategory_item->setIcon(checked ? QIcon() : edit_icon());
+        }
+    }
+
+    ensure_unique_suggested_names_in_model();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        if (!row_is_supported_document(row)) {
+            continue;
+        }
+        update_preview_column(row);
+    }
+
+    dry_run_plan_.clear();
+    apply_category_visibility();
+    apply_subcategory_visibility();
+    apply_rename_only_row_visibility();
+    update_subcategory_checkbox_state();
 }
 
 void CategorizationDialog::apply_subcategory_visibility()
 {
     if (table_view) {
         const bool hide_subcategory = !show_subcategory_column ||
-                                      (rename_images_only_checkbox && rename_images_only_checkbox->isChecked());
+                                      (rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) ||
+                                      (rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked());
         table_view->setColumnHidden(ColumnSubcategory, hide_subcategory);
         table_view->setColumnHidden(ColumnPreview, false);
     }
@@ -1905,8 +1971,8 @@ void CategorizationDialog::apply_subcategory_visibility()
 void CategorizationDialog::apply_category_visibility()
 {
     if (table_view) {
-        const bool hide_category = rename_images_only_checkbox &&
-                                   rename_images_only_checkbox->isChecked();
+        const bool hide_category = (rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) ||
+                                   (rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked());
         table_view->setColumnHidden(ColumnCategory, hide_category);
         if (bulk_edit_button) {
             bulk_edit_button->setEnabled(!hide_category);
@@ -1920,10 +1986,20 @@ void CategorizationDialog::apply_rename_only_row_visibility()
         return;
     }
 
-    const bool hide_inactive_rows = rename_images_only_checkbox &&
-                                    rename_images_only_checkbox->isChecked();
     for (int row = 0; row < model->rowCount(); ++row) {
-        const bool hide_row = hide_inactive_rows && row_is_already_renamed_with_category(row);
+        bool hide_row = false;
+        if (rename_images_only_checkbox &&
+            rename_images_only_checkbox->isChecked() &&
+            row_is_supported_image(row) &&
+            row_is_already_renamed_with_category(row)) {
+            hide_row = true;
+        }
+        if (rename_documents_only_checkbox &&
+            rename_documents_only_checkbox->isChecked() &&
+            row_is_supported_document(row) &&
+            row_is_already_renamed_with_category(row)) {
+            hide_row = true;
+        }
         table_view->setRowHidden(row, hide_row);
     }
 }
@@ -1956,6 +2032,46 @@ void CategorizationDialog::update_rename_only_checkbox_state()
     QSignalBlocker blocker(rename_images_only_checkbox);
     rename_images_only_checkbox->setEnabled(has_images);
     rename_images_only_checkbox->setChecked(has_images && all_rename_only);
+
+    if (rename_documents_only_checkbox) {
+        bool has_documents = false;
+        bool all_doc_rename_only = true;
+        for (const auto& file : categorized_files) {
+            if (!is_supported_document_entry(file.file_path, file.file_name, file.type)) {
+                continue;
+            }
+            has_documents = true;
+            if (!file.rename_only) {
+                all_doc_rename_only = false;
+            }
+        }
+
+        QSignalBlocker doc_blocker(rename_documents_only_checkbox);
+        rename_documents_only_checkbox->setEnabled(has_documents);
+        rename_documents_only_checkbox->setChecked(has_documents && all_doc_rename_only);
+    }
+
+    update_subcategory_checkbox_state();
+}
+
+void CategorizationDialog::update_subcategory_checkbox_state()
+{
+    if (!show_subcategories_checkbox || !model) {
+        return;
+    }
+
+    const bool rename_only_active =
+        (rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) ||
+        (rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked());
+    const bool enable_checkbox = !rename_only_active;
+
+    QSignalBlocker blocker(show_subcategories_checkbox);
+    show_subcategories_checkbox->setEnabled(enable_checkbox);
+    if (!enable_checkbox) {
+        show_subcategory_column = false;
+        show_subcategories_checkbox->setChecked(false);
+        apply_subcategory_visibility();
+    }
 }
 
 bool CategorizationDialog::row_is_supported_image(int row) const
@@ -1973,12 +2089,24 @@ bool CategorizationDialog::row_is_supported_image(int row) const
     return is_supported_image_entry(file_path, file_name, file_type);
 }
 
-bool CategorizationDialog::row_is_already_renamed_with_category(int row) const
+bool CategorizationDialog::row_is_supported_document(int row) const
 {
     if (!model || row < 0 || row >= model->rowCount()) {
         return false;
     }
-    if (!row_is_supported_image(row)) {
+    auto* file_item = model->item(row, ColumnFile);
+    if (!file_item) {
+        return false;
+    }
+    const std::string file_name = file_item->text().toStdString();
+    const std::string file_path = file_item->data(kFilePathRole).toString().toStdString();
+    const FileType file_type = static_cast<FileType>(file_item->data(kFileTypeRole).toInt());
+    return is_supported_document_entry(file_path, file_name, file_type);
+}
+
+bool CategorizationDialog::row_is_already_renamed_with_category(int row) const
+{
+    if (!model || row < 0 || row >= model->rowCount()) {
         return false;
     }
     auto* file_item = model->item(row, ColumnFile);
@@ -2177,7 +2305,7 @@ bool CategorizationDialog::resolve_row_flags(int row,
     rename_only = file_item->data(kRenameOnlyRole).toBool();
     used_consistency_hints = file_item->data(kUsedConsistencyRole).toBool();
     file_type = static_cast<FileType>(file_item->data(kFileTypeRole).toInt());
-    if (!rename_only && row_is_supported_image(row)) {
+    if (!rename_only && (row_is_supported_image(row) || row_is_supported_document(row))) {
         auto* category_item = model->item(row, ColumnCategory);
         if (category_item) {
             const std::string category_text = category_item->text().toStdString();
@@ -2201,6 +2329,13 @@ void CategorizationDialog::update_preview_column(int row)
     if (rename_images_only_checkbox &&
         rename_images_only_checkbox->isChecked() &&
         row_is_supported_image(row)) {
+        preview_item->setText(QStringLiteral("-"));
+        preview_item->setToolTip(QString());
+        return;
+    }
+    if (rename_documents_only_checkbox &&
+        rename_documents_only_checkbox->isChecked() &&
+        row_is_supported_document(row)) {
         preview_item->setText(QStringLiteral("-"));
         preview_item->setToolTip(QString());
         return;
@@ -2277,6 +2412,7 @@ void CategorizationDialog::retranslate_ui()
     set_text_if(show_subcategories_checkbox, tr("Create subcategory folders"));
     set_text_if(dry_run_checkbox, tr("Dry run (preview only, do not move files)"));
     set_text_if(rename_images_only_checkbox, tr("Do not categorize picture files (only rename)"));
+    set_text_if(rename_documents_only_checkbox, tr("Do not categorize document files (only rename)"));
     set_text_if(confirm_button, tr("Confirm and Process"));
     set_text_if(continue_button, tr("Continue Later"));
     set_text_if(undo_button, tr("Undo this change"));
@@ -2385,7 +2521,7 @@ void CategorizationDialog::on_item_changed(QStandardItem* item)
                item->column() == ColumnSubcategory ||
                item->column() == ColumnSuggestedName) {
         if ((item->column() == ColumnCategory || item->column() == ColumnSubcategory) &&
-            row_is_supported_image(item->row())) {
+            (row_is_supported_image(item->row()) || row_is_supported_document(item->row()))) {
             const std::string text = item->text().toStdString();
             if (is_missing_category_label(text)) {
                 ScopedFlag guard(suppress_item_changed_);
@@ -2393,6 +2529,9 @@ void CategorizationDialog::on_item_changed(QStandardItem* item)
             }
         }
         update_preview_column(item->row());
+        if (item->column() == ColumnCategory || item->column() == ColumnSubcategory) {
+            update_subcategory_checkbox_state();
+        }
     }
     // invalidate preview plan only on user-facing edits (selection/category fields)
     if (item->column() == ColumnSelect ||
@@ -2452,6 +2591,7 @@ void CategorizationDialog::set_show_subcategory_column(bool enabled)
         show_subcategories_checkbox->setChecked(enabled);
     }
     apply_subcategory_visibility();
+    update_subcategory_checkbox_state();
 }
 
 void CategorizationDialog::set_show_rename_column(bool enabled)
@@ -2476,6 +2616,8 @@ void CategorizationDialog::test_set_entries(const std::vector<CategorizedFile>& 
     apply_subcategory_visibility();
     populate_model();
     on_rename_images_only_toggled(rename_images_only_checkbox && rename_images_only_checkbox->isChecked());
+    on_rename_documents_only_toggled(rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked());
+    update_subcategory_checkbox_state();
 }
 
 void CategorizationDialog::test_trigger_confirm() {

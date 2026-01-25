@@ -160,9 +160,21 @@ private:
     void apply_category_visibility();
     void apply_rename_only_row_visibility();
     void update_rename_only_checkbox_state();
+    /**
+     * @brief Enables/disables the subcategory checkbox based on rename-only mode.
+     */
+    void update_subcategory_checkbox_state();
     void on_rename_images_only_toggled(bool checked);
+    /**
+     * @brief Marks document rows as rename-only when toggled.
+     */
+    void on_rename_documents_only_toggled(bool checked);
     bool row_is_already_renamed_with_category(int row) const;
     bool row_is_supported_image(int row) const;
+    /**
+     * @brief Returns true if the row points to a supported document file.
+     */
+    bool row_is_supported_document(int row) const;
     /**
      * @brief Returns unique row indices that are highlighted in the table view.
      */
@@ -192,6 +204,7 @@ private:
     QCheckBox* show_subcategories_checkbox{nullptr};
     QCheckBox* dry_run_checkbox{nullptr};
     QCheckBox* rename_images_only_checkbox{nullptr};
+    QCheckBox* rename_documents_only_checkbox{nullptr};
     QPushButton* undo_button{nullptr};
 
     std::vector<MoveRecord> move_history_;
