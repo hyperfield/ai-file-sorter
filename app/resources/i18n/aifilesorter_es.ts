@@ -95,6 +95,7 @@
     <message><source>[PROCESS] Letting the AI do its magic...</source><translation>[PROCESO] La IA hace su magia...</translation></message>
     <message><source>[VISION] Decoding image batch %1/%2 (%3%)</source><translation>[VISIÓN] Decodificando lote de imágenes %1/%2 (%3%)</translation></message>
     <message><source>[VISION] Analyzing %1</source><translation>[VISIÓN] Analizando %1</translation></message>
+    <message><source>[VISION] Using cached suggestion for %1</source><translation>[VISIÓN] Usando sugerencia en caché para %1</translation></message>
     <message><source>[VISION-ERROR] %1 (%2)</source><translation>[ERROR-VISIÓN] %1 (%2)</translation></message>
     <message><source>[SORT] %1 (%2)</source><translation>[ORDENAR] %1 (%2)</translation></message>
     <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[ADVERTENCIA] %1 se recategorizará: %2</translation></message>
@@ -119,5 +120,9 @@
     <message><source>Add document creation date (if available) to category name</source><translation>Agregar la fecha de creación del documento (si está disponible) al nombre de la categoría</translation></message>
     <message><source>Append the document creation date from metadata to the category label.</source><translation>Agregar la fecha de creación del documento desde los metadatos a la etiqueta de la categoría.</translation></message>
     <message><source>Show or hide document analysis options</source><translation>Mostrar u ocultar opciones de análisis de documentos</translation></message>
+
+    <message><source>[DOC] Analyzing %1</source><translation>[DOC] Analizando %1</translation></message>
+    <message><source>[DOC] Using cached suggestion for %1</source><translation>[DOC] Usando sugerencia en caché para %1</translation></message>
+    <message><source>[DOC-ERROR] %1 (%2)</source><translation>[ERROR-DOC] %1 (%2)</translation></message>
 </context>
 </TS>

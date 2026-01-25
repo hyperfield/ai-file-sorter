@@ -95,6 +95,7 @@
     <message><source>[PROCESS] Letting the AI do its magic...</source><translation>[İŞLEM] Yapay zeka sihrini yapıyor...</translation></message>
     <message><source>[VISION] Decoding image batch %1/%2 (%3%)</source><translation>[GÖRSEL] Görüntü grubu %1/%2 çözümleniyor (%3%)</translation></message>
     <message><source>[VISION] Analyzing %1</source><translation>[GÖRSEL] %1 analiz ediliyor</translation></message>
+    <message><source>[VISION] Using cached suggestion for %1</source><translation>[GÖRSEL] %1 için önbellekteki öneri kullanılıyor</translation></message>
     <message><source>[VISION-ERROR] %1 (%2)</source><translation>[GÖRSEL-HATA] %1 (%2)</translation></message>
     <message><source>[SORT] %1 (%2)</source><translation>[SIRALAMA] %1 (%2)</translation></message>
     <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[UYARI] %1 yeniden kategorize edilecek: %2</translation></message>
@@ -119,5 +120,9 @@
     <message><source>Add document creation date (if available) to category name</source><translation>Belge oluşturma tarihini (varsa) kategori adına ekle</translation></message>
     <message><source>Append the document creation date from metadata to the category label.</source><translation>Belge oluşturma tarihini meta verilerden kategori etiketine ekle.</translation></message>
     <message><source>Show or hide document analysis options</source><translation>Belge analiz seçeneklerini göster veya gizle</translation></message>
+
+    <message><source>[DOC] Analyzing %1</source><translation>[BELGE] %1 analiz ediliyor</translation></message>
+    <message><source>[DOC] Using cached suggestion for %1</source><translation>[BELGE] %1 için önbellekteki öneri kullanılıyor</translation></message>
+    <message><source>[DOC-ERROR] %1 (%2)</source><translation>[BELGE-HATA] %1 (%2)</translation></message>
 </context>
 </TS>

@@ -106,6 +106,7 @@
     <message><source>[PROCESS] Letting the AI do its magic...</source><translation>[VERWERKING] De AI doet zijn magie...</translation></message>
     <message><source>[VISION] Decoding image batch %1/%2 (%3%)</source><translation>[VISIE] Afbeeldingsbatch %1/%2 decoderen (%3%)</translation></message>
     <message><source>[VISION] Analyzing %1</source><translation>[VISIE] Analyseren van %1</translation></message>
+    <message><source>[VISION] Using cached suggestion for %1</source><translation>[VISIE] Gebruik cachesuggestie voor %1</translation></message>
     <message><source>[VISION-ERROR] %1 (%2)</source><translation>[VISIE-FOUT] %1 (%2)</translation></message>
     <message><source>[SORT] %1 (%2)</source><translation>[SORTEREN] %1 (%2)</translation></message>
     <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[WAARSCHUWING] %1 wordt opnieuw gecategoriseerd: %2</translation></message>
@@ -152,5 +153,9 @@
     <message><source>Add document creation date (if available) to category name</source><translation>Voeg de aanmaakdatum van het document (indien beschikbaar) toe aan de categorienaam</translation></message>
     <message><source>Append the document creation date from metadata to the category label.</source><translation>Voeg de aanmaakdatum van het document uit metadata toe aan het categorielabel.</translation></message>
     <message><source>Show or hide document analysis options</source><translation>Opties voor documentanalyse tonen of verbergen</translation></message>
+
+    <message><source>[DOC] Analyzing %1</source><translation>[DOC] Analyseren van %1</translation></message>
+    <message><source>[DOC] Using cached suggestion for %1</source><translation>[DOC] Gebruik cachesuggestie voor %1</translation></message>
+    <message><source>[DOC-ERROR] %1 (%2)</source><translation>[DOC-FOUT] %1 (%2)</translation></message>
 </context>
 </TS>
