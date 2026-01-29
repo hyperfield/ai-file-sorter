@@ -99,6 +99,7 @@
     <message><source>[VISION-ERROR] %1 (%2)</source><translation>[GÖRSEL-HATA] %1 (%2)</translation></message>
     <message><source>[SORT] %1 (%2)</source><translation>[SIRALAMA] %1 (%2)</translation></message>
     <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[UYARI] %1 yeniden kategorize edilecek: %2</translation></message>
+    <message><source>[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).</source><translation>[UYARI] GPU hızlandırması başlatılamadı. CPU ile devam ediliyor (daha yavaş).</translation></message>
     <message><source>[STOP] Analysis will stop after the current item is processed.</source><translation>[DUR] Analiz, geçerli öğe işlendiğinde duracaktır.</translation></message>
     <message><source>Download complete.</source><translation>İndirme tamamlandı.</translation></message>
     <message><source>Download cancelled.</source><translation>İndirme iptal edildi.</translation></message>

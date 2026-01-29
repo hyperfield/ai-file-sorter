@@ -110,6 +110,7 @@
     <message><source>[VISION-ERROR] %1 (%2)</source><translation>[VISIE-FOUT] %1 (%2)</translation></message>
     <message><source>[SORT] %1 (%2)</source><translation>[SORTEREN] %1 (%2)</translation></message>
     <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[WAARSCHUWING] %1 wordt opnieuw gecategoriseerd: %2</translation></message>
+    <message><source>[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).</source><translation>[WAARSCHUWING] GPU-versnelling kon niet worden geïnitialiseerd. Doorgaan op CPU (langzamer).</translation></message>
     <message><source>[STOP] Analysis will stop after the current item is processed.</source><translation>[STOP] Analyse stopt na het huidige item.</translation></message>
     <message><source>Analyze picture files by content (can be slow)</source><translation>Afbeeldingsbestanden op inhoud analyseren (kan traag zijn)</translation></message>
     <message><source>Run the visual LLM on supported picture files.</source><translation>Voer de visuele LLM uit op ondersteunde afbeeldingsbestanden.</translation></message>

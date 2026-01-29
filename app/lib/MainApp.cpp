@@ -3047,6 +3047,11 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
             throw std::runtime_error("Selected custom LLM is missing or invalid. Please re-select it.");
         }
         auto client = std::make_unique<LocalLLMClient>(custom.path);
+        client->set_status_callback([this](LocalLLMClient::Status status) {
+            if (status == LocalLLMClient::Status::GpuFallbackToCpu) {
+                report_progress(to_utf8(tr("[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).")));
+            }
+        });
         client->set_prompt_logging_enabled(should_log_prompts());
         return client;
     }
@@ -3073,6 +3078,11 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
 
     auto client = std::make_unique<LocalLLMClient>(
         Utils::make_default_path_to_file_from_download_url(env_url));
+    client->set_status_callback([this](LocalLLMClient::Status status) {
+        if (status == LocalLLMClient::Status::GpuFallbackToCpu) {
+            report_progress(to_utf8(tr("[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).")));
+        }
+    });
     client->set_prompt_logging_enabled(should_log_prompts());
     return client;
 }

@@ -3,6 +3,7 @@
 #include "ILLMClient.hpp"
 #include "Types.hpp"
 #include "llama.h"
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -10,6 +11,21 @@ namespace spdlog { class logger; }
 
 class LocalLLMClient : public ILLMClient {
 public:
+    /**
+     * @brief Status events emitted by the local LLM client.
+     */
+    enum class Status {
+        /**
+         * @brief GPU backend initialization failed; the client fell back to CPU.
+         */
+        GpuFallbackToCpu
+    };
+    /**
+     * @brief Callback invoked when the local LLM client emits a status event.
+     * @param status Status event emitted by the client.
+     */
+    using StatusCallback = std::function<void(Status)>;
+
     explicit LocalLLMClient(const std::string& model_path);
     ~LocalLLMClient();
 
@@ -25,6 +41,11 @@ public:
     std::string complete_prompt(const std::string& prompt,
                                 int max_tokens) override;
     void set_prompt_logging_enabled(bool enabled) override;
+    /**
+     * @brief Registers a status callback for runtime events.
+     * @param callback Callback to invoke when status events occur.
+     */
+    void set_status_callback(StatusCallback callback);
 
 private:
     void load_model_if_needed();
@@ -33,6 +54,11 @@ private:
     llama_model_params load_model_or_throw(llama_model_params model_params,
                                            const std::shared_ptr<spdlog::logger>& logger);
     void configure_context(int context_length, const llama_model_params& model_params);
+    /**
+     * @brief Emits a status event to the registered callback.
+     * @param status Status event to emit.
+     */
+    void notify_status(Status status) const;
 
     std::string model_path;
     llama_model* model;
@@ -42,4 +68,5 @@ private:
     std::string sanitize_output(std::string &output);
     llama_context_params ctx_params;
     bool prompt_logging_enabled{false};
+    StatusCallback status_callback_;
 };

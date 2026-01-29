@@ -99,6 +99,7 @@
     <message><source>[VISION-ERROR] %1 (%2)</source><translation>[VISION-FEHLER] %1 (%2)</translation></message>
     <message><source>[SORT] %1 (%2)</source><translation>[SORTIEREN] %1 (%2)</translation></message>
     <message><source>[WARN] %1 will be re-categorized: %2</source><translation>[WARNUNG] %1 wird neu kategorisiert: %2</translation></message>
+    <message><source>[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).</source><translation>[WARNUNG] GPU-Beschleunigung konnte nicht initialisiert werden. Fortsetzung auf der CPU (langsamer).</translation></message>
     <message><source>[STOP] Analysis will stop after the current item is processed.</source><translation>[STOPP] Analyse wird nach dem aktuellen Element beendet.</translation></message>
     <message><source>Download complete.</source><translation>Download abgeschlossen.</translation></message>
     <message><source>Download cancelled.</source><translation>Download abgebrochen.</translation></message>

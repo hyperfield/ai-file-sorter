@@ -29,6 +29,7 @@
 #include <string_view>
 #include <string>
 #include <array>
+#include <utility>
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -1447,6 +1448,7 @@ llama_model_params LocalLLMClient::load_model_or_throw(llama_model_params model_
         if (logger) {
             logger->warn("Failed to load model with GPU backend; retrying on CPU.");
         }
+        notify_status(Status::GpuFallbackToCpu);
         set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
         set_env_var("LLAMA_ARG_DEVICE", "cpu");
         model_params.n_gpu_layers = 0;
@@ -1777,4 +1779,16 @@ LocalLLMClient::~LocalLLMClient() {
 void LocalLLMClient::set_prompt_logging_enabled(bool enabled)
 {
     prompt_logging_enabled = enabled;
+}
+
+void LocalLLMClient::set_status_callback(StatusCallback callback)
+{
+    status_callback_ = std::move(callback);
+}
+
+void LocalLLMClient::notify_status(Status status) const
+{
+    if (status_callback_) {
+        status_callback_(status);
+    }
 }
