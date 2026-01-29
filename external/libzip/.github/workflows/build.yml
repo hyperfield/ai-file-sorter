@@ -1,0 +1,66 @@
+name: build
+on: [push]
+permissions:
+  contents: read
+jobs:
+  all:
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }}${{ matrix.name_extra }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [macos-latest, ubuntu-latest]
+        cmake_extra: [""]
+        name_extra: [""]
+        # include:
+        #   - os: windows-latest
+        #     cmake_extra: "-T ClangCl"
+        #     name_extra: " clang-cl"
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: install python and pip
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: install dependencies (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo apt-get install libzstd-dev
+      - name: install latest CMake and Ninja for lukka/run-vcpkg (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        uses: lukka/get-cmake@latest
+      - name: install dependencies (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 2cf957350da28ad032178a974607f59f961217d9
+      - name: prepare build directory and install nihtest
+        run: |
+          cmake -E make_directory ${{runner.workspace}}/build
+          pip install nihtest
+      - name: configure (Unix)
+        if: ${{ runner.os != 'Windows' }}
+        working-directory: ${{runner.workspace}}/build
+        run: |
+          cmake ${{ matrix.cmake_extra }} ${{github.workspace}}
+      - name: configure (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        working-directory: ${{runner.workspace}}/build
+        run: |
+          cmake ${{ matrix.cmake_extra }} -DCMAKE_TOOLCHAIN_FILE=${{env.VCPKG_ROOT}}/scripts/buildsystems/vcpkg.cmake ${{github.workspace}}
+      - name: build
+        working-directory: ${{runner.workspace}}/build
+        run: |
+          cmake --build . --config Release
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: regress-directory-${{ matrix.os }}-${{ matrix.name_extra }}
+          path: |
+            ${{runner.workspace}}/build/regress
+      - name: test
+        working-directory: ${{runner.workspace}}/build
+        run: |
+          ctest --output-on-failure -V -C Release
