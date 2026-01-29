@@ -55,16 +55,23 @@ public:
 
     /**
      * @brief Analyze the document and return a summary + suggested filename.
+     * @param document_path Path to the document to analyze.
+     * @param llm LLM client used to generate the summary and filename.
+     * @return Analysis result containing summary and suggested filename.
      */
     DocumentAnalysisResult analyze(const std::filesystem::path& document_path,
                                    ILLMClient& llm) const;
 
     /**
      * @brief Returns true if the file extension is supported for document analysis.
+     * @param path Document path to inspect.
+     * @return True when the document extension is supported.
      */
     static bool is_supported_document(const std::filesystem::path& path);
     /**
      * @brief Attempts to read a creation date from supported document metadata.
+     * @param path Document path to inspect.
+     * @return Creation date formatted as YYYY-MM when available.
      */
     static std::optional<std::string> extract_creation_date(const std::filesystem::path& path);
 

@@ -6,6 +6,18 @@
 #include <QStandardPaths>
 #include <QStringList>
 
+#if defined(AI_FILE_SORTER_USE_PDFIUM)
+#include "fpdf_doc.h"
+#include "fpdf_text.h"
+#include "fpdfview.h"
+#endif
+#if defined(AI_FILE_SORTER_USE_LIBZIP)
+#include <zip.h>
+#endif
+#if defined(AI_FILE_SORTER_USE_PUGIXML)
+#include <pugixml.hpp>
+#endif
+
 #if __has_include(<jsoncpp/json/json.h>)
 #include <jsoncpp/json/json.h>
 #elif __has_include(<json/json.h>)
@@ -14,9 +26,11 @@
 #error "jsoncpp headers not found. Install jsoncpp development files."
 #endif
 
+#include <array>
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <initializer_list>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -119,6 +133,32 @@ std::string decode_basic_entities(std::string value) {
     return value;
 }
 
+#if defined(AI_FILE_SORTER_USE_PUGIXML)
+void append_node_text(const pugi::xml_node& node, std::string& out) {
+    if (node.type() == pugi::node_pcdata || node.type() == pugi::node_cdata) {
+        out.append(node.value());
+        out.push_back(' ');
+    }
+    for (const auto& child : node.children()) {
+        append_node_text(child, out);
+    }
+}
+#endif
+
+std::string extract_xml_text(const std::string& xml) {
+#if defined(AI_FILE_SORTER_USE_PUGIXML)
+    pugi::xml_document doc;
+    pugi::xml_parse_result result = doc.load_string(xml.c_str(), pugi::parse_default | pugi::parse_ws_pcdata);
+    if (result) {
+        std::string out;
+        out.reserve(xml.size());
+        append_node_text(doc, out);
+        return out;
+    }
+#endif
+    return strip_xml_tags(xml);
+}
+
 std::optional<std::string> run_process(const QString& program,
                                        const QStringList& args,
                                        int timeout_ms) {
@@ -151,6 +191,66 @@ std::optional<QString> find_executable(const QString& name) {
     return exe;
 }
 
+#if defined(AI_FILE_SORTER_USE_LIBZIP)
+std::optional<std::string> extract_zip_member_libzip(const std::filesystem::path& path,
+                                                     std::initializer_list<QString> members) {
+    int error_code = 0;
+    zip_t* archive = zip_open(path.string().c_str(), ZIP_RDONLY, &error_code);
+    if (!archive) {
+        return std::nullopt;
+    }
+    for (const auto& member : members) {
+        const QByteArray member_name = member.toUtf8();
+        zip_file_t* file = zip_fopen(archive, member_name.constData(), 0);
+        if (!file) {
+            continue;
+        }
+        std::string output;
+        output.reserve(kMaxProcessOutput);
+        std::array<char, 4096> buffer{};
+        zip_int64_t read = 0;
+        while ((read = zip_fread(file, buffer.data(), buffer.size())) > 0) {
+            output.append(buffer.data(), static_cast<size_t>(read));
+            if (output.size() >= kMaxProcessOutput) {
+                output.resize(kMaxProcessOutput);
+                break;
+            }
+        }
+        zip_fclose(file);
+        if (!output.empty()) {
+            zip_close(archive);
+            return output;
+        }
+    }
+    zip_close(archive);
+    return std::nullopt;
+}
+#endif
+
+std::optional<std::string> extract_zip_member(const std::filesystem::path& path,
+                                              std::initializer_list<QString> members,
+                                              int timeout_ms)
+{
+#if defined(AI_FILE_SORTER_USE_LIBZIP)
+    if (auto output = extract_zip_member_libzip(path, members)) {
+        return output;
+    }
+#endif
+    const auto unzip = find_executable(QStringLiteral("unzip"));
+    if (!unzip) {
+        return std::nullopt;
+    }
+    const QString file_path = QString::fromStdString(path.string());
+    for (const auto& member : members) {
+        if (auto output = run_process(*unzip, {QStringLiteral("-p"), file_path, member}, timeout_ms)) {
+            if (!output->empty()) {
+                return output;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 std::string read_file_prefix(const std::filesystem::path& path, size_t max_chars) {
     std::ifstream file(path, std::ios::binary);
     if (!file) {
@@ -177,28 +277,21 @@ std::optional<std::string> normalize_date(const std::string& input) {
     std::smatch match;
     static const std::regex kIsoDate(R"((\d{4})-(\d{2})-(\d{2}))");
     if (std::regex_search(input, match, kIsoDate)) {
-        return match.str(1) + "-" + match.str(2) + "-" + match.str(3);
+        return match.str(1) + "-" + match.str(2);
     }
     static const std::regex kPdfDate(R"(D:(\d{4})(\d{2})(\d{2}))");
     if (std::regex_search(input, match, kPdfDate)) {
-        return match.str(1) + "-" + match.str(2) + "-" + match.str(3);
+        return match.str(1) + "-" + match.str(2);
     }
     static const std::regex kCompact(R"(\b(\d{4})(\d{2})(\d{2})\b)");
     if (std::regex_search(input, match, kCompact)) {
-        return match.str(1) + "-" + match.str(2) + "-" + match.str(3);
+        return match.str(1) + "-" + match.str(2);
     }
     return std::nullopt;
 }
 
 std::optional<std::string> extract_docx_date(const std::filesystem::path& path) {
-    const auto unzip = find_executable(QStringLiteral("unzip"));
-    if (!unzip) {
-        return std::nullopt;
-    }
-    const QString file_path = QString::fromStdString(path.string());
-    auto xml = run_process(*unzip,
-                           {QStringLiteral("-p"), file_path, QStringLiteral("docProps/core.xml")},
-                           5000);
+    auto xml = extract_zip_member(path, {QStringLiteral("docProps/core.xml")}, 5000);
     if (!xml) {
         return std::nullopt;
     }
@@ -242,9 +335,68 @@ std::optional<std::string> extract_pdf_date(const std::filesystem::path& path) {
     return std::nullopt;
 }
 
+#if defined(AI_FILE_SORTER_USE_PDFIUM)
+class PdfiumLibraryGuard {
+public:
+    PdfiumLibraryGuard() { FPDF_InitLibrary(); }
+    ~PdfiumLibraryGuard() { FPDF_DestroyLibrary(); }
+};
+
+PdfiumLibraryGuard& pdfium_library() {
+    static PdfiumLibraryGuard guard;
+    return guard;
+}
+
+std::string extract_pdf_text_pdfium(const std::filesystem::path& path, size_t max_chars) {
+    pdfium_library();
+    const std::string pdf_path = path.string();
+    FPDF_DOCUMENT doc = FPDF_LoadDocument(pdf_path.c_str(), nullptr);
+    if (!doc) {
+        return {};
+    }
+    const int page_count = FPDF_GetPageCount(doc);
+    std::string result;
+    for (int i = 0; i < page_count && result.size() < max_chars; ++i) {
+        FPDF_PAGE page = FPDF_LoadPage(doc, i);
+        if (!page) {
+            continue;
+        }
+        FPDF_TEXTPAGE text_page = FPDFText_LoadPage(page);
+        if (!text_page) {
+            FPDF_ClosePage(page);
+            continue;
+        }
+        const int total_chars = FPDFText_CountChars(text_page);
+        const int chunk = 4096;
+        int offset = 0;
+        while (offset < total_chars && result.size() < max_chars) {
+            const int take = std::min(chunk, total_chars - offset);
+            std::vector<unsigned short> buffer(static_cast<size_t>(take + 1));
+            const int extracted = FPDFText_GetText(text_page, offset, take, buffer.data());
+            if (extracted <= 0) {
+                break;
+            }
+            const int count = std::max(0, extracted - 1);
+            QString text = QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer.data()), count);
+            result.append(text.toStdString());
+            if (result.size() >= max_chars) {
+                result.resize(max_chars);
+                break;
+            }
+            offset += take;
+        }
+        FPDFText_ClosePage(text_page);
+        FPDF_ClosePage(page);
+    }
+    FPDF_CloseDocument(doc);
+    return result;
+}
+#endif
+
 const std::unordered_set<std::string> kDocumentExtensions = {
     ".txt", ".md", ".markdown", ".rtf", ".csv", ".tsv", ".log", ".json", ".xml", ".yml", ".yaml",
-    ".ini", ".cfg", ".conf", ".html", ".htm", ".tex", ".rst", ".pdf", ".docx"
+    ".ini", ".cfg", ".conf", ".html", ".htm", ".tex", ".rst", ".pdf", ".docx", ".xlsx", ".pptx",
+    ".odt", ".ods", ".odp"
 };
 
 const std::unordered_set<std::string> kTextExtensions = {
@@ -257,7 +409,8 @@ const std::unordered_set<std::string> kStopwords = {
     "description", "details", "document", "documents", "file", "files", "filename", "for",
     "from", "has", "in", "is", "it", "of", "on", "only", "page", "pages", "pdf", "doc",
     "docx", "rtf", "text", "this", "to", "txt", "with", "report", "notes", "note", "summary",
-    "overview", "information", "data", "untitled"
+    "overview", "information", "data", "untitled", "ppt", "pptx", "xls", "xlsx", "odt", "ods",
+    "odp", "presentation", "slides", "spreadsheet"
 };
 
 struct ParsedAnalysis {
@@ -418,6 +571,11 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
     }
 
     if (ext == ".pdf") {
+#if defined(AI_FILE_SORTER_USE_PDFIUM)
+        if (auto output = extract_pdf_text_pdfium(path, settings_.max_characters); !output.empty()) {
+            return collapse_whitespace(output);
+        }
+#endif
         const auto pdftotext = find_executable(QStringLiteral("pdftotext"));
         if (!pdftotext) {
             return {};
@@ -436,18 +594,59 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
     }
 
     if (ext == ".docx") {
-        const auto unzip = find_executable(QStringLiteral("unzip"));
-        if (!unzip) {
-            return {};
-        }
-        const QString file_path = QString::fromStdString(path.string());
-        auto xml = run_process(*unzip,
-                               {QStringLiteral("-p"), file_path, QStringLiteral("word/document.xml")},
-                               7000);
+        auto xml = extract_zip_member(path, {QStringLiteral("word/document.xml")}, 7000);
         if (!xml) {
             return {};
         }
-        std::string text = strip_xml_tags(*xml);
+        std::string text = extract_xml_text(*xml);
+        text = decode_basic_entities(text);
+        if (text.size() > settings_.max_characters) {
+            text.resize(settings_.max_characters);
+        }
+        return collapse_whitespace(text);
+    }
+
+    if (ext == ".xlsx") {
+        auto xml = extract_zip_member(
+            path,
+            {QStringLiteral("xl/sharedStrings.xml"),
+             QStringLiteral("xl/worksheets/sheet1.xml"),
+             QStringLiteral("xl/worksheets/sheet2.xml")},
+            7000);
+        if (!xml) {
+            return {};
+        }
+        std::string text = extract_xml_text(*xml);
+        text = decode_basic_entities(text);
+        if (text.size() > settings_.max_characters) {
+            text.resize(settings_.max_characters);
+        }
+        return collapse_whitespace(text);
+    }
+
+    if (ext == ".pptx") {
+        auto xml = extract_zip_member(
+            path,
+            {QStringLiteral("ppt/slides/slide1.xml"),
+             QStringLiteral("ppt/slides/slide2.xml")},
+            7000);
+        if (!xml) {
+            return {};
+        }
+        std::string text = extract_xml_text(*xml);
+        text = decode_basic_entities(text);
+        if (text.size() > settings_.max_characters) {
+            text.resize(settings_.max_characters);
+        }
+        return collapse_whitespace(text);
+    }
+
+    if (ext == ".odt" || ext == ".ods" || ext == ".odp") {
+        auto xml = extract_zip_member(path, {QStringLiteral("content.xml")}, 7000);
+        if (!xml) {
+            return {};
+        }
+        std::string text = extract_xml_text(*xml);
         text = decode_basic_entities(text);
         if (text.size() > settings_.max_characters) {
             text.resize(settings_.max_characters);
