@@ -1960,22 +1960,127 @@ void CategorizationDialog::on_rename_documents_only_toggled(bool checked)
 void CategorizationDialog::apply_subcategory_visibility()
 {
     if (table_view) {
-        const bool hide_subcategory = !show_subcategory_column ||
-                                      (rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) ||
-                                      (rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked());
+        const bool rename_images_active = rename_images_only_checkbox && rename_images_only_checkbox->isChecked();
+        const bool rename_documents_active = rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked();
+        auto should_hide_row = [&](int row) {
+            if (rename_images_active && row_is_supported_image(row)) {
+                return true;
+            }
+            if (rename_documents_active && row_is_supported_document(row)) {
+                return true;
+            }
+            return false;
+        };
+        auto should_show_category_column = [&]() {
+            if (!rename_images_active && !rename_documents_active) {
+                return true;
+            }
+            if (!model) {
+                return true;
+            }
+            for (int row = 0; row < model->rowCount(); ++row) {
+                if (should_hide_row(row)) {
+                    continue;
+                }
+                auto* item = model->item(row, ColumnCategory);
+                if (item && !item->text().trimmed().isEmpty()) {
+                    return true;
+                }
+                if (item && item->data(kHiddenCategoryRole).isValid() &&
+                    !item->data(kHiddenCategoryRole).toString().trimmed().isEmpty()) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        const bool show_category_column = should_show_category_column();
+        const bool hide_subcategory = !show_subcategory_column || !show_category_column;
         table_view->setColumnHidden(ColumnSubcategory, hide_subcategory);
         table_view->setColumnHidden(ColumnPreview, false);
+        if (model) {
+            auto update_item = [](QStandardItem* item, int role, bool hide) {
+                if (!item) {
+                    return;
+                }
+                if (hide) {
+                    if (!item->data(role).isValid() && !item->text().trimmed().isEmpty()) {
+                        item->setData(item->text(), role);
+                    }
+                    item->setText(QString());
+                } else if (item->data(role).isValid()) {
+                    item->setText(item->data(role).toString());
+                    item->setData(QVariant(), role);
+                }
+            };
+            for (int row = 0; row < model->rowCount(); ++row) {
+                const bool hide_row = show_subcategory_column && show_category_column &&
+                                      (rename_images_active || rename_documents_active) &&
+                                      should_hide_row(row);
+                update_item(model->item(row, ColumnSubcategory), kHiddenSubcategoryRole, hide_row);
+            }
+        }
     }
 }
 
 void CategorizationDialog::apply_category_visibility()
 {
     if (table_view) {
-        const bool hide_category = (rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) ||
-                                   (rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked());
-        table_view->setColumnHidden(ColumnCategory, hide_category);
+        const bool rename_images_active = rename_images_only_checkbox && rename_images_only_checkbox->isChecked();
+        const bool rename_documents_active = rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked();
+        auto should_hide_row = [&](int row) {
+            if (rename_images_active && row_is_supported_image(row)) {
+                return true;
+            }
+            if (rename_documents_active && row_is_supported_document(row)) {
+                return true;
+            }
+            return false;
+        };
+        bool show_category_column = true;
+        if ((rename_images_active || rename_documents_active) && model) {
+            show_category_column = false;
+            for (int row = 0; row < model->rowCount(); ++row) {
+                if (should_hide_row(row)) {
+                    continue;
+                }
+                auto* item = model->item(row, ColumnCategory);
+                if (item && !item->text().trimmed().isEmpty()) {
+                    show_category_column = true;
+                    break;
+                }
+                if (item && item->data(kHiddenCategoryRole).isValid() &&
+                    !item->data(kHiddenCategoryRole).toString().trimmed().isEmpty()) {
+                    show_category_column = true;
+                    break;
+                }
+            }
+        }
+        table_view->setColumnHidden(ColumnCategory, !show_category_column);
         if (bulk_edit_button) {
-            bulk_edit_button->setEnabled(!hide_category);
+            bulk_edit_button->setEnabled(show_category_column);
+        }
+        if (model) {
+            auto update_item = [](QStandardItem* item, int role, bool hide) {
+                if (!item) {
+                    return;
+                }
+                if (hide) {
+                    if (!item->data(role).isValid() && !item->text().trimmed().isEmpty()) {
+                        item->setData(item->text(), role);
+                    }
+                    item->setText(QString());
+                } else if (item->data(role).isValid()) {
+                    item->setText(item->data(role).toString());
+                    item->setData(QVariant(), role);
+                }
+            };
+            for (int row = 0; row < model->rowCount(); ++row) {
+                const bool hide_row = show_category_column &&
+                                      (rename_images_active || rename_documents_active) &&
+                                      should_hide_row(row);
+                update_item(model->item(row, ColumnCategory), kHiddenCategoryRole, hide_row);
+            }
         }
     }
 }

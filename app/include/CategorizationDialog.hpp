@@ -63,6 +63,8 @@ private:
     static constexpr int kFileTypeRole = Qt::UserRole + 4;
     static constexpr int kRenameAppliedRole = Qt::UserRole + 5;
     static constexpr int kRenameLockedRole = Qt::UserRole + 6;
+    static constexpr int kHiddenCategoryRole = Qt::UserRole + 7;
+    static constexpr int kHiddenSubcategoryRole = Qt::UserRole + 8;
 
     enum Column {
         ColumnSelect = 0,
@@ -158,21 +160,39 @@ private:
     void set_show_rename_column(bool enabled);
     void apply_rename_visibility();
     void apply_category_visibility();
+    /**
+     * @brief Hides rows that are rename-only when required by the dialog mode.
+     */
     void apply_rename_only_row_visibility();
+    /**
+     * @brief Syncs the rename-only checkbox state to current UI options.
+     */
     void update_rename_only_checkbox_state();
     /**
      * @brief Enables/disables the subcategory checkbox based on rename-only mode.
      */
     void update_subcategory_checkbox_state();
+    /**
+     * @brief Marks image rows as rename-only when toggled.
+     * @param checked True when image rename-only is enabled.
+     */
     void on_rename_images_only_toggled(bool checked);
     /**
      * @brief Marks document rows as rename-only when toggled.
+     * @param checked True when document rename-only is enabled.
      */
     void on_rename_documents_only_toggled(bool checked);
     bool row_is_already_renamed_with_category(int row) const;
+    /**
+     * @brief Returns true if the row points to a supported image file.
+     * @param row Row index in the model.
+     * @return True when the row is an image file supported by the visual analyzer.
+     */
     bool row_is_supported_image(int row) const;
     /**
      * @brief Returns true if the row points to a supported document file.
+     * @param row Row index in the model.
+     * @return True when the row is a supported document file.
      */
     bool row_is_supported_document(int row) const;
     /**
