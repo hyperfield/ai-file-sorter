@@ -62,6 +62,9 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
   - [Image analysis (Visual LLM)](#image-analysis-visual-llm)
     - [Required visual LLM files](#required-visual-llm-files)
     - [Main window options](#main-window-options)
+  - [Document analysis (Text LLM)](#document-analysis-text-llm)
+    - [Supported document formats](#supported-document-formats)
+    - [Main window options (documents)](#main-window-options-documents)
   - [Requirements](#requirements)
   - [Installation](#installation)
     - [Linux](#linux)
@@ -109,6 +112,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
+- **Document content analysis (Text LLM)**: Analyze supported document files to summarize content and suggest filenames; uses the same selected LLM (local or remote).
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Interface languages**: English, Dutch, French, German, Italian, Korean, Spanish, and Turkish.
@@ -163,12 +167,36 @@ Image analysis adds four checkboxes to the main window:
 
 ---
 
+## Document analysis (Text LLM)
+
+Document analysis uses the same selected LLM (local or remote) to extract text from supported document files, summarize content, and optionally suggest a better filename. No extra model downloads are required.
+
+### Supported document formats
+
+- Plain text: `.txt`, `.md`, `.rtf`, `.csv`, `.tsv`, `.json`, `.xml`, `.yml`/`.yaml`, `.ini`/`.cfg`/`.conf`, `.log`, `.html`/`.htm`, `.tex`, `.rst`
+- PDF: `.pdf` (embedded PDFium in bundled builds; CLI fallback uses `pdftotext` if you build without vendored libs)
+- Office/OpenOffice: `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` (embedded libzip+pugixml in bundled builds; CLI fallback uses `unzip` if you build without vendored libs)
+- Legacy binary formats like `.doc`, `.xls`, `.ppt` are not currently supported.
+
+Source builds: run `app/scripts/vendor_doc_deps.sh` (or `app\\scripts\\vendor_doc_deps.ps1` on Windows) to populate `external/` and enable the embedded extractors.
+
+### Main window options (documents)
+
+- **Analyze document files by content**: Extracts document text and feeds it into the LLM for summary + rename suggestion.
+- **Process document files only (ignore any other files)**: Restricts the run to supported document files and disables the categorization controls while active.
+- **Offer to rename document files**: Shows a **Suggested filename** column in the Review dialog with the LLM proposal. You can edit it before confirming.
+- **Do not categorize document files (only rename)**: Skips text categorization for documents and keeps them in place while applying (optional) renames.
+- **Add document creation date (if available) to category name**: Appends `YYYY-MM` from metadata when available. Disabled when rename-only is enabled.
+
+---
+
 ## Requirements
 
 - **Operating System**: Linux or macOS for source builds (Windows builds are provided as binaries; native Qt/MSVC build instructions are planned).
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. For source builds, run `app/scripts/vendor_doc_deps.sh` (or `app\\scripts\\vendor_doc_deps.ps1` on Windows) to populate `external/` and enable embedded extraction.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **OpenAI or Gemini API key** (optional): Required only when using the remote ChatGPT or Gemini workflow.
@@ -239,7 +267,15 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    > **Submodule tip:** If you previously downloaded `llama.cpp` or Catch2 manually, remove or rename `app/include/external/llama.cpp` and `external/Catch2` before running the `git submodule` command. Git needs those directories to be empty so it can populate them with the tracked submodules.
 
-3. **Build the llama runtime variants** (run once per backend you plan to ship/test)
+3. **Populate vendored document deps** (recommended for embedded extraction)
+
+   ```bash
+   ./app/scripts/vendor_doc_deps.sh
+   ```
+
+   This fills `external/` with PDFium + libzip + pugixml. If you skip this step, the app falls back to CLI tools (`pdftotext`, `unzip`) for document extraction instead of the embedded libraries.
+
+4. **Build the llama runtime variants** (run once per backend you plan to ship/test)
 
    ```bash
    # CPU / OpenBLAS
@@ -252,7 +288,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick Vulkan when available, then CUDA, and otherwise stay on CPU—no CUDA-only dependency remains.
 
-4. **Compile the application**
+5. **Compile the application**
 
    ```bash
    cd app
@@ -261,7 +297,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    The binary is produced at `app/bin/aifilesorter`.
 
-5. **Install system-wide (optional)**
+6. **Install system-wide (optional)**
 
    ```bash
    sudo make install
@@ -287,7 +323,15 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 4. **Clone the repository and submodules** (same commands as Linux).
    > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=11.0` so the Mach-O `LC_BUILD_VERSION` covers Apple Silicon and newer releases (including Sequoia). Raise or lower it (e.g., `export MACOSX_DEPLOYMENT_TARGET=15.0`) if you need a different floor.
 
-5. **Build the llama runtime (Metal-only on macOS)**
+5. **Populate vendored document deps** (recommended for embedded extraction)
+
+   ```bash
+   ./app/scripts/vendor_doc_deps.sh
+   ```
+
+   This fills `external/` with PDFium + libzip + pugixml. If you skip this step, the app falls back to CLI tools (`pdftotext`, `unzip`) for document extraction instead of the embedded libraries.
+
+6. **Build the llama runtime (Metal-only on macOS)**
 
    ```bash
    ./app/scripts/build_llama_macos.sh
@@ -295,7 +339,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    The macOS helper already produces the Metal-enabled variant the app needs, so no extra GPU-specific invocations are required on this platform.
 
-6. **Compile the application**
+7. **Compile the application**
 
    ```bash
    cd app
@@ -334,7 +378,22 @@ Option A - CMake + vcpkg (recommended)
    git submodule update --init --recursive
    ```
 
-3. Determine your vcpkg root. It is the folder that contains `vcpkg.exe` (for example `C:\dev\vcpkg`).
+3. **Populate vendored document deps** (recommended for embedded extraction)
+
+   The vendored extractor deps live under `external/`. If they are not already committed in your checkout, run:
+
+   - From PowerShell:
+     ```powershell
+     app\scripts\vendor_doc_deps.ps1
+     ```
+   - Or from Git Bash / WSL:
+     ```bash
+     ./app/scripts/vendor_doc_deps.sh
+     ```
+
+   If you skip this step, document extraction will rely on `pdftotext` and `unzip` instead of the embedded libraries.
+
+4. Determine your vcpkg root. It is the folder that contains `vcpkg.exe` (for example `C:\dev\vcpkg`).
     - If `vcpkg` is on your `PATH`, run this command to print the location:
 
       ```powershell
@@ -342,7 +401,7 @@ Option A - CMake + vcpkg (recommended)
       ```
 
     - Otherwise use the directory where you cloned vcpkg.
-4. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
+5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
 
    ```powershell
    # CPU / OpenBLAS only
@@ -355,7 +414,7 @@ Option A - CMake + vcpkg (recommended)
   
   Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan>` and copies the runtime DLLs into `app\lib\ggml\w<variant>`. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. Supplying both Vulkan and (optionally) CUDA artifacts lets `StartAiFileSorter.exe` detect the best backend at launch—Vulkan is preferred, CUDA is used when Vulkan is missing, and CPU remains the fallback, so CUDA is not required.
 
-5. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
+6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
 
    ```powershell
    # One-time per shell if script execution is blocked:
@@ -377,14 +436,29 @@ Option B - CMake + Qt online installer
    - Qt 6.x MSVC kit via Qt Online Installer (e.g., Qt 6.6+ with MSVC 2019/2022)
    - CMake 3.21+
    - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext
-2. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
+2. **Populate vendored document deps** (recommended for embedded extraction)
+
+   The vendored extractor deps live under `external/`. If they are not already committed in your checkout, run:
+
+   - From PowerShell:
+     ```powershell
+     app\scripts\vendor_doc_deps.ps1
+     ```
+   - Or from Git Bash / WSL:
+     ```bash
+     ./app/scripts/vendor_doc_deps.sh
+     ```
+
+   If you skip this step, document extraction will rely on `pdftotext` and `unzip` instead of the embedded libraries.
+
+3. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
 
    ```powershell
    pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [vcpkgroot=C:\dev\vcpkg]
    ```
 
    This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
-3. Configure CMake to see Qt (adapt `CMAKE_PREFIX_PATH` to your Qt install):
+4. Configure CMake to see Qt (adapt `CMAKE_PREFIX_PATH` to your Qt install):
 
     ```powershell
     $env:VCPKG_ROOT = "C:\path\to\vcpkg" (e.g., `C:\dev\vcpkg`)
@@ -481,8 +555,8 @@ What is stored:
 
 - Directory path, file name, and file type (used as a unique key).
 - Category/subcategory, taxonomy id, categorization style, and timestamp.
-- Suggested filename (for picture rename suggestions).
-- Rename-only flag (used when "Do not categorize picture files (only rename)" is enabled).
+- Suggested filename (for picture and document rename suggestions).
+- Rename-only flag (used when picture/document rename-only modes are enabled).
 - Rename-applied flag (marks when a rename was executed so it is not offered again).
 
 If you rename or move a file from the Review dialog, the cache entry is updated to the new name. Already-renamed picture files are skipped for visual analysis and rename suggestions on later runs. In the Review dialog, those already-renamed rows are hidden when rename-only is enabled, but they stay visible when categorization is enabled so you can still move them into category folders. To reset a folder's cache, accept the recategorization prompt or delete the cache file (or point `CATEGORIZATION_CACHE_FILE` to a new filename).

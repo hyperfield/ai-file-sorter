@@ -257,6 +257,13 @@ if (-not $outputExe) {
 Write-Output "`nBuild complete. Executable located at: $outputExe"
 
 $outputDir = Split-Path -Parent $outputExe
+$pdfiumDll = Join-Path $appDir "..\\external\\pdfium\\windows-x64\\bin\\pdfium.dll"
+$pdfiumDllPath = Resolve-Path -Path $pdfiumDll -ErrorAction SilentlyContinue
+if ($pdfiumDllPath) {
+    Copy-Item $pdfiumDllPath.Path -Destination $outputDir -Force
+} else {
+    Write-Warning "PDFium DLL not found under external/pdfium/windows-x64/bin. Run app\\scripts\\vendor_doc_deps.ps1 (or app/scripts/vendor_doc_deps.sh) to populate it."
+}
 $precompiledCpuBin = Join-Path $appDir "lib/precompiled/cpu/bin"
 $precompiledCudaBin = Join-Path $appDir "lib/precompiled/cuda/bin"
 $precompiledVulkanBin = Join-Path $appDir "lib/precompiled/vulkan/bin"
