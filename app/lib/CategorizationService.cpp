@@ -27,11 +27,7 @@ constexpr const char* kCustomTimeoutEnv = "AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT";
 constexpr size_t kMaxConsistencyHints = 5;
 constexpr size_t kMaxLabelLength = 80;
 
-/**
- * @brief Splits a "Category : Subcategory" string and sanitizes the labels.
- * @param input Combined category/subcategory string.
- * @return Pair of sanitized category and subcategory (subcategory may be empty).
- */
+// Splits a "Category : Subcategory" string and sanitizes the labels.
 std::pair<std::string, std::string> split_category_subcategory(const std::string& input) {
     const std::string delimiter = " : ";
 
@@ -45,11 +41,7 @@ std::pair<std::string, std::string> split_category_subcategory(const std::string
     return {Utils::sanitize_path_label(category), Utils::sanitize_path_label(subcategory)};
 }
 
-/**
- * @brief Returns a lowercase copy of the input string.
- * @param value Input string to transform.
- * @return Lowercase copy of the input.
- */
+// Returns a lowercase copy of the input string.
 std::string to_lower_copy_str(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
@@ -57,11 +49,7 @@ std::string to_lower_copy_str(std::string value) {
     return value;
 }
 
-/**
- * @brief Returns true when the label contains only allowed characters.
- * @param value Label to validate.
- * @return True if the label contains no disallowed characters.
- */
+// Returns true when the label contains only allowed characters.
 bool contains_only_allowed_chars(const std::string& value) {
     for (unsigned char ch : value) {
         if (std::iscntrl(ch)) {
@@ -76,11 +64,7 @@ bool contains_only_allowed_chars(const std::string& value) {
     return true;
 }
 
-/**
- * @brief Returns true when the label has leading/trailing whitespace.
- * @param value Label to inspect.
- * @return True if leading or trailing whitespace is present.
- */
+// Returns true when the label has leading/trailing whitespace.
 bool has_leading_or_trailing_space_or_dot(const std::string& value) {
     if (value.empty()) {
         return false;
@@ -91,11 +75,7 @@ bool has_leading_or_trailing_space_or_dot(const std::string& value) {
     return std::isspace(first) || std::isspace(last);
 }
 
-/**
- * @brief Returns true when the label matches a reserved Windows device name.
- * @param value Label to inspect.
- * @return True if the label is a reserved device name on Windows.
- */
+// Returns true when the label matches a reserved Windows device name.
 bool is_reserved_windows_name(const std::string& value) {
     static const std::vector<std::string> reserved = {
         "con","prn","aux","nul",
@@ -106,11 +86,7 @@ bool is_reserved_windows_name(const std::string& value) {
     return std::find(reserved.begin(), reserved.end(), lower) != reserved.end();
 }
 
-/**
- * @brief Returns true when the label looks like a file extension.
- * @param value Label to inspect.
- * @return True if the label resembles a file extension.
- */
+// Returns true when the label looks like a file extension.
 bool looks_like_extension_label(const std::string& value) {
     const auto dot_pos = value.rfind('.');
     if (dot_pos == std::string::npos || dot_pos == value.size() - 1) {
@@ -123,20 +99,13 @@ bool looks_like_extension_label(const std::string& value) {
     return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) { return std::isalpha(ch); });
 }
 
-/**
- * @brief Result for category/subcategory validation.
- */
+// Result for category/subcategory validation.
 struct LabelValidationResult {
     bool valid{false};
     std::string error;
 };
 
-/**
- * @brief Validates category/subcategory labels for length and invalid content.
- * @param category Category label.
- * @param subcategory Subcategory label.
- * @return Validation result with an error message on failure.
- */
+// Validates category/subcategory labels for length and invalid content.
 LabelValidationResult validate_labels(const std::string& category, const std::string& subcategory) {
     if (category.empty() || subcategory.empty()) {
         return {false, "Category or subcategory is empty"};
@@ -309,12 +278,7 @@ std::string CategorizationService::build_category_language_context() const
 }
 
 namespace {
-/**
- * @brief Returns true when the value appears in the allowed list (case-insensitive).
- * @param value Value to check.
- * @param allowed List of allowed values.
- * @return True when the value is permitted.
- */
+// Returns true when the value appears in the allowed list (case-insensitive).
 bool is_allowed(const std::string& value, const std::vector<std::string>& allowed) {
     if (allowed.empty()) {
         return true;
@@ -328,11 +292,7 @@ bool is_allowed(const std::string& value, const std::vector<std::string>& allowe
     return false;
 }
 
-/**
- * @brief Returns the first allowed entry or an empty string when the list is empty.
- * @param allowed List of allowed values.
- * @return First allowed value or empty string.
- */
+// Returns the first allowed entry or an empty string when the list is empty.
 std::string first_allowed_or_blank(const std::vector<std::string>& allowed) {
     return allowed.empty() ? std::string() : allowed.front();
 }

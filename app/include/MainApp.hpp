@@ -114,10 +114,26 @@ private:
     void ensure_one_checkbox_active(QCheckBox* changed_checkbox);
     void update_file_scan_option(FileScanOptions option, bool enabled);
     bool visual_llm_files_available() const;
+    /**
+     * @brief Enables/disables image analysis-related UI controls based on settings/state.
+     */
     void update_image_analysis_controls();
+    /**
+     * @brief Updates the "process images only" toggle behavior and dependent controls.
+     */
     void update_image_only_controls();
+    /**
+     * @brief Enables/disables document analysis-related UI controls based on settings/state.
+     */
     void update_document_analysis_controls();
+    /**
+     * @brief Handles the main image-analysis checkbox toggling.
+     * @param checked True when image analysis is enabled.
+     */
     void handle_image_analysis_toggle(bool checked);
+    /**
+     * @brief Opens the LLM selection dialog focused on visual model downloads.
+     */
     void run_llm_selection_dialog_for_visual();
     void update_analyze_button_state(bool analyzing);
     void update_results_view_mode();

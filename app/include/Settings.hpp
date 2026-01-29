@@ -75,23 +75,95 @@ public:
     bool get_categorize_directories() const;
     void set_categorize_directories(bool value);
 
+    /**
+     * @brief Returns whether image content analysis is enabled.
+     * @return True when image analysis is enabled.
+     */
     bool get_analyze_images_by_content() const;
+    /**
+     * @brief Enables or disables image content analysis.
+     * @param value True to enable image analysis.
+     */
     void set_analyze_images_by_content(bool value);
+    /**
+     * @brief Returns whether image rename suggestions are enabled.
+     * @return True when image rename suggestions are enabled.
+     */
     bool get_offer_rename_images() const;
+    /**
+     * @brief Enables or disables image rename suggestions.
+     * @param value True to enable image rename suggestions.
+     */
     void set_offer_rename_images(bool value);
+    /**
+     * @brief Returns whether image files are treated as rename-only.
+     * @return True when image files are in rename-only mode.
+     */
     bool get_rename_images_only() const;
+    /**
+     * @brief Enables or disables rename-only mode for images.
+     * @param value True to enable rename-only mode for images.
+     */
     void set_rename_images_only(bool value);
+    /**
+     * @brief Returns whether only image files are processed.
+     * @return True when only image files are processed.
+     */
     bool get_process_images_only() const;
+    /**
+     * @brief Enables or disables image-only processing.
+     * @param value True to enable image-only processing.
+     */
     void set_process_images_only(bool value);
+    /**
+     * @brief Returns whether document content analysis is enabled.
+     * @return True when document analysis is enabled.
+     */
     bool get_analyze_documents_by_content() const;
+    /**
+     * @brief Enables or disables document content analysis.
+     * @param value True to enable document analysis.
+     */
     void set_analyze_documents_by_content(bool value);
+    /**
+     * @brief Returns whether document rename suggestions are enabled.
+     * @return True when document rename suggestions are enabled.
+     */
     bool get_offer_rename_documents() const;
+    /**
+     * @brief Enables or disables document rename suggestions.
+     * @param value True to enable document rename suggestions.
+     */
     void set_offer_rename_documents(bool value);
+    /**
+     * @brief Returns whether document files are treated as rename-only.
+     * @return True when document files are in rename-only mode.
+     */
     bool get_rename_documents_only() const;
+    /**
+     * @brief Enables or disables rename-only mode for documents.
+     * @param value True to enable rename-only mode for documents.
+     */
     void set_rename_documents_only(bool value);
+    /**
+     * @brief Returns whether only document files are processed.
+     * @return True when only document files are processed.
+     */
     bool get_process_documents_only() const;
+    /**
+     * @brief Enables or disables document-only processing.
+     * @param value True to enable document-only processing.
+     */
     void set_process_documents_only(bool value);
+    /**
+     * @brief Returns whether to append a document creation date to category names.
+     * @return True when document creation dates should be appended to categories.
+     */
     bool get_add_document_date_to_category() const;
+    /**
+     * @brief Enables or disables appending document creation dates to category names.
+     * @param value True to append document creation dates to categories.
+     */
     void set_add_document_date_to_category(bool value);
 
     std::string get_sort_folder() const;

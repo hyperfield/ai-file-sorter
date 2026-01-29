@@ -98,9 +98,7 @@ bool is_missing_category_label(const std::string& value) {
     return to_lower_copy_str(trimmed) == "uncategorized";
 }
 
-/**
- * @brief Dialog for bulk editing category and subcategory values.
- */
+// Dialog for bulk editing category and subcategory values.
 class BulkEditDialog final : public QDialog {
 public:
     explicit BulkEditDialog(bool allow_subcategory, QWidget* parent = nullptr)

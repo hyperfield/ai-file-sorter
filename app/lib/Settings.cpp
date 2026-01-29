@@ -209,9 +209,9 @@ Settings::Settings()
     language = system_default_language();
     category_language = CategoryLanguage::English;
     analyze_images_by_content = false;
-    offer_rename_images = false;
+    offer_rename_images = true;
     analyze_documents_by_content = false;
-    offer_rename_documents = false;
+    offer_rename_documents = true;
     rename_documents_only = false;
     process_documents_only = false;
     add_document_date_to_category = false;
@@ -243,11 +243,11 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
     analyze_images_by_content = load_bool("AnalyzeImagesByContent", false);
-    offer_rename_images = load_bool("OfferRenameImages", analyze_images_by_content);
+    offer_rename_images = load_bool("OfferRenameImages", true);
     rename_images_only = load_bool("RenameImagesOnly", false);
     process_images_only = load_bool("ProcessImagesOnly", false);
     analyze_documents_by_content = load_bool("AnalyzeDocumentsByContent", false);
-    offer_rename_documents = load_bool("OfferRenameDocuments", analyze_documents_by_content);
+    offer_rename_documents = load_bool("OfferRenameDocuments", true);
     rename_documents_only = load_bool("RenameDocumentsOnly", false);
     process_documents_only = load_bool("ProcessDocumentsOnly", false);
     add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
