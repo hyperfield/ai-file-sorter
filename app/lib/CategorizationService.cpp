@@ -341,10 +341,11 @@ std::string first_allowed_or_blank(const std::vector<std::string>& allowed) {
 std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cached_categorization(
     const std::string& item_name,
     const std::string& item_path,
+    const std::string& dir_path,
     FileType file_type,
     const ProgressCallback& progress_callback) const
 {
-    const auto cached = db_manager.get_categorization_from_db(item_name, file_type);
+    const auto cached = db_manager.get_categorization_from_db(dir_path, item_name, file_type);
     if (cached.size() < 2) {
         return std::nullopt;
     }
@@ -499,13 +500,18 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     bool is_local_llm,
     const std::string& display_name,
     const std::string& display_path,
+    const std::string& dir_path,
     const std::string& prompt_name,
     const std::string& prompt_path,
     FileType file_type,
     const ProgressCallback& progress_callback,
     const std::string& consistency_context) const
 {
-    if (auto cached = try_cached_categorization(display_name, display_path, file_type, progress_callback)) {
+    if (auto cached = try_cached_categorization(display_name,
+                                                display_path,
+                                                dir_path,
+                                                file_type,
+                                                progress_callback)) {
         return *cached;
     }
 
@@ -561,6 +567,7 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
                                                      is_local_llm,
                                                      entry,
                                                      display_path,
+                                                     dir_path,
                                                      prompt_name,
                                                      prompt_path_display,
                                                      progress_callback,
@@ -649,6 +656,7 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
     bool is_local_llm,
     const FileEntry& entry,
     const std::string& display_path,
+    const std::string& dir_path,
     const std::string& prompt_name,
     const std::string& prompt_path,
     const ProgressCallback& progress_callback,
@@ -658,6 +666,7 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
                                  is_local_llm,
                                  entry.file_name,
                                  display_path,
+                                 dir_path,
                                  prompt_name,
                                  prompt_path,
                                  entry.type,

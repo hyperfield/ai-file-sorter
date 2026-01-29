@@ -79,11 +79,11 @@ int main() {
         fail("Subsequent cleanup should find no additional entries");
     }
 
-    auto empty_lookup = manager.get_categorization_from_db("empty.txt", FileType::File);
+    auto empty_lookup = manager.get_categorization_from_db(test_dir, "empty.txt", FileType::File);
     if (!empty_lookup.empty()) {
         fail("Empty entry still present after cleanup");
     }
-    auto whitespace_lookup = manager.get_categorization_from_db("space.txt", FileType::File);
+    auto whitespace_lookup = manager.get_categorization_from_db(test_dir, "space.txt", FileType::File);
     if (!whitespace_lookup.empty()) {
         fail("Whitespace entry still present after cleanup");
     }

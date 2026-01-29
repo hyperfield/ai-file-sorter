@@ -102,6 +102,7 @@ private:
      * @param is_local_llm True when using a local LLM backend.
      * @param display_name Display name for logging.
      * @param display_path Display path for logging.
+     * @param dir_path Full directory path for cache lookup.
      * @param prompt_name Name used in the prompt.
      * @param prompt_path Path used in the prompt.
      * @param file_type File or directory.
@@ -114,6 +115,7 @@ private:
         bool is_local_llm,
         const std::string& display_name,
         const std::string& display_path,
+        const std::string& dir_path,
         const std::string& prompt_name,
         const std::string& prompt_path,
         FileType file_type,
@@ -156,6 +158,7 @@ private:
      * @param is_local_llm True when using a local LLM backend.
      * @param entry File entry to categorize.
      * @param display_path Display path for logging.
+     * @param dir_path Full directory path for cache lookup.
      * @param prompt_name Name used in the prompt.
      * @param prompt_path Path used in the prompt.
      * @param progress_callback Progress updates callback.
@@ -167,6 +170,7 @@ private:
         bool is_local_llm,
         const FileEntry& entry,
         const std::string& display_path,
+        const std::string& dir_path,
         const std::string& prompt_name,
         const std::string& prompt_path,
         const ProgressCallback& progress_callback,
@@ -271,6 +275,7 @@ private:
      * @brief Returns a cached categorization if it is valid for the entry.
      * @param item_name Display name for the item.
      * @param item_path Display path for the item.
+     * @param dir_path Full directory path for cache lookup.
      * @param file_type File or directory.
      * @param progress_callback Progress updates callback.
      * @return Resolved category when cache is valid.
@@ -278,6 +283,7 @@ private:
     std::optional<DatabaseManager::ResolvedCategory> try_cached_categorization(
         const std::string& item_name,
         const std::string& item_path,
+        const std::string& dir_path,
         FileType file_type,
         const ProgressCallback& progress_callback) const;
 

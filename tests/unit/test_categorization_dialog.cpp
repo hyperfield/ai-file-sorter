@@ -219,7 +219,7 @@ TEST_CASE("CategorizationDialog rename-only updates cached filename") {
     REQUIRE_FALSE(std::filesystem::exists(source));
     REQUIRE(std::filesystem::exists(destination));
 
-    const auto old_cache = db.get_categorization_from_db(file_name, FileType::File);
+    const auto old_cache = db.get_categorization_from_db(base.string(), file_name, FileType::File);
     REQUIRE(old_cache.empty());
 
     const auto cached = db.get_categorized_files(base.string());

@@ -43,8 +43,17 @@ public:
                                                         const std::string& file_name,
                                                         FileType file_type);
 
+    /**
+     * @brief Looks up a cached category/subcategory for a specific directory+file.
+     * @param dir_path Directory path used for cache scoping.
+     * @param file_name File name to resolve.
+     * @param file_type File or directory.
+     * @return Pair of category/subcategory strings when present; empty when not found.
+     */
     std::vector<std::string>
-        get_categorization_from_db(const std::string& file_name, const FileType file_type);
+        get_categorization_from_db(const std::string& dir_path,
+                                   const std::string& file_name,
+                                   FileType file_type);
     void increment_taxonomy_frequency(int taxonomy_id);
     std::vector<std::pair<std::string, std::string>>
         get_taxonomy_snapshot(std::size_t max_entries) const;

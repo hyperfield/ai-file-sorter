@@ -980,25 +980,32 @@ DatabaseManager::get_categorized_file(const std::string& dir_path,
 }
 
 std::vector<std::string>
-DatabaseManager::get_categorization_from_db(const std::string &file_name, const FileType file_type) {
+DatabaseManager::get_categorization_from_db(const std::string& dir_path,
+                                            const std::string& file_name,
+                                            FileType file_type) {
     std::vector<std::string> categorization;
     if (!db) return categorization;
 
     const char *sql =
-        "SELECT category, subcategory FROM file_categorization WHERE file_name = ? AND file_type = ?;";
+        "SELECT category, subcategory FROM file_categorization "
+        "WHERE dir_path = ? AND file_name = ? AND file_type = ?;";
     sqlite3_stmt *stmtcat = nullptr;
 
     if (sqlite3_prepare_v2(db, sql, -1, &stmtcat, nullptr) != SQLITE_OK) {
         return categorization;
     }
 
-    if (sqlite3_bind_text(stmtcat, 1, file_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+    if (sqlite3_bind_text(stmtcat, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
         sqlite3_finalize(stmtcat);
         return categorization;
     }
 
     std::string file_type_str = (file_type == FileType::File) ? "F" : "D";
-    if (sqlite3_bind_text(stmtcat, 2, file_type_str.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+    if (sqlite3_bind_text(stmtcat, 2, file_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+        sqlite3_finalize(stmtcat);
+        return categorization;
+    }
+    if (sqlite3_bind_text(stmtcat, 3, file_type_str.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
         sqlite3_finalize(stmtcat);
         return categorization;
     }
