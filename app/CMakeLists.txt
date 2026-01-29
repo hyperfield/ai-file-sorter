@@ -43,6 +43,70 @@ find_package(fmt REQUIRED CONFIG)
 find_package(spdlog REQUIRED CONFIG)
 find_package(Intl REQUIRED) # libintl/gettext
 
+# Vendored document analysis deps
+set(EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../external")
+set(PUGIXML_DIR "${EXTERNAL_DIR}/pugixml")
+set(LIBZIP_DIR "${EXTERNAL_DIR}/libzip")
+set(PDFIUM_DIR "${EXTERNAL_DIR}/pdfium")
+set(DOC_DEPS_INCLUDE_DIRS "")
+set(DOC_DEPS_LIBS "")
+
+# Pugixml (compiled via PugixmlBundle.cpp)
+if(EXISTS "${PUGIXML_DIR}/src/pugixml.hpp")
+    list(APPEND DOC_DEPS_INCLUDE_DIRS "${PUGIXML_DIR}/src")
+    add_compile_definitions(PUGIXML_NO_EXCEPTIONS AI_FILE_SORTER_USE_PUGIXML)
+endif()
+
+# libzip (build from vendored source)
+if(EXISTS "${LIBZIP_DIR}/CMakeLists.txt")
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(ENABLE_BZIP2 OFF CACHE BOOL "" FORCE)
+    set(ENABLE_LZMA OFF CACHE BOOL "" FORCE)
+    set(ENABLE_ZSTD OFF CACHE BOOL "" FORCE)
+    set(ENABLE_OPENSSL OFF CACHE BOOL "" FORCE)
+    set(ENABLE_GNUTLS OFF CACHE BOOL "" FORCE)
+    set(ENABLE_MBEDTLS OFF CACHE BOOL "" FORCE)
+    set(ENABLE_COMMONCRYPTO OFF CACHE BOOL "" FORCE)
+    set(ENABLE_WINDOWS_CRYPTO OFF CACHE BOOL "" FORCE)
+    add_subdirectory("${LIBZIP_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/libzip")
+    if(TARGET libzip::zip)
+        add_compile_definitions(AI_FILE_SORTER_USE_LIBZIP)
+        list(APPEND DOC_DEPS_INCLUDE_DIRS "${LIBZIP_DIR}/lib" "${CMAKE_CURRENT_BINARY_DIR}/libzip")
+        list(APPEND DOC_DEPS_LIBS libzip::zip)
+    endif()
+endif()
+
+if(WIN32)
+    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/windows-x64")
+    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/pdfium.dll.lib")
+    set(PDFIUM_RUNTIME "${PDFIUM_PLATFORM_DIR}/bin/pdfium.dll")
+elseif(APPLE)
+    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-arm64")
+    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
+    set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+else()
+    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/linux-x64")
+    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.so")
+    set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+endif()
+
+if(EXISTS "${PDFIUM_LIBRARY}")
+    add_compile_definitions(AI_FILE_SORTER_USE_PDFIUM)
+    list(APPEND DOC_DEPS_INCLUDE_DIRS "${PDFIUM_PLATFORM_DIR}/include")
+    add_library(pdfium SHARED IMPORTED)
+    if(WIN32)
+        set_target_properties(pdfium PROPERTIES
+            IMPORTED_IMPLIB "${PDFIUM_LIBRARY}"
+            IMPORTED_LOCATION "${PDFIUM_RUNTIME}"
+        )
+    else()
+        set_target_properties(pdfium PROPERTIES
+            IMPORTED_LOCATION "${PDFIUM_LIBRARY}"
+        )
+    endif()
+    list(APPEND DOC_DEPS_LIBS pdfium)
+endif()
+
 # Sources
 set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 file(GLOB APP_LIB_SOURCES CONFIGURE_DEPENDS
@@ -61,6 +125,7 @@ target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
+    ${DOC_DEPS_INCLUDE_DIRS}
 )
 
 # Resources (equivalent to rcc generation in Makefile)
@@ -228,12 +293,35 @@ target_link_libraries(aifilesorter PRIVATE
     spdlog::spdlog
     Intl::Intl
     llama           # imported on Windows or built from submodule on other platforms
+    ${DOC_DEPS_LIBS}
 )
 
 if(WIN32)
     target_link_libraries(aifilesorter PRIVATE ggml ggml_base ggml_cpu)
     if(TARGET mtmd)
         target_link_libraries(aifilesorter PRIVATE mtmd)
+    endif()
+endif()
+
+if(EXISTS "${PDFIUM_LIBRARY}")
+    if(PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PDFIUM_RUNTIME}"
+                "$<TARGET_FILE_DIR:aifilesorter>"
+        )
+    endif()
+    if(NOT WIN32)
+        if(APPLE)
+            set(_pdfium_rpath "@loader_path")
+        else()
+            set(_pdfium_rpath "$ORIGIN")
+        endif()
+        set_target_properties(aifilesorter PROPERTIES
+            BUILD_RPATH "${_pdfium_rpath}"
+            INSTALL_RPATH "${_pdfium_rpath}"
+        )
+        unset(_pdfium_rpath)
     endif()
 endif()
 
@@ -437,6 +525,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
+        ${DOC_DEPS_INCLUDE_DIRS}
     )
 
     target_link_libraries(ai_file_sorter_tests PRIVATE
@@ -451,6 +540,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         fmt::fmt
         Intl::Intl
         llama
+        ${DOC_DEPS_LIBS}
     )
 
     target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1 WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -466,6 +556,26 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 target_link_libraries(ai_file_sorter_tests PRIVATE ${libName})
             endif()
         endforeach()
+    endif()
+
+    if(EXISTS "${PDFIUM_LIBRARY}" AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
+        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PDFIUM_RUNTIME}"
+                "$<TARGET_FILE_DIR:ai_file_sorter_tests>"
+        )
+    endif()
+    if(EXISTS "${PDFIUM_LIBRARY}" AND NOT WIN32)
+        if(APPLE)
+            set(_pdfium_rpath "@loader_path")
+        else()
+            set(_pdfium_rpath "$ORIGIN")
+        endif()
+        set_target_properties(ai_file_sorter_tests PROPERTIES
+            BUILD_RPATH "${_pdfium_rpath}"
+            INSTALL_RPATH "${_pdfium_rpath}"
+        )
+        unset(_pdfium_rpath)
     endif()
 
     if(BUILD_TESTING)

@@ -122,6 +122,50 @@ ifeq ($(UNAME), Darwin)
 LIB_DIRS += -L$(BREW_PREFIX)/lib
 endif
 
+# --- Vendored document analysis dependencies ---
+DOC_DEPS_DIR := ../external
+LIBZIP_DIR := $(DOC_DEPS_DIR)/libzip
+PUGIXML_DIR := $(DOC_DEPS_DIR)/pugixml
+PDFIUM_DIR := $(DOC_DEPS_DIR)/pdfium
+
+LIBZIP_CMAKE := $(LIBZIP_DIR)/CMakeLists.txt
+LIBZIP_BUILD_DIR := $(LIBZIP_DIR)/build
+LIBZIP_LIB := $(LIBZIP_BUILD_DIR)/lib/libzip.a
+
+PUGIXML_HDR := $(PUGIXML_DIR)/src/pugixml.hpp
+
+PDFIUM_PLATFORM_DIR :=
+PDFIUM_INC :=
+PDFIUM_LIB :=
+ifeq ($(UNAME), Linux)
+PDFIUM_PLATFORM_DIR := $(PDFIUM_DIR)/linux-x64
+PDFIUM_INC := $(PDFIUM_PLATFORM_DIR)/include
+PDFIUM_LIB := $(PDFIUM_PLATFORM_DIR)/lib/libpdfium.so
+endif
+ifeq ($(UNAME), Darwin)
+PDFIUM_PLATFORM_DIR := $(PDFIUM_DIR)/macos-arm64
+PDFIUM_INC := $(PDFIUM_PLATFORM_DIR)/include
+PDFIUM_LIB := $(PDFIUM_PLATFORM_DIR)/lib/libpdfium.dylib
+endif
+
+DOC_LIBS :=
+ifneq ($(wildcard $(PUGIXML_HDR)),)
+CXXFLAGS += -DPUGIXML_NO_EXCEPTIONS
+CXXFLAGS += -DAI_FILE_SORTER_USE_PUGIXML
+INCLUDE_DIRS += -I$(PUGIXML_DIR)/src
+endif
+ifneq ($(wildcard $(LIBZIP_CMAKE)),)
+CXXFLAGS += -DAI_FILE_SORTER_USE_LIBZIP
+INCLUDE_DIRS += -I$(LIBZIP_DIR)/lib -I$(LIBZIP_BUILD_DIR)
+LDFLAGS += -lz
+DOC_LIBS += $(LIBZIP_LIB)
+endif
+ifneq ($(wildcard $(PDFIUM_LIB)),)
+CXXFLAGS += -DAI_FILE_SORTER_USE_PDFIUM
+INCLUDE_DIRS += -I$(PDFIUM_INC)
+DOC_LIBS += $(PDFIUM_LIB)
+endif
+
 # Enable mtmd progress callback only when the linked libmtmd provides it.
 MTMD_PROGRESS_CALLBACK ?= auto
 MTMD_LIB_CANDIDATES :=
@@ -221,13 +265,13 @@ endif
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
 OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
 
-.PHONY: all clean install uninstall
+.PHONY: all clean install uninstall doc_runtime_libs
 
 # Main rules
-all: $(TARGET)
+all: $(TARGET) doc_runtime_libs
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
-$(TARGET): $(OBJS) $(QRC_OBJ)
+$(TARGET): $(OBJS) $(QRC_OBJ) $(DOC_LIBS)
 	mkdir -p $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIB_DIRS) $(LDFLAGS)
 ifeq ($(PLATFORM), Linux)
@@ -237,6 +281,28 @@ endif
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
+
+$(LIBZIP_LIB):
+	@echo "Building libzip (vendored)..."
+	mkdir -p $(LIBZIP_BUILD_DIR)
+	cmake -S $(LIBZIP_DIR) -B $(LIBZIP_BUILD_DIR) \
+		-DBUILD_SHARED_LIBS=OFF \
+		-DENABLE_BZIP2=OFF \
+		-DENABLE_LZMA=OFF \
+		-DENABLE_ZSTD=OFF \
+		-DENABLE_OPENSSL=OFF \
+		-DENABLE_GNUTLS=OFF \
+		-DENABLE_MBEDTLS=OFF \
+		-DENABLE_COMMONCRYPTO=OFF \
+		-DENABLE_WINDOWS_CRYPTO=OFF
+	cmake --build $(LIBZIP_BUILD_DIR)
+
+doc_runtime_libs:
+ifneq ($(wildcard $(PDFIUM_LIB)),)
+	@echo "Staging PDFium runtime library..."
+	mkdir -p ./lib/precompiled
+	cp $(PDFIUM_LIB) ./lib/precompiled/
+endif
 
 $(OBJ_DIR)/main.o: main.cpp
 	mkdir -p $(OBJ_DIR)
@@ -268,6 +334,9 @@ ifeq ($(PLATFORM), Linux)
 	cp $(TARGET) $(INSTALL_LIB_DIR)/bin/$(WRAPPED_BINARY)
 	rm -rf $(INSTALL_LIB_DIR)/lib/precompiled
 	cp -a lib/precompiled $(INSTALL_LIB_DIR)/lib/
+	if [ -f ../external/pdfium/linux-x64/lib/libpdfium.so ]; then \
+		cp ../external/pdfium/linux-x64/lib/libpdfium.so $(INSTALL_LIB_DIR)/lib/precompiled/; \
+	fi
 	if [ -f resources/certs/cacert.pem ]; then \
 		mkdir -p $(INSTALL_LIB_DIR)/certs; \
 		cp resources/certs/cacert.pem $(INSTALL_LIB_DIR)/certs/cacert.pem; \
@@ -297,6 +366,9 @@ else ifeq ($(PLATFORM), MacOS)
 	cp lib/precompiled/libggml.dylib $(INSTALL_LIB_DIR)
 	cp lib/precompiled/libmtmd.dylib $(INSTALL_LIB_DIR)
 	cp lib/precompiled/libllama.dylib $(INSTALL_LIB_DIR)
+	if [ -f ../external/pdfium/macos-arm64/lib/libpdfium.dylib ]; then \
+		cp ../external/pdfium/macos-arm64/lib/libpdfium.dylib $(INSTALL_LIB_DIR); \
+	fi
 
 	install_name_tool -add_rpath $(INSTALL_LIB_DIR) $(INSTALL_DIR)/aifilesorter
 

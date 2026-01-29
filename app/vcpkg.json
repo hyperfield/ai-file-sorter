@@ -9,6 +9,7 @@
     "jsoncpp",
     "sqlite3",
     "openssl",
+    "zlib",
     "fmt",
     "spdlog",
     "gettext"
