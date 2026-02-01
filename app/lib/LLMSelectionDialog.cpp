@@ -1,6 +1,7 @@
 #include "LLMSelectionDialog.hpp"
 
 #include "DialogUtils.hpp"
+#include "LlmCatalog.hpp"
 #include "ErrorMessages.hpp"
 #include "Settings.hpp"
 #include "Utils.hpp"
@@ -20,10 +21,16 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QToolButton>
+#include <QScreen>
+#include <QSizePolicy>
 #include <QComboBox>
 #include <QFileDialog>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QScrollArea>
+#include <QTimer>
+#include <QStyle>
 #include <QVBoxLayout>
 #include <QString>
 
@@ -47,6 +54,18 @@ long long local_file_size_or_zero(const std::string& path)
         return 0;
     }
     return static_cast<long long>(size);
+}
+
+void set_fixed_progress_width(QProgressBar* bar, int multiplier)
+{
+    if (!bar || multiplier <= 0) {
+        return;
+    }
+    int base_width = bar->sizeHint().width();
+    if (base_width <= 0) {
+        base_width = 120;
+    }
+    bar->setFixedWidth(base_width * multiplier);
 }
 
 } // namespace
@@ -109,8 +128,8 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
         custom_radio->setChecked(true);
         break;
     default:
-        local7_radio->setChecked(true);
-        selected_choice = LLMChoice::Local_7b;
+        local3_radio->setChecked(true);
+        selected_choice = LLMChoice::Local_3b;
         break;
     }
     refresh_custom_lists();
@@ -123,7 +142,11 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     }
 
     update_ui_for_choice();
-    resize(620, sizeHint().height());
+    adjust_dialog_size();
+    const int min_width = 620;
+    if (width() < min_width) {
+        resize(min_width, height());
+    }
 }
 
 
@@ -143,25 +166,43 @@ LLMSelectionDialog::~LLMSelectionDialog()
 
 void LLMSelectionDialog::setup_ui()
 {
-    auto* layout = new QVBoxLayout(this);
+    auto* outer_layout = new QVBoxLayout(this);
+    scroll_area_ = new QScrollArea(this);
+    scroll_area_->setWidgetResizable(true);
+    scroll_area_->setFrameShape(QFrame::NoFrame);
+    auto* content = new QWidget(scroll_area_);
+    auto* layout = new QVBoxLayout(content);
 
-    auto* title = new QLabel(tr("Select LLM Mode:"), this);
+    auto* title = new QLabel(tr("Select LLM Mode"), this);
     title->setAlignment(Qt::AlignHCenter);
     layout->addWidget(title);
+
+    layout->setSpacing(8);
 
     auto* radio_container = new QWidget(this);
     auto* radio_layout = new QVBoxLayout(radio_container);
     radio_layout->setSpacing(10);
 
-    local7_radio = new QRadioButton(tr("Local LLM (Mistral 7b Instruct v0.2 Q5)"), radio_container);
+    local7_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_7b), radio_container);
+    local7_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     auto* local7_desc = new QLabel(tr("Quite precise. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."), radio_container);
     local7_desc->setWordWrap(true);
 
-    local3_radio = new QRadioButton(tr("Local LLM (LLaMa 3b v3.2 Instruct Q4)"), radio_container);
+    local3_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_3b), radio_container);
+    local3_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
+    auto* local3_row = new QWidget(radio_container);
+    auto* local3_row_layout = new QHBoxLayout(local3_row);
+    local3_row_layout->setContentsMargins(0, 0, 0, 0);
+    auto* local3_recommended = new QLabel(tr("Recommended"), local3_row);
+    local3_recommended->setStyleSheet(QStringLiteral("color: #1f6feb; font-weight: 700;"));
+    local3_row_layout->addWidget(local3_radio);
+    local3_row_layout->addWidget(local3_recommended);
+    local3_row_layout->addStretch(1);
     auto* local3_desc = new QLabel(tr("Less precise, but works quickly even on CPUs. Good for lightweight local use."), radio_container);
     local3_desc->setWordWrap(true);
 
-    local3_legacy_radio = new QRadioButton(tr("Local LLM (LLaMa 3b v3.2 Instruct Q8, legacy)"), radio_container);
+    local3_legacy_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_3b_legacy), radio_container);
+    local3_legacy_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     local3_legacy_desc = new QLabel(tr("Legacy model kept for existing downloads."), radio_container);
     local3_legacy_desc->setWordWrap(true);
     const bool has_legacy_3b = legacy_local_3b_available();
@@ -169,6 +210,7 @@ void LLMSelectionDialog::setup_ui()
     local3_legacy_desc->setVisible(has_legacy_3b);
 
     gemini_radio = new QRadioButton(tr("Gemini (Google AI Studio API key)"), radio_container);
+    gemini_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     auto* gemini_desc = new QLabel(tr("Use Google's Gemini models with your AI Studio API key (internet required)."), radio_container);
     gemini_desc->setWordWrap(true);
     gemini_inputs = new QWidget(radio_container);
@@ -186,11 +228,15 @@ void LLMSelectionDialog::setup_ui()
     gemini_key_layout->setContentsMargins(0, 0, 0, 0);
     gemini_key_layout->addWidget(gemini_api_key_edit, 1);
     gemini_key_layout->addWidget(show_gemini_api_key_checkbox);
-    gemini_form->addRow(tr("Gemini API key"), gemini_key_row);
+    auto* gemini_key_label = new QLabel(tr("Gemini API key"), gemini_inputs);
+    gemini_key_label->setStyleSheet(QStringLiteral("color: #1f6feb;"));
+    gemini_form->addRow(gemini_key_label, gemini_key_row);
 
     gemini_model_edit = new QLineEdit(gemini_inputs);
     gemini_model_edit->setPlaceholderText(tr("e.g. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro"));
-    gemini_form->addRow(tr("Model"), gemini_model_edit);
+    auto* gemini_model_label = new QLabel(tr("Model"), gemini_inputs);
+    gemini_model_label->setStyleSheet(QStringLiteral("color: #1f6feb;"));
+    gemini_form->addRow(gemini_model_label, gemini_model_edit);
 
     gemini_help_label = new QLabel(tr("Your key is stored locally in the config file for this device."), gemini_inputs);
     gemini_help_label->setWordWrap(true);
@@ -204,6 +250,7 @@ void LLMSelectionDialog::setup_ui()
     gemini_inputs->setVisible(false);
 
     openai_radio = new QRadioButton(tr("ChatGPT (OpenAI API key)"), radio_container);
+    openai_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     auto* openai_desc = new QLabel(tr("Use your own OpenAI API key to access ChatGPT models (internet required)."), radio_container);
     openai_desc->setWordWrap(true);
     openai_inputs = new QWidget(radio_container);
@@ -221,12 +268,16 @@ void LLMSelectionDialog::setup_ui()
     openai_key_layout->setContentsMargins(0, 0, 0, 0);
     openai_key_layout->addWidget(openai_api_key_edit, 1);
     openai_key_layout->addWidget(show_openai_api_key_checkbox);
-    openai_form->addRow(tr("OpenAI API key"), openai_key_row);
+    auto* openai_key_label = new QLabel(tr("OpenAI API key"), openai_inputs);
+    openai_key_label->setStyleSheet(QStringLiteral("color: #1f6feb;"));
+    openai_form->addRow(openai_key_label, openai_key_row);
 
     openai_model_edit = new QLineEdit(openai_inputs);
     openai_model_edit->setPlaceholderText(
         tr("e.g. gpt-4o-mini, gpt-4.1, o3-mini"));
-    openai_form->addRow(tr("Model"), openai_model_edit);
+    auto* openai_model_label = new QLabel(tr("Model"), openai_inputs);
+    openai_model_label->setStyleSheet(QStringLiteral("color: #1f6feb;"));
+    openai_form->addRow(openai_model_label, openai_model_edit);
 
     openai_help_label = new QLabel(
         tr("Your key is stored locally in the config file for this device."),
@@ -244,6 +295,7 @@ void LLMSelectionDialog::setup_ui()
 
     custom_api_radio = new QRadioButton(
         tr("Custom OpenAI-compatible API (advanced)"), radio_container);
+    custom_api_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     auto* custom_api_desc = new QLabel(
         tr("Use OpenAI-compatible endpoints such as LM Studio or Ollama (local or remote)."),
         radio_container);
@@ -252,36 +304,49 @@ void LLMSelectionDialog::setup_ui()
     auto* custom_api_layout = new QHBoxLayout(custom_api_row);
     custom_api_layout->setContentsMargins(24, 0, 0, 0);
     custom_api_combo = new QComboBox(custom_api_row);
-    custom_api_combo->setMinimumContentsLength(18);
+    custom_api_combo->setMinimumContentsLength(10);
     custom_api_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    custom_api_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    custom_api_combo->setFixedWidth(360);
     add_custom_api_button = new QPushButton(tr("Add…"), custom_api_row);
     edit_custom_api_button = new QPushButton(tr("Edit…"), custom_api_row);
     delete_custom_api_button = new QPushButton(tr("Delete"), custom_api_row);
-    custom_api_layout->addWidget(custom_api_combo, 1);
+    add_custom_api_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    edit_custom_api_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    delete_custom_api_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    custom_api_layout->addWidget(custom_api_combo);
     custom_api_layout->addWidget(add_custom_api_button);
     custom_api_layout->addWidget(edit_custom_api_button);
     custom_api_layout->addWidget(delete_custom_api_button);
+    custom_api_layout->addStretch(1);
 
     custom_radio = new QRadioButton(
         tr("Custom local LLM (gguf)"), radio_container);
+    custom_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     auto* custom_row = new QWidget(radio_container);
     auto* custom_layout = new QHBoxLayout(custom_row);
     custom_layout->setContentsMargins(24, 0, 0, 0);
     custom_combo = new QComboBox(custom_row);
-    custom_combo->setMinimumContentsLength(18);
+    custom_combo->setMinimumContentsLength(10);
     custom_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    custom_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    custom_combo->setFixedWidth(360);
     add_custom_button = new QPushButton(tr("Add…"), custom_row);
     edit_custom_button = new QPushButton(tr("Edit…"), custom_row);
     delete_custom_button = new QPushButton(tr("Delete"), custom_row);
-    custom_layout->addWidget(custom_combo, 1);
+    add_custom_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    edit_custom_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    delete_custom_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    custom_layout->addWidget(custom_combo);
     custom_layout->addWidget(add_custom_button);
     custom_layout->addWidget(edit_custom_button);
     custom_layout->addWidget(delete_custom_button);
+    custom_layout->addStretch(1);
 
+    radio_layout->addWidget(local3_row);
+    radio_layout->addWidget(local3_desc);
     radio_layout->addWidget(local7_radio);
     radio_layout->addWidget(local7_desc);
-    radio_layout->addWidget(local3_radio);
-    radio_layout->addWidget(local3_desc);
     radio_layout->addWidget(local3_legacy_radio);
     radio_layout->addWidget(local3_legacy_desc);
     radio_layout->addWidget(gemini_radio);
@@ -298,7 +363,28 @@ void LLMSelectionDialog::setup_ui()
 
     layout->addWidget(radio_container);
 
-    download_section = new QWidget(this);
+    download_toggle_button = new QToolButton(this);
+    download_toggle_button->setText(tr("Downloads"));
+    download_toggle_button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    download_toggle_button->setArrowType(Qt::RightArrow);
+    download_toggle_button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    download_toggle_button->setLayoutDirection(Qt::LeftToRight);
+    download_toggle_button->setCheckable(true);
+    download_toggle_button->setChecked(false);
+    download_toggle_button->setStyleSheet(QStringLiteral("color: #1f6feb; font-weight: 600;"));
+    auto* downloads_toggle_row = new QWidget(this);
+    auto* downloads_toggle_layout = new QHBoxLayout(downloads_toggle_row);
+    downloads_toggle_layout->setContentsMargins(0, 0, 0, 0);
+    downloads_toggle_layout->addWidget(download_toggle_button);
+    downloads_toggle_layout->addStretch(1);
+    layout->addWidget(downloads_toggle_row);
+
+    downloads_container = new QWidget(this);
+    auto* downloads_layout = new QVBoxLayout(downloads_container);
+    downloads_layout->setContentsMargins(0, 0, 0, 0);
+    downloads_layout->setSpacing(10);
+
+    download_section = new QWidget(downloads_container);
     auto* download_layout = new QVBoxLayout(download_section);
     download_layout->setSpacing(6);
 
@@ -317,22 +403,34 @@ void LLMSelectionDialog::setup_ui()
     progress_bar = new QProgressBar(download_section);
     progress_bar->setRange(0, 100);
     progress_bar->setValue(0);
+    progress_bar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    set_fixed_progress_width(progress_bar, 3);
     progress_bar->setVisible(false);
 
     download_button = new QPushButton(tr("Download"), download_section);
     download_button->setEnabled(false);
+    delete_download_button = new QPushButton(tr("Delete"), download_section);
+    delete_download_button->setEnabled(false);
+
+    auto* download_actions = new QWidget(download_section);
+    auto* download_actions_layout = new QHBoxLayout(download_actions);
+    download_actions_layout->setContentsMargins(0, 0, 0, 0);
+    download_actions_layout->setSpacing(8);
+    download_actions_layout->addWidget(download_button);
+    download_actions_layout->addWidget(delete_download_button);
+    download_actions_layout->addStretch(1);
 
     download_layout->addWidget(remote_url_label);
     download_layout->addWidget(local_path_label);
     download_layout->addWidget(file_size_label);
     download_layout->addWidget(status_label);
     download_layout->addWidget(progress_bar);
-    download_layout->addWidget(download_button, 0, Qt::AlignLeft);
+    download_layout->addWidget(download_actions, 0, Qt::AlignLeft);
 
-    layout->addWidget(download_section);
+    downloads_layout->addWidget(download_section);
     download_section->setVisible(false);
 
-    visual_llm_download_section = new QGroupBox(tr("Image analysis models (LLaVA)"), this);
+    visual_llm_download_section = new QGroupBox(tr("Image analysis models (LLaVA)"), downloads_container);
     auto* visual_layout = new QVBoxLayout(visual_llm_download_section);
     auto* visual_hint = new QLabel(tr("Download the visual LLM files required for image analysis."), visual_llm_download_section);
     visual_hint->setWordWrap(true);
@@ -350,11 +448,16 @@ void LLMSelectionDialog::setup_ui()
                                 "LLAVA_MMPROJ_URL");
     visual_layout->addWidget(llava_mmproj_download.container);
 
-    layout->addWidget(visual_llm_download_section);
+    downloads_layout->addWidget(visual_llm_download_section);
+    layout->addWidget(downloads_container);
+    downloads_container->setVisible(false);
 
     button_box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     ok_button = button_box->button(QDialogButtonBox::Ok);
-    layout->addWidget(button_box);
+
+    scroll_area_->setWidget(content);
+    outer_layout->addWidget(scroll_area_);
+    outer_layout->addWidget(button_box);
 }
 
 
@@ -382,6 +485,18 @@ void LLMSelectionDialog::connect_signals()
     connect(add_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_add_custom_api);
     connect(edit_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_edit_custom_api);
     connect(delete_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_custom_api);
+    if (delete_download_button) {
+        connect(delete_download_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_download);
+    }
+    if (download_toggle_button) {
+        connect(download_toggle_button, &QToolButton::toggled, this, [this](bool checked) {
+            if (downloads_container) {
+                downloads_container->setVisible(checked);
+            }
+            download_toggle_button->setArrowType(checked ? Qt::DownArrow : Qt::RightArrow);
+            adjust_dialog_size();
+        });
+    }
 
     if (show_openai_api_key_checkbox) {
         connect(show_openai_api_key_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
@@ -412,6 +527,14 @@ void LLMSelectionDialog::connect_signals()
     }
     connect(button_box, &QDialogButtonBox::accepted, this, &LLMSelectionDialog::accept);
     connect(button_box, &QDialogButtonBox::rejected, this, &LLMSelectionDialog::reject);
+}
+
+void LLMSelectionDialog::showEvent(QShowEvent* event)
+{
+    QDialog::showEvent(event);
+    QTimer::singleShot(0, this, [this]() {
+        adjust_dialog_size();
+    });
 }
 
 
@@ -538,7 +661,19 @@ void LLMSelectionDialog::update_custom_choice_ui()
     const bool is_remote_gemini = selected_choice == LLMChoice::Remote_Gemini;
     const bool is_remote_custom = selected_choice == LLMChoice::Remote_Custom;
     const bool is_custom = selected_choice == LLMChoice::Custom;
+    if (download_toggle_button) {
+        download_toggle_button->setVisible(is_local_builtin);
+        if (!is_local_builtin) {
+            download_toggle_button->setChecked(false);
+        }
+    }
+    if (downloads_container) {
+        const bool show_downloads = is_local_builtin && download_toggle_button
+            && download_toggle_button->isChecked();
+        downloads_container->setVisible(show_downloads);
+    }
     download_section->setVisible(is_local_builtin);
+    adjust_dialog_size();
     if (openai_inputs) {
         openai_inputs->setVisible(is_remote_openai);
         openai_inputs->setEnabled(is_remote_openai);
@@ -731,6 +866,10 @@ void LLMSelectionDialog::update_local_choice_ui()
         progress_bar->setValue(100);
         download_button->setEnabled(false);
         download_button->setVisible(false);
+        if (delete_download_button) {
+            delete_download_button->setVisible(true);
+            delete_download_button->setEnabled(true);
+        }
         if (ok_button) {
             ok_button->setEnabled(true);
         }
@@ -741,6 +880,10 @@ void LLMSelectionDialog::update_local_choice_ui()
         download_button->setVisible(true);
         download_button->setEnabled(!is_downloading.load());
         download_button->setText(tr("Resume download"));
+        if (delete_download_button) {
+            delete_download_button->setVisible(true);
+            delete_download_button->setEnabled(true);
+        }
         if (ok_button) {
             ok_button->setEnabled(false);
         }
@@ -753,6 +896,10 @@ void LLMSelectionDialog::update_local_choice_ui()
         download_button->setVisible(true);
         download_button->setEnabled(!is_downloading.load());
         download_button->setText(tr("Download"));
+        if (delete_download_button) {
+            delete_download_button->setVisible(true);
+            delete_download_button->setEnabled(false);
+        }
         if (ok_button) {
             ok_button->setEnabled(false);
         }
@@ -792,6 +939,51 @@ void LLMSelectionDialog::refresh_downloader()
             downloader.reset();
         }
     }
+}
+
+void LLMSelectionDialog::handle_delete_download()
+{
+    if (!downloader) {
+        return;
+    }
+
+    const std::string path = downloader->get_download_destination();
+    if (path.empty()) {
+        return;
+    }
+
+    const QString model_label = default_llm_label_for_choice(selected_choice);
+    const QString title = tr("Delete downloaded model?");
+    const QString prompt = tr("Delete the downloaded model %1?").arg(model_label);
+    const auto answer = QMessageBox::question(this, title, prompt, QMessageBox::Yes | QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+
+    downloader->cancel_download();
+    is_downloading.store(false);
+
+    std::error_code ec;
+    bool removed_any = false;
+    if (std::filesystem::exists(path, ec)) {
+        removed_any = std::filesystem::remove(path, ec) || removed_any;
+    }
+    const std::string meta_path = path + ".aifs.meta";
+    if (std::filesystem::exists(meta_path, ec)) {
+        removed_any = std::filesystem::remove(meta_path, ec) || removed_any;
+    }
+
+    if (ec) {
+        set_status_message(tr("Failed to delete downloaded model."));
+    } else if (removed_any) {
+        set_status_message(tr("Deleted downloaded model."));
+    } else {
+        set_status_message(tr("No downloaded model found to delete."));
+    }
+
+    refresh_downloader();
+    update_download_info();
+    update_local_choice_ui();
 }
 
 
@@ -1045,6 +1237,7 @@ void LLMSelectionDialog::setup_visual_llm_download_entry(VisualLlmDownloadEntry&
                                                      const std::string& env_var)
 {
     entry.env_var = env_var;
+    entry.display_name = title.toStdString();
     auto* group = new QGroupBox(title, parent);
     entry.container = group;
 
@@ -1066,17 +1259,36 @@ void LLMSelectionDialog::setup_visual_llm_download_entry(VisualLlmDownloadEntry&
     entry.progress_bar = new QProgressBar(group);
     entry.progress_bar->setRange(0, 100);
     entry.progress_bar->setValue(0);
+    entry.progress_bar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    set_fixed_progress_width(entry.progress_bar, 3);
     entry.progress_bar->setVisible(false);
 
     entry.download_button = new QPushButton(tr("Download"), group);
     entry.download_button->setEnabled(false);
+    entry.delete_button = new QPushButton(tr("Delete"), group);
+    entry.delete_button->setEnabled(false);
+
+    auto* action_row = new QWidget(group);
+    auto* action_layout = new QHBoxLayout(action_row);
+    action_layout->setContentsMargins(0, 0, 0, 0);
+    action_layout->setSpacing(8);
+    action_layout->addWidget(entry.download_button);
+    action_layout->addWidget(entry.delete_button);
+    action_layout->addStretch(1);
 
     entry_layout->addWidget(entry.remote_url_label);
     entry_layout->addWidget(entry.local_path_label);
     entry_layout->addWidget(entry.file_size_label);
     entry_layout->addWidget(entry.status_label);
     entry_layout->addWidget(entry.progress_bar);
-    entry_layout->addWidget(entry.download_button, 0, Qt::AlignLeft);
+    entry_layout->addWidget(action_row, 0, Qt::AlignLeft);
+
+    if (entry.delete_button) {
+        auto* entry_ptr = &entry;
+        connect(entry.delete_button, &QPushButton::clicked, this, [this, entry_ptr]() {
+            handle_delete_visual_download(*entry_ptr);
+        });
+    }
 }
 
 void LLMSelectionDialog::set_visual_status_message(VisualLlmDownloadEntry& entry, const QString& message)
@@ -1135,6 +1347,10 @@ void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry
             entry.download_button->setVisible(true);
             entry.download_button->setEnabled(false);
         }
+        if (entry.delete_button) {
+            entry.delete_button->setVisible(true);
+            entry.delete_button->setEnabled(false);
+        }
         return;
     }
 
@@ -1174,6 +1390,10 @@ void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry
             entry.download_button->setEnabled(false);
             entry.download_button->setVisible(false);
         }
+        if (entry.delete_button) {
+            entry.delete_button->setVisible(true);
+            entry.delete_button->setEnabled(true);
+        }
         set_visual_status_message(entry, tr("Model ready."));
         break;
     case LLMDownloader::DownloadStatus::InProgress:
@@ -1184,6 +1404,10 @@ void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry
             entry.download_button->setVisible(true);
             entry.download_button->setEnabled(!entry.is_downloading.load());
             entry.download_button->setText(tr("Resume download"));
+        }
+        if (entry.delete_button) {
+            entry.delete_button->setVisible(true);
+            entry.delete_button->setEnabled(true);
         }
         set_visual_status_message(entry, tr("Partial download detected. You can resume."));
         break;
@@ -1197,6 +1421,10 @@ void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry
             entry.download_button->setVisible(true);
             entry.download_button->setEnabled(!entry.is_downloading.load());
             entry.download_button->setText(tr("Download"));
+        }
+        if (entry.delete_button) {
+            entry.delete_button->setVisible(true);
+            entry.delete_button->setEnabled(false);
         }
         set_visual_status_message(entry, tr("Download required."));
         break;
@@ -1290,6 +1518,122 @@ void LLMSelectionDialog::start_visual_llm_download(VisualLlmDownloadEntry& entry
                 }
             }, Qt::QueuedConnection);
         });
+}
+
+void LLMSelectionDialog::handle_delete_visual_download(VisualLlmDownloadEntry& entry)
+{
+    if (!entry.downloader) {
+        return;
+    }
+
+    const std::string path = entry.downloader->get_download_destination();
+    if (path.empty()) {
+        return;
+    }
+
+    const QString display_name = QString::fromStdString(entry.display_name);
+    const QString title = tr("Delete downloaded model?");
+    const QString prompt = tr("Delete the downloaded model %1?").arg(display_name);
+    const auto answer = QMessageBox::question(this, title, prompt, QMessageBox::Yes | QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+
+    entry.downloader->cancel_download();
+    entry.is_downloading.store(false);
+
+    std::error_code ec;
+    bool removed_any = false;
+    if (std::filesystem::exists(path, ec)) {
+        removed_any = std::filesystem::remove(path, ec) || removed_any;
+    }
+    const std::string meta_path = path + ".aifs.meta";
+    if (std::filesystem::exists(meta_path, ec)) {
+        removed_any = std::filesystem::remove(meta_path, ec) || removed_any;
+    }
+
+    if (ec) {
+        set_visual_status_message(entry, tr("Failed to delete downloaded model."));
+    } else if (removed_any) {
+        set_visual_status_message(entry, tr("Deleted downloaded model."));
+    } else {
+        set_visual_status_message(entry, tr("No downloaded model found to delete."));
+    }
+
+    refresh_visual_llm_download_entry(entry);
+    update_visual_llm_download_entry(entry);
+}
+
+void LLMSelectionDialog::adjust_dialog_size()
+{
+    if (!scroll_area_) {
+        return;
+    }
+    auto* widget = scroll_area_->widget();
+    if (!widget) {
+        return;
+    }
+
+    widget->adjustSize();
+    const QSize content_hint = widget->sizeHint();
+    const int content_height = content_hint.height();
+    const int content_width = content_hint.width();
+
+    int scroll_height = content_height;
+    const int button_height = button_box ? button_box->sizeHint().height() : 0;
+    const int button_width = button_box ? button_box->sizeHint().width() : 0;
+
+    QMargins margins;
+    int spacing = 0;
+    if (layout()) {
+        margins = layout()->contentsMargins();
+        spacing = layout()->spacing();
+    }
+
+    const int frame = scroll_area_->frameWidth() * 2;
+    int desired_width = std::max(content_width + frame, button_width);
+    desired_width += margins.left() + margins.right();
+    int desired_height = scroll_height + button_height + margins.top() + margins.bottom();
+    if (button_height > 0) {
+        desired_height += spacing;
+    }
+
+    if (const QScreen* screen = this->screen()) {
+        const QSize available = screen->availableGeometry().size();
+        const int max_width = static_cast<int>(available.width() * 0.8);
+        const int max_height = static_cast<int>(available.height() * 0.8);
+        const int max_scroll_height = std::max(
+            0,
+            max_height - (button_height + margins.top() + margins.bottom() + (button_height > 0 ? spacing : 0)));
+        int target_height = desired_height;
+        const bool needs_scroll = target_height > max_height;
+        if (needs_scroll) {
+            scroll_area_->setMinimumHeight(0);
+            scroll_area_->setMaximumHeight(max_scroll_height);
+            target_height = max_height;
+        } else {
+            scroll_area_->setMinimumHeight(scroll_height);
+            scroll_area_->setMaximumHeight(scroll_height);
+        }
+        int scrollbar_padding = 0;
+        if (needs_scroll) {
+            scrollbar_padding = scroll_area_->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, scroll_area_);
+        }
+        const int min_width = 620;
+        int target_width = std::min(desired_width + scrollbar_padding, max_width);
+        target_width = std::max(target_width, min_width);
+        resize(target_width, target_height);
+    } else {
+        scroll_area_->setMinimumHeight(scroll_height);
+        scroll_area_->setMaximumHeight(scroll_height);
+        adjustSize();
+    }
+
+    widget->updateGeometry();
+    if (layout()) {
+        layout()->invalidate();
+        layout()->activate();
+    }
 }
 
 

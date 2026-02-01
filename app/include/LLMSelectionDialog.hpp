@@ -22,6 +22,9 @@ class QComboBox;
 class QListWidget;
 class QLineEdit;
 class QCheckBox;
+class QToolButton;
+class QScrollArea;
+class QShowEvent;
 
 class Settings;
 
@@ -53,6 +56,7 @@ private:
 
     struct VisualLlmDownloadEntry {
         std::string env_var;
+        std::string display_name;
         QWidget* container{nullptr};
         QLabel* title_label{nullptr};
         QLabel* remote_url_label{nullptr};
@@ -61,12 +65,14 @@ private:
         QLabel* status_label{nullptr};
         QProgressBar* progress_bar{nullptr};
         QPushButton* download_button{nullptr};
+        QPushButton* delete_button{nullptr};
         std::unique_ptr<LLMDownloader> downloader;
         std::atomic<bool> is_downloading{false};
     };
 
     void setup_ui();
     void connect_signals();
+    void showEvent(QShowEvent* event) override;
     void update_ui_for_choice();
     void update_legacy_local_3b_visibility();
     void update_radio_selection();
@@ -82,6 +88,10 @@ private:
     void update_local_choice_ui();
     void update_download_info();
     void start_download();
+    /**
+     * @brief Delete the downloaded local LLM file after confirmation.
+     */
+    void handle_delete_download();
     void refresh_downloader();
     void set_status_message(const QString& message);
     std::string current_download_env_var() const;
@@ -115,6 +125,10 @@ private:
      * @brief Select a custom API entry by id.
      */
     void select_custom_api_by_id(const std::string& id);
+    /**
+     * @brief Recalculate the dialog size based on visible content.
+     */
+    void adjust_dialog_size();
     void setup_visual_llm_download_entry(VisualLlmDownloadEntry& entry,
                                      QWidget* parent,
                                      const QString& title,
@@ -123,6 +137,11 @@ private:
     void update_visual_llm_download_entry(VisualLlmDownloadEntry& entry);
     void update_visual_llm_downloads();
     void start_visual_llm_download(VisualLlmDownloadEntry& entry);
+    /**
+     * @brief Delete a downloaded visual LLM bundle after confirmation.
+     * @param entry Visual LLM entry to delete.
+     */
+    void handle_delete_visual_download(VisualLlmDownloadEntry& entry);
     void set_visual_status_message(VisualLlmDownloadEntry& entry, const QString& message);
     bool legacy_local_3b_available() const;
 
@@ -142,6 +161,8 @@ private:
     QRadioButton* local3_legacy_radio{nullptr};
     QRadioButton* local7_radio{nullptr};
     QRadioButton* custom_radio{nullptr};
+    QToolButton* download_toggle_button{nullptr};
+    QScrollArea* scroll_area_{nullptr};
     QComboBox* custom_combo{nullptr};
     QPushButton* add_custom_button{nullptr};
     QPushButton* edit_custom_button{nullptr};
@@ -157,8 +178,10 @@ private:
     QLabel* local3_legacy_desc{nullptr};
     QProgressBar* progress_bar{nullptr};
     QPushButton* download_button{nullptr};
+    QPushButton* delete_download_button{nullptr};
     QPushButton* ok_button{nullptr};
     QDialogButtonBox* button_box{nullptr};
+    QWidget* downloads_container{nullptr};
     QWidget* download_section{nullptr};
     QWidget* visual_llm_download_section{nullptr};
     QWidget* openai_inputs{nullptr};
