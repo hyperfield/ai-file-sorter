@@ -28,6 +28,7 @@ public:
     struct CudaMemoryInfo {
         size_t free_bytes{0};
         size_t total_bytes{0};
+        size_t device_total_bytes{0};
 
         bool valid() const {
             return total_bytes > 0 || free_bytes > 0;

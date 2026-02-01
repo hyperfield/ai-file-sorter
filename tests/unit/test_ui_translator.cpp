@@ -68,6 +68,7 @@ struct UiTranslatorTestHarness {
     QMenu* help_menu = new QMenu(&window);
 
     QAction* file_quit_action = new QAction(&window);
+    QAction* run_benchmark_action = new QAction(&window);
     QAction* copy_action = new QAction(&window);
     QAction* cut_action = new QAction(&window);
     QAction* undo_last_run_action = new QAction(&window);
@@ -198,6 +199,7 @@ struct UiTranslatorTestHarness {
                 help_menu},
             .actions = UiTranslator::ActionControls{
                 file_quit_action,
+                run_benchmark_action,
                 copy_action,
                 cut_action,
                 undo_last_run_action,
@@ -290,6 +292,7 @@ void verify_menus_and_actions(const UiTranslatorTestHarness& h)
 {
     REQUIRE(h.file_menu->title() == QStringLiteral("&File"));
     REQUIRE(h.settings_menu->title() == QStringLiteral("&Settings"));
+    REQUIRE(h.run_benchmark_action->text() == QStringLiteral("System compatibility check…"));
     REQUIRE(h.toggle_llm_action->text() == QStringLiteral("Select &LLM…"));
     REQUIRE(h.manage_whitelists_action->text() == QStringLiteral("Manage category whitelists…"));
     REQUIRE(h.development_prompt_logging_action->text() ==

@@ -6,11 +6,12 @@
 - Local 3B model download now defaults to Q4 for better GPU compatibility. The legacy Local 3B Q8 is still selectable when an existing download is found.
 - Improved the LLM selection dialog latency.
 - Added custom API endpoints to the Select LLM dialog. Custom endpoints accept base URLs or full /chat/completions endpoints, with optional API keys for local servers.
-- Image rename suggestions are now saved as you go, so progress isn't lost if the app closes unexpectedly.
+- LLM-derived categorizations and rename suggestions are now saved as you go, so progress isn't lost if the app closes unexpectedly.
 - Image analysis now falls back (with a user prompt) to CPU if the GPU has insufficient available memory.
 - Review dialog now lets you select highlighted rows and bulk edit their categories.
 - Review dialog is now scrollable on smaller screens so action buttons stay visible.
 - Improved subcategory consistency by merging labels that only differ by generic suffixes (e.g., “files”).
+- Added a system compatibility check (benchmarking) to determine the most suitable LLM for your system.
 - Added Korean as an interface language.
 - UI and usability improvements.
 

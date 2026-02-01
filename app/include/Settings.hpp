@@ -99,6 +99,16 @@ public:
      */
     void set_offer_rename_images(bool value);
     /**
+     * @brief Returns whether the image options group is expanded.
+     * @return True when the image options group should be expanded.
+     */
+    bool get_image_options_expanded() const;
+    /**
+     * @brief Sets whether the image options group is expanded.
+     * @param value True to keep the image options group expanded.
+     */
+    void set_image_options_expanded(bool value);
+    /**
      * @brief Returns whether image files are treated as rename-only.
      * @return True when image files are in rename-only mode.
      */
@@ -138,6 +148,16 @@ public:
      * @param value True to enable document rename suggestions.
      */
     void set_offer_rename_documents(bool value);
+    /**
+     * @brief Returns whether the document options group is expanded.
+     * @return True when the document options group should be expanded.
+     */
+    bool get_document_options_expanded() const;
+    /**
+     * @brief Sets whether the document options group is expanded.
+     * @param value True to keep the document options group expanded.
+     */
+    void set_document_options_expanded(bool value);
     /**
      * @brief Returns whether document files are treated as rename-only.
      * @return True when document files are in rename-only mode.
@@ -190,6 +210,36 @@ public:
     std::string get_skipped_version();
     void set_show_file_explorer(bool value);
     bool get_show_file_explorer() const;
+    /**
+     * @brief Returns whether the suitability benchmark has been completed.
+     * @return True when the benchmark has run at least once.
+     */
+    bool get_suitability_benchmark_completed() const;
+    /**
+     * @brief Marks the suitability benchmark as completed.
+     * @param value True when the benchmark has run.
+     */
+    void set_suitability_benchmark_completed(bool value);
+    /**
+     * @brief Returns the most recent benchmark report text.
+     * @return Report text (may be empty).
+     */
+    std::string get_benchmark_last_report() const;
+    /**
+     * @brief Sets the most recent benchmark report text.
+     * @param value Report text to store.
+     */
+    void set_benchmark_last_report(const std::string& value);
+    /**
+     * @brief Returns the timestamp string for the last benchmark run.
+     * @return Timestamp string (may be empty).
+     */
+    std::string get_benchmark_last_run() const;
+    /**
+     * @brief Sets the timestamp string for the last benchmark run.
+     * @param value Timestamp to store.
+     */
+    void set_benchmark_last_run(const std::string& value);
     Language get_language() const;
     void set_language(Language value);
     int get_total_categorized_files() const;
@@ -225,7 +275,7 @@ private:
     std::filesystem::path config_dir;
     IniConfig config;
 
-    LLMChoice llm_choice = LLMChoice::Local_7b;
+    LLMChoice llm_choice = LLMChoice::Local_3b;
     std::string openai_api_key;
     std::string openai_model{ "gpt-4o-mini" };
     std::string gemini_api_key;
@@ -236,10 +286,12 @@ private:
     bool include_subdirectories{false};
     bool analyze_images_by_content{false};
     bool offer_rename_images{false};
+    bool image_options_expanded{false};
     bool rename_images_only{false};
     bool process_images_only{false};
     bool analyze_documents_by_content{false};
     bool offer_rename_documents{false};
+    bool document_options_expanded{false};
     bool rename_documents_only{false};
     bool process_documents_only{false};
     bool add_document_date_to_category{false};
@@ -249,6 +301,9 @@ private:
     std::string sort_folder;
     std::string skipped_version;
     bool show_file_explorer{true};
+    bool suitability_benchmark_completed{false};
+    std::string benchmark_last_report;
+    std::string benchmark_last_run;
     Language language{Language::English};
     CategoryLanguage category_language{CategoryLanguage::English};
     bool consistency_pass_enabled{false};

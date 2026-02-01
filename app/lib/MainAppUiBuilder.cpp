@@ -268,6 +268,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.help_menu},
         .actions = UiTranslator::ActionControls{
             app.file_quit_action,
+            app.run_benchmark_action,
             app.copy_action,
             app.cut_action,
             app.undo_last_run_action,
@@ -340,6 +341,11 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
 
 void MainAppUiBuilder::build_file_menu(MainApp& app) {
     app.file_menu = app.menuBar()->addMenu(QString());
+    app.run_benchmark_action = app.file_menu->addAction(icon_for(app, "view-statistics", QStyle::SP_MediaPlay), QString());
+    QObject::connect(app.run_benchmark_action, &QAction::triggered, &app, [&app]() {
+        app.show_suitability_benchmark_dialog(false);
+    });
+    app.file_menu->addSeparator();
     app.file_quit_action = app.file_menu->addAction(icon_for(app, "application-exit", QStyle::SP_DialogCloseButton), QString());
     app.file_quit_action->setShortcut(QKeySequence::Quit);
     app.file_quit_action->setMenuRole(QAction::QuitRole);

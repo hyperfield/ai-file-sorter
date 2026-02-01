@@ -50,6 +50,7 @@ class QLabel;
 class QEvent;
 class MainAppUiBuilder;
 class WhitelistManagerDialog;
+class SuitabilityBenchmarkDialog;
 
 struct CategorizedFile;
 struct FileEntry;
@@ -161,6 +162,8 @@ private:
     SupportPromptResult show_support_prompt_dialog(int categorized_files);
     void undo_last_run();
     bool perform_undo_from_plan(const QString& plan_path);
+    void show_suitability_benchmark_dialog(bool auto_start);
+    void maybe_show_suitability_benchmark();
 
     std::unique_ptr<ILLMClient> make_llm_client();
     void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
@@ -239,6 +242,7 @@ private:
     QMenu* category_language_menu{nullptr};
     QMenu* help_menu{nullptr};
     QAction* file_quit_action{nullptr};
+    QAction* run_benchmark_action{nullptr};
     QAction* copy_action{nullptr};
     QAction* cut_action{nullptr};
     QAction* paste_action{nullptr};
@@ -275,6 +279,7 @@ private:
 
     std::unique_ptr<CategorizationDialog> categorization_dialog;
     std::unique_ptr<CategorizationProgressDialog> progress_dialog;
+    std::unique_ptr<SuitabilityBenchmarkDialog> benchmark_dialog;
 
     std::shared_ptr<spdlog::logger> core_logger;
     std::shared_ptr<spdlog::logger> ui_logger;

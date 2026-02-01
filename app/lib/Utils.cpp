@@ -502,6 +502,7 @@ std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
 
     size_t free_bytes = 0;
     size_t total_bytes = 0;
+    size_t device_total_bytes = 0;
 
     if (cudaMemGetInfo(&free_bytes, &total_bytes) != 0) {
         log_core(spdlog::level::warn, "Warning: cudaMemGetInfo failed");
@@ -509,18 +510,29 @@ std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
         total_bytes = 0;
     }
 
-    if (total_bytes == 0 && cudaGetDeviceProperties) {
-        // As a fallback, query total memory from cudaGetDeviceProperties.
+    if (cudaGetDeviceProperties) {
+        // Query total device memory from cudaGetDeviceProperties for reference.
         constexpr size_t cudaDevicePropSize = 2560;
         alignas(std::max_align_t) uint8_t prop_buffer[cudaDevicePropSize];
         std::memset(prop_buffer, 0, sizeof(prop_buffer));
         if (cudaGetDeviceProperties(prop_buffer, 0) == 0) {
             struct DevicePropShim {
+                char name[256];
                 size_t totalGlobalMem;
             };
             auto *prop = reinterpret_cast<DevicePropShim*>(prop_buffer);
-            total_bytes = prop->totalGlobalMem;
+            device_total_bytes = prop->totalGlobalMem;
+            constexpr size_t kMinReasonableBytes = 64ULL * 1024ULL * 1024ULL;
+            constexpr size_t kMaxReasonableBytes = 1ULL << 50; // 1 PiB
+            if (device_total_bytes < kMinReasonableBytes ||
+                device_total_bytes > kMaxReasonableBytes) {
+                device_total_bytes = 0;
+            }
         }
+    }
+
+    if (total_bytes == 0 && device_total_bytes != 0) {
+        total_bytes = device_total_bytes;
     }
 
     closeLibrary(lib);
@@ -533,6 +545,7 @@ std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
     CudaMemoryInfo info;
     info.free_bytes = free_bytes;
     info.total_bytes = total_bytes;
+    info.device_total_bytes = device_total_bytes;
     return info;
 }
 

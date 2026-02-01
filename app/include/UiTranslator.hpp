@@ -69,6 +69,7 @@ public:
 
     struct ActionControls {
         QAction*& file_quit_action;
+        QAction*& run_benchmark_action;
         QAction*& copy_action;
         QAction*& cut_action;
         QAction*& undo_last_run_action;

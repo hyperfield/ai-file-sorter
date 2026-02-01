@@ -76,3 +76,19 @@ TEST_CASE("Settings enforces rename-only implies offer rename") {
     REQUIRE(reloaded.get_rename_images_only());
     REQUIRE(reloaded.get_process_images_only());
 }
+
+TEST_CASE("Settings persists options group expansion state") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_image_options_expanded(true);
+    settings.set_document_options_expanded(false);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_image_options_expanded());
+    REQUIRE_FALSE(reloaded.get_document_options_expanded());
+}

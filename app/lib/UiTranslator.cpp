@@ -212,6 +212,7 @@ void UiTranslator::translate_menus_and_actions() const
 
     const ActionEntry action_entries[] = {
         {deps_.actions.file_quit_action, "&Quit"},
+        {deps_.actions.run_benchmark_action, "System compatibility check…"},
         {deps_.actions.copy_action, "&Copy"},
         {deps_.actions.cut_action, "Cu&t"},
         {deps_.actions.undo_last_run_action, "Undo last run"},

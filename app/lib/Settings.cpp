@@ -80,6 +80,44 @@ std::string to_bool_string(bool value) {
     return value ? "true" : "false";
 }
 
+std::string encode_multiline(const std::string& value) {
+    std::string output;
+    output.reserve(value.size());
+    for (char ch : value) {
+        if (ch == '\\') {
+            output.append("\\\\");
+        } else if (ch == '\n') {
+            output.append("\\n");
+        } else {
+            output.push_back(ch);
+        }
+    }
+    return output;
+}
+
+std::string decode_multiline(const std::string& value) {
+    std::string output;
+    output.reserve(value.size());
+    for (size_t i = 0; i < value.size(); ++i) {
+        char ch = value[i];
+        if (ch == '\\' && i + 1 < value.size()) {
+            char next = value[i + 1];
+            if (next == 'n') {
+                output.push_back('\n');
+                ++i;
+                continue;
+            }
+            if (next == '\\') {
+                output.push_back('\\');
+                ++i;
+                continue;
+            }
+        }
+        output.push_back(ch);
+    }
+    return output;
+}
+
 std::string llm_choice_to_string(LLMChoice choice) {
     switch (choice) {
         case LLMChoice::Remote_OpenAI: return "Remote_OpenAI";
@@ -253,6 +291,21 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     rename_documents_only = load_bool("RenameDocumentsOnly", false);
     process_documents_only = load_bool("ProcessDocumentsOnly", false);
     add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
+    const bool image_expand_default = process_images_only || offer_rename_images || rename_images_only;
+    if (config.hasValue("Settings", "ImageOptionsExpanded")) {
+        image_options_expanded = load_bool("ImageOptionsExpanded", image_expand_default);
+    } else {
+        image_options_expanded = image_expand_default;
+    }
+    const bool document_expand_default = process_documents_only ||
+                                         offer_rename_documents ||
+                                         rename_documents_only ||
+                                         add_document_date_to_category;
+    if (config.hasValue("Settings", "DocumentOptionsExpanded")) {
+        document_options_expanded = load_bool("DocumentOptionsExpanded", document_expand_default);
+    } else {
+        document_options_expanded = document_expand_default;
+    }
     if (rename_images_only && !offer_rename_images) {
         offer_rename_images = true;
     }
@@ -264,6 +317,9 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = load_bool("ShowFileExplorer", true);
+    suitability_benchmark_completed = load_bool("SuitabilityBenchmarkCompleted", false);
+    benchmark_last_report = decode_multiline(config.getValue("Settings", "BenchmarkLastReport", ""));
+    benchmark_last_run = config.getValue("Settings", "BenchmarkLastRun", "");
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
@@ -367,10 +423,12 @@ void Settings::save_core_settings()
     }
     set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
     set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
+    set_bool_setting(config, settings_section, "ImageOptionsExpanded", image_options_expanded);
     set_bool_setting(config, settings_section, "RenameImagesOnly", rename_images_only);
     set_bool_setting(config, settings_section, "ProcessImagesOnly", process_images_only);
     set_bool_setting(config, settings_section, "AnalyzeDocumentsByContent", analyze_documents_by_content);
     set_bool_setting(config, settings_section, "OfferRenameDocuments", offer_rename_documents);
+    set_bool_setting(config, settings_section, "DocumentOptionsExpanded", document_options_expanded);
     set_bool_setting(config, settings_section, "RenameDocumentsOnly", rename_documents_only);
     set_bool_setting(config, settings_section, "ProcessDocumentsOnly", process_documents_only);
     set_bool_setting(config, settings_section, "AddDocumentDateToCategory", add_document_date_to_category);
@@ -379,6 +437,9 @@ void Settings::save_core_settings()
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
 
     set_bool_setting(config, settings_section, "ShowFileExplorer", show_file_explorer);
+    set_bool_setting(config, settings_section, "SuitabilityBenchmarkCompleted", suitability_benchmark_completed);
+    set_optional_setting(config, settings_section, "BenchmarkLastReport", encode_multiline(benchmark_last_report));
+    set_optional_setting(config, settings_section, "BenchmarkLastRun", benchmark_last_run);
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
     set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
     config.setValue(settings_section, "Language", languageToString(language).toStdString());
@@ -783,6 +844,16 @@ void Settings::set_offer_rename_images(bool value)
     offer_rename_images = value;
 }
 
+bool Settings::get_image_options_expanded() const
+{
+    return image_options_expanded;
+}
+
+void Settings::set_image_options_expanded(bool value)
+{
+    image_options_expanded = value;
+}
+
 bool Settings::get_rename_images_only() const
 {
     return rename_images_only;
@@ -821,6 +892,16 @@ bool Settings::get_offer_rename_documents() const
 void Settings::set_offer_rename_documents(bool value)
 {
     offer_rename_documents = value;
+}
+
+bool Settings::get_document_options_expanded() const
+{
+    return document_options_expanded;
+}
+
+void Settings::set_document_options_expanded(bool value)
+{
+    document_options_expanded = value;
 }
 
 bool Settings::get_rename_documents_only() const
@@ -926,6 +1007,36 @@ void Settings::set_show_file_explorer(bool value)
 bool Settings::get_show_file_explorer() const
 {
     return show_file_explorer;
+}
+
+bool Settings::get_suitability_benchmark_completed() const
+{
+    return suitability_benchmark_completed;
+}
+
+void Settings::set_suitability_benchmark_completed(bool value)
+{
+    suitability_benchmark_completed = value;
+}
+
+std::string Settings::get_benchmark_last_report() const
+{
+    return benchmark_last_report;
+}
+
+void Settings::set_benchmark_last_report(const std::string& value)
+{
+    benchmark_last_report = value;
+}
+
+std::string Settings::get_benchmark_last_run() const
+{
+    return benchmark_last_run;
+}
+
+void Settings::set_benchmark_last_run(const std::string& value)
+{
+    benchmark_last_run = value;
 }
 
 

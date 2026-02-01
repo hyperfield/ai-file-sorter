@@ -15,6 +15,7 @@
 #include "Types.hpp"
 #include "CategoryLanguage.hpp"
 #include "MainAppUiBuilder.hpp"
+#include "SuitabilityBenchmarkDialog.hpp"
 #include "UiTranslator.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "DocumentTextAnalyzer.hpp"
@@ -65,6 +66,7 @@
 #include <QEvent>
 #include <QStackedWidget>
 #include <QThread>
+#include <QTimer>
 
 #include <chrono>
 #include <filesystem>
@@ -157,6 +159,35 @@ struct VisualLlmPaths {
     std::filesystem::path model_path;
     std::filesystem::path mmproj_path;
 };
+
+bool default_text_llm_files_available()
+{
+    static const char* kEnvVars[] = {
+        "LOCAL_LLM_3B_DOWNLOAD_URL",
+        "LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL",
+        "LOCAL_LLM_7B_DOWNLOAD_URL"
+    };
+
+    for (const char* env_key : kEnvVars) {
+        const char* env_url = std::getenv(env_key);
+        if (!env_url || *env_url == '\0') {
+            continue;
+        }
+
+        try {
+            const std::filesystem::path path =
+                Utils::make_default_path_to_file_from_download_url(env_url);
+            std::error_code ec;
+            if (!path.empty() && std::filesystem::exists(path, ec)) {
+                return true;
+            }
+        } catch (...) {
+            continue;
+        }
+    }
+
+    return false;
+}
 
 std::optional<std::filesystem::path> resolve_mmproj_path(const std::filesystem::path& primary) {
     if (std::filesystem::exists(primary)) {
@@ -404,6 +435,9 @@ MainApp::~MainApp() = default;
 void MainApp::run()
 {
     show();
+#if !defined(AI_FILE_SORTER_TEST_BUILD)
+    maybe_show_suitability_benchmark();
+#endif
 }
 
 
@@ -676,6 +710,7 @@ void MainApp::connect_checkbox_signals()
 
     if (image_options_toggle_button) {
         connect(image_options_toggle_button, &QToolButton::toggled, this, [this](bool) {
+            settings.set_image_options_expanded(image_options_toggle_button->isChecked());
             update_image_analysis_controls();
         });
     }
@@ -730,6 +765,7 @@ void MainApp::connect_checkbox_signals()
 
     if (document_options_toggle_button) {
         connect(document_options_toggle_button, &QToolButton::toggled, this, [this](bool) {
+            settings.set_document_options_expanded(document_options_toggle_button->isChecked());
             update_document_analysis_controls();
         });
     }
@@ -851,9 +887,7 @@ void MainApp::restore_tree_settings()
         rename_images_only_checkbox->setChecked(settings.get_rename_images_only());
     }
     if (image_options_toggle_button) {
-        const bool expand_images = settings.get_process_images_only() ||
-                                   settings.get_offer_rename_images() ||
-                                   settings.get_rename_images_only();
+        const bool expand_images = settings.get_image_options_expanded();
         QSignalBlocker blocker(image_options_toggle_button);
         image_options_toggle_button->setChecked(expand_images);
     }
@@ -878,10 +912,7 @@ void MainApp::restore_tree_settings()
         add_document_date_to_category_checkbox->setChecked(settings.get_add_document_date_to_category());
     }
     if (document_options_toggle_button) {
-        const bool expand_documents = settings.get_process_documents_only() ||
-                                      settings.get_offer_rename_documents() ||
-                                      settings.get_rename_documents_only() ||
-                                      settings.get_add_document_date_to_category();
+        const bool expand_documents = settings.get_document_options_expanded();
         QSignalBlocker blocker(document_options_toggle_button);
         document_options_toggle_button->setChecked(expand_documents);
     }
@@ -3173,6 +3204,35 @@ void MainApp::show_llm_selection_dialog()
     } catch (const std::exception& ex) {
         show_error_dialog(fmt::format("LLM selection error: {}", ex.what()));
     }
+}
+
+void MainApp::show_suitability_benchmark_dialog(bool /*auto_start*/)
+{
+    if (benchmark_dialog) {
+        benchmark_dialog->raise();
+        benchmark_dialog->activateWindow();
+        return;
+    }
+
+    benchmark_dialog = std::make_unique<SuitabilityBenchmarkDialog>(settings, this);
+    QObject::connect(benchmark_dialog.get(), &QDialog::finished, this, [this]() {
+        benchmark_dialog.reset();
+    });
+    benchmark_dialog->show();
+}
+
+void MainApp::maybe_show_suitability_benchmark()
+{
+    if (settings.get_suitability_benchmark_completed()) {
+        return;
+    }
+    if (!default_text_llm_files_available() && !visual_llm_files_available()) {
+        return;
+    }
+
+    QTimer::singleShot(0, this, [this]() {
+        show_suitability_benchmark_dialog(false);
+    });
 }
 
 
