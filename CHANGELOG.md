@@ -1,9 +1,8 @@
 ﻿# Changelog
 
-## [1.6.0] - 2026-01-16
+## [1.6.0] - 2026-02-01
 
-- Added document content analysis (text LLM) with rename-only/document-only options and optional creation-date suffixes for categories.
-- Added support for document formats including PDF, DOCX, XLSX, PPTX, ODT, ODS, and ODP (plus common text formats).
+- Added document content analysis (text LLM) with rename-only/document-only options and optional creation-date suffixes for categories. Supported document formats include PDF, DOCX, XLSX, PPTX, ODT, ODS, and ODP (plus common text formats).
 - Local 3B model download now defaults to Q4 for better GPU compatibility. The legacy Local 3B Q8 is still selectable when an existing download is found.
 - Improved the LLM selection dialog latency.
 - Added custom API endpoints to the Select LLM dialog. Custom endpoints accept base URLs or full /chat/completions endpoints, with optional API keys for local servers.

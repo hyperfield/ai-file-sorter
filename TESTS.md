@@ -1,6 +1,6 @@
 # Test Suite Guide
 
-This document provides a detailed, textbook-style description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. Some UI-centric tests are compiled only on non-Windows platforms and use the Qt offscreen platform plugin so they can run without a visible display.
+This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. Some UI-centric tests are compiled only on non-Windows platforms and use the Qt offscreen platform plugin so they can run without a visible display.
 
 ## How to run tests
 - Build and run all tests: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`

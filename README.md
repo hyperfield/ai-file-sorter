@@ -86,16 +86,19 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 
 ## Changelog
 
-## [1.5.0] - 2026-01-06
+## [1.6.0] - 2026-02-01
 
-- Added content analysis for picture files via LLaVA.
-- Added picture analysis options in the main window.
-- Review dialog now supports rename-only flows, suggested filename edits, and status labels for Renamed / Renamed & Moved.
-- Added a picture-only processing toggle to focus runs on supported picture files.
-- Review dialog now supports rename-only flows, suggested filename edits, and status labels.
-- Added Dutch as a selectable interface language.
-- Analysis progress dialog output is now localized in all available UI languages.
-- Build and tests updates.
+- Added document content analysis (text LLM) with optional creation-date suffixes for categories. Supported document formats include PDF, DOCX, XLSX, PPTX, ODT, ODS, and ODP (plus common text formats).
+- Local 3B model download now defaults to Q4 for better GPU compatibility. The legacy Local 3B Q8 is still selectable when an existing download is found.
+- Improved the LLM selection dialog latency.
+- Added custom API endpoints to the Select LLM dialog. Custom endpoints accept base URLs or full /chat/completions endpoints, with optional API keys for local servers.
+- LLM-derived categorizations and rename suggestions are now saved as you go, so progress isn't lost if the app closes unexpectedly.
+- Image analysis now falls back (with a user prompt) to CPU if the GPU has insufficient available memory.
+- Review dialog now lets you select highlighted rows and bulk edit their categories.
+- Review dialog is now scrollable on smaller screens so action buttons stay visible.
+- Improved subcategory consistency by merging labels that only differ by generic suffixes (e.g., “files”).
+- Added Korean as an interface language.
+- UI and usability improvements.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
