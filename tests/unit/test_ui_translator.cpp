@@ -43,6 +43,7 @@ struct UiTranslatorTestHarness {
     QPointer<QComboBox> whitelist_selector{new QComboBox(&window)};
     QPointer<QCheckBox> files_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> directories_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> include_subdirectories_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> analyze_images_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> process_images_only_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> offer_rename_images_checkbox{new QCheckBox(&window)};
@@ -172,6 +173,7 @@ struct UiTranslatorTestHarness {
                 whitelist_selector,
                 files_checkbox,
                 directories_checkbox,
+                include_subdirectories_checkbox,
                 analyze_images_checkbox,
                 process_images_only_checkbox,
                 offer_rename_images_checkbox,
@@ -268,7 +270,8 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.style_consistent->text() == QStringLiteral("More consistent"));
     REQUIRE(h.use_whitelist->text() == QStringLiteral("Use a whitelist"));
     REQUIRE(h.files_checkbox->text() == QStringLiteral("Categorize files"));
-    REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize directories"));
+    REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize folders"));
+    REQUIRE(h.include_subdirectories_checkbox->text() == QStringLiteral("Scan subfolders"));
     REQUIRE(h.analyze_images_checkbox->text() == QStringLiteral("Analyze picture files by content (can be slow)"));
     REQUIRE(h.process_images_only_checkbox->text() ==
             QStringLiteral("Process picture files only (ignore any other files)"));

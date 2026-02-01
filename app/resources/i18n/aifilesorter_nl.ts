@@ -23,8 +23,10 @@
     <message><source>Failed to reset cached categorization for this folder.</source><translation>Kon de in cache opgeslagen categorisatie voor deze map niet resetten.</translation></message>
     <message><source>Categorize files</source><translation>Bestanden categoriseren</translation></message>
     <message><source>Include files in the categorization pass.</source><translation>Neem bestanden op in de categorisatieronde.</translation></message>
-    <message><source>Categorize directories</source><translation>Mappen categoriseren</translation></message>
+    <message><source>Categorize folders</source><translation>Mappen categoriseren</translation></message>
     <message><source>Include directories in the categorization pass.</source><translation>Neem mappen op in de categorisatieronde.</translation></message>
+    <message><source>Scan subfolders</source><translation>Submappen scannen</translation></message>
+    <message><source>Scan files inside subfolders and treat them as part of the main folder.</source><translation>Bestanden in submappen scannen en behandelen alsof ze in de hoofdmap staan.</translation></message>
     <message><source>Ready</source><translation>Gereed</translation></message>
     <message><source>Set folder to %1</source><translation>Map ingesteld op %1</translation></message>
     <message><source>Loaded folder %1</source><translation>Map %1 geladen</translation></message>

@@ -94,8 +94,12 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
         checkbox->setToolTip(tr("Include files in the categorization pass."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_directories_checkbox)) {
-        checkbox->setText(tr("Categorize directories"));
+        checkbox->setText(tr("Categorize folders"));
         checkbox->setToolTip(tr("Include directories in the categorization pass."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.include_subdirectories_checkbox)) {
+        checkbox->setText(tr("Scan subfolders"));
+        checkbox->setToolTip(tr("Scan files inside subfolders and treat them as part of the main folder."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.analyze_images_checkbox)) {
         checkbox->setText(tr("Analyze picture files by content (can be slow)"));

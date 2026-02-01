@@ -23,8 +23,10 @@
     <message><source>Failed to reset cached categorization for this folder.</source><translation>Impossibile ripristinare la categorizzazione memorizzata per questa cartella.</translation></message>
     <message><source>Categorize files</source><translation>Categorizza i file</translation></message>
     <message><source>Include files in the categorization pass.</source><translation>Includi i file nella categorizzazione.</translation></message>
-    <message><source>Categorize directories</source><translation>Categorizza le cartelle</translation></message>
+    <message><source>Categorize folders</source><translation>Categorizza le cartelle</translation></message>
     <message><source>Include directories in the categorization pass.</source><translation>Includi le cartelle nella categorizzazione.</translation></message>
+    <message><source>Scan subfolders</source><translation>Scansiona le sottocartelle</translation></message>
+    <message><source>Scan files inside subfolders and treat them as part of the main folder.</source><translation>Scansiona i file nelle sottocartelle e trattali come se fossero nella cartella principale.</translation></message>
     <message><source>Run the visual LLM on supported picture files.</source><translation>Esegui il LLM visivo sui file immagine supportati.</translation></message>
     <message><source>Ignore non-picture files in this run.</source><translation>Ignora i file non immagine in questa analisi.</translation></message>
     <message><source>Show suggested filenames for picture files.</source><translation>Mostra nomi file suggeriti per i file immagine.</translation></message>

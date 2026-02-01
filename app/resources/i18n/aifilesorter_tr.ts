@@ -23,8 +23,10 @@
     <message><source>Failed to reset cached categorization for this folder.</source><translation>Bu klasör için önbellekteki kategorilendirme sıfırlanamadı.</translation></message>
     <message><source>Categorize files</source><translation>Dosyaları kategorilendir</translation></message>
     <message><source>Include files in the categorization pass.</source><translation>Dosyaları kategorizasyona dahil et.</translation></message>
-    <message><source>Categorize directories</source><translation>Dizinleri kategorilendir</translation></message>
+    <message><source>Categorize folders</source><translation>Dizinleri kategorilendir</translation></message>
     <message><source>Include directories in the categorization pass.</source><translation>Dizinleri kategorizasyona dahil et.</translation></message>
+    <message><source>Scan subfolders</source><translation>Alt klasörleri tara</translation></message>
+    <message><source>Scan files inside subfolders and treat them as part of the main folder.</source><translation>Alt dizinlerdeki dosyaları tara ve ana dizindeymiş gibi işle.</translation></message>
     <message><source>Run the visual LLM on supported picture files.</source><translation>Görsel LLM'yi desteklenen resim dosyaları üzerinde çalıştır.</translation></message>
     <message><source>Ignore non-picture files in this run.</source><translation>Bu çalışmada resim olmayan dosyaları yok say.</translation></message>
     <message><source>Show suggested filenames for picture files.</source><translation>Resim dosyaları için önerilen dosya adlarını göster.</translation></message>
