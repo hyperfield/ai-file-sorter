@@ -80,6 +80,120 @@ TEST_CASE("Image analysis checkboxes enable and enforce rename-only behavior") {
     REQUIRE_FALSE(rename_only->isChecked());
 }
 
+TEST_CASE("Image rename-only does not disable categorization unless processing images only") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    EnvVarGuard model_guard("LLAVA_MODEL_URL", std::string("https://example.com/llava-model.gguf"));
+    EnvVarGuard mmproj_guard("LLAVA_MMPROJ_URL", std::string("https://example.com/mmproj-model-f16.gguf"));
+
+    create_visual_llm_files();
+
+    Settings settings;
+    settings.set_analyze_images_by_content(false);
+    settings.set_offer_rename_images(false);
+    settings.set_rename_images_only(false);
+    settings.set_process_images_only(false);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    QCheckBox* categorize_files = MainAppTestAccess::categorize_files_checkbox(window);
+    QCheckBox* analyze = MainAppTestAccess::analyze_images_checkbox(window);
+    QCheckBox* process_only = MainAppTestAccess::process_images_only_checkbox(window);
+    QCheckBox* rename_only = MainAppTestAccess::rename_images_only_checkbox(window);
+
+    REQUIRE(categorize_files != nullptr);
+    REQUIRE(analyze != nullptr);
+    REQUIRE(process_only != nullptr);
+    REQUIRE(rename_only != nullptr);
+
+    analyze->setChecked(true);
+    rename_only->setChecked(true);
+    CHECK(categorize_files->isEnabled());
+
+    process_only->setChecked(true);
+    CHECK_FALSE(categorize_files->isEnabled());
+}
+
+TEST_CASE("Document rename-only does not disable categorization unless processing documents only") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_documents(false);
+    settings.set_rename_documents_only(false);
+    settings.set_process_documents_only(false);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    QCheckBox* categorize_files = MainAppTestAccess::categorize_files_checkbox(window);
+    QCheckBox* analyze = MainAppTestAccess::analyze_documents_checkbox(window);
+    QCheckBox* process_only = MainAppTestAccess::process_documents_only_checkbox(window);
+    QCheckBox* rename_only = MainAppTestAccess::rename_documents_only_checkbox(window);
+
+    REQUIRE(categorize_files != nullptr);
+    REQUIRE(analyze != nullptr);
+    REQUIRE(process_only != nullptr);
+    REQUIRE(rename_only != nullptr);
+
+    analyze->setChecked(true);
+    rename_only->setChecked(true);
+    CHECK(categorize_files->isEnabled());
+
+    process_only->setChecked(true);
+    CHECK_FALSE(categorize_files->isEnabled());
+}
+
+TEST_CASE("Document analysis ignores other files when categorize files is off") {
+    std::vector<FileEntry> files = {
+        {"/tmp/photo.jpg", "photo.jpg", FileType::File},
+        {"/tmp/report.pdf", "report.pdf", FileType::File},
+        {"/tmp/archive.bin", "archive.bin", FileType::File},
+        {"/tmp/folder", "folder", FileType::Directory}
+    };
+    std::unordered_set<std::string> renamed_files;
+
+    auto contains = [](const std::vector<FileEntry>& entries, const std::string& name) {
+        return std::any_of(entries.begin(),
+                           entries.end(),
+                           [&name](const FileEntry& entry) { return entry.file_name == name; });
+    };
+
+    std::vector<FileEntry> image_entries;
+    std::vector<FileEntry> document_entries;
+    std::vector<FileEntry> other_entries;
+
+    MainAppTestAccess::split_entries_for_analysis(files,
+                                                  false,
+                                                  true,
+                                                  false,
+                                                  false,
+                                                  false,
+                                                  false,
+                                                  false,
+                                                  false,
+                                                  renamed_files,
+                                                  image_entries,
+                                                  document_entries,
+                                                  other_entries);
+
+    CHECK(image_entries.empty());
+    CHECK(contains(document_entries, "report.pdf"));
+    CHECK_FALSE(contains(other_entries, "photo.jpg"));
+    CHECK_FALSE(contains(other_entries, "archive.bin"));
+    CHECK(contains(other_entries, "folder"));
+}
+
 TEST_CASE("Image analysis toggle disables when dialog closes without downloads") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt_context;
@@ -167,6 +281,8 @@ TEST_CASE("Already-renamed images skip vision analysis") {
                                                       false,
                                                       false,
                                                       false,
+                                                      true,
+                                                      false,
                                                       renamed_files,
                                                       image_entries,
                                                       document_entries,
@@ -186,6 +302,8 @@ TEST_CASE("Already-renamed images skip vision analysis") {
                                                       true,
                                                       false,
                                                       false,
+                                                      false,
+                                                      true,
                                                       false,
                                                       true,
                                                       false,
