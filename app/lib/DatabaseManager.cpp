@@ -87,6 +87,36 @@ bool has_label_content(const std::string& value) {
     return !trim_copy(value).empty();
 }
 
+std::string escape_like_pattern(const std::string& value) {
+    std::string escaped;
+    escaped.reserve(value.size() * 2);
+    for (char ch : value) {
+        if (ch == '\\' || ch == '%' || ch == '_') {
+            escaped.push_back('\\');
+        }
+        escaped.push_back(ch);
+    }
+    return escaped;
+}
+
+std::string build_recursive_dir_pattern(const std::string& directory_path) {
+    std::string escaped = escape_like_pattern(directory_path);
+    if (directory_path.empty()) {
+        return escaped + "%";
+    }
+    const char sep = directory_path.find('\\') != std::string::npos ? '\\' : '/';
+    if (directory_path.back() == sep) {
+        escaped.push_back('%');
+        return escaped;
+    }
+    if (sep == '\\' || sep == '%' || sep == '_') {
+        escaped.push_back('\\');
+    }
+    escaped.push_back(sep);
+    escaped.push_back('%');
+    return escaped;
+}
+
 std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     const char *file_dir_path = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
     const char *file_name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
@@ -930,6 +960,43 @@ DatabaseManager::get_categorized_files(const std::string &directory_path) {
 
     if (sqlite3_bind_text(stmt.get(), 1, directory_path.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
         db_log(spdlog::level::err, "Failed to bind directory_path: {}", sqlite3_errmsg(db));
+        return categorized_files;
+    }
+
+    while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+        if (auto entry = build_categorized_entry(stmt.get())) {
+            categorized_files.push_back(std::move(*entry));
+        }
+    }
+
+    return categorized_files;
+}
+
+std::vector<CategorizedFile>
+DatabaseManager::get_categorized_files_recursive(const std::string& directory_path) {
+    std::vector<CategorizedFile> categorized_files;
+    if (!db) {
+        return categorized_files;
+    }
+
+    const char* sql =
+        "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
+        "categorization_style, rename_only, rename_applied "
+        "FROM file_categorization "
+        "WHERE dir_path = ? OR dir_path LIKE ? ESCAPE '\\';";
+    StatementPtr stmt = prepare_statement(db, sql);
+    if (!stmt) {
+        return categorized_files;
+    }
+
+    if (sqlite3_bind_text(stmt.get(), 1, directory_path.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to bind directory_path: {}", sqlite3_errmsg(db));
+        return categorized_files;
+    }
+
+    const std::string pattern = build_recursive_dir_pattern(directory_path);
+    if (sqlite3_bind_text(stmt.get(), 2, pattern.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to bind recursive directory pattern: {}", sqlite3_errmsg(db));
         return categorized_files;
     }
 

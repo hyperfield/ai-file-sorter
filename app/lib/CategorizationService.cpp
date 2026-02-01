@@ -186,6 +186,9 @@ std::vector<CategorizedFile> CategorizationService::prune_empty_cached_entries(c
 
 std::vector<CategorizedFile> CategorizationService::load_cached_entries(const std::string& directory_path) const
 {
+    if (settings.get_include_subdirectories()) {
+        return db_manager.get_categorized_files_recursive(directory_path);
+    }
     return db_manager.get_categorized_files(directory_path);
 }
 

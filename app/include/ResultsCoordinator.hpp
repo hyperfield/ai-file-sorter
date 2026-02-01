@@ -39,7 +39,8 @@ public:
      */
     std::vector<FileEntry> find_files_to_categorize(const std::string& directory_path,
                                                     FileScanOptions options,
-                                                    const std::unordered_set<std::string>& cached_files) const;
+                                                    const std::unordered_set<std::string>& cached_files,
+                                                    bool use_full_path_keys) const;
 
     /**
      * @brief Filters categorized results to those still present on disk.
@@ -52,14 +53,16 @@ public:
     std::vector<CategorizedFile> compute_files_to_sort(const std::string& directory_path,
                                                        FileScanOptions options,
                                                        const std::vector<FileEntry>& actual_files,
-                                                       const std::vector<CategorizedFile>& categorized_files) const;
+                                                       const std::vector<CategorizedFile>& categorized_files,
+                                                       bool use_full_path_keys) const;
 
     /**
      * @brief Extracts file names from categorized entries into a set.
      * @param categorized_files Categorized entries to process.
      * @return Set of file names contained in the categorized list.
      */
-    std::unordered_set<std::string> extract_file_names(const std::vector<CategorizedFile>& categorized_files) const;
+    std::unordered_set<std::string> extract_file_names(const std::vector<CategorizedFile>& categorized_files,
+                                                       bool use_full_path_keys) const;
 
 private:
     /**

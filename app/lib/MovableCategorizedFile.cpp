@@ -115,7 +115,7 @@ MovableCategorizedFile::build_move_paths(bool use_subcategory) const
         : base_dir / category_segment;
 
     return MovePaths{
-        base_dir / file_segment,
+        Utils::utf8_to_path(source_dir) / file_segment,
         categorized_root / destination_segment
     };
 }
@@ -165,9 +165,21 @@ bool MovableCategorizedFile::perform_move(const std::filesystem::path& source_pa
 MovableCategorizedFile::MovableCategorizedFile(
     const std::string& dir_path, const std::string& cat, const std::string& subcat,
     const std::string& file_name, const std::string& destination_name)
+    : MovableCategorizedFile(dir_path, dir_path, cat, subcat, file_name, destination_name)
+{
+}
+
+MovableCategorizedFile::MovableCategorizedFile(
+    const std::string& source_dir,
+    const std::string& destination_root,
+    const std::string& cat,
+    const std::string& subcat,
+    const std::string& file_name,
+    const std::string& destination_name)
     : file_name(file_name),
       destination_file_name(destination_name.empty() ? file_name : destination_name),
-      dir_path(dir_path),
+      source_dir(source_dir),
+      dir_path(destination_root),
       category(cat),
       subcategory(subcat)
 {

@@ -1,6 +1,7 @@
 #include "ResultsCoordinator.hpp"
 
 #include <algorithm>
+#include <filesystem>
 
 ResultsCoordinator::ResultsCoordinator(FileScanner& scanner)
     : scanner(scanner)
@@ -16,7 +17,8 @@ std::vector<FileEntry> ResultsCoordinator::list_directory(const std::string& dir
 std::vector<FileEntry> ResultsCoordinator::find_files_to_categorize(
     const std::string& directory_path,
     FileScanOptions options,
-    const std::unordered_set<std::string>& cached_files) const
+    const std::unordered_set<std::string>& cached_files,
+    bool use_full_path_keys) const
 {
     std::vector<FileEntry> actual_files = list_directory(directory_path, options);
 
@@ -24,7 +26,8 @@ std::vector<FileEntry> ResultsCoordinator::find_files_to_categorize(
     found_files.reserve(actual_files.size());
 
     for (const auto& entry : actual_files) {
-        if (!cached_files.contains(entry.file_name)) {
+        const std::string key = use_full_path_keys ? entry.full_path : entry.file_name;
+        if (!cached_files.contains(key)) {
             found_files.push_back(entry);
         }
     }
@@ -36,8 +39,11 @@ std::vector<CategorizedFile> ResultsCoordinator::compute_files_to_sort(
     const std::string& directory_path,
     FileScanOptions options,
     const std::vector<FileEntry>& actual_files,
-    const std::vector<CategorizedFile>& categorized_files) const
+    const std::vector<CategorizedFile>& categorized_files,
+    bool use_full_path_keys) const
 {
+    (void)directory_path;
+    (void)options;
     std::vector<CategorizedFile> files_to_sort;
     files_to_sort.reserve(actual_files.size());
 
@@ -45,9 +51,16 @@ std::vector<CategorizedFile> ResultsCoordinator::compute_files_to_sort(
         const auto it = std::find_if(
             categorized_files.begin(),
             categorized_files.end(),
-            [&entry](const CategorizedFile& categorized_file) {
-                return categorized_file.file_name == entry.file_name
-                       && categorized_file.type == entry.type;
+            [&entry, use_full_path_keys](const CategorizedFile& categorized_file) {
+                if (categorized_file.type != entry.type) {
+                    return false;
+                }
+                if (use_full_path_keys) {
+                    const auto full_path = std::filesystem::path(categorized_file.file_path) /
+                                           std::filesystem::path(categorized_file.file_name);
+                    return full_path == std::filesystem::path(entry.full_path);
+                }
+                return categorized_file.file_name == entry.file_name;
             });
 
         if (it != categorized_files.end()) {
@@ -59,12 +72,19 @@ std::vector<CategorizedFile> ResultsCoordinator::compute_files_to_sort(
 }
 
 std::unordered_set<std::string> ResultsCoordinator::extract_file_names(
-    const std::vector<CategorizedFile>& categorized_files) const
+    const std::vector<CategorizedFile>& categorized_files,
+    bool use_full_path_keys) const
 {
     std::unordered_set<std::string> file_names;
     file_names.reserve(categorized_files.size());
     for (const auto& file : categorized_files) {
-        file_names.insert(file.file_name);
+        if (use_full_path_keys) {
+            const auto full_path = std::filesystem::path(file.file_path) /
+                                   std::filesystem::path(file.file_name);
+            file_names.insert(full_path.string());
+        } else {
+            file_names.insert(file.file_name);
+        }
     }
     return file_names;
 }

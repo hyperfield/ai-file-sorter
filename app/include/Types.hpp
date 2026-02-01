@@ -87,7 +87,8 @@ enum class FileScanOptions {
     None        = 0,
     Files       = 1 << 0,   // 0001
     Directories = 1 << 1,   // 0010
-    HiddenFiles = 1 << 2    // 0100
+    HiddenFiles = 1 << 2,   // 0100
+    Recursive   = 1 << 3    // 1000
 };
 
 inline bool has_flag(FileScanOptions value, FileScanOptions flag) {

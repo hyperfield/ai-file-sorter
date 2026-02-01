@@ -39,7 +39,11 @@ public:
 #endif
 
     bool is_dialog_valid() const;
-    void show_results(const std::vector<CategorizedFile>& categorized_files);
+    void show_results(const std::vector<CategorizedFile>& categorized_files,
+                      const std::string& base_dir_override = std::string(),
+                      bool include_subdirectories = false,
+                      bool allow_image_renames = true,
+                      bool allow_document_renames = true);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -138,6 +142,7 @@ private:
                              const std::string& rename_candidate,
                              const std::string& category,
                              const std::string& subcategory,
+                             const std::string& source_dir,
                              const std::string& base_dir,
                              std::vector<std::string>& files_not_moved,
                              FileType file_type,
@@ -206,6 +211,9 @@ private:
 
     DatabaseManager* db_manager;
     bool show_subcategory_column;
+    bool include_subdirectories_{false};
+    bool allow_image_renames_{true};
+    bool allow_document_renames_{true};
     bool show_rename_column{false};
     std::vector<CategorizedFile> categorized_files;
 

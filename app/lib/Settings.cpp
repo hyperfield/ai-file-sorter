@@ -166,6 +166,7 @@ Settings::Settings()
     : use_subcategories(true),
       categorize_files(true),
       categorize_directories(false),
+      include_subdirectories(false),
       use_consistency_hints(false),
       use_whitelist(false),
       default_sort_folder(""),
@@ -209,9 +210,9 @@ Settings::Settings()
     language = system_default_language();
     category_language = CategoryLanguage::English;
     analyze_images_by_content = false;
-    offer_rename_images = true;
+    offer_rename_images = false;
     analyze_documents_by_content = false;
-    offer_rename_documents = true;
+    offer_rename_documents = false;
     rename_documents_only = false;
     process_documents_only = false;
     add_document_date_to_category = false;
@@ -242,12 +243,13 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
+    include_subdirectories = load_bool("IncludeSubdirectories", false);
     analyze_images_by_content = load_bool("AnalyzeImagesByContent", false);
-    offer_rename_images = load_bool("OfferRenameImages", true);
+    offer_rename_images = load_bool("OfferRenameImages", false);
     rename_images_only = load_bool("RenameImagesOnly", false);
     process_images_only = load_bool("ProcessImagesOnly", false);
     analyze_documents_by_content = load_bool("AnalyzeDocumentsByContent", false);
-    offer_rename_documents = load_bool("OfferRenameDocuments", true);
+    offer_rename_documents = load_bool("OfferRenameDocuments", false);
     rename_documents_only = load_bool("RenameDocumentsOnly", false);
     process_documents_only = load_bool("ProcessDocumentsOnly", false);
     add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
@@ -256,6 +258,9 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     }
     if (rename_documents_only && !offer_rename_documents) {
         offer_rename_documents = true;
+    }
+    if (include_subdirectories && categorize_directories) {
+        categorize_directories = false;
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = load_bool("ShowFileExplorer", true);
@@ -353,6 +358,7 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
     set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
     set_bool_setting(config, settings_section, "CategorizeDirectories", categorize_directories);
+    set_bool_setting(config, settings_section, "IncludeSubdirectories", include_subdirectories);
     if (rename_images_only) {
         offer_rename_images = true;
     }
@@ -745,6 +751,16 @@ bool Settings::get_categorize_directories() const
 void Settings::set_categorize_directories(bool value)
 {
     categorize_directories = value;
+}
+
+bool Settings::get_include_subdirectories() const
+{
+    return include_subdirectories;
+}
+
+void Settings::set_include_subdirectories(bool value)
+{
+    include_subdirectories = value;
 }
 
 bool Settings::get_analyze_images_by_content() const

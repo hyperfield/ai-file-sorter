@@ -283,6 +283,8 @@ void split_entries_for_analysis(const std::vector<FileEntry>& files,
                                 bool process_documents_only,
                                 bool rename_images_only,
                                 bool rename_documents_only,
+                                bool categorize_files,
+                                bool use_full_path_keys,
                                 const std::unordered_set<std::string>& renamed_files,
                                 std::vector<FileEntry>& image_entries,
                                 std::vector<FileEntry>& document_entries,
@@ -297,8 +299,16 @@ void split_entries_for_analysis(const std::vector<FileEntry>& files,
     const bool restrict_types = process_images_only || process_documents_only;
     const bool allow_images = !restrict_types || process_images_only;
     const bool allow_documents = !restrict_types || process_documents_only;
+    const bool allow_other_files = categorize_files && !restrict_types;
 
     for (const auto& entry : files) {
+        const std::string entry_key = use_full_path_keys ? entry.full_path : entry.file_name;
+        if (entry.type == FileType::Directory) {
+            if (!restrict_types) {
+                other_entries.push_back(entry);
+            }
+            continue;
+        }
         const bool is_image_entry = entry.type == FileType::File &&
                                     LlavaImageAnalyzer::is_supported_image(entry.full_path);
         const bool is_document_entry = entry.type == FileType::File &&
@@ -309,7 +319,7 @@ void split_entries_for_analysis(const std::vector<FileEntry>& files,
                 continue;
             }
             if (analyze_images) {
-                const bool already_renamed = renamed_files.contains(entry.file_name);
+                const bool already_renamed = renamed_files.contains(entry_key);
                 if (already_renamed) {
                     if (rename_images_only) {
                         continue;
@@ -319,7 +329,7 @@ void split_entries_for_analysis(const std::vector<FileEntry>& files,
                 } else {
                     image_entries.push_back(entry);
                 }
-            } else if (!restrict_types) {
+            } else if (allow_other_files) {
                 other_entries.push_back(entry);
             }
             continue;
@@ -330,7 +340,7 @@ void split_entries_for_analysis(const std::vector<FileEntry>& files,
                 continue;
             }
             if (analyze_documents) {
-                const bool already_renamed = renamed_files.contains(entry.file_name);
+                const bool already_renamed = renamed_files.contains(entry_key);
                 if (already_renamed) {
                     if (rename_documents_only) {
                         continue;
@@ -340,13 +350,13 @@ void split_entries_for_analysis(const std::vector<FileEntry>& files,
                 } else {
                     document_entries.push_back(entry);
                 }
-            } else if (!restrict_types) {
+            } else if (allow_other_files) {
                 other_entries.push_back(entry);
             }
             continue;
         }
 
-        if (!restrict_types) {
+        if (allow_other_files) {
             other_entries.push_back(entry);
         }
     }
@@ -610,6 +620,19 @@ void MainApp::connect_checkbox_signals()
         settings.set_categorize_directories(checked);
     });
 
+    if (include_subdirectories_checkbox) {
+        connect(include_subdirectories_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_include_subdirectories(checked);
+            if (checked && categorize_directories_checkbox && categorize_directories_checkbox->isChecked()) {
+                QSignalBlocker blocker(categorize_directories_checkbox);
+                categorize_directories_checkbox->setChecked(false);
+                update_file_scan_option(FileScanOptions::Directories, false);
+                settings.set_categorize_directories(false);
+            }
+            update_image_only_controls();
+        });
+    }
+
     if (analyze_images_checkbox) {
         connect(analyze_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
             handle_image_analysis_toggle(checked);
@@ -808,6 +831,9 @@ void MainApp::restore_tree_settings()
     }
     categorize_files_checkbox->setChecked(settings.get_categorize_files());
     categorize_directories_checkbox->setChecked(settings.get_categorize_directories());
+    if (include_subdirectories_checkbox) {
+        include_subdirectories_checkbox->setChecked(settings.get_include_subdirectories());
+    }
     if (analyze_images_checkbox) {
         QSignalBlocker blocker(analyze_images_checkbox);
         analyze_images_checkbox->setChecked(settings.get_analyze_images_by_content());
@@ -932,6 +958,9 @@ void MainApp::sync_ui_to_settings()
     }
     settings.set_categorize_files(categorize_files_checkbox->isChecked());
     settings.set_categorize_directories(categorize_directories_checkbox->isChecked());
+    if (include_subdirectories_checkbox) {
+        settings.set_include_subdirectories(include_subdirectories_checkbox->isChecked());
+    }
     if (analyze_images_checkbox) {
         settings.set_analyze_images_by_content(analyze_images_checkbox->isChecked());
     }
@@ -1004,6 +1033,10 @@ QString MainAppTestAccess::path_label_text(const MainApp& app) {
     return app.path_label ? app.path_label->text() : QString();
 }
 
+QCheckBox* MainAppTestAccess::categorize_files_checkbox(MainApp& app) {
+    return app.categorize_files_checkbox;
+}
+
 QCheckBox* MainAppTestAccess::analyze_images_checkbox(MainApp& app) {
     return app.analyze_images_checkbox;
 }
@@ -1020,6 +1053,18 @@ QCheckBox* MainAppTestAccess::rename_images_only_checkbox(MainApp& app) {
     return app.rename_images_only_checkbox;
 }
 
+QCheckBox* MainAppTestAccess::analyze_documents_checkbox(MainApp& app) {
+    return app.analyze_documents_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::process_documents_only_checkbox(MainApp& app) {
+    return app.process_documents_only_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::rename_documents_only_checkbox(MainApp& app) {
+    return app.rename_documents_only_checkbox;
+}
+
 void MainAppTestAccess::split_entries_for_analysis(const std::vector<FileEntry>& files,
                                                    bool analyze_images,
                                                    bool analyze_documents,
@@ -1027,6 +1072,8 @@ void MainAppTestAccess::split_entries_for_analysis(const std::vector<FileEntry>&
                                                    bool process_documents_only,
                                                    bool rename_images_only,
                                                    bool rename_documents_only,
+                                                   bool categorize_files,
+                                                   bool use_full_path_keys,
                                                    const std::unordered_set<std::string>& renamed_files,
                                                    std::vector<FileEntry>& image_entries,
                                                    std::vector<FileEntry>& document_entries,
@@ -1038,6 +1085,8 @@ void MainAppTestAccess::split_entries_for_analysis(const std::vector<FileEntry>&
                                  process_documents_only,
                                  rename_images_only,
                                  rename_documents_only,
+                                 categorize_files,
+                                 use_full_path_keys,
                                  renamed_files,
                                  image_entries,
                                  document_entries,
@@ -1305,6 +1354,14 @@ void MainApp::ensure_one_checkbox_active(QCheckBox* changed_checkbox)
         return;
     }
 
+    const bool include_subdirs_active = include_subdirectories_checkbox &&
+                                        include_subdirectories_checkbox->isChecked();
+    if (include_subdirs_active &&
+        !categorize_files_checkbox->isChecked() &&
+        !categorize_directories_checkbox->isChecked()) {
+        return;
+    }
+
     if (!categorize_files_checkbox->isChecked() && !categorize_directories_checkbox->isChecked()) {
         QCheckBox* other = (changed_checkbox == categorize_files_checkbox)
                                ? categorize_directories_checkbox
@@ -1325,12 +1382,21 @@ void MainApp::update_file_scan_option(FileScanOptions option, bool enabled)
 
 FileScanOptions MainApp::effective_scan_options() const
 {
-    const bool images_only = settings.get_process_images_only() && settings.get_analyze_images_by_content();
-    const bool documents_only = settings.get_process_documents_only() && settings.get_analyze_documents_by_content();
+    const bool analyze_images = settings.get_analyze_images_by_content();
+    const bool analyze_documents = settings.get_analyze_documents_by_content();
+    const bool images_only = analyze_images && settings.get_process_images_only();
+    const bool documents_only = analyze_documents && settings.get_process_documents_only();
     if (images_only || documents_only) {
         return FileScanOptions::Files;
     }
-    return file_scan_options;
+    FileScanOptions options = file_scan_options;
+    if (analyze_images || analyze_documents) {
+        options = options | FileScanOptions::Files;
+    }
+    if (settings.get_include_subdirectories() && has_flag(options, FileScanOptions::Files)) {
+        options = options | FileScanOptions::Recursive;
+    }
+    return options;
 }
 
 bool MainApp::visual_llm_files_available() const
@@ -1427,8 +1493,18 @@ void MainApp::update_image_only_controls()
     const bool rename_documents_active = rename_documents_only_checkbox &&
                                          analyze_documents &&
                                          rename_documents_only_checkbox->isChecked();
-    const bool disable_files_categorization = rename_images_active || rename_documents_active;
-    const bool disable_directories_categorization = images_only_active || documents_only_active;
+
+    const bool restrict_types = images_only_active || documents_only_active;
+    const bool allow_images = !restrict_types || images_only_active;
+    const bool allow_documents = !restrict_types || documents_only_active;
+    const bool allow_other_files = !restrict_types;
+    const bool images_rename_only = allow_images ? rename_images_active : true;
+    const bool documents_rename_only = allow_documents ? rename_documents_active : true;
+    const bool disable_files_categorization =
+        !allow_other_files && images_rename_only && documents_rename_only;
+    const bool include_subdirs_active = include_subdirectories_checkbox &&
+                                        include_subdirectories_checkbox->isChecked();
+    const bool disable_directories_categorization = restrict_types || include_subdirs_active;
 
     if (use_subcategories_checkbox) {
         use_subcategories_checkbox->setEnabled(!disable_files_categorization);
@@ -1941,11 +2017,14 @@ void MainApp::perform_analysis()
         const bool process_documents_only = analyze_documents && settings.get_process_documents_only();
         const bool rename_images_only = analyze_images && settings.get_rename_images_only();
         const bool rename_documents_only = analyze_documents && settings.get_rename_documents_only();
-        const bool offer_image_renames = analyze_images && settings.get_offer_rename_images();
-        const bool offer_document_renames = analyze_documents && settings.get_offer_rename_documents();
-        const bool wants_visual_rename = analyze_images && offer_image_renames && !rename_images_only;
-        const bool wants_document_rename = analyze_documents && offer_document_renames && !rename_documents_only;
+        const bool allow_image_renames = settings.get_offer_rename_images();
+        const bool allow_document_renames = settings.get_offer_rename_documents();
+        const bool offer_image_renames = analyze_images && allow_image_renames;
+        const bool offer_document_renames = analyze_documents && allow_document_renames;
+        const bool wants_visual_rename = analyze_images && allow_image_renames && !rename_images_only;
+        const bool wants_document_rename = analyze_documents && allow_document_renames && !rename_documents_only;
         const bool add_document_date = analyze_documents && settings.get_add_document_date_to_category();
+        const bool use_full_path_keys = settings.get_include_subdirectories();
 
         const auto cached_entries = categorization_service.load_cached_entries(directory_path);
         std::vector<CategorizedFile> pending_renames;
@@ -2004,6 +2083,17 @@ void MainApp::perform_analysis()
                            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
             return trimmed == "uncategorized";
         };
+        auto file_key = [use_full_path_keys](const CategorizedFile& entry) {
+            if (!use_full_path_keys) {
+                return entry.file_name;
+            }
+            const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                   Utils::utf8_to_path(entry.file_name);
+            return Utils::path_to_utf8(full_path);
+        };
+        auto entry_key = [use_full_path_keys](const FileEntry& entry) {
+            return use_full_path_keys ? entry.full_path : entry.file_name;
+        };
         auto persist_rename_only_progress = [this, &is_missing_category_label](const FileEntry& entry,
                                                                               const std::string& suggested_name) {
             // Persist rename-only progress during analysis to avoid losing rename suggestions on crash.
@@ -2058,26 +2148,37 @@ void MainApp::perform_analysis()
                 entry.rename_applied);
         };
 
-        for (const auto& entry : cached_entries) {
+        for (const auto& cached_entry : cached_entries) {
+            auto entry = cached_entry;
             const bool is_image_entry = is_supported_image_entry(entry);
             const bool is_document_entry = is_supported_document_entry(entry);
+            const bool allow_entry_renames =
+                (is_image_entry && allow_image_renames) ||
+                (is_document_entry && allow_document_renames);
             const bool suggested_matches = !entry.suggested_name.empty() &&
                                            to_lower(entry.suggested_name) == to_lower(entry.file_name);
             const bool already_renamed = entry.rename_applied || suggested_matches;
             if (already_renamed) {
-                renamed_files.insert(entry.file_name);
+                renamed_files.insert(file_key(entry));
             }
             if (entry.rename_only && !has_category(entry)) {
+                if (!allow_entry_renames) {
+                    continue;
+                }
                 if (!already_renamed) {
                     pending_renames.push_back(entry);
                     if (is_image_entry && !rename_images_only && !entry.suggested_name.empty()) {
-                        cached_image_suggestions.emplace(entry.file_name, entry.suggested_name);
+                        cached_image_suggestions.emplace(file_key(entry), entry.suggested_name);
                     }
                     if (is_document_entry && !rename_documents_only && !entry.suggested_name.empty()) {
-                        cached_document_suggestions.emplace(entry.file_name, entry.suggested_name);
+                        cached_document_suggestions.emplace(file_key(entry), entry.suggested_name);
                     }
                 }
                 continue;
+            }
+            if (!allow_entry_renames) {
+                entry.suggested_name.clear();
+                entry.rename_only = false;
             }
             if (rename_images_only && analyze_images && is_image_entry) {
                 if (!already_renamed && entry.suggested_name.empty()) {
@@ -2100,7 +2201,7 @@ void MainApp::perform_analysis()
             if (wants_visual_rename && is_image_entry && entry.suggested_name.empty() && !already_renamed) {
                 const auto entry_index = already_categorized_files.size();
                 already_categorized_files.push_back(entry);
-                cached_visual_indices.emplace(entry.file_name, entry_index);
+                cached_visual_indices.emplace(file_key(entry), entry_index);
                 const auto full_path = Utils::utf8_to_path(entry.file_path) /
                                        Utils::utf8_to_path(entry.file_name);
                 cached_image_entries_for_visual.push_back(
@@ -2110,7 +2211,7 @@ void MainApp::perform_analysis()
             if (wants_document_rename && is_document_entry && entry.suggested_name.empty() && !already_renamed) {
                 const auto entry_index = already_categorized_files.size();
                 already_categorized_files.push_back(entry);
-                cached_document_indices.emplace(entry.file_name, entry_index);
+                cached_document_indices.emplace(file_key(entry), entry_index);
                 const auto full_path = Utils::utf8_to_path(entry.file_path) /
                                        Utils::utf8_to_path(entry.file_name);
                 cached_document_entries_for_analysis.push_back(
@@ -2149,7 +2250,7 @@ void MainApp::perform_analysis()
             filter_entries(pending_renames);
             if (!cached_visual_indices.empty()) {
                 for (size_t index = 0; index < already_categorized_files.size(); ++index) {
-                    auto it = cached_visual_indices.find(already_categorized_files[index].file_name);
+                    auto it = cached_visual_indices.find(file_key(already_categorized_files[index]));
                     if (it != cached_visual_indices.end()) {
                         it->second = index;
                     }
@@ -2157,7 +2258,7 @@ void MainApp::perform_analysis()
             }
             if (!cached_document_indices.empty()) {
                 for (size_t index = 0; index < already_categorized_files.size(); ++index) {
-                    auto it = cached_document_indices.find(already_categorized_files[index].file_name);
+                    auto it = cached_document_indices.find(file_key(already_categorized_files[index]));
                     if (it != cached_document_indices.end()) {
                         it->second = index;
                     }
@@ -2169,14 +2270,18 @@ void MainApp::perform_analysis()
 
         log_cached_highlights();
 
-        auto cached_file_names = results_coordinator.extract_file_names(already_categorized_files);
+        auto cached_file_names = results_coordinator.extract_file_names(already_categorized_files,
+                                                                        use_full_path_keys);
         if ((rename_images_only || rename_documents_only) && !pending_renames.empty()) {
             for (const auto& entry : pending_renames) {
-                cached_file_names.insert(entry.file_name);
+                cached_file_names.insert(file_key(entry));
             }
         }
         const auto scan_options = effective_scan_options();
-        files_to_categorize = results_coordinator.find_files_to_categorize(directory_path, scan_options, cached_file_names);
+        files_to_categorize = results_coordinator.find_files_to_categorize(directory_path,
+                                                                           scan_options,
+                                                                           cached_file_names,
+                                                                           use_full_path_keys);
         if (process_images_only || process_documents_only) {
             const bool allow_images = process_images_only;
             const bool allow_documents = process_documents_only;
@@ -2217,6 +2322,8 @@ void MainApp::perform_analysis()
                                    process_documents_only,
                                    rename_images_only,
                                    rename_documents_only,
+                                   settings.get_categorize_files(),
+                                   use_full_path_keys,
                                    renamed_files,
                                    image_entries,
                                    document_entries,
@@ -2317,7 +2424,7 @@ void MainApp::perform_analysis()
 
             auto update_cached_image_suggestion = [&](const FileEntry& entry,
                                                       const std::string& suggested_name) {
-                const auto it = cached_visual_indices.find(entry.file_name);
+                const auto it = cached_visual_indices.find(entry_key(entry));
                 if (it == cached_visual_indices.end()) {
                     return;
                 }
@@ -2343,13 +2450,12 @@ void MainApp::perform_analysis()
                     other_entries.push_back(entry);
                 }
                 const std::string suggested_name = already_renamed ? std::string() : entry.file_name;
-                if (offer_image_renames || rename_images_only) {
-                    image_info.emplace(
-                        entry.file_name,
-                        ImageAnalysisInfo{suggested_name, entry.file_name, entry.full_path});
-                    if (rename_images_only) {
-                        persist_rename_only_progress(entry, suggested_name);
-                    }
+                const std::string ui_suggested_name =
+                    (allow_image_renames || rename_images_only) ? suggested_name : std::string();
+                image_info.emplace(entry_key(entry),
+                                   ImageAnalysisInfo{ui_suggested_name, entry.file_name, entry.full_path});
+                if (rename_images_only) {
+                    persist_rename_only_progress(entry, suggested_name);
                 }
                 if (visual_only) {
                     update_cached_image_suggestion(entry, suggested_name);
@@ -2401,11 +2507,11 @@ void MainApp::perform_analysis()
                     if (update_stop()) {
                         break;
                     }
-                    const bool already_renamed = renamed_files.contains(entry.file_name);
+                    const bool already_renamed = renamed_files.contains(entry_key(entry));
                     if (already_renamed && rename_images_only) {
                         continue;
                     }
-                    const bool visual_only = cached_visual_indices.contains(entry.file_name);
+                    const bool visual_only = cached_visual_indices.contains(entry_key(entry));
                     analyzed_image_entries.push_back(entry);
                     handle_visual_failure(entry, std::string(), already_renamed, false, visual_only);
                 }
@@ -2416,28 +2522,31 @@ void MainApp::perform_analysis()
                     if (update_stop()) {
                         break;
                     }
-                    const bool already_renamed = renamed_files.contains(entry.file_name);
+                    const bool already_renamed = renamed_files.contains(entry_key(entry));
                     if (already_renamed && rename_images_only) {
                         continue;
                     }
-                    const bool visual_only = cached_visual_indices.contains(entry.file_name);
-                    const auto cached_suggestion_it = cached_image_suggestions.find(entry.file_name);
+                    const bool visual_only = cached_visual_indices.contains(entry_key(entry));
+                    const auto cached_suggestion_it = cached_image_suggestions.find(entry_key(entry));
                     const bool has_cached_suggestion = cached_suggestion_it != cached_image_suggestions.end();
                     analyzed_image_entries.push_back(entry);
 
                     while (true) {
-                try {
-                    if (has_cached_suggestion) {
-                        append_progress(to_utf8(tr("[VISION] Using cached suggestion for %1")
-                                                    .arg(QString::fromStdString(entry.file_name))));
-                        const std::string suggested_name = already_renamed ? std::string()
-                                                                           : cached_suggestion_it->second;
-                        const auto entry_path = Utils::utf8_to_path(entry.full_path);
-                        const auto prompt_path = Utils::path_to_utf8(
-                            entry_path.parent_path() / Utils::utf8_to_path(cached_suggestion_it->second));
-                                image_info.emplace(
-                                    entry.file_name,
-                                    ImageAnalysisInfo{suggested_name, cached_suggestion_it->second, prompt_path});
+                        try {
+                            if (has_cached_suggestion) {
+                                append_progress(to_utf8(tr("[VISION] Using cached suggestion for %1")
+                                                            .arg(QString::fromStdString(entry.file_name))));
+                                const std::string suggested_name = already_renamed ? std::string()
+                                                                                   : cached_suggestion_it->second;
+                                const std::string ui_suggested_name =
+                                    (allow_image_renames || rename_images_only) ? suggested_name : std::string();
+                                const auto entry_path = Utils::utf8_to_path(entry.full_path);
+                                const auto prompt_path = Utils::path_to_utf8(
+                                    entry_path.parent_path() / Utils::utf8_to_path(cached_suggestion_it->second));
+                                image_info.emplace(entry_key(entry),
+                                                   ImageAnalysisInfo{ui_suggested_name,
+                                                                     cached_suggestion_it->second,
+                                                                     prompt_path});
                                 if (rename_images_only) {
                                     persist_rename_only_progress(entry, suggested_name);
                                 }
@@ -2449,6 +2558,7 @@ void MainApp::perform_analysis()
                                 }
                                 break;
                             }
+
                             append_progress(to_utf8(tr("[VISION] Analyzing %1")
                                                         .arg(QString::fromStdString(entry.file_name))));
                             const auto analysis = analyzer->analyze(entry.full_path);
@@ -2457,9 +2567,12 @@ void MainApp::perform_analysis()
                                 entry_path.parent_path() / Utils::utf8_to_path(analysis.suggested_name));
 
                             const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
-                            image_info.emplace(
-                                entry.file_name,
-                                ImageAnalysisInfo{suggested_name, analysis.suggested_name, prompt_path});
+                            const std::string ui_suggested_name =
+                                (allow_image_renames || rename_images_only) ? suggested_name : std::string();
+                            image_info.emplace(entry_key(entry),
+                                               ImageAnalysisInfo{ui_suggested_name,
+                                                                 analysis.suggested_name,
+                                                                 prompt_path});
                             if (rename_images_only) {
                                 persist_rename_only_progress(entry, suggested_name);
                             }
@@ -2510,11 +2623,11 @@ void MainApp::perform_analysis()
                                 break;
                             }
                             const auto& pending = image_entries[remaining];
-                            const bool pending_renamed = renamed_files.contains(pending.file_name);
+                            const bool pending_renamed = renamed_files.contains(entry_key(pending));
                             if (pending_renamed && rename_images_only) {
                                 continue;
                             }
-                            const bool pending_visual_only = cached_visual_indices.contains(pending.file_name);
+                            const bool pending_visual_only = cached_visual_indices.contains(entry_key(pending));
                             analyzed_image_entries.push_back(pending);
                             handle_visual_failure(pending, std::string(), pending_renamed, false, pending_visual_only);
                         }
@@ -2527,7 +2640,7 @@ void MainApp::perform_analysis()
         if (analyze_documents && !document_entries.empty()) {
             auto update_cached_document_suggestion = [&](const FileEntry& entry,
                                                          const std::string& suggested_name) {
-                const auto it = cached_document_indices.find(entry.file_name);
+                const auto it = cached_document_indices.find(entry_key(entry));
                 if (it == cached_document_indices.end()) {
                     return;
                 }
@@ -2553,13 +2666,14 @@ void MainApp::perform_analysis()
                     other_entries.push_back(entry);
                 }
                 const std::string suggested_name = already_renamed ? std::string() : entry.file_name;
-                if (offer_document_renames || rename_documents_only) {
-                    document_info.emplace(
-                        entry.file_name,
-                        DocumentAnalysisInfo{suggested_name, entry.file_name, entry.full_path});
-                    if (rename_documents_only) {
-                        persist_rename_only_progress(entry, suggested_name);
-                    }
+                const std::string ui_suggested_name =
+                    (allow_document_renames || rename_documents_only) ? suggested_name : std::string();
+                document_info.emplace(entry_key(entry),
+                                      DocumentAnalysisInfo{ui_suggested_name,
+                                                           entry.file_name,
+                                                           entry.full_path});
+                if (rename_documents_only) {
+                    persist_rename_only_progress(entry, suggested_name);
                 }
                 if (document_only) {
                     update_cached_document_suggestion(entry, suggested_name);
@@ -2582,18 +2696,18 @@ void MainApp::perform_analysis()
                 if (update_stop()) {
                     break;
                 }
-                const bool already_renamed = renamed_files.contains(entry.file_name);
+                const bool already_renamed = renamed_files.contains(entry_key(entry));
                 if (already_renamed && rename_documents_only) {
                     continue;
                 }
-                const bool document_only = cached_document_indices.contains(entry.file_name);
-                const auto cached_suggestion_it = cached_document_suggestions.find(entry.file_name);
+                const bool document_only = cached_document_indices.contains(entry_key(entry));
+                const auto cached_suggestion_it = cached_document_suggestions.find(entry_key(entry));
                 const bool has_cached_suggestion = cached_suggestion_it != cached_document_suggestions.end();
-                if (add_document_date && !document_dates.contains(entry.file_name)) {
+                if (add_document_date && !document_dates.contains(entry_key(entry))) {
                     const auto date = DocumentTextAnalyzer::extract_creation_date(
                         Utils::utf8_to_path(entry.full_path));
                     if (date) {
-                        document_dates.emplace(entry.file_name, *date);
+                        document_dates.emplace(entry_key(entry), *date);
                     }
                 }
                 analyzed_document_entries.push_back(entry);
@@ -2604,11 +2718,12 @@ void MainApp::perform_analysis()
                                                     .arg(QString::fromStdString(entry.file_name))));
                         const std::string suggested_name = already_renamed ? std::string()
                                                                            : cached_suggestion_it->second;
-                        document_info.emplace(
-                            entry.file_name,
-                            DocumentAnalysisInfo{suggested_name,
-                                                 entry.file_name,
-                                                 entry.full_path});
+                        const std::string ui_suggested_name =
+                            (allow_document_renames || rename_documents_only) ? suggested_name : std::string();
+                        document_info.emplace(entry_key(entry),
+                                              DocumentAnalysisInfo{ui_suggested_name,
+                                                                   entry.file_name,
+                                                                   entry.full_path});
                         if (rename_documents_only) {
                             persist_rename_only_progress(entry, suggested_name);
                         }
@@ -2622,15 +2737,18 @@ void MainApp::perform_analysis()
                                                 .arg(QString::fromStdString(entry.file_name))));
                     const auto analysis = doc_analyzer.analyze(Utils::utf8_to_path(entry.full_path), *llm);
                     const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
+                    const std::string ui_suggested_name =
+                        (allow_document_renames || rename_documents_only) ? suggested_name : std::string();
                     std::string prompt_path = entry.full_path;
                     if (!analysis.summary.empty()) {
                         prompt_path += "\nDocument summary: " + analysis.summary;
                     }
-                    document_info.emplace(
-                        entry.file_name,
-                        DocumentAnalysisInfo{suggested_name,
-                                             analysis.suggested_name.empty() ? entry.file_name : analysis.suggested_name,
-                                             prompt_path});
+                    document_info.emplace(entry_key(entry),
+                                          DocumentAnalysisInfo{ui_suggested_name,
+                                                               analysis.suggested_name.empty()
+                                                                   ? entry.file_name
+                                                                   : analysis.suggested_name,
+                                                               prompt_path});
                     if (rename_documents_only) {
                         persist_rename_only_progress(entry, suggested_name);
                     }
@@ -2648,22 +2766,23 @@ void MainApp::perform_analysis()
 
         update_stop();
 
-        auto suggested_name_provider = [offer_image_renames, offer_document_renames,
-                                        &image_info, &document_info](const FileEntry& entry) -> std::string {
-            if (offer_image_renames) {
-                if (const auto it = image_info.find(entry.file_name); it != image_info.end()) {
+        auto suggested_name_provider = [allow_image_renames, allow_document_renames,
+                                        &image_info, &document_info, &entry_key](const FileEntry& entry) -> std::string {
+            const std::string key = entry_key(entry);
+            if (allow_image_renames) {
+                if (const auto it = image_info.find(key); it != image_info.end()) {
                     return it->second.suggested_name;
                 }
             }
-            if (offer_document_renames) {
-                if (const auto it = document_info.find(entry.file_name); it != document_info.end()) {
+            if (allow_document_renames) {
+                if (const auto it = document_info.find(key); it != document_info.end()) {
                     return it->second.suggested_name;
                 }
             }
             return std::string();
         };
 
-        auto apply_document_dates = [this, add_document_date, &document_dates](std::vector<CategorizedFile>& results) {
+        auto apply_document_dates = [this, add_document_date, &document_dates, &file_key](std::vector<CategorizedFile>& results) {
             if (!add_document_date || document_dates.empty()) {
                 return;
             }
@@ -2676,10 +2795,11 @@ void MainApp::perform_analysis()
                 if (!DocumentTextAnalyzer::is_supported_document(full_path)) {
                     continue;
                 }
-                auto it = document_dates.find(entry.file_name);
+                const std::string key = file_key(entry);
+                auto it = document_dates.find(key);
                 if (it == document_dates.end()) {
                     if (const auto date = DocumentTextAnalyzer::extract_creation_date(full_path)) {
-                        it = document_dates.emplace(entry.file_name, *date).first;
+                        it = document_dates.emplace(key, *date).first;
                     }
                 }
                 if (it == document_dates.end() || it->second.empty()) {
@@ -2743,7 +2863,7 @@ void MainApp::perform_analysis()
                                            "", "", 0};
                     result.rename_only = true;
                     if (offer_image_renames || rename_images_only) {
-                        const auto info_it = image_info.find(entry.file_name);
+                        const auto info_it = image_info.find(entry_key(entry));
                         if (info_it != image_info.end()) {
                             result.suggested_name = info_it->second.suggested_name;
                         }
@@ -2756,9 +2876,9 @@ void MainApp::perform_analysis()
                 std::atomic<bool> image_stop{false};
                 std::atomic<bool>& stop_flag = bypass_stop ? image_stop : stop_analysis;
 
-                auto override_provider = [&image_info](const FileEntry& entry)
+                auto override_provider = [&image_info, &entry_key](const FileEntry& entry)
                     -> std::optional<CategorizationService::PromptOverride> {
-                    const auto it = image_info.find(entry.file_name);
+                    const auto it = image_info.find(entry_key(entry));
                     if (it == image_info.end()) {
                         return std::nullopt;
                     }
@@ -2798,7 +2918,7 @@ void MainApp::perform_analysis()
                                            "", "", 0};
                     result.rename_only = true;
                     if (offer_document_renames || rename_documents_only) {
-                        const auto info_it = document_info.find(entry.file_name);
+                        const auto info_it = document_info.find(entry_key(entry));
                         if (info_it != document_info.end()) {
                             result.suggested_name = info_it->second.suggested_name;
                         }
@@ -2813,9 +2933,9 @@ void MainApp::perform_analysis()
                 std::atomic<bool> doc_stop{false};
                 std::atomic<bool>& stop_flag = bypass_stop ? doc_stop : stop_analysis;
 
-                auto override_provider = [&document_info](const FileEntry& entry)
+                auto override_provider = [&document_info, &entry_key](const FileEntry& entry)
                     -> std::optional<CategorizationService::PromptOverride> {
-                    const auto it = document_info.find(entry.file_name);
+                    const auto it = document_info.find(entry_key(entry));
                     if (it == document_info.end()) {
                         return std::nullopt;
                     }
@@ -2876,7 +2996,8 @@ void MainApp::perform_analysis()
         new_files_to_sort = results_coordinator.compute_files_to_sort(get_folder_path(),
                                                                       scan_options,
                                                                       actual_files,
-                                                                      review_entries);
+                                                                      review_entries,
+                                                                      settings.get_include_subdirectories());
         core_logger->debug("{} file(s) queued for sorting after analysis.",
                            new_files_to_sort.size());
 
@@ -3125,7 +3246,11 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         const std::string undo_dir = settings.get_config_dir() + "/undo";
         categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, undo_dir, this);
-        categorization_dialog->show_results(results);
+        categorization_dialog->show_results(results,
+                                            get_folder_path(),
+                                            settings.get_include_subdirectories(),
+                                            settings.get_offer_rename_images(),
+                                            settings.get_offer_rename_documents());
 
         const int newly_analyzed = static_cast<int>(std::count_if(
             results.begin(),

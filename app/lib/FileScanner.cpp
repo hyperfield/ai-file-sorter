@@ -36,12 +36,35 @@ FileScanner::get_directory_entries(const std::string &directory_path,
     context.include_directories = has_flag(options, FileScanOptions::Directories);
     context.include_hidden = has_flag(options, FileScanOptions::HiddenFiles);
     context.logger = logger;
+    const bool recursive = has_flag(options, FileScanOptions::Recursive);
 
     try {
         const fs::path scan_path = Utils::utf8_to_path(directory_path);
-        for (const auto &entry : fs::directory_iterator(scan_path)) {
-            if (auto entry_info = build_entry(entry, context)) {
-                file_paths_and_names.push_back(std::move(*entry_info));
+        if (!recursive) {
+            for (const auto &entry : fs::directory_iterator(scan_path)) {
+                if (auto entry_info = build_entry(entry, context)) {
+                    file_paths_and_names.push_back(std::move(*entry_info));
+                }
+            }
+        } else {
+            for (fs::recursive_directory_iterator it(scan_path), end; it != end; ++it) {
+                const auto& entry = *it;
+                const fs::path& entry_path = entry.path();
+                const std::string full_path = Utils::path_to_utf8(entry_path);
+                const std::string file_name = Utils::path_to_utf8(entry_path.filename());
+                const bool bundle = is_file_bundle(entry_path);
+                if (bundle) {
+                    it.disable_recursion_pending();
+                }
+                if (should_skip_entry(entry_path, file_name, context, full_path)) {
+                    if (entry.is_directory()) {
+                        it.disable_recursion_pending();
+                    }
+                    continue;
+                }
+                if (auto type = classify_entry(entry, bundle, context)) {
+                    file_paths_and_names.push_back(FileEntry{full_path, file_name, *type});
+                }
             }
         }
     } catch (const fs::filesystem_error& ex) {

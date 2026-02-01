@@ -75,6 +75,9 @@ public:
     bool get_categorize_directories() const;
     void set_categorize_directories(bool value);
 
+    bool get_include_subdirectories() const;
+    void set_include_subdirectories(bool value);
+
     /**
      * @brief Returns whether image content analysis is enabled.
      * @return True when image analysis is enabled.
@@ -230,6 +233,7 @@ private:
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;
+    bool include_subdirectories{false};
     bool analyze_images_by_content{false};
     bool offer_rename_images{false};
     bool rename_images_only{false};

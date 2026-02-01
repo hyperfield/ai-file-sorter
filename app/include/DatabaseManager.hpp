@@ -39,6 +39,7 @@ public:
     std::vector<CategorizedFile> remove_empty_categorizations(const std::string& dir_path);
 
     std::vector<CategorizedFile> get_categorized_files(const std::string &directory_path);
+    std::vector<CategorizedFile> get_categorized_files_recursive(const std::string& directory_path);
     std::optional<CategorizedFile> get_categorized_file(const std::string& dir_path,
                                                         const std::string& file_name,
                                                         FileType file_type);
