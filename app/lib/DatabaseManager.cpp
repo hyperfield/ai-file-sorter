@@ -152,7 +152,9 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
         rename_applied = sqlite3_column_int(stmt, 9) != 0;
     }
 
-    if (!rename_only && (!has_label_content(cat) || !has_label_content(subcat))) {
+    const bool has_labels = has_label_content(cat) && has_label_content(subcat);
+    const bool has_suggestion = has_label_content(suggested);
+    if (!rename_only && !has_labels && !has_suggestion) {
         return std::nullopt;
     }
 
@@ -878,6 +880,7 @@ DatabaseManager::remove_empty_categorizations(const std::string& dir_path) {
         FROM file_categorization
         WHERE dir_path = ?
           AND (category IS NULL OR TRIM(category) = '' OR subcategory IS NULL OR TRIM(subcategory) = '')
+          AND (suggested_name IS NULL OR TRIM(suggested_name) = '')
           AND IFNULL(rename_only, 0) = 0;
     )";
 

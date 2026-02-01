@@ -2133,6 +2133,50 @@ void MainApp::perform_analysis()
                 suggested_name,
                 true);
         };
+        auto persist_llm_suggestion_progress = [this, &is_missing_category_label](const FileEntry& entry,
+                                                                                  const std::string& suggested_name) {
+            if (suggested_name.empty()) {
+                return;
+            }
+            const auto entry_path = Utils::utf8_to_path(entry.full_path);
+            const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
+            const auto cached_entry = db_manager.get_categorized_file(dir_path, entry.file_name, entry.type);
+
+            std::string category;
+            std::string subcategory;
+            bool used_consistency = false;
+            bool rename_applied = false;
+            DatabaseManager::ResolvedCategory resolved{0, "", ""};
+
+            if (cached_entry) {
+                category = cached_entry->category;
+                subcategory = cached_entry->subcategory;
+                if (is_missing_category_label(category)) {
+                    category.clear();
+                }
+                if (is_missing_category_label(subcategory)) {
+                    subcategory.clear();
+                }
+                if (!category.empty()) {
+                    resolved.category = category;
+                    resolved.subcategory = subcategory;
+                    resolved.taxonomy_id = cached_entry->taxonomy_id;
+                }
+                used_consistency = cached_entry->used_consistency_hints;
+                rename_applied = cached_entry->rename_applied;
+            }
+
+            const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
+            db_manager.insert_or_update_file_with_categorization(
+                entry.file_name,
+                file_type_label,
+                dir_path,
+                resolved,
+                used_consistency,
+                suggested_name,
+                false,
+                rename_applied);
+        };
         auto persist_cached_suggestion = [this](const CategorizedFile& entry,
                                                 const std::string& suggested_name) {
             DatabaseManager::ResolvedCategory resolved{entry.taxonomy_id, entry.category, entry.subcategory};
@@ -2172,6 +2216,25 @@ void MainApp::perform_analysis()
                     }
                     if (is_document_entry && !rename_documents_only && !entry.suggested_name.empty()) {
                         cached_document_suggestions.emplace(file_key(entry), entry.suggested_name);
+                    }
+                }
+                continue;
+            }
+            if (!has_category(entry)) {
+                if (!entry.suggested_name.empty()) {
+                    if (is_image_entry) {
+                        cached_image_suggestions.emplace(file_key(entry), entry.suggested_name);
+                    }
+                    if (is_document_entry) {
+                        cached_document_suggestions.emplace(file_key(entry), entry.suggested_name);
+                    }
+                    if (!already_renamed &&
+                        allow_entry_renames &&
+                        ((rename_images_only && analyze_images && is_image_entry) ||
+                         (rename_documents_only && analyze_documents && is_document_entry))) {
+                        CategorizedFile adjusted = entry;
+                        adjusted.rename_only = true;
+                        pending_renames.push_back(std::move(adjusted));
                     }
                 }
                 continue;
@@ -2569,6 +2632,9 @@ void MainApp::perform_analysis()
                             const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
                             const std::string ui_suggested_name =
                                 (allow_image_renames || rename_images_only) ? suggested_name : std::string();
+                            if (!rename_images_only) {
+                                persist_llm_suggestion_progress(entry, suggested_name);
+                            }
                             image_info.emplace(entry_key(entry),
                                                ImageAnalysisInfo{ui_suggested_name,
                                                                  analysis.suggested_name,
@@ -2742,6 +2808,9 @@ void MainApp::perform_analysis()
                     std::string prompt_path = entry.full_path;
                     if (!analysis.summary.empty()) {
                         prompt_path += "\nDocument summary: " + analysis.summary;
+                    }
+                    if (!rename_documents_only) {
+                        persist_llm_suggestion_progress(entry, suggested_name);
                     }
                     document_info.emplace(entry_key(entry),
                                           DocumentAnalysisInfo{ui_suggested_name,
