@@ -65,6 +65,7 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
   - [Document analysis (Text LLM)](#document-analysis-text-llm)
     - [Supported document formats](#supported-document-formats)
     - [Main window options (documents)](#main-window-options-documents)
+  - [System compatibility check](#system-compatibility-check)
   - [Requirements](#requirements)
   - [Installation](#installation)
     - [Linux](#linux)
@@ -190,6 +191,27 @@ Source builds: embedded extractors are used when `external/` contains the vendor
 - **Offer to rename document files**: Shows a **Suggested filename** column in the Review dialog with the LLM proposal. You can edit it before confirming.
 - **Do not categorize document files (only rename)**: Skips text categorization for documents and keeps them in place while applying (optional) renames.
 - **Add document creation date (if available) to category name**: Appends `YYYY-MM` from metadata when available. Disabled when rename-only is enabled.
+
+---
+
+## System compatibility check
+
+The **System compatibility check** runs a quick benchmark that estimates how well your system can handle:
+
+- **Categorization** with the selected local LLMs
+- **Document analysis** by content
+- **Image analysis** (visual LLM)
+
+You can launch it from the menu (**File → System compatibility check…**). It only runs if at least one local or visual LLM is downloaded, and it won’t auto-rerun if it's already been run.
+
+What it does:
+
+- Detects available CPU threads and GPU backends (e.g., Vulkan/CUDA)
+- Times a small categorization and document-analysis workload per default model
+- Times a single image-analysis pass if visual LLM files are present
+- Reports speed tiers (optimal / acceptable / a bit long) and suggests a recommended local LLM
+
+Tip: quit CPU/GPU‑intensive apps before running the check for more accurate results.
 
 ---
 
