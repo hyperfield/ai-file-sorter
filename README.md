@@ -178,7 +178,7 @@ Document analysis uses the same selected LLM (local or remote) to extract text f
 - Office/OpenOffice: `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` (embedded libzip+pugixml in bundled builds; CLI fallback uses `unzip` if you build without vendored libs)
 - Legacy binary formats like `.doc`, `.xls`, `.ppt` are not currently supported.
 
-Source builds: run `app/scripts/vendor_doc_deps.sh` (or `app\\scripts\\vendor_doc_deps.ps1` on Windows) to populate `external/` and enable the embedded extractors.
+Source builds: embedded extractors are used when `external/` contains the vendored libs; otherwise the app falls back to CLI tools (`pdftotext`, `unzip`) for document extraction.
 
 ### Main window options (documents)
 
@@ -196,7 +196,7 @@ Source builds: run `app/scripts/vendor_doc_deps.sh` (or `app\\scripts\\vendor_do
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
-- **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. For source builds, run `app/scripts/vendor_doc_deps.sh` (or `app\\scripts\\vendor_doc_deps.ps1` on Windows) to populate `external/` and enable embedded extraction.
+- **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. Source builds use the embedded extractors when `external/` is populated; otherwise they fall back to `pdftotext`/`unzip`.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **OpenAI or Gemini API key** (optional): Required only when using the remote ChatGPT or Gemini workflow.
@@ -267,13 +267,23 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    > **Submodule tip:** If you previously downloaded `llama.cpp` or Catch2 manually, remove or rename `app/include/external/llama.cpp` and `external/Catch2` before running the `git submodule` command. Git needs those directories to be empty so it can populate them with the tracked submodules.
 
-3. **Populate vendored document deps** (recommended for embedded extraction)
+3. **Build vendored libzip** (generates `zipconf.h` and `libzip.a`)
 
    ```bash
-   ./app/scripts/vendor_doc_deps.sh
+   cmake -S external/libzip -B external/libzip/build \
+     -DBUILD_SHARED_LIBS=OFF \
+     -DENABLE_BZIP2=OFF \
+     -DENABLE_LZMA=OFF \
+     -DENABLE_ZSTD=OFF \
+     -DENABLE_OPENSSL=OFF \
+     -DENABLE_GNUTLS=OFF \
+     -DENABLE_MBEDTLS=OFF \
+     -DENABLE_COMMONCRYPTO=OFF \
+     -DENABLE_WINDOWS_CRYPTO=OFF
+   cmake --build external/libzip/build
    ```
 
-   This fills `external/` with PDFium + libzip + pugixml. If you skip this step, the app falls back to CLI tools (`pdftotext`, `unzip`) for document extraction instead of the embedded libraries.
+   If you prefer system headers instead, install `libzip-dev` and ensure `zipconf.h` is on your include path.
 
 4. **Build the llama runtime variants** (run once per backend you plan to ship/test)
 
@@ -323,13 +333,21 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 4. **Clone the repository and submodules** (same commands as Linux).
    > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=11.0` so the Mach-O `LC_BUILD_VERSION` covers Apple Silicon and newer releases (including Sequoia). Raise or lower it (e.g., `export MACOSX_DEPLOYMENT_TARGET=15.0`) if you need a different floor.
 
-5. **Populate vendored document deps** (recommended for embedded extraction)
+5. **Build vendored libzip** (generates `zipconf.h` and `libzip.a`)
 
    ```bash
-   ./app/scripts/vendor_doc_deps.sh
+   cmake -S external/libzip -B external/libzip/build \
+     -DBUILD_SHARED_LIBS=OFF \
+     -DENABLE_BZIP2=OFF \
+     -DENABLE_LZMA=OFF \
+     -DENABLE_ZSTD=OFF \
+     -DENABLE_OPENSSL=OFF \
+     -DENABLE_GNUTLS=OFF \
+     -DENABLE_MBEDTLS=OFF \
+     -DENABLE_COMMONCRYPTO=OFF \
+     -DENABLE_WINDOWS_CRYPTO=OFF
+   cmake --build external/libzip/build
    ```
-
-   This fills `external/` with PDFium + libzip + pugixml. If you skip this step, the app falls back to CLI tools (`pdftotext`, `unzip`) for document extraction instead of the embedded libraries.
 
 6. **Build the llama runtime (Metal-only on macOS)**
 
@@ -378,20 +396,23 @@ Option A - CMake + vcpkg (recommended)
    git submodule update --init --recursive
    ```
 
-3. **Populate vendored document deps** (recommended for embedded extraction)
+3. **Build vendored libzip** (generates `zipconf.h` and `libzip.lib`)
 
-   The vendored extractor deps live under `external/`. If they are not already committed in your checkout, run:
+   Run from the same x64 Native Tools / VS Developer PowerShell you will use to build the app:
 
-   - From PowerShell:
-     ```powershell
-     app\scripts\vendor_doc_deps.ps1
-     ```
-   - Or from Git Bash / WSL:
-     ```bash
-     ./app/scripts/vendor_doc_deps.sh
-     ```
-
-   If you skip this step, document extraction will rely on `pdftotext` and `unzip` instead of the embedded libraries.
+   ```powershell
+   cmake -S external\libzip -B external\libzip\build -A x64 `
+     -DBUILD_SHARED_LIBS=OFF `
+     -DENABLE_BZIP2=OFF `
+     -DENABLE_LZMA=OFF `
+     -DENABLE_ZSTD=OFF `
+     -DENABLE_OPENSSL=OFF `
+     -DENABLE_GNUTLS=OFF `
+     -DENABLE_MBEDTLS=OFF `
+     -DENABLE_COMMONCRYPTO=OFF `
+     -DENABLE_WINDOWS_CRYPTO=OFF
+   cmake --build external\libzip\build --config Release
+   ```
 
 4. Determine your vcpkg root. It is the folder that contains `vcpkg.exe` (for example `C:\dev\vcpkg`).
     - If `vcpkg` is on your `PATH`, run this command to print the location:
@@ -436,20 +457,23 @@ Option B - CMake + Qt online installer
    - Qt 6.x MSVC kit via Qt Online Installer (e.g., Qt 6.6+ with MSVC 2019/2022)
    - CMake 3.21+
    - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext
-2. **Populate vendored document deps** (recommended for embedded extraction)
+2. **Build vendored libzip** (generates `zipconf.h` and `libzip.lib`)
 
-   The vendored extractor deps live under `external/`. If they are not already committed in your checkout, run:
+   Run from the same x64 Native Tools / VS Developer PowerShell you will use to build the app:
 
-   - From PowerShell:
-     ```powershell
-     app\scripts\vendor_doc_deps.ps1
-     ```
-   - Or from Git Bash / WSL:
-     ```bash
-     ./app/scripts/vendor_doc_deps.sh
-     ```
-
-   If you skip this step, document extraction will rely on `pdftotext` and `unzip` instead of the embedded libraries.
+   ```powershell
+   cmake -S external\libzip -B external\libzip\build -A x64 `
+     -DBUILD_SHARED_LIBS=OFF `
+     -DENABLE_BZIP2=OFF `
+     -DENABLE_LZMA=OFF `
+     -DENABLE_ZSTD=OFF `
+     -DENABLE_OPENSSL=OFF `
+     -DENABLE_GNUTLS=OFF `
+     -DENABLE_MBEDTLS=OFF `
+     -DENABLE_COMMONCRYPTO=OFF `
+     -DENABLE_WINDOWS_CRYPTO=OFF
+   cmake --build external\libzip\build --config Release
+   ```
 
 3. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
 
