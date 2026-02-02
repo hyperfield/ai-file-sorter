@@ -127,6 +127,7 @@ build-tests/
 build/
 dist/
 app/lib/ggml/
+external/libzip/build*/
 
 # No longer relevant
 api-key-encryption/

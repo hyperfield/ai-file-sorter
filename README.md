@@ -297,15 +297,17 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    ```bash
    cmake -S external/libzip -B external/libzip/build \
-     -DBUILD_SHARED_LIBS=OFF \
-     -DENABLE_BZIP2=OFF \
-     -DENABLE_LZMA=OFF \
-     -DENABLE_ZSTD=OFF \
-     -DENABLE_OPENSSL=OFF \
-     -DENABLE_GNUTLS=OFF \
-     -DENABLE_MBEDTLS=OFF \
-     -DENABLE_COMMONCRYPTO=OFF \
-     -DENABLE_WINDOWS_CRYPTO=OFF
+    -DBUILD_SHARED_LIBS=OFF \
+    -DBUILD_DOC=OFF \
+    -DENABLE_BZIP2=OFF \
+    -DENABLE_LZMA=OFF \
+    -DENABLE_ZSTD=OFF \
+    -DENABLE_OPENSSL=OFF \
+    -DENABLE_GNUTLS=OFF \
+    -DENABLE_MBEDTLS=OFF \
+    -DENABLE_COMMONCRYPTO=OFF \
+    -DENABLE_WINDOWS_CRYPTO=OFF
+
    cmake --build external/libzip/build
    ```
 
@@ -364,6 +366,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```bash
    cmake -S external/libzip -B external/libzip/build \
      -DBUILD_SHARED_LIBS=OFF \
+     -DBUILD_DOC=OFF \
      -DENABLE_BZIP2=OFF \
      -DENABLE_LZMA=OFF \
      -DENABLE_ZSTD=OFF \
@@ -429,6 +432,7 @@ Option A - CMake + vcpkg (recommended)
    ```powershell
    cmake -S external\libzip -B external\libzip\build -A x64 `
      -DBUILD_SHARED_LIBS=OFF `
+     -DBUILD_DOC=OFF `
      -DENABLE_BZIP2=OFF `
      -DENABLE_LZMA=OFF `
      -DENABLE_ZSTD=OFF `
@@ -490,6 +494,7 @@ Option B - CMake + Qt online installer
    ```powershell
    cmake -S external\libzip -B external\libzip\build -A x64 `
      -DBUILD_SHARED_LIBS=OFF `
+     -DBUILD_DOC=OFF `
      -DENABLE_BZIP2=OFF `
      -DENABLE_LZMA=OFF `
      -DENABLE_ZSTD=OFF `
