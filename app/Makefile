@@ -285,7 +285,10 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 $(LIBZIP_LIB):
 	@echo "Building libzip (vendored)..."
 	mkdir -p $(LIBZIP_BUILD_DIR)
-	cmake -S $(LIBZIP_DIR) -B $(LIBZIP_BUILD_DIR) \
+	LDFLAGS= cmake -S $(LIBZIP_DIR) -B $(LIBZIP_BUILD_DIR) \
+		-DCMAKE_EXE_LINKER_FLAGS= \
+		-DCMAKE_SHARED_LINKER_FLAGS= \
+		-DCMAKE_MODULE_LINKER_FLAGS= \
 		-DBUILD_SHARED_LIBS=OFF \
 		-DENABLE_BZIP2=OFF \
 		-DENABLE_LZMA=OFF \
@@ -295,7 +298,7 @@ $(LIBZIP_LIB):
 		-DENABLE_MBEDTLS=OFF \
 		-DENABLE_COMMONCRYPTO=OFF \
 		-DENABLE_WINDOWS_CRYPTO=OFF
-	cmake --build $(LIBZIP_BUILD_DIR)
+	LDFLAGS= cmake --build $(LIBZIP_BUILD_DIR)
 
 doc_runtime_libs:
 ifneq ($(wildcard $(PDFIUM_LIB)),)
