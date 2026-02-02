@@ -48,6 +48,7 @@ public:
     std::string get_openai_model() const;
     std::string get_gemini_api_key() const;
     std::string get_gemini_model() const;
+    bool get_llm_downloads_expanded() const;
 
 private:
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -153,6 +154,7 @@ private:
     std::string openai_model;
     std::string gemini_api_key;
     std::string gemini_model;
+    bool downloads_expanded_{true};
 
     QRadioButton* openai_radio{nullptr};
     QRadioButton* gemini_radio{nullptr};

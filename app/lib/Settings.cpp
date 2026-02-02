@@ -277,6 +277,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     set_openai_model(config.getValue("Settings", "RemoteModel", "gpt-4o-mini"));
     set_gemini_api_key(config.getValue("Settings", "GeminiApiKey", ""));
     set_gemini_model(config.getValue("Settings", "GeminiModel", "gemini-2.5-flash-lite"));
+    llm_downloads_expanded = load_bool("LLMDownloadsExpanded", true);
     use_subcategories = load_bool("UseSubcategories", false);
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
@@ -410,6 +411,7 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "RemoteModel", openai_model.empty() ? "gpt-4o-mini" : openai_model);
     config.setValue(settings_section, "GeminiApiKey", gemini_api_key);
     config.setValue(settings_section, "GeminiModel", gemini_model.empty() ? "gemini-2.5-flash-lite" : gemini_model);
+    set_bool_setting(config, settings_section, "LLMDownloadsExpanded", llm_downloads_expanded);
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
     set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
@@ -642,6 +644,16 @@ void Settings::set_gemini_model(const std::string& model)
         trimmed = "gemini-2.5-flash-lite";
     }
     gemini_model = trimmed;
+}
+
+bool Settings::get_llm_downloads_expanded() const
+{
+    return llm_downloads_expanded;
+}
+
+void Settings::set_llm_downloads_expanded(bool value)
+{
+    llm_downloads_expanded = value;
 }
 
 std::string Settings::get_active_custom_llm_id() const

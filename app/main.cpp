@@ -211,6 +211,7 @@ bool ensure_llm_choice(Settings& settings, const std::function<void()>& finish_s
     }
 
     settings.set_llm_choice(llm_dialog.get_selected_llm_choice());
+    settings.set_llm_downloads_expanded(llm_dialog.get_llm_downloads_expanded());
     settings.save();
     return true;
 }

@@ -3196,6 +3196,7 @@ void MainApp::show_llm_selection_dialog()
             settings.set_gemini_api_key(dialog->get_gemini_api_key());
             settings.set_gemini_model(dialog->get_gemini_model());
             settings.set_llm_choice(dialog->get_selected_llm_choice());
+            settings.set_llm_downloads_expanded(dialog->get_llm_downloads_expanded());
             if (dialog->get_selected_llm_choice() == LLMChoice::Custom) {
                 settings.set_active_custom_llm_id(dialog->get_selected_custom_llm_id());
             } else {

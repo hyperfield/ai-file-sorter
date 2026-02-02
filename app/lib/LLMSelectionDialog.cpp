@@ -103,6 +103,7 @@ void apply_progress_style(QProgressBar* bar)
 LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     : QDialog(parent)
     , settings(settings)
+    , downloads_expanded_(settings.get_llm_downloads_expanded())
 {
     setWindowTitle(tr("Choose LLM Mode"));
     setModal(true);
@@ -411,7 +412,8 @@ void LLMSelectionDialog::setup_ui()
     download_toggle_button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     download_toggle_button->setLayoutDirection(Qt::LeftToRight);
     download_toggle_button->setCheckable(true);
-    download_toggle_button->setChecked(false);
+    download_toggle_button->setChecked(downloads_expanded_);
+    download_toggle_button->setArrowType(downloads_expanded_ ? Qt::DownArrow : Qt::RightArrow);
     download_toggle_button->setStyleSheet(QStringLiteral("color: #1f6feb; font-weight: 600;"));
     auto* downloads_toggle_row = new QWidget(this);
     auto* downloads_toggle_layout = new QHBoxLayout(downloads_toggle_row);
@@ -532,6 +534,7 @@ void LLMSelectionDialog::connect_signals()
     }
     if (download_toggle_button) {
         connect(download_toggle_button, &QToolButton::toggled, this, [this](bool checked) {
+            downloads_expanded_ = checked;
             if (downloads_container) {
                 downloads_container->setVisible(checked);
             }
@@ -613,6 +616,11 @@ std::string LLMSelectionDialog::get_gemini_api_key() const
 std::string LLMSelectionDialog::get_gemini_model() const
 {
     return gemini_model;
+}
+
+bool LLMSelectionDialog::get_llm_downloads_expanded() const
+{
+    return downloads_expanded_;
 }
 
 
@@ -705,9 +713,6 @@ void LLMSelectionDialog::update_custom_choice_ui()
     const bool is_custom = selected_choice == LLMChoice::Custom;
     if (download_toggle_button) {
         download_toggle_button->setVisible(is_local_builtin);
-        if (!is_local_builtin) {
-            download_toggle_button->setChecked(false);
-        }
     }
     if (downloads_container) {
         const bool show_downloads = is_local_builtin && download_toggle_button

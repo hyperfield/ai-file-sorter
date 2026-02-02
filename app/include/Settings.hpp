@@ -29,6 +29,8 @@ public:
     void set_gemini_api_key(const std::string& key);
     std::string get_gemini_model() const;
     void set_gemini_model(const std::string& model);
+    bool get_llm_downloads_expanded() const;
+    void set_llm_downloads_expanded(bool value);
     CategoryLanguage get_category_language() const;
     void set_category_language(CategoryLanguage language);
     std::string get_active_custom_llm_id() const;
@@ -280,6 +282,7 @@ private:
     std::string openai_model{ "gpt-4o-mini" };
     std::string gemini_api_key;
     std::string gemini_model{ "gemini-2.5-flash-lite" };
+    bool llm_downloads_expanded{true};
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;
