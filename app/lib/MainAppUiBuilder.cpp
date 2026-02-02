@@ -28,6 +28,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QObject>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSlider>
@@ -43,6 +44,49 @@
 #include <QWidget>
 
 #include <algorithm>
+
+namespace {
+QPixmap make_triangle_pixmap(const QColor& color, int size, bool down)
+{
+    QPixmap pixmap(size, size);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color);
+
+    QPolygonF triangle;
+    if (down) {
+        triangle << QPointF(size * 0.2, size * 0.35)
+                 << QPointF(size * 0.8, size * 0.35)
+                 << QPointF(size * 0.5, size * 0.75);
+    } else {
+        triangle << QPointF(size * 0.35, size * 0.2)
+                 << QPointF(size * 0.35, size * 0.8)
+                 << QPointF(size * 0.75, size * 0.5);
+    }
+    painter.drawPolygon(triangle);
+    return pixmap;
+}
+
+QIcon make_play_disclosure_icon(const QPalette& palette, int size)
+{
+    QIcon icon;
+    QColor normal = palette.color(QPalette::ButtonText);
+    QColor disabled = palette.color(QPalette::Disabled, QPalette::ButtonText);
+    if (!disabled.isValid()) {
+        disabled = normal;
+        disabled.setAlphaF(0.45);
+    }
+
+    icon.addPixmap(make_triangle_pixmap(normal, size, false), QIcon::Normal, QIcon::Off);
+    icon.addPixmap(make_triangle_pixmap(normal, size, true), QIcon::Normal, QIcon::On);
+    icon.addPixmap(make_triangle_pixmap(disabled, size, false), QIcon::Disabled, QIcon::Off);
+    icon.addPixmap(make_triangle_pixmap(disabled, size, true), QIcon::Disabled, QIcon::On);
+    return icon;
+}
+} // namespace
 
 void MainAppUiBuilder::build(MainApp& app) {
     build_central_panel(app);
@@ -90,9 +134,16 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.document_options_toggle_button = new QToolButton(central);
     app.document_options_toggle_button->setCheckable(true);
     app.document_options_toggle_button->setChecked(false);
+#if defined(__APPLE__)
+    app.document_options_toggle_button->setArrowType(Qt::NoArrow);
+    app.document_options_toggle_button->setAutoRaise(true);
+    app.document_options_toggle_button->setIcon(make_play_disclosure_icon(app.palette(), 14));
+    app.document_options_toggle_button->setIconSize(QSize(14, 14));
+#else
     app.document_options_toggle_button->setArrowType(Qt::RightArrow);
-    app.document_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     app.document_options_toggle_button->setAutoRaise(false);
+#endif
+    app.document_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     app.document_options_toggle_button->setMinimumSize(QSize(22, 22));
     document_header_layout->addWidget(app.analyze_documents_checkbox);
     document_header_layout->addWidget(app.document_options_toggle_button);
@@ -123,9 +174,16 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.image_options_toggle_button = new QToolButton(central);
     app.image_options_toggle_button->setCheckable(true);
     app.image_options_toggle_button->setChecked(false);
+#if defined(__APPLE__)
+    app.image_options_toggle_button->setArrowType(Qt::NoArrow);
+    app.image_options_toggle_button->setAutoRaise(true);
+    app.image_options_toggle_button->setIcon(make_play_disclosure_icon(app.palette(), 14));
+    app.image_options_toggle_button->setIconSize(QSize(14, 14));
+#else
     app.image_options_toggle_button->setArrowType(Qt::RightArrow);
-    app.image_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     app.image_options_toggle_button->setAutoRaise(false);
+#endif
+    app.image_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     app.image_options_toggle_button->setMinimumSize(QSize(22, 22));
     image_header_layout->addWidget(app.analyze_images_checkbox);
     image_header_layout->addWidget(app.image_options_toggle_button);
