@@ -11,6 +11,7 @@
 #include "LLMSelectionDialogTestAccess.hpp"
 #endif
 
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -61,11 +62,39 @@ void set_fixed_progress_width(QProgressBar* bar, int multiplier)
     if (!bar || multiplier <= 0) {
         return;
     }
-    int base_width = bar->sizeHint().width();
+    const QSize hint = bar->sizeHint();
+    int base_width = hint.width();
     if (base_width <= 0) {
         base_width = 120;
     }
     bar->setFixedWidth(base_width * multiplier);
+
+    int base_height = hint.height();
+    if (base_height <= 0) {
+        base_height = std::max(12, bar->fontMetrics().height());
+    }
+    bar->setMinimumHeight(base_height);
+    bar->setMaximumHeight(base_height);
+}
+
+void apply_progress_style(QProgressBar* bar)
+{
+    if (!bar) {
+        return;
+    }
+#if defined(__APPLE__)
+    bar->setTextVisible(false);
+    bar->setStyleSheet(QStringLiteral(
+        "QProgressBar {"
+        " border: 1px solid #d0d0d0;"
+        " border-radius: 4px;"
+        " background: #f4f4f4;"
+        " }"
+        "QProgressBar::chunk {"
+        " background-color: #0a84ff;"
+        " border-radius: 3px;"
+        " }"));
+#endif
 }
 
 } // namespace
@@ -361,6 +390,18 @@ void LLMSelectionDialog::setup_ui()
     radio_layout->addWidget(custom_radio);
     radio_layout->addWidget(custom_row);
 
+    auto* llm_group = new QButtonGroup(this);
+    llm_group->setExclusive(true);
+    llm_group->addButton(openai_radio);
+    llm_group->addButton(gemini_radio);
+    llm_group->addButton(custom_api_radio);
+    llm_group->addButton(local3_radio);
+    if (local3_legacy_radio) {
+        llm_group->addButton(local3_legacy_radio);
+    }
+    llm_group->addButton(local7_radio);
+    llm_group->addButton(custom_radio);
+
     layout->addWidget(radio_container);
 
     download_toggle_button = new QToolButton(this);
@@ -405,6 +446,7 @@ void LLMSelectionDialog::setup_ui()
     progress_bar->setValue(0);
     progress_bar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     set_fixed_progress_width(progress_bar, 3);
+    apply_progress_style(progress_bar);
     progress_bar->setVisible(false);
 
     download_button = new QPushButton(tr("Download"), download_section);
@@ -1261,6 +1303,7 @@ void LLMSelectionDialog::setup_visual_llm_download_entry(VisualLlmDownloadEntry&
     entry.progress_bar->setValue(0);
     entry.progress_bar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     set_fixed_progress_width(entry.progress_bar, 3);
+    apply_progress_style(entry.progress_bar);
     entry.progress_bar->setVisible(false);
 
     entry.download_button = new QPushButton(tr("Download"), group);
