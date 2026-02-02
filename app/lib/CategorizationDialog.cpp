@@ -24,6 +24,7 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QIcon>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -512,6 +513,26 @@ QIcon fallback_image_icon()
     icon.addPixmap(make_pixmap(32));
     return icon;
 }
+
+#if defined(Q_OS_WIN)
+bool icons_match(const QIcon& left, const QIcon& right, const QSize& size)
+{
+    if (left.isNull() || right.isNull()) {
+        return false;
+    }
+    const QPixmap left_pixmap = left.pixmap(size);
+    const QPixmap right_pixmap = right.pixmap(size);
+    if (left_pixmap.isNull() || right_pixmap.isNull()) {
+        return false;
+    }
+    const QImage left_image = left_pixmap.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    const QImage right_image = right_pixmap.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    if (left_image.size() != right_image.size()) {
+        return false;
+    }
+    return left_image == right_image;
+}
+#endif
 
 QIcon type_icon(const QString& code, const QString& file_path)
 {
