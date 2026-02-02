@@ -350,7 +350,9 @@ struct BackendTarget {
 struct BenchmarkBackendInfo {
     bool cuda_available{false};
     bool vulkan_available{false};
+    bool metal_available{false};
     std::string vulkan_device;
+    std::string metal_device;
     std::optional<std::string> blas_label;
 };
 
@@ -400,37 +402,52 @@ private:
 BackendTarget resolve_backend_target(std::string_view override_value)
 {
     if (override_value == "cpu") {
-        return {"cpu", "CPU"};
+        return {"cpu", QObject::tr("CPU").toStdString()};
+    }
+    if (override_value == "metal") {
+        return {"metal", QObject::tr("Metal").toStdString()};
     }
     if (override_value == "cuda") {
-        return {"cuda", "CUDA"};
+        return {"cuda", QObject::tr("CUDA").toStdString()};
     }
     if (override_value == "vulkan") {
-        return {"vulkan", "Vulkan"};
+        return {"vulkan", QObject::tr("Vulkan").toStdString()};
     }
     if (override_value == "auto") {
-        return {"vulkan", "Vulkan (auto)"};
+#if defined(__APPLE__)
+        return {"metal", QObject::tr("Metal (auto)").toStdString()};
+#else
+        return {"vulkan", QObject::tr("Vulkan (auto)").toStdString()};
+#endif
     }
     if (!override_value.empty()) {
-        return {"auto", std::string(override_value) + " (auto)"};
+        return {"auto",
+                QObject::tr("%1 (auto)").arg(QString::fromStdString(std::string(override_value))).toStdString()};
     }
-    return {"vulkan", "Vulkan (auto)"};
+#if defined(__APPLE__)
+    return {"metal", QObject::tr("Metal (auto)").toStdString()};
+#else
+    return {"vulkan", QObject::tr("Vulkan (auto)").toStdString()};
+#endif
 }
 
 std::string format_backend_label(std::string_view name)
 {
     if (name.empty()) {
-        return "Auto";
+        return QObject::tr("Auto").toStdString();
     }
     const std::string lowered = to_lower_copy(std::string(name));
     if (lowered == "vulkan") {
-        return "Vulkan";
+        return QObject::tr("Vulkan").toStdString();
     }
     if (lowered == "cuda") {
-        return "CUDA";
+        return QObject::tr("CUDA").toStdString();
+    }
+    if (lowered == "metal") {
+        return QObject::tr("Metal").toStdString();
     }
     if (lowered == "cpu") {
-        return "CPU";
+        return QObject::tr("CPU").toStdString();
     }
     return std::string(name);
 }
@@ -585,46 +602,59 @@ std::optional<BackendMemorySnapshot> query_backend_memory(std::string_view backe
     return std::nullopt;
 }
 
-std::string build_cpu_backend_note(const std::string& reason,
-                                   const std::optional<std::string>& blas_label)
+bool is_backend_available(std::string_view backend_name)
 {
-    std::string details = reason;
+    load_ggml_backends_once();
+    const std::string name(backend_name);
+    ggml_backend_reg_t reg = ggml_backend_reg_by_name(name.c_str());
+    if (!reg) {
+        return false;
+    }
+    return ggml_backend_reg_dev_count(reg) > 0;
+}
+
+QString build_cpu_backend_note(const QString& reason,
+                               const std::optional<std::string>& blas_label)
+{
+    QString details = reason;
     if (blas_label.has_value()) {
-        if (!details.empty()) {
-            details += "; ";
+        if (!details.isEmpty()) {
+            details += QStringLiteral("; ");
         }
-        details += *blas_label;
+        details += QString::fromStdString(*blas_label);
     }
-    if (details.empty()) {
-        return "CPU";
+    if (details.isEmpty()) {
+        return QObject::tr("CPU");
     }
-    return "CPU (" + details + ")";
+    return QObject::tr("CPU (%1)").arg(details);
 }
 
-std::string build_gpu_backend_note(const BackendTarget& target)
+QString build_gpu_backend_note(const BackendTarget& target)
 {
-    return "GPU (target: " + target.label + ")";
+    return QObject::tr("GPU (target: %1)").arg(QString::fromStdString(target.label));
 }
 
-std::string build_backend_note(const BackendTarget& target,
-                               const BenchmarkBackendInfo& info,
-                               bool gpu_fallback)
+QString build_backend_note(const BackendTarget& target,
+                           const BenchmarkBackendInfo& info,
+                           bool gpu_fallback)
 {
     if (target.key == "cpu") {
-        return build_cpu_backend_note(std::string(), info.blas_label);
+        return build_cpu_backend_note(QString(), info.blas_label);
     }
 
     if (gpu_fallback) {
-        std::string reason;
+        QString reason;
         if (target.key == "vulkan" && !info.vulkan_available) {
-            reason = "GPU via Vulkan unavailable";
+            reason = QObject::tr("GPU via Vulkan unavailable");
         } else if (target.key == "cuda" && !info.cuda_available) {
-            reason = "GPU via CUDA unavailable";
+            reason = QObject::tr("GPU via CUDA unavailable");
             if (!info.vulkan_available) {
-                reason += "; Vulkan unavailable";
+                reason += QStringLiteral("; ") + QObject::tr("Vulkan unavailable");
             }
+        } else if (target.key == "metal" && !info.metal_available) {
+            reason = QObject::tr("GPU via Metal unavailable");
         } else {
-            reason = "GPU init failed";
+            reason = QObject::tr("GPU init failed");
         }
         return build_cpu_backend_note(reason, info.blas_label);
     }
@@ -980,9 +1010,9 @@ TextModelOutcome run_text_model_checks(const std::vector<DefaultModel>& models,
                 post_line(QStringLiteral("----"));
             }
             if (post_line_html) {
-                post_line_html(QStringLiteral("Default model: %1").arg(bold_llm_label(model.label)));
+                post_line_html(QObject::tr("Default model: %1").arg(bold_llm_label(model.label)));
             } else {
-                post_line(QStringLiteral("Default model: %1").arg(QString::fromStdString(model.label)));
+                post_line(QObject::tr("Default model: %1").arg(QString::fromStdString(model.label)));
             }
         }
         try {
@@ -1004,7 +1034,7 @@ TextModelOutcome run_text_model_checks(const std::vector<DefaultModel>& models,
             const std::string backend_before_cat = read_env_lower("AI_FILE_SORTER_GPU_BACKEND");
             const BackendTarget cat_target = resolve_backend_target(backend_before_cat);
             if (post_line) {
-                post_line(QStringLiteral("    Measuring categorization (warm-up + %1 run(s))...")
+                post_line(QObject::tr("    Measuring categorization (warm-up + %1 run(s))...")
                               .arg(kPerItemRuns + 1));
             }
             cat_warm = run_categorization_test(client, temp_dir);
@@ -1034,7 +1064,7 @@ TextModelOutcome run_text_model_checks(const std::vector<DefaultModel>& models,
             const std::string backend_before_doc = read_env_lower("AI_FILE_SORTER_GPU_BACKEND");
             const BackendTarget doc_target = resolve_backend_target(backend_before_doc);
             if (post_line) {
-                post_line(QStringLiteral("    Measuring document analysis (warm-up + %1 run(s))...")
+                post_line(QObject::tr("    Measuring document analysis (warm-up + %1 run(s))...")
                               .arg(kPerItemRuns + 1));
             }
             doc_warm = run_document_test(client, temp_dir);
@@ -1095,31 +1125,31 @@ TextModelOutcome run_text_model_checks(const std::vector<DefaultModel>& models,
             });
 
             if (post_line) {
-                post_line(QStringLiteral("Categorization: %1")
-                              .arg(cat_success ? QStringLiteral("done") : QStringLiteral("failed")));
+                post_line(QObject::tr("Categorization: %1")
+                              .arg(cat_success ? QObject::tr("done") : QObject::tr("failed")));
                 if (post_line_html) {
-                    post_line_html(QStringLiteral("    Warm-up: %1")
+                    post_line_html(QObject::tr("    Warm-up: %1")
                                       .arg(colored_seconds(duration_seconds(cat_warm.duration), PerfClass::Optimal)));
-                    post_line_html(QStringLiteral("    Init: %1")
+                    post_line_html(QObject::tr("    Init: %1")
                                       .arg(colored_seconds(duration_seconds(cat_init.duration), PerfClass::Optimal)));
-                    post_line_html(QStringLiteral("    Per-item (median of %1): %2")
+                    post_line_html(QObject::tr("    Per-item (median of %1): %2")
                                       .arg(cat_per_seconds.size())
                                       .arg(colored_seconds(cat_median, cat_perf)));
-                    post_line_html(QStringLiteral("    Per-item runs: %1")
+                    post_line_html(QObject::tr("    Per-item runs: %1")
                                       .arg(colored_seconds_list(
                                           cat_per_seconds,
                                           [model](double value) {
                                               return classify_perf(value, thresholds_for_choice(model.choice));
                                           })));
                 } else {
-                    post_line(QStringLiteral("    Warm-up: %1")
+                    post_line(QObject::tr("    Warm-up: %1")
                                   .arg(QString::fromStdString(format_duration(cat_warm.duration))));
-                    post_line(QStringLiteral("    Init: %1")
+                    post_line(QObject::tr("    Init: %1")
                                   .arg(QString::fromStdString(format_duration(cat_init.duration))));
-                    post_line(QStringLiteral("    Per-item (median of %1): %2")
+                    post_line(QObject::tr("    Per-item (median of %1): %2")
                                   .arg(cat_per_seconds.size())
                                   .arg(QString::fromStdString(format_seconds(cat_median))));
-                    post_line(QStringLiteral("    Per-item runs: %1")
+                    post_line(QObject::tr("    Per-item runs: %1")
                                   .arg(QString::fromStdString(join_duration_list(cat_per_seconds))));
                 }
                 if (!cat_success) {
@@ -1136,36 +1166,36 @@ TextModelOutcome run_text_model_checks(const std::vector<DefaultModel>& models,
                         }
                     }
                     if (!detail.empty()) {
-                        post_line(QStringLiteral("Details: %1").arg(QString::fromStdString(detail)));
+                        post_line(QObject::tr("Details: %1").arg(QString::fromStdString(detail)));
                     }
                 }
-                post_line(QStringLiteral("Backend used: %1")
-                              .arg(QString::fromStdString(build_backend_note(cat_target, backend_info, cat_fallback))));
-                post_line(QStringLiteral("Document analysis: %1")
-                              .arg(doc_success ? QStringLiteral("done") : QStringLiteral("failed")));
+                post_line(QObject::tr("Backend used: %1")
+                              .arg(build_backend_note(cat_target, backend_info, cat_fallback)));
+                post_line(QObject::tr("Document analysis: %1")
+                              .arg(doc_success ? QObject::tr("done") : QObject::tr("failed")));
                 if (post_line_html) {
-                    post_line_html(QStringLiteral("    Warm-up: %1")
+                    post_line_html(QObject::tr("    Warm-up: %1")
                                       .arg(colored_seconds(duration_seconds(doc_warm.duration), PerfClass::Optimal)));
-                    post_line_html(QStringLiteral("    Init: %1")
+                    post_line_html(QObject::tr("    Init: %1")
                                       .arg(colored_seconds(duration_seconds(doc_init.duration), PerfClass::Optimal)));
-                    post_line_html(QStringLiteral("    Per-item (median of %1): %2")
+                    post_line_html(QObject::tr("    Per-item (median of %1): %2")
                                       .arg(doc_per_seconds.size())
                                       .arg(colored_seconds(doc_median, doc_perf)));
-                    post_line_html(QStringLiteral("    Per-item runs: %1")
+                    post_line_html(QObject::tr("    Per-item runs: %1")
                                       .arg(colored_seconds_list(
                                           doc_per_seconds,
                                           [model](double value) {
                                               return classify_perf(value, thresholds_for_document_choice(model.choice));
                                           })));
                 } else {
-                    post_line(QStringLiteral("    Warm-up: %1")
+                    post_line(QObject::tr("    Warm-up: %1")
                                   .arg(QString::fromStdString(format_duration(doc_warm.duration))));
-                    post_line(QStringLiteral("    Init: %1")
+                    post_line(QObject::tr("    Init: %1")
                                   .arg(QString::fromStdString(format_duration(doc_init.duration))));
-                    post_line(QStringLiteral("    Per-item (median of %1): %2")
+                    post_line(QObject::tr("    Per-item (median of %1): %2")
                                   .arg(doc_per_seconds.size())
                                   .arg(QString::fromStdString(format_seconds(doc_median))));
-                    post_line(QStringLiteral("    Per-item runs: %1")
+                    post_line(QObject::tr("    Per-item runs: %1")
                                   .arg(QString::fromStdString(join_duration_list(doc_per_seconds))));
                 }
                 if (!doc_success) {
@@ -1182,17 +1212,17 @@ TextModelOutcome run_text_model_checks(const std::vector<DefaultModel>& models,
                         }
                     }
                     if (!detail.empty()) {
-                        post_line(QStringLiteral("Details: %1").arg(QString::fromStdString(detail)));
+                        post_line(QObject::tr("Details: %1").arg(QString::fromStdString(detail)));
                     }
                 }
-                post_line(QStringLiteral("Backend used: %1")
-                              .arg(QString::fromStdString(build_backend_note(doc_target, backend_info, doc_fallback))));
+                post_line(QObject::tr("Backend used: %1")
+                              .arg(build_backend_note(doc_target, backend_info, doc_fallback)));
             }
         } catch (const std::exception& ex) {
             outcome.categorization_ok = false;
             outcome.document_ok = false;
             if (post_line) {
-                post_line(QStringLiteral("Model failed to load: %1")
+                post_line(QObject::tr("Model failed to load: %1")
                               .arg(QString::fromStdString(ex.what())));
             }
         }
@@ -1222,12 +1252,25 @@ QString colored_perf_label(PerfClass perf)
         .arg(perf_label_qt(perf));
 }
 
-QString join_labels(const QStringList& labels)
+QString build_recommended_list(const QStringList& labels)
 {
-    if (labels.empty()) {
-        return QStringLiteral("n/a");
+    QStringList items;
+    items.reserve(labels.size());
+    for (const auto& label : labels) {
+        const QString trimmed = label.trimmed();
+        if (!trimmed.isEmpty()) {
+            items << trimmed;
+        }
     }
-    return labels.join(QStringLiteral(", "));
+    if (items.empty()) {
+        items << QObject::tr("n/a");
+    }
+    QString html;
+    for (const auto& label : items) {
+        html += QStringLiteral("<div style=\"margin:0 0 0 18px;\">- %1</div>")
+                    .arg(label.toHtmlEscaped());
+    }
+    return html;
 }
 
 QStringList build_result_lines(const TextModelOutcome& text_models,
@@ -1308,10 +1351,10 @@ QStringList build_result_lines(const TextModelOutcome& text_models,
     }
 
     lines << QString();
-    const QString recommended_text = QObject::tr("Recommended Local LLM choice: %1")
-                                         .arg(join_labels(recommended_labels).toHtmlEscaped());
+    const QString recommended_header = QObject::tr("Recommended Local LLM choice: %1").arg(QString());
     lines << QStringLiteral("<span style=\"color:#1b9e3c; font-weight:700;\">%1</span>")
-                 .arg(recommended_text);
+                 .arg(recommended_header.toHtmlEscaped());
+    lines << build_recommended_list(recommended_labels);
     return lines;
 }
 } // namespace
@@ -1376,18 +1419,21 @@ void SuitabilityBenchmarkDialog::setup_ui()
 
 void SuitabilityBenchmarkDialog::retranslate_ui()
 {
-    setWindowTitle(tr("Compatability Benchmark"));
+    setWindowTitle(QObject::tr("Compatability Benchmark"));
     if (intro_label_) {
-        intro_label_->setText(tr("Run a quick performance check to estimate how image analysis, document analysis, and file categorization will perform on your system.\n\n<span style=\"color:#d73a49; font-weight:600;\">It is recommended to quit any CPU- and GPU-intensive applications before running this test.</span>"));
+        const QString intro_main = QObject::tr("Run a quick performance check to estimate how image analysis, document analysis, and file categorization will perform on your system.");
+        const QString intro_warning = QObject::tr("It is recommended to quit any CPU- and GPU-intensive applications before running this test.");
+        intro_label_->setText(QStringLiteral("%1<br><br><span style=\"color:#d73a49; font-weight:600;\">%2</span>")
+                                  .arg(intro_main.toHtmlEscaped(), intro_warning.toHtmlEscaped()));
     }
     if (run_button_) {
-        run_button_->setText(tr("Run benchmark"));
+        run_button_->setText(QObject::tr("Run benchmark"));
     }
     if (stop_button_) {
-        stop_button_->setText(tr("Stop Benchmark"));
+        stop_button_->setText(QObject::tr("Stop Benchmark"));
     }
     if (close_button_) {
-        close_button_->setText(tr("Close"));
+        close_button_->setText(QObject::tr("Close"));
     }
     if (showing_previous_results_) {
         render_previous_results();
@@ -1421,15 +1467,15 @@ void SuitabilityBenchmarkDialog::render_previous_results()
     showing_previous_results_ = true;
 
     if (last_report_.isEmpty()) {
-        append_line(tr("No previous results yet."), false);
+        append_line(QObject::tr("No previous results yet."), false);
         recording_ = was_recording;
         return;
     }
 
     if (!last_run_stamp_.isEmpty()) {
-        append_line(tr("Last run: %1").arg(last_run_stamp_), false);
+        append_line(QObject::tr("Last run: %1").arg(last_run_stamp_), false);
     }
-    append_line(tr("Previous results:"), false);
+    append_line(QObject::tr("Previous results:"), false);
 
     const QStringList lines = last_report_.split('\n');
     for (const QString& line : lines) {
@@ -1466,7 +1512,7 @@ void SuitabilityBenchmarkDialog::start_benchmark()
         if (output_view_) {
             output_view_->clear();
         }
-        append_line(QStringLiteral("No downloaded LLM files detected. Download a categorization or visual model to run the benchmark."), false);
+        append_line(QObject::tr("No downloaded LLM files detected. Download a categorization or visual model to run the benchmark."), false);
         return;
     }
 
@@ -1526,7 +1572,7 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
     };
 
     try {
-        post_line(QStringLiteral("Starting system compatibility check..."));
+        post_line(QObject::tr("Starting system compatibility check..."));
 
         static const std::array<const char*, 3> kBenchmarkEnvKeys = {
             "AI_FILE_SORTER_GPU_BACKEND",
@@ -1537,51 +1583,73 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
         ScopedEnvRestore env_restore(baseline_env);
 
         const unsigned int hw_threads = std::max(1u, std::thread::hardware_concurrency());
-        post_line(QStringLiteral("CPU threads detected: %1").arg(hw_threads));
+        post_line(QObject::tr("CPU threads detected: %1").arg(hw_threads));
 
         const char* backend_env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
         std::string backend_override = read_env_lower("AI_FILE_SORTER_GPU_BACKEND");
         if (backend_env && *backend_env) {
-            post_line(QStringLiteral("GPU backend override: %1").arg(QString::fromUtf8(backend_env)));
+            post_line(QObject::tr("GPU backend override: %1").arg(QString::fromUtf8(backend_env)));
         }
 
-        const bool cuda_available = Utils::is_cuda_available();
-        post_line(QStringLiteral("CUDA available: %1").arg(cuda_available ? QStringLiteral("yes") : QStringLiteral("no")));
+        bool cuda_available = false;
+        std::optional<BackendMemorySnapshot> vk_memory;
+        bool metal_available = false;
+        std::optional<BackendMemorySnapshot> metal_memory;
+
+#if defined(__APPLE__)
+        metal_available = is_backend_available("Metal");
+        post_line(QObject::tr("Metal available: %1")
+                      .arg(metal_available ? QObject::tr("yes") : QObject::tr("no")));
+        metal_memory = query_backend_memory("metal");
+        if (metal_memory.has_value()) {
+            post_line(QObject::tr("GPU memory allocation (Metal): %1 free / %2 total")
+                          .arg(QString::fromStdString(format_mib(metal_memory->free_bytes)))
+                          .arg(QString::fromStdString(format_mib(metal_memory->total_bytes))));
+        } else {
+            post_line(QObject::tr("GPU memory allocation (Metal): unavailable"));
+        }
+#else
+        cuda_available = Utils::is_cuda_available();
+        post_line(QObject::tr("CUDA available: %1")
+                      .arg(cuda_available ? QObject::tr("yes") : QObject::tr("no")));
         if (cuda_available) {
             auto cuda_info = Utils::query_cuda_memory();
             if (cuda_info && cuda_info->valid()) {
-                QString line = QStringLiteral("CUDA memory (allocatable): %1 free / %2 total")
+                QString line = QObject::tr("CUDA memory (allocatable): %1 free / %2 total")
                                    .arg(QString::fromStdString(format_mib(cuda_info->free_bytes)))
                                    .arg(QString::fromStdString(format_mib(cuda_info->total_bytes)));
                 if (cuda_info->device_total_bytes > 0) {
-                    line += QStringLiteral(" (device total: %1)")
+                    line += QObject::tr(" (device total: %1)")
                                 .arg(QString::fromStdString(format_mib(cuda_info->device_total_bytes)));
                 }
                 post_line(line);
             }
         }
 
-        const auto vk_memory = query_backend_memory("vulkan");
+        vk_memory = query_backend_memory("vulkan");
         if (vk_memory.has_value()) {
-            post_line(QStringLiteral("GPU memory allocation (Vulkan): %1 free / %2 total")
+            post_line(QObject::tr("GPU memory allocation (Vulkan): %1 free / %2 total")
                           .arg(QString::fromStdString(format_mib(vk_memory->free_bytes)))
                           .arg(QString::fromStdString(format_mib(vk_memory->total_bytes))));
         } else {
-            post_line(QStringLiteral("GPU memory allocation (Vulkan): unavailable"));
+            post_line(QObject::tr("GPU memory allocation (Vulkan): unavailable"));
         }
+#endif
 
         BenchmarkBackendInfo backend_info;
         backend_info.cuda_available = cuda_available;
         backend_info.vulkan_available = vk_memory.has_value();
         backend_info.vulkan_device = vk_memory ? vk_memory->name : std::string();
+        backend_info.metal_available = metal_available;
+        backend_info.metal_device = metal_memory ? metal_memory->name : std::string();
         backend_info.blas_label = detect_blas_backend_label();
 
         const auto temp_dir = create_temp_dir();
         const std::vector<DefaultModel> default_models = collect_default_models();
         if (default_models.empty()) {
-            post_line(QStringLiteral("No default models downloaded; skipping categorization and document checks."));
+            post_line(QObject::tr("No default models downloaded; skipping categorization and document checks."));
         } else {
-            post_line(QStringLiteral("Default models detected: %1").arg(default_models.size()));
+            post_line(QObject::tr("Default models detected: %1").arg(default_models.size()));
         }
         post_line(QStringLiteral("----"));
 
@@ -1594,40 +1662,41 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
                                                                     should_stop);
 
         if (should_stop()) {
-            post_line(QStringLiteral("Benchmark stopped."));
+            post_line(QObject::tr("Benchmark stopped."));
             finish();
             return;
         }
 
         post_line(QStringLiteral("----"));
-        post_line(QStringLiteral("Running image analysis test..."));
+        post_line(QObject::tr("Running image analysis test..."));
         baseline_env.restore();
         ScopedEnvRestore image_env_restore(baseline_env);
         if (should_stop()) {
-            post_line(QStringLiteral("Benchmark stopped."));
+            post_line(QObject::tr("Benchmark stopped."));
             finish();
             return;
         }
         StepResult image_result = run_image_test(temp_dir);
 
         if (image_result.skipped) {
-            post_line(QStringLiteral("Image analysis: skipped (%1)")
-                          .arg(QString::fromStdString(image_result.detail.empty() ? std::string("unavailable")
-                                                                                 : image_result.detail)));
+            const QString detail = image_result.detail.empty()
+                ? QObject::tr("unavailable")
+                : QString::fromStdString(image_result.detail);
+            post_line(QObject::tr("Image analysis: skipped (%1)").arg(detail));
         } else {
             const double seconds = duration_seconds(image_result.duration);
             const PerfClass image_perf = classify_perf(seconds, image_thresholds());
-            post_line(QStringLiteral("Image analysis: %1")
-                          .arg(image_result.success ? QStringLiteral("done") : QStringLiteral("failed")));
-            post_line_html(QStringLiteral("    Time: %1")
+            post_line(QObject::tr("Image analysis: %1")
+                          .arg(image_result.success ? QObject::tr("done") : QObject::tr("failed")));
+            post_line_html(QObject::tr("    Time: %1")
                               .arg(colored_seconds(seconds, image_perf)));
             if (!image_result.success && !image_result.detail.empty()) {
-                post_line(QStringLiteral("Details: %1").arg(QString::fromStdString(image_result.detail)));
+                post_line(QObject::tr("Details: %1").arg(QString::fromStdString(image_result.detail)));
             }
         }
 
         if (should_stop()) {
-            post_line(QStringLiteral("Benchmark stopped."));
+            post_line(QObject::tr("Benchmark stopped."));
             finish();
             return;
         }
@@ -1638,16 +1707,19 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
                 visual_backend = read_env_lower("LLAMA_ARG_DEVICE");
             }
 
-            std::string backend_note;
+            QString backend_note;
             if (!should_use_visual_gpu()) {
-                backend_note = build_cpu_backend_note("GPU disabled by backend override", std::nullopt);
+                backend_note = build_cpu_backend_note(QObject::tr("GPU disabled by backend override"), std::nullopt);
             } else if (case_insensitive_contains(visual_backend, "vulkan") &&
                        !backend_info.vulkan_available) {
-                backend_note = build_cpu_backend_note("GPU via Vulkan unavailable", std::nullopt);
+                backend_note = build_cpu_backend_note(QObject::tr("GPU via Vulkan unavailable"), std::nullopt);
+            } else if (case_insensitive_contains(visual_backend, "metal") &&
+                       !backend_info.metal_available) {
+                backend_note = build_cpu_backend_note(QObject::tr("GPU via Metal unavailable"), std::nullopt);
             } else {
                 BackendTarget visual_target = resolve_backend_target(visual_backend);
                 if (visual_target.key == "cpu") {
-                    backend_note = build_cpu_backend_note("GPU disabled by backend override", std::nullopt);
+                    backend_note = build_cpu_backend_note(QObject::tr("GPU disabled by backend override"), std::nullopt);
                 } else {
                     if (!visual_backend.empty()) {
                         visual_target.label = format_backend_label(visual_backend);
@@ -1656,8 +1728,8 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
                 }
             }
 
-            post_line(QStringLiteral("Backend used (image analysis): %1")
-                          .arg(QString::fromStdString(backend_note)));
+            post_line(QObject::tr("Backend used (image analysis): %1")
+                          .arg(backend_note));
         }
 
         post_line(QStringLiteral("----"));
@@ -1673,7 +1745,7 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
         std::error_code cleanup_error;
         std::filesystem::remove_all(temp_dir, cleanup_error);
     } catch (const std::exception& ex) {
-        post_line(QStringLiteral("Benchmark failed: %1").arg(QString::fromStdString(ex.what())));
+        post_line(QObject::tr("Benchmark failed: %1").arg(QString::fromStdString(ex.what())));
     }
 
     finish();
@@ -1685,7 +1757,7 @@ void SuitabilityBenchmarkDialog::request_stop()
         return;
     }
     stop_requested_ = true;
-    append_line(tr("[STOP] Benchmark will stop after the current step is processed."), false);
+    append_line(QObject::tr("[STOP] Benchmark will stop after the current step is processed."), false);
 }
 
 void SuitabilityBenchmarkDialog::append_line(const QString& text, bool is_html)
