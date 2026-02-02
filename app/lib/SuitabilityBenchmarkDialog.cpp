@@ -1266,9 +1266,11 @@ QString build_recommended_list(const QStringList& labels)
         items << QObject::tr("n/a");
     }
     QString html;
-    for (const auto& label : items) {
-        html += QStringLiteral("<div style=\"margin:0 0 0 18px;\">- %1</div>")
-                    .arg(label.toHtmlEscaped());
+    for (int i = 0; i < items.size(); ++i) {
+        if (i > 0) {
+            html += QStringLiteral("<br>");
+        }
+        html += QStringLiteral("- %1").arg(items[i].toHtmlEscaped());
     }
     return html;
 }
@@ -1355,6 +1357,9 @@ QStringList build_result_lines(const TextModelOutcome& text_models,
     lines << QStringLiteral("<span style=\"color:#1b9e3c; font-weight:700;\">%1</span>")
                  .arg(recommended_header.toHtmlEscaped());
     lines << build_recommended_list(recommended_labels);
+    lines << QString();
+    lines << QStringLiteral("<span style=\"color:#1f6feb;\">%1</span>")
+                 .arg(QObject::tr("You can toggle LLMs in Settings -> Select LLM").toHtmlEscaped());
     return lines;
 }
 } // namespace
