@@ -5,6 +5,11 @@ UNAME_M := $(shell uname -m)
 BIN_DIR := ./bin
 OBJ_DIR := ./obj
 SRC_DIR := ./lib
+APP_NAME ?= AI File Sorter
+
+# Optional: build llama.cpp with multi-variant CPU backends on macOS.
+# Usage: make LLAMA_MULTI_VARIANT=1
+LLAMA_MULTI_VARIANT ?= 0
 
 ifeq ($(UNAME), Linux)
     PLATFORM := Linux
@@ -40,9 +45,15 @@ endif
 	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin -Wl,-rpath-link=./lib/precompiled
 
 else ifeq ($(UNAME), Darwin)
-    IS_APPLE_SILICON := $(shell sysctl -n machdep.cpu.brand_string | grep -i "Apple" > /dev/null && echo 1 || echo 0)
-    DEFAULT_BREW_PREFIX := $(shell if [ "$(IS_APPLE_SILICON)" = "1" ]; then echo /opt/homebrew; else echo /usr/local; fi)
-    BREW_PREFIX := $(shell if command -v brew >/dev/null 2>&1; then brew --prefix; else echo $(DEFAULT_BREW_PREFIX); fi)
+    MACOS_ARCH ?= $(UNAME_M)
+    DEFAULT_BREW_PREFIX := $(shell if [ "$(MACOS_ARCH)" = "arm64" ]; then echo /opt/homebrew; else echo /usr/local; fi)
+ifeq ($(origin BREW_PREFIX),undefined)
+    ifeq ($(MACOS_ARCH),x86_64)
+        BREW_PREFIX := /usr/local
+    else
+        BREW_PREFIX := $(shell if command -v brew >/dev/null 2>&1; then brew --prefix; else echo $(DEFAULT_BREW_PREFIX); fi)
+    endif
+endif
     QT_PREFIX := $(BREW_PREFIX)/opt/qt
     QTBASE_PREFIX := $(BREW_PREFIX)/opt/qtbase
     CURL_PREFIX := $(BREW_PREFIX)/opt/curl
@@ -55,12 +66,24 @@ else ifeq ($(UNAME), Darwin)
     PATH := $(QTBASE_PREFIX)/share/qt/libexec:$(QT_PREFIX)/bin:$(CURL_PREFIX)/bin:$(PATH)
     export PATH
 
+ifeq ($(MACOS_ARCH),x86_64)
+    export PKG_CONFIG_PATH := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig
+    CPPFLAGS := $(filter-out -I/opt/homebrew/%,$(CPPFLAGS))
+    LDFLAGS := $(filter-out -L/opt/homebrew/% -F/opt/homebrew/%,$(LDFLAGS))
+else
     export PKG_CONFIG_PATH := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
+endif
 
     export LDFLAGS += -L$(LIBFFI_PREFIX)/lib
     export CPPFLAGS += -I$(LIBFFI_PREFIX)/include
     PLATFORM := MacOS
     CXXFLAGS += -DMACOS -DENABLE_METAL -DGGML_USE_METAL -DAI_FILE_SORTER_HAS_MTMD -Wno-deprecated -Iinclude/llama -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+    ifneq ($(strip $(MACOS_ARCH)),)
+    CXXFLAGS := $(filter-out -arch arm64 -arch x86_64,$(CXXFLAGS))
+    LDFLAGS := $(filter-out -arch arm64 -arch x86_64,$(LDFLAGS))
+    CXXFLAGS += -arch $(MACOS_ARCH)
+    LDFLAGS += -arch $(MACOS_ARCH)
+    endif
     ifneq ($(strip $(SDKROOT)),)
     export SDKROOT
     CXXFLAGS += -isysroot $(SDKROOT) -stdlib=libc++ -I$(SDKROOT)/usr/include/c++/v1
@@ -74,7 +97,17 @@ else ifeq ($(UNAME), Darwin)
     SPDLOG_PATH := $(BREW_PREFIX)/include
     CXXFLAGS += -I$(SPDLOG_PATH)
 
-    PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
+ifeq ($(origin PKG_CONFIG),undefined)
+    ifeq ($(MACOS_ARCH),x86_64)
+        ifneq ($(wildcard /usr/local/bin/pkg-config),)
+            PKG_CONFIG := /usr/local/bin/pkg-config
+        else
+            PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
+        endif
+    else
+        PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
+    endif
+endif
 ifeq ($(strip $(PKG_CONFIG)),)
 $(error pkg-config is required to locate Qt6 frameworks on macOS. Please install it (e.g. brew install pkg-config))
 endif
@@ -84,6 +117,11 @@ endif
     QT_LDFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --libs $(QT_PACKAGES))
 ifeq ($(strip $(QT_CXXFLAGS)),)
 $(error Could not retrieve Qt6 flags via pkg-config. Ensure Qt6 is installed (brew install qt) and PKG_CONFIG_PATH includes its pkgconfig directory.)
+endif
+ifeq ($(MACOS_ARCH),x86_64)
+ifneq ($(findstring /opt/homebrew,$(QT_CXXFLAGS) $(QT_LDFLAGS)),)
+$(error x86_64 build resolved Qt flags from /opt/homebrew. Install x86_64 Qt under /usr/local (Intel Homebrew) or set BREW_PREFIX/PKG_CONFIG accordingly.)
+endif
 endif
     CXXFLAGS += $(QT_CXXFLAGS)
     LDFLAGS += $(QT_LDFLAGS)
@@ -95,6 +133,12 @@ endif
 
 endif
 
+ifeq ($(UNAME), Darwin)
+ifneq ($(strip $(MACOS_ARCH)),)
+OBJ_DIR := ./obj/$(MACOS_ARCH)
+endif
+endif
+
 WRAPPED_BINARY := $(notdir $(TARGET))
 
 # Compiler and flags
@@ -103,7 +147,7 @@ CXX := clang++
 else
 CXX := g++
 endif
-CXXFLAGS += -std=c++20 -Wall -O2 -fPIC
+CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"'
 CXX_VERSION_INFO := $(shell $(CXX) --version 2>/dev/null)
 # Suppress GCC-only diagnostics; clang (macOS) does not support some of them
 ifneq (,$(findstring clang,$(CXX_VERSION_INFO)))
@@ -131,6 +175,14 @@ PDFIUM_DIR := $(DOC_DEPS_DIR)/pdfium
 LIBZIP_CMAKE := $(LIBZIP_DIR)/CMakeLists.txt
 LIBZIP_BUILD_DIR := $(LIBZIP_DIR)/build
 LIBZIP_LIB := $(LIBZIP_BUILD_DIR)/lib/libzip.a
+LIBZIP_CMAKE_ARGS :=
+ifeq ($(UNAME), Darwin)
+ifneq ($(strip $(MACOS_ARCH)),)
+LIBZIP_BUILD_DIR := $(LIBZIP_DIR)/build-$(MACOS_ARCH)
+LIBZIP_LIB := $(LIBZIP_BUILD_DIR)/lib/libzip.a
+LIBZIP_CMAKE_ARGS += -DCMAKE_OSX_ARCHITECTURES=$(MACOS_ARCH)
+endif
+endif
 
 PUGIXML_HDR := $(PUGIXML_DIR)/src/pugixml.hpp
 
@@ -144,6 +196,9 @@ PDFIUM_LIB := $(PDFIUM_PLATFORM_DIR)/lib/libpdfium.so
 endif
 ifeq ($(UNAME), Darwin)
 PDFIUM_PLATFORM_DIR := $(PDFIUM_DIR)/macos-arm64
+ifeq ($(MACOS_ARCH),x86_64)
+PDFIUM_PLATFORM_DIR := $(PDFIUM_DIR)/macos-x64
+endif
 PDFIUM_INC := $(PDFIUM_PLATFORM_DIR)/include
 PDFIUM_LIB := $(PDFIUM_PLATFORM_DIR)/lib/libpdfium.dylib
 endif
@@ -265,10 +320,17 @@ endif
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
 OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
 
-.PHONY: all clean install uninstall doc_runtime_libs
+PRECOMPILED_LLAMA :=
+ifeq ($(UNAME), Darwin)
+ifneq ($(LLAMA_MULTI_VARIANT),0)
+PRECOMPILED_LLAMA := precompiled_llama
+endif
+endif
+
+.PHONY: all clean install uninstall doc_runtime_libs precompiled_llama MACOS_LLAMA_M1 MACOS_LLAMA_M2 MACOS_LLAMA_INTEL
 
 # Main rules
-all: $(TARGET) doc_runtime_libs
+all: $(PRECOMPILED_LLAMA) $(TARGET) doc_runtime_libs
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
 $(TARGET): $(OBJS) $(QRC_OBJ) $(DOC_LIBS)
@@ -286,6 +348,7 @@ $(LIBZIP_LIB):
 	@echo "Building libzip (vendored)..."
 	mkdir -p $(LIBZIP_BUILD_DIR)
 	LDFLAGS= cmake -S $(LIBZIP_DIR) -B $(LIBZIP_BUILD_DIR) \
+		$(LIBZIP_CMAKE_ARGS) \
 		-DCMAKE_EXE_LINKER_FLAGS= \
 		-DCMAKE_SHARED_LINKER_FLAGS= \
 		-DCMAKE_MODULE_LINKER_FLAGS= \
@@ -305,6 +368,41 @@ ifneq ($(wildcard $(PDFIUM_LIB)),)
 	@echo "Staging PDFium runtime library..."
 	mkdir -p ./lib/precompiled
 	cp $(PDFIUM_LIB) ./lib/precompiled/
+endif
+
+precompiled_llama:
+ifeq ($(UNAME), Darwin)
+	@echo "Building llama.cpp precompiled libraries (multi-variant=$(LLAMA_MULTI_VARIANT))..."
+	LLAMA_MACOS_MULTI_VARIANT=$(LLAMA_MULTI_VARIANT) ./scripts/build_llama_macos.sh
+else
+	@echo "precompiled_llama is only supported on macOS."
+endif
+
+MACOS_LLAMA_M1:
+ifeq ($(UNAME), Darwin)
+	@echo "Rebuilding llama.cpp for M1-safe multi-variant CPU backends..."
+	LLAMA_MACOS_MULTI_VARIANT=1 ./scripts/build_llama_macos.sh
+	$(MAKE) LLAMA_MULTI_VARIANT=0 APP_NAME="AI File Sorter for Mac M1" BIN_DIR=./bin/m1 all
+else
+	@echo "MACOS_LLAMA_M1 is only supported on macOS."
+endif
+
+MACOS_LLAMA_M2:
+ifeq ($(UNAME), Darwin)
+	@echo "Rebuilding llama.cpp for native (fast) Apple Silicon backends..."
+	LLAMA_MACOS_MULTI_VARIANT=0 ./scripts/build_llama_macos.sh
+	$(MAKE) LLAMA_MULTI_VARIANT=0 APP_NAME="AI File Sorter for Mac M2/M3" BIN_DIR=./bin/m2 all
+else
+	@echo "MACOS_LLAMA_M2 is only supported on macOS."
+endif
+
+MACOS_LLAMA_INTEL:
+ifeq ($(UNAME), Darwin)
+	@echo "Rebuilding llama.cpp for Intel (x86_64) macOS backends..."
+	LLAMA_MACOS_ARCH=x86_64 LLAMA_MACOS_ENABLE_METAL=1 LLAMA_MACOS_MULTI_VARIANT=0 ./scripts/build_llama_macos.sh
+	$(MAKE) LLAMA_MULTI_VARIANT=0 APP_NAME="AI File Sorter for Mac Intel" BIN_DIR=./bin/intel MACOS_ARCH=x86_64 all
+else
+	@echo "MACOS_LLAMA_INTEL is only supported on macOS."
 endif
 
 $(OBJ_DIR)/main.o: main.cpp
@@ -369,8 +467,8 @@ else ifeq ($(PLATFORM), MacOS)
 	cp lib/precompiled/libggml.dylib $(INSTALL_LIB_DIR)
 	cp lib/precompiled/libmtmd.dylib $(INSTALL_LIB_DIR)
 	cp lib/precompiled/libllama.dylib $(INSTALL_LIB_DIR)
-	if [ -f ../external/pdfium/macos-arm64/lib/libpdfium.dylib ]; then \
-		cp ../external/pdfium/macos-arm64/lib/libpdfium.dylib $(INSTALL_LIB_DIR); \
+	if [ -n "$(PDFIUM_LIB)" ] && [ -f "$(PDFIUM_LIB)" ]; then \
+		cp "$(PDFIUM_LIB)" $(INSTALL_LIB_DIR); \
 	fi
 
 	install_name_tool -add_rpath $(INSTALL_LIB_DIR) $(INSTALL_DIR)/aifilesorter
