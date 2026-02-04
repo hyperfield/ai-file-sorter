@@ -92,6 +92,52 @@ using namespace std::chrono_literals;
 
 namespace {
 
+std::string trim_ws_copy(const std::string& value) {
+    const char* whitespace = " \t\n\r\f\v";
+    const auto start = value.find_first_not_of(whitespace);
+    if (start == std::string::npos) {
+        return std::string();
+    }
+    const auto end = value.find_last_not_of(whitespace);
+    return value.substr(start, end - start + 1);
+}
+
+std::string expand_user_path(const std::string& value) {
+    if (value.empty() || value.front() != '~') {
+        return value;
+    }
+    QString home = QDir::homePath();
+    if (home.isEmpty()) {
+        return value;
+    }
+    if (value.size() == 1) {
+        return home.toUtf8().toStdString();
+    }
+    const char next = value[1];
+    if (next == '/' || next == '\\') {
+        QString expanded = home + QString::fromUtf8(value.c_str() + 1);
+        return expanded.toUtf8().toStdString();
+    }
+    return value;
+}
+
+std::string normalize_directory_path(const std::string& value) {
+    const std::string trimmed = trim_ws_copy(value);
+    if (trimmed.empty()) {
+        return trimmed;
+    }
+    const std::string expanded = expand_user_path(trimmed);
+    const std::filesystem::path fs_path = Utils::utf8_to_path(expanded).lexically_normal();
+    std::string normalized = Utils::path_to_utf8(fs_path);
+    if (fs_path.has_relative_path()) {
+        while (normalized.size() > 1 &&
+               (normalized.back() == '/' || normalized.back() == '\\')) {
+            normalized.pop_back();
+        }
+    }
+    return normalized;
+}
+
 void schedule_next_support_prompt(Settings& settings, int total_files, int increment) {
     if (increment <= 0) {
         increment = 100;
@@ -2231,6 +2277,37 @@ void MainApp::perform_analysis()
                 entry.rename_only,
                 entry.rename_applied);
         };
+        auto persist_analysis_results = [this, &is_missing_category_label](const std::vector<CategorizedFile>& entries) {
+            for (const auto& entry : entries) {
+                std::string category = entry.category;
+                std::string subcategory = entry.subcategory;
+                if (is_missing_category_label(category)) {
+                    category.clear();
+                }
+                if (is_missing_category_label(subcategory)) {
+                    subcategory.clear();
+                }
+                if (category.empty() && subcategory.empty() && entry.suggested_name.empty()) {
+                    continue;
+                }
+
+                DatabaseManager::ResolvedCategory resolved{0, "", ""};
+                if (!category.empty()) {
+                    resolved = db_manager.resolve_category(category, subcategory);
+                }
+
+                const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
+                db_manager.insert_or_update_file_with_categorization(
+                    entry.file_name,
+                    file_type_label,
+                    entry.file_path,
+                    resolved,
+                    entry.used_consistency_hints,
+                    entry.suggested_name,
+                    entry.rename_only,
+                    entry.rename_applied);
+            }
+        };
 
         for (const auto& cached_entry : cached_entries) {
             auto entry = cached_entry;
@@ -3094,6 +3171,8 @@ void MainApp::perform_analysis()
             new_files_with_categories.begin(),
             new_files_with_categories.end());
 
+        persist_analysis_results(new_files_with_categories);
+
         std::vector<CategorizedFile> review_entries = already_categorized_files;
         if ((rename_images_only || rename_documents_only) && !pending_renames.empty()) {
             review_entries.insert(review_entries.end(),
@@ -3426,7 +3505,8 @@ void MainApp::report_progress(const std::string& message)
 std::string MainApp::get_folder_path() const
 {
     const QByteArray bytes = path_entry->text().toUtf8();
-    return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+    return normalize_directory_path(
+        std::string(bytes.constData(), static_cast<std::size_t>(bytes.size())));
 }
 
 
