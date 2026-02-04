@@ -1,6 +1,6 @@
 ﻿# Changelog
 
-## [1.6.0] - 2026-02-01
+## [1.6.0] - 2026-02-04
 
 - Added document content analysis (text LLM) with rename-only/document-only options and optional creation-date suffixes for categories. Supported document formats include PDF, DOCX, XLSX, PPTX, ODT, ODS, and ODP (plus common text formats).
 - Local 3B model download now defaults to Q4 for better GPU compatibility. The legacy Local 3B Q8 is still selectable when an existing download is found.
@@ -14,7 +14,7 @@
 - Added a system compatibility check (benchmarking) to determine the most suitable LLM for your system.
 - Added Korean as an interface language.
 - macOS builds now include variant `make` targets for Apple Silicon (M1 / M2-M3) and Intel outputs, plus improved arch-aware llama.cpp builds.
-- UI and usability improvements.
+- UI, stability, persistence, and usability improvements.
 
 ## [1.5.0] - 2026-01-11
 

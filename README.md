@@ -100,7 +100,7 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 - Improved subcategory consistency by merging labels that only differ by generic suffixes (e.g., “files”).
 - Added a system compatibility check (benchmarking) to determine the most suitable LLM for your system.
 - Added Korean as an interface language.
-- UI and usability improvements.
+- UI, stability, persistence, and usability improvements.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
