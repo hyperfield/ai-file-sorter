@@ -287,7 +287,7 @@ private:
     std::filesystem::path config_dir;
     IniConfig config;
 
-    LLMChoice llm_choice = LLMChoice::Local_3b;
+    LLMChoice llm_choice = LLMChoice::Unset;
     std::string openai_api_key;
     std::string openai_model{ "gpt-4o-mini" };
     std::string gemini_api_key;

@@ -272,9 +272,87 @@ private:
     QWidget* target_{nullptr};
 };
 
+bool file_exists(const std::string& path)
+{
+    if (path.empty()) {
+        return false;
+    }
+    std::error_code ec;
+    return std::filesystem::exists(std::filesystem::path(path), ec);
+}
+
+bool has_local_model_for_env(const char* env_key)
+{
+    if (!env_key) {
+        return false;
+    }
+    const char* url = std::getenv(env_key);
+    if (!url || *url == '\0') {
+        return false;
+    }
+    try {
+        const std::string path = Utils::make_default_path_to_file_from_download_url(url);
+        return file_exists(path);
+    } catch (...) {
+        return false;
+    }
+}
+
+bool llm_choice_is_ready(const Settings& settings)
+{
+    const LLMChoice choice = settings.get_llm_choice();
+    if (choice == LLMChoice::Unset) {
+        return false;
+    }
+    if (choice == LLMChoice::Remote_OpenAI) {
+        return !settings.get_openai_api_key().empty()
+            && !settings.get_openai_model().empty();
+    }
+    if (choice == LLMChoice::Remote_Gemini) {
+        return !settings.get_gemini_api_key().empty()
+            && !settings.get_gemini_model().empty();
+    }
+    if (choice == LLMChoice::Remote_Custom) {
+        const auto id = settings.get_active_custom_api_id();
+        if (id.empty()) {
+            return false;
+        }
+        const CustomApiEndpoint endpoint = settings.find_custom_api_endpoint(id);
+        return !endpoint.id.empty()
+            && !endpoint.base_url.empty()
+            && !endpoint.model.empty();
+    }
+    if (choice == LLMChoice::Custom) {
+        const auto id = settings.get_active_custom_llm_id();
+        if (id.empty()) {
+            return false;
+        }
+        const CustomLLM custom = settings.find_custom_llm(id);
+        return !custom.id.empty()
+            && !custom.path.empty()
+            && file_exists(custom.path);
+    }
+
+    const char* env_var = nullptr;
+    switch (choice) {
+        case LLMChoice::Local_3b:
+            env_var = "LOCAL_LLM_3B_DOWNLOAD_URL";
+            break;
+        case LLMChoice::Local_3b_legacy:
+            env_var = "LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL";
+            break;
+        case LLMChoice::Local_7b:
+            env_var = "LOCAL_LLM_7B_DOWNLOAD_URL";
+            break;
+        default:
+            break;
+    }
+    return has_local_model_for_env(env_var);
+}
+
 bool ensure_llm_choice(Settings& settings, const std::function<void()>& finish_splash)
 {
-    if (settings.get_llm_choice() != LLMChoice::Unset) {
+    if (llm_choice_is_ready(settings)) {
         return true;
     }
 
@@ -286,8 +364,22 @@ bool ensure_llm_choice(Settings& settings, const std::function<void()>& finish_s
         return false;
     }
 
+    settings.set_openai_api_key(llm_dialog.get_openai_api_key());
+    settings.set_openai_model(llm_dialog.get_openai_model());
+    settings.set_gemini_api_key(llm_dialog.get_gemini_api_key());
+    settings.set_gemini_model(llm_dialog.get_gemini_model());
     settings.set_llm_choice(llm_dialog.get_selected_llm_choice());
     settings.set_llm_downloads_expanded(llm_dialog.get_llm_downloads_expanded());
+    if (llm_dialog.get_selected_llm_choice() == LLMChoice::Custom) {
+        settings.set_active_custom_llm_id(llm_dialog.get_selected_custom_llm_id());
+    } else {
+        settings.set_active_custom_llm_id("");
+    }
+    if (llm_dialog.get_selected_llm_choice() == LLMChoice::Remote_Custom) {
+        settings.set_active_custom_api_id(llm_dialog.get_selected_custom_api_id());
+    } else {
+        settings.set_active_custom_api_id("");
+    }
     settings.save();
     return true;
 }
