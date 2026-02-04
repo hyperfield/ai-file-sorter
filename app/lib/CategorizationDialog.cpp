@@ -42,6 +42,7 @@
 #include <QPen>
 #include <QPixmap>
 #include <QPolygonF>
+#include <QBuffer>
 #include <QScrollArea>
 #include <QScreen>
 #include <QDir>
@@ -77,6 +78,8 @@ struct ScopedFlag {
 void ensure_unique_image_suggested_names(std::vector<CategorizedFile>& files,
                                          const std::string& base_dir,
                                          bool use_subcategory);
+
+QString edit_icon_html(int size = 16);
 
 std::string to_lower_copy_str(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -413,7 +416,9 @@ void CategorizationDialog::setup_ui()
     QFont tip_font = tip_label->font();
     tip_font.setItalic(true);
     tip_label->setFont(tip_font);
-    tip_label->setText(tr("Tip: Click Category or Subcategory cells to rename them."));
+    tip_label->setTextFormat(Qt::RichText);
+    tip_label->setText(tr("Tip: Click %1 cells to rename them.")
+                           .arg(edit_icon_html()));
     scroll_layout->addWidget(tip_label);
 
     confirm_button = new QPushButton(this);
@@ -580,6 +585,22 @@ QIcon edit_icon()
         return style->standardIcon(QStyle::SP_FileDialogDetailedView);
     }
     return QIcon();
+}
+
+QString edit_icon_html(int size)
+{
+    const QIcon icon = edit_icon();
+    const QPixmap pixmap = icon.pixmap(size, size);
+    if (pixmap.isNull()) {
+        return QStringLiteral("[edit]");
+    }
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    pixmap.save(&buffer, "PNG");
+    return QStringLiteral("<img src=\"data:image/png;base64,%1\" width=\"%2\" height=\"%2\"/>")
+        .arg(QString::fromLatin1(bytes.toBase64()))
+        .arg(size);
 }
 
 bool is_supported_image_entry(const std::string& file_path,
