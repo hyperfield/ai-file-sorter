@@ -3,6 +3,8 @@
 #include "Logger.hpp"
 #include "LlamaModelParams.hpp"
 
+#include <QString>
+
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -100,19 +102,25 @@ std::string trim_copy(const std::string& value) {
     return result;
 }
 
-std::vector<std::string> split_words(const std::string& value) {
+QString sanitize_utf8_text(const std::string& value) {
+    QString cleaned = QString::fromUtf8(value.c_str());
+    cleaned.remove(QChar::ReplacementCharacter);
+    return cleaned.normalized(QString::NormalizationForm_C);
+}
+
+std::vector<std::string> split_words(const QString& value) {
     std::vector<std::string> words;
-    std::string current;
-    for (unsigned char ch : value) {
-        if (std::isalnum(ch)) {
-            current.push_back(static_cast<char>(std::tolower(ch)));
-        } else if (!current.empty()) {
-            words.emplace_back(std::move(current));
+    QString current;
+    for (const QChar ch : value) {
+        if (ch.isLetterOrNumber()) {
+            current.append(ch.toLower());
+        } else if (!current.isEmpty()) {
+            words.emplace_back(current.toUtf8().toStdString());
             current.clear();
         }
     }
-    if (!current.empty()) {
-        words.emplace_back(std::move(current));
+    if (!current.isEmpty()) {
+        words.emplace_back(current.toUtf8().toStdString());
     }
     return words;
 }
@@ -675,19 +683,25 @@ std::string LlavaImageAnalyzer::infer_text(void* bitmap,
 std::string LlavaImageAnalyzer::sanitize_filename(const std::string& value,
                                                   size_t max_words,
                                                   size_t max_length) const {
-    std::string cleaned = trim_copy(value);
-    const std::string lower = to_lower_copy(cleaned);
-    const std::string prefix = "filename:";
-    if (lower.rfind(prefix, 0) == 0) {
-        cleaned = trim_copy(cleaned.substr(prefix.size()));
+    QString cleaned = sanitize_utf8_text(value).trimmed();
+    const QString prefix = QStringLiteral("filename:");
+    if (cleaned.startsWith(prefix, Qt::CaseInsensitive)) {
+        cleaned = cleaned.mid(prefix.size()).trimmed();
     }
-    const auto newline = cleaned.find('\n');
-    if (newline != std::string::npos) {
-        cleaned = cleaned.substr(0, newline);
+    const int newline = cleaned.indexOf('\n');
+    if (newline != -1) {
+        cleaned = cleaned.left(newline);
     }
-    if (cleaned.size() >= 2 && ((cleaned.front() == '"' && cleaned.back() == '"') ||
-                                (cleaned.front() == '\'' && cleaned.back() == '\''))) {
-        cleaned = cleaned.substr(1, cleaned.size() - 2);
+    const int carriage = cleaned.indexOf('\r');
+    if (carriage != -1) {
+        cleaned = cleaned.left(carriage);
+    }
+    if (cleaned.size() >= 2) {
+        const QChar first = cleaned.front();
+        const QChar last = cleaned.back();
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+            cleaned = cleaned.mid(1, cleaned.size() - 2);
+        }
     }
 
     auto words = split_words(cleaned);
@@ -713,22 +727,22 @@ std::string LlavaImageAnalyzer::sanitize_filename(const std::string& value,
         return std::string();
     }
 
-    std::string joined;
+    QString joined;
     for (size_t i = 0; i < filtered.size(); ++i) {
         if (i > 0) {
-            joined.push_back('_');
+            joined.append('_');
         }
-        joined += filtered[i];
+        joined.append(QString::fromUtf8(filtered[i].c_str()));
     }
 
-    if (joined.size() > max_length) {
-        joined.resize(max_length);
+    if (joined.size() > static_cast<int>(max_length)) {
+        joined = joined.left(static_cast<int>(max_length));
     }
-    while (!joined.empty() && joined.back() == '_') {
-        joined.pop_back();
+    while (!joined.isEmpty() && joined.endsWith('_')) {
+        joined.chop(1);
     }
 
-    return joined;
+    return joined.toUtf8().toStdString();
 }
 
 std::string LlavaImageAnalyzer::trim(std::string value) {
@@ -736,25 +750,26 @@ std::string LlavaImageAnalyzer::trim(std::string value) {
 }
 
 std::string LlavaImageAnalyzer::slugify(const std::string& value) {
-    std::string slug;
-    slug.reserve(value.size());
+    const QString input = sanitize_utf8_text(value);
+    QString slug;
+    slug.reserve(input.size());
     bool last_sep = false;
-    for (unsigned char ch : value) {
-        if (std::isalnum(ch)) {
-            slug.push_back(static_cast<char>(std::tolower(ch)));
+    for (const QChar ch : input) {
+        if (ch.isLetterOrNumber()) {
+            slug.append(ch.toLower());
             last_sep = false;
-        } else if (!last_sep && !slug.empty()) {
-            slug.push_back('_');
+        } else if (!last_sep && !slug.isEmpty()) {
+            slug.append('_');
             last_sep = true;
         }
     }
-    if (!slug.empty() && slug.back() == '_') {
-        slug.pop_back();
+    if (!slug.isEmpty() && slug.endsWith('_')) {
+        slug.chop(1);
     }
-    if (slug.empty()) {
-        slug = "item";
+    if (slug.isEmpty()) {
+        slug = QStringLiteral("item");
     }
-    return slug;
+    return slug.toUtf8().toStdString();
 }
 
 std::string LlavaImageAnalyzer::normalize_filename(const std::string& base,
