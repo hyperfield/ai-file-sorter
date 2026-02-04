@@ -104,6 +104,10 @@ todos_md/
 # Mac files
 .DS_Store
 
+# Script docs + backups
+app/scripts/SCRIPTS-README.md
+*.bak
+
 # Ignore llama headers (generated or from external)
 app/include/llama/*.h
 
