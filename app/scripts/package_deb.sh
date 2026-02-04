@@ -39,7 +39,7 @@ if [[ -z "$VERSION" ]]; then
     exit 1
 fi
 
-BIN_PATH="$APP_DIR/bin/aifilesorter"
+BIN_PATH="$APP_DIR/bin/aifilesorter-bin"
 if [[ ! -x "$BIN_PATH" ]]; then
     echo "Binary not found at $BIN_PATH — running make." >&2
     make -C "$APP_DIR"
@@ -79,7 +79,7 @@ if [[ -f "$REPO_ROOT/LICENSE" ]]; then
     install -m 0644 "$REPO_ROOT/LICENSE" "$PKG_ROOT/opt/aifilesorter/LICENSE"
 fi
 
-cat > "$PKG_ROOT/usr/bin/aifilesorter" <<'EOF'
+cat > "$PKG_ROOT/usr/bin/run_aifilesorter.sh" <<'EOF'
 #!/bin/sh
 APP_DIR="/opt/aifilesorter"
 CPU_LIB_DIR="$APP_DIR/lib/precompiled/cpu/bin"
@@ -137,7 +137,8 @@ fi
 
 exec "$APP_DIR/bin/aifilesorter-bin" "$@"
 EOF
-chmod 0755 "$PKG_ROOT/usr/bin/aifilesorter"
+chmod 0755 "$PKG_ROOT/usr/bin/run_aifilesorter.sh"
+ln -sf run_aifilesorter.sh "$PKG_ROOT/usr/bin/aifilesorter"
 
 CONTROL_FILE="$PKG_ROOT/DEBIAN/control"
 cat > "$CONTROL_FILE" <<EOF
@@ -159,6 +160,7 @@ find "$PKG_ROOT" -type d -exec chmod 755 {} +
 find "$PKG_ROOT/opt/aifilesorter/lib" -type f -exec chmod 0644 {} +
 chmod 0755 "$PKG_ROOT/opt/aifilesorter/bin/aifilesorter-bin"
 chmod 0755 "$PKG_ROOT/opt/aifilesorter/bin/aifilesorter"
+chmod 0755 "$PKG_ROOT/usr/bin/run_aifilesorter.sh"
 chmod 0755 "$PKG_ROOT/usr/bin/aifilesorter"
 
 SIZE_KB=$(du -sk "$PKG_ROOT" | cut -f1)
