@@ -387,7 +387,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    ```bash
    cd app
-   make -j$nrpoc            # use -jN to control parallelism
+   make -j8                 # use -jN to control parallelism
    sudo make install   # optional
    ```
 
@@ -403,6 +403,9 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    These targets rebuild the llama.cpp runtime before compiling the app.
    When cross-compiling Intel on Apple Silicon, use x86_64 Homebrew (under `/usr/local`) or set `BREW_PREFIX=/usr/local` so Qt/pkg-config resolve correctly.
+   Each variant uses distinct build directories to avoid cross-arch collisions:
+   - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`, `app/lib/precompiled-intel`
+   - object files: `app/obj/arm64` or `app/obj/x86_64`
 
 ### Windows
 
