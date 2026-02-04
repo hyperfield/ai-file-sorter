@@ -53,7 +53,6 @@ bin/
 reset_key_4_github.sh
 create_macos_bundle.sh
 create_dmg.sh
-package_deb.sh
 
 # Packaging
 *.nsi
