@@ -182,6 +182,7 @@ PDFIUM_DIR := $(DOC_DEPS_DIR)/pdfium
 LIBZIP_CMAKE := $(LIBZIP_DIR)/CMakeLists.txt
 LIBZIP_BUILD_DIR := $(LIBZIP_DIR)/build
 LIBZIP_LIB := $(LIBZIP_BUILD_DIR)/lib/libzip.a
+LIBZIP_CONF := $(LIBZIP_BUILD_DIR)/zipconf.h
 LIBZIP_CMAKE_ARGS :=
 ifeq ($(UNAME), Darwin)
 ifneq ($(strip $(MACOS_ARCH)),)
@@ -211,6 +212,7 @@ PDFIUM_LIB := $(PDFIUM_PLATFORM_DIR)/lib/libpdfium.dylib
 endif
 
 DOC_LIBS :=
+DOC_DEPS_HEADERS :=
 ifneq ($(wildcard $(PUGIXML_HDR)),)
 CXXFLAGS += -DPUGIXML_NO_EXCEPTIONS
 CXXFLAGS += -DAI_FILE_SORTER_USE_PUGIXML
@@ -221,6 +223,7 @@ CXXFLAGS += -DAI_FILE_SORTER_USE_LIBZIP
 INCLUDE_DIRS += -I$(LIBZIP_DIR)/lib -I$(LIBZIP_BUILD_DIR)
 LDFLAGS += -lz
 DOC_LIBS += $(LIBZIP_LIB)
+DOC_DEPS_HEADERS += $(LIBZIP_CONF)
 endif
 ifneq ($(wildcard $(PDFIUM_LIB)),)
 CXXFLAGS += -DAI_FILE_SORTER_USE_PDFIUM
@@ -347,9 +350,11 @@ ifeq ($(PLATFORM), Linux)
 	@$(MAKE) create_run_wrapper
 endif
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(DOC_DEPS_HEADERS)
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
+
+$(LIBZIP_CONF): $(LIBZIP_LIB)
 
 $(LIBZIP_LIB):
 	@echo "Building libzip (vendored)..."
@@ -432,7 +437,7 @@ else
 	@echo "MACOS_LLAMA_INTEL is only supported on macOS."
 endif
 
-$(OBJ_DIR)/main.o: main.cpp
+$(OBJ_DIR)/main.o: main.cpp $(DOC_DEPS_HEADERS)
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
@@ -440,7 +445,7 @@ $(QRC_CPP): $(QRC_FILE) $(QRC_RESOURCES)
 	mkdir -p $(OBJ_DIR)
 	$(RCC) -o $@ $<
 
-$(QRC_OBJ): $(QRC_CPP)
+$(QRC_OBJ): $(QRC_CPP) $(DOC_DEPS_HEADERS)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
 clean:
