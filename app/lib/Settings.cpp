@@ -319,6 +319,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = load_bool("ShowFileExplorer", true);
     suitability_benchmark_completed = load_bool("SuitabilityBenchmarkCompleted", false);
+    suitability_benchmark_suppressed = load_bool("SuitabilityBenchmarkSuppressed", false);
     benchmark_last_report = decode_multiline(config.getValue("Settings", "BenchmarkLastReport", ""));
     benchmark_last_run = config.getValue("Settings", "BenchmarkLastRun", "");
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
@@ -440,6 +441,7 @@ void Settings::save_core_settings()
 
     set_bool_setting(config, settings_section, "ShowFileExplorer", show_file_explorer);
     set_bool_setting(config, settings_section, "SuitabilityBenchmarkCompleted", suitability_benchmark_completed);
+    set_bool_setting(config, settings_section, "SuitabilityBenchmarkSuppressed", suitability_benchmark_suppressed);
     set_optional_setting(config, settings_section, "BenchmarkLastReport", encode_multiline(benchmark_last_report));
     set_optional_setting(config, settings_section, "BenchmarkLastRun", benchmark_last_run);
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
@@ -1026,9 +1028,19 @@ bool Settings::get_suitability_benchmark_completed() const
     return suitability_benchmark_completed;
 }
 
+bool Settings::get_suitability_benchmark_suppressed() const
+{
+    return suitability_benchmark_suppressed;
+}
+
 void Settings::set_suitability_benchmark_completed(bool value)
 {
     suitability_benchmark_completed = value;
+}
+
+void Settings::set_suitability_benchmark_suppressed(bool value)
+{
+    suitability_benchmark_suppressed = value;
 }
 
 std::string Settings::get_benchmark_last_report() const

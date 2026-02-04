@@ -12,6 +12,7 @@ class QLabel;
 class QTextEdit;
 class QProgressBar;
 class QPushButton;
+class QCheckBox;
 class Settings;
 class QCloseEvent;
 class QEvent;
@@ -95,6 +96,7 @@ private:
     QLabel* intro_label_{nullptr};
     QTextEdit* output_view_{nullptr};
     QProgressBar* progress_bar_{nullptr};
+    QCheckBox* suppress_checkbox_{nullptr};
     QPushButton* run_button_{nullptr};
     QPushButton* stop_button_{nullptr};
     QPushButton* close_button_{nullptr};

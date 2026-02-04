@@ -3315,6 +3315,9 @@ void MainApp::maybe_show_suitability_benchmark()
     if (settings.get_suitability_benchmark_completed()) {
         return;
     }
+    if (settings.get_suitability_benchmark_suppressed()) {
+        return;
+    }
     if (!default_text_llm_files_available() && !visual_llm_files_available()) {
         return;
     }

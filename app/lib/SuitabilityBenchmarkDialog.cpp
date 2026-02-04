@@ -12,6 +12,7 @@
 
 #include <QCloseEvent>
 #include <QColor>
+#include <QCheckBox>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QImage>
@@ -1403,6 +1404,9 @@ void SuitabilityBenchmarkDialog::setup_ui()
     layout->addWidget(progress_bar_);
 
     auto* button_layout = new QHBoxLayout();
+    suppress_checkbox_ = new QCheckBox(this);
+    suppress_checkbox_->setChecked(settings_.get_suitability_benchmark_suppressed());
+    button_layout->addWidget(suppress_checkbox_);
     button_layout->addStretch(1);
 
     stop_button_ = new QPushButton(this);
@@ -1420,6 +1424,10 @@ void SuitabilityBenchmarkDialog::setup_ui()
     connect(run_button_, &QPushButton::clicked, this, &SuitabilityBenchmarkDialog::start_benchmark);
     connect(stop_button_, &QPushButton::clicked, this, &SuitabilityBenchmarkDialog::request_stop);
     connect(close_button_, &QPushButton::clicked, this, &QDialog::accept);
+    connect(suppress_checkbox_, &QCheckBox::toggled, this, [this](bool checked) {
+        settings_.set_suitability_benchmark_suppressed(checked);
+        settings_.save();
+    });
 }
 
 void SuitabilityBenchmarkDialog::retranslate_ui()
@@ -1433,6 +1441,9 @@ void SuitabilityBenchmarkDialog::retranslate_ui()
     }
     if (run_button_) {
         run_button_->setText(QObject::tr("Run benchmark"));
+    }
+    if (suppress_checkbox_) {
+        suppress_checkbox_->setText(QObject::tr("Do not auto-show this dialog again"));
     }
     if (stop_button_) {
         stop_button_->setText(QObject::tr("Stop Benchmark"));

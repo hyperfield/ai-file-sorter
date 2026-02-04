@@ -218,10 +218,20 @@ public:
      */
     bool get_suitability_benchmark_completed() const;
     /**
+     * @brief Returns whether the suitability benchmark dialog is suppressed.
+     * @return True when the dialog should not auto-show on startup.
+     */
+    bool get_suitability_benchmark_suppressed() const;
+    /**
      * @brief Marks the suitability benchmark as completed.
      * @param value True when the benchmark has run.
      */
     void set_suitability_benchmark_completed(bool value);
+    /**
+     * @brief Sets whether the suitability benchmark dialog is suppressed.
+     * @param value True to suppress auto-showing the dialog.
+     */
+    void set_suitability_benchmark_suppressed(bool value);
     /**
      * @brief Returns the most recent benchmark report text.
      * @return Report text (may be empty).
@@ -305,6 +315,7 @@ private:
     std::string skipped_version;
     bool show_file_explorer{true};
     bool suitability_benchmark_completed{false};
+    bool suitability_benchmark_suppressed{false};
     std::string benchmark_last_report;
     std::string benchmark_last_run;
     Language language{Language::English};
