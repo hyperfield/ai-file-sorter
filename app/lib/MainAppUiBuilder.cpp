@@ -1,4 +1,5 @@
 #include "MainAppUiBuilder.hpp"
+#include "AppInfo.hpp"
 
 #include "MainApp.hpp"
 #include "MainAppEditActions.hpp"
@@ -96,7 +97,7 @@ void MainAppUiBuilder::build(MainApp& app) {
 }
 
 void MainAppUiBuilder::build_central_panel(MainApp& app) {
-    app.setWindowTitle(QStringLiteral("AI File Sorter"));
+    app.setWindowTitle(app_display_name());
     app.resize(1000, 800);
 
     QWidget* central = new QWidget(&app);

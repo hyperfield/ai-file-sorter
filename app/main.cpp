@@ -1,3 +1,4 @@
+#include "AppInfo.hpp"
 #include "EmbeddedEnv.hpp"
 #include "Logger.hpp"
 #include "MainApp.hpp"
@@ -18,6 +19,9 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
+#include <array>
+#include <cstdlib>
+#include <filesystem>
 #include <QPainter>
 #include <memory>
 
@@ -87,6 +91,71 @@ ParsedArguments parse_command_line(int argc, char** argv)
     parsed.qt_args.push_back(nullptr);
     return parsed;
 }
+
+#if defined(__APPLE__)
+bool ends_with(const std::string& value, const std::string& suffix)
+{
+    if (suffix.size() > value.size()) {
+        return false;
+    }
+    return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
+}
+
+bool has_ggml_payload(const std::filesystem::path& dir)
+{
+    std::error_code ec;
+    if (!std::filesystem::exists(dir, ec) || !std::filesystem::is_directory(dir, ec)) {
+        return false;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(dir, std::filesystem::directory_options::skip_permission_denied, ec)) {
+        if (ec || !entry.is_regular_file()) {
+            continue;
+        }
+        const std::string filename = entry.path().filename().string();
+        if (filename.rfind("libggml-", 0) != 0) {
+            continue;
+        }
+        if (ends_with(filename, ".so") || ends_with(filename, ".dylib")) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ensure_ggml_backend_dir()
+{
+    const char* current = std::getenv("AI_FILE_SORTER_GGML_DIR");
+    if (current && current[0] != '\0') {
+        return;
+    }
+
+    std::filesystem::path exe_path;
+    try {
+        exe_path = Utils::get_executable_path();
+    } catch (const std::exception&) {
+        return;
+    }
+    if (exe_path.empty()) {
+        return;
+    }
+
+    const std::filesystem::path exe_dir = exe_path.parent_path();
+    const std::array<std::filesystem::path, 4> candidates = {
+        exe_dir / "../lib/precompiled",
+        exe_dir / "../lib",
+        std::filesystem::path("/usr/local/lib"),
+        std::filesystem::path("/opt/homebrew/lib")
+    };
+
+    for (const auto& candidate : candidates) {
+        if (has_ggml_payload(candidate)) {
+            setenv("AI_FILE_SORTER_GGML_DIR", candidate.string().c_str(), 1);
+            break;
+        }
+    }
+}
+#endif
 
 #ifdef _WIN32
 bool allow_direct_launch(int argc, char** argv)
@@ -220,12 +289,16 @@ int run_application(const ParsedArguments& parsed_args)
 {
     EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
     env_loader.load_env();
+#if defined(__APPLE__)
+    ensure_ggml_backend_dir();
+#endif
     setlocale(LC_ALL, "");
     const std::string locale_path = Utils::get_executable_path() + "/locale";
     bindtextdomain("net.quicknode.AIFileSorter", locale_path.c_str());
 
-    QCoreApplication::setApplicationName(QStringLiteral("AI File Sorter"));
-    QGuiApplication::setApplicationDisplayName(QStringLiteral("AI File Sorter"));
+    const QString display_name = app_display_name();
+    QCoreApplication::setApplicationName(display_name);
+    QGuiApplication::setApplicationDisplayName(display_name);
 
     int qt_argc = static_cast<int>(parsed_args.qt_args.size()) - 1;
     char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());

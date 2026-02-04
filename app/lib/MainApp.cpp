@@ -1,4 +1,5 @@
 #include "MainApp.hpp"
+#include "AppInfo.hpp"
 
 #include "CategorizationSession.hpp"
 #include "DialogUtils.hpp"
@@ -1807,7 +1808,7 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
 {
     QMessageBox box(this);
     box.setIcon(QMessageBox::Information);
-    box.setWindowTitle(tr("Support AI File Sorter"));
+    box.setWindowTitle(QObject::tr("Support %1").arg(app_display_name()));
 
     const QString headline = tr("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you.")
                                  .arg(total_files);

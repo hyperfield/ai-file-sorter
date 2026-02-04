@@ -1,4 +1,5 @@
 #include "MainAppHelpActions.hpp"
+#include "AppInfo.hpp"
 
 #include <app_version.hpp>
 
@@ -15,7 +16,8 @@
 void MainAppHelpActions::show_about(QWidget* parent)
 {
     QDialog dialog(parent);
-    dialog.setWindowTitle(QObject::tr("About AI File Sorter"));
+    const QString display_name = app_display_name();
+    dialog.setWindowTitle(QObject::tr("About %1").arg(display_name));
     dialog.resize(600, 420);
 
     auto* layout = new QVBoxLayout(&dialog);
@@ -34,7 +36,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
         about_layout->addWidget(logo_label);
     }
 
-    auto* program_name = new QLabel(QStringLiteral("<h2>AI File Sorter</h2>"), about_tab);
+    auto* program_name = new QLabel(QStringLiteral("<h2>%1</h2>").arg(display_name.toHtmlEscaped()), about_tab);
     program_name->setAlignment(Qt::AlignHCenter);
     about_layout->addWidget(program_name);
 
