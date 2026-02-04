@@ -93,6 +93,10 @@ ParsedArguments parse_command_line(int argc, char** argv)
 }
 
 #if defined(__APPLE__)
+#ifndef AI_FILE_SORTER_GGML_SUBDIR
+#define AI_FILE_SORTER_GGML_SUBDIR "precompiled"
+#endif
+
 bool ends_with(const std::string& value, const std::string& suffix)
 {
     if (suffix.size() > value.size()) {
@@ -141,9 +145,12 @@ void ensure_ggml_backend_dir()
     }
 
     const std::filesystem::path exe_dir = exe_path.parent_path();
-    const std::array<std::filesystem::path, 4> candidates = {
-        exe_dir / "../lib/precompiled",
+    const std::filesystem::path ggml_subdir(AI_FILE_SORTER_GGML_SUBDIR);
+    const std::array<std::filesystem::path, 6> candidates = {
+        exe_dir / "../lib" / ggml_subdir,
+        exe_dir / "../../lib" / ggml_subdir,
         exe_dir / "../lib",
+        exe_dir / "../../lib",
         std::filesystem::path("/usr/local/lib"),
         std::filesystem::path("/opt/homebrew/lib")
     };

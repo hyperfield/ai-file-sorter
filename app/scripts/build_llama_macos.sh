@@ -74,7 +74,10 @@ if [ ! -d "$LLAMA_DIR" ]; then
     exit 1
 fi
 
-PRECOMPILED_LIBS_DIR="$SCRIPT_DIR/../lib/precompiled"
+PRECOMPILED_LIBS_DIR="${LLAMA_PRECOMPILED_DIR:-$SCRIPT_DIR/../lib/precompiled}"
+if [[ "$PRECOMPILED_LIBS_DIR" != /* ]]; then
+    PRECOMPILED_LIBS_DIR="$SCRIPT_DIR/../$PRECOMPILED_LIBS_DIR"
+fi
 HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 
 ARCH=$(uname -m)

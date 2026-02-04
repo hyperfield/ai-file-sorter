@@ -10,6 +10,7 @@ APP_NAME ?= AI File Sorter
 # Optional: build llama.cpp with multi-variant CPU backends on macOS.
 # Usage: make LLAMA_MULTI_VARIANT=1
 LLAMA_MULTI_VARIANT ?= 0
+GGML_PRECOMPILED_SUBDIR ?= precompiled
 
 ifeq ($(UNAME), Linux)
     PLATFORM := Linux
@@ -128,7 +129,13 @@ endif
 
     LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lmtmd -lintl -pthread
 	LDFLAGS += -framework Metal -framework Foundation
-    LDFLAGS += -Wl,-rpath,@loader_path/lib -Wl,-rpath,@loader_path/../lib/precompiled
+    LDFLAGS += -Wl,-rpath,@loader_path/lib -Wl,-rpath,@loader_path/../lib/$(GGML_PRECOMPILED_SUBDIR)
+    BIN_SUBDIR := $(patsubst ./bin/%,%,$(BIN_DIR))
+    ifneq ($(BIN_SUBDIR),$(BIN_DIR))
+    ifneq ($(strip $(BIN_SUBDIR)),)
+    LDFLAGS += -Wl,-rpath,@loader_path/../../lib -Wl,-rpath,@loader_path/../../lib/$(GGML_PRECOMPILED_SUBDIR)
+    endif
+    endif
 
 
 endif
@@ -147,7 +154,7 @@ CXX := clang++
 else
 CXX := g++
 endif
-CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"'
+CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"' '-DAI_FILE_SORTER_GGML_SUBDIR="$(GGML_PRECOMPILED_SUBDIR)"'
 CXX_VERSION_INFO := $(shell $(CXX) --version 2>/dev/null)
 # Suppress GCC-only diagnostics; clang (macOS) does not support some of them
 ifneq (,$(findstring clang,$(CXX_VERSION_INFO)))
@@ -160,7 +167,7 @@ LIB_DIRS =
 ifeq ($(UNAME), Linux)
 LIB_DIRS += -L./lib/precompiled/cpu/bin -L./lib/precompiled
 else
-LIB_DIRS += -L./lib/precompiled
+LIB_DIRS += -L./lib/$(GGML_PRECOMPILED_SUBDIR)
 endif
 ifeq ($(UNAME), Darwin)
 LIB_DIRS += -L$(BREW_PREFIX)/lib
@@ -228,7 +235,7 @@ ifeq ($(UNAME), Linux)
 MTMD_LIB_CANDIDATES := ./lib/precompiled/cpu/bin/libmtmd.so ./lib/precompiled/libmtmd.so
 endif
 ifeq ($(UNAME), Darwin)
-MTMD_LIB_CANDIDATES := ./lib/precompiled/libmtmd.dylib $(BREW_PREFIX)/lib/libmtmd.dylib
+MTMD_LIB_CANDIDATES := ./lib/$(GGML_PRECOMPILED_SUBDIR)/libmtmd.dylib $(BREW_PREFIX)/lib/libmtmd.dylib
 endif
 ifeq ($(MTMD_PROGRESS_CALLBACK),auto)
 MTMD_PROGRESS_CALLBACK := $(shell \
@@ -366,41 +373,61 @@ $(LIBZIP_LIB):
 doc_runtime_libs:
 ifneq ($(wildcard $(PDFIUM_LIB)),)
 	@echo "Staging PDFium runtime library..."
-	mkdir -p ./lib/precompiled
-	cp $(PDFIUM_LIB) ./lib/precompiled/
+	mkdir -p ./lib/$(GGML_PRECOMPILED_SUBDIR)
+	cp $(PDFIUM_LIB) ./lib/$(GGML_PRECOMPILED_SUBDIR)/
 endif
 
 precompiled_llama:
 ifeq ($(UNAME), Darwin)
-	@echo "Building llama.cpp precompiled libraries (multi-variant=$(LLAMA_MULTI_VARIANT))..."
-	LLAMA_MACOS_MULTI_VARIANT=$(LLAMA_MULTI_VARIANT) ./scripts/build_llama_macos.sh
+	@echo "Checking llama.cpp precompiled libraries (multi-variant=$(LLAMA_MULTI_VARIANT))..."
+	@if [ -f "./lib/$(GGML_PRECOMPILED_SUBDIR)/libllama.dylib" ]; then \
+		echo "Using existing precompiled libs in ./lib/$(GGML_PRECOMPILED_SUBDIR)"; \
+	else \
+		echo "Building llama.cpp precompiled libraries (multi-variant=$(LLAMA_MULTI_VARIANT))..."; \
+		LLAMA_MACOS_MULTI_VARIANT=$(LLAMA_MULTI_VARIANT) LLAMA_PRECOMPILED_DIR=./lib/$(GGML_PRECOMPILED_SUBDIR) ./scripts/build_llama_macos.sh; \
+	fi
 else
 	@echo "precompiled_llama is only supported on macOS."
 endif
 
 MACOS_LLAMA_M1:
 ifeq ($(UNAME), Darwin)
-	@echo "Rebuilding llama.cpp for M1-safe multi-variant CPU backends..."
-	LLAMA_MACOS_MULTI_VARIANT=1 ./scripts/build_llama_macos.sh
-	$(MAKE) LLAMA_MULTI_VARIANT=0 APP_NAME="AI File Sorter for Mac M1" BIN_DIR=./bin/m1 all
+	@echo "Checking llama.cpp for M1-safe multi-variant CPU backends..."
+	@if [ -f "./lib/precompiled-m1/libllama.dylib" ]; then \
+		echo "Using existing precompiled libs in ./lib/precompiled-m1"; \
+	else \
+		echo "Building llama.cpp for M1-safe multi-variant CPU backends..."; \
+		LLAMA_MACOS_MULTI_VARIANT=1 LLAMA_PRECOMPILED_DIR=./lib/precompiled-m1 ./scripts/build_llama_macos.sh; \
+	fi
+	$(MAKE) LLAMA_MULTI_VARIANT=0 GGML_PRECOMPILED_SUBDIR=precompiled-m1 APP_NAME="AI File Sorter for Mac M1" BIN_DIR=./bin/m1 all
 else
 	@echo "MACOS_LLAMA_M1 is only supported on macOS."
 endif
 
 MACOS_LLAMA_M2:
 ifeq ($(UNAME), Darwin)
-	@echo "Rebuilding llama.cpp for native (fast) Apple Silicon backends..."
-	LLAMA_MACOS_MULTI_VARIANT=0 ./scripts/build_llama_macos.sh
-	$(MAKE) LLAMA_MULTI_VARIANT=0 APP_NAME="AI File Sorter for Mac M2/M3" BIN_DIR=./bin/m2 all
+	@echo "Checking llama.cpp for native (fast) Apple Silicon backends..."
+	@if [ -f "./lib/precompiled-m2/libllama.dylib" ]; then \
+		echo "Using existing precompiled libs in ./lib/precompiled-m2"; \
+	else \
+		echo "Building llama.cpp for native (fast) Apple Silicon backends..."; \
+		LLAMA_MACOS_MULTI_VARIANT=0 LLAMA_PRECOMPILED_DIR=./lib/precompiled-m2 ./scripts/build_llama_macos.sh; \
+	fi
+	$(MAKE) LLAMA_MULTI_VARIANT=0 GGML_PRECOMPILED_SUBDIR=precompiled-m2 APP_NAME="AI File Sorter for Mac M2/M3" BIN_DIR=./bin/m2 all
 else
 	@echo "MACOS_LLAMA_M2 is only supported on macOS."
 endif
 
 MACOS_LLAMA_INTEL:
 ifeq ($(UNAME), Darwin)
-	@echo "Rebuilding llama.cpp for Intel (x86_64) macOS backends..."
-	LLAMA_MACOS_ARCH=x86_64 LLAMA_MACOS_ENABLE_METAL=1 LLAMA_MACOS_MULTI_VARIANT=0 ./scripts/build_llama_macos.sh
-	$(MAKE) LLAMA_MULTI_VARIANT=0 APP_NAME="AI File Sorter for Mac Intel" BIN_DIR=./bin/intel MACOS_ARCH=x86_64 all
+	@echo "Checking llama.cpp for Intel (x86_64) macOS backends..."
+	@if [ -f "./lib/precompiled-intel/libllama.dylib" ]; then \
+		echo "Using existing precompiled libs in ./lib/precompiled-intel"; \
+	else \
+		echo "Building llama.cpp for Intel (x86_64) macOS backends..."; \
+		LLAMA_MACOS_ARCH=x86_64 LLAMA_MACOS_ENABLE_METAL=1 LLAMA_MACOS_MULTI_VARIANT=0 LLAMA_PRECOMPILED_DIR=./lib/precompiled-intel ./scripts/build_llama_macos.sh; \
+	fi
+	$(MAKE) LLAMA_MULTI_VARIANT=0 GGML_PRECOMPILED_SUBDIR=precompiled-intel APP_NAME="AI File Sorter for Mac Intel" BIN_DIR=./bin/intel MACOS_ARCH=x86_64 all
 else
 	@echo "MACOS_LLAMA_INTEL is only supported on macOS."
 endif
@@ -433,10 +460,10 @@ ifeq ($(PLATFORM), Linux)
 	mkdir -p $(INSTALL_LIB_DIR)/bin
 	mkdir -p $(INSTALL_LIB_DIR)/lib
 	cp $(TARGET) $(INSTALL_LIB_DIR)/bin/$(WRAPPED_BINARY)
-	rm -rf $(INSTALL_LIB_DIR)/lib/precompiled
-	cp -a lib/precompiled $(INSTALL_LIB_DIR)/lib/
+	rm -rf $(INSTALL_LIB_DIR)/lib/$(GGML_PRECOMPILED_SUBDIR)
+	cp -a lib/$(GGML_PRECOMPILED_SUBDIR) $(INSTALL_LIB_DIR)/lib/
 	if [ -f ../external/pdfium/linux-x64/lib/libpdfium.so ]; then \
-		cp ../external/pdfium/linux-x64/lib/libpdfium.so $(INSTALL_LIB_DIR)/lib/precompiled/; \
+		cp ../external/pdfium/linux-x64/lib/libpdfium.so $(INSTALL_LIB_DIR)/lib/$(GGML_PRECOMPILED_SUBDIR)/; \
 	fi
 	if [ -f resources/certs/cacert.pem ]; then \
 		mkdir -p $(INSTALL_LIB_DIR)/certs; \
@@ -460,13 +487,13 @@ else ifeq ($(PLATFORM), MacOS)
 
 	@echo "Installing libraries to $(INSTALL_LIB_DIR)..."
 	mkdir -p $(INSTALL_LIB_DIR)
-	cp lib/precompiled/libggml-base.dylib $(INSTALL_LIB_DIR)
-	cp lib/precompiled/libggml-blas.dylib $(INSTALL_LIB_DIR)
-	cp lib/precompiled/libggml-cpu.dylib $(INSTALL_LIB_DIR)
-	cp lib/precompiled/libggml-metal.dylib $(INSTALL_LIB_DIR)
-	cp lib/precompiled/libggml.dylib $(INSTALL_LIB_DIR)
-	cp lib/precompiled/libmtmd.dylib $(INSTALL_LIB_DIR)
-	cp lib/precompiled/libllama.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libggml-base.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libggml-blas.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libggml-cpu.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libggml-metal.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libggml.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libmtmd.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libllama.dylib $(INSTALL_LIB_DIR)
 	if [ -n "$(PDFIUM_LIB)" ] && [ -f "$(PDFIUM_LIB)" ]; then \
 		cp "$(PDFIUM_LIB)" $(INSTALL_LIB_DIR); \
 	fi
