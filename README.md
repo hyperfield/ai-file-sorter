@@ -378,33 +378,31 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    cmake --build external/libzip/build
    ```
 
-6. **Build the llama runtime (Metal-only on macOS)**
+6. **Build the llama runtime (Metal-enabled on Apple Silicon)**
 
    ```bash
    ./app/scripts/build_llama_macos.sh
    ```
-
-   The macOS helper already produces the Metal-enabled variant the app needs, so no extra GPU-specific invocations are required on this platform.
-
 7. **Compile the application**
 
    ```bash
    cd app
-   make -j4
+   make -j$nrpoc            # use -jN to control parallelism
    sudo make install   # optional
    ```
 
-   > **Fix for the 1.1.0 macOS build:** That package shipped with `LC_BUILD_VERSION` set to macOS 26.0, which Sequoia blocks. If you still have that build, you can patch it in place:
+   The default build places the binary at `app/bin/aifilesorter`.
 
-   > ```bash
-   > APP="/Applications/AI File Sorter.app"
-   > BIN="$APP/Contents/MacOS/aifilesorter"
-   > vtool -replace -set-build-version macos 11.0 11.0 -output "$BIN.patched" "$BIN" && mv "$BIN.patched" "$BIN"
-   > codesign --force --deep --sign - "$APP"
-   > xattr -d com.apple.quarantine "$APP" || true
-   > ```
+   **Variant targets:**
 
-   > (`vtool` ships with the Xcode command line tools.) Future releases are built with the corrected deployment target.
+   ```bash
+   make -j8 MACOS_LLAMA_M1    # outputs app/bin/m1/aifilesorter
+   make -j8 MACOS_LLAMA_M2    # outputs app/bin/m2/aifilesorter
+   make -j8 MACOS_LLAMA_INTEL # outputs app/bin/intel/aifilesorter
+   ```
+
+   These targets rebuild the llama.cpp runtime before compiling the app.
+   When cross-compiling Intel on Apple Silicon, use x86_64 Homebrew (under `/usr/local`) or set `BREW_PREFIX=/usr/local` so Qt/pkg-config resolve correctly.
 
 ### Windows
 
