@@ -1,7 +1,8 @@
 param(
     [string]$LibzipVersion = "1.11.4",
     [string]$PugixmlVersion = "1.15",
-    [string]$PdfiumRelease = "latest"
+    [string]$PdfiumRelease = "latest",
+    [string]$PdfiumMacX64Archive = "pdfium-mac-x64.tgz"
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,6 +41,7 @@ Ensure-Dir $licenseDir
 Ensure-Dir (Join-Path $pdfiumDir "linux-x64")
 Ensure-Dir (Join-Path $pdfiumDir "windows-x64")
 Ensure-Dir (Join-Path $pdfiumDir "macos-arm64")
+Ensure-Dir (Join-Path $pdfiumDir "macos-x64")
 
 $tempDir = Join-Path $env:TEMP "aifilesorter-docdeps"
 Ensure-Dir $tempDir
@@ -72,6 +74,10 @@ $pdfiumMacArchive = Join-Path $tempDir "pdfium-mac-arm64.tgz"
 Download-File "https://github.com/bblanchon/pdfium-binaries/releases/$PdfiumRelease/download/pdfium-mac-arm64.tgz" $pdfiumMacArchive
 & tar -xf $pdfiumMacArchive -C (Join-Path $pdfiumDir "macos-arm64")
 
+$pdfiumMacX64Archive = Join-Path $tempDir $PdfiumMacX64Archive
+Download-File "https://github.com/bblanchon/pdfium-binaries/releases/$PdfiumRelease/download/$PdfiumMacX64Archive" $pdfiumMacX64Archive
+& tar -xf $pdfiumMacX64Archive -C (Join-Path $pdfiumDir "macos-x64")
+
 if (Test-Path (Join-Path $pdfiumDir "linux-x64\LICENSE")) {
     Copy-Item (Join-Path $pdfiumDir "linux-x64\LICENSE") (Join-Path $licenseDir "pdfium-LICENSE") -Force
 } elseif (Test-Path (Join-Path $pdfiumDir "linux-x64\LICENSE.txt")) {
@@ -87,12 +93,13 @@ Expected layout:
 - linux-x64/
 - windows-x64/
 - macos-arm64/
+- macos-x64/
 
 Each folder should contain `include/` and the platform PDFium library under `lib/`:
 
 - Linux: `lib/libpdfium.so`
 - Windows: `bin/pdfium.dll` + `lib/pdfium.dll.lib`
-- macOS: `lib/libpdfium.dylib`
+- macOS: `lib/libpdfium.dylib` (arm64 or x64)
 "@
 Set-Content -Path (Join-Path $pdfiumDir "README.md") -Value $pdfiumReadme
 

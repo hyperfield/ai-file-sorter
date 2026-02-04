@@ -12,7 +12,7 @@ PDFIUM_DIR="$ROOT_DIR/external/pdfium"
 LICENSE_DIR="$ROOT_DIR/external/THIRD_PARTY_LICENSES"
 
 mkdir -p "$LIBZIP_DIR" "$PUGIXML_DIR" "$LICENSE_DIR" \
-  "$PDFIUM_DIR/linux-x64" "$PDFIUM_DIR/windows-x64" "$PDFIUM_DIR/macos-arm64"
+  "$PDFIUM_DIR/linux-x64" "$PDFIUM_DIR/windows-x64" "$PDFIUM_DIR/macos-arm64" "$PDFIUM_DIR/macos-x64"
 
 curl -L --fail "https://libzip.org/download/libzip-${LIBZIP_VERSION}.tar.xz" \
   -o "/tmp/libzip-${LIBZIP_VERSION}.tar.xz"
@@ -47,6 +47,11 @@ curl -L --fail "https://github.com/bblanchon/pdfium-binaries/releases/${PDFIUM_R
   -o "/tmp/pdfium-mac-arm64.tgz"
 tar -xf "/tmp/pdfium-mac-arm64.tgz" -C "$PDFIUM_DIR/macos-arm64"
 
+PDFIUM_MAC_X64_TGZ="${PDFIUM_MAC_X64_TGZ:-pdfium-mac-x64.tgz}"
+curl -L --fail "https://github.com/bblanchon/pdfium-binaries/releases/${PDFIUM_RELEASE}/download/${PDFIUM_MAC_X64_TGZ}" \
+  -o "/tmp/${PDFIUM_MAC_X64_TGZ}"
+tar -xf "/tmp/${PDFIUM_MAC_X64_TGZ}" -C "$PDFIUM_DIR/macos-x64"
+
 cat > "$PDFIUM_DIR/README.md" <<'DOC'
 # PDFium prebuilts
 
@@ -56,12 +61,13 @@ Expected layout:
 - linux-x64/
 - windows-x64/
 - macos-arm64/
+- macos-x64/
 
 Each folder should contain `include/` and the platform PDFium library under `lib/`:
 
 - Linux: `lib/libpdfium.so`
 - Windows: `bin/pdfium.dll` + `lib/pdfium.dll.lib`
-- macOS: `lib/libpdfium.dylib`
+- macOS: `lib/libpdfium.dylib` (arm64 or x64)
 DOC
 
 printf "Done. You can now commit external/libzip, external/pugixml, and external/pdfium.\n"
