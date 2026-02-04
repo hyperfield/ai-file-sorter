@@ -527,39 +527,62 @@ std::string run_generation_loop(llama_context* ctx,
                                 const std::shared_ptr<spdlog::logger>& logger,
                                 const llama_vocab* vocab)
 {
-    llama_batch batch = llama_batch_get_one(prompt_tokens.data(),
-                                            prompt_tokens.size());
-    llama_token new_token_id;
+    const int ctx_n_ctx = static_cast<int>(llama_n_ctx(ctx));
+    int ctx_n_batch = static_cast<int>(llama_n_batch(ctx));
+    if (ctx_n_batch <= 0) {
+        ctx_n_batch = ctx_n_ctx;
+    }
+
+    if (ctx_n_ctx > 0 && n_prompt > ctx_n_ctx) {
+        const int overflow = n_prompt - ctx_n_ctx;
+        if (overflow > 0 && overflow < n_prompt) {
+            if (logger) {
+                logger->warn("Prompt tokens ({}) exceed context ({}) by {}; truncating oldest tokens",
+                             n_prompt, ctx_n_ctx, overflow);
+            }
+            prompt_tokens.erase(prompt_tokens.begin(),
+                                prompt_tokens.begin() + overflow);
+            n_prompt = ctx_n_ctx;
+        }
+    }
+
+    int n_pos = 0;
+    while (n_pos < n_prompt) {
+        const int chunk = std::min(ctx_n_batch, n_prompt - n_pos);
+        llama_batch batch = llama_batch_get_one(prompt_tokens.data() + n_pos, chunk);
+        if (llama_decode(ctx, batch)) {
+            if (logger) {
+                logger->warn("llama_decode returned non-zero status during prompt eval; aborting generation");
+            }
+            return std::string();
+        }
+        n_pos += chunk;
+    }
+
     std::string output;
     int generated_tokens = 0;
+    while (generated_tokens < max_tokens) {
+        llama_token new_token_id = llama_sampler_sample(smpl, ctx, -1);
+        if (llama_vocab_is_eog(vocab, new_token_id)) {
+            break;
+        }
 
-    for (int n_pos = 0; generated_tokens < max_tokens; ) {
+        char buf[128];
+        int n = llama_token_to_piece(vocab, new_token_id, buf,
+                                     sizeof(buf), 0, true);
+        if (n < 0) {
+            break;
+        }
+        output.append(buf, n);
+        generated_tokens++;
+
+        llama_batch batch = llama_batch_get_one(&new_token_id, 1);
         if (llama_decode(ctx, batch)) {
             if (logger) {
                 logger->warn("llama_decode returned non-zero status; aborting generation");
             }
             break;
         }
-
-        n_pos += batch.n_tokens;
-        new_token_id = llama_sampler_sample(smpl, ctx, -1);
-
-        if (llama_vocab_is_eog(vocab, new_token_id)) {
-            break;
-        }
-
-        if (n_pos >= n_prompt) {
-            char buf[128];
-            int n = llama_token_to_piece(vocab, new_token_id, buf,
-                                         sizeof(buf), 0, true);
-            if (n < 0) {
-                break;
-            }
-            output.append(buf, n);
-            generated_tokens++;
-        }
-
-        batch = llama_batch_get_one(&new_token_id, 1);
     }
 
     while (!output.empty() && std::isspace(static_cast<unsigned char>(output.front()))) {
