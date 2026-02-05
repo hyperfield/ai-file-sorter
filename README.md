@@ -264,11 +264,12 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 1. **Install dependencies**
    - Debian / Ubuntu:
-     ```bash
-     sudo apt update && sudo apt install -y \
-       build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
-       libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
-     ```
+    ```bash
+    sudo apt update && sudo apt install -y \
+      build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
+      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev \
+      zlib1g-dev
+    ```
    - Fedora / RHEL:
 
      ```bash
@@ -317,6 +318,9 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    cmake --build external/libzip/build
    ```
+
+   On Ubuntu/Debian you will also need the Zlib development headers (`zlib1g-dev`) or
+   the libzip configure step will fail.
 
    If you prefer system headers instead, install `libzip-dev` and ensure `zipconf.h` is on your include path.
 
