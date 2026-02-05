@@ -39,7 +39,7 @@ if [[ -z "$VERSION" ]]; then
     exit 1
 fi
 
-BIN_PATH="$APP_DIR/bin/aifilesorter"
+BIN_PATH="$APP_DIR/bin/aifilesorter-bin"
 if [[ ! -x "$BIN_PATH" ]]; then
     echo "Binary not found at $BIN_PATH — running make." >&2
     make -C "$APP_DIR"
@@ -49,6 +49,45 @@ if [[ ! -x "$BIN_PATH" ]]; then
     echo "Binary still missing after build attempt." >&2
     exit 1
 fi
+
+get_needed_soname() {
+    local binary="$1"
+    local pattern="$2"
+    if ! command -v readelf >/dev/null 2>&1; then
+        return 0
+    fi
+    readelf -d "$binary" 2>/dev/null | awk -v pat="$pattern" '
+        /NEEDED/ {
+            gsub(/\[|\]/, "", $5);
+            if ($5 ~ pat) { print $5; exit }
+        }'
+}
+
+resolve_fmt_dep() {
+    local soname
+    soname="$(get_needed_soname "$BIN_PATH" '^libfmt\.so')"
+    case "$soname" in
+        libfmt.so.10) echo "libfmt10" ;;
+        libfmt.so.9) echo "libfmt9" ;;
+        libfmt.so.8) echo "libfmt8" ;;
+        *) echo "libfmt10" ;;
+    esac
+}
+
+resolve_jsoncpp_dep() {
+    local soname
+    soname="$(get_needed_soname "$BIN_PATH" '^libjsoncpp\.so')"
+    case "$soname" in
+        libjsoncpp.so.26) echo "libjsoncpp26" ;;
+        libjsoncpp.so.25) echo "libjsoncpp25" ;;
+        libjsoncpp.so.24) echo "libjsoncpp24" ;;
+        *) echo "libjsoncpp26" ;;
+    esac
+}
+
+FMT_DEP="$(resolve_fmt_dep)"
+JSONCPP_DEP="$(resolve_jsoncpp_dep)"
+CURL_DEP="libcurl4 | libcurl4t64"
 
 OUT_DIR="$REPO_ROOT/dist/aifilesorter_deb"
 PKG_NAME="aifilesorter_${VERSION}"
@@ -79,7 +118,7 @@ if [[ -f "$REPO_ROOT/LICENSE" ]]; then
     install -m 0644 "$REPO_ROOT/LICENSE" "$PKG_ROOT/opt/aifilesorter/LICENSE"
 fi
 
-cat > "$PKG_ROOT/usr/bin/aifilesorter" <<'EOF'
+cat > "$PKG_ROOT/usr/bin/run_aifilesorter.sh" <<'EOF'
 #!/bin/sh
 APP_DIR="/opt/aifilesorter"
 CPU_LIB_DIR="$APP_DIR/lib/precompiled/cpu/bin"
@@ -137,7 +176,8 @@ fi
 
 exec "$APP_DIR/bin/aifilesorter-bin" "$@"
 EOF
-chmod 0755 "$PKG_ROOT/usr/bin/aifilesorter"
+chmod 0755 "$PKG_ROOT/usr/bin/run_aifilesorter.sh"
+ln -sf run_aifilesorter.sh "$PKG_ROOT/usr/bin/aifilesorter"
 
 CONTROL_FILE="$PKG_ROOT/DEBIAN/control"
 cat > "$CONTROL_FILE" <<EOF
@@ -148,7 +188,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: AI File Sorter Team <support@example.com>
 Installed-Size: 0
-Depends: libc6 (>= 2.31), libstdc++6 (>= 12), libgcc-s1 (>= 12), libqt6widgets6 (>= 6.2), libqt6gui6 (>= 6.2), libqt6core6 (>= 6.2), libqt6dbus6 (>= 6.2), qt6-wayland, libcurl4, libjsoncpp25, libsqlite3-0, libfmt8, libssl3, libopenblas0-pthread
+Depends: libc6 (>= 2.31), libstdc++6 (>= 12), libgcc-s1 (>= 12), libqt6widgets6 (>= 6.2), libqt6gui6 (>= 6.2), libqt6core6 (>= 6.2), libqt6dbus6 (>= 6.2), qt6-wayland, ${CURL_DEP}, ${JSONCPP_DEP}, libsqlite3-0, ${FMT_DEP}, libssl3, libopenblas0-pthread
 Description: AI File Sorter desktop application
  AI-powered file categorization tool. Requires the listed runtime libraries from the host system. GPU acceleration needs NVIDIA CUDA libraries installed separately.
 EOF
@@ -159,6 +199,7 @@ find "$PKG_ROOT" -type d -exec chmod 755 {} +
 find "$PKG_ROOT/opt/aifilesorter/lib" -type f -exec chmod 0644 {} +
 chmod 0755 "$PKG_ROOT/opt/aifilesorter/bin/aifilesorter-bin"
 chmod 0755 "$PKG_ROOT/opt/aifilesorter/bin/aifilesorter"
+chmod 0755 "$PKG_ROOT/usr/bin/run_aifilesorter.sh"
 chmod 0755 "$PKG_ROOT/usr/bin/aifilesorter"
 
 SIZE_KB=$(du -sk "$PKG_ROOT" | cut -f1)
@@ -169,6 +210,6 @@ DEB_PATH="$OUT_DIR/${PKG_NAME}_amd64.deb"
 rm -f "$DEB_PATH"
 
 echo "Building package $DEB_PATH"
-dpkg-deb --build "$PKG_ROOT" "$OUT_DIR"
+dpkg-deb --build --root-owner-group "$PKG_ROOT" "$OUT_DIR"
 
 echo "Done. Package created at $DEB_PATH"
