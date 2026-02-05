@@ -239,14 +239,12 @@ Settings::Settings()
     }
 
     if (default_sort_folder.empty()) {
-        default_sort_folder = Utils::path_to_utf8(
-            std::filesystem::current_path());
+        default_sort_folder = Utils::path_to_utf8(std::filesystem::current_path());
     }
 
     sort_folder = default_sort_folder;
 
-    // Default language follows system locale on first run
-    // (before any config file exists)
+    // Default language follows system locale on first run (before any config file exists).
     language = system_default_language();
     category_language = CategoryLanguage::English;
     analyze_images_by_content = false;
@@ -261,8 +259,7 @@ Settings::Settings()
 LLMChoice Settings::parse_llm_choice() const
 {
     const std::string value = config.getValue("Settings", "LLMChoice", "Unset");
-    if (value == "Remote" || value == "Remote_OpenAI")
-        return LLMChoice::Remote_OpenAI;
+    if (value == "Remote" || value == "Remote_OpenAI") return LLMChoice::Remote_OpenAI;
     if (value == "Remote_Gemini") return LLMChoice::Remote_Gemini;
     if (value == "Remote_Custom") return LLMChoice::Remote_Custom;
     if (value == "Local_3b") return LLMChoice::Local_3b;
@@ -272,9 +269,8 @@ LLMChoice Settings::parse_llm_choice() const
     return LLMChoice::Unset;
 }
 
-void Settings::load_basic_settings(
-    const std::function<bool(const char*, bool)>& load_bool,
-    const std::function<int(const char*, int, int)>& load_int)
+void Settings::load_basic_settings(const std::function<bool(const char*, bool)>& load_bool,
+                                   const std::function<int(const char*, int, int)>& load_int)
 {
     llm_choice = parse_llm_choice();
     set_openai_api_key(config.getValue("Settings", "RemoteApiKey", ""));
@@ -330,16 +326,13 @@ void Settings::load_basic_settings(
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
     if (config.hasValue("Settings", "Language")) {
-        language = languageFromString(QString::fromStdString(
-            config.getValue("Settings", "Language", "English")));
+        language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
     } else {
         language = system_default_language();
     }
-    category_language = categoryLanguageFromString(QString::fromStdString(
-        config.getValue("Settings", "CategoryLanguage", "English")));
+    category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
     categorized_file_count = load_int("CategorizedFileCount", 0, 0);
-    next_support_prompt_threshold = load_int(
-        "SupportPromptThreshold", 100, 100);
+    next_support_prompt_threshold = load_int("SupportPromptThreshold", 100, 100);
 }
 
 void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)

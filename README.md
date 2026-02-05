@@ -267,8 +267,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
      ```bash
      sudo apt update && sudo apt install -y \
        build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
-       libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev \
-       libopenblas-dev libvulkan-dev patchelf
+       libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
      ```
    - Fedora / RHEL:
 
@@ -280,28 +279,13 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
      ```bash
      sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
-       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel openblas-devel \
-       vulkan-headers vulkan-loader-devel patchelf
-     ```
-
-   - openSUSE (Leap / Tumbleweed):
-
-     ```bash
-     sudo zypper install -y gcc-c++ cmake git qt6-base-devel qt6-tools-devel \
-       libcurl-devel jsoncpp-devel sqlite3-devel libopenssl-devel fmt-devel spdlog-devel openblas-devel \
-       vulkan-headers vulkan-devel shaderc patchelf
-     ```
-
-     If `rcc` is not found, openSUSE can expose it via `qtpaths6`:
-
-     ```bash
-     export PATH="$(qtpaths6 --query QT_HOST_LIBEXECS):$PATH"
+       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
      ```
 
    - Arch / Manjaro:
 
      ```bash
-     sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog openblas vulkan-headers patchelf
+     sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog
      ```
 
      Optional GPU acceleration also requires either the distro Vulkan 1.2+ driver/runtime (Mesa, AMD, Intel, NVIDIA) or CUDA packages for NVIDIA cards. Install whichever stack you plan to use; the app will fall back to CPU automatically if none are detected.

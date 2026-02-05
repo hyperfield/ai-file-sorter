@@ -5,12 +5,12 @@
 #include "Utils.hpp"
 
 #include <curl/curl.h>
-#if __has_include(<jsoncpp/json/json.h>)
-    #include <jsoncpp/json/json.h>
-#elif __has_include(<json/json.h>)
+#ifdef _WIN32
+    #include <json/json.h>
+#elif __APPLE__
     #include <json/json.h>
 #else
-    #error "jsoncpp headers not found. Install jsoncpp development files."
+    #include <jsoncpp/json/json.h>
 #endif
 
 #include <spdlog/spdlog.h>
