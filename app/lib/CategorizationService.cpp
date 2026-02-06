@@ -723,9 +723,8 @@ std::string CategorizationService::run_llm_with_timeout(
 int CategorizationService::resolve_llm_timeout(bool is_local_llm) const
 {
     // Local LLMs: 60 seconds default
-    // Remote APIs: 300 seconds (5 minutes) to accommodate Gemini's adaptive timeout system
-    // which can take 20-240 seconds per request with built-in retry logic
-    int timeout_seconds = is_local_llm ? 60 : 300;
+    // Remote APIs: 10 seconds default (override with AI_FILE_SORTER_REMOTE_LLM_TIMEOUT)
+    int timeout_seconds = is_local_llm ? 60 : 10;
     const char* timeout_env = std::getenv(is_local_llm ? kLocalTimeoutEnv : kRemoteTimeoutEnv);
     if (!is_local_llm && settings.get_llm_choice() == LLMChoice::Remote_Custom) {
         timeout_seconds = 60;
