@@ -9,9 +9,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
 
-include(CheckSymbolExists)
-include(CheckCXXSourceCompiles)
-
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -43,73 +40,9 @@ find_package(fmt REQUIRED CONFIG)
 find_package(spdlog REQUIRED CONFIG)
 find_package(Intl REQUIRED) # libintl/gettext
 
-# Vendored document analysis deps
-set(EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../external")
-set(PUGIXML_DIR "${EXTERNAL_DIR}/pugixml")
-set(LIBZIP_DIR "${EXTERNAL_DIR}/libzip")
-set(PDFIUM_DIR "${EXTERNAL_DIR}/pdfium")
-set(DOC_DEPS_INCLUDE_DIRS "")
-set(DOC_DEPS_LIBS "")
-
-# Pugixml (compiled via PugixmlBundle.cpp)
-if(EXISTS "${PUGIXML_DIR}/src/pugixml.hpp")
-    list(APPEND DOC_DEPS_INCLUDE_DIRS "${PUGIXML_DIR}/src")
-    add_compile_definitions(PUGIXML_NO_EXCEPTIONS AI_FILE_SORTER_USE_PUGIXML)
-endif()
-
-# libzip (build from vendored source)
-if(EXISTS "${LIBZIP_DIR}/CMakeLists.txt")
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-    set(ENABLE_BZIP2 OFF CACHE BOOL "" FORCE)
-    set(ENABLE_LZMA OFF CACHE BOOL "" FORCE)
-    set(ENABLE_ZSTD OFF CACHE BOOL "" FORCE)
-    set(ENABLE_OPENSSL OFF CACHE BOOL "" FORCE)
-    set(ENABLE_GNUTLS OFF CACHE BOOL "" FORCE)
-    set(ENABLE_MBEDTLS OFF CACHE BOOL "" FORCE)
-    set(ENABLE_COMMONCRYPTO OFF CACHE BOOL "" FORCE)
-    set(ENABLE_WINDOWS_CRYPTO OFF CACHE BOOL "" FORCE)
-    add_subdirectory("${LIBZIP_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/libzip")
-    if(TARGET libzip::zip)
-        add_compile_definitions(AI_FILE_SORTER_USE_LIBZIP)
-        list(APPEND DOC_DEPS_INCLUDE_DIRS "${LIBZIP_DIR}/lib" "${CMAKE_CURRENT_BINARY_DIR}/libzip")
-        list(APPEND DOC_DEPS_LIBS libzip::zip)
-    endif()
-endif()
-
-if(WIN32)
-    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/windows-x64")
-    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/pdfium.dll.lib")
-    set(PDFIUM_RUNTIME "${PDFIUM_PLATFORM_DIR}/bin/pdfium.dll")
-elseif(APPLE)
-    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-arm64")
-    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
-    set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
-else()
-    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/linux-x64")
-    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.so")
-    set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
-endif()
-
-if(EXISTS "${PDFIUM_LIBRARY}")
-    add_compile_definitions(AI_FILE_SORTER_USE_PDFIUM)
-    list(APPEND DOC_DEPS_INCLUDE_DIRS "${PDFIUM_PLATFORM_DIR}/include")
-    add_library(pdfium SHARED IMPORTED)
-    if(WIN32)
-        set_target_properties(pdfium PROPERTIES
-            IMPORTED_IMPLIB "${PDFIUM_LIBRARY}"
-            IMPORTED_LOCATION "${PDFIUM_RUNTIME}"
-        )
-    else()
-        set_target_properties(pdfium PROPERTIES
-            IMPORTED_LOCATION "${PDFIUM_LIBRARY}"
-        )
-    endif()
-    list(APPEND DOC_DEPS_LIBS pdfium)
-endif()
-
 # Sources
 set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
-file(GLOB APP_LIB_SOURCES CONFIGURE_DEPENDS
+file(GLOB APP_LIB_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
 set(APP_SOURCES ${APP_MAIN_SOURCE} ${APP_LIB_SOURCES})
@@ -124,8 +57,6 @@ endif()
 target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
-    ${DOC_DEPS_INCLUDE_DIRS}
 )
 
 # Resources (equivalent to rcc generation in Makefile)
@@ -212,71 +143,11 @@ if(WIN32)
             IMPORTED_LOCATION "${dll_path}"
         )
     endforeach()
-
-    set(MTMD_IMPORT "${PRECOMPILED_CPU_LIB_DIR}/mtmd.lib")
-    set(MTMD_DLL "${PRECOMPILED_CPU_BIN_DIR}/mtmd.dll")
-    if(EXISTS "${MTMD_IMPORT}" AND EXISTS "${MTMD_DLL}")
-        add_library(mtmd SHARED IMPORTED)
-        set_target_properties(mtmd PROPERTIES
-            IMPORTED_IMPLIB "${MTMD_IMPORT}"
-            IMPORTED_LOCATION "${MTMD_DLL}"
-        )
-        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
-        set(_aifs_saved_required_libs "${CMAKE_REQUIRED_LIBRARIES}")
-        set(CMAKE_REQUIRED_LIBRARIES "${MTMD_IMPORT}")
-        check_cxx_source_compiles([[
-            extern "C" void mtmd_helper_set_progress_callback(void*, void*);
-            int main() {
-                mtmd_helper_set_progress_callback(0, 0);
-                return 0;
-            }
-        ]] HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
-        check_cxx_source_compiles([[
-            extern "C" void mtmd_helper_log_set(void*, void*);
-            int main() {
-                mtmd_helper_log_set(0, 0);
-                return 0;
-            }
-        ]] HAVE_MTMD_HELPER_LOG_SET)
-        set(CMAKE_REQUIRED_LIBRARIES "${_aifs_saved_required_libs}")
-        unset(_aifs_saved_required_libs)
-        if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
-            target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
-        endif()
-        if(HAVE_MTMD_HELPER_LOG_SET)
-            target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
-        endif()
-    else()
-        message(WARNING "Visual LLM support disabled: missing mtmd.lib/mtmd.dll under app/lib/precompiled/cpu. Run app/scripts/build_llama_windows.ps1 to stage mtmd.")
-    endif()
 else()
     # Build llama.cpp from the included submodule for non-Windows platforms
-    set(LLAMA_BUILD_COMMON ON CACHE BOOL "llama: build common utils library" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libs" FORCE)
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp" "${CMAKE_CURRENT_BINARY_DIR}/llama-build")
-    get_directory_property(_llama_install_version DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/llama-build" DEFINITION LLAMA_INSTALL_VERSION)
-    if (NOT _llama_install_version OR _llama_install_version STREQUAL "LLAMA_INSTALL_VERSION-NOTFOUND")
-        set(_llama_install_version "0.0.0")
-    endif()
-    set(LLAMA_INSTALL_VERSION "${_llama_install_version}")
-    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd" "${CMAKE_CURRENT_BINARY_DIR}/mtmd-build")
     target_link_libraries(aifilesorter PRIVATE llama)
-    target_link_libraries(aifilesorter PRIVATE mtmd)
-    target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
-    set(CMAKE_REQUIRED_INCLUDES
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/ggml/include"
-    )
-    check_symbol_exists(mtmd_helper_set_progress_callback "mtmd-helper.h" HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
-    check_symbol_exists(mtmd_helper_log_set "mtmd-helper.h" HAVE_MTMD_HELPER_LOG_SET)
-    set(CMAKE_REQUIRED_INCLUDES)
-    if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
-        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
-    endif()
-    if(HAVE_MTMD_HELPER_LOG_SET)
-        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
-    endif()
     if(MSVC)
         target_compile_options(llama PRIVATE /Zc:char8_t-)
     endif()
@@ -293,36 +164,10 @@ target_link_libraries(aifilesorter PRIVATE
     spdlog::spdlog
     Intl::Intl
     llama           # imported on Windows or built from submodule on other platforms
-    ${DOC_DEPS_LIBS}
 )
 
 if(WIN32)
     target_link_libraries(aifilesorter PRIVATE ggml ggml_base ggml_cpu)
-    if(TARGET mtmd)
-        target_link_libraries(aifilesorter PRIVATE mtmd)
-    endif()
-endif()
-
-if(EXISTS "${PDFIUM_LIBRARY}")
-    if(PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-        add_custom_command(TARGET aifilesorter POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PDFIUM_RUNTIME}"
-                "$<TARGET_FILE_DIR:aifilesorter>"
-        )
-    endif()
-    if(NOT WIN32)
-        if(APPLE)
-            set(_pdfium_rpath "@loader_path")
-        else()
-            set(_pdfium_rpath "$ORIGIN")
-        endif()
-        set_target_properties(aifilesorter PROPERTIES
-            BUILD_RPATH "${_pdfium_rpath}"
-            INSTALL_RPATH "${_pdfium_rpath}"
-        )
-        unset(_pdfium_rpath)
-    endif()
 endif()
 
 if(WIN32)
@@ -391,9 +236,15 @@ if(WIN32)
         if(NOT ${varName})
             find_library(${varName} NAMES ${libName})
         endif()
+
+        # --- FIX START: Fallback to name-only linking if file isn't found ---
         if(NOT ${varName})
-            message(FATAL_ERROR "Required system library '${libName}' not found. Ensure the Windows SDK is installed.")
+            message(STATUS "System library '${libName}' not found on disk. Configuring to link by name.")
+            set(${varName} ${libName})
+            # If this is inside a function, we must export the variable to the parent scope
+            set(${varName} ${libName} PARENT_SCOPE)
         endif()
+        # --- FIX END ---
         target_link_libraries(aifilesorter PRIVATE "${${varName}}")
     endforeach()
 endif()
@@ -510,25 +361,17 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_visual.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_image_options.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_settings_image_options.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_checkbox_matrix.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_dialog_rename_gate.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cli_reporter.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_support_prompt.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_whitelist_and_prompt.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_database_manager_rename_only.cpp"
     )
 
     target_include_directories(ai_file_sorter_tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
-        ${DOC_DEPS_INCLUDE_DIRS}
     )
 
     target_link_libraries(ai_file_sorter_tests PRIVATE
@@ -543,7 +386,6 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         fmt::fmt
         Intl::Intl
         llama
-        ${DOC_DEPS_LIBS}
     )
 
     target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1 WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -559,26 +401,6 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 target_link_libraries(ai_file_sorter_tests PRIVATE ${libName})
             endif()
         endforeach()
-    endif()
-
-    if(EXISTS "${PDFIUM_LIBRARY}" AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PDFIUM_RUNTIME}"
-                "$<TARGET_FILE_DIR:ai_file_sorter_tests>"
-        )
-    endif()
-    if(EXISTS "${PDFIUM_LIBRARY}" AND NOT WIN32)
-        if(APPLE)
-            set(_pdfium_rpath "@loader_path")
-        else()
-            set(_pdfium_rpath "$ORIGIN")
-        endif()
-        set_target_properties(ai_file_sorter_tests PROPERTIES
-            BUILD_RPATH "${_pdfium_rpath}"
-            INSTALL_RPATH "${_pdfium_rpath}"
-        )
-        unset(_pdfium_rpath)
     endif()
 
     if(BUILD_TESTING)
