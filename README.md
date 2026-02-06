@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.6.0-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.6.1-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dw/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -86,6 +86,10 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 ---
 
 ## Changelog
+
+## [1.6.1] - 2026-02-06
+
+- Local text LLM now prompts to switch to CPU when GPU initialization or inference fails.
 
 ## [1.6.0] - 2026-02-04
 
@@ -552,6 +556,16 @@ Catch2-based unit tests are optional. Enable them via CMake:
 cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
 cmake --build build-tests --target ai_file_sorter_tests --parallel $(nproc)
 ctest --test-dir build-tests --output-on-failure -j $(nproc)
+```
+
+On macOS, replace `$(nproc)` with `$(sysctl -n hw.ncpu)`.
+
+On Windows (PowerShell), use:
+
+```powershell
+cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
+cmake --build build-tests --target ai_file_sorter_tests --parallel $env:NUMBER_OF_PROCESSORS
+ctest --test-dir build-tests --output-on-failure -j $env:NUMBER_OF_PROCESSORS
 ```
 
 Notes

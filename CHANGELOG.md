@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## [1.6.1] - 2026-02-06
+
+- Local text LLM now prompts to switch to CPU when GPU initialization or inference fails.
+
 ## [1.6.0] - 2026-02-04
 
 - Added document content analysis (text LLM) with rename-only/document-only options and optional creation-date suffixes for categories. Supported document formats include PDF, DOCX, XLSX, PPTX, ODT, ODS, and ODP (plus common text formats).
