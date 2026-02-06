@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include "LocalLLMClient.hpp"
 #include "LocalLLMTestAccess.hpp"
 #include "TestHooks.hpp"
 #include "TestHelpers.hpp"
@@ -112,5 +113,43 @@ TEST_CASE("Vulkan backend derives layer count from memory probe") {
         model.path().string());
     REQUIRE(params.n_gpu_layers > 0);
     REQUIRE(params.n_gpu_layers <= 48);
+}
+
+TEST_CASE("LocalLLMClient declines GPU fallback when callback returns false") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+    EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "1");
+
+    bool called = false;
+    try {
+        LocalLLMClient client(model.path().string(),
+                              [&called](const std::string&) {
+                                  called = true;
+                                  return false;
+                              });
+        FAIL("Expected LocalLLMClient to throw when CPU fallback is declined");
+    } catch (const std::runtime_error& ex) {
+        REQUIRE(called);
+        REQUIRE(std::string(ex.what()).find("CPU fallback was declined") != std::string::npos);
+    }
+}
+
+TEST_CASE("LocalLLMClient retries on CPU when fallback is accepted") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+    EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "1");
+
+    bool called = false;
+    try {
+        LocalLLMClient client(model.path().string(),
+                              [&called](const std::string&) {
+                                  called = true;
+                                  return true;
+                              });
+        FAIL("Expected LocalLLMClient to throw due to invalid model");
+    } catch (const std::runtime_error& ex) {
+        REQUIRE(called);
+        REQUIRE(std::string(ex.what()).find("Failed to load model") != std::string::npos);
+    }
 }
 #endif // GGML_USE_METAL
