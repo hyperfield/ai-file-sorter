@@ -131,7 +131,9 @@ void ensure_ggml_backend_dir()
 {
     const char* current = std::getenv("AI_FILE_SORTER_GGML_DIR");
     if (current && current[0] != '\0') {
-        return;
+        if (has_ggml_payload(std::filesystem::path(current))) {
+            return;
+        }
     }
 
     std::filesystem::path exe_path;
@@ -146,7 +148,10 @@ void ensure_ggml_backend_dir()
 
     const std::filesystem::path exe_dir = exe_path.parent_path();
     const std::filesystem::path ggml_subdir(AI_FILE_SORTER_GGML_SUBDIR);
-    const std::array<std::filesystem::path, 6> candidates = {
+    const std::array<std::filesystem::path, 9> candidates = {
+        exe_dir / "../lib" / "precompiled-m1",
+        exe_dir / "../lib" / "precompiled-m2",
+        exe_dir / "../lib" / "precompiled-intel",
         exe_dir / "../lib" / ggml_subdir,
         exe_dir / "../../lib" / ggml_subdir,
         exe_dir / "../lib",
