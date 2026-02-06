@@ -178,6 +178,7 @@ private:
     void run_on_ui(std::function<void()> func);
     void changeEvent(QEvent* event) override;
     FileScanOptions effective_scan_options() const;
+    bool prompt_text_cpu_fallback(const std::string& reason);
 
     friend class MainAppUiBuilder;
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -300,6 +301,7 @@ private:
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
     bool donation_prompt_active_{false};
+    std::optional<bool> text_cpu_fallback_choice_;
     bool should_log_prompts() const;
     void apply_development_logging();
 

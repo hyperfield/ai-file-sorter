@@ -25,8 +25,15 @@ public:
      * @param status Status event emitted by the client.
      */
     using StatusCallback = std::function<void(Status)>;
+    /**
+     * @brief Callback invoked when a GPU failure occurs to decide whether to retry on CPU.
+     * @param reason Short description of the failure cause.
+     * @return True to retry on CPU; false to abort.
+     */
+    using FallbackDecisionCallback = std::function<bool(const std::string& reason)>;
 
-    explicit LocalLLMClient(const std::string& model_path);
+    explicit LocalLLMClient(const std::string& model_path,
+                            FallbackDecisionCallback fallback_decision_callback = {});
     ~LocalLLMClient();
 
     std::string make_prompt(const std::string& file_name,
@@ -46,6 +53,11 @@ public:
      * @param callback Callback to invoke when status events occur.
      */
     void set_status_callback(StatusCallback callback);
+    /**
+     * @brief Registers a callback to decide whether GPU failures should fall back to CPU.
+     * @param callback Callback to invoke when a GPU failure is detected.
+     */
+    void set_fallback_decision_callback(FallbackDecisionCallback callback);
 
 private:
     void load_model_if_needed();
@@ -69,4 +81,5 @@ private:
     llama_context_params ctx_params;
     bool prompt_logging_enabled{false};
     StatusCallback status_callback_;
+    FallbackDecisionCallback fallback_decision_callback_;
 };

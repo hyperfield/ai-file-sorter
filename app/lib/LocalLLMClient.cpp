@@ -102,6 +102,44 @@ int resolve_context_length() {
     return 2048; // increased default to better accommodate larger prompts (whitelists, hints)
 }
 
+bool is_cpu_backend_requested() {
+    auto is_cpu_env = [](const char* value) {
+        if (!value || *value == '\0') {
+            return false;
+        }
+        std::string lowered(value);
+        std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        return lowered == "cpu";
+    };
+
+    if (is_cpu_env(std::getenv("AI_FILE_SORTER_GPU_BACKEND")) ||
+        is_cpu_env(std::getenv("LLAMA_ARG_DEVICE"))) {
+        return true;
+    }
+
+    const int override_layers = resolve_gpu_layer_override();
+    return override_layers != INT_MIN && override_layers <= 0;
+}
+
+bool allow_gpu_fallback(const LocalLLMClient::FallbackDecisionCallback& callback,
+                        const std::shared_ptr<spdlog::logger>& logger,
+                        std::string_view reason)
+{
+    if (is_cpu_backend_requested()) {
+        return false;
+    }
+    if (!callback) {
+        return true;
+    }
+    bool allowed = callback(std::string(reason));
+    if (!allowed && logger) {
+        logger->warn("GPU fallback declined: {}", reason);
+    }
+    return allowed;
+}
+
 struct MetalDeviceInfo {
     size_t total_bytes = 0;
     size_t free_bytes = 0;
@@ -1272,8 +1310,10 @@ bool llama_logs_enabled_from_env()
 }
 
 
-LocalLLMClient::LocalLLMClient(const std::string& model_path)
-    : model_path(model_path)
+LocalLLMClient::LocalLLMClient(const std::string& model_path,
+                               FallbackDecisionCallback fallback_decision_callback)
+    : model_path(model_path),
+      fallback_decision_callback_(std::move(fallback_decision_callback))
 {
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
@@ -1471,6 +1511,12 @@ llama_model_params LocalLLMClient::load_model_or_throw(llama_model_params model_
         if (logger) {
             logger->warn("Failed to load model with GPU backend; retrying on CPU.");
         }
+        if (!allow_gpu_fallback(fallback_decision_callback_, logger, "model load failure")) {
+            if (logger) {
+                logger->warn("GPU fallback declined during model load; aborting.");
+            }
+            throw std::runtime_error("GPU backend failed to initialize and CPU fallback was declined.");
+        }
         notify_status(Status::GpuFallbackToCpu);
         set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
         set_env_var("LLAMA_ARG_DEVICE", "cpu");
@@ -1618,118 +1664,155 @@ std::string LocalLLMClient::generate_response(const std::string &prompt,
         return nullptr;
     };
 
-    llama_context_params resolved_params = ctx_params;
-    llama_context_params base_params = ctx_params;
-    auto* ctx = init_context_with_retries(base_params, false, resolved_params);
+    bool allow_fallback = true;
+    for (;;) {
+        llama_context* ctx = nullptr;
+        llama_sampler* smpl = nullptr;
+        try {
+            llama_context_params resolved_params = ctx_params;
+            llama_context_params base_params = ctx_params;
+            ctx = init_context_with_retries(base_params, false, resolved_params);
 
-    if (!ctx) {
-        bool cpu_backend_requested = false;
-        const char* backend_env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
-        const char* device_env = std::getenv("LLAMA_ARG_DEVICE");
-        auto is_cpu_env = [](const char* value) {
-            if (!value || *value == '\0') {
-                return false;
-            }
-            std::string lowered(value);
-            std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
-                return static_cast<char>(std::tolower(c));
-            });
-            return lowered == "cpu";
-        };
-        if (is_cpu_env(backend_env) || is_cpu_env(device_env)) {
-            cpu_backend_requested = true;
-        }
-        const int override_layers = resolve_gpu_layer_override();
-        if (override_layers != INT_MIN && override_layers <= 0) {
-            cpu_backend_requested = true;
-        }
-
-        if (!cpu_backend_requested) {
-            if (logger) {
-                logger->warn("Context init failed on GPU; reloading model on CPU and retrying.");
-            }
-            llama_model_params cpu_params = llama_model_default_params();
-            cpu_params.n_gpu_layers = 0;
-            set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
-            set_env_var("LLAMA_ARG_DEVICE", "cpu");
-            set_env_var("GGML_DISABLE_CUDA", "1");
-
-            llama_model* old_model = model;
-            llama_model* cpu_model = llama_model_load_from_file(model_path.c_str(), cpu_params);
-            if (!cpu_model) {
+            if (!ctx && !is_cpu_backend_requested()) {
+                if (!allow_gpu_fallback(fallback_decision_callback_, logger, "context initialization failure")) {
+                    allow_fallback = false;
+                    throw std::runtime_error("GPU backend failed during context initialization and CPU fallback was declined.");
+                }
                 if (logger) {
-                    logger->error("Failed to reload model on CPU after context init failure");
+                    logger->warn("Context init failed on GPU; reloading model on CPU and retrying.");
                 }
-            } else {
-                if (old_model) {
-                    llama_model_free(old_model);
-                }
-                model = cpu_model;
-                vocab = llama_model_get_vocab(model);
+                notify_status(Status::GpuFallbackToCpu);
+                llama_model_params cpu_params = llama_model_default_params();
+                cpu_params.n_gpu_layers = 0;
+                set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+                set_env_var("LLAMA_ARG_DEVICE", "cpu");
+                set_env_var("GGML_DISABLE_CUDA", "1");
+
+                llama_model* old_model = model;
+                llama_model* cpu_model = llama_model_load_from_file(model_path.c_str(), cpu_params);
+                if (!cpu_model) {
+                    if (logger) {
+                        logger->error("Failed to reload model on CPU after context init failure");
+                    }
+                } else {
+                    if (old_model) {
+                        llama_model_free(old_model);
+                    }
+                    model = cpu_model;
+                    vocab = llama_model_get_vocab(model);
 #ifdef GGML_USE_METAL
-                base_params = ctx_params;
-                base_params.offload_kqv = false;
+                    base_params = ctx_params;
+                    base_params.offload_kqv = false;
 #else
-                base_params = ctx_params;
+                    base_params = ctx_params;
 #endif
-                resolved_params = base_params;
-                ctx = init_context_with_retries(base_params, true, resolved_params);
+                    resolved_params = base_params;
+                    ctx = init_context_with_retries(base_params, true, resolved_params);
+                }
             }
+
+            if (!ctx) {
+                if (logger) {
+                    logger->error("Failed to initialize llama context");
+                }
+                return "";
+            }
+
+            ctx_params = resolved_params;
+
+            smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
+            llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
+            llama_sampler_chain_add(smpl, llama_sampler_init_temp(0.8f));
+            llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+
+            std::string final_prompt;
+            if (!format_prompt(model, prompt, final_prompt)) {
+                if (logger) {
+                    logger->error("Failed to apply chat template to prompt");
+                }
+                llama_free(ctx);
+                llama_sampler_free(smpl);
+                return "";
+            }
+
+            std::vector<llama_token> prompt_tokens;
+            int n_prompt = 0;
+            if (!tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
+                llama_free(ctx);
+                llama_sampler_free(smpl);
+                return "";
+            }
+
+            std::string output = run_generation_loop(ctx,
+                                                     smpl,
+                                                     prompt_tokens,
+                                                     n_prompt,
+                                                     n_predict,
+                                                     logger,
+                                                     vocab);
+
+            llama_sampler_reset(smpl);
+            llama_free(ctx);
+            llama_sampler_free(smpl);
+
+            if (logger) {
+                logger->debug("Generation complete, produced {} character(s)", output.size());
+            }
+
+            if (apply_sanitizer) {
+                return sanitize_output(output);
+            }
+            return output;
+        } catch (const std::exception& ex) {
+            if (ctx) {
+                llama_free(ctx);
+            }
+            if (smpl) {
+                llama_sampler_free(smpl);
+            }
+
+            if (allow_fallback && !is_cpu_backend_requested()) {
+                if (!allow_gpu_fallback(fallback_decision_callback_, logger, "generation failure")) {
+                    allow_fallback = false;
+                    throw std::runtime_error("GPU backend failed during generation and CPU fallback was declined.");
+                }
+                allow_fallback = false;
+                if (logger) {
+                    logger->warn("LLM generation failed on GPU ({}); retrying on CPU.", ex.what());
+                }
+                notify_status(Status::GpuFallbackToCpu);
+
+                llama_model_params cpu_params = llama_model_default_params();
+                cpu_params.n_gpu_layers = 0;
+                set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+                set_env_var("LLAMA_ARG_DEVICE", "cpu");
+                set_env_var("GGML_DISABLE_CUDA", "1");
+
+                llama_model* old_model = model;
+                llama_model* cpu_model = llama_model_load_from_file(model_path.c_str(), cpu_params);
+                if (!cpu_model) {
+                    if (logger) {
+                        logger->error("Failed to reload model on CPU after GPU error");
+                    }
+                } else {
+                    if (old_model) {
+                        llama_model_free(old_model);
+                    }
+                    model = cpu_model;
+                    vocab = llama_model_get_vocab(model);
+#ifdef GGML_USE_METAL
+                    ctx_params.offload_kqv = false;
+#endif
+                    continue;
+                }
+            }
+
+            if (logger) {
+                logger->error("LLM generation failed: {}", ex.what());
+            }
+            throw;
         }
     }
-
-    if (!ctx) {
-        if (logger) {
-            logger->error("Failed to initialize llama context");
-        }
-        return "";
-    }
-
-    ctx_params = resolved_params;
-
-    auto* smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
-    llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
-    llama_sampler_chain_add(smpl, llama_sampler_init_temp(0.8f));
-    llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
-
-    std::string final_prompt;
-    if (!format_prompt(model, prompt, final_prompt)) {
-        if (logger) {
-            logger->error("Failed to apply chat template to prompt");
-        }
-        llama_free(ctx);
-        llama_sampler_free(smpl);
-        return "";
-    }
-
-    std::vector<llama_token> prompt_tokens;
-    int n_prompt = 0;
-    if (!tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
-        llama_free(ctx);
-        llama_sampler_free(smpl);
-        return "";
-    }
-
-    std::string output = run_generation_loop(ctx,
-                                             smpl,
-                                             prompt_tokens,
-                                             n_prompt,
-                                             n_predict,
-                                             logger,
-                                             vocab);
-
-    llama_sampler_reset(smpl);
-    llama_free(ctx);
-    llama_sampler_free(smpl);
-
-    if (logger) {
-        logger->debug("Generation complete, produced {} character(s)", output.size());
-    }
-
-    if (apply_sanitizer) {
-        return sanitize_output(output);
-    }
-    return output;
 }
 
 
@@ -1807,6 +1890,11 @@ void LocalLLMClient::set_prompt_logging_enabled(bool enabled)
 void LocalLLMClient::set_status_callback(StatusCallback callback)
 {
     status_callback_ = std::move(callback);
+}
+
+void LocalLLMClient::set_fallback_decision_callback(FallbackDecisionCallback callback)
+{
+    fallback_decision_callback_ = std::move(callback);
 }
 
 void LocalLLMClient::notify_status(Status status) const

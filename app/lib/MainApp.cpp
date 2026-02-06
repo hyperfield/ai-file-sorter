@@ -1282,6 +1282,7 @@ void MainApp::on_analyze_clicked()
     }
 
     stop_analysis = false;
+    text_cpu_fallback_choice_.reset();
     update_analyze_button_state(true);
 
     const bool show_subcategory = use_subcategories_checkbox->isChecked();
@@ -3199,9 +3200,16 @@ void MainApp::perform_analysis()
         });
     } catch (const std::exception& ex) {
         core_logger->error("Exception during analysis: {}", ex.what());
-        run_on_ui([this, message = std::string("Analysis error: ") + ex.what()]() {
-            handle_analysis_failure(message);
-        });
+        const bool cancelled =
+            stop_analysis.load() ||
+            (text_cpu_fallback_choice_.has_value() && !text_cpu_fallback_choice_.value());
+        if (cancelled) {
+            run_on_ui([this]() { handle_analysis_cancelled(); });
+        } else {
+            run_on_ui([this, message = std::string("Analysis error: ") + ex.what()]() {
+                handle_analysis_failure(message);
+            });
+        }
     }
 }
 
@@ -3211,6 +3219,8 @@ void MainApp::run_consistency_pass()
     if (stop_analysis.load() || already_categorized_files.empty()) {
         return;
     }
+
+    text_cpu_fallback_choice_.reset();
 
     auto progress_sink = [this](const std::string& message) {
         run_on_ui([this, message]() {
@@ -3250,6 +3260,51 @@ void MainApp::request_stop_analysis()
     stop_analysis = true;
     statusBar()->showMessage(tr("Cancelling analysis…"), 4000);
     status_is_ready_ = false;
+}
+
+bool MainApp::prompt_text_cpu_fallback(const std::string& reason)
+{
+    if (text_cpu_fallback_choice_.has_value()) {
+        return text_cpu_fallback_choice_.value();
+    }
+
+    auto show_dialog = [this]() -> bool {
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Question);
+        box.setWindowTitle(tr("Switch local AI to CPU?"));
+        box.setText(tr("The local model encountered a GPU error or ran out of memory."));
+        box.setInformativeText(tr("Retry on CPU instead? Cancel will stop this analysis."));
+        box.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+        box.setDefaultButton(QMessageBox::Ok);
+        return box.exec() == QMessageBox::Ok;
+    };
+
+    bool decision = false;
+    if (QThread::currentThread() == thread()) {
+        decision = show_dialog();
+    } else {
+        QMetaObject::invokeMethod(
+            this,
+            [&decision, show_dialog]() mutable { decision = show_dialog(); },
+            Qt::BlockingQueuedConnection);
+    }
+
+    text_cpu_fallback_choice_ = decision;
+
+    if (!decision) {
+        stop_analysis = true;
+        append_progress(to_utf8(tr("[WARN] GPU fallback to CPU declined. Cancelling analysis.")));
+        run_on_ui([this]() { request_stop_analysis(); });
+        if (core_logger && !reason.empty()) {
+            core_logger->warn("GPU fallback declined: {}", reason);
+        }
+        return false;
+    }
+
+    if (core_logger && !reason.empty()) {
+        core_logger->warn("GPU fallback accepted: {}", reason);
+    }
+    return true;
 }
 
 
@@ -3388,7 +3443,9 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         if (custom.id.empty() || custom.path.empty()) {
             throw std::runtime_error("Selected custom LLM is missing or invalid. Please re-select it.");
         }
-        auto client = std::make_unique<LocalLLMClient>(custom.path);
+        auto client = std::make_unique<LocalLLMClient>(
+            custom.path,
+            [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); });
         client->set_status_callback([this](LocalLLMClient::Status status) {
             if (status == LocalLLMClient::Status::GpuFallbackToCpu) {
                 report_progress(to_utf8(tr("[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).")));
@@ -3419,7 +3476,8 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
     }
 
     auto client = std::make_unique<LocalLLMClient>(
-        Utils::make_default_path_to_file_from_download_url(env_url));
+        Utils::make_default_path_to_file_from_download_url(env_url),
+        [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); });
     client->set_status_callback([this](LocalLLMClient::Status status) {
         if (status == LocalLLMClient::Status::GpuFallbackToCpu) {
             report_progress(to_utf8(tr("[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).")));
