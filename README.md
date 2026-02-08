@@ -743,13 +743,18 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 - Hugging Face: <https://huggingface.co>
 - JSONCPP: <https://github.com/open-source-parsers/jsoncpp>
 - LLaMa: <https://www.llama.com>
+- libzip: <https://libzip.org>
 - Local File Organizer <https://github.com/QiuYannnn/Local-File-Organizer>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
 - Mistral AI: <https://mistral.ai>
 - OpenAI: <https://platform.openai.com/docs/overview>
 - OpenSSL: <https://github.com/openssl/openssl>
+- PDFium: <https://pdfium.googlesource.com/pdfium/>
+- Poppler (pdftotext): <https://poppler.freedesktop.org/>
+- pugixml: <https://pugixml.org>
 - Qt: <https://www.qt.io/>
 - spdlog: <https://github.com/gabime/spdlog>
+- unzip (Info-ZIP): <https://infozip.sourceforge.net/>
 
 ## License
 
