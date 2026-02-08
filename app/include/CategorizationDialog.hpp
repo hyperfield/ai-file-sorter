@@ -69,6 +69,7 @@ private:
     static constexpr int kRenameLockedRole = Qt::UserRole + 6;
     static constexpr int kHiddenCategoryRole = Qt::UserRole + 7;
     static constexpr int kHiddenSubcategoryRole = Qt::UserRole + 8;
+    static constexpr int kOriginalFileNameRole = Qt::UserRole + 9;
 
     enum Column {
         ColumnSelect = 0,

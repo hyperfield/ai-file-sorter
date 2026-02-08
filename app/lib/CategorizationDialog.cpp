@@ -1055,6 +1055,7 @@ void CategorizationDialog::populate_model()
         auto* file_item = new QStandardItem(QString::fromStdString(file.file_name));
         file_item->setEditable(false);
         file_item->setData(QString::fromStdString(file.file_path), kFilePathRole);
+        file_item->setData(QString::fromStdString(file.file_name), kOriginalFileNameRole);
         file_item->setData(file.used_consistency_hints, kUsedConsistencyRole);
         file_item->setData(file.rename_only, kRenameOnlyRole);
         file_item->setData(static_cast<int>(file.type), kFileTypeRole);
@@ -1578,7 +1579,9 @@ void CategorizationDialog::handle_selected_row(int row_index,
             return;
         }
         if (auto* file_item = model->item(row_index, ColumnFile)) {
-            file_item->setText(QString::fromStdString(destination_name));
+            if (!file_item->data(kOriginalFileNameRole).isValid()) {
+                file_item->setData(file_item->text(), kOriginalFileNameRole);
+            }
             file_item->setData(true, kRenameAppliedRole);
             file_item->setData(true, kRenameLockedRole);
         }
