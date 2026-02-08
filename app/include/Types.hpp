@@ -2,6 +2,7 @@
 #define TYPES_HPP
 
 #include <string>
+#include <vector>
 
 enum class LLMChoice {
     Unset,
