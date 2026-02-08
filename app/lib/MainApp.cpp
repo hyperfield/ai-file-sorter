@@ -3686,18 +3686,17 @@ void MainApp::clear_categorization_cache()
     
     if (confirm_dialog.clickedButton() == current_folder_button) {
         // Clear cache for current folder only
-        QString folder_path = folder_path_input->text();
-        if (folder_path.isEmpty()) {
+        const std::string folder_path = get_folder_path();
+        if (folder_path.empty()) {
             show_error_dialog(tr("Please select a folder first.").toStdString());
             return;
         }
-        
-        success = db_manager.clear_directory_categorizations(folder_path.toStdString());
+
+        success = db_manager.clear_directory_categorizations(folder_path);
         if (success) {
             status_message = tr("Cache cleared for current folder.");
             if (core_logger) {
-                core_logger->info("Cleared categorization cache for folder: {}", 
-                                 folder_path.toStdString());
+                core_logger->info("Cleared categorization cache for folder: {}", folder_path);
             }
         } else {
             status_message = tr("Failed to clear cache for current folder.");
