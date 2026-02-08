@@ -10,8 +10,6 @@ class QPushButton;
 class DatabaseManager;
 
 class FolderLearningDialog : public QDialog {
-    Q_OBJECT
-
 public:
     explicit FolderLearningDialog(const std::string& folder_path,
                                   DatabaseManager& db_manager,

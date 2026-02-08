@@ -13,8 +13,6 @@ class QPushButton;
 class QTabWidget;
 
 class UserProfileDialog : public QDialog {
-    Q_OBJECT
-
 public:
     explicit UserProfileDialog(const UserProfile& profile, QWidget* parent = nullptr);
     ~UserProfileDialog() override = default;

@@ -7,8 +7,6 @@
 #include <string>
 
 class UserCategorizationDialog : public QDialog {
-    Q_OBJECT
-
 public:
     UserCategorizationDialog(const std::string& file_name, 
                             const std::string& error_reason,
