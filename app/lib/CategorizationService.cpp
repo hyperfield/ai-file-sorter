@@ -253,13 +253,7 @@ std::string CategorizationService::build_whitelist_context() const
     std::ostringstream oss;
     const auto cats = settings.get_allowed_categories();
     const auto subs = settings.get_allowed_subcategories();
-    const auto user_context = settings.get_user_context();
-    
-    // Add user context first if available
-    if (!user_context.empty()) {
-        oss << "Context about the files being sorted:\n" << user_context << "\n\n";
-    }
-    
+
     if (!cats.empty()) {
         oss << "Allowed main categories (pick exactly one label from the numbered list):\n";
         for (size_t i = 0; i < cats.size(); ++i) {
@@ -596,28 +590,33 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
 std::string CategorizationService::build_combined_context(const std::string& hint_block) const
 {
     std::string combined_context;
+    const auto append_block = [&combined_context](const std::string& block) {
+        if (block.empty()) {
+            return;
+        }
+        if (!combined_context.empty()) {
+            combined_context += "\n\n";
+        }
+        combined_context += block;
+    };
     const std::string whitelist_block = build_whitelist_context();
     const std::string language_block = build_category_language_context();
-    if (!language_block.empty()) {
-        combined_context += language_block;
+    append_block(language_block);
+
+    const auto user_context = settings.get_user_context();
+    if (!user_context.empty()) {
+        append_block("Context about the files being sorted:\n" + user_context);
     }
+
     if (settings.get_use_whitelist() && !whitelist_block.empty()) {
         if (core_logger) {
             core_logger->debug("Applying category whitelist ({} cats, {} subs)",
                                settings.get_allowed_categories().size(),
                                settings.get_allowed_subcategories().size());
         }
-        if (!combined_context.empty()) {
-            combined_context += "\n\n";
-        }
-        combined_context += whitelist_block;
+        append_block(whitelist_block);
     }
-    if (!hint_block.empty()) {
-        if (!combined_context.empty()) {
-            combined_context += "\n\n";
-        }
-        combined_context += hint_block;
-    }
+    append_block(hint_block);
     return combined_context;
 }
 
