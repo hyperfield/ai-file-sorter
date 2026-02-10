@@ -23,6 +23,10 @@
 
 AI File Sorter is a cross-platform desktop application that uses AI to organize files and intelligently suggest better file names for both image and document files, based on their visual or textual content. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
 
+<p align="center">
+  <img src="images/screenshots/before-after/aifs_before_after.png" alt="AI File Sorter before and after organization example">
+</p>
+
 The app can analyze picture files locally and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. All rename suggestions are optional and always require your approval.
 
 AI File Sorter helps tidy up cluttered folders such as Downloads, external drives, or NAS storage by automatically grouping files based on their names, extensions, folder context, and learned organization patterns.
@@ -128,8 +132,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
 - **Local Database Caching**: Speeds up repeated categorization and minimizes remote LLM usage costs.
 - **Sorting Preview**: See how files will be organized before confirming changes.
-- 🧪 **Dry run** / preview-only mode to inspect planned moves without touching files.
-- ↩️ **Persistent Undo** ("Undo last run") even after closing the sort dialog.
+- **Dry run** / preview-only mode to inspect planned moves without touching files.
+- **Persistent Undo** ("Undo last run") even after closing the sort dialog.
 - **Bring your own key**: Paste your OpenAI or Gemini API key once; it's stored locally and reused for remote runs.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
 
