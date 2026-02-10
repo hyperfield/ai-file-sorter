@@ -24,7 +24,7 @@
 AI File Sorter is a cross-platform desktop application that uses AI to organize files and intelligently suggest better file names for both image and document files, based on their visual or textual content. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
 
 <p align="center">
-  <img src="images/screenshots/before-after/aifs_before_after.png" alt="AI File Sorter before and after organization example">
+  <img src="images/screenshots/before-after/aifs_before_after.png" alt="AI File Sorter before and after organization example" width="400">
 </p>
 
 The app can analyze picture files locally and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. All rename suggestions are optional and always require your approval.
