@@ -1,0 +1,141 @@
+# Created by https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
+# Edit at https://www.toptal.com/developers/gitignore?templates=c++,visualstudiocode
+
+### C++ ###
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+obj/
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Databases
+*.db
+
+# Environment variables
+# .env
+encryption.ini
+
+# Virtual environments
+.venv/
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+main
+obfuscate_encrypt
+bin/
+
+# Scripts
+reset_key_4_github.sh
+create_macos_bundle.sh
+create_dmg.sh
+
+# Packaging
+*.nsi
+*.msix
+msix/
+package_msix.ps1
+appcert-AIFileSorter.xml
+msix-layout/
+
+# References
+# includePaths.txt
+
+### VisualStudioCode ###
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+### Visual Studio
+vcpkg_installed/
+
+# Local History for Visual Studio Code
+.history/
+
+# Cache directories
+.cache/
+.ccache*/
+.codacy/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+.ionide
+
+# Temp files
+*.*~
+*~
+
+# Temp notes
+todos_md/
+
+# Mac files
+.DS_Store
+
+# Script docs + backups
+app/scripts/SCRIPTS-README.md
+*.bak
+
+# Ignore llama headers (generated or from external)
+app/include/llama/*.h
+
+# R & D stage
+/assets/
+/docs/
+/scripts/
+!app/scripts/
+/tools/
+/reports/
+/logo-workdir-temp/
+/Testing/
+/changelog/
+/models/
+/rd/
+/prototypes/
+
+# Build artifacts
+
+build-*/
+dist/
+app/lib/ggml/
+external/libzip/build*/
+
+# No longer relevant
+api-key-encryption/
+
+# End of https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md

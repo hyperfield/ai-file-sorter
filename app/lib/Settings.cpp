@@ -1,0 +1,1122 @@
+#include "Settings.hpp"
+#include "Types.hpp"
+#include "Logger.hpp"
+#include "Language.hpp"
+#include "Utils.hpp"
+#include <filesystem>
+#include <cstdio>
+#include <iostream>
+#include <QStandardPaths>
+#include <QLocale>
+#include <QString>
+#include <QByteArray>
+#include <spdlog/spdlog.h>
+#include <spdlog/fmt/fmt.h>
+#include <algorithm>
+#include <sstream>
+#include <cctype>
+#include <chrono>
+#include <random>
+#ifdef _WIN32
+    #include <shlobj.h>
+    #include <windows.h>
+#endif
+
+
+namespace {
+template <typename... Args>
+void settings_log(spdlog::level::level_enum level, const char* fmt, Args&&... args) {
+    auto message = fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...);
+    if (auto logger = Logger::get_logger("core_logger")) {
+        logger->log(level, "{}", message);
+    } else {
+        std::fprintf(stderr, "%s\n", message.c_str());
+    }
+}
+
+int parse_int_or(const std::string& value, int fallback) {
+    try {
+        return std::stoi(value);
+    } catch (...) {
+        return fallback;
+    }
+}
+
+std::vector<std::string> parse_list(const std::string& value) {
+    std::vector<std::string> result;
+    std::stringstream ss(value);
+    std::string item;
+    while (std::getline(ss, item, ',')) {
+        auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+        item.erase(item.begin(), std::find_if(item.begin(), item.end(), not_space));
+        item.erase(std::find_if(item.rbegin(), item.rend(), not_space).base(), item.end());
+        if (!item.empty()) {
+            result.push_back(item);
+        }
+    }
+    return result;
+}
+
+std::string trim_copy(const std::string& value) {
+    auto trimmed = value;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    return trimmed;
+}
+
+std::string join_list(const std::vector<std::string>& items) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (i > 0) {
+            oss << ",";
+        }
+        oss << items[i];
+    }
+    return oss.str();
+}
+
+std::string to_bool_string(bool value) {
+    return value ? "true" : "false";
+}
+
+std::string encode_multiline(const std::string& value) {
+    std::string output;
+    output.reserve(value.size());
+    for (char ch : value) {
+        if (ch == '\\') {
+            output.append("\\\\");
+        } else if (ch == '\n') {
+            output.append("\\n");
+        } else {
+            output.push_back(ch);
+        }
+    }
+    return output;
+}
+
+std::string decode_multiline(const std::string& value) {
+    std::string output;
+    output.reserve(value.size());
+    for (size_t i = 0; i < value.size(); ++i) {
+        char ch = value[i];
+        if (ch == '\\' && i + 1 < value.size()) {
+            char next = value[i + 1];
+            if (next == 'n') {
+                output.push_back('\n');
+                ++i;
+                continue;
+            }
+            if (next == '\\') {
+                output.push_back('\\');
+                ++i;
+                continue;
+            }
+        }
+        output.push_back(ch);
+    }
+    return output;
+}
+
+std::string llm_choice_to_string(LLMChoice choice) {
+    switch (choice) {
+        case LLMChoice::Remote_OpenAI: return "Remote_OpenAI";
+        case LLMChoice::Remote_Gemini: return "Remote_Gemini";
+        case LLMChoice::Remote_Custom: return "Remote_Custom";
+        case LLMChoice::Local_3b: return "Local_3b";
+        case LLMChoice::Local_3b_legacy: return "Local_3b_legacy";
+        case LLMChoice::Local_7b: return "Local_7b";
+        case LLMChoice::Custom: return "Custom";
+        default: return "Unset";
+    }
+}
+
+void set_bool_setting(IniConfig& config, const std::string& section, const char* key, bool value) {
+    config.setValue(section, key, to_bool_string(value));
+}
+
+void set_optional_setting(IniConfig& config, const std::string& section, const char* key, const std::string& value) {
+    if (!value.empty()) {
+        config.setValue(section, key, value);
+    }
+}
+
+std::string generate_custom_llm_id() {
+    using clock = std::chrono::steady_clock;
+    const auto now = clock::now().time_since_epoch().count();
+    std::mt19937_64 rng(static_cast<std::mt19937_64::result_type>(now));
+    const uint64_t value = rng();
+    std::ostringstream oss;
+    oss << "llm_" << std::hex << value;
+    return oss.str();
+}
+
+std::string generate_custom_api_id() {
+    using clock = std::chrono::steady_clock;
+    const auto now = clock::now().time_since_epoch().count();
+    std::mt19937_64 rng(static_cast<std::mt19937_64::result_type>(now));
+    const uint64_t value = rng();
+    std::ostringstream oss;
+    oss << "api_" << std::hex << value;
+    return oss.str();
+}
+
+Language system_default_language()
+{
+    switch (QLocale::system().language()) {
+        case QLocale::French: return Language::French;
+        case QLocale::German: return Language::German;
+        case QLocale::Italian: return Language::Italian;
+        case QLocale::Spanish: return Language::Spanish;
+        case QLocale::Turkish: return Language::Turkish;
+        case QLocale::Korean: return Language::Korean;
+        case QLocale::Dutch: return Language::Dutch;
+        default: return Language::English;
+    }
+}
+
+std::string path_from_env_url(const char* env_key)
+{
+    const char* url = std::getenv(env_key);
+    if (!url || *url == '\0') {
+        return {};
+    }
+    try {
+        return Utils::make_default_path_to_file_from_download_url(url);
+    } catch (...) {
+        return {};
+    }
+}
+
+bool file_exists_for_env_url(const char* env_key)
+{
+    const std::string path = path_from_env_url(env_key);
+    if (path.empty()) {
+        return false;
+    }
+    std::error_code ec;
+    return std::filesystem::exists(path, ec);
+}
+}
+
+
+Settings::Settings()
+    : use_subcategories(true),
+      categorize_files(true),
+      categorize_directories(false),
+      include_subdirectories(false),
+      use_consistency_hints(false),
+      use_whitelist(false),
+      default_sort_folder(""),
+      sort_folder("")
+{
+    std::string AppName = "AIFileSorter";
+    config_path = define_config_path();
+
+    config_dir = std::filesystem::path(config_path).parent_path();
+
+    try {
+        if (!std::filesystem::exists(config_dir)) {
+            std::filesystem::create_directories(config_dir);
+        }
+    } catch (const std::filesystem::filesystem_error &e) {
+        settings_log(spdlog::level::err, "Error creating configuration directory: {}", e.what());
+    }
+
+    auto to_utf8 = [](const QString& value) -> std::string {
+        const QByteArray bytes = value.toUtf8();
+        return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+    };
+
+    QString downloads = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (!downloads.isEmpty()) {
+        default_sort_folder = to_utf8(downloads);
+    } else {
+        QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+        if (!home.isEmpty()) {
+            default_sort_folder = to_utf8(home);
+        }
+    }
+
+    if (default_sort_folder.empty()) {
+        default_sort_folder = Utils::path_to_utf8(std::filesystem::current_path());
+    }
+
+    sort_folder = default_sort_folder;
+
+    // Default language follows system locale on first run (before any config file exists).
+    language = system_default_language();
+    category_language = CategoryLanguage::English;
+    analyze_images_by_content = false;
+    offer_rename_images = false;
+    analyze_documents_by_content = false;
+    offer_rename_documents = false;
+    rename_documents_only = false;
+    process_documents_only = false;
+    add_document_date_to_category = false;
+}
+
+LLMChoice Settings::parse_llm_choice() const
+{
+    const std::string value = config.getValue("Settings", "LLMChoice", "Unset");
+    if (value == "Remote" || value == "Remote_OpenAI") return LLMChoice::Remote_OpenAI;
+    if (value == "Remote_Gemini") return LLMChoice::Remote_Gemini;
+    if (value == "Remote_Custom") return LLMChoice::Remote_Custom;
+    if (value == "Local_3b") return LLMChoice::Local_3b;
+    if (value == "Local_3b_legacy") return LLMChoice::Local_3b_legacy;
+    if (value == "Local_7b") return LLMChoice::Local_7b;
+    if (value == "Custom")   return LLMChoice::Custom;
+    return LLMChoice::Unset;
+}
+
+void Settings::load_basic_settings(const std::function<bool(const char*, bool)>& load_bool,
+                                   const std::function<int(const char*, int, int)>& load_int)
+{
+    llm_choice = parse_llm_choice();
+    set_openai_api_key(config.getValue("Settings", "RemoteApiKey", ""));
+    set_openai_model(config.getValue("Settings", "RemoteModel", "gpt-4o-mini"));
+    set_gemini_api_key(config.getValue("Settings", "GeminiApiKey", ""));
+    set_gemini_model(config.getValue("Settings", "GeminiModel", "gemini-2.5-flash-lite"));
+    llm_downloads_expanded = load_bool("LLMDownloadsExpanded", true);
+    use_subcategories = load_bool("UseSubcategories", false);
+    use_consistency_hints = load_bool("UseConsistencyHints", false);
+    categorize_files = load_bool("CategorizeFiles", true);
+    categorize_directories = load_bool("CategorizeDirectories", false);
+    include_subdirectories = load_bool("IncludeSubdirectories", false);
+    analyze_images_by_content = load_bool("AnalyzeImagesByContent", false);
+    offer_rename_images = load_bool("OfferRenameImages", false);
+    rename_images_only = load_bool("RenameImagesOnly", false);
+    process_images_only = load_bool("ProcessImagesOnly", false);
+    analyze_documents_by_content = load_bool("AnalyzeDocumentsByContent", false);
+    offer_rename_documents = load_bool("OfferRenameDocuments", false);
+    rename_documents_only = load_bool("RenameDocumentsOnly", false);
+    process_documents_only = load_bool("ProcessDocumentsOnly", false);
+    add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
+    const bool image_expand_default = process_images_only || offer_rename_images || rename_images_only;
+    if (config.hasValue("Settings", "ImageOptionsExpanded")) {
+        image_options_expanded = load_bool("ImageOptionsExpanded", image_expand_default);
+    } else {
+        image_options_expanded = image_expand_default;
+    }
+    const bool document_expand_default = process_documents_only ||
+                                         offer_rename_documents ||
+                                         rename_documents_only ||
+                                         add_document_date_to_category;
+    if (config.hasValue("Settings", "DocumentOptionsExpanded")) {
+        document_options_expanded = load_bool("DocumentOptionsExpanded", document_expand_default);
+    } else {
+        document_options_expanded = document_expand_default;
+    }
+    if (rename_images_only && !offer_rename_images) {
+        offer_rename_images = true;
+    }
+    if (rename_documents_only && !offer_rename_documents) {
+        offer_rename_documents = true;
+    }
+    if (include_subdirectories && categorize_directories) {
+        categorize_directories = false;
+    }
+    sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
+    show_file_explorer = load_bool("ShowFileExplorer", true);
+    suitability_benchmark_completed = load_bool("SuitabilityBenchmarkCompleted", false);
+    suitability_benchmark_suppressed = load_bool("SuitabilityBenchmarkSuppressed", false);
+    benchmark_last_report = decode_multiline(config.getValue("Settings", "BenchmarkLastReport", ""));
+    benchmark_last_run = config.getValue("Settings", "BenchmarkLastRun", "");
+    consistency_pass_enabled = load_bool("ConsistencyPass", false);
+    development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
+    skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
+    if (config.hasValue("Settings", "Language")) {
+        language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
+    } else {
+        language = system_default_language();
+    }
+    category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
+    categorized_file_count = load_int("CategorizedFileCount", 0, 0);
+    next_support_prompt_threshold = load_int("SupportPromptThreshold", 100, 100);
+}
+
+void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)
+{
+    allowed_categories = parse_list(config.getValue("Settings", "AllowedCategories", ""));
+    allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
+    use_whitelist = load_bool("UseWhitelist", false);
+    active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
+}
+
+void Settings::load_custom_llm_settings()
+{
+    active_custom_llm_id = config.getValue("LLMs", "ActiveCustomId", "");
+
+    custom_llms.clear();
+    const auto custom_ids = parse_list(config.getValue("LLMs", "CustomIds", ""));
+    for (const auto& id : custom_ids) {
+        const std::string section = "LLM_" + id;
+        CustomLLM entry;
+        entry.id = id;
+        entry.name = config.getValue(section, "Name", "");
+        entry.description = config.getValue(section, "Description", "");
+        entry.path = config.getValue(section, "Path", "");
+        if (!entry.name.empty() && !entry.path.empty()) {
+            custom_llms.push_back(entry);
+        }
+    }
+}
+
+void Settings::load_custom_api_settings()
+{
+    active_custom_api_id = config.getValue("CustomApis", "ActiveCustomApiId", "");
+
+    custom_api_endpoints.clear();
+    const auto api_ids = parse_list(config.getValue("CustomApis", "CustomApiIds", ""));
+    for (const auto& id : api_ids) {
+        const std::string section = "CustomApi_" + id;
+        CustomApiEndpoint entry;
+        entry.id = id;
+        entry.name = config.getValue(section, "Name", "");
+        entry.description = config.getValue(section, "Description", "");
+        entry.base_url = config.getValue(section, "BaseUrl", "");
+        entry.api_key = config.getValue(section, "ApiKey", "");
+        entry.model = config.getValue(section, "Model", "");
+        entry.name = trim_copy(entry.name);
+        entry.description = trim_copy(entry.description);
+        entry.base_url = trim_copy(entry.base_url);
+        entry.api_key = trim_copy(entry.api_key);
+        entry.model = trim_copy(entry.model);
+        if (is_valid_custom_api_endpoint(entry)) {
+            custom_api_endpoints.push_back(entry);
+        }
+    }
+}
+
+void Settings::log_loaded_settings() const
+{
+    if (auto logger = Logger::get_logger("core_logger")) {
+        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {}, custom apis: {}, category language: {})",
+                     config_path,
+                     allowed_categories.size(),
+                     allowed_subcategories.size(),
+                     use_whitelist,
+                     active_whitelist,
+                     custom_llms.size(),
+                     custom_api_endpoints.size(),
+                     categoryLanguageDisplay(category_language));
+    }
+}
+
+void Settings::save_core_settings()
+{
+    static const std::string settings_section = "Settings";
+
+    config.setValue(settings_section, "LLMChoice", llm_choice_to_string(llm_choice));
+    config.setValue(settings_section, "RemoteApiKey", openai_api_key);
+    config.setValue(settings_section, "RemoteModel", openai_model.empty() ? "gpt-4o-mini" : openai_model);
+    config.setValue(settings_section, "GeminiApiKey", gemini_api_key);
+    config.setValue(settings_section, "GeminiModel", gemini_model.empty() ? "gemini-2.5-flash-lite" : gemini_model);
+    set_bool_setting(config, settings_section, "LLMDownloadsExpanded", llm_downloads_expanded);
+    set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
+    set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
+    set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
+    set_bool_setting(config, settings_section, "CategorizeDirectories", categorize_directories);
+    set_bool_setting(config, settings_section, "IncludeSubdirectories", include_subdirectories);
+    if (rename_images_only) {
+        offer_rename_images = true;
+    }
+    if (rename_documents_only) {
+        offer_rename_documents = true;
+    }
+    set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
+    set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
+    set_bool_setting(config, settings_section, "ImageOptionsExpanded", image_options_expanded);
+    set_bool_setting(config, settings_section, "RenameImagesOnly", rename_images_only);
+    set_bool_setting(config, settings_section, "ProcessImagesOnly", process_images_only);
+    set_bool_setting(config, settings_section, "AnalyzeDocumentsByContent", analyze_documents_by_content);
+    set_bool_setting(config, settings_section, "OfferRenameDocuments", offer_rename_documents);
+    set_bool_setting(config, settings_section, "DocumentOptionsExpanded", document_options_expanded);
+    set_bool_setting(config, settings_section, "RenameDocumentsOnly", rename_documents_only);
+    set_bool_setting(config, settings_section, "ProcessDocumentsOnly", process_documents_only);
+    set_bool_setting(config, settings_section, "AddDocumentDateToCategory", add_document_date_to_category);
+    config.setValue(settings_section, "SortFolder", this->sort_folder);
+
+    set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
+
+    set_bool_setting(config, settings_section, "ShowFileExplorer", show_file_explorer);
+    set_bool_setting(config, settings_section, "SuitabilityBenchmarkCompleted", suitability_benchmark_completed);
+    set_bool_setting(config, settings_section, "SuitabilityBenchmarkSuppressed", suitability_benchmark_suppressed);
+    set_optional_setting(config, settings_section, "BenchmarkLastReport", encode_multiline(benchmark_last_report));
+    set_optional_setting(config, settings_section, "BenchmarkLastRun", benchmark_last_run);
+    set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
+    set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
+    config.setValue(settings_section, "Language", languageToString(language).toStdString());
+    config.setValue(settings_section, "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
+    config.setValue(settings_section, "CategorizedFileCount", std::to_string(categorized_file_count));
+    config.setValue(settings_section, "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
+}
+
+void Settings::save_whitelist_settings()
+{
+    static const std::string settings_section = "Settings";
+
+    config.setValue(settings_section, "AllowedCategories", join_list(allowed_categories));
+    config.setValue(settings_section, "AllowedSubcategories", join_list(allowed_subcategories));
+    set_bool_setting(config, settings_section, "UseWhitelist", use_whitelist);
+    set_optional_setting(config, settings_section, "ActiveWhitelist", active_whitelist);
+}
+
+void Settings::save_custom_llms()
+{
+    static const std::string llm_section = "LLMs";
+
+    set_optional_setting(config, llm_section, "ActiveCustomId", active_custom_llm_id);
+
+    std::vector<std::string> ids;
+    ids.reserve(custom_llms.size());
+    for (const auto& entry : custom_llms) {
+        if (!is_valid_custom_llm(entry)) {
+            continue;
+        }
+        ids.push_back(entry.id);
+        const std::string section = "LLM_" + entry.id;
+        config.setValue(section, "Name", entry.name);
+        config.setValue(section, "Description", entry.description);
+        config.setValue(section, "Path", entry.path);
+    }
+    config.setValue(llm_section, "CustomIds", join_list(ids));
+}
+
+void Settings::save_custom_api_endpoints()
+{
+    static const std::string api_section = "CustomApis";
+
+    set_optional_setting(config, api_section, "ActiveCustomApiId", active_custom_api_id);
+
+    std::vector<std::string> ids;
+    ids.reserve(custom_api_endpoints.size());
+    for (const auto& entry : custom_api_endpoints) {
+        if (!is_valid_custom_api_endpoint(entry)) {
+            continue;
+        }
+        ids.push_back(entry.id);
+        const std::string section = "CustomApi_" + entry.id;
+        config.setValue(section, "Name", entry.name);
+        config.setValue(section, "Description", entry.description);
+        config.setValue(section, "BaseUrl", entry.base_url);
+        config.setValue(section, "ApiKey", entry.api_key);
+        config.setValue(section, "Model", entry.model);
+    }
+    config.setValue(api_section, "CustomApiIds", join_list(ids));
+}
+
+std::string Settings::define_config_path()
+{
+    std::string AppName = "AIFileSorter";
+    if (const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR")) {
+        std::filesystem::path base = override_root;
+        return (base / AppName / "config.ini").string();
+    }
+#ifdef _WIN32
+    char appDataPath[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
+        return std::string(appDataPath) + "\\" + AppName + "\\config.ini";
+    }
+#elif defined(__APPLE__)
+    return std::string(getenv("HOME")) + "/Library/Application Support/" + AppName + "/config.ini";
+#else
+    return std::string(getenv("HOME")) + "/.config/" + AppName + "/config.ini";
+#endif
+    return "config.ini";
+}
+
+
+std::string Settings::get_config_dir()
+{
+    return config_dir.string();
+}
+
+
+bool Settings::load()
+{
+    if (!config.load(config_path)) {
+        sort_folder = default_sort_folder.empty() ? std::string("/") : default_sort_folder;
+        // Keep language defaults derived from system locale when no config is found.
+        return false;
+    }
+
+    const auto load_bool = [&](const char* key, bool def) {
+        return config.getValue("Settings", key, def ? "true" : "false") == "true";
+    };
+
+    const auto load_int = [&](const char* key, int def, int min_val = std::numeric_limits<int>::min()) {
+        int value = parse_int_or(config.getValue("Settings", key, std::to_string(def)), def);
+        return value < min_val ? min_val : value;
+    };
+
+    load_basic_settings(load_bool, load_int);
+    if (llm_choice == LLMChoice::Local_3b
+        && !file_exists_for_env_url("LOCAL_LLM_3B_DOWNLOAD_URL")
+        && file_exists_for_env_url("LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL")) {
+        llm_choice = LLMChoice::Local_3b_legacy;
+    }
+    load_whitelist_settings(load_bool);
+    load_custom_llm_settings();
+    load_custom_api_settings();
+    log_loaded_settings();
+
+    return true;
+}
+
+
+bool Settings::save()
+{
+    save_core_settings();
+    save_whitelist_settings();
+    save_custom_llms();
+    save_custom_api_endpoints();
+    return config.save(config_path);
+}
+
+
+LLMChoice Settings::get_llm_choice() const
+{
+    return llm_choice;
+}
+
+
+void Settings::set_llm_choice(LLMChoice choice)
+{
+    llm_choice = choice;
+}
+
+std::string Settings::get_openai_api_key() const
+{
+    return openai_api_key;
+}
+
+void Settings::set_openai_api_key(const std::string& key)
+{
+    auto trimmed = key;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    openai_api_key = trimmed;
+}
+
+std::string Settings::get_openai_model() const
+{
+    return openai_model;
+}
+
+void Settings::set_openai_model(const std::string& model)
+{
+    auto trimmed = model;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    if (trimmed.empty()) {
+        trimmed = "gpt-4o-mini";
+    }
+    openai_model = trimmed;
+}
+
+std::string Settings::get_gemini_api_key() const
+{
+    return gemini_api_key;
+}
+
+void Settings::set_gemini_api_key(const std::string& key)
+{
+    auto trimmed = key;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    gemini_api_key = trimmed;
+}
+
+std::string Settings::get_gemini_model() const
+{
+    return gemini_model;
+}
+
+void Settings::set_gemini_model(const std::string& model)
+{
+    auto trimmed = model;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    if (trimmed.empty()) {
+        trimmed = "gemini-2.5-flash-lite";
+    }
+    gemini_model = trimmed;
+}
+
+bool Settings::get_llm_downloads_expanded() const
+{
+    return llm_downloads_expanded;
+}
+
+void Settings::set_llm_downloads_expanded(bool value)
+{
+    llm_downloads_expanded = value;
+}
+
+std::string Settings::get_active_custom_llm_id() const
+{
+    return active_custom_llm_id;
+}
+
+void Settings::set_active_custom_llm_id(const std::string& id)
+{
+    active_custom_llm_id = id;
+}
+
+const std::vector<CustomLLM>& Settings::get_custom_llms() const
+{
+    return custom_llms;
+}
+
+CustomLLM Settings::find_custom_llm(const std::string& id) const
+{
+    const auto it = std::find_if(custom_llms.begin(), custom_llms.end(),
+                                 [&id](const CustomLLM& item) { return item.id == id; });
+    if (it != custom_llms.end()) {
+        return *it;
+    }
+    return {};
+}
+
+std::string Settings::upsert_custom_llm(const CustomLLM& llm)
+{
+    CustomLLM copy = llm;
+    if (copy.id.empty()) {
+        copy.id = generate_custom_llm_id();
+    }
+    const auto it = std::find_if(custom_llms.begin(), custom_llms.end(),
+                                 [&copy](const CustomLLM& item) { return item.id == copy.id; });
+    if (it != custom_llms.end()) {
+        *it = copy;
+    } else {
+        custom_llms.push_back(copy);
+    }
+    return copy.id;
+}
+
+void Settings::remove_custom_llm(const std::string& id)
+{
+    custom_llms.erase(std::remove_if(custom_llms.begin(),
+                                     custom_llms.end(),
+                                     [&id](const CustomLLM& item) { return item.id == id; }),
+                      custom_llms.end());
+    if (active_custom_llm_id == id) {
+        active_custom_llm_id.clear();
+    }
+}
+
+std::string Settings::get_active_custom_api_id() const
+{
+    return active_custom_api_id;
+}
+
+void Settings::set_active_custom_api_id(const std::string& id)
+{
+    active_custom_api_id = id;
+}
+
+const std::vector<CustomApiEndpoint>& Settings::get_custom_api_endpoints() const
+{
+    return custom_api_endpoints;
+}
+
+CustomApiEndpoint Settings::find_custom_api_endpoint(const std::string& id) const
+{
+    const auto it = std::find_if(custom_api_endpoints.begin(), custom_api_endpoints.end(),
+                                 [&id](const CustomApiEndpoint& item) { return item.id == id; });
+    if (it != custom_api_endpoints.end()) {
+        return *it;
+    }
+    return {};
+}
+
+std::string Settings::upsert_custom_api_endpoint(const CustomApiEndpoint& endpoint)
+{
+    CustomApiEndpoint copy = endpoint;
+    if (copy.id.empty()) {
+        copy.id = generate_custom_api_id();
+    }
+    copy.name = trim_copy(copy.name);
+    copy.description = trim_copy(copy.description);
+    copy.base_url = trim_copy(copy.base_url);
+    copy.api_key = trim_copy(copy.api_key);
+    copy.model = trim_copy(copy.model);
+    const auto it = std::find_if(custom_api_endpoints.begin(), custom_api_endpoints.end(),
+                                 [&copy](const CustomApiEndpoint& item) { return item.id == copy.id; });
+    if (it != custom_api_endpoints.end()) {
+        *it = copy;
+    } else {
+        custom_api_endpoints.push_back(copy);
+    }
+    return copy.id;
+}
+
+void Settings::remove_custom_api_endpoint(const std::string& id)
+{
+    custom_api_endpoints.erase(std::remove_if(custom_api_endpoints.begin(),
+                                             custom_api_endpoints.end(),
+                                             [&id](const CustomApiEndpoint& item) { return item.id == id; }),
+                               custom_api_endpoints.end());
+    if (active_custom_api_id == id) {
+        active_custom_api_id.clear();
+    }
+}
+
+
+bool Settings::is_llm_chosen() const {
+    return llm_choice != LLMChoice::Unset;
+}
+
+CategoryLanguage Settings::get_category_language() const
+{
+    return category_language;
+}
+
+void Settings::set_category_language(CategoryLanguage language)
+{
+    category_language = language;
+}
+
+
+bool Settings::get_use_subcategories() const
+{
+    return use_subcategories;
+}
+
+
+void Settings::set_use_subcategories(bool value)
+{
+    use_subcategories = value;
+}
+
+bool Settings::get_use_consistency_hints() const
+{
+    return use_consistency_hints;
+}
+
+void Settings::set_use_consistency_hints(bool value)
+{
+    use_consistency_hints = value;
+}
+
+
+bool Settings::get_categorize_files() const
+{
+    return categorize_files;
+}
+
+
+void Settings::set_categorize_files(bool value)
+{
+    categorize_files = value;
+}
+
+
+bool Settings::get_categorize_directories() const
+{
+    return categorize_directories;
+}
+
+
+void Settings::set_categorize_directories(bool value)
+{
+    categorize_directories = value;
+}
+
+bool Settings::get_include_subdirectories() const
+{
+    return include_subdirectories;
+}
+
+void Settings::set_include_subdirectories(bool value)
+{
+    include_subdirectories = value;
+}
+
+bool Settings::get_analyze_images_by_content() const
+{
+    return analyze_images_by_content;
+}
+
+void Settings::set_analyze_images_by_content(bool value)
+{
+    analyze_images_by_content = value;
+}
+
+bool Settings::get_offer_rename_images() const
+{
+    return offer_rename_images;
+}
+
+void Settings::set_offer_rename_images(bool value)
+{
+    offer_rename_images = value;
+}
+
+bool Settings::get_image_options_expanded() const
+{
+    return image_options_expanded;
+}
+
+void Settings::set_image_options_expanded(bool value)
+{
+    image_options_expanded = value;
+}
+
+bool Settings::get_rename_images_only() const
+{
+    return rename_images_only;
+}
+
+void Settings::set_rename_images_only(bool value)
+{
+    rename_images_only = value;
+}
+
+bool Settings::get_process_images_only() const
+{
+    return process_images_only;
+}
+
+void Settings::set_process_images_only(bool value)
+{
+    process_images_only = value;
+}
+
+bool Settings::get_analyze_documents_by_content() const
+{
+    return analyze_documents_by_content;
+}
+
+void Settings::set_analyze_documents_by_content(bool value)
+{
+    analyze_documents_by_content = value;
+}
+
+bool Settings::get_offer_rename_documents() const
+{
+    return offer_rename_documents;
+}
+
+void Settings::set_offer_rename_documents(bool value)
+{
+    offer_rename_documents = value;
+}
+
+bool Settings::get_document_options_expanded() const
+{
+    return document_options_expanded;
+}
+
+void Settings::set_document_options_expanded(bool value)
+{
+    document_options_expanded = value;
+}
+
+bool Settings::get_rename_documents_only() const
+{
+    return rename_documents_only;
+}
+
+void Settings::set_rename_documents_only(bool value)
+{
+    rename_documents_only = value;
+}
+
+bool Settings::get_process_documents_only() const
+{
+    return process_documents_only;
+}
+
+void Settings::set_process_documents_only(bool value)
+{
+    process_documents_only = value;
+}
+
+bool Settings::get_add_document_date_to_category() const
+{
+    return add_document_date_to_category;
+}
+
+void Settings::set_add_document_date_to_category(bool value)
+{
+    add_document_date_to_category = value;
+}
+
+
+std::string Settings::get_sort_folder() const
+{
+    return sort_folder;
+}
+
+
+void Settings::set_sort_folder(const std::string &path)
+{
+    this->sort_folder = path;
+}
+
+bool Settings::get_consistency_pass_enabled() const
+{
+    return consistency_pass_enabled;
+}
+
+void Settings::set_consistency_pass_enabled(bool value)
+{
+    consistency_pass_enabled = value;
+}
+
+bool Settings::get_development_prompt_logging() const
+{
+    return development_prompt_logging;
+}
+
+void Settings::set_development_prompt_logging(bool value)
+{
+    development_prompt_logging = value;
+}
+
+bool Settings::get_use_whitelist() const
+{
+    return use_whitelist;
+}
+
+void Settings::set_use_whitelist(bool value)
+{
+    use_whitelist = value;
+}
+
+std::string Settings::get_active_whitelist() const
+{
+    return active_whitelist;
+}
+
+void Settings::set_active_whitelist(const std::string& name)
+{
+    active_whitelist = name;
+}
+
+
+void Settings::set_skipped_version(const std::string &version) {
+    skipped_version = version;
+}
+
+
+std::string Settings::get_skipped_version()
+{
+    return skipped_version;
+}
+
+
+void Settings::set_show_file_explorer(bool value)
+{
+    show_file_explorer = value;
+}
+
+
+bool Settings::get_show_file_explorer() const
+{
+    return show_file_explorer;
+}
+
+bool Settings::get_suitability_benchmark_completed() const
+{
+    return suitability_benchmark_completed;
+}
+
+bool Settings::get_suitability_benchmark_suppressed() const
+{
+    return suitability_benchmark_suppressed;
+}
+
+void Settings::set_suitability_benchmark_completed(bool value)
+{
+    suitability_benchmark_completed = value;
+}
+
+void Settings::set_suitability_benchmark_suppressed(bool value)
+{
+    suitability_benchmark_suppressed = value;
+}
+
+std::string Settings::get_benchmark_last_report() const
+{
+    return benchmark_last_report;
+}
+
+void Settings::set_benchmark_last_report(const std::string& value)
+{
+    benchmark_last_report = value;
+}
+
+std::string Settings::get_benchmark_last_run() const
+{
+    return benchmark_last_run;
+}
+
+void Settings::set_benchmark_last_run(const std::string& value)
+{
+    benchmark_last_run = value;
+}
+
+
+Language Settings::get_language() const
+{
+    return language;
+}
+
+
+void Settings::set_language(Language value)
+{
+    language = value;
+}
+
+int Settings::get_total_categorized_files() const
+{
+    return categorized_file_count;
+}
+
+void Settings::add_categorized_files(int count)
+{
+    if (count <= 0) {
+        return;
+    }
+    categorized_file_count += count;
+}
+
+int Settings::get_next_support_prompt_threshold() const
+{
+    return next_support_prompt_threshold;
+}
+
+void Settings::set_next_support_prompt_threshold(int threshold)
+{
+    if (threshold < 100) {
+        threshold = 100;
+    }
+    next_support_prompt_threshold = threshold;
+}
+
+std::vector<std::string> Settings::get_allowed_categories() const
+{
+    return allowed_categories;
+}
+
+void Settings::set_allowed_categories(std::vector<std::string> values)
+{
+    allowed_categories = std::move(values);
+}
+
+std::vector<std::string> Settings::get_allowed_subcategories() const
+{
+    return allowed_subcategories;
+}
+
+void Settings::set_allowed_subcategories(std::vector<std::string> values)
+{
+    allowed_subcategories = std::move(values);
+}

@@ -1,0 +1,25 @@
+name: BSD
+on: [push]
+permissions:
+  contents: read
+jobs:
+  NetBSD:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: NetBSD test
+      uses: vmactions/netbsd-vm@v1
+      with:
+        usesh: true
+        copyback: false
+        prepare: |
+          /usr/sbin/pkg_add cmake zstd py313-pip
+          /usr/pkg/bin/pip-3.13 install nihtest
+          # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions#adding-a-system-path
+          echo "/usr/pkg/bin" >> "$GITHUB_PATH"
+        run: |
+          cmake -E make_directory ${{runner.workspace}}/build
+          cmake ${{ matrix.cmake_extra }} ${{github.workspace}}
+          cmake --build . --config Release
+          ctest --output-on-failure -V -C Release
