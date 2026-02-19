@@ -92,3 +92,19 @@ TEST_CASE("Settings persists options group expansion state") {
     REQUIRE(reloaded.get_image_options_expanded());
     REQUIRE_FALSE(reloaded.get_document_options_expanded());
 }
+
+TEST_CASE("Settings persists image EXIF date/place rename toggle") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_offer_rename_images(true);
+    settings.set_add_image_date_place_to_filename(true);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_offer_rename_images());
+    REQUIRE(reloaded.get_add_image_date_place_to_filename());
+}

@@ -20,6 +20,7 @@
 #include "UiTranslator.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "DocumentTextAnalyzer.hpp"
+#include "ImageRenameMetadataService.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -727,6 +728,12 @@ void MainApp::connect_checkbox_signals()
         });
     }
 
+    if (add_image_date_place_to_filename_checkbox) {
+        connect(add_image_date_place_to_filename_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_add_image_date_place_to_filename(checked);
+        });
+    }
+
     if (offer_rename_images_checkbox) {
         connect(offer_rename_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
             if (!checked && rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) {
@@ -734,6 +741,10 @@ void MainApp::connect_checkbox_signals()
                 rename_images_only_checkbox->setChecked(false);
             }
             settings.set_offer_rename_images(checked);
+            if (add_image_date_place_to_filename_checkbox) {
+                settings.set_add_image_date_place_to_filename(
+                    add_image_date_place_to_filename_checkbox->isChecked());
+            }
             if (rename_images_only_checkbox) {
                 settings.set_rename_images_only(rename_images_only_checkbox->isChecked());
             }
@@ -925,6 +936,11 @@ void MainApp::restore_tree_settings()
         QSignalBlocker blocker(process_images_only_checkbox);
         process_images_only_checkbox->setChecked(settings.get_process_images_only());
     }
+    if (add_image_date_place_to_filename_checkbox) {
+        QSignalBlocker blocker(add_image_date_place_to_filename_checkbox);
+        add_image_date_place_to_filename_checkbox->setChecked(
+            settings.get_add_image_date_place_to_filename());
+    }
     if (offer_rename_images_checkbox) {
         QSignalBlocker blocker(offer_rename_images_checkbox);
         offer_rename_images_checkbox->setChecked(settings.get_offer_rename_images());
@@ -1045,6 +1061,10 @@ void MainApp::sync_ui_to_settings()
     if (process_images_only_checkbox) {
         settings.set_process_images_only(process_images_only_checkbox->isChecked());
     }
+    if (add_image_date_place_to_filename_checkbox) {
+        settings.set_add_image_date_place_to_filename(
+            add_image_date_place_to_filename_checkbox->isChecked());
+    }
     if (offer_rename_images_checkbox) {
         settings.set_offer_rename_images(offer_rename_images_checkbox->isChecked());
     }
@@ -1121,6 +1141,10 @@ QCheckBox* MainAppTestAccess::analyze_images_checkbox(MainApp& app) {
 
 QCheckBox* MainAppTestAccess::process_images_only_checkbox(MainApp& app) {
     return app.process_images_only_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::add_image_date_place_to_filename_checkbox(MainApp& app) {
+    return app.add_image_date_place_to_filename_checkbox;
 }
 
 QCheckBox* MainAppTestAccess::offer_rename_images_checkbox(MainApp& app) {
@@ -1522,6 +1546,7 @@ void MainApp::update_image_analysis_controls()
 {
     if (!analyze_images_checkbox ||
         !process_images_only_checkbox ||
+        !add_image_date_place_to_filename_checkbox ||
         !offer_rename_images_checkbox ||
         !rename_images_only_checkbox) {
         return;
@@ -1531,6 +1556,8 @@ void MainApp::update_image_analysis_controls()
     process_images_only_checkbox->setEnabled(analysis_enabled);
     offer_rename_images_checkbox->setEnabled(analysis_enabled);
     rename_images_only_checkbox->setEnabled(analysis_enabled);
+    add_image_date_place_to_filename_checkbox->setEnabled(
+        analysis_enabled && offer_rename_images_checkbox->isChecked());
     if (image_options_toggle_button) {
         image_options_toggle_button->setEnabled(analysis_enabled);
         const bool expanded = image_options_toggle_button->isChecked();
@@ -2159,6 +2186,10 @@ void MainApp::perform_analysis()
         const bool offer_document_renames = analyze_documents && allow_document_renames;
         const bool wants_visual_rename = analyze_images && allow_image_renames && !rename_images_only;
         const bool wants_document_rename = analyze_documents && allow_document_renames && !rename_documents_only;
+        const bool add_image_date_place_prefixes =
+            analyze_images &&
+            allow_image_renames &&
+            settings.get_add_image_date_place_to_filename();
         const bool add_document_date = analyze_documents && settings.get_add_document_date_to_category();
         const bool use_full_path_keys = settings.get_include_subdirectories();
 
@@ -2670,6 +2701,22 @@ void MainApp::perform_analysis()
             if (!image_stage_entries.empty()) {
                 set_progress_active_stage(ProgressStageId::ImageAnalysis);
             }
+
+            std::unique_ptr<ImageRenameMetadataService> image_metadata_service;
+            if (add_image_date_place_prefixes) {
+                image_metadata_service =
+                    std::make_unique<ImageRenameMetadataService>(settings.get_config_dir());
+            }
+            auto enrich_image_suggestion = [&](const FileEntry& entry,
+                                               const std::string& raw_suggested_name) {
+                if (raw_suggested_name.empty() || !image_metadata_service) {
+                    return raw_suggested_name;
+                }
+                return image_metadata_service->enrich_suggested_name(
+                    Utils::utf8_to_path(entry.full_path),
+                    raw_suggested_name);
+            };
+
             std::string error;
             auto visual_paths = resolve_visual_llm_paths(&error);
             if (!visual_paths) {
@@ -2754,7 +2801,8 @@ void MainApp::perform_analysis()
                 if (!rename_images_only && !visual_only) {
                     other_entries.push_back(entry);
                 }
-                const std::string suggested_name = already_renamed ? std::string() : entry.file_name;
+                const std::string suggested_name = already_renamed ? std::string()
+                                                                   : enrich_image_suggestion(entry, entry.file_name);
                 const std::string ui_suggested_name =
                     (allow_image_renames || rename_images_only) ? suggested_name : std::string();
                 image_info.emplace(entry_key(entry),
@@ -2844,16 +2892,18 @@ void MainApp::perform_analysis()
                             if (has_cached_suggestion) {
                                 append_progress(to_utf8(tr("[VISION] Using cached suggestion for %1")
                                                             .arg(QString::fromStdString(entry.file_name))));
+                                const std::string prompt_name = cached_suggestion_it->second;
+                                const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
                                 const std::string suggested_name = already_renamed ? std::string()
-                                                                                   : cached_suggestion_it->second;
+                                                                                   : enriched_name;
                                 const std::string ui_suggested_name =
                                     (allow_image_renames || rename_images_only) ? suggested_name : std::string();
                                 const auto entry_path = Utils::utf8_to_path(entry.full_path);
                                 const auto prompt_path = Utils::path_to_utf8(
-                                    entry_path.parent_path() / Utils::utf8_to_path(cached_suggestion_it->second));
+                                    entry_path.parent_path() / Utils::utf8_to_path(prompt_name));
                                 image_info.emplace(entry_key(entry),
                                                    ImageAnalysisInfo{ui_suggested_name,
-                                                                     cached_suggestion_it->second,
+                                                                     prompt_name,
                                                                      prompt_path});
                                 if (rename_images_only) {
                                     persist_rename_only_progress(entry, suggested_name);
@@ -2871,11 +2921,13 @@ void MainApp::perform_analysis()
                             append_progress(to_utf8(tr("[VISION] Analyzing %1")
                                                         .arg(QString::fromStdString(entry.file_name))));
                             const auto analysis = analyzer->analyze(entry.full_path);
+                            const std::string prompt_name = analysis.suggested_name;
+                            const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
                             const auto entry_path = Utils::utf8_to_path(entry.full_path);
                             const auto prompt_path = Utils::path_to_utf8(
-                                entry_path.parent_path() / Utils::utf8_to_path(analysis.suggested_name));
+                                entry_path.parent_path() / Utils::utf8_to_path(prompt_name));
 
-                            const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
+                            const std::string suggested_name = already_renamed ? std::string() : enriched_name;
                             const std::string ui_suggested_name =
                                 (allow_image_renames || rename_images_only) ? suggested_name : std::string();
                             if (!rename_images_only) {
@@ -2883,7 +2935,7 @@ void MainApp::perform_analysis()
                             }
                             image_info.emplace(entry_key(entry),
                                                ImageAnalysisInfo{ui_suggested_name,
-                                                                 analysis.suggested_name,
+                                                                 prompt_name,
                                                                  prompt_path});
                             if (rename_images_only) {
                                 persist_rename_only_progress(entry, suggested_name);

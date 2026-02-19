@@ -101,6 +101,16 @@ public:
      */
     void set_offer_rename_images(bool value);
     /**
+     * @brief Returns whether image filename suggestions should include EXIF date/place prefixes.
+     * @return True when EXIF date/place prefixes are enabled for image rename suggestions.
+     */
+    bool get_add_image_date_place_to_filename() const;
+    /**
+     * @brief Enables or disables adding EXIF date/place prefixes to image rename suggestions.
+     * @param value True to enable EXIF date/place prefixes.
+     */
+    void set_add_image_date_place_to_filename(bool value);
+    /**
      * @brief Returns whether the image options group is expanded.
      * @return True when the image options group should be expanded.
      */
@@ -299,6 +309,7 @@ private:
     bool include_subdirectories{false};
     bool analyze_images_by_content{false};
     bool offer_rename_images{false};
+    bool add_image_date_place_to_filename{false};
     bool image_options_expanded{false};
     bool rename_images_only{false};
     bool process_images_only{false};

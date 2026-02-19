@@ -196,9 +196,11 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     image_rename_layout->setContentsMargins(24, 0, 0, 0);
     image_rename_layout->setSpacing(2);
     app.process_images_only_checkbox = new QCheckBox(central);
+    app.add_image_date_place_to_filename_checkbox = new QCheckBox(central);
     app.offer_rename_images_checkbox = new QCheckBox(central);
     app.rename_images_only_checkbox = new QCheckBox(central);
     image_rename_layout->addWidget(app.process_images_only_checkbox);
+    image_rename_layout->addWidget(app.add_image_date_place_to_filename_checkbox);
     image_rename_layout->addWidget(app.offer_rename_images_checkbox);
     image_rename_layout->addWidget(app.rename_images_only_checkbox);
     app.image_options_container->setVisible(false);
@@ -305,6 +307,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.include_subdirectories_checkbox,
             app.analyze_images_checkbox,
             app.process_images_only_checkbox,
+            app.add_image_date_place_to_filename_checkbox,
             app.offer_rename_images_checkbox,
             app.rename_images_only_checkbox,
             app.image_options_toggle_button,
