@@ -1171,6 +1171,12 @@ std::string ImageRenameMetadataService::enrich_suggested_name(
     return apply_prefix_to_filename(suggested_name, metadata.capture_date, place_prefix);
 }
 
+std::optional<std::string> ImageRenameMetadataService::extract_capture_date(
+    const std::filesystem::path& image_path) const
+{
+    return extract_exif_metadata(image_path).capture_date;
+}
+
 std::string ImageRenameMetadataService::apply_prefix_to_filename(
     const std::string& suggested_name,
     const std::optional<std::string>& date_prefix,

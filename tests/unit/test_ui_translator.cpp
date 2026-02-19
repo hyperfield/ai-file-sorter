@@ -46,6 +46,7 @@ struct UiTranslatorTestHarness {
     QPointer<QCheckBox> include_subdirectories_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> analyze_images_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> process_images_only_checkbox{new QCheckBox(&window)};
+    QPointer<QCheckBox> add_image_date_to_category_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> add_image_date_place_to_filename_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> offer_rename_images_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> rename_images_only_checkbox{new QCheckBox(&window)};
@@ -178,6 +179,7 @@ struct UiTranslatorTestHarness {
                 include_subdirectories_checkbox,
                 analyze_images_checkbox,
                 process_images_only_checkbox,
+                add_image_date_to_category_checkbox,
                 add_image_date_place_to_filename_checkbox,
                 offer_rename_images_checkbox,
                 rename_images_only_checkbox,
@@ -279,6 +281,8 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.analyze_images_checkbox->text() == QStringLiteral("Analyze picture files by content (can be slow)"));
     REQUIRE(h.process_images_only_checkbox->text() ==
             QStringLiteral("Process picture files only (ignore any other files)"));
+    REQUIRE(h.add_image_date_to_category_checkbox->text() ==
+            QStringLiteral("Add image creation date (if available) to category name"));
     REQUIRE(h.add_image_date_place_to_filename_checkbox->text() ==
             QStringLiteral("Add photo date and place to filename (if available)"));
     REQUIRE(h.offer_rename_images_checkbox->text() == QStringLiteral("Offer to rename picture files"));

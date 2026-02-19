@@ -55,27 +55,34 @@ TEST_CASE("Image analysis checkboxes enable and enforce rename-only behavior") {
 
     QCheckBox* analyze = MainAppTestAccess::analyze_images_checkbox(window);
     QCheckBox* process_only = MainAppTestAccess::process_images_only_checkbox(window);
+    QCheckBox* add_date_category = MainAppTestAccess::add_image_date_to_category_checkbox(window);
     QCheckBox* add_date_place = MainAppTestAccess::add_image_date_place_to_filename_checkbox(window);
     QCheckBox* offer = MainAppTestAccess::offer_rename_images_checkbox(window);
     QCheckBox* rename_only = MainAppTestAccess::rename_images_only_checkbox(window);
 
     REQUIRE(analyze != nullptr);
     REQUIRE(process_only != nullptr);
+    REQUIRE(add_date_category != nullptr);
     REQUIRE(add_date_place != nullptr);
     REQUIRE(offer != nullptr);
     REQUIRE(rename_only != nullptr);
 
     REQUIRE_FALSE(analyze->isChecked());
     REQUIRE_FALSE(process_only->isEnabled());
+    REQUIRE_FALSE(add_date_category->isEnabled());
     REQUIRE_FALSE(add_date_place->isEnabled());
     REQUIRE_FALSE(offer->isEnabled());
     REQUIRE_FALSE(rename_only->isEnabled());
 
     analyze->setChecked(true);
     REQUIRE(process_only->isEnabled());
+    REQUIRE(add_date_category->isEnabled());
     REQUIRE_FALSE(add_date_place->isEnabled());
     REQUIRE(offer->isEnabled());
     REQUIRE(rename_only->isEnabled());
+
+    add_date_category->setChecked(true);
+    REQUIRE(settings.get_add_image_date_to_category());
 
     offer->setChecked(true);
     REQUIRE(add_date_place->isEnabled());
@@ -84,11 +91,14 @@ TEST_CASE("Image analysis checkboxes enable and enforce rename-only behavior") {
 
     rename_only->setChecked(true);
     REQUIRE(offer->isChecked());
+    REQUIRE_FALSE(add_date_category->isEnabled());
 
     offer->setChecked(false);
     REQUIRE_FALSE(add_date_place->isEnabled());
     REQUIRE(add_date_place->isChecked());
     REQUIRE_FALSE(rename_only->isChecked());
+    REQUIRE(add_date_category->isEnabled());
+    REQUIRE(add_date_category->isChecked());
 }
 
 TEST_CASE("Image rename-only does not disable categorization unless processing images only") {

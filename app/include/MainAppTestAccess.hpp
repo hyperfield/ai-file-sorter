@@ -65,6 +65,12 @@ public:
      */
     static QCheckBox* process_images_only_checkbox(MainApp& app);
     /**
+     * @brief Access the \"Add image creation date to category name\" checkbox.
+     * @param app MainApp instance.
+     * @return Pointer to the checkbox, or nullptr if unavailable.
+     */
+    static QCheckBox* add_image_date_to_category_checkbox(MainApp& app);
+    /**
      * @brief Access the \"Add photo date and place to filename\" checkbox.
      * @param app MainApp instance.
      * @return Pointer to the checkbox, or nullptr if unavailable.

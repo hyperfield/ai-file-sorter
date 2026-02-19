@@ -44,6 +44,7 @@ public:
         QPointer<QCheckBox>& include_subdirectories_checkbox;
         QPointer<QCheckBox>& analyze_images_checkbox;
         QPointer<QCheckBox>& process_images_only_checkbox;
+        QPointer<QCheckBox>& add_image_date_to_category_checkbox;
         QPointer<QCheckBox>& add_image_date_place_to_filename_checkbox;
         QPointer<QCheckBox>& offer_rename_images_checkbox;
         QPointer<QCheckBox>& rename_images_only_checkbox;

@@ -197,6 +197,20 @@ TEST_CASE("ImageRenameMetadataService reads TIFF date metadata for rename prefix
     std::filesystem::remove_all(temp_dir);
 }
 
+TEST_CASE("ImageRenameMetadataService extracts TIFF capture date")
+{
+    const auto temp_dir = make_temp_dir("tiff_date");
+    const auto image_path = temp_dir / "sample.tiff";
+    write_binary_file(image_path, make_tiff_with_datetime("2016:11:04 09:30:00"));
+
+    ImageRenameMetadataService service(temp_dir.string());
+    const auto date = service.extract_capture_date(image_path);
+
+    REQUIRE(date.has_value());
+    CHECK(*date == "2016-11-04");
+    std::filesystem::remove_all(temp_dir);
+}
+
 TEST_CASE("ImageRenameMetadataService reads PNG eXIf date metadata for rename prefix")
 {
     const auto temp_dir = make_temp_dir("png");

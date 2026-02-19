@@ -111,6 +111,16 @@ public:
      */
     void set_add_image_date_place_to_filename(bool value);
     /**
+     * @brief Returns whether image creation dates should be appended to category names.
+     * @return True when image creation dates should be appended to categories.
+     */
+    bool get_add_image_date_to_category() const;
+    /**
+     * @brief Enables or disables appending image creation dates to category names.
+     * @param value True to append image creation dates to categories.
+     */
+    void set_add_image_date_to_category(bool value);
+    /**
      * @brief Returns whether the image options group is expanded.
      * @return True when the image options group should be expanded.
      */
@@ -310,6 +320,7 @@ private:
     bool analyze_images_by_content{false};
     bool offer_rename_images{false};
     bool add_image_date_place_to_filename{false};
+    bool add_image_date_to_category{false};
     bool image_options_expanded{false};
     bool rename_images_only{false};
     bool process_images_only{false};

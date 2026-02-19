@@ -728,6 +728,12 @@ void MainApp::connect_checkbox_signals()
         });
     }
 
+    if (add_image_date_to_category_checkbox) {
+        connect(add_image_date_to_category_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_add_image_date_to_category(checked);
+        });
+    }
+
     if (add_image_date_place_to_filename_checkbox) {
         connect(add_image_date_place_to_filename_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
             settings.set_add_image_date_place_to_filename(checked);
@@ -941,6 +947,11 @@ void MainApp::restore_tree_settings()
         add_image_date_place_to_filename_checkbox->setChecked(
             settings.get_add_image_date_place_to_filename());
     }
+    if (add_image_date_to_category_checkbox) {
+        QSignalBlocker blocker(add_image_date_to_category_checkbox);
+        add_image_date_to_category_checkbox->setChecked(
+            settings.get_add_image_date_to_category());
+    }
     if (offer_rename_images_checkbox) {
         QSignalBlocker blocker(offer_rename_images_checkbox);
         offer_rename_images_checkbox->setChecked(settings.get_offer_rename_images());
@@ -1065,6 +1076,10 @@ void MainApp::sync_ui_to_settings()
         settings.set_add_image_date_place_to_filename(
             add_image_date_place_to_filename_checkbox->isChecked());
     }
+    if (add_image_date_to_category_checkbox) {
+        settings.set_add_image_date_to_category(
+            add_image_date_to_category_checkbox->isChecked());
+    }
     if (offer_rename_images_checkbox) {
         settings.set_offer_rename_images(offer_rename_images_checkbox->isChecked());
     }
@@ -1141,6 +1156,10 @@ QCheckBox* MainAppTestAccess::analyze_images_checkbox(MainApp& app) {
 
 QCheckBox* MainAppTestAccess::process_images_only_checkbox(MainApp& app) {
     return app.process_images_only_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::add_image_date_to_category_checkbox(MainApp& app) {
+    return app.add_image_date_to_category_checkbox;
 }
 
 QCheckBox* MainAppTestAccess::add_image_date_place_to_filename_checkbox(MainApp& app) {
@@ -1546,6 +1565,7 @@ void MainApp::update_image_analysis_controls()
 {
     if (!analyze_images_checkbox ||
         !process_images_only_checkbox ||
+        !add_image_date_to_category_checkbox ||
         !add_image_date_place_to_filename_checkbox ||
         !offer_rename_images_checkbox ||
         !rename_images_only_checkbox) {
@@ -1553,9 +1573,11 @@ void MainApp::update_image_analysis_controls()
     }
 
     const bool analysis_enabled = analyze_images_checkbox->isChecked();
+    const bool rename_only = analysis_enabled && rename_images_only_checkbox->isChecked();
     process_images_only_checkbox->setEnabled(analysis_enabled);
     offer_rename_images_checkbox->setEnabled(analysis_enabled);
     rename_images_only_checkbox->setEnabled(analysis_enabled);
+    add_image_date_to_category_checkbox->setEnabled(analysis_enabled && !rename_only);
     add_image_date_place_to_filename_checkbox->setEnabled(
         analysis_enabled && offer_rename_images_checkbox->isChecked());
     if (image_options_toggle_button) {
@@ -2190,6 +2212,9 @@ void MainApp::perform_analysis()
             analyze_images &&
             allow_image_renames &&
             settings.get_add_image_date_place_to_filename();
+        const bool add_image_date_to_category =
+            analyze_images &&
+            settings.get_add_image_date_to_category();
         const bool add_document_date = analyze_documents && settings.get_add_document_date_to_category();
         const bool use_full_path_keys = settings.get_include_subdirectories();
 
@@ -2691,21 +2716,21 @@ void MainApp::perform_analysis()
         analyzed_image_entries.reserve(image_entries.size());
 
         std::unordered_map<std::string, DocumentAnalysisInfo> document_info;
+        std::unordered_map<std::string, std::string> image_dates;
         std::unordered_map<std::string, std::string> document_dates;
         std::vector<FileEntry> document_entries_for_llm;
         document_entries_for_llm.reserve(document_entries.size());
         std::vector<FileEntry> analyzed_document_entries;
         analyzed_document_entries.reserve(document_entries.size());
+        std::unique_ptr<ImageRenameMetadataService> image_metadata_service;
+        if (add_image_date_place_prefixes || add_image_date_to_category) {
+            image_metadata_service =
+                std::make_unique<ImageRenameMetadataService>(settings.get_config_dir());
+        }
 
         if (analyze_images && !image_entries.empty()) {
             if (!image_stage_entries.empty()) {
                 set_progress_active_stage(ProgressStageId::ImageAnalysis);
-            }
-
-            std::unique_ptr<ImageRenameMetadataService> image_metadata_service;
-            if (add_image_date_place_prefixes) {
-                image_metadata_service =
-                    std::make_unique<ImageRenameMetadataService>(settings.get_config_dir());
             }
             auto enrich_image_suggestion = [&](const FileEntry& entry,
                                                const std::string& raw_suggested_name) {
@@ -2715,6 +2740,19 @@ void MainApp::perform_analysis()
                 return image_metadata_service->enrich_suggested_name(
                     Utils::utf8_to_path(entry.full_path),
                     raw_suggested_name);
+            };
+            auto cache_image_date = [&](const FileEntry& entry) {
+                if (!add_image_date_to_category || !image_metadata_service) {
+                    return;
+                }
+                const std::string key = entry_key(entry);
+                if (image_dates.contains(key)) {
+                    return;
+                }
+                if (const auto date = image_metadata_service->extract_capture_date(
+                        Utils::utf8_to_path(entry.full_path))) {
+                    image_dates.emplace(key, *date);
+                }
             };
 
             std::string error;
@@ -2866,6 +2904,7 @@ void MainApp::perform_analysis()
                     }
                     const bool visual_only = cached_visual_indices.contains(entry_key(entry));
                     analyzed_image_entries.push_back(entry);
+                    cache_image_date(entry);
                     mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
                     handle_visual_failure(entry, std::string(), already_renamed, false, visual_only);
                     mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
@@ -2885,6 +2924,7 @@ void MainApp::perform_analysis()
                     const auto cached_suggestion_it = cached_image_suggestions.find(entry_key(entry));
                     const bool has_cached_suggestion = cached_suggestion_it != cached_image_suggestions.end();
                     analyzed_image_entries.push_back(entry);
+                    cache_image_date(entry);
                     mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
 
                     while (true) {
@@ -2995,6 +3035,7 @@ void MainApp::perform_analysis()
                             }
                             const bool pending_visual_only = cached_visual_indices.contains(entry_key(pending));
                             analyzed_image_entries.push_back(pending);
+                            cache_image_date(pending);
                             mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, pending);
                             handle_visual_failure(pending, std::string(), pending_renamed, false, pending_visual_only);
                             mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, pending);
@@ -3191,6 +3232,54 @@ void MainApp::perform_analysis()
             return std::string();
         };
 
+        auto apply_image_dates = [this, add_image_date_to_category, &image_dates, &file_key,
+                                  &image_metadata_service](std::vector<CategorizedFile>& results) {
+            if (!add_image_date_to_category) {
+                return;
+            }
+            for (auto& entry : results) {
+                if (entry.type != FileType::File) {
+                    continue;
+                }
+                const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                       Utils::utf8_to_path(entry.file_name);
+                if (!LlavaImageAnalyzer::is_supported_image(full_path)) {
+                    continue;
+                }
+                const std::string key = file_key(entry);
+                auto it = image_dates.find(key);
+                if (it == image_dates.end() && image_metadata_service) {
+                    if (const auto date = image_metadata_service->extract_capture_date(full_path)) {
+                        it = image_dates.emplace(key, *date).first;
+                    }
+                }
+                if (it == image_dates.end() || it->second.empty()) {
+                    continue;
+                }
+                if (entry.category.empty()) {
+                    continue;
+                }
+                const std::string suffix = "_" + it->second;
+                if (entry.category.size() >= suffix.size() &&
+                    entry.category.compare(entry.category.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                    continue;
+                }
+                entry.category += suffix;
+
+                DatabaseManager::ResolvedCategory resolved{entry.taxonomy_id, entry.category, entry.subcategory};
+                const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
+                db_manager.insert_or_update_file_with_categorization(
+                    entry.file_name,
+                    file_type_label,
+                    entry.file_path,
+                    resolved,
+                    entry.used_consistency_hints,
+                    entry.suggested_name,
+                    entry.rename_only,
+                    entry.rename_applied);
+            }
+        };
+
         auto apply_document_dates = [this, add_document_date, &document_dates, &file_key](std::vector<CategorizedFile>& results) {
             if (!add_document_date || document_dates.empty()) {
                 return;
@@ -3261,6 +3350,7 @@ void MainApp::perform_analysis()
                 {},
                 suggested_name_provider);
         }
+        apply_image_dates(other_results);
         apply_document_dates(other_results);
         update_stop();
 
@@ -3322,6 +3412,7 @@ void MainApp::perform_analysis()
                 update_stop();
             }
         }
+        apply_image_dates(image_results);
 
         std::vector<CategorizedFile> document_results;
         if (analyze_documents && !analyzed_document_entries.empty()) {

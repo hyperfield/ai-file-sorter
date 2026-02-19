@@ -36,6 +36,14 @@ public:
                                       const std::string& suggested_name);
 
     /**
+     * @brief Extracts the normalized capture date (`YYYY-MM-DD`) from image metadata.
+     *
+     * Returns `std::nullopt` when no supported metadata date is available.
+     */
+    std::optional<std::string> extract_capture_date(
+        const std::filesystem::path& image_path) const;
+
+    /**
      * @brief Utility used by tests and callers to compose prefixed filenames.
      */
     static std::string apply_prefix_to_filename(const std::string& suggested_name,
