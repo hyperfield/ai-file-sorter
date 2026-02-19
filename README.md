@@ -91,6 +91,10 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 
 ## Changelog
 
+## [1.7.0] - 2026-02-14
+
+- Added an image analysis option to append image creation dates (when available) to category names.
+
 ## [1.6.1] - 2026-02-06
 
 - Local text LLM now prompts to switch to CPU when GPU initialization or inference fails.
@@ -125,6 +129,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
+- **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
 - **Document content analysis (Text LLM)**: Analyze supported document files to summarize content and suggest filenames; uses the same selected LLM (local or remote).
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
@@ -171,10 +176,12 @@ Both files are required. If either one is missing, image analysis is disabled an
 
 ### Main window options
 
-Image analysis adds four checkboxes to the main window:
+Image analysis adds six checkboxes to the main window:
 
 - **Analyze picture files by content (can be slow)**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
 - **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
+- **Add image creation date (if available) to category name**: Appends `YYYY-MM-DD` from image metadata to the category label when available. Disabled when rename-only is enabled.
+- **Add photo date and place to filename (if available)**: Adds metadata-based date/place prefixes to suggested image filenames when available.
 - **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
 - **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
