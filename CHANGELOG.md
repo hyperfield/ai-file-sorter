@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## [1.7.0] - 2026-02-14
+
+- Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
+
+
 ## [1.6.1] - 2026-02-06
 
 - Local text LLM now prompts to switch to CPU when GPU initialization or inference fails.
