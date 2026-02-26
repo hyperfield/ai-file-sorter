@@ -3,10 +3,41 @@
 #include "CategorizationService.hpp"
 #include "CategorizationServiceTestAccess.hpp"
 #include "DatabaseManager.hpp"
+#include "ILLMClient.hpp"
 #include "CategoryLanguage.hpp"
 #include "Settings.hpp"
 #include "WhitelistStore.hpp"
 #include "TestHelpers.hpp"
+
+#include <atomic>
+#include <memory>
+
+namespace {
+class FixedResponseLLM : public ILLMClient {
+public:
+    FixedResponseLLM(std::shared_ptr<int> calls, std::string response)
+        : calls_(std::move(calls)), response_(std::move(response)) {}
+
+    std::string categorize_file(const std::string&,
+                                const std::string&,
+                                FileType,
+                                const std::string&) override {
+        ++(*calls_);
+        return response_;
+    }
+
+    std::string complete_prompt(const std::string&, int) override {
+        return std::string();
+    }
+
+    void set_prompt_logging_enabled(bool) override {
+    }
+
+private:
+    std::shared_ptr<int> calls_;
+    std::string response_;
+};
+} // namespace
 
 TEST_CASE("WhitelistStore initializes from settings and persists defaults") {
     TempDir base_dir;
@@ -82,4 +113,70 @@ TEST_CASE("CategorizationService builds category language context for Spanish") 
 
     REQUIRE_FALSE(context.empty());
     REQUIRE(context.find("Spanish") != std::string::npos);
+}
+
+TEST_CASE("CategorizationService parses category output without spaced colon delimiters") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "report.xlsx";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(calls, "Documents:Spreadsheets");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Documents");
+    CHECK(categorized.front().subcategory == "Spreadsheets");
+    CHECK(*calls == 1);
+}
+
+TEST_CASE("CategorizationService parses labeled category and subcategory lines") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "photo.jpg";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(calls, "Category: Images\nSubcategory: Photos");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Images");
+    CHECK(categorized.front().subcategory == "Photos");
+    CHECK(*calls == 1);
 }

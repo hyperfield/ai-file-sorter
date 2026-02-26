@@ -26,18 +26,133 @@ constexpr const char* kRemoteTimeoutEnv = "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT";
 constexpr const char* kCustomTimeoutEnv = "AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT";
 constexpr size_t kMaxConsistencyHints = 5;
 constexpr size_t kMaxLabelLength = 80;
+std::string to_lower_copy_str(std::string value);
 
-// Splits a "Category : Subcategory" string and sanitizes the labels.
-std::pair<std::string, std::string> split_category_subcategory(const std::string& input) {
-    const std::string delimiter = " : ";
+std::string trim_copy(std::string value) {
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
+    value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
+    return value;
+}
 
-    const auto pos = input.find(delimiter);
-    if (pos == std::string::npos) {
-        return {Utils::sanitize_path_label(input), ""};
+std::string strip_list_prefix(std::string line) {
+    line = trim_copy(std::move(line));
+    if (line.empty()) {
+        return line;
     }
 
-    auto category = input.substr(0, pos);
-    auto subcategory = input.substr(pos + delimiter.size());
+    if ((line.front() == '-' || line.front() == '*') && line.size() > 1 &&
+        std::isspace(static_cast<unsigned char>(line[1]))) {
+        return trim_copy(line.substr(1));
+    }
+
+    size_t idx = 0;
+    while (idx < line.size() && std::isdigit(static_cast<unsigned char>(line[idx]))) {
+        ++idx;
+    }
+    if (idx > 0 && idx + 1 < line.size() &&
+        (line[idx] == '.' || line[idx] == ')') &&
+        std::isspace(static_cast<unsigned char>(line[idx + 1]))) {
+        return trim_copy(line.substr(idx + 1));
+    }
+
+    return line;
+}
+
+bool has_alpha(const std::string& value) {
+    return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
+        return std::isalpha(ch);
+    });
+}
+
+bool split_inline_pair(const std::string& line, std::string& category, std::string& subcategory) {
+    for (const std::string delimiter : {std::string(" : "), std::string(":")}) {
+        const auto pos = line.find(delimiter);
+        if (pos == std::string::npos) {
+            continue;
+        }
+        std::string left = trim_copy(line.substr(0, pos));
+        std::string right = trim_copy(line.substr(pos + delimiter.size()));
+        if (left.size() < 2 || right.empty()) {
+            continue;
+        }
+        if (!has_alpha(left) || !has_alpha(right)) {
+            continue;
+        }
+        category = left;
+        subcategory = right;
+        return true;
+    }
+    return false;
+}
+
+// Splits common category/subcategory response variants and sanitizes the labels.
+std::pair<std::string, std::string> split_category_subcategory(const std::string& input) {
+    std::vector<std::string> lines;
+    lines.reserve(4);
+
+    std::istringstream iss(input);
+    std::string line;
+    while (std::getline(iss, line)) {
+        std::string cleaned = strip_list_prefix(std::move(line));
+        if (!cleaned.empty()) {
+            lines.push_back(std::move(cleaned));
+        }
+    }
+
+    if (lines.empty()) {
+        std::string fallback = Utils::sanitize_path_label(trim_copy(input));
+        return {fallback, ""};
+    }
+
+    std::string category;
+    std::string subcategory;
+
+    for (const auto& entry : lines) {
+        const auto colon = entry.find(':');
+        if (colon == std::string::npos) {
+            continue;
+        }
+
+        const std::string key = to_lower_copy_str(trim_copy(entry.substr(0, colon)));
+        const std::string value = trim_copy(entry.substr(colon + 1));
+        if (value.empty()) {
+            continue;
+        }
+
+        if (key == "category" || key == "main category") {
+            category = value;
+            continue;
+        }
+        if (key == "subcategory" || key == "sub category") {
+            subcategory = value;
+            continue;
+        }
+    }
+
+    if (category.empty() || subcategory.empty()) {
+        for (const auto& entry : lines) {
+            std::string parsed_category;
+            std::string parsed_subcategory;
+            if (!split_inline_pair(entry, parsed_category, parsed_subcategory)) {
+                continue;
+            }
+            if (category.empty()) {
+                category = std::move(parsed_category);
+            }
+            if (subcategory.empty()) {
+                subcategory = std::move(parsed_subcategory);
+            }
+            if (!category.empty() && !subcategory.empty()) {
+                break;
+            }
+        }
+    }
+
+    if (category.empty()) {
+        category = lines.front();
+    }
+
     return {Utils::sanitize_path_label(category), Utils::sanitize_path_label(subcategory)};
 }
 
