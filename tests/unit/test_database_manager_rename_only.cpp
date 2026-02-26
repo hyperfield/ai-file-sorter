@@ -71,3 +71,79 @@ TEST_CASE("DatabaseManager normalizes subcategory stopword suffixes for taxonomy
     auto photos = db.resolve_category("Images", "Photos");
     CHECK(photos.subcategory == "Photos");
 }
+
+TEST_CASE("DatabaseManager normalizes backup category synonyms for taxonomy matching") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    DatabaseManager db(base_dir.path().string());
+
+    auto archives = db.resolve_category("Archives", "General");
+    auto backup = db.resolve_category("backup files", "General");
+
+    REQUIRE(archives.taxonomy_id > 0);
+    CHECK(backup.taxonomy_id == archives.taxonomy_id);
+    CHECK(backup.category == archives.category);
+    CHECK(backup.category == "Archives");
+    CHECK(backup.subcategory == "General");
+}
+
+TEST_CASE("DatabaseManager normalizes image category synonyms and image media aliases") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    DatabaseManager db(base_dir.path().string());
+
+    auto images = db.resolve_category("Images", "Photos");
+    auto graphics = db.resolve_category("Graphics", "Photos");
+    auto media_images = db.resolve_category("Media", "Photos");
+    auto media_audio = db.resolve_category("Media", "Audio");
+
+    REQUIRE(images.taxonomy_id > 0);
+    CHECK(graphics.taxonomy_id == images.taxonomy_id);
+    CHECK(media_images.taxonomy_id == images.taxonomy_id);
+    CHECK(graphics.category == "Images");
+    CHECK(media_images.category == "Images");
+
+    CHECK(media_audio.category == "Media");
+    CHECK(media_audio.taxonomy_id != images.taxonomy_id);
+}
+
+TEST_CASE("DatabaseManager normalizes document category synonyms for taxonomy matching") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    DatabaseManager db(base_dir.path().string());
+
+    auto documents = db.resolve_category("Documents", "Reports");
+    auto texts = db.resolve_category("Texts", "Reports");
+    auto papers = db.resolve_category("Papers", "Reports");
+    auto spreadsheets = db.resolve_category("Spreadsheets", "Reports");
+
+    REQUIRE(documents.taxonomy_id > 0);
+    CHECK(texts.taxonomy_id == documents.taxonomy_id);
+    CHECK(papers.taxonomy_id == documents.taxonomy_id);
+    CHECK(spreadsheets.taxonomy_id == documents.taxonomy_id);
+    CHECK(texts.category == "Documents");
+    CHECK(papers.category == "Documents");
+    CHECK(spreadsheets.category == "Documents");
+}
+
+TEST_CASE("DatabaseManager normalizes installer and update category synonyms for taxonomy matching") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    DatabaseManager db(base_dir.path().string());
+
+    auto software = db.resolve_category("Software", "Installers");
+    auto installers = db.resolve_category("Installers", "Installers");
+    auto setup_files = db.resolve_category("Setup files", "Installers");
+    auto updates = db.resolve_category("Software Update", "Installers");
+    auto patches = db.resolve_category("Patches", "Installers");
+
+    REQUIRE(software.taxonomy_id > 0);
+    CHECK(installers.taxonomy_id == software.taxonomy_id);
+    CHECK(setup_files.taxonomy_id == software.taxonomy_id);
+    CHECK(updates.taxonomy_id == software.taxonomy_id);
+    CHECK(patches.taxonomy_id == software.taxonomy_id);
+    CHECK(installers.category == "Software");
+    CHECK(setup_files.category == "Software");
+    CHECK(updates.category == "Software");
+    CHECK(patches.category == "Software");
+}

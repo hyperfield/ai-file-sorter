@@ -446,6 +446,126 @@ static std::string strip_trailing_stopwords(const std::string& normalized) {
     return joined;
 }
 
+struct CanonicalCategoryLabel {
+    std::string normalized;
+    std::string display;
+};
+
+bool is_image_like_label(const std::string& normalized) {
+    if (normalized.empty()) {
+        return false;
+    }
+    static const std::unordered_set<std::string> kImageLike = {
+        "image", "images",
+        "image file", "image files",
+        "photo", "photos",
+        "graphic", "graphics",
+        "picture", "pictures",
+        "pic", "pics",
+        "screenshot", "screenshots",
+        "wallpaper", "wallpapers"
+    };
+    if (kImageLike.contains(normalized)) {
+        return true;
+    }
+    return kImageLike.contains(strip_trailing_stopwords(normalized));
+}
+
+CanonicalCategoryLabel canonicalize_category_label(const std::string& normalized_category,
+                                                   const std::string& normalized_subcategory) {
+    static const std::unordered_map<std::string, CanonicalCategoryLabel> kCategorySynonyms = {
+        {"archive", {"archives", "Archives"}},
+        {"archives", {"archives", "Archives"}},
+        {"backup", {"archives", "Archives"}},
+        {"backups", {"archives", "Archives"}},
+        {"backup file", {"archives", "Archives"}},
+        {"backup files", {"archives", "Archives"}},
+
+        {"document", {"documents", "Documents"}},
+        {"documents", {"documents", "Documents"}},
+        {"doc", {"documents", "Documents"}},
+        {"docs", {"documents", "Documents"}},
+        {"text", {"documents", "Documents"}},
+        {"texts", {"documents", "Documents"}},
+        {"paper", {"documents", "Documents"}},
+        {"papers", {"documents", "Documents"}},
+        {"report", {"documents", "Documents"}},
+        {"reports", {"documents", "Documents"}},
+        {"spreadsheet", {"documents", "Documents"}},
+        {"spreadsheets", {"documents", "Documents"}},
+        {"table", {"documents", "Documents"}},
+        {"tables", {"documents", "Documents"}},
+        {"office file", {"documents", "Documents"}},
+        {"office files", {"documents", "Documents"}},
+
+        {"software", {"software", "Software"}},
+        {"application", {"software", "Software"}},
+        {"applications", {"software", "Software"}},
+        {"app", {"software", "Software"}},
+        {"apps", {"software", "Software"}},
+        {"program", {"software", "Software"}},
+        {"programs", {"software", "Software"}},
+        {"installer", {"software", "Software"}},
+        {"installers", {"software", "Software"}},
+        {"installation", {"software", "Software"}},
+        {"installations", {"software", "Software"}},
+        {"installation file", {"software", "Software"}},
+        {"installation files", {"software", "Software"}},
+        {"software installation", {"software", "Software"}},
+        {"software installations", {"software", "Software"}},
+        {"software installation file", {"software", "Software"}},
+        {"software installation files", {"software", "Software"}},
+        {"setup", {"software", "Software"}},
+        {"setups", {"software", "Software"}},
+        {"setup file", {"software", "Software"}},
+        {"setup files", {"software", "Software"}},
+        {"update", {"software", "Software"}},
+        {"updates", {"software", "Software"}},
+        {"software update", {"software", "Software"}},
+        {"software updates", {"software", "Software"}},
+        {"patch", {"software", "Software"}},
+        {"patches", {"software", "Software"}},
+        {"upgrade", {"software", "Software"}},
+        {"upgrades", {"software", "Software"}},
+        {"updater", {"software", "Software"}},
+        {"updaters", {"software", "Software"}},
+
+        {"image", {"images", "Images"}},
+        {"images", {"images", "Images"}},
+        {"image file", {"images", "Images"}},
+        {"image files", {"images", "Images"}},
+        {"photo", {"images", "Images"}},
+        {"photos", {"images", "Images"}},
+        {"graphic", {"images", "Images"}},
+        {"graphics", {"images", "Images"}},
+        {"picture", {"images", "Images"}},
+        {"pictures", {"images", "Images"}},
+        {"pic", {"images", "Images"}},
+        {"pics", {"images", "Images"}},
+        {"screenshot", {"images", "Images"}},
+        {"screenshots", {"images", "Images"}},
+        {"wallpaper", {"images", "Images"}},
+        {"wallpapers", {"images", "Images"}}
+    };
+
+    if (auto it = kCategorySynonyms.find(normalized_category); it != kCategorySynonyms.end()) {
+        return it->second;
+    }
+
+    const std::string stripped_category = strip_trailing_stopwords(normalized_category);
+    if (auto it = kCategorySynonyms.find(stripped_category); it != kCategorySynonyms.end()) {
+        return it->second;
+    }
+
+    // "Media" can be broader than images, so only collapse when the paired subcategory is image-like.
+    if ((normalized_category == "media" || stripped_category == "media") &&
+        is_image_like_label(normalized_subcategory)) {
+        return {"images", "Images"};
+    }
+
+    return {normalized_category, ""};
+}
+
 double DatabaseManager::string_similarity(const std::string &a, const std::string &b) {
     if (a == b) {
         return 1.0;
@@ -707,6 +827,11 @@ DatabaseManager::resolve_category(const std::string &category,
 
     std::string norm_category = normalize_label(trimmed_category);
     std::string norm_subcategory = normalize_label(trimmed_subcategory);
+    const CanonicalCategoryLabel canonical_category = canonicalize_category_label(norm_category, norm_subcategory);
+    norm_category = canonical_category.normalized;
+    if (!canonical_category.display.empty()) {
+        trimmed_category = canonical_category.display;
+    }
     const std::string match_subcategory = strip_trailing_stopwords(norm_subcategory);
     std::string key = make_key(norm_category, match_subcategory);
 
