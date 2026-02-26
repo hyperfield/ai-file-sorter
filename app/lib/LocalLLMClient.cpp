@@ -6,7 +6,6 @@
 #include "llama.h"
 #include "gguf.h"
 #include "ggml-backend.h"
-#include "ggml-backend.h"
 #include <string>
 #include <vector>
 #include <cctype>
@@ -264,10 +263,37 @@ void load_ggml_backends_once(const std::shared_ptr<spdlog::logger>& logger) {
 using BackendMemoryInfo = TestHooks::BackendMemoryInfo;
 
 using BackendMemoryProbe = TestHooks::BackendMemoryProbe;
+using BackendAvailabilityProbe = TestHooks::BackendAvailabilityProbe;
 
 BackendMemoryProbe& backend_memory_probe_slot() {
     static BackendMemoryProbe probe;
     return probe;
+}
+
+BackendAvailabilityProbe& backend_availability_probe_slot() {
+    static BackendAvailabilityProbe probe;
+    return probe;
+}
+
+bool query_backend_available_impl(std::string_view backend_name) {
+    if (backend_name.empty()) {
+        return false;
+    }
+
+    const std::string backend_name_str(backend_name);
+    ggml_backend_reg_t backend_reg = ggml_backend_reg_by_name(backend_name_str.c_str());
+    if (!backend_reg) {
+        return false;
+    }
+
+    return ggml_backend_reg_dev_count(backend_reg) > 0;
+}
+
+bool resolve_backend_available(std::string_view backend_name) {
+    if (auto& probe = backend_availability_probe_slot()) {
+        return probe(backend_name);
+    }
+    return query_backend_available_impl(backend_name);
 }
 
 bool backend_name_matches(const char *name, std::string_view backend_name) {
@@ -350,6 +376,14 @@ void set_backend_memory_probe(BackendMemoryProbe probe) {
 
 void reset_backend_memory_probe() {
     backend_memory_probe_slot() = BackendMemoryProbe{};
+}
+
+void set_backend_availability_probe(BackendAvailabilityProbe probe) {
+    backend_availability_probe_slot() = std::move(probe);
+}
+
+void reset_backend_availability_probe() {
+    backend_availability_probe_slot() = BackendAvailabilityProbe{};
 }
 
 } // namespace TestHooks
@@ -1101,7 +1135,18 @@ bool finalize_vulkan_layers(const AutoGpuLayerEstimation& estimation,
 bool apply_vulkan_backend(const std::string& model_path,
                           llama_model_params& params,
                           const std::shared_ptr<spdlog::logger>& logger) {
+    load_ggml_backends_once(logger);
     set_env_var("GGML_DISABLE_CUDA", "1");
+
+    if (!resolve_backend_available("Vulkan")) {
+        params.n_gpu_layers = 0;
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+        set_env_var("LLAMA_ARG_DEVICE", "cpu");
+        if (logger) {
+            logger->warn("Vulkan backend unavailable; using CPU backend.");
+        }
+        return false;
+    }
 
     const auto vk_memory = resolve_backend_memory("vulkan");
     if (apply_vulkan_override(params, resolve_gpu_layer_override(), logger)) {
@@ -1109,11 +1154,13 @@ bool apply_vulkan_backend(const std::string& model_path,
     }
 
     if (!vk_memory.has_value()) {
-        params.n_gpu_layers = -1;
+        params.n_gpu_layers = 0;
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+        set_env_var("LLAMA_ARG_DEVICE", "cpu");
         if (logger) {
-            logger->warn("Vulkan backend memory metrics unavailable; leaving n_gpu_layers to llama.cpp auto (-1).");
+            logger->warn("Vulkan backend memory metrics unavailable; using CPU backend.");
         }
-        return true;
+        return false;
     }
 
     Utils::CudaMemoryInfo adjusted = cap_integrated_gpu_memory(*vk_memory, logger);

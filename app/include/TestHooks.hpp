@@ -20,6 +20,10 @@ using BackendMemoryProbe = std::function<std::optional<BackendMemoryInfo>(std::s
 void set_backend_memory_probe(BackendMemoryProbe probe);
 void reset_backend_memory_probe();
 
+using BackendAvailabilityProbe = std::function<bool(std::string_view backend_name)>;
+void set_backend_availability_probe(BackendAvailabilityProbe probe);
+void reset_backend_availability_probe();
+
 using CudaAvailabilityProbe = std::function<bool()>;
 void set_cuda_availability_probe(CudaAvailabilityProbe probe);
 void reset_cuda_availability_probe();

@@ -19,6 +19,7 @@ struct CudaProbeGuard {
 struct BackendProbeGuard {
     ~BackendProbeGuard() {
         TestHooks::reset_backend_memory_probe();
+        TestHooks::reset_backend_availability_probe();
     }
 };
 
@@ -84,7 +85,11 @@ TEST_CASE("Vulkan backend honors explicit override") {
     TempModelFile model;
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "12");
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", std::nullopt);
     BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return true;
+    });
     TestHooks::set_backend_memory_probe([](std::string_view) {
         return std::nullopt;
     });
@@ -98,7 +103,11 @@ TEST_CASE("Vulkan backend derives layer count from memory probe") {
     TempModelFile model(48, 8 * 1024 * 1024);
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", std::nullopt);
     BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return true;
+    });
 
     TestHooks::set_backend_memory_probe([](std::string_view) {
         TestHooks::BackendMemoryInfo info;
@@ -115,10 +124,48 @@ TEST_CASE("Vulkan backend derives layer count from memory probe") {
     REQUIRE(params.n_gpu_layers <= 48);
 }
 
+TEST_CASE("Vulkan backend falls back to CPU when memory metrics are unavailable") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+    EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return true;
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        return std::nullopt;
+    });
+
+    auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
+        model.path().string());
+    REQUIRE(params.n_gpu_layers == 0);
+}
+
+TEST_CASE("Vulkan backend falls back to CPU when unavailable") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+    EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return false;
+    });
+
+    auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
+        model.path().string());
+    REQUIRE(params.n_gpu_layers == 0);
+}
+
 TEST_CASE("LocalLLMClient declines GPU fallback when callback returns false") {
     TempModelFile model;
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "1");
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return true;
+    });
 
     bool called = false;
     try {
@@ -138,6 +185,11 @@ TEST_CASE("LocalLLMClient retries on CPU when fallback is accepted") {
     TempModelFile model;
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "1");
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return true;
+    });
 
     bool called = false;
     try {
