@@ -21,6 +21,7 @@
 #include "LlavaImageAnalyzer.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "ImageRenameMetadataService.hpp"
+#include "MediaRenameMetadataService.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -740,6 +741,13 @@ void MainApp::connect_checkbox_signals()
         });
     }
 
+    if (add_audio_video_metadata_to_filename_checkbox) {
+        connect(add_audio_video_metadata_to_filename_checkbox,
+                &QCheckBox::toggled,
+                this,
+                [this](bool checked) { settings.set_add_audio_video_metadata_to_filename(checked); });
+    }
+
     if (offer_rename_images_checkbox) {
         connect(offer_rename_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
             if (!checked && rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) {
@@ -947,6 +955,11 @@ void MainApp::restore_tree_settings()
         add_image_date_place_to_filename_checkbox->setChecked(
             settings.get_add_image_date_place_to_filename());
     }
+    if (add_audio_video_metadata_to_filename_checkbox) {
+        QSignalBlocker blocker(add_audio_video_metadata_to_filename_checkbox);
+        add_audio_video_metadata_to_filename_checkbox->setChecked(
+            settings.get_add_audio_video_metadata_to_filename());
+    }
     if (add_image_date_to_category_checkbox) {
         QSignalBlocker blocker(add_image_date_to_category_checkbox);
         add_image_date_to_category_checkbox->setChecked(
@@ -1076,6 +1089,10 @@ void MainApp::sync_ui_to_settings()
         settings.set_add_image_date_place_to_filename(
             add_image_date_place_to_filename_checkbox->isChecked());
     }
+    if (add_audio_video_metadata_to_filename_checkbox) {
+        settings.set_add_audio_video_metadata_to_filename(
+            add_audio_video_metadata_to_filename_checkbox->isChecked());
+    }
     if (add_image_date_to_category_checkbox) {
         settings.set_add_image_date_to_category(
             add_image_date_to_category_checkbox->isChecked());
@@ -1164,6 +1181,10 @@ QCheckBox* MainAppTestAccess::add_image_date_to_category_checkbox(MainApp& app) 
 
 QCheckBox* MainAppTestAccess::add_image_date_place_to_filename_checkbox(MainApp& app) {
     return app.add_image_date_place_to_filename_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::add_audio_video_metadata_to_filename_checkbox(MainApp& app) {
+    return app.add_audio_video_metadata_to_filename_checkbox;
 }
 
 QCheckBox* MainAppTestAccess::offer_rename_images_checkbox(MainApp& app) {
@@ -2215,6 +2236,8 @@ void MainApp::perform_analysis()
         const bool add_image_date_to_category =
             analyze_images &&
             settings.get_add_image_date_to_category();
+        const bool add_audio_video_metadata_to_filename =
+            settings.get_add_audio_video_metadata_to_filename();
         const bool add_document_date = analyze_documents && settings.get_add_document_date_to_category();
         const bool use_full_path_keys = settings.get_include_subdirectories();
 
@@ -2723,9 +2746,14 @@ void MainApp::perform_analysis()
         std::vector<FileEntry> analyzed_document_entries;
         analyzed_document_entries.reserve(document_entries.size());
         std::unique_ptr<ImageRenameMetadataService> image_metadata_service;
+        std::unique_ptr<MediaRenameMetadataService> media_metadata_service;
+        std::unordered_map<std::string, std::string> media_rename_suggestions;
         if (add_image_date_place_prefixes || add_image_date_to_category) {
             image_metadata_service =
                 std::make_unique<ImageRenameMetadataService>(settings.get_config_dir());
+        }
+        if (add_audio_video_metadata_to_filename) {
+            media_metadata_service = std::make_unique<MediaRenameMetadataService>();
         }
 
         if (analyze_images && !image_entries.empty()) {
@@ -3216,8 +3244,14 @@ void MainApp::perform_analysis()
             set_progress_active_stage(ProgressStageId::Categorization);
         }
 
-        auto suggested_name_provider = [allow_image_renames, allow_document_renames,
-                                        &image_info, &document_info, &entry_key](const FileEntry& entry) -> std::string {
+        auto suggested_name_provider = [allow_image_renames,
+                                        allow_document_renames,
+                                        add_audio_video_metadata_to_filename,
+                                        &image_info,
+                                        &document_info,
+                                        &media_metadata_service,
+                                        &media_rename_suggestions,
+                                        &entry_key](const FileEntry& entry) -> std::string {
             const std::string key = entry_key(entry);
             if (allow_image_renames) {
                 if (const auto it = image_info.find(key); it != image_info.end()) {
@@ -3228,6 +3262,23 @@ void MainApp::perform_analysis()
                 if (const auto it = document_info.find(key); it != document_info.end()) {
                     return it->second.suggested_name;
                 }
+            }
+            if (add_audio_video_metadata_to_filename &&
+                media_metadata_service &&
+                entry.type == FileType::File) {
+                const auto cache_it = media_rename_suggestions.find(key);
+                if (cache_it != media_rename_suggestions.end()) {
+                    return cache_it->second;
+                }
+                std::string suggestion;
+                if (MediaRenameMetadataService::is_supported_media(Utils::utf8_to_path(entry.full_path))) {
+                    if (const auto suggested = media_metadata_service->suggest_name(
+                            Utils::utf8_to_path(entry.full_path))) {
+                        suggestion = *suggested;
+                    }
+                }
+                media_rename_suggestions.emplace(key, suggestion);
+                return suggestion;
             }
             return std::string();
         };

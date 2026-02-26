@@ -111,6 +111,16 @@ public:
      */
     void set_add_image_date_place_to_filename(bool value);
     /**
+     * @brief Returns whether audio/video filename suggestions should include media metadata.
+     * @return True when audio/video metadata-based filename suggestions are enabled.
+     */
+    bool get_add_audio_video_metadata_to_filename() const;
+    /**
+     * @brief Enables or disables audio/video metadata-based filename suggestions.
+     * @param value True to enable metadata-based filename suggestions for audio/video files.
+     */
+    void set_add_audio_video_metadata_to_filename(bool value);
+    /**
      * @brief Returns whether image creation dates should be appended to category names.
      * @return True when image creation dates should be appended to categories.
      */
@@ -320,6 +330,7 @@ private:
     bool analyze_images_by_content{false};
     bool offer_rename_images{false};
     bool add_image_date_place_to_filename{false};
+    bool add_audio_video_metadata_to_filename{true};
     bool add_image_date_to_category{false};
     bool image_options_expanded{false};
     bool rename_images_only{false};

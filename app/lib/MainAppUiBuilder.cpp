@@ -209,6 +209,9 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     image_options_layout->addWidget(app.image_options_container);
     main_layout->addLayout(image_options_layout);
 
+    app.add_audio_video_metadata_to_filename_checkbox = new QCheckBox(central);
+    main_layout->addWidget(app.add_audio_video_metadata_to_filename_checkbox);
+
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);
     app.categorization_style_consistent_radio = new QRadioButton(central);
@@ -311,6 +314,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.process_images_only_checkbox,
             app.add_image_date_to_category_checkbox,
             app.add_image_date_place_to_filename_checkbox,
+            app.add_audio_video_metadata_to_filename_checkbox,
             app.offer_rename_images_checkbox,
             app.rename_images_only_checkbox,
             app.image_options_toggle_button,
