@@ -3,8 +3,10 @@
 This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. Some UI-centric tests are compiled only on non-Windows platforms and use the Qt offscreen platform plugin so they can run without a visible display.
 
 ## How to run tests
+- Configure tests (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
 - Build and run all tests: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
 - Run a single test case by name: `./build-tests/ai_file_sorter_tests "<test case name or pattern>"`
+- MediaInfo is expected from a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`); vendored MediaInfo directories/binaries are intentionally rejected by the build.
 
 ## Unit test catalog
 
@@ -282,6 +284,34 @@ Procedure: Compare the resolved taxonomy IDs and labels.
 Expected outcome: Both resolutions share the same taxonomy ID and normalized labels, while unrelated subcategories (e.g., "Photos") remain unchanged.
 Run: `./build-tests/ai_file_sorter_tests "DatabaseManager normalizes subcategory stopword suffixes for taxonomy matching"`
 
+#### Test case: DatabaseManager normalizes backup category synonyms for taxonomy matching
+Purpose: Ensure backup/archive category variants collapse to a single canonical taxonomy entry.
+Setup: Resolve `Archives` and `backup files` with the same subcategory.
+Procedure: Compare taxonomy IDs and canonical labels.
+Expected outcome: Both labels map to the same taxonomy entry with canonical category `Archives`.
+Run: `./build-tests/ai_file_sorter_tests "DatabaseManager normalizes backup category synonyms for taxonomy matching"`
+
+#### Test case: DatabaseManager normalizes image category synonyms and image media aliases
+Purpose: Ensure image-related category variants collapse while non-image media remains distinct.
+Setup: Resolve `Images`, `Graphics`, `Media + Photos`, and `Media + Audio`.
+Procedure: Compare taxonomy IDs and canonical labels.
+Expected outcome: `Images/Graphics/Media+Photos` share taxonomy and canonicalize to `Images`; `Media+Audio` remains `Media`.
+Run: `./build-tests/ai_file_sorter_tests "DatabaseManager normalizes image category synonyms and image media aliases"`
+
+#### Test case: DatabaseManager normalizes document category synonyms for taxonomy matching
+Purpose: Ensure document-like category variants collapse to `Documents`.
+Setup: Resolve `Documents`, `Texts`, `Papers`, and `Spreadsheets` with the same subcategory.
+Procedure: Compare taxonomy IDs and canonical labels.
+Expected outcome: All variants map to the same taxonomy entry with canonical category `Documents`.
+Run: `./build-tests/ai_file_sorter_tests "DatabaseManager normalizes document category synonyms for taxonomy matching"`
+
+#### Test case: DatabaseManager normalizes installer and update category synonyms for taxonomy matching
+Purpose: Ensure software/install/update category variants collapse to `Software`.
+Setup: Resolve `Software`, `Installers`, `Setup files`, `Software Update`, and `Patches`.
+Procedure: Compare taxonomy IDs and canonical labels.
+Expected outcome: All variants map to the same taxonomy entry with canonical category `Software`.
+Run: `./build-tests/ai_file_sorter_tests "DatabaseManager normalizes installer and update category synonyms for taxonomy matching"`
+
 ### `tests/unit/test_file_scanner.cpp`
 
 #### Test case: hidden files require explicit flag
@@ -468,6 +498,20 @@ Setup: Set the category language to Spanish.
 Procedure: Build the category language context string.
 Expected outcome: The context is non-empty and references "Spanish".
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService builds category language context for Spanish"`
+
+#### Test case: CategorizationService parses category output without spaced colon delimiters
+Purpose: Ensure category parsing accepts compact `Category:Subcategory` output.
+Setup: Use a fixed LLM stub response `Documents:Spreadsheets`.
+Procedure: Run `categorize_entries` for one file entry.
+Expected outcome: Parsed category is `Documents` and parsed subcategory is `Spreadsheets`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService parses category output without spaced colon delimiters"`
+
+#### Test case: CategorizationService parses labeled category and subcategory lines
+Purpose: Ensure category parsing accepts labeled multiline output.
+Setup: Use a fixed LLM stub response with `Category: ...` and `Subcategory: ...` lines.
+Procedure: Run `categorize_entries` for one file entry.
+Expected outcome: Parsed labels match the provided category and subcategory values.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService parses labeled category and subcategory lines"`
 
 ### `tests/unit/test_cache_interactions.cpp`
 

@@ -12,6 +12,7 @@
     "zlib",
     "fmt",
     "spdlog",
-    "gettext"
+    "gettext",
+    "libmediainfo"
   ]
 }

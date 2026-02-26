@@ -43,6 +43,102 @@ find_package(fmt REQUIRED CONFIG)
 find_package(spdlog REQUIRED CONFIG)
 find_package(Intl REQUIRED) # libintl/gettext
 
+# MediaInfoLib policy:
+# - Must come from package managers (apt/dnf/pacman/brew/vcpkg)
+# - Vendored submodules / checked-in binaries are rejected
+option(AI_FILE_SORTER_REQUIRE_MEDIAINFOLIB
+    "Require MediaInfoLib at configure time for full audio/video metadata extraction" ON)
+option(AI_FILE_SORTER_ALLOW_VENDORED_MEDIAINFOLIB
+    "Allow vendored MediaInfo in the repository (not recommended)" OFF)
+
+file(REAL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.." AI_FILE_SORTER_REPO_ROOT)
+
+set(_aifs_blocked_mediainfo_paths
+    "${AI_FILE_SORTER_REPO_ROOT}/external/MediaInfoLib"
+    "${AI_FILE_SORTER_REPO_ROOT}/external/libmediainfo"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/mediainfo"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/MediaInfo"
+)
+if(NOT AI_FILE_SORTER_ALLOW_VENDORED_MEDIAINFOLIB)
+    foreach(_blocked_path IN LISTS _aifs_blocked_mediainfo_paths)
+        if(EXISTS "${_blocked_path}")
+            message(FATAL_ERROR
+                "Found vendored MediaInfo content at '${_blocked_path}'. "
+                "Use a package-managed libmediainfo (apt/dnf/pacman/brew/vcpkg) instead.")
+        endif()
+    endforeach()
+endif()
+
+function(aifs_assert_path_not_in_repo path_value label)
+    if(NOT path_value)
+        return()
+    endif()
+
+    file(TO_CMAKE_PATH "${AI_FILE_SORTER_REPO_ROOT}" _repo_root_norm)
+    string(REGEX REPLACE "([][+.*^$(){}|?\\\\])" "\\\\\\1" _repo_root_regex "${_repo_root_norm}")
+
+    foreach(_entry IN LISTS path_value)
+        if(NOT _entry OR _entry MATCHES "^\\$<")
+            continue()
+        endif()
+
+        file(TO_CMAKE_PATH "${_entry}" _entry_norm)
+        if(_entry_norm MATCHES "^${_repo_root_regex}(/|$)")
+            message(FATAL_ERROR
+                "MediaInfo must come from a package manager. "
+                "Repository-local path detected for ${label}: '${_entry}'.")
+        endif()
+    endforeach()
+endfunction()
+
+function(aifs_assert_mediainfo_target_external target_name)
+    if(NOT TARGET ${target_name})
+        return()
+    endif()
+
+    foreach(_prop IN ITEMS IMPORTED_LOCATION IMPORTED_IMPLIB INTERFACE_INCLUDE_DIRECTORIES INTERFACE_LINK_DIRECTORIES)
+        get_target_property(_prop_value ${target_name} ${_prop})
+        if(NOT _prop_value OR _prop_value STREQUAL "_prop_value-NOTFOUND")
+            continue()
+        endif()
+        aifs_assert_path_not_in_repo("${_prop_value}" "${target_name}:${_prop}")
+    endforeach()
+endfunction()
+
+set(MEDIAINFO_DEPS_LIBS "")
+find_package(MediaInfoLib CONFIG QUIET)
+if(TARGET MediaInfoLib::MediaInfoLib)
+    list(APPEND MEDIAINFO_DEPS_LIBS MediaInfoLib::MediaInfoLib)
+elseif(TARGET MediaInfoLib::MediaInfo)
+    list(APPEND MEDIAINFO_DEPS_LIBS MediaInfoLib::MediaInfo)
+elseif(TARGET MediaInfo::MediaInfo)
+    list(APPEND MEDIAINFO_DEPS_LIBS MediaInfo::MediaInfo)
+else()
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(MEDIAINFO QUIET IMPORTED_TARGET libmediainfo)
+        if(TARGET PkgConfig::MEDIAINFO)
+            list(APPEND MEDIAINFO_DEPS_LIBS PkgConfig::MEDIAINFO)
+        endif()
+    endif()
+endif()
+if(MEDIAINFO_DEPS_LIBS)
+    foreach(_mediainfo_target IN LISTS MEDIAINFO_DEPS_LIBS)
+        aifs_assert_mediainfo_target_external(${_mediainfo_target})
+    endforeach()
+    add_compile_definitions(AI_FILE_SORTER_USE_MEDIAINFOLIB)
+    message(STATUS "MediaInfoLib found via package-managed dependency: enabling full audio/video metadata extraction.")
+elseif(AI_FILE_SORTER_REQUIRE_MEDIAINFOLIB)
+    message(FATAL_ERROR
+        "MediaInfoLib is required but was not found. Install libmediainfo development files "
+        "(Linux: libmediainfo-dev, macOS: brew install mediainfo, Windows/vcpkg: libmediainfo). "
+        "Vendored MediaInfo submodules/binaries are not supported.")
+else()
+    message(STATUS
+        "MediaInfoLib not found: using built-in metadata fallback parsers "
+        "(audio + MP4/MOV/M4V/3GP tags only).")
+endif()
+
 # Vendored document analysis deps
 set(EXTERNAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../external")
 set(PUGIXML_DIR "${EXTERNAL_DIR}/pugixml")
@@ -293,6 +389,7 @@ target_link_libraries(aifilesorter PRIVATE
     spdlog::spdlog
     Intl::Intl
     llama           # imported on Windows or built from submodule on other platforms
+    ${MEDIAINFO_DEPS_LIBS}
     ${DOC_DEPS_LIBS}
 )
 
@@ -524,6 +621,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_database_manager_rename_only.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_interactions.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_image_rename_metadata_service.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_media_rename_metadata_service.cpp"
     )
 
     target_include_directories(ai_file_sorter_tests PRIVATE
@@ -545,6 +643,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         fmt::fmt
         Intl::Intl
         llama
+        ${MEDIAINFO_DEPS_LIBS}
         ${DOC_DEPS_LIBS}
     )
 

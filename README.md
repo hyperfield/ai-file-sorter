@@ -236,7 +236,8 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 - **Operating System**: Linux or macOS for source builds (Windows builds are provided as binaries; native Qt/MSVC build instructions are planned).
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
-- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
 - **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. Source builds use the embedded extractors when `external/` is populated; otherwise they fall back to `pdftotext`/`unzip`.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
@@ -282,7 +283,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
     ```bash
     sudo apt update && sudo apt install -y \
       build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
-      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev \
+      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev libmediainfo-dev \
       zlib1g-dev
     ```
    - Fedora / RHEL:
@@ -293,18 +294,19 @@ File categorization with local LLMs is completely free of charge. If you prefer 
      sudo ln -s /usr/include/json/json.h /usr/include/jsoncpp/json/json.h
      ```
 
-     ```bash
-     sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
-       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
-     ```
+    ```bash
+    sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
+      libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel mediainfo-devel
+    ```
 
    - Arch / Manjaro:
 
-     ```bash
-     sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog
-     ```
+    ```bash
+     sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog mediainfo
+    ```
 
      Optional GPU acceleration also requires either the distro Vulkan 1.2+ driver/runtime (Mesa, AMD, Intel, NVIDIA) or CUDA packages for NVIDIA cards. Install whichever stack you plan to use; the app will fall back to CPU automatically if none are detected.
+     MediaInfo is enforced as package-managed only; vendored `MediaInfoLib` folders or repo-local binaries are rejected by the build.
 
 2. **Clone the repository**
 
@@ -360,6 +362,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```
 
    The binary is produced at `app/bin/aifilesorter`.
+   The Makefile requires `pkg-config` + package-managed `libmediainfo`; it intentionally rejects vendored MediaInfo copies.
 
 6. **Install system-wide (optional)**
 
@@ -374,7 +377,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 3. **Install dependencies**
 
    ```bash
-   brew install qt curl jsoncpp sqlite openssl fmt spdlog cmake git pkgconfig libffi
+   brew install qt curl jsoncpp sqlite openssl fmt spdlog mediainfo cmake git pkgconfig libffi
    ```
 
    Add Qt to your environment if it is not already present:
@@ -443,6 +446,7 @@ Option A - CMake + vcpkg (recommended)
    - Visual Studio 2022 with Desktop C++ workload
    - CMake 3.21+ (Visual Studio ships a recent version)
    - vcpkg: <https://github.com/microsoft/vcpkg> (clone and bootstrap)
+   - package-managed `libmediainfo` via vcpkg manifest (no vendored MediaInfo submodule/binaries)
    - **MSYS2 MinGW64 + OpenBLAS**: install MSYS2 from <https://www.msys2.org>, open an *MSYS2 MINGW64* shell, and run `pacman -S --needed mingw-w64-x86_64-openblas`. The `build_llama_windows.ps1` script uses this OpenBLAS copy for CPU-only builds (the vcpkg variant is not suitable), defaulting to `C:\msys64\mingw64` unless you pass `openblasroot=<path>` or set `OPENBLAS_ROOT`.
 2. Clone repo and submodules:
 
@@ -513,7 +517,7 @@ Option B - CMake + Qt online installer
    - Visual Studio 2022 with Desktop C++ workload
    - Qt 6.x MSVC kit via Qt Online Installer (e.g., Qt 6.6+ with MSVC 2019/2022)
    - CMake 3.21+
-   - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext
+   - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext, libmediainfo
 2. **Build vendored libzip** (generates `zipconf.h` and `libzip.lib`)
 
    Run from the same x64 Native Tools / VS Developer PowerShell you will use to build the app:
@@ -548,6 +552,7 @@ Option B - CMake + Qt online installer
     cmake -S . -B build -G "Ninja" `
       -DCMAKE_PREFIX_PATH=$qt `
      -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
+     -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON `
      -DVCPKG_TARGET_TRIPLET=x64-windows
    cmake --build build --config Release
    ```
@@ -564,7 +569,7 @@ Notes
 Catch2-based unit tests are optional. Enable them via CMake:
 
 ```bash
-cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
+cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON
 cmake --build build-tests --target ai_file_sorter_tests --parallel $(nproc)
 ctest --test-dir build-tests --output-on-failure -j $(nproc)
 ```
@@ -574,7 +579,7 @@ On macOS, replace `$(nproc)` with `$(sysctl -n hw.ncpu)`.
 On Windows (PowerShell), use:
 
 ```powershell
-cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
+cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON
 cmake --build build-tests --target ai_file_sorter_tests --parallel $env:NUMBER_OF_PROCESSORS
 ctest --test-dir build-tests --output-on-failure -j $env:NUMBER_OF_PROCESSORS
 ```
@@ -757,6 +762,7 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 - libzip: <https://libzip.org>
 - Local File Organizer <https://github.com/QiuYannnn/Local-File-Organizer>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
+- MediaInfoLib: <https://mediaarea.net/en/MediaInfo>
 - Mistral AI: <https://mistral.ai>
 - OpenAI: <https://platform.openai.com/docs/overview>
 - OpenSSL: <https://github.com/openssl/openssl>
