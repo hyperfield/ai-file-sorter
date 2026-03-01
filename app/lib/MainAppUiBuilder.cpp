@@ -583,11 +583,15 @@ void MainAppUiBuilder::build_help_menu(MainApp& app) {
         MainAppHelpActions::show_agpl_info(&app);
     });
 
+#ifdef _WIN32
+    app.support_project_action = nullptr;
+#else
     app.support_project_action = app.help_menu->addAction(icon_for(app, "help-donate", QStyle::SP_DialogHelpButton), QString());
     app.support_project_action->setMenuRole(QAction::NoRole);
     QObject::connect(app.support_project_action, &QAction::triggered, &app, []() {
         MainAppHelpActions::open_support_page();
     });
+#endif
 }
 
 QIcon MainAppUiBuilder::icon_for(MainApp& app, const char* name, QStyle::StandardPixmap fallback) {

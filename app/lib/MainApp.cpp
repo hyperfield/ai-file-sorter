@@ -1923,6 +1923,10 @@ bool MainApp::perform_undo_from_plan(const QString& plan_path)
 
 MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files)
 {
+#ifdef _WIN32
+    (void)total_files;
+    return SupportPromptResult::NotSure;
+#else
     QMessageBox box(this);
     box.setIcon(QMessageBox::Information);
     box.setWindowTitle(QObject::tr("Support %1").arg(app_display_name()));
@@ -1988,6 +1992,7 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
         return SupportPromptResult::CannotDonate;
     }
     return SupportPromptResult::NotSure;
+#endif
 }
 
 
