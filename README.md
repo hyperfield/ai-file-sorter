@@ -21,13 +21,13 @@
   <img src="images/platform-logos/logo-linux.png" alt="Linux" width="160">
 </p>
 
-AI File Sorter is a cross-platform desktop application that uses AI to organize files and intelligently suggest better file names for both image and document files, based on their visual or textual content. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
+AI File Sorter is a cross-platform desktop application that uses AI to organize files and suggest cleaner, more consistent names for images, documents, and supported audio/video files. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
 
 <p align="center">
   <img src="images/screenshots/before-after/aifs_before_after.png" alt="AI File Sorter before and after organization example" width="400">
 </p>
 
-The app can analyze picture files locally and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. All rename suggestions are optional and always require your approval.
+The app can analyze picture files locally and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. AI File Sorter can also clean up messy audio and video filenames by using the metadata already stored inside supported media files. If tags such as year, artist, album, or title are available, the app can turn them into a clear suggestion like `2024_artist_album_title.mp3`, which you can review, edit, or ignore before any change is applied.
 
 AI File Sorter helps tidy up cluttered folders such as Downloads, external drives, or NAS storage by automatically grouping files based on their names, extensions, folder context, and learned organization patterns.
 
@@ -69,6 +69,8 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
   - [Document analysis (Text LLM)](#document-analysis-text-llm)
     - [Supported document formats](#supported-document-formats)
     - [Main window options (documents)](#main-window-options-documents)
+  - [Audio/video metadata filename suggestions](#audiovideo-metadata-filename-suggestions)
+    - [Supported audio/video formats](#supported-audiovideo-formats)
   - [System compatibility check](#system-compatibility-check)
   - [Requirements](#requirements)
   - [Installation](#installation)
@@ -93,26 +95,9 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 
 ## [1.7.0] - 2026-02-14
 
+- Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
 - Added an image analysis option to append image creation dates (when available) to category names.
-
-## [1.6.1] - 2026-02-06
-
-- Local text LLM now prompts to switch to CPU when GPU initialization or inference fails.
-
-## [1.6.0] - 2026-02-04
-
-- Added document content analysis (text LLM) with optional creation-date suffixes for categories. Supported document formats include PDF, DOCX, XLSX, PPTX, ODT, ODS, and ODP (plus common text formats).
-- Local 3B model download now defaults to Q4 for better GPU compatibility. The legacy Local 3B Q8 is still selectable when an existing download is found.
-- Improved the LLM selection dialog latency.
-- Added custom API endpoints to the Select LLM dialog. Custom endpoints accept base URLs or full /chat/completions endpoints, with optional API keys for local servers.
-- LLM-derived categorizations and rename suggestions are now saved as you go, so progress isn't lost if the app closes unexpectedly.
-- Image analysis now falls back (with a user prompt) to CPU if the GPU has insufficient available memory.
-- Review dialog now lets you select highlighted rows and bulk edit their categories.
-- Review dialog is now scrollable on smaller screens so action buttons stay visible.
-- Improved subcategory consistency by merging labels that only differ by generic suffixes (e.g., “files”).
-- Added a system compatibility check (benchmarking) to determine the most suitable LLM for your system.
-- Added Korean as an interface language.
-- UI, stability, persistence, and usability improvements.
+- Added optional audio/video metadata-based filename suggestions for supported media files.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -131,6 +116,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
 - **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
 - **Document content analysis (Text LLM)**: Analyze supported document files to summarize content and suggest filenames; uses the same selected LLM (local or remote).
+- **Audio/video metadata filename suggestions**: Turn embedded media tags into clean, library-style filenames for supported audio and video files, with full review before anything is renamed.
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Interface languages**: English, Dutch, French, German, Italian, Korean, Spanish, and Turkish.
@@ -176,7 +162,7 @@ Both files are required. If either one is missing, image analysis is disabled an
 
 ### Main window options
 
-Image analysis adds six checkboxes to the main window:
+Image analysis adds six related checkboxes to the main window:
 
 - **Analyze picture files by content (can be slow)**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
 - **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
@@ -184,6 +170,8 @@ Image analysis adds six checkboxes to the main window:
 - **Add photo date and place to filename (if available)**: Adds metadata-based date/place prefixes to suggested image filenames when available.
 - **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
 - **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
+
+The separate top-level checkbox **Add audio/video metadata to file name (if available)** controls metadata-based rename suggestions for supported audio/video files. See [Audio/video metadata filename suggestions](#audiovideo-metadata-filename-suggestions).
 
 ---
 
@@ -207,6 +195,19 @@ Source builds: embedded extractors are used when `external/` contains the vendor
 - **Offer to rename document files**: Shows a **Suggested filename** column in the Review dialog with the LLM proposal. You can edit it before confirming.
 - **Do not categorize document files (only rename)**: Skips text categorization for documents and keeps them in place while applying (optional) renames.
 - **Add document creation date (if available) to category name**: Appends `YYYY-MM` from metadata when available. Disabled when rename-only is enabled.
+
+---
+
+## Audio/video metadata filename suggestions
+
+Let AI File Sorter turn embedded media tags into clean, consistent filenames for your music and video library. When enabled, the app reads supported metadata fields and builds a polished suggested name in the format `year_artist_album_title.ext`. As with all rename suggestions, nothing is changed until you review and confirm it.
+
+### Supported audio/video formats
+
+- Audio extensions: `.aac`, `.aif`, `.aiff`, `.alac`, `.ape`, `.flac`, `.m4a`, `.mp3`, `.ogg`, `.oga`, `.opus`, `.wav`, `.wma`
+- Video extensions: `.3gp`, `.avi`, `.flv`, `.m4v`, `.mkv`, `.mov`, `.mp4`, `.mpeg`, `.mpg`, `.mts`, `.m2ts`, `.ts`, `.webm`, `.wmv`
+- Built-in tag readers currently cover MP3 (`ID3v1`/`ID3v2`), FLAC (Vorbis comments), OGG/OGA/Opus (Vorbis comments), and MP4-family containers such as `.m4a`, `.mp4`, `.m4v`, `.mov`, and `.3gp` (MP4/MOV metadata atoms).
+- When compiled with package-managed `MediaInfoLib`, the same rename flow can also use metadata exposed by MediaInfo for additional supported containers when available.
 
 ---
 
