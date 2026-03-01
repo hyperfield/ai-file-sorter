@@ -7,9 +7,21 @@
 
 class MainApp;
 
+/**
+ * @brief Builds the MainApp widget tree, menus, and translation dependencies.
+ */
 class MainAppUiBuilder {
 public:
+    /**
+     * @brief Builds the main window UI for the provided application instance.
+     * @param app Main application window to populate.
+     */
     void build(MainApp& app);
+    /**
+     * @brief Collects the translator dependency bundle from the current UI state.
+     * @param app Main application window whose controls are referenced.
+     * @return Dependency bundle used by UiTranslator.
+     */
     UiTranslator::Dependencies build_translator_dependencies(MainApp& app) const;
 
 private:
