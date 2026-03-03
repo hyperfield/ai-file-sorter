@@ -313,6 +313,7 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
     std::atomic<bool>& stop_flag,
     const ProgressCallback& progress_callback,
     const QueueCallback& queue_callback,
+    const CompletionCallback& completion_callback,
     const RecategorizationCallback& recategorization_callback,
     std::function<std::unique_ptr<ILLMClient>()> llm_factory,
     const PromptOverrideProvider& prompt_override,
@@ -357,6 +358,10 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
                                                              recategorization_callback,
                                                              session_history)) {
             categorized.push_back(*categorized_entry);
+        }
+
+        if (completion_callback) {
+            completion_callback(entry);
         }
     }
 

@@ -80,6 +80,7 @@ TEST_CASE("CategorizationService uses cached categorization without calling LLM"
         {},
         {},
         {},
+        {},
         factory);
 
     REQUIRE(categorized.size() == 1);
@@ -118,6 +119,7 @@ TEST_CASE("CategorizationService falls back to LLM when cache is empty") {
         {},
         {},
         {},
+        {},
         factory);
 
     REQUIRE(categorized.size() == 1);
@@ -129,6 +131,45 @@ TEST_CASE("CategorizationService falls back to LLM when cache is empty") {
     REQUIRE(cached.size() == 2);
     CHECK(cached[0] == "Images");
     CHECK(cached[1] == "Photos");
+}
+
+TEST_CASE("CategorizationService invokes completion callback per entry") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const auto first_path = (data_dir.path() / "first.txt").string();
+    const auto second_path = (data_dir.path() / "second.txt").string();
+    const std::vector<FileEntry> files = {
+        FileEntry{first_path, "first.txt", FileType::File},
+        FileEntry{second_path, "second.txt", FileType::File}
+    };
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<CountingLLM>(calls, "Documents : Reports");
+    };
+
+    std::size_t queued_count = 0;
+    std::size_t completed_count = 0;
+    const auto categorized = service.categorize_entries(
+        files,
+        true,
+        stop_flag,
+        {},
+        [&queued_count](const FileEntry&) { ++queued_count; },
+        [&completed_count](const FileEntry&) { ++completed_count; },
+        {},
+        factory);
+
+    REQUIRE(categorized.size() == files.size());
+    CHECK(queued_count == files.size());
+    CHECK(completed_count == files.size());
+    CHECK(*calls == static_cast<int>(files.size()));
 }
 
 TEST_CASE("CategorizationService loads cached entries recursively for analysis") {

@@ -139,6 +139,7 @@ TEST_CASE("CategorizationService parses category output without spaced colon del
                                                         {},
                                                         {},
                                                         {},
+                                                        {},
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
@@ -168,6 +169,7 @@ TEST_CASE("CategorizationService parses labeled category and subcategory lines")
     const auto categorized = service.categorize_entries(files,
                                                         true,
                                                         stop_flag,
+                                                        {},
                                                         {},
                                                         {},
                                                         {},

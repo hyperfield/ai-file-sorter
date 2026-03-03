@@ -249,6 +249,9 @@ Settings::Settings()
     category_language = CategoryLanguage::English;
     analyze_images_by_content = false;
     offer_rename_images = false;
+    add_image_date_place_to_filename = false;
+    add_audio_video_metadata_to_filename = true;
+    add_image_date_to_category = false;
     analyze_documents_by_content = false;
     offer_rename_documents = false;
     rename_documents_only = false;
@@ -285,6 +288,9 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     include_subdirectories = load_bool("IncludeSubdirectories", false);
     analyze_images_by_content = load_bool("AnalyzeImagesByContent", false);
     offer_rename_images = load_bool("OfferRenameImages", false);
+    add_image_date_place_to_filename = load_bool("AddImageDatePlaceToFilename", false);
+    add_audio_video_metadata_to_filename = load_bool("AddAudioVideoMetadataToFilename", true);
+    add_image_date_to_category = load_bool("AddImageDateToCategory", false);
     rename_images_only = load_bool("RenameImagesOnly", false);
     process_images_only = load_bool("ProcessImagesOnly", false);
     analyze_documents_by_content = load_bool("AnalyzeDocumentsByContent", false);
@@ -292,7 +298,11 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     rename_documents_only = load_bool("RenameDocumentsOnly", false);
     process_documents_only = load_bool("ProcessDocumentsOnly", false);
     add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
-    const bool image_expand_default = process_images_only || offer_rename_images || rename_images_only;
+    const bool image_expand_default = process_images_only ||
+                                      offer_rename_images ||
+                                      rename_images_only ||
+                                      add_image_date_place_to_filename ||
+                                      add_image_date_to_category;
     if (config.hasValue("Settings", "ImageOptionsExpanded")) {
         image_options_expanded = load_bool("ImageOptionsExpanded", image_expand_default);
     } else {
@@ -426,6 +436,9 @@ void Settings::save_core_settings()
     }
     set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
     set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
+    set_bool_setting(config, settings_section, "AddImageDatePlaceToFilename", add_image_date_place_to_filename);
+    set_bool_setting(config, settings_section, "AddAudioVideoMetadataToFilename", add_audio_video_metadata_to_filename);
+    set_bool_setting(config, settings_section, "AddImageDateToCategory", add_image_date_to_category);
     set_bool_setting(config, settings_section, "ImageOptionsExpanded", image_options_expanded);
     set_bool_setting(config, settings_section, "RenameImagesOnly", rename_images_only);
     set_bool_setting(config, settings_section, "ProcessImagesOnly", process_images_only);
@@ -856,6 +869,36 @@ bool Settings::get_offer_rename_images() const
 void Settings::set_offer_rename_images(bool value)
 {
     offer_rename_images = value;
+}
+
+bool Settings::get_add_image_date_place_to_filename() const
+{
+    return add_image_date_place_to_filename;
+}
+
+void Settings::set_add_image_date_place_to_filename(bool value)
+{
+    add_image_date_place_to_filename = value;
+}
+
+bool Settings::get_add_audio_video_metadata_to_filename() const
+{
+    return add_audio_video_metadata_to_filename;
+}
+
+void Settings::set_add_audio_video_metadata_to_filename(bool value)
+{
+    add_audio_video_metadata_to_filename = value;
+}
+
+bool Settings::get_add_image_date_to_category() const
+{
+    return add_image_date_to_category;
+}
+
+void Settings::set_add_image_date_to_category(bool value)
+{
+    add_image_date_to_category = value;
 }
 
 bool Settings::get_image_options_expanded() const

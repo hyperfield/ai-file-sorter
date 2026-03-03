@@ -196,14 +196,21 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     image_rename_layout->setContentsMargins(24, 0, 0, 0);
     image_rename_layout->setSpacing(2);
     app.process_images_only_checkbox = new QCheckBox(central);
+    app.add_image_date_to_category_checkbox = new QCheckBox(central);
+    app.add_image_date_place_to_filename_checkbox = new QCheckBox(central);
     app.offer_rename_images_checkbox = new QCheckBox(central);
     app.rename_images_only_checkbox = new QCheckBox(central);
     image_rename_layout->addWidget(app.process_images_only_checkbox);
+    image_rename_layout->addWidget(app.add_image_date_to_category_checkbox);
+    image_rename_layout->addWidget(app.add_image_date_place_to_filename_checkbox);
     image_rename_layout->addWidget(app.offer_rename_images_checkbox);
     image_rename_layout->addWidget(app.rename_images_only_checkbox);
     app.image_options_container->setVisible(false);
     image_options_layout->addWidget(app.image_options_container);
     main_layout->addLayout(image_options_layout);
+
+    app.add_audio_video_metadata_to_filename_checkbox = new QCheckBox(central);
+    main_layout->addWidget(app.add_audio_video_metadata_to_filename_checkbox);
 
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);
@@ -305,6 +312,9 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.include_subdirectories_checkbox,
             app.analyze_images_checkbox,
             app.process_images_only_checkbox,
+            app.add_image_date_to_category_checkbox,
+            app.add_image_date_place_to_filename_checkbox,
+            app.add_audio_video_metadata_to_filename_checkbox,
             app.offer_rename_images_checkbox,
             app.rename_images_only_checkbox,
             app.image_options_toggle_button,
@@ -573,11 +583,15 @@ void MainAppUiBuilder::build_help_menu(MainApp& app) {
         MainAppHelpActions::show_agpl_info(&app);
     });
 
+#ifdef _WIN32
+    app.support_project_action = nullptr;
+#else
     app.support_project_action = app.help_menu->addAction(icon_for(app, "help-donate", QStyle::SP_DialogHelpButton), QString());
     app.support_project_action->setMenuRole(QAction::NoRole);
     QObject::connect(app.support_project_action, &QAction::triggered, &app, []() {
         MainAppHelpActions::open_support_page();
     });
+#endif
 }
 
 QIcon MainAppUiBuilder::icon_for(MainApp& app, const char* name, QStyle::StandardPixmap fallback) {

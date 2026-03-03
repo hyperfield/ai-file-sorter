@@ -92,3 +92,60 @@ TEST_CASE("Settings persists options group expansion state") {
     REQUIRE(reloaded.get_image_options_expanded());
     REQUIRE_FALSE(reloaded.get_document_options_expanded());
 }
+
+TEST_CASE("Settings persists image EXIF date/place rename toggle") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_offer_rename_images(true);
+    settings.set_add_image_date_place_to_filename(true);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_offer_rename_images());
+    REQUIRE(reloaded.get_add_image_date_place_to_filename());
+}
+
+TEST_CASE("Settings defaults audio/video metadata rename toggle to enabled") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    const bool loaded = settings.load();
+    REQUIRE_FALSE(loaded);
+    REQUIRE(settings.get_add_audio_video_metadata_to_filename());
+}
+
+TEST_CASE("Settings persists audio/video metadata rename toggle") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_add_audio_video_metadata_to_filename(false);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE_FALSE(reloaded.get_add_audio_video_metadata_to_filename());
+}
+
+TEST_CASE("Settings persists image date-to-category toggle") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_analyze_images_by_content(true);
+    settings.set_add_image_date_to_category(true);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_analyze_images_by_content());
+    REQUIRE(reloaded.get_add_image_date_to_category());
+}

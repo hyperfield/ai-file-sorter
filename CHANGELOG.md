@@ -1,9 +1,10 @@
 ﻿# Changelog
 
-## [1.6.2] - 2026-02-25
+## [1.7.0] - 2026-02-14
 
-- Fixed category parsing so non-standard LLM output formats no longer create malformed merged folder names.
-- Expanded taxonomy normalization to collapse common category synonyms (for example backups/archives, images/media/photos, documents/texts/papers, software/installers/updates).
+- Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
+- Added an image analysis option to append image creation dates (if available) to category names.
+- Added optional audio/video metadata-based filename suggestions for supported media files. When enabled, AI File Sorter can use embedded tags (such as ID3, Vorbis comments, and MP4-style metadata) to propose normalized names like `year_artist_album_title.ext` during review.
 
 ## [1.6.1] - 2026-02-06
 

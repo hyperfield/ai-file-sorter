@@ -26,6 +26,7 @@ class CategorizationService {
 public:
     using ProgressCallback = std::function<void(const std::string&)>;
     using QueueCallback = std::function<void(const FileEntry&)>;
+    using CompletionCallback = std::function<void(const FileEntry&)>;
     using RecategorizationCallback = std::function<void(const CategorizedFile&, const std::string&)>;
     /**
      * @brief Overrides the name/path used in LLM prompts for a file entry.
@@ -74,6 +75,7 @@ public:
      * @param stop_flag Cancellation flag.
      * @param progress_callback Progress updates callback.
      * @param queue_callback Called when an entry is queued.
+     * @param completion_callback Called when an entry has finished processing.
      * @param recategorization_callback Called when an entry must be re-categorized.
      * @param llm_factory Factory for creating an LLM client.
      * @param prompt_override Optional prompt override provider.
@@ -86,6 +88,7 @@ public:
         std::atomic<bool>& stop_flag,
         const ProgressCallback& progress_callback,
         const QueueCallback& queue_callback,
+        const CompletionCallback& completion_callback,
         const RecategorizationCallback& recategorization_callback,
         std::function<std::unique_ptr<ILLMClient>()> llm_factory,
         const PromptOverrideProvider& prompt_override = {},

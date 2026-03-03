@@ -26,9 +26,15 @@ class Settings;
 #include "Language.hpp"
 #include "CategoryLanguage.hpp"
 
+/**
+ * @brief Applies translated text to the main window UI and related controls.
+ */
 class UiTranslator
 {
 public:
+    /**
+     * @brief References to the primary controls whose labels are translated together.
+     */
     struct PrimaryControls {
         QPointer<QLabel>& path_label;
         QPointer<QPushButton>& browse_button;
@@ -44,6 +50,9 @@ public:
         QPointer<QCheckBox>& include_subdirectories_checkbox;
         QPointer<QCheckBox>& analyze_images_checkbox;
         QPointer<QCheckBox>& process_images_only_checkbox;
+        QPointer<QCheckBox>& add_image_date_to_category_checkbox;
+        QPointer<QCheckBox>& add_image_date_place_to_filename_checkbox;
+        QPointer<QCheckBox>& add_audio_video_metadata_to_filename_checkbox;
         QPointer<QCheckBox>& offer_rename_images_checkbox;
         QPointer<QCheckBox>& rename_images_only_checkbox;
         QPointer<QToolButton>& image_options_toggle_button;
@@ -55,6 +64,9 @@ public:
         QPointer<QToolButton>& document_options_toggle_button;
     };
 
+    /**
+     * @brief References to top-level menus whose titles are translated.
+     */
     struct MenuControls {
         QMenu*& file_menu;
         QMenu*& edit_menu;
@@ -67,6 +79,9 @@ public:
         QMenu*& help_menu;
     };
 
+    /**
+     * @brief References to menu and command actions whose text is translated.
+     */
     struct ActionControls {
         QAction*& file_quit_action;
         QAction*& run_benchmark_action;
@@ -103,6 +118,9 @@ public:
         QAction*& support_project_action;
     };
 
+    /**
+     * @brief References to language-selection actions and their action group.
+     */
     struct LanguageControls {
         QActionGroup*& language_group;
         QAction*& english_action;
@@ -115,6 +133,9 @@ public:
         QAction*& korean_action;
     };
 
+    /**
+     * @brief References to category-language actions and their action group.
+     */
     struct CategoryLanguageControls {
         QActionGroup*& category_language_group;
         QAction*& dutch;
@@ -128,12 +149,18 @@ public:
         QAction*& turkish;
     };
 
+    /**
+     * @brief Runtime state inputs used when translating status-dependent text.
+     */
     struct State {
         bool analysis_in_progress{false};
         bool stop_analysis_requested{false};
         bool status_is_ready{true};
     };
 
+    /**
+     * @brief Full dependency bundle required to translate the MainApp UI.
+     */
     struct Dependencies {
         QMainWindow& window;
         PrimaryControls primary;
@@ -147,14 +174,42 @@ public:
         std::function<QString(const char*)> translator;
     };
 
+    /**
+     * @brief Constructs a translator wrapper over the provided UI dependencies.
+     * @param deps References to the UI controls and translation callback.
+     */
     explicit UiTranslator(Dependencies deps);
 
+    /**
+     * @brief Retranslates all supported UI text in one pass.
+     * @param state Current UI state used for status-dependent labels.
+     */
     void retranslate_all(const State& state) const;
+    /**
+     * @brief Updates the main window title.
+     */
     void translate_window_title() const;
+    /**
+     * @brief Updates the labels of the primary controls on the main window.
+     * @param analysis_in_progress True when analysis is currently active.
+     */
     void translate_primary_controls(bool analysis_in_progress) const;
+    /**
+     * @brief Updates translated labels inside the results tree view.
+     */
     void translate_tree_view_labels() const;
+    /**
+     * @brief Updates menu titles and action labels.
+     */
     void translate_menus_and_actions() const;
+    /**
+     * @brief Updates the status bar message for the given runtime state.
+     * @param state Current UI state used to choose the status message.
+     */
     void translate_status_messages(const State& state) const;
+    /**
+     * @brief Synchronizes checkmarks for language and category-language actions.
+     */
     void update_language_checks() const;
 
 private:

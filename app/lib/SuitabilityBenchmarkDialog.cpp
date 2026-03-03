@@ -700,22 +700,71 @@ bool has_any_llm_available()
 
 std::filesystem::path create_temp_dir()
 {
+    auto ensure_writable_dir = [](const std::filesystem::path& dir) {
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        if (ec || !std::filesystem::exists(dir)) {
+            return false;
+        }
+
+        const std::filesystem::path probe = dir / ".aifs-write-probe";
+        std::ofstream out(probe, std::ios::out | std::ios::trunc);
+        if (!out) {
+            return false;
+        }
+        out << "ok";
+        out.close();
+        std::filesystem::remove(probe, ec);
+        return true;
+    };
+
+    std::vector<std::filesystem::path> roots;
     std::error_code ec;
-    std::filesystem::path base = std::filesystem::temp_directory_path(ec);
-    if (ec || base.empty()) {
-        base = std::filesystem::current_path();
+    std::filesystem::path temp_root = std::filesystem::temp_directory_path(ec);
+    if (!ec && !temp_root.empty()) {
+        roots.push_back(temp_root);
     }
-    base /= "aifs-benchmark";
-    std::filesystem::create_directories(base, ec);
+    if (const char* tmpdir = std::getenv("TMPDIR"); tmpdir && *tmpdir) {
+        roots.emplace_back(tmpdir);
+    }
+    if (const char* home = std::getenv("HOME"); home && *home) {
+        roots.emplace_back(std::filesystem::path(home) / ".cache");
+    }
+    ec.clear();
+    std::filesystem::path cwd = std::filesystem::current_path(ec);
+    if (!ec && !cwd.empty()) {
+        roots.push_back(cwd);
+    }
+
     const auto stamp = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
-    std::filesystem::path run_dir = base / ("run-" + std::to_string(stamp));
-    std::filesystem::create_directories(run_dir, ec);
-    return run_dir;
+
+    for (const auto& root : roots) {
+        std::filesystem::path base = root / "aifs-benchmark";
+        if (!ensure_writable_dir(base)) {
+            continue;
+        }
+
+        for (int attempt = 0; attempt < 16; ++attempt) {
+            std::filesystem::path run_dir = base / ("run-" + std::to_string(stamp) +
+                                                    "-" + std::to_string(attempt));
+            if (ensure_writable_dir(run_dir)) {
+                return run_dir;
+            }
+        }
+    }
+
+    return std::filesystem::path();
 }
 
 bool write_sample_document(const std::filesystem::path& path)
 {
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec) {
+        return false;
+    }
+
     std::ofstream out(path);
     if (!out) {
         return false;
@@ -729,6 +778,12 @@ bool write_sample_document(const std::filesystem::path& path)
 
 bool write_sample_image(const std::filesystem::path& path)
 {
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec) {
+        return false;
+    }
+
     QImage image(96, 96, QImage::Format_RGB32);
     image.fill(QColor(30, 120, 200));
     QPainter painter(&image);
@@ -921,6 +976,11 @@ StepResult run_categorization_test(ILLMClient& llm, const std::filesystem::path&
 StepResult run_document_test(ILLMClient& llm, const std::filesystem::path& temp_dir)
 {
     StepResult result;
+    if (temp_dir.empty()) {
+        result.detail = "No writable temporary directory available.";
+        return result;
+    }
+
     const std::filesystem::path doc_path = temp_dir / "benchmark_document.txt";
     if (!write_sample_document(doc_path)) {
         result.detail = "Failed to create sample document.";
@@ -946,6 +1006,11 @@ StepResult run_image_test(const std::filesystem::path& temp_dir)
 {
     StepResult result;
 #if defined(AI_FILE_SORTER_HAS_MTMD)
+    if (temp_dir.empty()) {
+        result.detail = "No writable temporary directory available.";
+        return result;
+    }
+
     std::string visual_error;
     auto visual_paths = resolve_visual_llm_paths(&visual_error);
     if (!visual_paths) {
@@ -1661,6 +1726,9 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
         backend_info.blas_label = detect_blas_backend_label();
 
         const auto temp_dir = create_temp_dir();
+        if (temp_dir.empty()) {
+            post_line(QObject::tr("Temporary directory setup failed; benchmark sample file creation may fail."));
+        }
         const std::vector<DefaultModel> default_models = collect_default_models();
         if (default_models.empty()) {
             post_line(QObject::tr("No default models downloaded; skipping categorization and document checks."));

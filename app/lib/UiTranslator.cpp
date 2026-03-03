@@ -109,6 +109,18 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
         checkbox->setText(tr("Process picture files only (ignore any other files)"));
         checkbox->setToolTip(tr("Ignore non-picture files in this run."));
     }
+    if (auto* checkbox = raw_ptr(deps_.primary.add_image_date_to_category_checkbox)) {
+        checkbox->setText(tr("Add image creation date (if available) to category name"));
+        checkbox->setToolTip(tr("Append the image creation date from metadata to the category label."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.add_image_date_place_to_filename_checkbox)) {
+        checkbox->setText(tr("Add photo date and place to filename (if available)"));
+        checkbox->setToolTip(tr("Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.add_audio_video_metadata_to_filename_checkbox)) {
+        checkbox->setText(tr("Add audio/video metadata to file name (if available)"));
+        checkbox->setToolTip(tr("Use embedded media tags (for example year, artist, album, title) to build suggested audio/video filenames."));
+    }
     if (auto* checkbox = raw_ptr(deps_.primary.offer_rename_images_checkbox)) {
         checkbox->setText(tr("Offer to rename picture files"));
         checkbox->setToolTip(tr("Show suggested filenames for picture files."));

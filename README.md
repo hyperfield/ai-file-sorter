@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.6.2-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.6.1-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dw/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -21,13 +21,13 @@
   <img src="images/platform-logos/logo-linux.png" alt="Linux" width="160">
 </p>
 
-AI File Sorter is a cross-platform desktop application that uses AI to organize files and intelligently suggest better file names for both image and document files, based on their visual or textual content. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
+AI File Sorter is a cross-platform desktop application that uses AI to organize files and suggest cleaner, more consistent names for images, documents, and supported audio/video files. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
 
 <p align="center">
   <img src="images/screenshots/before-after/aifs_before_after.png" alt="AI File Sorter before and after organization example" width="400">
 </p>
 
-The app can analyze picture files locally and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. All rename suggestions are optional and always require your approval.
+The app can analyze picture files locally and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. AI File Sorter can also clean up messy audio and video filenames by using the metadata already stored inside supported media files. If tags such as year, artist, album, or title are available, the app can turn them into a clear suggestion like `2024_artist_album_title.mp3`, which you can review, edit, or ignore before any change is applied.
 
 AI File Sorter helps tidy up cluttered folders such as Downloads, external drives, or NAS storage by automatically grouping files based on their names, extensions, folder context, and learned organization patterns.
 
@@ -69,6 +69,8 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
   - [Document analysis (Text LLM)](#document-analysis-text-llm)
     - [Supported document formats](#supported-document-formats)
     - [Main window options (documents)](#main-window-options-documents)
+  - [Audio/video metadata filename suggestions](#audiovideo-metadata-filename-suggestions)
+    - [Supported audio/video formats](#supported-audiovideo-formats)
   - [System compatibility check](#system-compatibility-check)
   - [Requirements](#requirements)
   - [Installation](#installation)
@@ -91,14 +93,11 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 
 ## Changelog
 
-## [1.6.2] - 2026-02-25
+## [1.7.0] - 2026-02-14
 
-- Fixed category parsing so non-standard LLM output formats no longer create malformed merged folder names.
-- Expanded taxonomy normalization to collapse common category synonyms (for example backups/archives, images/media/photos, documents/texts/papers, software/installers/updates).
-
-## [1.6.1] - 2026-02-06
-
-- Local text LLM now prompts to switch to CPU when GPU initialization or inference fails.
+- Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
+- Added an image analysis option to append image creation dates (when available) to category names.
+- Added optional audio/video metadata-based filename suggestions for supported media files.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -115,7 +114,9 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with LLaVA to produce descriptions and optional filename suggestions (rename-only mode supported).
+- **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
 - **Document content analysis (Text LLM)**: Analyze supported document files to summarize content and suggest filenames; uses the same selected LLM (local or remote).
+- **Audio/video metadata filename suggestions**: Turn embedded media tags into clean, library-style filenames for supported audio and video files, with full review before anything is renamed.
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Interface languages**: English, Dutch, French, German, Italian, Korean, Spanish, and Turkish.
@@ -161,12 +162,16 @@ Both files are required. If either one is missing, image analysis is disabled an
 
 ### Main window options
 
-Image analysis adds four checkboxes to the main window:
+Image analysis adds six related checkboxes to the main window:
 
 - **Analyze picture files by content (can be slow)**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
 - **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
+- **Add image creation date (if available) to category name**: Appends `YYYY-MM-DD` from image metadata to the category label when available. Disabled when rename-only is enabled.
+- **Add photo date and place to filename (if available)**: Adds metadata-based date/place prefixes to suggested image filenames when available.
 - **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
 - **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
+
+The separate top-level checkbox **Add audio/video metadata to file name (if available)** controls metadata-based rename suggestions for supported audio/video files. See [Audio/video metadata filename suggestions](#audiovideo-metadata-filename-suggestions).
 
 ---
 
@@ -190,6 +195,19 @@ Source builds: embedded extractors are used when `external/` contains the vendor
 - **Offer to rename document files**: Shows a **Suggested filename** column in the Review dialog with the LLM proposal. You can edit it before confirming.
 - **Do not categorize document files (only rename)**: Skips text categorization for documents and keeps them in place while applying (optional) renames.
 - **Add document creation date (if available) to category name**: Appends `YYYY-MM` from metadata when available. Disabled when rename-only is enabled.
+
+---
+
+## Audio/video metadata filename suggestions
+
+Let AI File Sorter turn embedded media tags into clean, consistent filenames for your music and video library. When enabled, the app reads supported metadata fields and builds a polished suggested name in the format `year_artist_album_title.ext`. As with all rename suggestions, nothing is changed until you review and confirm it.
+
+### Supported audio/video formats
+
+- Audio extensions: `.aac`, `.aif`, `.aiff`, `.alac`, `.ape`, `.flac`, `.m4a`, `.mp3`, `.ogg`, `.oga`, `.opus`, `.wav`, `.wma`
+- Video extensions: `.3gp`, `.avi`, `.flv`, `.m4v`, `.mkv`, `.mov`, `.mp4`, `.mpeg`, `.mpg`, `.mts`, `.m2ts`, `.ts`, `.webm`, `.wmv`
+- Built-in tag readers currently cover MP3 (`ID3v1`/`ID3v2`), FLAC (Vorbis comments), OGG/OGA/Opus (Vorbis comments), and MP4-family containers such as `.m4a`, `.mp4`, `.m4v`, `.mov`, and `.3gp` (MP4/MOV metadata atoms).
+- When compiled with package-managed `MediaInfoLib`, the same rename flow can also use metadata exposed by MediaInfo for additional supported containers when available.
 
 ---
 
@@ -219,7 +237,8 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 - **Operating System**: Linux or macOS for source builds (Windows builds are provided as binaries; native Qt/MSVC build instructions are planned).
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
-- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
 - **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. Source builds use the embedded extractors when `external/` is populated; otherwise they fall back to `pdftotext`/`unzip`.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
@@ -265,7 +284,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
     ```bash
     sudo apt update && sudo apt install -y \
       build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
-      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev \
+      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev libmediainfo-dev \
       zlib1g-dev
     ```
    - Fedora / RHEL:
@@ -276,18 +295,19 @@ File categorization with local LLMs is completely free of charge. If you prefer 
      sudo ln -s /usr/include/json/json.h /usr/include/jsoncpp/json/json.h
      ```
 
-     ```bash
-     sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
-       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel
-     ```
+    ```bash
+    sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
+      libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel mediainfo-devel
+    ```
 
    - Arch / Manjaro:
 
-     ```bash
-     sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog
-     ```
+    ```bash
+     sudo pacman -S --needed base-devel git cmake qt6-base qt6-tools curl jsoncpp sqlite openssl fmt spdlog mediainfo
+    ```
 
      Optional GPU acceleration also requires either the distro Vulkan 1.2+ driver/runtime (Mesa, AMD, Intel, NVIDIA) or CUDA packages for NVIDIA cards. Install whichever stack you plan to use; the app will fall back to CPU automatically if none are detected.
+     MediaInfo is enforced as package-managed only; vendored `MediaInfoLib` folders or repo-local binaries are rejected by the build.
 
 2. **Clone the repository**
 
@@ -343,6 +363,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```
 
    The binary is produced at `app/bin/aifilesorter`.
+   The Makefile requires `pkg-config` + package-managed `libmediainfo`; it intentionally rejects vendored MediaInfo copies.
 
 6. **Install system-wide (optional)**
 
@@ -357,7 +378,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 3. **Install dependencies**
 
    ```bash
-   brew install qt curl jsoncpp sqlite openssl fmt spdlog cmake git pkgconfig libffi
+   brew install qt curl jsoncpp sqlite openssl fmt spdlog mediainfo cmake git pkgconfig libffi
    ```
 
    Add Qt to your environment if it is not already present:
@@ -426,6 +447,7 @@ Option A - CMake + vcpkg (recommended)
    - Visual Studio 2022 with Desktop C++ workload
    - CMake 3.21+ (Visual Studio ships a recent version)
    - vcpkg: <https://github.com/microsoft/vcpkg> (clone and bootstrap)
+   - package-managed `libmediainfo` via vcpkg manifest (no vendored MediaInfo submodule/binaries)
    - **MSYS2 MinGW64 + OpenBLAS**: install MSYS2 from <https://www.msys2.org>, open an *MSYS2 MINGW64* shell, and run `pacman -S --needed mingw-w64-x86_64-openblas`. The `build_llama_windows.ps1` script uses this OpenBLAS copy for CPU-only builds (the vcpkg variant is not suitable), defaulting to `C:\msys64\mingw64` unless you pass `openblasroot=<path>` or set `OPENBLAS_ROOT`.
 2. Clone repo and submodules:
 
@@ -496,7 +518,7 @@ Option B - CMake + Qt online installer
    - Visual Studio 2022 with Desktop C++ workload
    - Qt 6.x MSVC kit via Qt Online Installer (e.g., Qt 6.6+ with MSVC 2019/2022)
    - CMake 3.21+
-   - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext
+   - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext, libmediainfo
 2. **Build vendored libzip** (generates `zipconf.h` and `libzip.lib`)
 
    Run from the same x64 Native Tools / VS Developer PowerShell you will use to build the app:
@@ -531,6 +553,7 @@ Option B - CMake + Qt online installer
     cmake -S . -B build -G "Ninja" `
       -DCMAKE_PREFIX_PATH=$qt `
      -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
+     -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON `
      -DVCPKG_TARGET_TRIPLET=x64-windows
    cmake --build build --config Release
    ```
@@ -547,7 +570,7 @@ Notes
 Catch2-based unit tests are optional. Enable them via CMake:
 
 ```bash
-cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
+cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON
 cmake --build build-tests --target ai_file_sorter_tests --parallel $(nproc)
 ctest --test-dir build-tests --output-on-failure -j $(nproc)
 ```
@@ -557,7 +580,7 @@ On macOS, replace `$(nproc)` with `$(sysctl -n hw.ncpu)`.
 On Windows (PowerShell), use:
 
 ```powershell
-cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON
+cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON
 cmake --build build-tests --target ai_file_sorter_tests --parallel $env:NUMBER_OF_PROCESSORS
 ctest --test-dir build-tests --output-on-failure -j $env:NUMBER_OF_PROCESSORS
 ```
@@ -740,6 +763,7 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 - libzip: <https://libzip.org>
 - Local File Organizer <https://github.com/QiuYannnn/Local-File-Organizer>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
+- MediaInfoLib: <https://mediaarea.net/en/MediaInfo>
 - Mistral AI: <https://mistral.ai>
 - OpenAI: <https://platform.openai.com/docs/overview>
 - OpenSSL: <https://github.com/openssl/openssl>

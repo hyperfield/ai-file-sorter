@@ -122,12 +122,11 @@ app/include/llama/*.h
 /changelog/
 /models/
 /rd/
+/prototypes/
 
 # Build artifacts
 
-build-windows/
-build-tests/
-build/
+build-*/
 dist/
 app/lib/ggml/
 external/libzip/build*/

@@ -146,6 +146,42 @@ OBJ_DIR := ./obj/$(MACOS_ARCH)
 endif
 endif
 
+# MediaInfo policy:
+# - Must come from package managers (apt/dnf/pacman/brew/vcpkg)
+# - Vendored submodules / checked-in binaries are rejected
+MEDIAINFO_REQUIRE ?= 1
+MEDIAINFO_ALLOW_VENDORED ?= 0
+MEDIAINFO_PKG ?= libmediainfo
+MEDIAINFO_CFLAGS :=
+MEDIAINFO_LDFLAGS :=
+
+MEDIAINFO_BLOCKED_PATHS := ../external/MediaInfoLib ../external/libmediainfo ./lib/mediainfo ./include/MediaInfo
+ifneq ($(MEDIAINFO_ALLOW_VENDORED),1)
+ifneq ($(strip $(foreach p,$(MEDIAINFO_BLOCKED_PATHS),$(wildcard $(p)))),)
+$(error Vendored MediaInfo content detected ($(MEDIAINFO_BLOCKED_PATHS)). Use package-managed libmediainfo only.)
+endif
+endif
+
+ifeq ($(strip $(PKG_CONFIG)),)
+ifeq ($(MEDIAINFO_REQUIRE),1)
+$(error pkg-config is required to resolve package-managed libmediainfo. Install pkg-config and libmediainfo (apt/dnf/pacman/brew/vcpkg).)
+endif
+else
+MEDIAINFO_CFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --cflags $(MEDIAINFO_PKG) 2>/dev/null)
+MEDIAINFO_LDFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --libs $(MEDIAINFO_PKG) 2>/dev/null)
+endif
+
+ifeq ($(MEDIAINFO_REQUIRE),1)
+ifeq ($(strip $(MEDIAINFO_LDFLAGS)),)
+$(error libmediainfo not found via pkg-config. Install it through apt/dnf/pacman/brew/vcpkg. Vendored copies are not supported.)
+endif
+endif
+
+ifneq ($(strip $(MEDIAINFO_LDFLAGS)),)
+CXXFLAGS += -DAI_FILE_SORTER_USE_MEDIAINFOLIB $(MEDIAINFO_CFLAGS)
+LDFLAGS += $(MEDIAINFO_LDFLAGS)
+endif
+
 WRAPPED_BINARY := $(notdir $(TARGET))
 
 # Compiler and flags

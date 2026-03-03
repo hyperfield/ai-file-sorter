@@ -20,6 +20,8 @@
 #include "UiTranslator.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "DocumentTextAnalyzer.hpp"
+#include "ImageRenameMetadataService.hpp"
+#include "MediaRenameMetadataService.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -727,6 +729,25 @@ void MainApp::connect_checkbox_signals()
         });
     }
 
+    if (add_image_date_to_category_checkbox) {
+        connect(add_image_date_to_category_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_add_image_date_to_category(checked);
+        });
+    }
+
+    if (add_image_date_place_to_filename_checkbox) {
+        connect(add_image_date_place_to_filename_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
+            settings.set_add_image_date_place_to_filename(checked);
+        });
+    }
+
+    if (add_audio_video_metadata_to_filename_checkbox) {
+        connect(add_audio_video_metadata_to_filename_checkbox,
+                &QCheckBox::toggled,
+                this,
+                [this](bool checked) { settings.set_add_audio_video_metadata_to_filename(checked); });
+    }
+
     if (offer_rename_images_checkbox) {
         connect(offer_rename_images_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
             if (!checked && rename_images_only_checkbox && rename_images_only_checkbox->isChecked()) {
@@ -734,6 +755,10 @@ void MainApp::connect_checkbox_signals()
                 rename_images_only_checkbox->setChecked(false);
             }
             settings.set_offer_rename_images(checked);
+            if (add_image_date_place_to_filename_checkbox) {
+                settings.set_add_image_date_place_to_filename(
+                    add_image_date_place_to_filename_checkbox->isChecked());
+            }
             if (rename_images_only_checkbox) {
                 settings.set_rename_images_only(rename_images_only_checkbox->isChecked());
             }
@@ -925,6 +950,21 @@ void MainApp::restore_tree_settings()
         QSignalBlocker blocker(process_images_only_checkbox);
         process_images_only_checkbox->setChecked(settings.get_process_images_only());
     }
+    if (add_image_date_place_to_filename_checkbox) {
+        QSignalBlocker blocker(add_image_date_place_to_filename_checkbox);
+        add_image_date_place_to_filename_checkbox->setChecked(
+            settings.get_add_image_date_place_to_filename());
+    }
+    if (add_audio_video_metadata_to_filename_checkbox) {
+        QSignalBlocker blocker(add_audio_video_metadata_to_filename_checkbox);
+        add_audio_video_metadata_to_filename_checkbox->setChecked(
+            settings.get_add_audio_video_metadata_to_filename());
+    }
+    if (add_image_date_to_category_checkbox) {
+        QSignalBlocker blocker(add_image_date_to_category_checkbox);
+        add_image_date_to_category_checkbox->setChecked(
+            settings.get_add_image_date_to_category());
+    }
     if (offer_rename_images_checkbox) {
         QSignalBlocker blocker(offer_rename_images_checkbox);
         offer_rename_images_checkbox->setChecked(settings.get_offer_rename_images());
@@ -1045,6 +1085,18 @@ void MainApp::sync_ui_to_settings()
     if (process_images_only_checkbox) {
         settings.set_process_images_only(process_images_only_checkbox->isChecked());
     }
+    if (add_image_date_place_to_filename_checkbox) {
+        settings.set_add_image_date_place_to_filename(
+            add_image_date_place_to_filename_checkbox->isChecked());
+    }
+    if (add_audio_video_metadata_to_filename_checkbox) {
+        settings.set_add_audio_video_metadata_to_filename(
+            add_audio_video_metadata_to_filename_checkbox->isChecked());
+    }
+    if (add_image_date_to_category_checkbox) {
+        settings.set_add_image_date_to_category(
+            add_image_date_to_category_checkbox->isChecked());
+    }
     if (offer_rename_images_checkbox) {
         settings.set_offer_rename_images(offer_rename_images_checkbox->isChecked());
     }
@@ -1121,6 +1173,18 @@ QCheckBox* MainAppTestAccess::analyze_images_checkbox(MainApp& app) {
 
 QCheckBox* MainAppTestAccess::process_images_only_checkbox(MainApp& app) {
     return app.process_images_only_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::add_image_date_to_category_checkbox(MainApp& app) {
+    return app.add_image_date_to_category_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::add_image_date_place_to_filename_checkbox(MainApp& app) {
+    return app.add_image_date_place_to_filename_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::add_audio_video_metadata_to_filename_checkbox(MainApp& app) {
+    return app.add_audio_video_metadata_to_filename_checkbox;
 }
 
 QCheckBox* MainAppTestAccess::offer_rename_images_checkbox(MainApp& app) {
@@ -1522,15 +1586,21 @@ void MainApp::update_image_analysis_controls()
 {
     if (!analyze_images_checkbox ||
         !process_images_only_checkbox ||
+        !add_image_date_to_category_checkbox ||
+        !add_image_date_place_to_filename_checkbox ||
         !offer_rename_images_checkbox ||
         !rename_images_only_checkbox) {
         return;
     }
 
     const bool analysis_enabled = analyze_images_checkbox->isChecked();
+    const bool rename_only = analysis_enabled && rename_images_only_checkbox->isChecked();
     process_images_only_checkbox->setEnabled(analysis_enabled);
     offer_rename_images_checkbox->setEnabled(analysis_enabled);
     rename_images_only_checkbox->setEnabled(analysis_enabled);
+    add_image_date_to_category_checkbox->setEnabled(analysis_enabled && !rename_only);
+    add_image_date_place_to_filename_checkbox->setEnabled(
+        analysis_enabled && offer_rename_images_checkbox->isChecked());
     if (image_options_toggle_button) {
         image_options_toggle_button->setEnabled(analysis_enabled);
         const bool expanded = image_options_toggle_button->isChecked();
@@ -1853,6 +1923,10 @@ bool MainApp::perform_undo_from_plan(const QString& plan_path)
 
 MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files)
 {
+#ifdef _WIN32
+    (void)total_files;
+    return SupportPromptResult::NotSure;
+#else
     QMessageBox box(this);
     box.setIcon(QMessageBox::Information);
     box.setWindowTitle(QObject::tr("Support %1").arg(app_display_name()));
@@ -1918,6 +1992,7 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
         return SupportPromptResult::CannotDonate;
     }
     return SupportPromptResult::NotSure;
+#endif
 }
 
 
@@ -2013,6 +2088,54 @@ void MainApp::append_progress(const std::string& message)
     });
 }
 
+void MainApp::configure_progress_stages(const std::vector<CategorizationProgressDialog::StagePlan>& stages)
+{
+    run_on_ui_blocking([this, stages]() {
+        if (progress_dialog) {
+            progress_dialog->configure_stages(stages);
+        }
+    });
+}
+
+void MainApp::set_progress_stage_items(CategorizationProgressDialog::StageId stage_id,
+                                       const std::vector<FileEntry>& items)
+{
+    run_on_ui_blocking([this, stage_id, items]() {
+        if (progress_dialog) {
+            progress_dialog->set_stage_items(stage_id, items);
+        }
+    });
+}
+
+void MainApp::set_progress_active_stage(CategorizationProgressDialog::StageId stage_id)
+{
+    run_on_ui_blocking([this, stage_id]() {
+        if (progress_dialog) {
+            progress_dialog->set_active_stage(stage_id);
+        }
+    });
+}
+
+void MainApp::mark_progress_stage_item_in_progress(CategorizationProgressDialog::StageId stage_id,
+                                                   const FileEntry& entry)
+{
+    run_on_ui_blocking([this, stage_id, entry]() {
+        if (progress_dialog) {
+            progress_dialog->mark_stage_item_in_progress(stage_id, entry);
+        }
+    });
+}
+
+void MainApp::mark_progress_stage_item_completed(CategorizationProgressDialog::StageId stage_id,
+                                                 const FileEntry& entry)
+{
+    run_on_ui_blocking([this, stage_id, entry]() {
+        if (progress_dialog) {
+            progress_dialog->mark_stage_item_completed(stage_id, entry);
+        }
+    });
+}
+
 bool MainApp::should_abort_analysis() const
 {
     return stop_analysis.load();
@@ -2066,6 +2189,7 @@ void MainApp::log_pending_queue()
     if (!progress_dialog) {
         return;
     }
+
     if (files_to_categorize.empty()) {
         append_progress(to_utf8(tr("[DONE] No files to categorize.")));
         return;
@@ -2110,6 +2234,15 @@ void MainApp::perform_analysis()
         const bool offer_document_renames = analyze_documents && allow_document_renames;
         const bool wants_visual_rename = analyze_images && allow_image_renames && !rename_images_only;
         const bool wants_document_rename = analyze_documents && allow_document_renames && !rename_documents_only;
+        const bool add_image_date_place_prefixes =
+            analyze_images &&
+            allow_image_renames &&
+            settings.get_add_image_date_place_to_filename();
+        const bool add_image_date_to_category =
+            analyze_images &&
+            settings.get_add_image_date_to_category();
+        const bool add_audio_video_metadata_to_filename =
+            settings.get_add_audio_video_metadata_to_filename();
         const bool add_document_date = analyze_documents && settings.get_add_document_date_to_category();
         const bool use_full_path_keys = settings.get_include_subdirectories();
 
@@ -2520,6 +2653,78 @@ void MainApp::perform_analysis()
                                     cached_document_entries_for_analysis.end());
         }
 
+        using ProgressStageId = CategorizationProgressDialog::StageId;
+
+        std::vector<FileEntry> image_stage_entries;
+        image_stage_entries.reserve(image_entries.size());
+        for (const auto& entry : image_entries) {
+            const bool already_renamed = renamed_files.contains(entry_key(entry));
+            if (already_renamed && rename_images_only) {
+                continue;
+            }
+            image_stage_entries.push_back(entry);
+        }
+
+        std::vector<FileEntry> document_stage_entries;
+        document_stage_entries.reserve(document_entries.size());
+        for (const auto& entry : document_entries) {
+            const bool already_renamed = renamed_files.contains(entry_key(entry));
+            if (already_renamed && rename_documents_only) {
+                continue;
+            }
+            document_stage_entries.push_back(entry);
+        }
+
+        std::vector<FileEntry> planned_categorization_entries;
+        std::unordered_set<std::string> planned_categorization_seen;
+        planned_categorization_entries.reserve(other_entries.size() +
+                                               image_entries.size() +
+                                               document_entries.size());
+        auto append_planned_categorization_entry = [&](const FileEntry& entry) {
+            const std::string key = entry_key(entry);
+            if (planned_categorization_seen.contains(key)) {
+                return;
+            }
+            planned_categorization_seen.insert(key);
+            planned_categorization_entries.push_back(entry);
+        };
+
+        for (const auto& entry : other_entries) {
+            append_planned_categorization_entry(entry);
+        }
+        if (!rename_images_only) {
+            for (const auto& entry : image_entries) {
+                if (cached_visual_indices.contains(entry_key(entry))) {
+                    continue;
+                }
+                append_planned_categorization_entry(entry);
+            }
+        }
+        if (!rename_documents_only) {
+            for (const auto& entry : document_entries) {
+                if (cached_document_indices.contains(entry_key(entry))) {
+                    continue;
+                }
+                append_planned_categorization_entry(entry);
+            }
+        }
+
+        std::vector<CategorizationProgressDialog::StagePlan> progress_stages;
+        if (!image_stage_entries.empty()) {
+            progress_stages.push_back({ProgressStageId::ImageAnalysis, image_stage_entries});
+        }
+        if (!document_stage_entries.empty()) {
+            progress_stages.push_back({ProgressStageId::DocumentAnalysis, document_stage_entries});
+        }
+        if (!planned_categorization_entries.empty()) {
+            progress_stages.push_back({ProgressStageId::Categorization, planned_categorization_entries});
+        }
+
+        configure_progress_stages(progress_stages);
+        if (!progress_stages.empty()) {
+            set_progress_active_stage(progress_stages.front().id);
+        }
+
         struct ImageAnalysisInfo {
             std::string suggested_name;
             std::string prompt_name;
@@ -2539,13 +2744,50 @@ void MainApp::perform_analysis()
         analyzed_image_entries.reserve(image_entries.size());
 
         std::unordered_map<std::string, DocumentAnalysisInfo> document_info;
+        std::unordered_map<std::string, std::string> image_dates;
         std::unordered_map<std::string, std::string> document_dates;
         std::vector<FileEntry> document_entries_for_llm;
         document_entries_for_llm.reserve(document_entries.size());
         std::vector<FileEntry> analyzed_document_entries;
         analyzed_document_entries.reserve(document_entries.size());
+        std::unique_ptr<ImageRenameMetadataService> image_metadata_service;
+        std::unique_ptr<MediaRenameMetadataService> media_metadata_service;
+        std::unordered_map<std::string, std::string> media_rename_suggestions;
+        if (add_image_date_place_prefixes || add_image_date_to_category) {
+            image_metadata_service =
+                std::make_unique<ImageRenameMetadataService>(settings.get_config_dir());
+        }
+        if (add_audio_video_metadata_to_filename) {
+            media_metadata_service = std::make_unique<MediaRenameMetadataService>();
+        }
 
         if (analyze_images && !image_entries.empty()) {
+            if (!image_stage_entries.empty()) {
+                set_progress_active_stage(ProgressStageId::ImageAnalysis);
+            }
+            auto enrich_image_suggestion = [&](const FileEntry& entry,
+                                               const std::string& raw_suggested_name) {
+                if (raw_suggested_name.empty() || !image_metadata_service) {
+                    return raw_suggested_name;
+                }
+                return image_metadata_service->enrich_suggested_name(
+                    Utils::utf8_to_path(entry.full_path),
+                    raw_suggested_name);
+            };
+            auto cache_image_date = [&](const FileEntry& entry) {
+                if (!add_image_date_to_category || !image_metadata_service) {
+                    return;
+                }
+                const std::string key = entry_key(entry);
+                if (image_dates.contains(key)) {
+                    return;
+                }
+                if (const auto date = image_metadata_service->extract_capture_date(
+                        Utils::utf8_to_path(entry.full_path))) {
+                    image_dates.emplace(key, *date);
+                }
+            };
+
             std::string error;
             auto visual_paths = resolve_visual_llm_paths(&error);
             if (!visual_paths) {
@@ -2630,7 +2872,8 @@ void MainApp::perform_analysis()
                 if (!rename_images_only && !visual_only) {
                     other_entries.push_back(entry);
                 }
-                const std::string suggested_name = already_renamed ? std::string() : entry.file_name;
+                const std::string suggested_name = already_renamed ? std::string()
+                                                                   : enrich_image_suggestion(entry, entry.file_name);
                 const std::string ui_suggested_name =
                     (allow_image_renames || rename_images_only) ? suggested_name : std::string();
                 image_info.emplace(entry_key(entry),
@@ -2694,7 +2937,10 @@ void MainApp::perform_analysis()
                     }
                     const bool visual_only = cached_visual_indices.contains(entry_key(entry));
                     analyzed_image_entries.push_back(entry);
+                    cache_image_date(entry);
+                    mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
                     handle_visual_failure(entry, std::string(), already_renamed, false, visual_only);
+                    mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
                 }
             } else {
                 bool stop_visual_analysis = false;
@@ -2711,22 +2957,26 @@ void MainApp::perform_analysis()
                     const auto cached_suggestion_it = cached_image_suggestions.find(entry_key(entry));
                     const bool has_cached_suggestion = cached_suggestion_it != cached_image_suggestions.end();
                     analyzed_image_entries.push_back(entry);
+                    cache_image_date(entry);
+                    mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
 
                     while (true) {
                         try {
                             if (has_cached_suggestion) {
                                 append_progress(to_utf8(tr("[VISION] Using cached suggestion for %1")
                                                             .arg(QString::fromStdString(entry.file_name))));
+                                const std::string prompt_name = cached_suggestion_it->second;
+                                const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
                                 const std::string suggested_name = already_renamed ? std::string()
-                                                                                   : cached_suggestion_it->second;
+                                                                                   : enriched_name;
                                 const std::string ui_suggested_name =
                                     (allow_image_renames || rename_images_only) ? suggested_name : std::string();
                                 const auto entry_path = Utils::utf8_to_path(entry.full_path);
                                 const auto prompt_path = Utils::path_to_utf8(
-                                    entry_path.parent_path() / Utils::utf8_to_path(cached_suggestion_it->second));
+                                    entry_path.parent_path() / Utils::utf8_to_path(prompt_name));
                                 image_info.emplace(entry_key(entry),
                                                    ImageAnalysisInfo{ui_suggested_name,
-                                                                     cached_suggestion_it->second,
+                                                                     prompt_name,
                                                                      prompt_path});
                                 if (rename_images_only) {
                                     persist_rename_only_progress(entry, suggested_name);
@@ -2737,17 +2987,20 @@ void MainApp::perform_analysis()
                                 if (!rename_images_only && !visual_only) {
                                     image_entries_for_llm.push_back(entry);
                                 }
+                                mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
                                 break;
                             }
 
                             append_progress(to_utf8(tr("[VISION] Analyzing %1")
                                                         .arg(QString::fromStdString(entry.file_name))));
                             const auto analysis = analyzer->analyze(entry.full_path);
+                            const std::string prompt_name = analysis.suggested_name;
+                            const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
                             const auto entry_path = Utils::utf8_to_path(entry.full_path);
                             const auto prompt_path = Utils::path_to_utf8(
-                                entry_path.parent_path() / Utils::utf8_to_path(analysis.suggested_name));
+                                entry_path.parent_path() / Utils::utf8_to_path(prompt_name));
 
-                            const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
+                            const std::string suggested_name = already_renamed ? std::string() : enriched_name;
                             const std::string ui_suggested_name =
                                 (allow_image_renames || rename_images_only) ? suggested_name : std::string();
                             if (!rename_images_only) {
@@ -2755,7 +3008,7 @@ void MainApp::perform_analysis()
                             }
                             image_info.emplace(entry_key(entry),
                                                ImageAnalysisInfo{ui_suggested_name,
-                                                                 analysis.suggested_name,
+                                                                 prompt_name,
                                                                  prompt_path});
                             if (rename_images_only) {
                                 persist_rename_only_progress(entry, suggested_name);
@@ -2767,6 +3020,7 @@ void MainApp::perform_analysis()
                             if (!rename_images_only && !visual_only) {
                                 image_entries_for_llm.push_back(entry);
                             }
+                            mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
                             break;
                         } catch (const std::exception& ex) {
                             if (!visual_cpu_fallback_active &&
@@ -2797,6 +3051,7 @@ void MainApp::perform_analysis()
                             } else {
                                 handle_visual_failure(entry, ex.what(), already_renamed, true, visual_only);
                             }
+                            mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
                             break;
                         }
                     }
@@ -2813,7 +3068,10 @@ void MainApp::perform_analysis()
                             }
                             const bool pending_visual_only = cached_visual_indices.contains(entry_key(pending));
                             analyzed_image_entries.push_back(pending);
+                            cache_image_date(pending);
+                            mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, pending);
                             handle_visual_failure(pending, std::string(), pending_renamed, false, pending_visual_only);
+                            mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, pending);
                         }
                         break;
                     }
@@ -2822,6 +3080,9 @@ void MainApp::perform_analysis()
         }
 
         if (analyze_documents && !document_entries.empty()) {
+            if (!document_stage_entries.empty()) {
+                set_progress_active_stage(ProgressStageId::DocumentAnalysis);
+            }
             auto update_cached_document_suggestion = [&](const FileEntry& entry,
                                                          const std::string& suggested_name) {
                 const auto it = cached_document_indices.find(entry_key(entry));
@@ -2895,6 +3156,7 @@ void MainApp::perform_analysis()
                     }
                 }
                 analyzed_document_entries.push_back(entry);
+                mark_progress_stage_item_in_progress(ProgressStageId::DocumentAnalysis, entry);
 
                 try {
                     if (has_cached_suggestion) {
@@ -2914,6 +3176,7 @@ void MainApp::perform_analysis()
                         if (!rename_documents_only && !document_only) {
                             document_entries_for_llm.push_back(entry);
                         }
+                        mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
                         continue;
                     }
 
@@ -2945,16 +3208,55 @@ void MainApp::perform_analysis()
                     if (!rename_documents_only && !document_only) {
                         document_entries_for_llm.push_back(entry);
                     }
+                    mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
                 } catch (const std::exception& ex) {
                     handle_document_failure(entry, ex.what(), already_renamed, true, document_only);
+                    mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
                 }
             }
         }
 
         update_stop();
 
-        auto suggested_name_provider = [allow_image_renames, allow_document_renames,
-                                        &image_info, &document_info, &entry_key](const FileEntry& entry) -> std::string {
+        std::vector<FileEntry> categorization_stage_entries;
+        std::unordered_set<std::string> categorization_stage_seen;
+        categorization_stage_entries.reserve(other_entries.size() +
+                                             image_entries_for_llm.size() +
+                                             document_entries_for_llm.size());
+        auto append_categorization_stage_entry = [&](const FileEntry& entry) {
+            const std::string key = entry_key(entry);
+            if (categorization_stage_seen.contains(key)) {
+                return;
+            }
+            categorization_stage_seen.insert(key);
+            categorization_stage_entries.push_back(entry);
+        };
+
+        if (!stop_requested) {
+            for (const auto& entry : other_entries) {
+                append_categorization_stage_entry(entry);
+            }
+        }
+        for (const auto& entry : image_entries_for_llm) {
+            append_categorization_stage_entry(entry);
+        }
+        for (const auto& entry : document_entries_for_llm) {
+            append_categorization_stage_entry(entry);
+        }
+
+        set_progress_stage_items(ProgressStageId::Categorization, categorization_stage_entries);
+        if (!categorization_stage_entries.empty()) {
+            set_progress_active_stage(ProgressStageId::Categorization);
+        }
+
+        auto suggested_name_provider = [allow_image_renames,
+                                        allow_document_renames,
+                                        add_audio_video_metadata_to_filename,
+                                        &image_info,
+                                        &document_info,
+                                        &media_metadata_service,
+                                        &media_rename_suggestions,
+                                        &entry_key](const FileEntry& entry) -> std::string {
             const std::string key = entry_key(entry);
             if (allow_image_renames) {
                 if (const auto it = image_info.find(key); it != image_info.end()) {
@@ -2966,7 +3268,72 @@ void MainApp::perform_analysis()
                     return it->second.suggested_name;
                 }
             }
+            if (add_audio_video_metadata_to_filename &&
+                media_metadata_service &&
+                entry.type == FileType::File) {
+                const auto cache_it = media_rename_suggestions.find(key);
+                if (cache_it != media_rename_suggestions.end()) {
+                    return cache_it->second;
+                }
+                std::string suggestion;
+                if (MediaRenameMetadataService::is_supported_media(Utils::utf8_to_path(entry.full_path))) {
+                    if (const auto suggested = media_metadata_service->suggest_name(
+                            Utils::utf8_to_path(entry.full_path))) {
+                        suggestion = *suggested;
+                    }
+                }
+                media_rename_suggestions.emplace(key, suggestion);
+                return suggestion;
+            }
             return std::string();
+        };
+
+        auto apply_image_dates = [this, add_image_date_to_category, &image_dates, &file_key,
+                                  &image_metadata_service](std::vector<CategorizedFile>& results) {
+            if (!add_image_date_to_category) {
+                return;
+            }
+            for (auto& entry : results) {
+                if (entry.type != FileType::File) {
+                    continue;
+                }
+                const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                       Utils::utf8_to_path(entry.file_name);
+                if (!LlavaImageAnalyzer::is_supported_image(full_path)) {
+                    continue;
+                }
+                const std::string key = file_key(entry);
+                auto it = image_dates.find(key);
+                if (it == image_dates.end() && image_metadata_service) {
+                    if (const auto date = image_metadata_service->extract_capture_date(full_path)) {
+                        it = image_dates.emplace(key, *date).first;
+                    }
+                }
+                if (it == image_dates.end() || it->second.empty()) {
+                    continue;
+                }
+                if (entry.category.empty()) {
+                    continue;
+                }
+                const std::string suffix = "_" + it->second;
+                if (entry.category.size() >= suffix.size() &&
+                    entry.category.compare(entry.category.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                    continue;
+                }
+                entry.category += suffix;
+
+                DatabaseManager::ResolvedCategory resolved{entry.taxonomy_id, entry.category, entry.subcategory};
+                const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
+                db_manager.insert_or_update_file_with_categorization(
+                    entry.file_name,
+                    file_type_label,
+                    entry.file_path,
+                    resolved,
+                    entry.used_consistency_hints,
+                    entry.suggested_name,
+                    entry.rename_only,
+                    entry.rename_applied);
+            }
         };
 
         auto apply_document_dates = [this, add_document_date, &document_dates, &file_key](std::vector<CategorizedFile>& results) {
@@ -3024,9 +3391,13 @@ void MainApp::perform_analysis()
                 stop_analysis,
                 [this](const std::string& message) { append_progress(message); },
                 [this](const FileEntry& entry) {
+                    mark_progress_stage_item_in_progress(ProgressStageId::Categorization, entry);
                     const QString type_label = entry.type == FileType::Directory ? tr("Directory") : tr("File");
                     append_progress(to_utf8(tr("[SORT] %1 (%2)")
                                                 .arg(QString::fromStdString(entry.file_name), type_label)));
+                },
+                [this](const FileEntry& entry) {
+                    mark_progress_stage_item_completed(ProgressStageId::Categorization, entry);
                 },
                 [this](const CategorizedFile& entry, const std::string& reason) {
                     notify_recategorization_reset(entry, reason);
@@ -3035,6 +3406,7 @@ void MainApp::perform_analysis()
                 {},
                 suggested_name_provider);
         }
+        apply_image_dates(other_results);
         apply_document_dates(other_results);
         update_stop();
 
@@ -3078,9 +3450,13 @@ void MainApp::perform_analysis()
                     stop_flag,
                     [this](const std::string& message) { append_progress(message); },
                     [this](const FileEntry& entry) {
+                        mark_progress_stage_item_in_progress(ProgressStageId::Categorization, entry);
                         const QString type_label = entry.type == FileType::Directory ? tr("Directory") : tr("File");
                         append_progress(to_utf8(tr("[SORT] %1 (%2)")
                                                     .arg(QString::fromStdString(entry.file_name), type_label)));
+                    },
+                    [this](const FileEntry& entry) {
+                        mark_progress_stage_item_completed(ProgressStageId::Categorization, entry);
                     },
                     [this](const CategorizedFile& entry, const std::string& reason) {
                         notify_recategorization_reset(entry, reason);
@@ -3092,6 +3468,7 @@ void MainApp::perform_analysis()
                 update_stop();
             }
         }
+        apply_image_dates(image_results);
 
         std::vector<CategorizedFile> document_results;
         if (analyze_documents && !analyzed_document_entries.empty()) {
@@ -3135,9 +3512,13 @@ void MainApp::perform_analysis()
                     stop_flag,
                     [this](const std::string& message) { append_progress(message); },
                     [this](const FileEntry& entry) {
+                        mark_progress_stage_item_in_progress(ProgressStageId::Categorization, entry);
                         const QString type_label = entry.type == FileType::Directory ? tr("Directory") : tr("File");
                         append_progress(to_utf8(tr("[SORT] %1 (%2)")
                                                     .arg(QString::fromStdString(entry.file_name), type_label)));
+                    },
+                    [this](const FileEntry& entry) {
+                        mark_progress_stage_item_completed(ProgressStageId::Categorization, entry);
                     },
                     [this](const CategorizedFile& entry, const std::string& reason) {
                         notify_recategorization_reset(entry, reason);
@@ -3581,6 +3962,25 @@ void MainApp::run_on_ui(std::function<void()> func)
             }
         },
         Qt::QueuedConnection);
+}
+
+void MainApp::run_on_ui_blocking(std::function<void()> func)
+{
+    if (QThread::currentThread() == thread()) {
+        if (func) {
+            func();
+        }
+        return;
+    }
+
+    QMetaObject::invokeMethod(
+        this,
+        [fn = std::move(func)]() mutable {
+            if (fn) {
+                fn();
+            }
+        },
+        Qt::BlockingQueuedConnection);
 }
 
 void MainApp::changeEvent(QEvent* event)

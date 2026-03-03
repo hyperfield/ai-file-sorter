@@ -59,25 +59,73 @@ struct FileEntry;
 class MainAppTestAccess;
 #endif
 
+/**
+ * @brief Main Qt window coordinating scanning, categorization, and review flows.
+ */
 class MainApp : public QMainWindow
 {
 public:
+    /**
+     * @brief Outcome returned from the optional support prompt flow.
+     */
     enum class SupportPromptResult { Support, NotSure, CannotDonate };
+    /**
+     * @brief Constructs the main application window.
+     * @param settings Persistent settings store used by the window.
+     * @param development_mode True to enable development-only UI features.
+     * @param parent Optional parent widget.
+     */
     explicit MainApp(Settings& settings, bool development_mode, QWidget* parent = nullptr);
+    /**
+     * @brief Destroys the main window and releases owned resources.
+     */
     ~MainApp() override;
 
+    /**
+     * @brief Shows the main window and starts normal interactive use.
+     */
     void run();
+    /**
+     * @brief Requests application shutdown and stops any active analysis work.
+     */
     void shutdown();
 
+    /**
+     * @brief Opens the results review dialog for a completed categorization batch.
+     * @param categorized_files Files to display in the review dialog.
+     */
     void show_results_dialog(const std::vector<CategorizedFile>& categorized_files);
+    /**
+     * @brief Shows a user-facing error dialog.
+     * @param message Error text to display.
+     */
     void show_error_dialog(const std::string& message);
+    /**
+     * @brief Appends a progress message to the active progress UI.
+     * @param message Progress text to report.
+     */
     void report_progress(const std::string& message);
+    /**
+     * @brief Requests cancellation of the currently running analysis, if any.
+     */
     void request_stop_analysis();
 
+    /**
+     * @brief Returns the currently selected folder path from the UI.
+     * @return Folder path as UTF-8 text.
+     */
     std::string get_folder_path() const;
+    /**
+     * @brief Returns whether the window is running in development mode.
+     * @return True when development-only features are enabled.
+     */
     bool is_development_mode() const { return development_mode_; }
 
 protected:
+    /**
+     * @brief Persists window state and handles shutdown when the window closes.
+     * @param event Qt close event being processed.
+     */
     void closeEvent(QCloseEvent* event) override;
 
 private:
@@ -152,6 +200,14 @@ private:
     void show_llm_selection_dialog();
     void on_about_activate();
     void append_progress(const std::string& message);
+    void configure_progress_stages(const std::vector<CategorizationProgressDialog::StagePlan>& stages);
+    void set_progress_stage_items(CategorizationProgressDialog::StageId stage_id,
+                                  const std::vector<FileEntry>& items);
+    void set_progress_active_stage(CategorizationProgressDialog::StageId stage_id);
+    void mark_progress_stage_item_in_progress(CategorizationProgressDialog::StageId stage_id,
+                                              const FileEntry& entry);
+    void mark_progress_stage_item_completed(CategorizationProgressDialog::StageId stage_id,
+                                            const FileEntry& entry);
     bool should_abort_analysis() const;
     void prune_empty_cached_entries_for(const std::string& directory_path);
     void log_cached_highlights();
@@ -176,6 +232,7 @@ private:
     void apply_whitelist_to_selector();
 
     void run_on_ui(std::function<void()> func);
+    void run_on_ui_blocking(std::function<void()> func);
     void changeEvent(QEvent* event) override;
     FileScanOptions effective_scan_options() const;
     bool prompt_text_cpu_fallback(const std::string& reason);
@@ -210,6 +267,9 @@ private:
     QPointer<QCheckBox> include_subdirectories_checkbox;
     QPointer<QCheckBox> analyze_images_checkbox;
     QPointer<QCheckBox> process_images_only_checkbox;
+    QPointer<QCheckBox> add_image_date_to_category_checkbox;
+    QPointer<QCheckBox> add_image_date_place_to_filename_checkbox;
+    QPointer<QCheckBox> add_audio_video_metadata_to_filename_checkbox;
     QPointer<QCheckBox> offer_rename_images_checkbox;
     QPointer<QCheckBox> rename_images_only_checkbox;
     QPointer<QToolButton> image_options_toggle_button;
