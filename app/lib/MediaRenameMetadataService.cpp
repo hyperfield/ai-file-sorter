@@ -16,6 +16,11 @@
 #include <vector>
 
 #ifdef AI_FILE_SORTER_USE_MEDIAINFOLIB
+#if defined(__APPLE__) && !defined(UNICODE) && !defined(_UNICODE)
+// Homebrew's MediaInfoLib is built with the wide-character API enabled.
+#define UNICODE
+#define _UNICODE
+#endif
 #include <MediaInfo/MediaInfo.h>
 #if defined(UNICODE) || defined(_UNICODE)
 #include <QString>

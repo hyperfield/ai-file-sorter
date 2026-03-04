@@ -121,6 +121,50 @@ else()
             list(APPEND MEDIAINFO_DEPS_LIBS PkgConfig::MEDIAINFO)
         endif()
     endif()
+    if(NOT MEDIAINFO_DEPS_LIBS AND APPLE)
+        set(_aifs_mediainfo_prefixes "")
+        if(DEFINED ENV{HOMEBREW_PREFIX} AND NOT "$ENV{HOMEBREW_PREFIX}" STREQUAL "")
+            list(APPEND _aifs_mediainfo_prefixes "$ENV{HOMEBREW_PREFIX}")
+        endif()
+        list(APPEND _aifs_mediainfo_prefixes /opt/homebrew /usr/local)
+        list(REMOVE_DUPLICATES _aifs_mediainfo_prefixes)
+
+        set(_aifs_mediainfo_include_hints "")
+        set(_aifs_mediainfo_library_hints "")
+        foreach(_aifs_prefix IN LISTS _aifs_mediainfo_prefixes)
+            list(APPEND _aifs_mediainfo_include_hints
+                "${_aifs_prefix}/opt/libmediainfo/include"
+                "${_aifs_prefix}/include"
+            )
+            list(APPEND _aifs_mediainfo_library_hints
+                "${_aifs_prefix}/opt/libmediainfo/lib"
+                "${_aifs_prefix}/lib"
+            )
+        endforeach()
+
+        find_path(AIFS_MEDIAINFO_INCLUDE_DIR
+            NAMES MediaInfo/MediaInfo.h
+            HINTS ${_aifs_mediainfo_include_hints}
+        )
+        find_library(AIFS_MEDIAINFO_LIBRARY
+            NAMES mediainfo libmediainfo
+            HINTS ${_aifs_mediainfo_library_hints}
+        )
+        if(AIFS_MEDIAINFO_INCLUDE_DIR AND AIFS_MEDIAINFO_LIBRARY)
+            if(NOT TARGET AIFS::MediaInfoLib)
+                add_library(AIFS::MediaInfoLib UNKNOWN IMPORTED)
+                set_target_properties(AIFS::MediaInfoLib PROPERTIES
+                    IMPORTED_LOCATION "${AIFS_MEDIAINFO_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${AIFS_MEDIAINFO_INCLUDE_DIR}"
+                )
+            endif()
+            list(APPEND MEDIAINFO_DEPS_LIBS AIFS::MediaInfoLib)
+        endif()
+
+        unset(_aifs_mediainfo_include_hints)
+        unset(_aifs_mediainfo_library_hints)
+        unset(_aifs_mediainfo_prefixes)
+    endif()
 endif()
 if(MEDIAINFO_DEPS_LIBS)
     foreach(_mediainfo_target IN LISTS MEDIAINFO_DEPS_LIBS)
