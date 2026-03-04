@@ -101,6 +101,8 @@ private:
     void refresh_spinner();
     bool has_in_progress_item() const;
     ItemStatus stage_status_for_row(const ItemState& state, StageId stage_id) const;
+    std::optional<int> find_stage_row(StageId stage_id, ItemStatus status) const;
+    void ensure_row_visible(int row);
 
     MainApp* main_app;
     QLabel* stage_list_label{nullptr};

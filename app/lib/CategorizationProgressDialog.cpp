@@ -229,6 +229,14 @@ void CategorizationProgressDialog::set_active_stage(StageId stage_id)
     active_stage_ = stage_id;
     refresh_stage_overview();
     refresh_summary();
+
+    if (const auto in_progress_row = find_stage_row(stage_id, ItemStatus::InProgress)) {
+        ensure_row_visible(*in_progress_row);
+        return;
+    }
+    if (const auto pending_row = find_stage_row(stage_id, ItemStatus::Pending)) {
+        ensure_row_visible(*pending_row);
+    }
 }
 
 
@@ -442,6 +450,7 @@ void CategorizationProgressDialog::set_stage_item_status(StageId stage_id,
     if (state.stage_statuses[idx] == status) {
         if (status == ItemStatus::InProgress) {
             refresh_row(state.row);
+            ensure_row_visible(state.row);
         }
         return;
     }
@@ -452,6 +461,9 @@ void CategorizationProgressDialog::set_stage_item_status(StageId stage_id,
     refresh_summary();
 
     if (!spinner_timer) {
+        if (status == ItemStatus::InProgress) {
+            ensure_row_visible(state.row);
+        }
         return;
     }
     if (has_in_progress_item()) {
@@ -460,6 +472,10 @@ void CategorizationProgressDialog::set_stage_item_status(StageId stage_id,
         }
     } else {
         spinner_timer->stop();
+    }
+
+    if (status == ItemStatus::InProgress) {
+        ensure_row_visible(state.row);
     }
 }
 
@@ -524,6 +540,41 @@ CategorizationProgressDialog::ItemStatus CategorizationProgressDialog::stage_sta
     StageId stage_id) const
 {
     return state.stage_statuses[stage_index(stage_id)];
+}
+
+
+std::optional<int> CategorizationProgressDialog::find_stage_row(StageId stage_id,
+                                                                ItemStatus status) const
+{
+    std::optional<int> best_row;
+    const std::size_t idx = stage_index(stage_id);
+
+    for (const auto& [key, item] : item_states_) {
+        (void)key;
+        if (item.stage_statuses[idx] != status) {
+            continue;
+        }
+        if (!best_row.has_value() || item.row < *best_row) {
+            best_row = item.row;
+        }
+    }
+
+    return best_row;
+}
+
+
+void CategorizationProgressDialog::ensure_row_visible(int row)
+{
+    if (!status_table || row < 0 || row >= status_table->rowCount()) {
+        return;
+    }
+
+    auto* anchor_item = status_table->item(row, 0);
+    if (!anchor_item) {
+        return;
+    }
+
+    status_table->scrollToItem(anchor_item, QAbstractItemView::EnsureVisible);
 }
 
 
