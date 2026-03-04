@@ -31,6 +31,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QBoxLayout>
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QDialogButtonBox>
@@ -1941,42 +1942,86 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
 
     const auto apply_button_style = [](QAbstractButton* button,
                                        const QString& background,
-                                       const QString& hover) {
+                                       const QString& hover,
+                                       const QString& text_color,
+                                       int font_weight,
+                                       const QString& border) {
         if (!button) {
             return;
         }
         button->setStyleSheet(QStringLiteral(
             "QPushButton {"
             "  background-color: %1;"
-            "  color: white;"
+            "  color: %2;"
             "  padding: 6px 18px;"
-            "  border: none;"
+            "  border: %5;"
             "  border-radius: 14px;"
-            "  font-weight: 600;"
+            "  font-weight: %3;"
             "}"
             "QPushButton:hover {"
-            "  background-color: %2;"
+            "  background-color: %4;"
             "}"
             "QPushButton:pressed {"
-            "  background-color: %2;"
+            "  background-color: %4;"
             "  opacity: 0.9;"
             "}"
-        ).arg(background, hover));
+        ).arg(background,
+              text_color,
+              QString::number(font_weight),
+              hover,
+              border));
     };
 
-    apply_button_style(support_btn, QStringLiteral("#007aff"), QStringLiteral("#005ec7"));
+    apply_button_style(support_btn,
+                       QStringLiteral("#007aff"),
+                       QStringLiteral("#005ec7"),
+                       QStringLiteral("white"),
+                       800,
+                       QStringLiteral("2px solid #005ec7"));
     const QString neutral_bg = QStringLiteral("#bdc3c7");
     const QString neutral_hover = QStringLiteral("#95a5a6");
-    apply_button_style(later_btn, neutral_bg, neutral_hover);
-    apply_button_style(cannot_btn, neutral_bg, neutral_hover);
+    apply_button_style(later_btn,
+                       neutral_bg,
+                       neutral_hover,
+                       QStringLiteral("#1f1f1f"),
+                       500,
+                       QStringLiteral("none"));
+    apply_button_style(cannot_btn,
+                       neutral_bg,
+                       neutral_hover,
+                       QStringLiteral("#1f1f1f"),
+                       500,
+                       QStringLiteral("none"));
 
     if (auto* button_box = box.findChild<QDialogButtonBox*>()) {
         button_box->setCenterButtons(true);
-        // Ensure the visual order matches creation (Support, Not sure, Cannot donate)
         button_box->setLayoutDirection(Qt::LeftToRight);
+        if (auto* layout = qobject_cast<QBoxLayout*>(button_box->layout())) {
+            int insert_index = layout->count();
+            for (int i = 0; i < layout->count(); ++i) {
+                if (auto* item = layout->itemAt(i); item && item->widget() &&
+                    qobject_cast<QAbstractButton*>(item->widget())) {
+                    insert_index = i;
+                    break;
+                }
+            }
+
+            layout->removeWidget(support_btn);
+            layout->removeWidget(later_btn);
+            layout->removeWidget(cannot_btn);
+
+            layout->insertWidget(insert_index++, support_btn);
+            layout->insertWidget(insert_index++, later_btn);
+            layout->insertWidget(insert_index, cannot_btn);
+        }
     }
 
-    box.setDefaultButton(later_btn);
+    support_btn->setAutoDefault(true);
+    support_btn->setDefault(true);
+    later_btn->setAutoDefault(false);
+    cannot_btn->setAutoDefault(false);
+    support_btn->setFocus();
+    box.setDefaultButton(support_btn);
     box.exec();
 
     const QAbstractButton* clicked = box.clickedButton();
