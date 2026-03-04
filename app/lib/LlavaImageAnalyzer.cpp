@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -243,6 +244,16 @@ bool should_enable_mmproj_gpu(const std::filesystem::path& mmproj_path,
     return true;
 }
 
+int32_t default_visual_batch_size(bool gpu_enabled, std::string_view backend_name) {
+    if (!gpu_enabled) {
+        return 512;
+    }
+    if (case_insensitive_contains(backend_name, "metal")) {
+        return 1024;
+    }
+    return 768;
+}
+
 struct BitmapDeleter {
     void operator()(mtmd_bitmap* ptr) const {
         if (ptr) {
@@ -312,6 +323,22 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     }
 
     auto logger = Logger::get_logger("core_logger");
+    const std::string backend_name = resolve_backend_name();
+    const auto cleanup = [this]() {
+        if (vision_ctx_) {
+            mtmd_free(vision_ctx_);
+            vision_ctx_ = nullptr;
+        }
+        if (context_) {
+            llama_free(context_);
+            context_ = nullptr;
+        }
+        if (model_) {
+            llama_model_free(model_);
+            model_ = nullptr;
+        }
+    };
+
     llama_model_params model_params = llama_model_default_params();
     if (settings_.use_gpu) {
         model_params = build_model_params_for_path(model_path.string(), logger);
@@ -320,7 +347,7 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     }
     text_gpu_enabled_ = settings_.use_gpu && model_params.n_gpu_layers != 0;
     context_tokens_ = settings_.n_ctx;
-    batch_size_ = 512;
+    batch_size_ = default_visual_batch_size(text_gpu_enabled_, backend_name);
     model_ = llama_model_load_from_file(model_path.string().c_str(), model_params);
     if (!model_) {
         throw std::runtime_error("Failed to load LLaVA text model at " + model_path.string());
@@ -330,7 +357,7 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
 
     bool mmproj_use_gpu = text_gpu_enabled_;
     if (mmproj_use_gpu && (!visual_gpu_override_.has_value() || !*visual_gpu_override_)) {
-        mmproj_use_gpu = should_enable_mmproj_gpu(mmproj_path, resolve_backend_name(), logger);
+        mmproj_use_gpu = should_enable_mmproj_gpu(mmproj_path, backend_name, logger);
     }
     mmproj_gpu_enabled_ = mmproj_use_gpu;
 
@@ -339,14 +366,18 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     mm_params.n_threads = settings_.n_threads;
     vision_ctx_ = mtmd_init_from_file(mmproj_path.string().c_str(), model_, mm_params);
     if (!vision_ctx_) {
-        llama_free(context_);
-        llama_model_free(model_);
-        context_ = nullptr;
-        model_ = nullptr;
+        cleanup();
         throw std::runtime_error("Failed to load mmproj file at " + mmproj_path.string());
     }
     if (!mtmd_support_vision(vision_ctx_)) {
+        cleanup();
         throw std::runtime_error("The provided mmproj file does not expose vision capabilities");
+    }
+    try {
+        initialize_context();
+    } catch (...) {
+        cleanup();
+        throw;
     }
 #endif
 }
@@ -367,6 +398,99 @@ LlavaImageAnalyzer::~LlavaImageAnalyzer() {
     }
 #endif
 }
+
+#ifdef AI_FILE_SORTER_HAS_MTMD
+void LlavaImageAnalyzer::initialize_context() {
+    auto logger = Logger::get_logger("core_logger");
+    const int32_t initial_ctx = context_tokens_ > 0 ? context_tokens_ : settings_.n_ctx;
+    const int32_t initial_batch = batch_size_ > 0 ? batch_size_ : 512;
+
+    auto try_init_context = [&](int32_t n_ctx, int32_t n_batch) -> bool {
+        if (context_) {
+            llama_free(context_);
+            context_ = nullptr;
+        }
+
+        const int32_t bounded_ctx = std::max<int32_t>(1, n_ctx);
+        const int32_t bounded_batch = std::max<int32_t>(1, std::min(n_batch, bounded_ctx));
+
+        llama_context_params ctx_params = llama_context_default_params();
+        ctx_params.n_ctx = bounded_ctx;
+        ctx_params.n_batch = bounded_batch;
+        ctx_params.n_ubatch = bounded_batch;
+        ctx_params.n_threads = settings_.n_threads;
+        ctx_params.n_threads_batch = settings_.n_threads;
+        context_ = llama_init_from_model(model_, ctx_params);
+        if (context_) {
+            llama_set_n_threads(context_, settings_.n_threads, settings_.n_threads);
+        }
+        return context_ != nullptr;
+    };
+
+    auto apply_context_limits = [&](int32_t n_ctx, int32_t n_batch) {
+        context_tokens_ = std::max<int32_t>(1, n_ctx);
+        batch_size_ = std::max<int32_t>(1, std::min(n_batch, context_tokens_));
+    };
+
+    bool context_ready = try_init_context(initial_ctx, initial_batch);
+    if (context_ready) {
+        apply_context_limits(initial_ctx, initial_batch);
+    } else if (initial_batch > 512) {
+        if (logger) {
+            logger->warn("Failed to initialize llama_context (n_ctx={}, n_batch={}); retrying with smaller batch.",
+                         initial_ctx, initial_batch);
+        }
+        const int32_t smaller_batch = 512;
+        context_ready = try_init_context(initial_ctx, smaller_batch);
+        if (context_ready) {
+            apply_context_limits(initial_ctx, smaller_batch);
+        }
+    }
+    if (!context_ready) {
+        if (logger) {
+            logger->warn("Failed to initialize llama_context (n_ctx={}, n_batch={}); retrying with smaller buffers.",
+                         initial_ctx, std::min(initial_batch, 512));
+        }
+        const int32_t reduced_ctx = std::min(initial_ctx, 2048);
+        const int32_t reduced_batch = std::min(initial_batch, 512);
+        context_ready = try_init_context(reduced_ctx, reduced_batch);
+        if (context_ready) {
+            apply_context_limits(reduced_ctx, reduced_batch);
+        } else {
+            const int32_t smaller_batch = std::min(reduced_batch, 256);
+            context_ready = try_init_context(reduced_ctx, smaller_batch);
+            if (context_ready) {
+                apply_context_limits(reduced_ctx, smaller_batch);
+            } else {
+                const int32_t smaller_ctx = std::min(reduced_ctx, 1024);
+                context_ready = try_init_context(smaller_ctx, smaller_batch);
+                if (context_ready) {
+                    apply_context_limits(smaller_ctx, smaller_batch);
+                }
+            }
+        }
+    }
+
+    if (!context_ready) {
+        std::string hint;
+        if (text_gpu_enabled_) {
+            hint = " (try AI_FILE_SORTER_VISUAL_USE_GPU=0 to force CPU)";
+        }
+        throw std::runtime_error("Failed to create llama_context" + hint);
+    }
+
+    reset_context_state();
+}
+
+void LlavaImageAnalyzer::reset_context_state() {
+    if (!context_) {
+        return;
+    }
+    llama_memory_clear(llama_get_memory(context_), true);
+    llama_synchronize(context_);
+    llama_perf_context_reset(context_);
+}
+#endif
 
 bool LlavaImageAnalyzer::is_supported_image(const std::filesystem::path& path) {
     if (!path.has_extension()) {
@@ -502,64 +626,10 @@ void LlavaImageAnalyzer::mtmd_log_callback(enum ggml_log_level level,
 std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
                                            const std::string& prompt,
                                            int32_t max_tokens) {
-    auto logger = Logger::get_logger("core_logger");
-    const int32_t initial_ctx = context_tokens_ > 0 ? context_tokens_ : settings_.n_ctx;
-    const int32_t initial_batch = batch_size_ > 0 ? batch_size_ : 512;
-
-    auto try_init_context = [&](int32_t n_ctx, int32_t n_batch) -> bool {
-        if (context_) {
-            llama_free(context_);
-            context_ = nullptr;
-        }
-
-        llama_context_params ctx_params = llama_context_default_params();
-        ctx_params.n_ctx = n_ctx;
-        ctx_params.n_batch = std::min(n_batch, n_ctx);
-        ctx_params.n_threads = settings_.n_threads;
-        context_ = llama_init_from_model(model_, ctx_params);
-        return context_ != nullptr;
-    };
-
-    auto apply_context_limits = [&](int32_t n_ctx, int32_t n_batch) {
-        context_tokens_ = n_ctx;
-        batch_size_ = std::min(n_batch, n_ctx);
-    };
-
-    bool context_ready = try_init_context(initial_ctx, initial_batch);
-    if (context_ready) {
-        apply_context_limits(initial_ctx, initial_batch);
+    if (!context_) {
+        initialize_context();
     }
-    if (!context_ready) {
-        if (logger) {
-            logger->warn("Failed to initialize llama_context (n_ctx={}, n_batch={}); retrying with smaller buffers.",
-                         initial_ctx, initial_batch);
-        }
-        const int32_t reduced_ctx = std::min(initial_ctx, 2048);
-        context_ready = try_init_context(reduced_ctx, initial_batch);
-        if (context_ready) {
-            apply_context_limits(reduced_ctx, initial_batch);
-        } else {
-            const int32_t reduced_batch = std::min(initial_batch, 256);
-            context_ready = try_init_context(reduced_ctx, reduced_batch);
-            if (context_ready) {
-                apply_context_limits(reduced_ctx, reduced_batch);
-            } else {
-                const int32_t smaller_ctx = std::min(reduced_ctx, 1024);
-                context_ready = try_init_context(smaller_ctx, reduced_batch);
-                if (context_ready) {
-                    apply_context_limits(smaller_ctx, reduced_batch);
-                }
-            }
-        }
-    }
-
-    if (!context_ready) {
-        std::string hint;
-        if (text_gpu_enabled_) {
-            hint = " (try AI_FILE_SORTER_VISUAL_USE_GPU=0 to force CPU)";
-        }
-        throw std::runtime_error("Failed to create llama_context" + hint);
-    }
+    reset_context_state();
 
     ChunkPtr chunks(mtmd_input_chunks_init());
     if (!chunks) {

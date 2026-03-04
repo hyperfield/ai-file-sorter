@@ -176,6 +176,8 @@ private:
     int32_t batch_size_{512};
     bool text_gpu_enabled_{false};
     bool mmproj_gpu_enabled_{false};
+    void initialize_context();
+    void reset_context_state();
     static void mtmd_progress_callback(const char* name,
                                        int32_t current_batch,
                                        int32_t total_batches,
