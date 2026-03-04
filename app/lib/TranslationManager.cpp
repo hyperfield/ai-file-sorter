@@ -115,8 +115,17 @@ static const QHash<QString, QString> kFrenchTranslations = {
      QStringLiteral("AI File Sorter demande des centaines d'heures de développement, de nouvelles fonctionnalités, de réponses au support et des coûts permanents comme les serveurs ou l'infrastructure des modèles distants. "
                     "Si l'application vous fait gagner du temps ou vous apporte de la valeur, merci d'envisager un soutien pour qu'elle puisse continuer à s'améliorer.")},
     {QStringLiteral("Support"), QStringLiteral("Soutenir")},
+    {QStringLiteral("Donate to permanently hide this message"), QStringLiteral("Faire un don pour masquer ce message définitivement")},
     {QStringLiteral("I'm not yet sure"), QStringLiteral("Je ne suis pas encore sûr")},
     {QStringLiteral("I cannot donate"), QStringLiteral("Je ne peux pas faire de don")},
+    {QStringLiteral("Donation code"), QStringLiteral("Code de don")},
+    {QStringLiteral("Enter the donation code generated after your donation.\n"
+                    "A valid code will permanently hide this message."),
+     QStringLiteral("Saisissez le code de don généré après votre don.\n"
+                    "Un code valide masquera ce message définitivement.")},
+    {QStringLiteral("Invalid donation code"), QStringLiteral("Code de don invalide")},
+    {QStringLiteral("The donation code is invalid. Please try again or press Cancel."),
+     QStringLiteral("Le code de don est invalide. Veuillez réessayer ou appuyer sur Annuler.")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("À propos de la licence AGPL")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -414,8 +423,17 @@ static const QHash<QString, QString> kGermanTranslations = {
      QStringLiteral("AI File Sorter erfordert hunderte Stunden Entwicklung, Funktionsarbeit, Support-Antworten und laufende Kosten wie Server und Remote-Model-Infrastruktur. "
                     "Wenn dir die App Zeit spart oder Nutzen bringt, erwäge bitte sie zu unterstützen, damit sie sich weiterentwickeln kann.")},
     {QStringLiteral("Support"), QStringLiteral("Unterstützen")},
+    {QStringLiteral("Donate to permanently hide this message"), QStringLiteral("Spenden, um diese Meldung dauerhaft auszublenden")},
     {QStringLiteral("I'm not yet sure"), QStringLiteral("Ich bin mir noch nicht sicher")},
     {QStringLiteral("I cannot donate"), QStringLiteral("Ich kann nicht spenden")},
+    {QStringLiteral("Donation code"), QStringLiteral("Spendencode")},
+    {QStringLiteral("Enter the donation code generated after your donation.\n"
+                    "A valid code will permanently hide this message."),
+     QStringLiteral("Geben Sie den Spendencode ein, der nach Ihrer Spende erzeugt wurde.\n"
+                    "Ein gültiger Code blendet diese Meldung dauerhaft aus.")},
+    {QStringLiteral("Invalid donation code"), QStringLiteral("Ungültiger Spendencode")},
+    {QStringLiteral("The donation code is invalid. Please try again or press Cancel."),
+     QStringLiteral("Der Spendencode ist ungültig. Bitte versuchen Sie es erneut oder klicken Sie auf Abbrechen.")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("Über die AGPL-Lizenz")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -713,8 +731,17 @@ static const QHash<QString, QString> kItalianTranslations = {
      QStringLiteral("AI File Sorter richiede centinaia di ore di sviluppo, nuove funzionalità, risposte al supporto e costi continui come server e infrastrutture per modelli remoti. "
                     "Se l'app ti fa risparmiare tempo o ti offre valore, considera di sostenerla affinché possa continuare a migliorare.")},
     {QStringLiteral("Support"), QStringLiteral("Sostieni")},
+    {QStringLiteral("Donate to permanently hide this message"), QStringLiteral("Fai una donazione per nascondere questo messaggio in modo permanente")},
     {QStringLiteral("I'm not yet sure"), QStringLiteral("Non sono ancora sicuro")},
     {QStringLiteral("I cannot donate"), QStringLiteral("Non posso donare")},
+    {QStringLiteral("Donation code"), QStringLiteral("Codice di donazione")},
+    {QStringLiteral("Enter the donation code generated after your donation.\n"
+                    "A valid code will permanently hide this message."),
+     QStringLiteral("Inserisci il codice di donazione generato dopo la tua donazione.\n"
+                    "Un codice valido nasconderà questo messaggio in modo permanente.")},
+    {QStringLiteral("Invalid donation code"), QStringLiteral("Codice di donazione non valido")},
+    {QStringLiteral("The donation code is invalid. Please try again or press Cancel."),
+     QStringLiteral("Il codice di donazione non è valido. Riprova o premi Annulla.")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("Informazioni sulla licenza AGPL")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -1012,8 +1039,17 @@ static const QHash<QString, QString> kSpanishTranslations = {
      QStringLiteral("AI File Sorter requiere cientos de horas de desarrollo, trabajo en nuevas funciones, respuestas de soporte y costos continuos como servidores e infraestructura de modelos remotos. "
                     "Si la aplicación te ahorra tiempo o te aporta valor, considera apoyarla para que pueda seguir mejorando.")},
     {QStringLiteral("Support"), QStringLiteral("Apoyar")},
+    {QStringLiteral("Donate to permanently hide this message"), QStringLiteral("Donar para ocultar este mensaje permanentemente")},
     {QStringLiteral("I'm not yet sure"), QStringLiteral("Aún no estoy seguro")},
     {QStringLiteral("I cannot donate"), QStringLiteral("No puedo donar")},
+    {QStringLiteral("Donation code"), QStringLiteral("Código de donación")},
+    {QStringLiteral("Enter the donation code generated after your donation.\n"
+                    "A valid code will permanently hide this message."),
+     QStringLiteral("Introduce el código de donación generado después de tu donación.\n"
+                    "Un código válido ocultará este mensaje permanentemente.")},
+    {QStringLiteral("Invalid donation code"), QStringLiteral("Código de donación no válido")},
+    {QStringLiteral("The donation code is invalid. Please try again or press Cancel."),
+     QStringLiteral("El código de donación no es válido. Inténtalo de nuevo o pulsa Cancelar.")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("Acerca de la licencia AGPL")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -1295,8 +1331,17 @@ static const QHash<QString, QString> kDutchTranslations = {
      QStringLiteral("AI File Sorter kost honderden uren ontwikkeling, feature-werk, supportreacties en doorlopende kosten zoals servers en infrastructuur voor externe modellen. "
                     "Als de app u tijd bespaart of waarde biedt, overweeg dan om te ondersteunen zodat hij kan blijven verbeteren.")},
     {QStringLiteral("Support"), QStringLiteral("Ondersteunen")},
+    {QStringLiteral("Donate to permanently hide this message"), QStringLiteral("Doneer om dit bericht permanent te verbergen")},
     {QStringLiteral("I'm not yet sure"), QStringLiteral("Ik weet het nog niet")},
     {QStringLiteral("I cannot donate"), QStringLiteral("Ik kan niet doneren")},
+    {QStringLiteral("Donation code"), QStringLiteral("Donatiecode")},
+    {QStringLiteral("Enter the donation code generated after your donation.\n"
+                    "A valid code will permanently hide this message."),
+     QStringLiteral("Voer de donatiecode in die na je donatie is gegenereerd.\n"
+                    "Een geldige code verbergt dit bericht permanent.")},
+    {QStringLiteral("Invalid donation code"), QStringLiteral("Ongeldige donatiecode")},
+    {QStringLiteral("The donation code is invalid. Please try again or press Cancel."),
+     QStringLiteral("De donatiecode is ongeldig. Probeer het opnieuw of klik op Annuleren.")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("Over de AGPL-licentie")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -1586,8 +1631,17 @@ static const QHash<QString, QString> kTurkishTranslations = {
      QStringLiteral("AI File Sorter yüzlerce saatlik geliştirme, özellik çalışması, destek yanıtları ve sunucular ile uzaktaki modeller gibi devam eden maliyetler gerektirir. "
                     "Uygulama size zaman kazandırıyor ya da değer sağlıyorsa, gelişmeye devam edebilmesi için lütfen desteklemeyi düşünün.")},
     {QStringLiteral("Support"), QStringLiteral("Destekle")},
+    {QStringLiteral("Donate to permanently hide this message"), QStringLiteral("Bu mesajı kalıcı olarak gizlemek için bağış yap")},
     {QStringLiteral("I'm not yet sure"), QStringLiteral("Henüz emin değilim")},
     {QStringLiteral("I cannot donate"), QStringLiteral("Bağış yapamıyorum")},
+    {QStringLiteral("Donation code"), QStringLiteral("Bağış kodu")},
+    {QStringLiteral("Enter the donation code generated after your donation.\n"
+                    "A valid code will permanently hide this message."),
+     QStringLiteral("Bağışınızdan sonra oluşturulan bağış kodunu girin.\n"
+                    "Geçerli bir kod bu mesajı kalıcı olarak gizler.")},
+    {QStringLiteral("Invalid donation code"), QStringLiteral("Geçersiz bağış kodu")},
+    {QStringLiteral("The donation code is invalid. Please try again or press Cancel."),
+     QStringLiteral("Bağış kodu geçersiz. Lütfen tekrar deneyin veya İptal'e basın.")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("AGPL lisansı hakkında")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"
@@ -1885,8 +1939,17 @@ static const QHash<QString, QString> kKoreanTranslations = {
      QStringLiteral("AI File Sorter는 수백 시간의 개발, 기능 작업, 지원 답변과 서버 및 원격 모델 인프라 같은 지속 비용이 필요합니다. "
                     "이 앱이 시간을 절약하거나 가치를 제공한다면, 지속적인 개선을 위해 지원을 고려해 주세요.")},
     {QStringLiteral("Support"), QStringLiteral("지원")},
+    {QStringLiteral("Donate to permanently hide this message"), QStringLiteral("이 메시지를 영구히 숨기려면 기부하기")},
     {QStringLiteral("I'm not yet sure"), QStringLiteral("아직 모르겠어요")},
     {QStringLiteral("I cannot donate"), QStringLiteral("기부할 수 없습니다")},
+    {QStringLiteral("Donation code"), QStringLiteral("기부 코드")},
+    {QStringLiteral("Enter the donation code generated after your donation.\n"
+                    "A valid code will permanently hide this message."),
+     QStringLiteral("기부 후 생성된 기부 코드를 입력하세요.\n"
+                    "유효한 코드를 입력하면 이 메시지가 영구히 숨겨집니다.")},
+    {QStringLiteral("Invalid donation code"), QStringLiteral("유효하지 않은 기부 코드")},
+    {QStringLiteral("The donation code is invalid. Please try again or press Cancel."),
+     QStringLiteral("기부 코드가 유효하지 않습니다. 다시 시도하거나 취소를 누르세요.")},
     {QStringLiteral("About the AGPL License"), QStringLiteral("AGPL 라이선스 정보")},
     {QStringLiteral("AI File Sorter is distributed under the GNU Affero General Public License v3.0."
                     "<br><br>"

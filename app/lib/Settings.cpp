@@ -342,7 +342,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     }
     category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
     categorized_file_count = load_int("CategorizedFileCount", 0, 0);
-    next_support_prompt_threshold = load_int("SupportPromptThreshold", 100, 100);
+    next_support_prompt_threshold = load_int("SupportPromptThreshold", 50, 50);
 }
 
 void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)
@@ -1138,8 +1138,8 @@ int Settings::get_next_support_prompt_threshold() const
 
 void Settings::set_next_support_prompt_threshold(int threshold)
 {
-    if (threshold < 100) {
-        threshold = 100;
+    if (threshold < 50) {
+        threshold = 50;
     }
     next_support_prompt_threshold = threshold;
 }

@@ -105,6 +105,8 @@ todos_md/
 
 # Script docs + backups
 app/scripts/SCRIPTS-README.md
+app/scripts/local_support_code_signer.py
+app/scripts/__pycache__/
 *.bak
 
 # Ignore llama headers (generated or from external)
@@ -126,7 +128,7 @@ app/include/llama/*.h
 
 # Build artifacts
 
-build-*/
+build*/
 dist/
 app/lib/ggml/
 external/libzip/build*/

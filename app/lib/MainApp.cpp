@@ -22,6 +22,7 @@
 #include "DocumentTextAnalyzer.hpp"
 #include "ImageRenameMetadataService.hpp"
 #include "MediaRenameMetadataService.hpp"
+#include "SupportCodeManager.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -42,6 +43,7 @@
 #include <QFileSystemModel>
 #include <QFile>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QKeySequence>
 #include <QByteArray>
 #include <QLabel>
@@ -143,7 +145,7 @@ std::string normalize_directory_path(const std::string& value) {
 
 void schedule_next_support_prompt(Settings& settings, int total_files, int increment) {
     if (increment <= 0) {
-        increment = 100;
+        increment = 50;
     }
     settings.set_next_support_prompt_threshold(total_files + increment);
     settings.save();
@@ -156,11 +158,15 @@ void maybe_show_support_prompt(Settings& settings,
         return;
     }
 
+    if (SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir())).is_prompt_permanently_disabled()) {
+        return;
+    }
+
     const int total = settings.get_total_categorized_files();
     int threshold = settings.get_next_support_prompt_threshold();
     if (threshold <= 0) {
         const int base = std::max(total, 0);
-        threshold = ((base / 100) + 1) * 100;
+        threshold = ((base / 50) + 1) * 50;
         settings.set_next_support_prompt_threshold(threshold);
         settings.save();
     }
@@ -176,10 +182,12 @@ void maybe_show_support_prompt(Settings& settings,
     }
     prompt_active = false;
 
-    int increment = 100;
     if (result == MainApp::SupportPromptResult::Support) {
-        increment = 400;
-    } else if (result == MainApp::SupportPromptResult::CannotDonate) {
+        return;
+    }
+
+    int increment = 100;
+    if (result == MainApp::SupportPromptResult::CannotDonate) {
         increment = 200;
     }
 
@@ -1260,13 +1268,17 @@ void MainAppTestAccess::simulate_support_prompt(Settings& settings,
                                                 bool& prompt_state,
                                                 int count,
                                                 std::function<SimulatedSupportResult(int)> callback) {
-    auto convert = [cb = std::move(callback)](int total) -> MainApp::SupportPromptResult {
+    const auto config_dir = Utils::utf8_to_path(settings.get_config_dir());
+    auto convert = [config_dir, cb = std::move(callback)](int total) -> MainApp::SupportPromptResult {
         if (!cb) {
             return MainApp::SupportPromptResult::NotSure;
         }
         switch (cb(total)) {
             case SimulatedSupportResult::Support:
-                return MainApp::SupportPromptResult::Support;
+                if (SupportCodeManager(config_dir).force_disable_prompt_for_testing()) {
+                    return MainApp::SupportPromptResult::Support;
+                }
+                return MainApp::SupportPromptResult::NotSure;
             case SimulatedSupportResult::CannotDonate:
                 return MainApp::SupportPromptResult::CannotDonate;
             case SimulatedSupportResult::NotSure:
@@ -1936,7 +1948,7 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     box.setText(headline);
     box.setInformativeText(details);
 
-    auto* support_btn = box.addButton(tr("Support"), QMessageBox::ActionRole);
+    auto* support_btn = box.addButton(tr("Donate to permanently hide this message"), QMessageBox::ActionRole);
     auto* later_btn = box.addButton(tr("I'm not yet sure"), QMessageBox::ActionRole);
     auto* cannot_btn = box.addButton(tr("I cannot donate"), QMessageBox::ActionRole);
 
@@ -2026,8 +2038,30 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
 
     const QAbstractButton* clicked = box.clickedButton();
     if (clicked == support_btn) {
-        MainAppHelpActions::open_support_page();
-        return SupportPromptResult::Support;
+        SupportCodeManager support_codes(Utils::utf8_to_path(settings.get_config_dir()));
+        while (true) {
+            bool accepted = false;
+            const QString code = QInputDialog::getText(
+                this,
+                tr("Donation code"),
+                tr("Enter the donation code generated after your donation.\n"
+                   "A valid code will permanently hide this message."),
+                QLineEdit::Normal,
+                QString(),
+                &accepted);
+            if (!accepted) {
+                return SupportPromptResult::NotSure;
+            }
+
+            if (support_codes.redeem_code(to_utf8(code))) {
+                return SupportPromptResult::Support;
+            }
+
+            QMessageBox::warning(
+                this,
+                tr("Invalid donation code"),
+                tr("The donation code is invalid. Please try again or press Cancel."));
+        }
     }
     if (clicked == cannot_btn) {
         return SupportPromptResult::CannotDonate;

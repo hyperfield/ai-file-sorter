@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "MainApp.hpp"
 #include "MainAppTestAccess.hpp"
+#include "SupportCodeManager.hpp"
 #include "TestHelpers.hpp"
 #include "Settings.hpp"
 #include <algorithm>
@@ -78,10 +79,6 @@ TEST_CASE("Support prompt thresholds advance based on response") {
     SECTION("Cannot donate response defers prompt") {
         run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::CannotDonate);
     }
-
-    SECTION("Support response defers prompt") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::Support);
-    }
 }
 
 TEST_CASE("Zero categorized increments do not change totals or trigger prompts") {
@@ -101,4 +98,58 @@ TEST_CASE("Zero categorized increments do not change totals or trigger prompts")
     CHECK(env.settings.get_total_categorized_files() == 0);
     CHECK_FALSE(callback_invoked);
     CHECK(env.settings.get_next_support_prompt_threshold() == base_threshold);
+}
+
+TEST_CASE("Donation code redemption suppresses future support prompts") {
+    TestEnvironment env;
+    SupportCodeManager support_codes(std::filesystem::path(env.settings.get_config_dir()));
+
+    REQUIRE_FALSE(support_codes.is_prompt_permanently_disabled());
+    REQUIRE_FALSE(SupportCodeManager::is_valid_code("not-a-real-code"));
+    REQUIRE(support_codes.force_disable_prompt_for_testing());
+    CHECK(support_codes.is_prompt_permanently_disabled());
+
+    bool callback_invoked = false;
+    const int threshold = env.settings.get_next_support_prompt_threshold();
+    MainAppTestAccess::simulate_support_prompt(
+        env.settings,
+        env.prompt_state,
+        threshold,
+        [&](int) {
+            callback_invoked = true;
+            return MainAppTestAccess::SimulatedSupportResult::NotSure;
+        });
+
+    CHECK_FALSE(callback_invoked);
+}
+
+TEST_CASE("Support response creates suppression state and stops future prompts") {
+    TestEnvironment env;
+    int callback_count = 0;
+    const int threshold = env.settings.get_next_support_prompt_threshold();
+
+    MainAppTestAccess::simulate_support_prompt(
+        env.settings,
+        env.prompt_state,
+        threshold,
+        [&](int) {
+            ++callback_count;
+            return MainAppTestAccess::SimulatedSupportResult::Support;
+        });
+
+    CHECK(callback_count == 1);
+    CHECK(SupportCodeManager(std::filesystem::path(env.settings.get_config_dir()))
+              .is_prompt_permanently_disabled());
+    CHECK(env.settings.get_next_support_prompt_threshold() == threshold);
+
+    MainAppTestAccess::simulate_support_prompt(
+        env.settings,
+        env.prompt_state,
+        threshold,
+        [&](int) {
+            ++callback_count;
+            return MainAppTestAccess::SimulatedSupportResult::NotSure;
+        });
+
+    CHECK(callback_count == 1);
 }

@@ -26,7 +26,7 @@ public:
      * @brief Simulated responses for the support prompt flow.
      */
     enum class SimulatedSupportResult {
-        /// User agreed to support.
+        /// User entered a valid donation code and hid the prompt.
         Support,
         /// User is unsure.
         NotSure,
