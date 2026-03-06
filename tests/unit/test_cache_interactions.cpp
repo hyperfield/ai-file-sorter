@@ -209,6 +209,35 @@ TEST_CASE("CategorizationService loads cached entries recursively for analysis")
     CHECK(it->file_path == child_path);
 }
 
+TEST_CASE("Recursive recategorization clears stale subtree cache entries") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string root_path = data_dir.path().string();
+    const std::string child_path = (data_dir.path() / "child").string();
+
+    const auto resolved = db.resolve_category("Documents", "Reports");
+    REQUIRE(resolved.taxonomy_id > 0);
+
+    // Simulate a partially re-categorized subtree: the root entry already uses the
+    // new style while a nested entry is still cached with the old style.
+    REQUIRE(db.insert_or_update_file_with_categorization(
+        "root.txt", "F", root_path, resolved, true, std::string(), false));
+    REQUIRE(db.insert_or_update_file_with_categorization(
+        "child.txt", "F", child_path, resolved, false, std::string(), false));
+
+    CHECK(db.has_categorization_style_conflict(root_path, true, true));
+
+    REQUIRE(db.clear_directory_categorizations(root_path, true));
+
+    settings.set_include_subdirectories(true);
+    CHECK(service.load_cached_entries(root_path).empty());
+}
+
 TEST_CASE("ResultsCoordinator respects full-path cache keys for recursive scans") {
     TempDir data_dir;
     const auto root_file = data_dir.path() / "sample.txt";

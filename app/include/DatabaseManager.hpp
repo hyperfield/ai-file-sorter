@@ -62,7 +62,11 @@ public:
         get_recent_categories_for_extension(const std::string& extension,
                                             FileType file_type,
                                             std::size_t limit) const;
-    bool clear_directory_categorizations(const std::string& dir_path);
+    bool clear_directory_categorizations(const std::string& dir_path,
+                                         bool recursive = false);
+    bool has_categorization_style_conflict(const std::string& dir_path,
+                                           bool desired_style,
+                                           bool recursive = false) const;
     std::optional<bool> get_directory_categorization_style(const std::string& dir_path) const;
 
 private:

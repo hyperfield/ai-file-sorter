@@ -1465,13 +1465,9 @@ void MainApp::initialize_whitelists()
 
 bool MainApp::ensure_folder_categorization_style(const std::string& folder_path)
 {
-    const auto cached_style = db_manager.get_directory_categorization_style(folder_path);
-    if (!cached_style.has_value()) {
-        return true;
-    }
-
     const bool desired = settings.get_use_consistency_hints();
-    if (cached_style.value() == desired) {
+    const bool recursive = settings.get_include_subdirectories();
+    if (!db_manager.has_categorization_style_conflict(folder_path, desired, recursive)) {
         return true;
     }
 
@@ -1483,7 +1479,7 @@ bool MainApp::ensure_folder_categorization_style(const std::string& folder_path)
     box.setIcon(QMessageBox::Question);
     box.setWindowTitle(tr("Recategorize folder?"));
     box.setText(tr("This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?")
-                    .arg(style_label(cached_style.value()), style_label(desired)));
+                    .arg(style_label(!desired), style_label(desired)));
     QPushButton* recategorize_button = box.addButton(tr("Recategorize"), QMessageBox::AcceptRole);
     box.addButton(tr("Keep existing"), QMessageBox::RejectRole);
     QPushButton* cancel_button = box.addButton(QMessageBox::Cancel);
@@ -1494,7 +1490,7 @@ bool MainApp::ensure_folder_categorization_style(const std::string& folder_path)
     }
 
     if (box.clickedButton() == recategorize_button) {
-        if (!db_manager.clear_directory_categorizations(folder_path)) {
+        if (!db_manager.clear_directory_categorizations(folder_path, recursive)) {
             show_error_dialog(tr("Failed to reset cached categorization for this folder.").toStdString());
             return false;
         }
@@ -2038,6 +2034,15 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
 
     const QAbstractButton* clicked = box.clickedButton();
     if (clicked == support_btn) {
+        constexpr const char* kDonationUrl = "https://www.paypal.com/donate/?hosted_button_id=Z3XYTG38C62HQ";
+        if (!MainAppHelpActions::open_support_page()) {
+            QMessageBox::information(
+                this,
+                tr("Open donation page"),
+                tr("Could not open your browser automatically.\nPlease open this link manually:\n%1")
+                    .arg(QString::fromUtf8(kDonationUrl)));
+        }
+
         SupportCodeManager support_codes(Utils::utf8_to_path(settings.get_config_dir()));
         while (true) {
             bool accepted = false;

@@ -11,7 +11,24 @@
 #include <QVBoxLayout>
 #include <QString>
 #include <QDesktopServices>
+#include <QProcess>
 #include <QUrl>
+
+namespace {
+
+bool open_external_url(const QUrl& url)
+{
+    if (QDesktopServices::openUrl(url)) {
+        return true;
+    }
+#if defined(Q_OS_LINUX)
+    return QProcess::startDetached(QStringLiteral("xdg-open"), {url.toString(QUrl::FullyEncoded)});
+#else
+    return false;
+#endif
+}
+
+} // namespace
 
 void MainAppHelpActions::show_about(QWidget* parent)
 {
@@ -123,8 +140,8 @@ void MainAppHelpActions::show_agpl_info(QWidget* parent)
     dialog.exec();
 }
 
-void MainAppHelpActions::open_support_page()
+bool MainAppHelpActions::open_support_page()
 {
     const QUrl donation_url(QStringLiteral("https://www.paypal.com/donate/?hosted_button_id=Z3XYTG38C62HQ"));
-    QDesktopServices::openUrl(donation_url);
+    return open_external_url(donation_url);
 }

@@ -945,12 +945,15 @@ bool DatabaseManager::remove_file_categorization(const std::string& dir_path,
     return success;
 }
 
-bool DatabaseManager::clear_directory_categorizations(const std::string& dir_path) {
+bool DatabaseManager::clear_directory_categorizations(const std::string& dir_path,
+                                                      bool recursive) {
     if (!db) {
         return false;
     }
 
-    const char* sql = "DELETE FROM file_categorization WHERE dir_path = ?;";
+    const char* sql = recursive
+        ? "DELETE FROM file_categorization WHERE dir_path = ? OR dir_path LIKE ? ESCAPE '\\';"
+        : "DELETE FROM file_categorization WHERE dir_path = ?;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         db_log(spdlog::level::err, "Failed to prepare directory cache clear statement: {}", sqlite3_errmsg(db));
@@ -958,6 +961,10 @@ bool DatabaseManager::clear_directory_categorizations(const std::string& dir_pat
     }
 
     sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    if (recursive) {
+        const std::string pattern = build_recursive_dir_pattern(dir_path);
+        sqlite3_bind_text(stmt, 2, pattern.c_str(), -1, SQLITE_TRANSIENT);
+    }
     const bool success = sqlite3_step(stmt) == SQLITE_DONE;
     if (!success) {
         db_log(spdlog::level::err, "Failed to clear cached categorizations for '{}': {}", dir_path, sqlite3_errmsg(db));
@@ -965,6 +972,40 @@ bool DatabaseManager::clear_directory_categorizations(const std::string& dir_pat
     sqlite3_finalize(stmt);
     cached_results.clear();
     return success;
+}
+
+bool DatabaseManager::has_categorization_style_conflict(const std::string& dir_path,
+                                                        bool desired_style,
+                                                        bool recursive) const {
+    if (!db) {
+        return false;
+    }
+
+    const char* sql = recursive
+        ? "SELECT 1 FROM file_categorization "
+          "WHERE (dir_path = ? OR dir_path LIKE ? ESCAPE '\\') "
+          "AND IFNULL(categorization_style, 0) != ? "
+          "LIMIT 1;"
+        : "SELECT 1 FROM file_categorization "
+          "WHERE dir_path = ? AND IFNULL(categorization_style, 0) != ? "
+          "LIMIT 1;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::warn, "Failed to prepare cached style conflict query: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    int bind_index = 2;
+    if (recursive) {
+        const std::string pattern = build_recursive_dir_pattern(dir_path);
+        sqlite3_bind_text(stmt, bind_index++, pattern.c_str(), -1, SQLITE_TRANSIENT);
+    }
+    sqlite3_bind_int(stmt, bind_index, desired_style ? 1 : 0);
+
+    const bool conflict = sqlite3_step(stmt) == SQLITE_ROW;
+    sqlite3_finalize(stmt);
+    return conflict;
 }
 
 std::optional<bool> DatabaseManager::get_directory_categorization_style(const std::string& dir_path) const {
