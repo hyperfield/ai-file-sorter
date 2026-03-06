@@ -1,7 +1,6 @@
 #include "SupportCodeManager.hpp"
 
 #include <QByteArray>
-#include <QByteArrayView>
 #include <QCryptographicHash>
 #include <QRandomGenerator>
 #include <QString>
@@ -33,10 +32,10 @@ constexpr char kPayloadPrefix[] = "aifs-support:v1:";
 
 // This must match the private key held by the website-side signer.
 constexpr std::array<unsigned char, 32> kVerificationPublicKey{
-    0x70, 0x32, 0xac, 0x16, 0xf2, 0x13, 0x25, 0xa5,
-    0xb0, 0x60, 0xad, 0x52, 0xa0, 0x86, 0xed, 0xce,
-    0xf3, 0x61, 0x29, 0xa2, 0x4d, 0x13, 0x8a, 0x0b,
-    0x70, 0x88, 0x59, 0x83, 0xd0, 0x9f, 0x35, 0x7a,
+    0xd4, 0x56, 0x9d, 0x00, 0x24, 0x50, 0xf5, 0xa2,
+    0x90, 0x94, 0xff, 0x0f, 0xf8, 0xee, 0xcc, 0x7b,
+    0x4f, 0xfa, 0x05, 0x2a, 0xf8, 0x35, 0x37, 0xba,
+    0x4e, 0xde, 0x3c, 0xc5, 0x16, 0xf5, 0x66, 0xe1,
 };
 
 constexpr std::array<unsigned char, 32> kBlobPepper{
@@ -172,9 +171,9 @@ std::uint32_t leading_u32(const QByteArray& value) {
 
 QByteArray sha256_labeled(std::string_view label, std::initializer_list<QByteArray> segments) {
     QCryptographicHash hash(QCryptographicHash::Sha256);
-    hash.addData(QByteArrayView(label.data(), static_cast<qsizetype>(label.size())));
-    hash.addData(QByteArrayView(reinterpret_cast<const char*>(kBlobPepper.data()),
-                                static_cast<qsizetype>(kBlobPepper.size())));
+    hash.addData(label.data(), static_cast<qsizetype>(label.size()));
+    hash.addData(reinterpret_cast<const char*>(kBlobPepper.data()),
+                 static_cast<qsizetype>(kBlobPepper.size()));
     for (const QByteArray& segment : segments) {
         hash.addData(segment);
     }
