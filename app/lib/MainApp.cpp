@@ -1940,13 +1940,14 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
                                  .arg(total_files);
     const QString details = tr("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
                                "If the app saves you time or brings value, please consider supporting it so it can keep improving.");
+    const QString code_note = tr("Already donated? Click \"I have already donated\" to enter your donation code and permanently disable this reminder.");
 
     box.setText(headline);
-    box.setInformativeText(details);
+    box.setInformativeText(details + QStringLiteral("\n\n") + code_note);
 
     auto* support_btn = box.addButton(tr("Donate to permanently hide this message"), QMessageBox::ActionRole);
     auto* later_btn = box.addButton(tr("I'm not yet sure"), QMessageBox::ActionRole);
-    auto* cannot_btn = box.addButton(tr("I cannot donate"), QMessageBox::ActionRole);
+    auto* donated_btn = box.addButton(tr("I have already donated"), QMessageBox::ActionRole);
 
     const auto apply_button_style = [](QAbstractButton* button,
                                        const QString& background,
@@ -1994,7 +1995,7 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
                        QStringLiteral("#1f1f1f"),
                        500,
                        QStringLiteral("none"));
-    apply_button_style(cannot_btn,
+    apply_button_style(donated_btn,
                        neutral_bg,
                        neutral_hover,
                        QStringLiteral("#1f1f1f"),
@@ -2016,33 +2017,24 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
 
             layout->removeWidget(support_btn);
             layout->removeWidget(later_btn);
-            layout->removeWidget(cannot_btn);
+            layout->removeWidget(donated_btn);
 
             layout->insertWidget(insert_index++, support_btn);
-            layout->insertWidget(insert_index++, later_btn);
-            layout->insertWidget(insert_index, cannot_btn);
+            layout->insertWidget(insert_index++, donated_btn);
+            layout->insertWidget(insert_index, later_btn);
         }
     }
 
     support_btn->setAutoDefault(true);
     support_btn->setDefault(true);
     later_btn->setAutoDefault(false);
-    cannot_btn->setAutoDefault(false);
+    donated_btn->setAutoDefault(false);
     support_btn->setFocus();
     box.setDefaultButton(support_btn);
     box.exec();
 
     const QAbstractButton* clicked = box.clickedButton();
-    if (clicked == support_btn) {
-        constexpr const char* kDonationUrl = "https://www.paypal.com/donate/?hosted_button_id=Z3XYTG38C62HQ";
-        if (!MainAppHelpActions::open_support_page()) {
-            QMessageBox::information(
-                this,
-                tr("Open donation page"),
-                tr("Could not open your browser automatically.\nPlease open this link manually:\n%1")
-                    .arg(QString::fromUtf8(kDonationUrl)));
-        }
-
+    auto prompt_for_donation_code = [this]() -> SupportPromptResult {
         SupportCodeManager support_codes(Utils::utf8_to_path(settings.get_config_dir()));
         while (true) {
             bool accepted = false;
@@ -2067,9 +2059,21 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
                 tr("Invalid donation code"),
                 tr("The donation code is invalid. Please try again or press Cancel."));
         }
+    };
+
+    if (clicked == support_btn) {
+        constexpr const char* kDonationUrl = "https://www.paypal.com/donate/?hosted_button_id=Z3XYTG38C62HQ";
+        if (!MainAppHelpActions::open_support_page()) {
+            QMessageBox::information(
+                this,
+                tr("Open donation page"),
+                tr("Could not open your browser automatically.\nPlease open this link manually:\n%1")
+                    .arg(QString::fromUtf8(kDonationUrl)));
+        }
+        return prompt_for_donation_code();
     }
-    if (clicked == cannot_btn) {
-        return SupportPromptResult::CannotDonate;
+    if (clicked == donated_btn) {
+        return prompt_for_donation_code();
     }
     return SupportPromptResult::NotSure;
 }
