@@ -68,7 +68,7 @@ public:
     /**
      * @brief Outcome returned from the optional support prompt flow.
      */
-    enum class SupportPromptResult { Support, NotSure, CannotDonate };
+    enum class SupportPromptResult { Support, NotSure };
     /**
      * @brief Constructs the main application window.
      * @param settings Persistent settings store used by the window.

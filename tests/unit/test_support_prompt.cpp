@@ -53,9 +53,8 @@ static void run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult re
     REQUIRE(totals.size() == 1);
     CHECK(totals.front() == base_threshold);
     const int next_threshold = env.settings.get_next_support_prompt_threshold();
-    CHECK(next_threshold > base_threshold);
+    CHECK(next_threshold == base_threshold + 50);
     const int increment = next_threshold - base_threshold;
-    CHECK(increment > 0);
 
     if (increment > 1) {
         MainAppTestAccess::simulate_support_prompt(env.settings, env.prompt_state, increment - 1, callback);
@@ -68,17 +67,11 @@ static void run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult re
     CHECK(env.settings.get_total_categorized_files() == base_threshold + increment);
     REQUIRE(totals.size() == 2);
     CHECK(totals.back() == base_threshold + increment);
-    CHECK(env.settings.get_next_support_prompt_threshold() > next_threshold);
+    CHECK(env.settings.get_next_support_prompt_threshold() == next_threshold + 50);
 }
 
-TEST_CASE("Support prompt thresholds advance based on response") {
-    SECTION("Not sure response schedules another prompt") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::NotSure);
-    }
-
-    SECTION("Cannot donate response defers prompt") {
-        run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::CannotDonate);
-    }
+TEST_CASE("Support prompt thresholds advance in fixed 50-file steps") {
+    run_support_prompt_case(MainAppTestAccess::SimulatedSupportResult::NotSure);
 }
 
 TEST_CASE("Zero categorized increments do not change totals or trigger prompts") {

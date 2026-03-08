@@ -30,9 +30,7 @@ public:
         /// User entered a valid donation code and hid the prompt.
         Support,
         /// User is unsure.
-        NotSure,
-        /// User cannot donate.
-        CannotDonate
+        NotSure
     };
 
     /**

@@ -143,11 +143,8 @@ std::string normalize_directory_path(const std::string& value) {
     return normalized;
 }
 
-void schedule_next_support_prompt(Settings& settings, int total_files, int increment) {
-    if (increment <= 0) {
-        increment = 50;
-    }
-    settings.set_next_support_prompt_threshold(total_files + increment);
+void schedule_next_support_prompt(Settings& settings, int total_files) {
+    settings.set_next_support_prompt_threshold(total_files + 50);
     settings.save();
 }
 
@@ -186,12 +183,7 @@ void maybe_show_support_prompt(Settings& settings,
         return;
     }
 
-    int increment = 100;
-    if (result == MainApp::SupportPromptResult::CannotDonate) {
-        increment = 200;
-    }
-
-    schedule_next_support_prompt(settings, total, increment);
+    schedule_next_support_prompt(settings, total);
 }
 
 void record_categorized_metrics_impl(Settings& settings,
@@ -1311,8 +1303,6 @@ void MainAppTestAccess::simulate_support_prompt(Settings& settings,
                     return MainApp::SupportPromptResult::Support;
                 }
                 return MainApp::SupportPromptResult::NotSure;
-            case SimulatedSupportResult::CannotDonate:
-                return MainApp::SupportPromptResult::CannotDonate;
             case SimulatedSupportResult::NotSure:
             default:
                 return MainApp::SupportPromptResult::NotSure;
