@@ -379,15 +379,27 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 3. **Install dependencies**
 
    ```bash
-   brew install qt curl jsoncpp sqlite openssl fmt spdlog mediainfo cmake git pkgconfig libffi
+   brew install qt curl jsoncpp sqlite openssl fmt spdlog mediainfo cmake git pkgconf libffi
    ```
 
    Add Qt to your environment if it is not already present:
 
    ```bash
-   export PATH="$(brew --prefix)/opt/qt/bin:$PATH"
-   export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:$PKG_CONFIG_PATH"
+   export PATH="$(brew --prefix)/bin:$(brew --prefix)/opt/qt/bin:$PATH"
+   export PKG_CONFIG_LIBDIR="$(brew --prefix)/opt/qt/lib/pkgconfig:$(brew --prefix)/opt/openssl@3/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig"
    ```
+
+   On Apple Silicon, this avoids a common mismatch where an older Intel `/usr/local/bin/pkg-config`
+   resolves x86_64 Qt/OpenSSL libraries while your compiler is building for arm64.
+   You can verify the shell is using the correct package metadata with:
+
+   ```bash
+   which pkg-config
+   pkg-config --cflags --libs Qt6Core openssl
+   ```
+
+   Those paths should point at `$(brew --prefix)` (typically `/opt/homebrew` on Apple Silicon),
+   not `/usr/local`, unless you are intentionally building the Intel variant.
 
 4. **Clone the repository and submodules** (same commands as Linux).
    > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=11.0` so the Mach-O `LC_BUILD_VERSION` covers Apple Silicon and newer releases (including Sequoia). Raise or lower it (e.g., `export MACOSX_DEPLOYMENT_TARGET=15.0`) if you need a different floor.
