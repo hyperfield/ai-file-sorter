@@ -5,6 +5,7 @@
 - Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
 - Added an image analysis option to append image creation dates (if available) to category names.
 - Added optional audio/video metadata-based filename suggestions for supported media files. When enabled, AI File Sorter can use embedded tags (such as ID3, Vorbis comments, and MP4-style metadata) to propose normalized names like `year_artist_album_title.ext` during review.
+- Bug fixes.
 
 ## [1.6.1] - 2026-02-06
 
