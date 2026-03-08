@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <cerrno>
+#include <climits>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -74,6 +76,75 @@ std::optional<bool> read_env_bool(const char* key) {
     return std::nullopt;
 }
 
+std::optional<std::string> read_env_value(const char* key) {
+    const char* value = std::getenv(key);
+    if (!value) {
+        return std::nullopt;
+    }
+    return std::string(value);
+}
+
+void set_env_value(const char* key, const std::optional<std::string>& value) {
+#if defined(_WIN32)
+    if (value.has_value()) {
+        _putenv_s(key, value->c_str());
+    } else {
+        _putenv_s(key, "");
+    }
+#else
+    if (value.has_value()) {
+        setenv(key, value->c_str(), 1);
+    } else {
+        unsetenv(key);
+    }
+#endif
+}
+
+class ScopedEnvValue {
+public:
+    ScopedEnvValue(const char* key, std::optional<std::string> value)
+        : key_(key), original_(read_env_value(key)) {
+        set_env_value(key_, value);
+    }
+
+    ~ScopedEnvValue() {
+        set_env_value(key_, original_);
+    }
+
+    ScopedEnvValue(const ScopedEnvValue&) = delete;
+    ScopedEnvValue& operator=(const ScopedEnvValue&) = delete;
+
+private:
+    const char* key_;
+    std::optional<std::string> original_;
+};
+
+std::optional<int> read_env_int(const char* key) {
+    const char* value = std::getenv(key);
+    if (!value || *value == '\0') {
+        return std::nullopt;
+    }
+
+    char* end_ptr = nullptr;
+    errno = 0;
+    long parsed = std::strtol(value, &end_ptr, 10);
+    if (end_ptr == value || *end_ptr != '\0' || errno == ERANGE) {
+        return std::nullopt;
+    }
+    if (parsed < INT_MIN || parsed > INT_MAX) {
+        return std::nullopt;
+    }
+
+    return static_cast<int>(parsed);
+}
+
+std::optional<int> resolve_visual_gpu_layer_override() {
+    if (const auto visual_override = read_env_int("AI_FILE_SORTER_VISUAL_N_GPU_LAYERS")) {
+        return visual_override;
+    }
+    return read_env_int("LLAVA_N_GPU_LAYERS");
+}
+
 std::string read_env_lower(const char* key) {
     const char* value = std::getenv(key);
     if (!value || value[0] == '\0') {
@@ -133,13 +204,6 @@ const std::unordered_set<std::string> kStopwords = {
     "photo", "picture", "png", "shows", "the", "this", "to", "txt", "unknown", "with"
 };
 
-#ifdef AI_FILE_SORTER_HAS_MTMD
-struct BackendMemoryInfo {
-    size_t free_bytes = 0;
-    size_t total_bytes = 0;
-    std::string name;
-};
-
 bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     if (needle.empty()) {
         return true;
@@ -154,6 +218,65 @@ bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     });
     return text_lower.find(needle_lower) != std::string::npos;
 }
+
+int32_t resolve_default_visual_batch_size(bool gpu_enabled, std::string_view backend_name) {
+    if (!gpu_enabled) {
+        return 512;
+    }
+    if (case_insensitive_contains(backend_name, "metal")) {
+        return 1024;
+    }
+#if defined(_WIN32)
+    // Windows GPU drivers are more sensitive to an initial oversized context
+    // allocation, so keep image analysis at the proven 512-token batch.
+    return 512;
+#else
+    if (case_insensitive_contains(backend_name, "vulkan")) {
+        return 512;
+    }
+    return 768;
+#endif
+}
+
+llama_model_params build_visual_model_params_for_path(
+    const std::string& model_path,
+    const std::shared_ptr<spdlog::logger>& logger) {
+    const auto visual_override = resolve_visual_gpu_layer_override();
+    const auto global_override = read_env_value("AI_FILE_SORTER_N_GPU_LAYERS");
+    const auto legacy_override = read_env_value("LLAMA_CPP_N_GPU_LAYERS");
+
+    std::optional<ScopedEnvValue> ai_override_guard;
+    std::optional<ScopedEnvValue> legacy_override_guard;
+
+    if (visual_override.has_value()) {
+        const std::string override_value = std::to_string(*visual_override);
+        ai_override_guard.emplace("AI_FILE_SORTER_N_GPU_LAYERS", override_value);
+        legacy_override_guard.emplace("LLAMA_CPP_N_GPU_LAYERS", override_value);
+        if (logger) {
+            logger->info("Using visual-specific n_gpu_layers override={}", *visual_override);
+        }
+    } else {
+        ai_override_guard.emplace("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
+        legacy_override_guard.emplace("LLAMA_CPP_N_GPU_LAYERS", std::nullopt);
+        if ((global_override.has_value() && !global_override->empty()) ||
+            (legacy_override.has_value() && !legacy_override->empty())) {
+            if (logger) {
+                logger->info(
+                    "Ignoring global n_gpu_layers override for visual analysis; "
+                    "set AI_FILE_SORTER_VISUAL_N_GPU_LAYERS to override image analysis specifically.");
+            }
+        }
+    }
+
+    return build_model_params_for_path(model_path, logger);
+}
+
+#ifdef AI_FILE_SORTER_HAS_MTMD
+struct BackendMemoryInfo {
+    size_t free_bytes = 0;
+    size_t total_bytes = 0;
+    std::string name;
+};
 
 std::optional<BackendMemoryInfo> query_backend_memory(std::string_view backend_name) {
     const size_t device_count = ggml_backend_dev_count();
@@ -244,16 +367,6 @@ bool should_enable_mmproj_gpu(const std::filesystem::path& mmproj_path,
     return true;
 }
 
-int32_t default_visual_batch_size(bool gpu_enabled, std::string_view backend_name) {
-    if (!gpu_enabled) {
-        return 512;
-    }
-    if (case_insensitive_contains(backend_name, "metal")) {
-        return 1024;
-    }
-    return 768;
-}
-
 struct BitmapDeleter {
     void operator()(mtmd_bitmap* ptr) const {
         if (ptr) {
@@ -289,6 +402,18 @@ llama_token greedy_sample(const float* logits, int vocab_size, float temperature
 #endif
 
 } // namespace
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+namespace LlavaImageAnalyzerTestAccess {
+int32_t default_visual_batch_size(bool gpu_enabled, std::string_view backend_name) {
+    return resolve_default_visual_batch_size(gpu_enabled, backend_name);
+}
+
+int32_t visual_model_n_gpu_layers_for_model(const std::string& model_path) {
+    return build_visual_model_params_for_path(model_path, nullptr).n_gpu_layers;
+}
+}
+#endif
 
 LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
                                        const std::filesystem::path& mmproj_path)
@@ -341,13 +466,13 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
 
     llama_model_params model_params = llama_model_default_params();
     if (settings_.use_gpu) {
-        model_params = build_model_params_for_path(model_path.string(), logger);
+        model_params = build_visual_model_params_for_path(model_path.string(), logger);
     } else {
         model_params.n_gpu_layers = 0;
     }
     text_gpu_enabled_ = settings_.use_gpu && model_params.n_gpu_layers != 0;
     context_tokens_ = settings_.n_ctx;
-    batch_size_ = default_visual_batch_size(text_gpu_enabled_, backend_name);
+    batch_size_ = resolve_default_visual_batch_size(text_gpu_enabled_, backend_name);
     model_ = llama_model_load_from_file(model_path.string().c_str(), model_params);
     if (!model_) {
         throw std::runtime_error("Failed to load LLaVA text model at " + model_path.string());

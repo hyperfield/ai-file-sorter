@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #ifdef AI_FILE_SORTER_HAS_MTMD
 #include "ggml.h"
@@ -199,3 +200,10 @@ private:
      */
     Settings settings_;
 };
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+namespace LlavaImageAnalyzerTestAccess {
+int32_t default_visual_batch_size(bool gpu_enabled, std::string_view backend_name);
+int32_t visual_model_n_gpu_layers_for_model(const std::string& model_path);
+}
+#endif

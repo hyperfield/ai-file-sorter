@@ -11,6 +11,7 @@
 #include <QString>
 #include <functional>
 #include <QCheckBox>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -159,6 +160,12 @@ public:
      * @param prompt Callback that returns whether to proceed.
      */
     static void set_image_analysis_prompt_override(MainApp& app, std::function<bool()> prompt);
+    /**
+     * @brief Returns whether a visual-analysis failure should offer CPU retry.
+     * @param reason Exception text produced by the failed visual analysis step.
+     * @return True when the failure looks like GPU memory pressure.
+     */
+    static bool should_offer_visual_cpu_fallback(const std::string& reason);
     /**
      * @brief Trigger a UI retranslate on the MainApp instance.
      * @param app MainApp instance.

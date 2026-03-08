@@ -213,6 +213,34 @@ std::string to_utf8(const QString& value)
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
 
+std::string to_lower_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return value;
+}
+
+bool should_offer_visual_cpu_fallback(const std::string& reason) {
+    const std::string lowered = to_lower_copy(reason);
+    static const char* kRetryableMarkers[] = {
+        "failed to create llama_context",
+        "mtmd_helper_eval_chunks failed",
+        "out of memory",
+        "not enough memory",
+        "gpu memory",
+        "vk_error_out_of_device_memory",
+        "vk_error_out_of_host_memory",
+        "cuda error out of memory",
+        "cuda_error_out_of_memory"
+    };
+
+    for (const char* marker : kRetryableMarkers) {
+        if (lowered.find(marker) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct VisualLlmPaths {
     std::filesystem::path model_path;
     std::filesystem::path mmproj_path;
@@ -1256,6 +1284,10 @@ void MainAppTestAccess::set_image_analysis_prompt_override(MainApp& app, std::fu
     app.image_analysis_prompt_override_ = std::move(prompt);
 }
 
+bool MainAppTestAccess::should_offer_visual_cpu_fallback(const std::string& reason) {
+    return ::should_offer_visual_cpu_fallback(reason);
+}
+
 void MainAppTestAccess::trigger_retranslate(MainApp& app) {
     app.retranslate_ui();
 }
@@ -1613,11 +1645,7 @@ void MainApp::update_image_analysis_controls()
     if (image_options_toggle_button) {
         image_options_toggle_button->setEnabled(analysis_enabled);
         const bool expanded = image_options_toggle_button->isChecked();
-#if defined(__APPLE__)
-        image_options_toggle_button->setArrowType(Qt::NoArrow);
-#else
         image_options_toggle_button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
-#endif
         if (image_options_container) {
             image_options_container->setVisible(analysis_enabled && expanded);
         }
@@ -2901,8 +2929,7 @@ void MainApp::perform_analysis()
             bool visual_cpu_fallback_active = false;
 
             auto should_retry_on_cpu = [](const std::exception& ex) {
-                const std::string message = ex.what();
-                return message.find("Failed to create llama_context") != std::string::npos;
+                return should_offer_visual_cpu_fallback(ex.what());
             };
 
             auto prompt_visual_cpu_fallback = [this]() -> bool {
@@ -2982,30 +3009,63 @@ void MainApp::perform_analysis()
             try {
                 analyzer = create_analyzer();
             } catch (const std::exception& ex) {
+                const bool retry_on_cpu = should_retry_on_cpu(ex);
+                if (core_logger) {
+                    core_logger->warn("Visual analyzer initialization failed (retryable_on_cpu={}): {}",
+                                      retry_on_cpu,
+                                      ex.what());
+                }
                 if (!allow_visual_cpu_fallback) {
                     throw;
                 }
-                if (!visual_cpu_fallback_choice.has_value()) {
-                    visual_cpu_fallback_choice = prompt_visual_cpu_fallback();
-                }
-                if (!visual_cpu_fallback_choice.value()) {
+                if (!retry_on_cpu) {
                     skip_visual_analysis = true;
                     skip_visual_reason = ex.what();
+                    if (core_logger) {
+                        core_logger->warn("Visual analysis disabled after non-retryable initialization failure.");
+                    }
                 } else {
-                    append_progress(to_utf8(tr("[VISION] Switching visual analysis to CPU.")));
-                    vision_settings.use_gpu = false;
-                    visual_cpu_fallback_active = true;
-                    try {
-                        analyzer = create_analyzer();
-                    } catch (const std::exception& init_ex) {
+                    if (!visual_cpu_fallback_choice.has_value()) {
+                        visual_cpu_fallback_choice = prompt_visual_cpu_fallback();
+                    }
+                    if (!visual_cpu_fallback_choice.value()) {
                         skip_visual_analysis = true;
-                        skip_visual_reason = init_ex.what();
+                        skip_visual_reason = ex.what();
+                        if (core_logger) {
+                            core_logger->warn("Visual CPU fallback declined after initialization failure: {}",
+                                              ex.what());
+                        }
+                    } else {
+                        append_progress(to_utf8(tr("[VISION] Switching visual analysis to CPU.")));
+                        vision_settings.use_gpu = false;
+                        visual_cpu_fallback_active = true;
+                        if (core_logger) {
+                            core_logger->warn("Retrying visual analyzer initialization on CPU after GPU failure: {}",
+                                              ex.what());
+                        }
+                        try {
+                            analyzer = create_analyzer();
+                            if (core_logger) {
+                                core_logger->info("Visual analyzer CPU fallback initialized successfully.");
+                            }
+                        } catch (const std::exception& init_ex) {
+                            skip_visual_analysis = true;
+                            skip_visual_reason = init_ex.what();
+                            if (core_logger) {
+                                core_logger->error("Visual analyzer CPU fallback initialization failed: {}",
+                                                   init_ex.what());
+                            }
+                        }
                     }
                 }
             }
 
             if (skip_visual_analysis) {
                 if (!skip_visual_reason.empty()) {
+                    if (core_logger) {
+                        core_logger->warn("Visual analysis disabled; falling back to filenames: {}",
+                                          skip_visual_reason);
+                    }
                     append_progress(to_utf8(tr("[VISION-ERROR] %1")
                                                 .arg(QString::fromStdString(skip_visual_reason))));
                 }
@@ -3106,9 +3166,15 @@ void MainApp::perform_analysis()
                             mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
                             break;
                         } catch (const std::exception& ex) {
+                            const bool retry_on_cpu = should_retry_on_cpu(ex);
                             if (!visual_cpu_fallback_active &&
                                 allow_visual_cpu_fallback &&
-                                should_retry_on_cpu(ex)) {
+                                retry_on_cpu) {
+                                if (core_logger) {
+                                    core_logger->warn("Visual analysis failed for '{}' with retryable GPU error: {}",
+                                                      entry.file_name,
+                                                      ex.what());
+                                }
                                 if (!visual_cpu_fallback_choice.has_value()) {
                                     visual_cpu_fallback_choice = prompt_visual_cpu_fallback();
                                 }
@@ -3116,9 +3182,22 @@ void MainApp::perform_analysis()
                                     append_progress(to_utf8(tr("[VISION] GPU memory issue detected. Switching to CPU.")));
                                     vision_settings.use_gpu = false;
                                     visual_cpu_fallback_active = true;
+                                    if (core_logger) {
+                                        core_logger->warn("Retrying visual analysis on CPU for '{}'.",
+                                                          entry.file_name);
+                                    }
                                     try {
                                         analyzer = create_analyzer();
+                                        if (core_logger) {
+                                            core_logger->info("Visual analyzer CPU fallback initialized successfully; retrying '{}'.",
+                                                              entry.file_name);
+                                        }
                                     } catch (const std::exception& init_ex) {
+                                        if (core_logger) {
+                                            core_logger->error("Visual analyzer CPU fallback initialization failed for '{}': {}",
+                                                               entry.file_name,
+                                                               init_ex.what());
+                                        }
                                         handle_visual_failure(entry, init_ex.what(), already_renamed, true, visual_only);
                                         append_progress(to_utf8(tr("[VISION] Visual analysis disabled for remaining images.")));
                                         stop_visual_analysis = true;
@@ -3127,11 +3206,21 @@ void MainApp::perform_analysis()
                                         continue;
                                     }
                                 } else {
+                                    if (core_logger) {
+                                        core_logger->warn("Visual CPU fallback declined for '{}': {}",
+                                                          entry.file_name,
+                                                          ex.what());
+                                    }
                                     append_progress(to_utf8(tr("[VISION] Visual analysis disabled; falling back to filenames.")));
                                     handle_visual_failure(entry, ex.what(), already_renamed, true, visual_only);
                                     stop_visual_analysis = true;
                                 }
                             } else {
+                                if (core_logger) {
+                                    core_logger->warn("Visual analysis failed for '{}': {}",
+                                                      entry.file_name,
+                                                      ex.what());
+                                }
                                 handle_visual_failure(entry, ex.what(), already_renamed, true, visual_only);
                             }
                             mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
