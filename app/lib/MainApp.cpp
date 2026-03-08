@@ -1959,7 +1959,7 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     box.setText(headline);
     box.setInformativeText(details + QStringLiteral("\n\n") + code_note);
 
-    auto* support_btn = box.addButton(tr("Donate to permanently hide this message"), QMessageBox::ActionRole);
+    auto* support_btn = box.addButton(tr("Donate to permanently hide the donation dialog"), QMessageBox::ActionRole);
     auto* later_btn = box.addButton(tr("I'm not yet sure"), QMessageBox::ActionRole);
     auto* donated_btn = box.addButton(tr("I have already donated"), QMessageBox::ActionRole);
 
@@ -2056,7 +2056,7 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
                 this,
                 tr("Donation code"),
                 tr("Enter the donation code generated after your donation.\n"
-                   "A valid code will permanently hide this message."),
+                   "A valid code will permanently hide the donation dialog."),
                 QLineEdit::Normal,
                 QString(),
                 &accepted);
