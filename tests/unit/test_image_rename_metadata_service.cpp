@@ -190,10 +190,12 @@ TEST_CASE("ImageRenameMetadataService reads TIFF date metadata for rename prefix
     const auto image_path = temp_dir / "sample.tiff";
     write_binary_file(image_path, make_tiff_with_datetime("2014:03:10 12:00:00"));
 
-    ImageRenameMetadataService service(temp_dir.string());
-    const std::string actual = service.enrich_suggested_name(image_path, "black_ducks_row.tiff");
+    {
+        ImageRenameMetadataService service(temp_dir.string());
+        const std::string actual = service.enrich_suggested_name(image_path, "black_ducks_row.tiff");
 
-    CHECK(actual == "2014-03-10_black_ducks_row.tiff");
+        CHECK(actual == "2014-03-10_black_ducks_row.tiff");
+    }
     std::filesystem::remove_all(temp_dir);
 }
 
@@ -203,11 +205,13 @@ TEST_CASE("ImageRenameMetadataService extracts TIFF capture date")
     const auto image_path = temp_dir / "sample.tiff";
     write_binary_file(image_path, make_tiff_with_datetime("2016:11:04 09:30:00"));
 
-    ImageRenameMetadataService service(temp_dir.string());
-    const auto date = service.extract_capture_date(image_path);
+    {
+        ImageRenameMetadataService service(temp_dir.string());
+        const auto date = service.extract_capture_date(image_path);
 
-    REQUIRE(date.has_value());
-    CHECK(*date == "2016-11-04");
+        REQUIRE(date.has_value());
+        CHECK(*date == "2016-11-04");
+    }
     std::filesystem::remove_all(temp_dir);
 }
 
@@ -218,10 +222,12 @@ TEST_CASE("ImageRenameMetadataService reads PNG eXIf date metadata for rename pr
     const auto tiff_payload = make_tiff_with_datetime("2021:09:17 08:45:30");
     write_binary_file(image_path, make_png_with_exif_chunk(tiff_payload));
 
-    ImageRenameMetadataService service(temp_dir.string());
-    const std::string actual = service.enrich_suggested_name(image_path, "street_market.png");
+    {
+        ImageRenameMetadataService service(temp_dir.string());
+        const std::string actual = service.enrich_suggested_name(image_path, "street_market.png");
 
-    CHECK(actual == "2021-09-17_street_market.png");
+        CHECK(actual == "2021-09-17_street_market.png");
+    }
     std::filesystem::remove_all(temp_dir);
 }
 
@@ -251,10 +257,12 @@ TEST_CASE("ImageRenameMetadataService reads HEIC date metadata via exiftool fall
     const std::string new_path = temp_dir.string() + ":" + old_path;
     set_path_value(new_path);
 
-    ImageRenameMetadataService service(temp_dir.string());
-    const std::string actual = service.enrich_suggested_name(image_path, "trip.heic");
+    {
+        ImageRenameMetadataService service(temp_dir.string());
+        const std::string actual = service.enrich_suggested_name(image_path, "trip.heic");
 
-    CHECK(actual == "2019-07-11_trip.heic");
+        CHECK(actual == "2019-07-11_trip.heic");
+    }
     std::filesystem::remove_all(temp_dir);
 }
 #endif

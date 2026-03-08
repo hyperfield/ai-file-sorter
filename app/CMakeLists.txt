@@ -42,6 +42,9 @@ endif()
 find_package(fmt REQUIRED CONFIG)
 find_package(spdlog REQUIRED CONFIG)
 find_package(Intl REQUIRED) # libintl/gettext
+# MediaInfoLib from vcpkg depends on the separate ZenLib package and refers to
+# its imported target as plain "zen".
+find_package(ZenLib CONFIG QUIET)
 
 # MediaInfoLib policy:
 # - Must come from package managers (apt/dnf/pacman/brew/vcpkg)
@@ -83,6 +86,12 @@ function(aifs_assert_path_not_in_repo path_value label)
         endif()
 
         file(TO_CMAKE_PATH "${_entry}" _entry_norm)
+        # vcpkg manifest mode can stage package-managed headers/libs inside the
+        # build tree under a local vcpkg_installed directory. That is still a
+        # package-manager origin, not vendored MediaInfo content.
+        if(_entry_norm MATCHES "(^|/)vcpkg_installed(/|$)")
+            continue()
+        endif()
         if(_entry_norm MATCHES "^${_repo_root_regex}(/|$)")
             message(FATAL_ERROR
                 "MediaInfo must come from a package manager. "
@@ -113,6 +122,12 @@ elseif(TARGET MediaInfoLib::MediaInfo)
     list(APPEND MEDIAINFO_DEPS_LIBS MediaInfoLib::MediaInfo)
 elseif(TARGET MediaInfo::MediaInfo)
     list(APPEND MEDIAINFO_DEPS_LIBS MediaInfo::MediaInfo)
+elseif(DEFINED MediaInfoLib_LIBRARY AND TARGET ${MediaInfoLib_LIBRARY})
+    # The vcpkg MediaInfoLib port exports a plain imported target named
+    # "mediainfo" and exposes that name through MediaInfoLib_LIBRARY.
+    list(APPEND MEDIAINFO_DEPS_LIBS ${MediaInfoLib_LIBRARY})
+elseif(TARGET mediainfo)
+    list(APPEND MEDIAINFO_DEPS_LIBS mediainfo)
 else()
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
@@ -704,6 +719,79 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 target_link_libraries(ai_file_sorter_tests PRIVATE ${libName})
             endif()
         endforeach()
+
+        set(_aifs_test_runtime_dlls "")
+        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:ai_file_sorter_tests>
+                $<TARGET_FILE_DIR:ai_file_sorter_tests>
+            COMMAND_EXPAND_LISTS
+        )
+
+        if(VCPKG_TARGET_TRIPLET)
+            set(_aifs_vcpkg_runtime_dir "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/bin")
+            if(EXISTS "${_aifs_vcpkg_runtime_dir}")
+                file(GLOB _aifs_vcpkg_runtime_dlls "${_aifs_vcpkg_runtime_dir}/*.dll")
+                list(APPEND _aifs_test_runtime_dlls ${_aifs_vcpkg_runtime_dlls})
+            endif()
+        endif()
+
+        if(EXISTS "${PRECOMPILED_CPU_ROOT}/bin")
+            file(GLOB _aifs_precompiled_cpu_runtime_dlls
+                "${PRECOMPILED_CPU_ROOT}/bin/*.dll")
+            list(APPEND _aifs_test_runtime_dlls ${_aifs_precompiled_cpu_runtime_dlls})
+        endif()
+
+        set(_aifs_mingw_runtime_search_paths "")
+        if(DEFINED ENV{OPENBLAS_ROOT} AND NOT "$ENV{OPENBLAS_ROOT}" STREQUAL "")
+            list(APPEND _aifs_mingw_runtime_search_paths "$ENV{OPENBLAS_ROOT}/bin")
+        endif()
+        list(APPEND _aifs_mingw_runtime_search_paths "C:/msys64/mingw64/bin")
+
+        foreach(_aifs_mingw_runtime_name IN ITEMS
+            libgomp-1.dll
+            libgcc_s_seh-1.dll
+            libgfortran-5.dll
+            libwinpthread-1.dll
+            libquadmath-0.dll)
+            foreach(_aifs_runtime_path IN LISTS _aifs_mingw_runtime_search_paths)
+                if(EXISTS "${_aifs_runtime_path}/${_aifs_mingw_runtime_name}")
+                    list(APPEND _aifs_test_runtime_dlls
+                        "${_aifs_runtime_path}/${_aifs_mingw_runtime_name}")
+                    break()
+                endif()
+            endforeach()
+        endforeach()
+
+        list(REMOVE_DUPLICATES _aifs_test_runtime_dlls)
+        if(_aifs_test_runtime_dlls)
+            add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${_aifs_test_runtime_dlls}
+                    $<TARGET_FILE_DIR:ai_file_sorter_tests>
+                COMMAND_EXPAND_LISTS
+            )
+        endif()
+
+        if(VCPKG_TARGET_TRIPLET)
+            set(_aifs_qt_plugin_root "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/Qt6/plugins")
+            foreach(_aifs_qt_plugin_subdir IN ITEMS platforms styles imageformats)
+                set(_aifs_qt_plugin_src_dir "${_aifs_qt_plugin_root}/${_aifs_qt_plugin_subdir}")
+                if(EXISTS "${_aifs_qt_plugin_src_dir}")
+                    file(GLOB _aifs_qt_plugin_dlls "${_aifs_qt_plugin_src_dir}/*.dll")
+                    if(_aifs_qt_plugin_dlls)
+                        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
+                            COMMAND ${CMAKE_COMMAND} -E make_directory
+                                "$<TARGET_FILE_DIR:ai_file_sorter_tests>/${_aifs_qt_plugin_subdir}"
+                            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                                ${_aifs_qt_plugin_dlls}
+                                "$<TARGET_FILE_DIR:ai_file_sorter_tests>/${_aifs_qt_plugin_subdir}"
+                            COMMAND_EXPAND_LISTS
+                        )
+                    endif()
+                endif()
+            endforeach()
+        endif()
     endif()
 
     if(EXISTS "${PDFIUM_LIBRARY}" AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")

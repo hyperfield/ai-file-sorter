@@ -21,7 +21,13 @@
 #define UNICODE
 #define _UNICODE
 #endif
+#if defined(_WIN32)
+#include <MediaInfoDLL/MediaInfoDLL_Static.h>
+namespace MediaInfoCompat = MediaInfoDLL;
+#else
 #include <MediaInfo/MediaInfo.h>
+namespace MediaInfoCompat = MediaInfoLib;
+#endif
 #if defined(UNICODE) || defined(_UNICODE)
 #include <QString>
 #endif
@@ -971,7 +977,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> parse_media_metadata_w
 #endif
 
 #ifdef AI_FILE_SORTER_USE_MEDIAINFOLIB
-std::string media_info_to_utf8(const MediaInfoLib::String& value)
+std::string media_info_to_utf8(const MediaInfoCompat::String& value)
 {
 #if defined(UNICODE) || defined(_UNICODE)
     const std::wstring wide_value(value.begin(), value.end());
@@ -981,23 +987,23 @@ std::string media_info_to_utf8(const MediaInfoLib::String& value)
 #endif
 }
 
-std::string query_field(MediaInfoLib::MediaInfo& media_info,
-                        MediaInfoLib::stream_t stream_kind,
+std::string query_field(MediaInfoCompat::MediaInfo& media_info,
+                        MediaInfoCompat::stream_t stream_kind,
                         size_t stream_number,
-                        const MediaInfoLib::Char* parameter)
+                        const MediaInfoCompat::Char* parameter)
 {
     return media_info_to_utf8(media_info.Get(stream_kind,
                                              stream_number,
                                              parameter,
-                                             MediaInfoLib::Info_Text,
-                                             MediaInfoLib::Info_Name));
+                                             MediaInfoCompat::Info_Text,
+                                             MediaInfoCompat::Info_Name));
 }
 
 template <size_t N>
-std::optional<std::string> query_first_field(MediaInfoLib::MediaInfo& media_info,
-                                             MediaInfoLib::stream_t stream_kind,
+std::optional<std::string> query_first_field(MediaInfoCompat::MediaInfo& media_info,
+                                             MediaInfoCompat::stream_t stream_kind,
                                              size_t stream_number,
-                                             const std::array<const MediaInfoLib::Char*, N>& keys)
+                                             const std::array<const MediaInfoCompat::Char*, N>& keys)
 {
     for (const auto* key : keys) {
         const std::string value = query_field(media_info, stream_kind, stream_number, key);
@@ -1008,9 +1014,9 @@ std::optional<std::string> query_first_field(MediaInfoLib::MediaInfo& media_info
     return std::nullopt;
 }
 
-std::optional<std::string> query_first_available(MediaInfoLib::MediaInfo& media_info,
-                                                 const std::vector<std::pair<MediaInfoLib::stream_t,
-                                                                             std::array<const MediaInfoLib::Char*, 6>>>& probes)
+std::optional<std::string> query_first_available(MediaInfoCompat::MediaInfo& media_info,
+                                                 const std::vector<std::pair<MediaInfoCompat::stream_t,
+                                                                             std::array<const MediaInfoCompat::Char*, 6>>>& probes)
 {
     for (const auto& probe : probes) {
         if (auto value = query_first_field(media_info, probe.first, 0, probe.second)) {
@@ -1144,14 +1150,14 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
         return std::nullopt;
     }
 
-    MediaInfoLib::MediaInfo media_info;
+    MediaInfoCompat::MediaInfo media_info;
 
 #if defined(UNICODE) || defined(_UNICODE)
     const std::wstring wide_path = media_path.wstring();
-    const MediaInfoLib::String open_path(wide_path.begin(), wide_path.end());
+    const MediaInfoCompat::String open_path(wide_path.begin(), wide_path.end());
 #else
     const std::string utf8_path = Utils::path_to_utf8(media_path);
-    const MediaInfoLib::String open_path(utf8_path.begin(), utf8_path.end());
+    const MediaInfoCompat::String open_path(utf8_path.begin(), utf8_path.end());
 #endif
 
     if (media_info.Open(open_path) == 0) {
@@ -1164,7 +1170,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
     const bool video_file = is_supported_video(media_path);
 
     if (audio_file) {
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kArtistGeneral = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kArtistGeneral = {
             __T("Performer"),
             __T("Album_Artist"),
             __T("Artist"),
@@ -1172,7 +1178,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             __T("Track/Performer"),
             __T("Track/Artist")
         };
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kArtistAudio = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kArtistAudio = {
             __T("Performer"),
             __T("Album_Artist"),
             __T("Artist"),
@@ -1180,7 +1186,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             __T("Track/Performer"),
             __T("Track/Artist")
         };
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kAlbumGeneral = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kAlbumGeneral = {
             __T("Album"),
             __T("Track/Album"),
             __T("Movie"),
@@ -1188,7 +1194,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             __T("Show"),
             __T("PackageName")
         };
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kTitleGeneral = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kTitleGeneral = {
             __T("Title"),
             __T("Track"),
             __T("Track/Title"),
@@ -1196,7 +1202,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             __T("Movie"),
             __T("Name")
         };
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kTitleAudio = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kTitleAudio = {
             __T("Title"),
             __T("Track"),
             __T("Track/Title"),
@@ -1205,21 +1211,21 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             __T("Encoded_Library/Name")
         };
 
-        metadata.artist = query_first_field(media_info, MediaInfoLib::Stream_General, 0, kArtistGeneral);
+        metadata.artist = query_first_field(media_info, MediaInfoCompat::Stream_General, 0, kArtistGeneral);
         if (!metadata.artist.has_value()) {
-            metadata.artist = query_first_field(media_info, MediaInfoLib::Stream_Audio, 0, kArtistAudio);
+            metadata.artist = query_first_field(media_info, MediaInfoCompat::Stream_Audio, 0, kArtistAudio);
         }
 
-        metadata.album = query_first_field(media_info, MediaInfoLib::Stream_General, 0, kAlbumGeneral);
+        metadata.album = query_first_field(media_info, MediaInfoCompat::Stream_General, 0, kAlbumGeneral);
 
-        metadata.title = query_first_field(media_info, MediaInfoLib::Stream_General, 0, kTitleGeneral);
+        metadata.title = query_first_field(media_info, MediaInfoCompat::Stream_General, 0, kTitleGeneral);
         if (!metadata.title.has_value()) {
-            metadata.title = query_first_field(media_info, MediaInfoLib::Stream_Audio, 0, kTitleAudio);
+            metadata.title = query_first_field(media_info, MediaInfoCompat::Stream_Audio, 0, kTitleAudio);
         }
     }
 
     if (video_file) {
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kArtistVideoGeneral = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kArtistVideoGeneral = {
             __T("Performer"),
             __T("Director"),
             __T("Composer"),
@@ -1227,7 +1233,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             __T("Artist"),
             __T("Encoded_Library/Name")
         };
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kAlbumVideoGeneral = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kAlbumVideoGeneral = {
             __T("Movie"),
             __T("Show"),
             __T("Album"),
@@ -1235,7 +1241,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             __T("Season"),
             __T("PackageName")
         };
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kTitleVideoGeneral = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kTitleVideoGeneral = {
             __T("Title"),
             __T("Movie"),
             __T("Track"),
@@ -1243,7 +1249,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             __T("Name"),
             __T("Series")
         };
-        static constexpr std::array<const MediaInfoLib::Char*, 6> kTitleVideoStream = {
+        static constexpr std::array<const MediaInfoCompat::Char*, 6> kTitleVideoStream = {
             __T("Title"),
             __T("Track"),
             __T("Name"),
@@ -1254,34 +1260,34 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
 
         if (!metadata.artist.has_value()) {
             metadata.artist = query_first_field(media_info,
-                                                MediaInfoLib::Stream_General,
+                                                MediaInfoCompat::Stream_General,
                                                 0,
                                                 kArtistVideoGeneral);
         }
         if (!metadata.album.has_value()) {
             metadata.album = query_first_field(media_info,
-                                               MediaInfoLib::Stream_General,
+                                               MediaInfoCompat::Stream_General,
                                                0,
                                                kAlbumVideoGeneral);
         }
         if (!metadata.title.has_value()) {
             metadata.title = query_first_field(media_info,
-                                               MediaInfoLib::Stream_General,
+                                               MediaInfoCompat::Stream_General,
                                                0,
                                                kTitleVideoGeneral);
         }
         if (!metadata.title.has_value()) {
             metadata.title = query_first_field(media_info,
-                                               MediaInfoLib::Stream_Video,
+                                               MediaInfoCompat::Stream_Video,
                                                0,
                                                kTitleVideoStream);
         }
     }
 
-    static const std::vector<std::pair<MediaInfoLib::stream_t,
-                                       std::array<const MediaInfoLib::Char*, 6>>> kYearProbes = {
+    static const std::vector<std::pair<MediaInfoCompat::stream_t,
+                                       std::array<const MediaInfoCompat::Char*, 6>>> kYearProbes = {
         {
-            MediaInfoLib::Stream_General,
+            MediaInfoCompat::Stream_General,
             {
                 __T("Recorded_Date"),
                 __T("Released_Date"),
@@ -1292,7 +1298,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             }
         },
         {
-            MediaInfoLib::Stream_Audio,
+            MediaInfoCompat::Stream_Audio,
             {
                 __T("Recorded_Date"),
                 __T("Released_Date"),
@@ -1303,7 +1309,7 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
             }
         },
         {
-            MediaInfoLib::Stream_Video,
+            MediaInfoCompat::Stream_Video,
             {
                 __T("Recorded_Date"),
                 __T("Released_Date"),
