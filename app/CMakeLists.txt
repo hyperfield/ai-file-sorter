@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
+option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
+    "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
 
 include(CheckSymbolExists)
 include(CheckCXXSourceCompiles)
@@ -231,21 +233,69 @@ if(EXISTS "${LIBZIP_DIR}/CMakeLists.txt")
     endif()
 endif()
 
+set(PDFIUM_PLATFORM_DIR "")
+set(PDFIUM_LIBRARY "")
+set(PDFIUM_RUNTIME "")
+set(_aifs_pdfium_missing_reason "")
+
 if(WIN32)
-    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/windows-x64")
-    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/pdfium.dll.lib")
-    set(PDFIUM_RUNTIME "${PDFIUM_PLATFORM_DIR}/bin/pdfium.dll")
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/windows-x64")
+        set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/pdfium.dll.lib")
+        set(PDFIUM_RUNTIME "${PDFIUM_PLATFORM_DIR}/bin/pdfium.dll")
+    else()
+        set(_aifs_pdfium_missing_reason
+            "Embedded PDFium is only vendored for 64-bit Windows builds.")
+    endif()
 elseif(APPLE)
-    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-arm64")
-    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
-    set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
-else()
-    set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/linux-x64")
-    set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.so")
-    set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+    set(_aifs_pdfium_apple_arch "")
+    if(CMAKE_OSX_ARCHITECTURES)
+        list(LENGTH CMAKE_OSX_ARCHITECTURES _aifs_pdfium_arch_count)
+        if(_aifs_pdfium_arch_count GREATER 1)
+            set(_aifs_pdfium_missing_reason
+                "Embedded PDFium is vendored per-architecture. Configure a single macOS architecture instead of a universal build.")
+        else()
+            list(GET CMAKE_OSX_ARCHITECTURES 0 _aifs_pdfium_apple_arch)
+        endif()
+    endif()
+    if(NOT _aifs_pdfium_apple_arch)
+        set(_aifs_pdfium_apple_arch "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+    string(TOLOWER "${_aifs_pdfium_apple_arch}" _aifs_pdfium_apple_arch)
+    if(_aifs_pdfium_apple_arch MATCHES "^(arm64|aarch64)$")
+        set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-arm64")
+        set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
+        set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+    elseif(_aifs_pdfium_apple_arch MATCHES "^(x86_64|amd64)$")
+        set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-x64")
+        set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
+        set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+    else()
+        set(_aifs_pdfium_missing_reason
+            "Embedded PDFium is not vendored for macOS architecture '${_aifs_pdfium_apple_arch}'.")
+    endif()
+elseif(UNIX)
+    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _aifs_pdfium_linux_arch)
+    if(_aifs_pdfium_linux_arch MATCHES "^(x86_64|amd64)$")
+        set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/linux-x64")
+        set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.so")
+        set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+    else()
+        set(_aifs_pdfium_missing_reason
+            "Embedded PDFium is not vendored for Linux architecture '${CMAKE_SYSTEM_PROCESSOR}'.")
+    endif()
 endif()
 
-if(EXISTS "${PDFIUM_LIBRARY}")
+set(_aifs_pdfium_ready FALSE)
+if(PDFIUM_PLATFORM_DIR
+   AND EXISTS "${PDFIUM_PLATFORM_DIR}/include/fpdfview.h"
+   AND EXISTS "${PDFIUM_LIBRARY}"
+   AND PDFIUM_RUNTIME
+   AND EXISTS "${PDFIUM_RUNTIME}")
+    set(_aifs_pdfium_ready TRUE)
+endif()
+
+if(_aifs_pdfium_ready)
     add_compile_definitions(AI_FILE_SORTER_USE_PDFIUM)
     list(APPEND DOC_DEPS_INCLUDE_DIRS "${PDFIUM_PLATFORM_DIR}/include")
     add_library(pdfium SHARED IMPORTED)
@@ -260,6 +310,16 @@ if(EXISTS "${PDFIUM_LIBRARY}")
         )
     endif()
     list(APPEND DOC_DEPS_LIBS pdfium)
+elseif(PDFIUM_PLATFORM_DIR OR _aifs_pdfium_missing_reason)
+    if(NOT _aifs_pdfium_missing_reason)
+        set(_aifs_pdfium_missing_reason
+            "Embedded PDFium is incomplete under '${PDFIUM_PLATFORM_DIR}'. Run app/scripts/vendor_doc_deps.sh or app/scripts/vendor_doc_deps.ps1 to populate the vendored runtime files.")
+    endif()
+    if(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND)
+        message(FATAL_ERROR "${_aifs_pdfium_missing_reason}")
+    else()
+        message(WARNING "${_aifs_pdfium_missing_reason} Falling back to 'pdftotext' when available.")
+    endif()
 endif()
 
 # Sources
@@ -459,7 +519,7 @@ if(WIN32)
     endif()
 endif()
 
-if(EXISTS "${PDFIUM_LIBRARY}")
+if(_aifs_pdfium_ready)
     if(PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
         add_custom_command(TARGET aifilesorter POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -796,14 +856,14 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         endif()
     endif()
 
-    if(EXISTS "${PDFIUM_LIBRARY}" AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
+    if(_aifs_pdfium_ready AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
         add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${PDFIUM_RUNTIME}"
                 "$<TARGET_FILE_DIR:ai_file_sorter_tests>"
         )
     endif()
-    if(EXISTS "${PDFIUM_LIBRARY}" AND NOT WIN32)
+    if(_aifs_pdfium_ready AND NOT WIN32)
         if(APPLE)
             set(_pdfium_rpath "@loader_path")
         else()

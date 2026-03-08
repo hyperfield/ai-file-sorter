@@ -98,6 +98,7 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 - Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
 - Added an image analysis option to append image creation dates (when available) to category names.
 - Added optional audio/video metadata-based filename suggestions for supported media files.
+- Bug fixes.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -182,11 +183,11 @@ Document analysis uses the same selected LLM (local or remote) to extract text f
 ### Supported document formats
 
 - Plain text: `.txt`, `.md`, `.rtf`, `.csv`, `.tsv`, `.json`, `.xml`, `.yml`/`.yaml`, `.ini`/`.cfg`/`.conf`, `.log`, `.html`/`.htm`, `.tex`, `.rst`
-- PDF: `.pdf` (embedded PDFium in bundled builds; CLI fallback uses `pdftotext` if you build without vendored libs)
+- PDF: `.pdf` (embedded PDFium by default; CLI fallback via `pdftotext` is available only if you explicitly configure `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF`)
 - Office/OpenOffice: `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` (embedded libzip+pugixml in bundled builds; CLI fallback uses `unzip` if you build without vendored libs)
 - Legacy binary formats like `.doc`, `.xls`, `.ppt` are not currently supported.
 
-Source builds: embedded extractors are used when `external/` contains the vendored libs; otherwise the app falls back to CLI tools (`pdftotext`, `unzip`) for document extraction.
+Source builds: embedded extractors are used by default. If the vendored PDFium artifacts are missing for your target platform, CMake now fails loudly instead of silently disabling PDF content extraction. You can opt back into the old CLI fallback with `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF`.
 
 ### Main window options (documents)
 
@@ -239,7 +240,7 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS, or a Qt 6 MSVC kit / `qtbase` via vcpkg on Windows).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled`. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
 - **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
-- **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. Source builds use the embedded extractors when `external/` is populated; otherwise they fall back to `pdftotext`/`unzip`.
+- **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. PDFium is required by default so packaged/source builds keep PDF extraction embedded on Windows, macOS, and Linux; set `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF` only if you intentionally want the `pdftotext` fallback.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **OpenAI or Gemini API key** (optional): Required only when using the remote ChatGPT or Gemini workflow.

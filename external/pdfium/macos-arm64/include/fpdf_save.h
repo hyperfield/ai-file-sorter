@@ -31,34 +31,41 @@ typedef struct FPDF_FILEWRITE_ {
   // Comments:
   //          Called by function FPDF_SaveDocument
   // Parameters:
-  //          pThis       -   Pointer to the structure itself
-  //          pData       -   Pointer to a buffer to output
+  //          self        -   Pointer to the structure itself
+  //          data        -   Pointer to a buffer to output
   //          size        -   The size of the buffer.
   // Return value:
   //          Should be non-zero if successful, zero for error.
-  int (*WriteBlock)(struct FPDF_FILEWRITE_* pThis,
-                    const void* pData,
+  int (*WriteBlock)(struct FPDF_FILEWRITE_* self,
+                    const void* data,
                     unsigned long size);
 } FPDF_FILEWRITE;
 
- // Flags for FPDF_SaveAsCopy()
-#define FPDF_INCREMENTAL 1
-#define FPDF_NO_INCREMENTAL 2
-#define FPDF_REMOVE_SECURITY 3
+// Flags for FPDF_SaveAsCopy().
+// FPDF_INCREMENTAL and FPDF_NO_INCREMENTAL cannot be used together.
+#define FPDF_INCREMENTAL (1 << 0)
+#define FPDF_NO_INCREMENTAL (1 << 1)
+ // Deprecated. Use FPDF_REMOVE_SECURITY instead.
+ // TODO(crbug.com/42270430): Remove FPDF_REMOVE_SECURITY_DEPRECATED.
+#define FPDF_REMOVE_SECURITY_DEPRECATED 3
+#define FPDF_REMOVE_SECURITY (1 << 2)
+// Experimental. Subsets any embedded font files for new text objects added to
+// the document.
+#define FPDF_SUBSET_NEW_FONTS (1 << 3)
 
 // Function: FPDF_SaveAsCopy
 //          Saves the copy of specified document in custom way.
 // Parameters:
 //          document        -   Handle to document, as returned by
 //                              FPDF_LoadDocument() or FPDF_CreateNewDocument().
-//          pFileWrite      -   A pointer to a custom file write structure.
+//          file_write      -   A pointer to a custom file write structure.
 //          flags           -   Flags above that affect how the PDF gets saved.
 //                              Pass in 0 when there are no flags.
 // Return value:
 //          TRUE for succeed, FALSE for failed.
 //
 FPDF_EXPORT FPDF_BOOL FPDF_CALLCONV FPDF_SaveAsCopy(FPDF_DOCUMENT document,
-                                                    FPDF_FILEWRITE* pFileWrite,
+                                                    FPDF_FILEWRITE* file_write,
                                                     FPDF_DWORD flags);
 
 // Function: FPDF_SaveWithVersion
@@ -66,18 +73,18 @@ FPDF_EXPORT FPDF_BOOL FPDF_CALLCONV FPDF_SaveAsCopy(FPDF_DOCUMENT document,
 //          saved document can be specified by the caller.
 // Parameters:
 //          document        -   Handle to document.
-//          pFileWrite      -   A pointer to a custom file write structure.
+//          file_write      -   A pointer to a custom file write structure.
 //          flags           -   The creating flags.
-//          fileVersion     -   The PDF file version. File version: 14 for 1.4,
+//          file_version    -   The PDF file version. File version: 14 for 1.4,
 //                              15 for 1.5, ...
 // Return value:
 //          TRUE if succeed, FALSE if failed.
 //
 FPDF_EXPORT FPDF_BOOL FPDF_CALLCONV
 FPDF_SaveWithVersion(FPDF_DOCUMENT document,
-                     FPDF_FILEWRITE* pFileWrite,
+                     FPDF_FILEWRITE* file_write,
                      FPDF_DWORD flags,
-                     int fileVersion);
+                     int file_version);
 
 #ifdef __cplusplus
 }

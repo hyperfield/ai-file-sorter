@@ -49,6 +49,14 @@ main
 obfuscate_encrypt
 bin/
 
+# Keep vendored PDFium runtimes in source control.
+!external/pdfium/**/bin/
+!external/pdfium/**/bin/pdfium.dll
+!external/pdfium/**/lib/
+!external/pdfium/**/lib/pdfium.dll.lib
+!external/pdfium/**/lib/libpdfium.so
+!external/pdfium/**/lib/libpdfium.dylib
+
 # Scripts
 reset_key_4_github.sh
 create_macos_bundle.sh

@@ -3264,6 +3264,18 @@ void MainApp::perform_analysis()
                     append_progress(to_utf8(tr("[DOC-ERROR] %1 (%2)")
                                                 .arg(QString::fromStdString(entry.file_name),
                                                      QString::fromStdString(reason))));
+                    if (core_logger) {
+                        const char* fallback_action = "falling back to filename-based categorization";
+                        if (rename_documents_only) {
+                            fallback_action = "keeping the original filename in rename-only mode";
+                        } else if (document_only) {
+                            fallback_action = "restoring the original filename as the cached suggestion";
+                        }
+                        core_logger->warn("Document analysis failed for '{}': {}; {}.",
+                                          entry.file_name,
+                                          reason,
+                                          fallback_action);
+                    }
                 }
                 if (!rename_documents_only && !document_only) {
                     other_entries.push_back(entry);

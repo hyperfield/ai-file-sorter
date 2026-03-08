@@ -237,6 +237,15 @@ typedef enum {
   FPDF_RENDERERTYPE_SKIA = 1,
 } FPDF_RENDERER_TYPE;
 
+// PDF font library types - Experimental.
+// Selection of font backend library to use.
+typedef enum {
+  // FreeType - https://freetype.org/
+  FPDF_FONTBACKENDTYPE_FREETYPE = 0,
+  // Fontations - https://github.com/googlefonts/fontations/
+  FPDF_FONTBACKENDTYPE_FONTATIONS = 1,
+} FPDF_FONT_BACKEND_TYPE;
+
 // Process-wide options for initializing the library.
 typedef struct FPDF_LIBRARY_CONFIG_ {
   // Version number of the interface. Currently must be 2.
@@ -267,13 +276,26 @@ typedef struct FPDF_LIBRARY_CONFIG_ {
 
   // Version 4 - Experimental.
 
-  // Explicit specification of core renderer to use. |m_RendererType| must be
-  // a valid value for |FPDF_LIBRARY_CONFIG| versions of this level or higher,
-  // or else the initialization will fail with an immediate crash.
+  // Explicit specification of 2D graphics rendering library to use.
+  // |m_RendererType| must be a valid value for |FPDF_LIBRARY_CONFIG| versions
+  // of this level or higher, or else the initialization will fail with an
+  // immediate crash.
   // Note that use of a specified |FPDF_RENDERER_TYPE| value for which the
-  // corresponding render library is not included in the build will similarly
-  // fail with an immediate crash.
+  // corresponding 2D graphics rendering library is not included in the build
+  // will similarly fail with an immediate crash.
   FPDF_RENDERER_TYPE m_RendererType;
+
+  // Version 5 - Experimental.
+
+  // Explicit specification of font library to use when |m_RendererType| is set
+  // to |FPDF_RENDERERTYPE_SKIA|.
+  // |m_FontLibraryType| must be a valid value for |FPDF_LIBRARY_CONFIG|
+  // versions of this level or higher, or else the initialization will fail with
+  // an immediate crash.
+  // Note that use of a specified |FPDF_FONT_BACKEND_TYPE| value for which the
+  // corresponding font library is not included in the build will similarly fail
+  // with an immediate crash.
+  FPDF_FONT_BACKEND_TYPE m_FontLibraryType;
 } FPDF_LIBRARY_CONFIG;
 
 // Function: FPDF_InitLibraryWithConfig
