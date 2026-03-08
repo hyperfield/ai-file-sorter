@@ -277,7 +277,8 @@ private:
     /**
      * @brief Returns a cached categorization if it is valid for the entry.
      * @param item_name Display name for the item.
-     * @param item_path Display path for the item.
+     * @param current_path Display path for the current on-disk location.
+     * @param categorization_path Effective path used for categorization context.
      * @param dir_path Full directory path for cache lookup.
      * @param file_type File or directory.
      * @param progress_callback Progress updates callback.
@@ -285,7 +286,8 @@ private:
      */
     std::optional<DatabaseManager::ResolvedCategory> try_cached_categorization(
         const std::string& item_name,
-        const std::string& item_path,
+        const std::string& current_path,
+        const std::string& categorization_path,
         const std::string& dir_path,
         FileType file_type,
         const ProgressCallback& progress_callback) const;
@@ -330,13 +332,15 @@ private:
      * @param source Label for the progress source.
      * @param item_name Display name for the item.
      * @param resolved Resolved category data.
-     * @param item_path Display path for the item.
+     * @param current_path Display path for the current on-disk location.
+     * @param categorization_path Effective path used for categorization context.
      */
     void emit_progress_message(const ProgressCallback& progress_callback,
                                std::string_view source,
                                const std::string& item_name,
                                const DatabaseManager::ResolvedCategory& resolved,
-                               const std::string& item_path) const;
+                               const std::string& current_path,
+                               const std::string& categorization_path) const;
 
     /**
      * @brief Builds a signature key for consistency hints.

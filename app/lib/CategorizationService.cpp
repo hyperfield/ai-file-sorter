@@ -423,7 +423,8 @@ std::string first_allowed_or_blank(const std::vector<std::string>& allowed) {
 
 std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cached_categorization(
     const std::string& item_name,
-    const std::string& item_path,
+    const std::string& current_path,
+    const std::string& categorization_path,
     const std::string& dir_path,
     FileType file_type,
     const ProgressCallback& progress_callback) const
@@ -454,7 +455,7 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     }
 
     auto resolved = db_manager.resolve_category(sanitized_category, sanitized_subcategory);
-    emit_progress_message(progress_callback, "CACHE", item_name, resolved, item_path);
+    emit_progress_message(progress_callback, "CACHE", item_name, resolved, current_path, categorization_path);
     return resolved;
 }
 
@@ -547,7 +548,7 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
         if (resolved.category.empty()) {
             resolved.category = "Uncategorized";
         }
-        emit_progress_message(progress_callback, "AI", display_name, resolved, display_path);
+        emit_progress_message(progress_callback, "AI", display_name, resolved, display_path, prompt_path);
         return resolved;
     } catch (const std::exception& ex) {
         const std::string err_msg = fmt::format("[LLM-ERROR] {} ({})", display_name, ex.what());
@@ -565,17 +566,24 @@ void CategorizationService::emit_progress_message(const ProgressCallback& progre
                                                   std::string_view source,
                                                   const std::string& item_name,
                                                   const DatabaseManager::ResolvedCategory& resolved,
-                                                  const std::string& item_path) const
+                                                  const std::string& current_path,
+                                                  const std::string& categorization_path) const
 {
     if (!progress_callback) {
         return;
     }
     const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
-    const std::string path_display = item_path.empty() ? "-" : item_path;
+    const std::string current_path_display = current_path.empty() ? "-" : current_path;
+    const std::string categorization_path_display =
+        categorization_path.empty() ? current_path_display : categorization_path;
 
     progress_callback(fmt::format(
-        "[{}] {}\n    Category : {}\n    Subcat   : {}\n    Path     : {}",
-        source, item_name, resolved.category, sub, path_display));
+        "[{}] {}\n"
+        "    Category            : {}\n"
+        "    Subcat              : {}\n"
+        "    Current Path        : {}\n"
+        "    Categorization Path : {}",
+        source, item_name, resolved.category, sub, current_path_display, categorization_path_display));
 }
 
 DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
@@ -592,6 +600,7 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
 {
     if (auto cached = try_cached_categorization(display_name,
                                                 display_path,
+                                                prompt_path,
                                                 dir_path,
                                                 file_type,
                                                 progress_callback)) {

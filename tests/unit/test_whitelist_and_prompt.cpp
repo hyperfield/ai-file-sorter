@@ -8,6 +8,7 @@
 #include "Settings.hpp"
 #include "WhitelistStore.hpp"
 #include "TestHelpers.hpp"
+#include "Utils.hpp"
 
 #include <atomic>
 #include <memory>
@@ -179,4 +180,49 @@ TEST_CASE("CategorizationService parses labeled category and subcategory lines")
     CHECK(categorized.front().category == "Images");
     CHECK(categorized.front().subcategory == "Photos");
     CHECK(*calls == 1);
+}
+
+TEST_CASE("CategorizationService progress shows current and categorization paths") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "legacy_name.pdf";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::string suggested_name = "new_suggested_file_name.pdf";
+    const std::string prompt_path =
+        (data_dir.path() / suggested_name).generic_string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(calls, "Category: Security\nSubcategory: PCI DSS guidelines");
+    };
+
+    std::vector<std::string> progress_messages;
+    const auto categorized = service.categorize_entries(
+        files,
+        true,
+        stop_flag,
+        [&progress_messages](const std::string& message) { progress_messages.push_back(message); },
+        {},
+        {},
+        {},
+        factory,
+        [suggested_name, prompt_path](const FileEntry&) {
+            return CategorizationService::PromptOverride{suggested_name, prompt_path};
+        });
+
+    REQUIRE(categorized.size() == 1);
+    REQUIRE(progress_messages.size() == 1);
+    CHECK(progress_messages.front().find("Category            : Security") != std::string::npos);
+    CHECK(progress_messages.front().find("Subcat              : PCI DSS guidelines") != std::string::npos);
+    CHECK(progress_messages.front().find("Current Path        : " +
+                                         Utils::abbreviate_user_path(full_path)) != std::string::npos);
+    CHECK(progress_messages.front().find("Categorization Path : " +
+                                         Utils::abbreviate_user_path(prompt_path)) != std::string::npos);
 }
