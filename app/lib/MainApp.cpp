@@ -1743,11 +1743,7 @@ void MainApp::update_document_analysis_controls()
     if (document_options_toggle_button) {
         document_options_toggle_button->setEnabled(analysis_enabled);
         const bool expanded = document_options_toggle_button->isChecked();
-#if defined(__APPLE__)
-        document_options_toggle_button->setArrowType(Qt::NoArrow);
-#else
         document_options_toggle_button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
-#endif
         if (document_options_container) {
             document_options_container->setVisible(analysis_enabled && expanded);
         }
