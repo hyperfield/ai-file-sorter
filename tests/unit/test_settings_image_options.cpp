@@ -29,6 +29,9 @@ void create_visual_llm_files()
 TEST_CASE("Settings defaults image analysis off even when visual LLM files exist") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
     EnvVarGuard model_guard("LLAVA_MODEL_URL", std::string("https://example.com/llava-model.gguf"));
     EnvVarGuard mmproj_guard("LLAVA_MMPROJ_URL", std::string("https://example.com/mmproj-model-f16.gguf"));
@@ -45,6 +48,9 @@ TEST_CASE("Settings defaults image analysis off even when visual LLM files exist
 TEST_CASE("Settings defaults image analysis off when visual LLM files are missing") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
     EnvVarGuard model_guard("LLAVA_MODEL_URL", std::string("https://example.com/llava-model.gguf"));
     EnvVarGuard mmproj_guard("LLAVA_MMPROJ_URL", std::string("https://example.com/mmproj-model-f16.gguf"));
@@ -59,6 +65,9 @@ TEST_CASE("Settings defaults image analysis off when visual LLM files are missin
 TEST_CASE("Settings enforces rename-only implies offer rename") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
     EnvVarGuard model_guard("LLAVA_MODEL_URL", std::string("https://example.com/llava-model.gguf"));
     EnvVarGuard mmproj_guard("LLAVA_MMPROJ_URL", std::string("https://example.com/mmproj-model-f16.gguf"));
@@ -80,6 +89,9 @@ TEST_CASE("Settings enforces rename-only implies offer rename") {
 TEST_CASE("Settings persists options group expansion state") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
 
     Settings settings;
@@ -96,6 +108,9 @@ TEST_CASE("Settings persists options group expansion state") {
 TEST_CASE("Settings persists image EXIF date/place rename toggle") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
 
     Settings settings;
@@ -112,6 +127,9 @@ TEST_CASE("Settings persists image EXIF date/place rename toggle") {
 TEST_CASE("Settings defaults audio/video metadata rename toggle to enabled") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
 
     Settings settings;
@@ -123,6 +141,9 @@ TEST_CASE("Settings defaults audio/video metadata rename toggle to enabled") {
 TEST_CASE("Settings persists audio/video metadata rename toggle") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
 
     Settings settings;
@@ -137,6 +158,9 @@ TEST_CASE("Settings persists audio/video metadata rename toggle") {
 TEST_CASE("Settings persists image date-to-category toggle") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
 
     Settings settings;

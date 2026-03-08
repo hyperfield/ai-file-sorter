@@ -1015,6 +1015,10 @@ void LLMSelectionDialog::handle_delete_download()
     if (std::filesystem::exists(path, ec)) {
         removed_any = std::filesystem::remove(path, ec) || removed_any;
     }
+    const std::string partial_path = downloader->get_partial_download_destination();
+    if (std::filesystem::exists(partial_path, ec)) {
+        removed_any = std::filesystem::remove(partial_path, ec) || removed_any;
+    }
     const std::string meta_path = path + ".aifs.meta";
     if (std::filesystem::exists(meta_path, ec)) {
         removed_any = std::filesystem::remove(meta_path, ec) || removed_any;
@@ -1594,6 +1598,10 @@ void LLMSelectionDialog::handle_delete_visual_download(VisualLlmDownloadEntry& e
     bool removed_any = false;
     if (std::filesystem::exists(path, ec)) {
         removed_any = std::filesystem::remove(path, ec) || removed_any;
+    }
+    const std::string partial_path = entry.downloader->get_partial_download_destination();
+    if (std::filesystem::exists(partial_path, ec)) {
+        removed_any = std::filesystem::remove(partial_path, ec) || removed_any;
     }
     const std::string meta_path = path + ".aifs.meta";
     if (std::filesystem::exists(meta_path, ec)) {

@@ -10,10 +10,37 @@
 #include <iostream>
 #include <system_error>
 #include <stdexcept>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 namespace {
 
 constexpr const char kMetadataSuffix[] = ".aifs.meta";
+constexpr const char kPartialDownloadSuffix[] = ".part";
+
+bool replace_download_file(const std::filesystem::path& source,
+                           const std::filesystem::path& target,
+                           std::string& error)
+{
+#ifdef _WIN32
+    if (MoveFileExW(source.c_str(),
+                    target.c_str(),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        return true;
+    }
+    error = std::system_category().message(static_cast<int>(GetLastError()));
+    return false;
+#else
+    std::error_code ec;
+    std::filesystem::rename(source, target, ec);
+    if (!ec) {
+        return true;
+    }
+    error = ec.message();
+    return false;
+#endif
+}
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
 TestHooks::LLMDownloadProbe& download_probe_slot() {
@@ -38,11 +65,17 @@ void LLMDownloader::set_download_destination() {
     std::filesystem::create_directories(destination_dir);
     download_destination = Utils::make_default_path_to_file_from_download_url(url);
     load_cached_metadata();
+    migrate_legacy_partial_download_if_needed();
 }
 
 std::string LLMDownloader::metadata_path() const
 {
     return download_destination + kMetadataSuffix;
+}
+
+std::string LLMDownloader::partial_download_path() const
+{
+    return download_destination + kPartialDownloadSuffix;
 }
 
 void LLMDownloader::load_cached_metadata()
@@ -96,6 +129,39 @@ void LLMDownloader::persist_cached_metadata() const
 
     out << "url=" << url << "\n";
     out << "content_length=" << real_content_length << "\n";
+}
+
+void LLMDownloader::migrate_legacy_partial_download_if_needed()
+{
+    if (real_content_length <= 0) {
+        return;
+    }
+
+    const auto partial_path = std::filesystem::path(partial_download_path());
+    std::error_code ec;
+    if (std::filesystem::exists(partial_path, ec) || ec) {
+        return;
+    }
+
+    const auto final_path = std::filesystem::path(download_destination);
+    const auto size = std::filesystem::file_size(final_path, ec);
+    if (ec || size == 0 || static_cast<long long>(size) >= real_content_length) {
+        return;
+    }
+
+    std::filesystem::rename(final_path, partial_path, ec);
+    if (auto logger = Logger::get_logger("core_logger")) {
+        if (ec) {
+            logger->warn("Failed to migrate legacy partial download '{}' to '{}': {}",
+                         final_path.string(),
+                         partial_path.string(),
+                         ec.message());
+        } else {
+            logger->info("Migrated legacy partial download '{}' to '{}'",
+                         final_path.string(),
+                         partial_path.string());
+        }
+    }
 }
 
 
@@ -279,6 +345,8 @@ void LLMDownloader::perform_download()
         }
     };
 
+    migrate_legacy_partial_download_if_needed();
+
     long resume_from = determine_resume_offset();
     resume_offset = resume_from;
 
@@ -291,13 +359,13 @@ void LLMDownloader::perform_download()
     auto attempt_download = [&](long offset) -> CURLcode {
 #ifdef AI_FILE_SORTER_TEST_BUILD
         if (auto& probe = download_probe_slot()) {
-            return probe(offset, download_destination);
+            return probe(offset, partial_download_path());
         }
 #endif
         FILE* fp = open_output_file(offset);
         if (!fp) {
             cleanup_curl();
-            throw std::runtime_error("Failed to open file: " + download_destination);
+            throw std::runtime_error("Failed to open file: " + partial_download_path());
         }
 
         setup_download_curl_options(curl, fp, offset);
@@ -346,7 +414,7 @@ void LLMDownloader::perform_download()
             resume_offset = 0;
 
             std::error_code ec;
-            std::filesystem::remove(download_destination, ec);
+            std::filesystem::remove(partial_download_path(), ec);
 
             cleanup_curl();
             curl = init_curl();
@@ -369,11 +437,24 @@ void LLMDownloader::mark_download_resumable()
 
 void LLMDownloader::notify_download_complete()
 {
+    const auto partial_path = std::filesystem::path(partial_download_path());
+    const auto final_path = std::filesystem::path(download_destination);
+
     if (real_content_length <= 0) {
         std::error_code ec;
-        const auto size = std::filesystem::file_size(download_destination, ec);
+        const auto completed_path =
+            std::filesystem::exists(partial_path, ec) && !ec ? partial_path : final_path;
+        const auto size = std::filesystem::file_size(completed_path, ec);
         if (!ec) {
             real_content_length = static_cast<long long>(size);
+        }
+    }
+
+    std::error_code exists_ec;
+    if (std::filesystem::exists(partial_path, exists_ec) && !exists_ec) {
+        std::string error;
+        if (!replace_download_file(partial_path, final_path, error)) {
+            throw std::runtime_error("Failed to finalize download: " + error);
         }
     }
 
@@ -435,7 +516,7 @@ long LLMDownloader::determine_resume_offset() const
 {
     if (!is_download_resumable()) return 0;
 
-    FILE* fp = fopen(download_destination.c_str(), "rb");
+    FILE* fp = fopen(partial_download_path().c_str(), "rb");
     if (!fp) return 0;
 
     fseek(fp, 0, SEEK_END);
@@ -447,17 +528,26 @@ long LLMDownloader::determine_resume_offset() const
 
 FILE* LLMDownloader::open_output_file(long resume_offset) const
 {
-    return fopen(download_destination.c_str(), resume_offset > 0 ? "ab" : "wb");
+    return fopen(partial_download_path().c_str(), resume_offset > 0 ? "ab" : "wb");
 }
 
 
 bool LLMDownloader::has_existing_partial_download() const
 {
     try {
+        const auto partial_path = partial_download_path();
+        if (std::filesystem::exists(partial_path)) {
+            return std::filesystem::file_size(partial_path) > 0;
+        }
+
         if (!std::filesystem::exists(download_destination)) {
             return false;
         }
-        return std::filesystem::file_size(download_destination) > 0;
+        if (real_content_length <= 0) {
+            return false;
+        }
+        const auto final_size = std::filesystem::file_size(download_destination);
+        return final_size > 0 && static_cast<long long>(final_size) < real_content_length;
     } catch (const std::filesystem::filesystem_error& e) {
         if (auto logger = Logger::get_logger("core_logger")) {
             logger->warn("Unable to inspect download destination '{}': {}", download_destination, e.what());
@@ -510,6 +600,10 @@ bool LLMDownloader::is_download_resumable() const
 bool LLMDownloader::is_download_complete() const
 {
     try {
+        const auto partial_path = partial_download_path();
+        if (std::filesystem::exists(partial_path) && std::filesystem::file_size(partial_path) > 0) {
+            return false;
+        }
         auto file_size = std::filesystem::file_size(download_destination);
         return static_cast<std::int64_t>(file_size) >= real_content_length;
     } catch (const std::filesystem::filesystem_error&) {
@@ -539,6 +633,13 @@ long long LLMDownloader::get_real_content_length() const
 LLMDownloader::DownloadStatus LLMDownloader::get_local_download_status() const
 {
     std::error_code ec;
+    const auto partial_path = partial_download_path();
+    const auto partial_size = std::filesystem::file_size(partial_path, ec);
+    if (!ec && partial_size > 0) {
+        return DownloadStatus::InProgress;
+    }
+
+    ec.clear();
     const auto size = std::filesystem::file_size(download_destination, ec);
     if (ec || size == 0) {
         return DownloadStatus::NotStarted;
@@ -556,6 +657,11 @@ LLMDownloader::DownloadStatus LLMDownloader::get_local_download_status() const
 std::string LLMDownloader::get_download_destination() const
 {
     return download_destination;
+}
+
+std::string LLMDownloader::get_partial_download_destination() const
+{
+    return partial_download_path();
 }
 
 

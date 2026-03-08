@@ -38,6 +38,7 @@ std::string make_unique_url() {
 TEST_CASE("LLMDownloader retries full download after a range error") {
     TempDir tmp;
     const auto destination = (tmp.path() / "model.gguf").string();
+    const auto partial_destination = destination + ".part";
 
     {
         std::ofstream out(destination, std::ios::binary);
@@ -54,9 +55,11 @@ TEST_CASE("LLMDownloader retries full download after a range error") {
             ++attempts;
             if (attempts == 1) {
                 REQUIRE(offset == 3);
+                REQUIRE(path == partial_destination);
                 return CURLE_HTTP_RANGE_ERROR;
             }
             REQUIRE(offset == 0);
+            REQUIRE(path == partial_destination);
             std::ofstream out(path, std::ios::binary | std::ios::trunc);
             out << "abcdef";
             return CURLE_OK;
@@ -86,6 +89,7 @@ TEST_CASE("LLMDownloader retries full download after a range error") {
     REQUIRE(success.load());
     REQUIRE(attempts.load() == 2);
     REQUIRE(std::filesystem::file_size(destination) == 6);
+    REQUIRE_FALSE(std::filesystem::exists(partial_destination));
 }
 
 TEST_CASE("LLMDownloader uses cached metadata for partial downloads") {
@@ -105,6 +109,8 @@ TEST_CASE("LLMDownloader uses cached metadata for partial downloads") {
 
     LLMDownloader downloader(url);
     CHECK(downloader.get_real_content_length() == 16);
+    CHECK_FALSE(std::filesystem::exists(destination));
+    CHECK(std::filesystem::exists(destination.string() + ".part"));
     CHECK(downloader.get_local_download_status() == LLMDownloader::DownloadStatus::InProgress);
     CHECK(downloader.get_download_status() == LLMDownloader::DownloadStatus::InProgress);
     CHECK_FALSE(downloader.is_inited());
@@ -151,4 +157,28 @@ TEST_CASE("LLMDownloader treats full local file as complete with cached metadata
     CHECK(downloader.get_local_download_status() == LLMDownloader::DownloadStatus::Complete);
     CHECK(downloader.get_download_status() == LLMDownloader::DownloadStatus::Complete);
     CHECK_FALSE(downloader.is_inited());
+}
+
+TEST_CASE("LLMDownloader keeps final model intact while partial temp download exists") {
+    TempDir tmp;
+    EnvVarGuard home_guard("HOME", tmp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", tmp.path().string());
+#endif
+
+    const std::string url = make_unique_url();
+    const std::filesystem::path destination =
+        Utils::make_default_path_to_file_from_download_url(url);
+    const std::filesystem::path partial = destination.string() + ".part";
+    const std::filesystem::path metadata = destination.string() + ".aifs.meta";
+
+    write_bytes(destination, 16);
+    write_bytes(partial, 4);
+    write_metadata(metadata, url, 16);
+
+    LLMDownloader downloader(url);
+    CHECK(downloader.get_local_download_status() == LLMDownloader::DownloadStatus::InProgress);
+    CHECK_FALSE(downloader.is_download_complete());
+    CHECK(std::filesystem::file_size(destination) == 16);
+    CHECK(std::filesystem::file_size(partial) == 4);
 }

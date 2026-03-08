@@ -66,6 +66,11 @@ public:
      * @return Full path to the downloaded file.
      */
     std::string get_download_destination() const;
+    /**
+     * @brief Returns the temporary path used for in-progress downloads.
+     * @return Full path to the partial download artifact.
+     */
+    std::string get_partial_download_destination() const;
 
     /**
      * @brief Starts a download with simpler callbacks.
@@ -215,6 +220,11 @@ private:
      */
     std::string metadata_path() const;
     /**
+     * @brief Path to the partial download file used during transfer/resume.
+     * @return Temporary file path.
+     */
+    std::string partial_download_path() const;
+    /**
      * @brief Loads cached metadata for resume and progress.
      */
     void load_cached_metadata();
@@ -222,6 +232,10 @@ private:
      * @brief Persists metadata to disk.
      */
     void persist_cached_metadata() const;
+    /**
+     * @brief Moves legacy partial downloads from the final path into the temp path.
+     */
+    void migrate_legacy_partial_download_if_needed();
     /**
      * @brief Parses cached or response headers for resume support.
      */
