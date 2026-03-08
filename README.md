@@ -234,10 +234,10 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 
 ## Requirements
 
-- **Operating System**: Linux or macOS for source builds (Windows builds are provided as binaries; native Qt/MSVC build instructions are planned).
-- **Compiler**: A C++20-capable compiler (`g++` or `clang++`).
-- **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS).
-- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled`.
+- **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section.
+- **Compiler**: A C++20-capable compiler (`g++` or `clang++` on Linux/macOS, MSVC 2022 on Windows).
+- **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS, or a Qt 6 MSVC kit / `qtbase` via vcpkg on Windows).
+- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled`. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
 - **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
 - **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. Source builds use the embedded extractors when `external/` is populated; otherwise they fall back to `pdftotext`/`unzip`.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
@@ -484,6 +484,8 @@ Option A - CMake + vcpkg (recommended)
       ```
 
     - Otherwise use the directory where you cloned vcpkg.
+
+   MediaInfo note: you do **not** manually add `MediaInfoLib` include/lib paths on Windows. The project already declares `libmediainfo` in `app/vcpkg.json`, and `app\build_windows.ps1` configures CMake with the vcpkg toolchain + manifest so `find_package(MediaInfoLib ...)` resolves it automatically. If you want to preinstall or verify it explicitly, run `vcpkg install libmediainfo:x64-windows`.
 5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
 
    ```powershell
@@ -545,18 +547,21 @@ Option B - CMake + Qt online installer
    ```
 
    This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
-4. Configure CMake to see Qt (adapt `CMAKE_PREFIX_PATH` to your Qt install):
+4. Configure CMake from the repo root so CMake sees both the Qt install and the app's vcpkg manifest (adapt `CMAKE_PREFIX_PATH` to your Qt install):
 
     ```powershell
-    $env:VCPKG_ROOT = "C:\path\to\vcpkg" (e.g., `C:\dev\vcpkg`)
+    $env:VCPKG_ROOT = "C:\path\to\vcpkg"  # e.g. C:\dev\vcpkg
     $qt = "C:\Qt\6.6.3\msvc2019_64"  # example
-    cmake -S . -B build -G "Ninja" `
+    cmake -S app -B build -G "Ninja" `
       -DCMAKE_PREFIX_PATH=$qt `
      -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
+     -DVCPKG_MANIFEST_DIR=app `
      -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON `
      -DVCPKG_TARGET_TRIPLET=x64-windows
    cmake --build build --config Release
    ```
+
+   This configure step enables vcpkg manifest mode, so `libmediainfo` is installed/resolved from `app\vcpkg.json` automatically. No manual linker or include-path edits are needed for MediaInfo on Windows.
 
 Notes
 
