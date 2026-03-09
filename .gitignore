@@ -139,6 +139,8 @@ app/include/llama/*.h
 build*/
 dist/
 app/lib/ggml/
+# Generated precompiled llama runtime directories
+app/lib/precompiled*/
 external/libzip/build*/
 
 # No longer relevant
