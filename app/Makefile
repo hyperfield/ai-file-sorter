@@ -7,6 +7,15 @@ OBJ_DIR := ./obj
 SRC_DIR := ./lib
 APP_NAME ?= AI File Sorter
 
+# Goals that should not require toolchain/dependency discovery.
+NON_BUILD_GOALS := clean
+NEEDS_BUILD_DEPS := 1
+ifneq ($(strip $(MAKECMDGOALS)),)
+ifeq ($(strip $(filter-out $(NON_BUILD_GOALS),$(MAKECMDGOALS))),)
+NEEDS_BUILD_DEPS := 0
+endif
+endif
+
 # Optional: build llama.cpp with multi-variant CPU backends on macOS.
 # Usage: make LLAMA_MULTI_VARIANT=1
 LLAMA_MULTI_VARIANT ?= 0
@@ -113,18 +122,24 @@ ifeq ($(origin PKG_CONFIG),undefined)
     endif
 endif
 ifeq ($(strip $(PKG_CONFIG)),)
+ifeq ($(NEEDS_BUILD_DEPS),1)
 $(error pkg-config is required to locate Qt6 frameworks on macOS. Please install it (e.g. brew install pkg-config))
+endif
 endif
 
     QT_PACKAGES := Qt6Widgets Qt6Gui Qt6Core
     QT_CXXFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --cflags $(QT_PACKAGES))
     QT_LDFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --libs $(QT_PACKAGES))
 ifeq ($(strip $(QT_CXXFLAGS)),)
+ifeq ($(NEEDS_BUILD_DEPS),1)
 $(error Could not retrieve Qt6 flags via pkg-config. Ensure Qt6 is installed (brew install qt) and PKG_CONFIG_PATH includes its pkgconfig directory.)
+endif
 endif
 ifeq ($(MACOS_ARCH),x86_64)
 ifneq ($(findstring /opt/homebrew,$(QT_CXXFLAGS) $(QT_LDFLAGS)),)
+ifeq ($(NEEDS_BUILD_DEPS),1)
 $(error x86_64 build resolved Qt flags from /opt/homebrew. Install x86_64 Qt under /usr/local (Intel Homebrew) or set BREW_PREFIX/PKG_CONFIG accordingly.)
+endif
 endif
 endif
     CXXFLAGS += $(QT_CXXFLAGS)
@@ -158,6 +173,7 @@ MEDIAINFO_PKG ?= libmediainfo
 MEDIAINFO_CFLAGS :=
 MEDIAINFO_LDFLAGS :=
 
+ifeq ($(NEEDS_BUILD_DEPS),1)
 MEDIAINFO_BLOCKED_PATHS := ../external/MediaInfoLib ../external/libmediainfo ./lib/mediainfo ./include/MediaInfo
 ifneq ($(MEDIAINFO_ALLOW_VENDORED),1)
 ifneq ($(strip $(foreach p,$(MEDIAINFO_BLOCKED_PATHS),$(wildcard $(p)))),)
@@ -177,6 +193,7 @@ endif
 ifeq ($(MEDIAINFO_REQUIRE),1)
 ifeq ($(strip $(MEDIAINFO_LDFLAGS)),)
 $(error libmediainfo not found via pkg-config. Install it through apt/dnf/pacman/brew/vcpkg. Vendored copies are not supported.)
+endif
 endif
 endif
 
@@ -372,7 +389,9 @@ RCC := $(wildcard /usr/local/opt/qtbase/share/qt/libexec/rcc)
 endif
 endif
 ifeq ($(strip $(RCC)),)
+ifeq ($(NEEDS_BUILD_DEPS),1)
 $(error Could not find Qt resource compiler (qt6-rcc or rcc))
+endif
 endif
 
 # Source files
