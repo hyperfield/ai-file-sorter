@@ -389,10 +389,10 @@ endif
 .PHONY: all clean install uninstall doc_runtime_libs precompiled_llama MACOS_LLAMA_M1 MACOS_LLAMA_M2 MACOS_LLAMA_INTEL
 
 # Main rules
-all: $(PRECOMPILED_LLAMA) $(TARGET) doc_runtime_libs
+all: $(PRECOMPILED_LLAMA) doc_runtime_libs $(TARGET)
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
-$(TARGET): $(OBJS) $(QRC_OBJ) $(DOC_LIBS) $(DOC_RUNTIME_DEPS)
+$(TARGET): $(OBJS) $(QRC_OBJ) $(DOC_LIBS) | doc_runtime_libs $(DOC_RUNTIME_DEPS)
 	mkdir -p $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIB_DIRS) $(LDFLAGS)
 ifeq ($(PLATFORM), Linux)
@@ -427,15 +427,17 @@ $(LIBZIP_LIB):
 doc_runtime_libs:
 
 ifneq ($(wildcard $(PDFIUM_LIB)),)
-$(PDFIUM_STAGED_STAMP): $(PDFIUM_LIB)
+$(PDFIUM_STAGED_LIB): $(PDFIUM_LIB)
 	@echo "Staging PDFium runtime library..."
-	mkdir -p ./lib/$(GGML_PRECOMPILED_SUBDIR)
+	mkdir -p $(dir $(PDFIUM_STAGED_LIB))
 	cp $(PDFIUM_LIB) $(PDFIUM_STAGED_LIB)
 ifeq ($(UNAME), Darwin)
 	chmod u+w $(PDFIUM_STAGED_LIB) 2>/dev/null || true
 	install_name_tool -id @rpath/libpdfium.dylib $(PDFIUM_STAGED_LIB)
 endif
-	touch $(PDFIUM_STAGED_STAMP)
+
+$(PDFIUM_STAGED_STAMP): $(PDFIUM_STAGED_LIB)
+	touch $@
 
 doc_runtime_libs: $(PDFIUM_STAGED_STAMP)
 endif
