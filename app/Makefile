@@ -62,17 +62,20 @@ endif
     EXPAT_PREFIX := $(BREW_PREFIX)/opt/expat
     SDKROOT := $(shell xcrun --sdk macosx --show-sdk-path 2>/dev/null)
     MACOSX_DEPLOYMENT_TARGET ?= 11.0
+    MACOS_PKG_CONFIG_DIRS := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig
 
     export MACOSX_DEPLOYMENT_TARGET
     PATH := $(QTBASE_PREFIX)/share/qt/libexec:$(QT_PREFIX)/bin:$(CURL_PREFIX)/bin:$(PATH)
     export PATH
 
 ifeq ($(MACOS_ARCH),x86_64)
-    export PKG_CONFIG_PATH := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig
+    export PKG_CONFIG_PATH := $(MACOS_PKG_CONFIG_DIRS)
+    export PKG_CONFIG_LIBDIR := $(MACOS_PKG_CONFIG_DIRS)
     CPPFLAGS := $(filter-out -I/opt/homebrew/%,$(CPPFLAGS))
     LDFLAGS := $(filter-out -L/opt/homebrew/% -F/opt/homebrew/%,$(LDFLAGS))
 else
-    export PKG_CONFIG_PATH := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
+    export PKG_CONFIG_PATH := $(MACOS_PKG_CONFIG_DIRS):$(PKG_CONFIG_PATH)
+    export PKG_CONFIG_LIBDIR := $(MACOS_PKG_CONFIG_DIRS)
 endif
 
     export LDFLAGS += -L$(LIBFFI_PREFIX)/lib
@@ -233,6 +236,8 @@ PUGIXML_HDR := $(PUGIXML_DIR)/src/pugixml.hpp
 PDFIUM_PLATFORM_DIR :=
 PDFIUM_INC :=
 PDFIUM_LIB :=
+PDFIUM_STAGED_LIB :=
+PDFIUM_STAGED_STAMP :=
 ifeq ($(UNAME), Linux)
 PDFIUM_PLATFORM_DIR := $(PDFIUM_DIR)/linux-x64
 PDFIUM_INC := $(PDFIUM_PLATFORM_DIR)/include
@@ -245,10 +250,13 @@ PDFIUM_PLATFORM_DIR := $(PDFIUM_DIR)/macos-x64
 endif
 PDFIUM_INC := $(PDFIUM_PLATFORM_DIR)/include
 PDFIUM_LIB := $(PDFIUM_PLATFORM_DIR)/lib/libpdfium.dylib
+PDFIUM_STAGED_LIB := ./lib/$(GGML_PRECOMPILED_SUBDIR)/libpdfium.dylib
+PDFIUM_STAGED_STAMP := $(PDFIUM_STAGED_LIB).ready
 endif
 
 DOC_LIBS :=
 DOC_DEPS_HEADERS :=
+DOC_RUNTIME_DEPS :=
 ifneq ($(wildcard $(PUGIXML_HDR)),)
 CXXFLAGS += -DPUGIXML_NO_EXCEPTIONS
 CXXFLAGS += -DAI_FILE_SORTER_USE_PUGIXML
@@ -264,7 +272,12 @@ endif
 ifneq ($(wildcard $(PDFIUM_LIB)),)
 CXXFLAGS += -DAI_FILE_SORTER_USE_PDFIUM
 INCLUDE_DIRS += -I$(PDFIUM_INC)
+ifeq ($(UNAME), Darwin)
+DOC_LIBS += $(PDFIUM_STAGED_LIB)
+DOC_RUNTIME_DEPS += $(PDFIUM_STAGED_STAMP)
+else
 DOC_LIBS += $(PDFIUM_LIB)
+endif
 endif
 
 # Enable mtmd progress callback only when the linked libmtmd provides it.
@@ -379,7 +392,7 @@ endif
 all: $(PRECOMPILED_LLAMA) $(TARGET) doc_runtime_libs
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
-$(TARGET): $(OBJS) $(QRC_OBJ) $(DOC_LIBS)
+$(TARGET): $(OBJS) $(QRC_OBJ) $(DOC_LIBS) $(DOC_RUNTIME_DEPS)
 	mkdir -p $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIB_DIRS) $(LDFLAGS)
 ifeq ($(PLATFORM), Linux)
@@ -412,10 +425,19 @@ $(LIBZIP_LIB):
 	LDFLAGS= cmake --build $(LIBZIP_BUILD_DIR)
 
 doc_runtime_libs:
+
 ifneq ($(wildcard $(PDFIUM_LIB)),)
+$(PDFIUM_STAGED_STAMP): $(PDFIUM_LIB)
 	@echo "Staging PDFium runtime library..."
 	mkdir -p ./lib/$(GGML_PRECOMPILED_SUBDIR)
-	cp $(PDFIUM_LIB) ./lib/$(GGML_PRECOMPILED_SUBDIR)/
+	cp $(PDFIUM_LIB) $(PDFIUM_STAGED_LIB)
+ifeq ($(UNAME), Darwin)
+	chmod u+w $(PDFIUM_STAGED_LIB) 2>/dev/null || true
+	install_name_tool -id @rpath/libpdfium.dylib $(PDFIUM_STAGED_LIB)
+endif
+	touch $(PDFIUM_STAGED_STAMP)
+
+doc_runtime_libs: $(PDFIUM_STAGED_STAMP)
 endif
 
 precompiled_llama:
