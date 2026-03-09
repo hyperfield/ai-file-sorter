@@ -92,6 +92,37 @@ MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
 export MACOSX_DEPLOYMENT_TARGET
 echo "Targeting macOS ${MACOSX_DEPLOYMENT_TARGET} for build outputs"
 
+DEFAULT_BREW_PREFIX="/opt/homebrew"
+if [ "$TARGET_ARCH" = "x86_64" ]; then
+    DEFAULT_BREW_PREFIX="/usr/local"
+fi
+if [ -n "${BREW_PREFIX:-}" ]; then
+    HOMEBREW_PREFIX="$BREW_PREFIX"
+elif [ -x "${DEFAULT_BREW_PREFIX}/bin/brew" ]; then
+    HOMEBREW_PREFIX="$(${DEFAULT_BREW_PREFIX}/bin/brew --prefix)"
+elif command -v brew >/dev/null 2>&1; then
+    HOMEBREW_PREFIX="$(brew --prefix)"
+else
+    HOMEBREW_PREFIX="$DEFAULT_BREW_PREFIX"
+fi
+echo "Using Homebrew prefix: ${HOMEBREW_PREFIX}"
+
+QT_PREFIX="${HOMEBREW_PREFIX}/opt/qt"
+OPENSSL_PREFIX="${HOMEBREW_PREFIX}/opt/openssl@3"
+PKG_CONFIG_DIRS=(
+    "${HOMEBREW_PREFIX}/lib/pkgconfig"
+    "${HOMEBREW_PREFIX}/share/pkgconfig"
+    "${OPENSSL_PREFIX}/lib/pkgconfig"
+    "${QT_PREFIX}/lib/pkgconfig"
+)
+PKG_CONFIG_PATH_VALUE="$(IFS=:; echo "${PKG_CONFIG_DIRS[*]}")"
+export PKG_CONFIG_PATH="${PKG_CONFIG_PATH_VALUE}${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+export PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH_VALUE}"
+export CMAKE_PREFIX_PATH="${HOMEBREW_PREFIX}${CMAKE_PREFIX_PATH:+;${CMAKE_PREFIX_PATH}}"
+if [ "$TARGET_ARCH" = "x86_64" ]; then
+    export CMAKE_IGNORE_PREFIX_PATH="/opt/homebrew${CMAKE_IGNORE_PREFIX_PATH:+;${CMAKE_IGNORE_PREFIX_PATH}}"
+fi
+
 # Decide whether to enable Metal. Apple Silicon machines benefit from it, but
 # most Intel Macs either lack usable Metal compute queues or expose 0 bytes of
 # GPU memory to ggml, which causes llama.cpp to fail the moment it tries to
@@ -149,6 +180,7 @@ LDFLAGS= cmake -S . -B build \
   ${ARCH_CMAKE_ARG} \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
+  -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} \
   -DBUILD_SHARED_LIBS=ON \
   -DCMAKE_EXE_LINKER_FLAGS= \
   -DCMAKE_SHARED_LINKER_FLAGS= \
