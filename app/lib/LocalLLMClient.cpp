@@ -182,8 +182,11 @@ MetalDeviceInfo query_primary_gpu_device() {
 bool metal_backend_available(const std::shared_ptr<spdlog::logger>& logger) {
     ggml_backend_reg_t metal = ggml_backend_reg_by_name("Metal");
     if (!metal) {
+        metal = ggml_backend_reg_by_name("MTL");
+    }
+    if (!metal) {
         if (logger) {
-            logger->warn("Metal backend not registered; falling back to CPU");
+            logger->warn("Metal backend not registered under aliases Metal/MTL; falling back to CPU");
         }
         return false;
     }
