@@ -3,6 +3,7 @@
 CPU_LIB_DIR="$APP_DIR/lib/precompiled/cpu/bin"
 CUDA_LIB_DIR="$APP_DIR/lib/precompiled/cuda/bin"
 VULKAN_LIB_DIR="$APP_DIR/lib/precompiled/vulkan/bin"
+PRECOMPILED_ROOT_DIR="$APP_DIR/lib/precompiled"
 PLATFORM_CANDIDATES="/usr/lib/x86_64-linux-gnu/qt6/plugins /usr/lib/qt6/plugins /lib/x86_64-linux-gnu/qt6/plugins"
 
 select_cuda_dir() {
@@ -131,7 +132,7 @@ else
     unset LLAMA_ARG_DEVICE
 fi
 
-LIB_PATH="$CPU_LIB_DIR"
+LIB_PATH="$CPU_LIB_DIR:$PRECOMPILED_ROOT_DIR"
 if [ $USE_CUDA -eq 1 ] && [ -n "$SELECTED_CUDA_DIR" ]; then
     LIB_PATH="$SELECTED_CUDA_DIR:$LIB_PATH"
 elif [ $USE_VULKAN -eq 1 ] && [ -n "$SELECTED_VK_DIR" ]; then

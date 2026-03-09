@@ -259,6 +259,8 @@ ifeq ($(UNAME), Linux)
 PDFIUM_PLATFORM_DIR := $(PDFIUM_DIR)/linux-x64
 PDFIUM_INC := $(PDFIUM_PLATFORM_DIR)/include
 PDFIUM_LIB := $(PDFIUM_PLATFORM_DIR)/lib/libpdfium.so
+PDFIUM_STAGED_LIB := ./lib/$(GGML_PRECOMPILED_SUBDIR)/libpdfium.so
+PDFIUM_STAGED_STAMP := $(PDFIUM_STAGED_LIB).ready
 endif
 ifeq ($(UNAME), Darwin)
 PDFIUM_PLATFORM_DIR := $(PDFIUM_DIR)/macos-arm64
@@ -289,12 +291,8 @@ endif
 ifneq ($(wildcard $(PDFIUM_LIB)),)
 CXXFLAGS += -DAI_FILE_SORTER_USE_PDFIUM
 INCLUDE_DIRS += -I$(PDFIUM_INC)
-ifeq ($(UNAME), Darwin)
 DOC_LIBS += $(PDFIUM_STAGED_LIB)
 DOC_RUNTIME_DEPS += $(PDFIUM_STAGED_STAMP)
-else
-DOC_LIBS += $(PDFIUM_LIB)
-endif
 endif
 
 # Enable mtmd progress callback only when the linked libmtmd provides it.
