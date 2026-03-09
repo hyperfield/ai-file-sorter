@@ -1,6 +1,6 @@
 ﻿# Changelog
 
-## [1.7.0] - 2026-02-14
+## [1.7.0] - 2026-03-08
 
 - Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
 - Added an image analysis option to append image creation dates (if available) to category names.
