@@ -30,6 +30,7 @@
 #include <QMessageBox>
 #include <QObject>
 #include <QPainter>
+#include <QPaintEvent>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSlider>
@@ -39,11 +40,52 @@
 #include <QStackedWidget>
 #include <QStandardItemModel>
 #include <QStyle>
+#include <QStyleOption>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QtGlobal>
 
 #include <algorithm>
+
+namespace {
+
+class DisclosureToggleButton final : public QToolButton {
+public:
+    explicit DisclosureToggleButton(QWidget* parent = nullptr)
+        : QToolButton(parent)
+    {
+        setCheckable(true);
+        setToolButtonStyle(Qt::ToolButtonIconOnly);
+        setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+#if defined(Q_OS_MACOS)
+        setArrowType(Qt::NoArrow);
+        setAutoRaise(true);
+        setFixedSize(QSize(14, 14));
+#else
+        setArrowType(Qt::RightArrow);
+        setMinimumSize(QSize(18, 18));
+#endif
+    }
+
+protected:
+#if defined(Q_OS_MACOS)
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter painter(this);
+        QStyleOption option;
+        option.initFrom(this);
+        option.rect = rect();
+        option.state |= QStyle::State_Children;
+        if (isChecked()) {
+            option.state |= QStyle::State_Open;
+        }
+        style()->drawPrimitive(QStyle::PE_IndicatorBranch, &option, &painter, this);
+    }
+#endif
+};
+
+} // namespace
 
 void MainAppUiBuilder::build(MainApp& app) {
     build_central_panel(app);
@@ -84,17 +126,14 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->addLayout(options_layout);
 
     auto* document_options_layout = new QVBoxLayout();
+    document_options_layout->setContentsMargins(0, 0, 0, 0);
     document_options_layout->setSpacing(4);
     auto* document_header_layout = new QHBoxLayout();
+    document_header_layout->setContentsMargins(0, 0, 0, 0);
     document_header_layout->setSpacing(6);
     app.analyze_documents_checkbox = new QCheckBox(central);
-    app.document_options_toggle_button = new QToolButton(central);
-    app.document_options_toggle_button->setCheckable(true);
+    app.document_options_toggle_button = new DisclosureToggleButton(central);
     app.document_options_toggle_button->setChecked(false);
-    app.document_options_toggle_button->setArrowType(Qt::RightArrow);
-    app.document_options_toggle_button->setAutoRaise(true);
-    app.document_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    app.document_options_toggle_button->setMinimumSize(QSize(18, 18));
     document_header_layout->addWidget(app.analyze_documents_checkbox);
     document_header_layout->addWidget(app.document_options_toggle_button);
     document_header_layout->addStretch(1);
@@ -117,17 +156,14 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->addLayout(document_options_layout);
 
     auto* image_options_layout = new QVBoxLayout();
+    image_options_layout->setContentsMargins(0, 0, 0, 0);
     image_options_layout->setSpacing(4);
     auto* image_header_layout = new QHBoxLayout();
+    image_header_layout->setContentsMargins(0, 0, 0, 0);
     image_header_layout->setSpacing(6);
     app.analyze_images_checkbox = new QCheckBox(central);
-    app.image_options_toggle_button = new QToolButton(central);
-    app.image_options_toggle_button->setCheckable(true);
+    app.image_options_toggle_button = new DisclosureToggleButton(central);
     app.image_options_toggle_button->setChecked(false);
-    app.image_options_toggle_button->setArrowType(Qt::RightArrow);
-    app.image_options_toggle_button->setAutoRaise(true);
-    app.image_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    app.image_options_toggle_button->setMinimumSize(QSize(18, 18));
     image_header_layout->addWidget(app.analyze_images_checkbox);
     image_header_layout->addWidget(app.image_options_toggle_button);
     image_header_layout->addStretch(1);
@@ -152,7 +188,11 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->addLayout(image_options_layout);
 
     app.add_audio_video_metadata_to_filename_checkbox = new QCheckBox(central);
-    main_layout->addWidget(app.add_audio_video_metadata_to_filename_checkbox);
+    auto* audio_video_row = new QHBoxLayout();
+    audio_video_row->setContentsMargins(0, 0, 0, 0);
+    audio_video_row->addWidget(app.add_audio_video_metadata_to_filename_checkbox);
+    audio_video_row->addStretch(1);
+    main_layout->addLayout(audio_video_row);
 
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);

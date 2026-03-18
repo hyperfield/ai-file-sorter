@@ -9,8 +9,9 @@
 #include "Types.hpp"
 
 #include <QString>
-#include <functional>
 #include <QCheckBox>
+#include <QToolButton>
+#include <functional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -111,6 +112,18 @@ public:
      * @return Pointer to the checkbox, or nullptr if unavailable.
      */
     static QCheckBox* rename_documents_only_checkbox(MainApp& app);
+    /**
+     * @brief Access the picture-analysis disclosure toggle.
+     * @param app MainApp instance.
+     * @return Pointer to the toggle button, or nullptr if unavailable.
+     */
+    static QToolButton* image_options_toggle_button(MainApp& app);
+    /**
+     * @brief Access the document-analysis disclosure toggle.
+     * @param app MainApp instance.
+     * @return Pointer to the toggle button, or nullptr if unavailable.
+     */
+    static QToolButton* document_options_toggle_button(MainApp& app);
     /**
      * @brief Split file entries into image/document/other buckets for analysis.
      * @param files Input entries to split.
