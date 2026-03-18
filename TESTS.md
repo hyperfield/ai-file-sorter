@@ -335,6 +335,20 @@ Procedure: Scan once for files and once for directories.
 Expected outcome: The bundle appears only in the file scan and not in the directory scan.
 Run: `./build-tests/ai_file_sorter_tests "application bundles are treated as files"`
 
+#### Test case: recursive scans include nested files
+Purpose: Ensure recursive scans still return files from nested subdirectories.
+Setup: Create one file in the root and one file in a nested subdirectory.
+Procedure: Scan with `Files | Recursive`.
+Expected outcome: Both files appear in the results.
+Run: `./build-tests/ai_file_sorter_tests "recursive scans include nested files"`
+
+#### Test case: recursive scans skip unreadable directories and continue
+Purpose: Ensure one inaccessible subdirectory does not abort an otherwise valid recursive scan.
+Setup: Create a readable subtree and a second subtree whose directory permissions are removed (non-Windows only).
+Procedure: Scan with `Files | Recursive`.
+Expected outcome: The readable file is returned, the scan does not throw, and the unreadable subtree is skipped.
+Run: `./build-tests/ai_file_sorter_tests "recursive scans skip unreadable directories and continue"`
+
 ### `tests/unit/test_support_prompt.cpp`
 
 #### Test case: Support prompt thresholds advance based on response
