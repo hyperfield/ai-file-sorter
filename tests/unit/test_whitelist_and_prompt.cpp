@@ -5,6 +5,7 @@
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
 #include "CategoryLanguage.hpp"
+#include "LocalLLMTestAccess.hpp"
 #include "Settings.hpp"
 #include "WhitelistStore.hpp"
 #include "TestHelpers.hpp"
@@ -116,6 +117,39 @@ TEST_CASE("CategorizationService builds category language context for Spanish") 
     REQUIRE(context.find("Spanish") != std::string::npos);
 }
 
+TEST_CASE("LocalLLM sanitizer keeps labeled multi-line replies intact") {
+    const std::string output =
+        "Category: Images\n"
+        "Subcategory: Screenshots\n"
+        "Reason: macOS screenshot naming pattern";
+
+    REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Images : Screenshots");
+}
+
+TEST_CASE("LocalLLM sanitizer prefers the last inline pair") {
+    const std::string output =
+        "Texts : Documents\n"
+        "Productivity : File managers\n"
+        "Archives : CAD assets";
+
+    REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Archives : CAD assets");
+}
+
+TEST_CASE("LocalLLM sanitizer strips rationale and natural language lead-ins") {
+    const std::string output =
+        "Based on the file name and context provided, the file falls under the Finances category : Credit reports";
+
+    REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Finances : Credit reports");
+}
+
+TEST_CASE("LocalLLM sanitizer ignores trailing note lines") {
+    const std::string output =
+        "Images : Screenshots\n"
+        "(Note: Since the file is an image and not an installer, this question should not have been directed to me.)";
+
+    REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Images : Screenshots");
+}
+
 TEST_CASE("CategorizationService parses category output without spaced colon delimiters") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
@@ -179,6 +213,184 @@ TEST_CASE("CategorizationService parses labeled category and subcategory lines")
     REQUIRE(categorized.size() == 1);
     CHECK(categorized.front().category == "Images");
     CHECK(categorized.front().subcategory == "Photos");
+    CHECK(*calls == 1);
+}
+
+TEST_CASE("CategorizationService extracts the trailing pair from verbose responses") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "Screenshot 2026-03-10 at 12.07.00.png";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(
+            calls,
+            "Based on the filename and extension, the most appropriate categorization is: Images : Screenshots");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Images");
+    CHECK(categorized.front().subcategory == "Screenshots");
+    CHECK(*calls == 1);
+}
+
+TEST_CASE("CategorizationService prefers the final pair when the model echoes examples") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "iphone14_pro_magsafe_stls.zip";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(
+            calls,
+            "Texts : Documents\n"
+            "Productivity : File managers\n"
+            "Archives : CAD assets");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Archives");
+    CHECK(categorized.front().subcategory == "CAD assets");
+    CHECK(*calls == 1);
+}
+
+TEST_CASE("CategorizationService strips rationale from subcategory text") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "balenaEtcher-2.1.4-arm64.dmg";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(
+            calls,
+            "Operating system : MacOS (based on the .dmg file extension) - This file is an installer for macOS software");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Operating system");
+    CHECK(categorized.front().subcategory == "MacOS");
+    CHECK(*calls == 1);
+}
+
+TEST_CASE("CategorizationService extracts a short category from natural language lead-ins") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "credit_excerpt.pdf";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(
+            calls,
+            "Based on the file name and context provided, the file falls under the Finances category : Credit reports");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Finances");
+    CHECK(categorized.front().subcategory == "Credit reports");
+    CHECK(*calls == 1);
+}
+
+TEST_CASE("CategorizationService ignores trailing note lines after a valid answer") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "Capture d'ecran.png";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(
+            calls,
+            "Images : Screenshots\n"
+            "(Note: Since the file is an image and not an installer, this question should not have been directed to me.)");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Images");
+    CHECK(categorized.front().subcategory == "Screenshots");
     CHECK(*calls == 1);
 }
 
