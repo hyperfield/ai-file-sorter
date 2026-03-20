@@ -55,6 +55,38 @@ TEST_CASE("DatabaseManager keeps suggestion-only entries with empty labels") {
     CHECK(entries.front().subcategory.empty());
 }
 
+TEST_CASE("DatabaseManager sanitizes invalid UTF-8 in cached labels") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    DatabaseManager db(base_dir.path().string());
+
+    const std::string dir_path = "/sample";
+    std::string invalid_category = "Imag";
+    invalid_category.push_back(static_cast<char>(0xFF));
+    invalid_category += "es";
+    std::string invalid_subcategory = "Phot";
+    invalid_subcategory.push_back(static_cast<char>(0xFF));
+    invalid_subcategory += "os";
+    std::string invalid_suggested = "sum";
+    invalid_suggested.push_back(static_cast<char>(0xFF));
+    invalid_suggested += "mer.png";
+
+    DatabaseManager::ResolvedCategory resolved{
+        0,
+        invalid_category,
+        invalid_subcategory,
+    };
+
+    REQUIRE(db.insert_or_update_file_with_categorization(
+        "photo.png", "F", dir_path, resolved, false, invalid_suggested, false));
+
+    const auto entries = db.get_categorized_files(dir_path);
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().category == "Images");
+    CHECK(entries.front().subcategory == "Photos");
+    CHECK(entries.front().suggested_name == "summer.png");
+}
+
 TEST_CASE("DatabaseManager normalizes subcategory stopword suffixes for taxonomy matching") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
