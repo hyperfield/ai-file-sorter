@@ -1,6 +1,7 @@
 #include "DatabaseManager.hpp"
 #include "Types.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -131,9 +132,9 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     std::string dir_path = file_dir_path ? file_dir_path : "";
     std::string name = file_name ? file_name : "";
     std::string type_str = file_type ? file_type : "";
-    std::string cat = category ? category : "";
-    std::string subcat = subcategory ? subcategory : "";
-    std::string suggested = suggested_name ? suggested_name : "";
+    std::string cat = Utils::sanitize_path_label(category ? category : "");
+    std::string subcat = Utils::sanitize_path_label(subcategory ? subcategory : "");
+    std::string suggested = Utils::sanitize_path_label(suggested_name ? suggested_name : "");
 
     int taxonomy_id = 0;
     if (sqlite3_column_count(stmt) > 6 && sqlite3_column_type(stmt, 6) != SQLITE_NULL) {
