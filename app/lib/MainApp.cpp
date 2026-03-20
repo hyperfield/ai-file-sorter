@@ -73,6 +73,7 @@
 #include <QStackedWidget>
 #include <QThread>
 #include <QTimer>
+#include <QtGlobal>
 
 #include <chrono>
 #include <filesystem>
@@ -469,6 +470,19 @@ void split_entries_for_analysis(const std::vector<FileEntry>& files,
             other_entries.push_back(entry);
         }
     }
+}
+
+void sync_disclosure_button(QToolButton* button, bool expanded)
+{
+    if (!button) {
+        return;
+    }
+#if defined(Q_OS_MACOS)
+    Q_UNUSED(expanded);
+    button->update();
+#else
+    button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+#endif
 }
 
 } // namespace
@@ -1236,6 +1250,14 @@ QCheckBox* MainAppTestAccess::rename_documents_only_checkbox(MainApp& app) {
     return app.rename_documents_only_checkbox;
 }
 
+QToolButton* MainAppTestAccess::image_options_toggle_button(MainApp& app) {
+    return app.image_options_toggle_button;
+}
+
+QToolButton* MainAppTestAccess::document_options_toggle_button(MainApp& app) {
+    return app.document_options_toggle_button;
+}
+
 void MainAppTestAccess::split_entries_for_analysis(const std::vector<FileEntry>& files,
                                                    bool analyze_images,
                                                    bool analyze_documents,
@@ -1635,7 +1657,7 @@ void MainApp::update_image_analysis_controls()
     if (image_options_toggle_button) {
         image_options_toggle_button->setEnabled(analysis_enabled);
         const bool expanded = image_options_toggle_button->isChecked();
-        image_options_toggle_button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        sync_disclosure_button(image_options_toggle_button, expanded);
         if (image_options_container) {
             image_options_container->setVisible(analysis_enabled && expanded);
         }
@@ -1743,7 +1765,7 @@ void MainApp::update_document_analysis_controls()
     if (document_options_toggle_button) {
         document_options_toggle_button->setEnabled(analysis_enabled);
         const bool expanded = document_options_toggle_button->isChecked();
-        document_options_toggle_button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        sync_disclosure_button(document_options_toggle_button, expanded);
         if (document_options_container) {
             document_options_container->setVisible(analysis_enabled && expanded);
         }

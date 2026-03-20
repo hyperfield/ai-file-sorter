@@ -6,7 +6,9 @@
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
 
+#include <QApplication>
 #include <QCheckBox>
+#include <QToolButton>
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -109,6 +111,61 @@ TEST_CASE("Image analysis checkboxes enable and enforce rename-only behavior") {
     REQUIRE(add_date_category->isEnabled());
     REQUIRE(add_date_category->isChecked());
 }
+
+TEST_CASE("Top-level analysis rows share the same leading edge") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+    window.show();
+    QApplication::processEvents();
+
+    QCheckBox* analyze_documents = MainAppTestAccess::analyze_documents_checkbox(window);
+    QCheckBox* analyze_images = MainAppTestAccess::analyze_images_checkbox(window);
+    QCheckBox* add_media_metadata =
+        MainAppTestAccess::add_audio_video_metadata_to_filename_checkbox(window);
+
+    REQUIRE(analyze_documents != nullptr);
+    REQUIRE(analyze_images != nullptr);
+    REQUIRE(add_media_metadata != nullptr);
+
+    CHECK(add_media_metadata->x() == analyze_documents->x());
+    CHECK(add_media_metadata->x() == analyze_images->x());
+}
+
+#ifdef Q_OS_MACOS
+TEST_CASE("macOS analysis toggles use disclosure indicators instead of toolbutton arrows") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    QToolButton* image_toggle = MainAppTestAccess::image_options_toggle_button(window);
+    QToolButton* document_toggle = MainAppTestAccess::document_options_toggle_button(window);
+
+    REQUIRE(image_toggle != nullptr);
+    REQUIRE(document_toggle != nullptr);
+
+    CHECK(image_toggle->arrowType() == Qt::NoArrow);
+    CHECK(document_toggle->arrowType() == Qt::NoArrow);
+    CHECK(image_toggle->isCheckable());
+    CHECK(document_toggle->isCheckable());
+}
+#endif
 
 TEST_CASE("Image rename-only does not disable categorization unless processing images only") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
