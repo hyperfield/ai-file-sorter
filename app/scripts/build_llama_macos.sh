@@ -79,6 +79,26 @@ if [[ "$PRECOMPILED_LIBS_DIR" != /* ]]; then
     PRECOMPILED_LIBS_DIR="$SCRIPT_DIR/../$PRECOMPILED_LIBS_DIR"
 fi
 HEADERS_DIR="$SCRIPT_DIR/../include/llama"
+BUILD_DIR="$LLAMA_DIR/build"
+BUILD_BIN_DIR="$BUILD_DIR/bin"
+DYLIB_RPATH="@loader_path"
+
+normalize_macos_dylib_rpaths() {
+    local dylib_dir="$1"
+    local stale_rpath="$2"
+
+    shopt -s nullglob
+    for dylib in "$dylib_dir"/*.dylib; do
+        if ! otool -l "$dylib" | grep -Fq "$DYLIB_RPATH"; then
+            install_name_tool -add_rpath "$DYLIB_RPATH" "$dylib"
+        fi
+
+        if otool -l "$dylib" | grep -Fq "$stale_rpath"; then
+            install_name_tool -delete_rpath "$stale_rpath" "$dylib"
+        fi
+    done
+    shopt -u nullglob
+}
 
 ARCH=$(uname -m)
 TARGET_ARCH=${LLAMA_MACOS_ARCH:-$ARCH}
@@ -173,13 +193,15 @@ fi
 
 # Enter llama.cpp directory and build
 cd "$LLAMA_DIR"
-rm -rf build
-mkdir -p build
-LDFLAGS= cmake -S . -B build \
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
+LDFLAGS= cmake -S . -B "$BUILD_DIR" \
   ${CMAKE_SYSROOT_ARG} \
   ${ARCH_CMAKE_ARG} \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
+  -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+  -DCMAKE_INSTALL_RPATH=${DYLIB_RPATH} \
   -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} \
   -DBUILD_SHARED_LIBS=ON \
   -DCMAKE_EXE_LINKER_FLAGS= \
@@ -196,14 +218,15 @@ LDFLAGS= cmake -S . -B build \
   -DGGML_KLEIDIAI=OFF \
   -DBLAS_LIBRARIES="-framework Accelerate"
 
-LDFLAGS= cmake --build build --config Release -- -j$(sysctl -n hw.logicalcpu)
+LDFLAGS= cmake --build "$BUILD_DIR" --config Release -- -j$(sysctl -n hw.logicalcpu)
 
 # Copy the resulting dynamic (.dylib) libraries
 rm -rf "$PRECOMPILED_LIBS_DIR"
 mkdir -p "$PRECOMPILED_LIBS_DIR"
-cp build/bin/libllama.dylib "$PRECOMPILED_LIBS_DIR"
-cp build/bin/libggml*.dylib "$PRECOMPILED_LIBS_DIR"
-cp build/bin/libmtmd.dylib "$PRECOMPILED_LIBS_DIR"
+cp "$BUILD_BIN_DIR"/libllama.dylib "$PRECOMPILED_LIBS_DIR"
+cp "$BUILD_BIN_DIR"/libggml*.dylib "$PRECOMPILED_LIBS_DIR"
+cp "$BUILD_BIN_DIR"/libmtmd.dylib "$PRECOMPILED_LIBS_DIR"
+normalize_macos_dylib_rpaths "$PRECOMPILED_LIBS_DIR" "$BUILD_BIN_DIR"
 # Provide versioned symlinks expected by the app runtime loader
 (
   cd "$PRECOMPILED_LIBS_DIR"
@@ -213,7 +236,7 @@ cp build/bin/libmtmd.dylib "$PRECOMPILED_LIBS_DIR"
 
 if [ "$MULTI_VARIANT" = "1" ]; then
     shopt -s nullglob
-    for backend_lib in build/bin/libggml-*.so; do
+    for backend_lib in "$BUILD_BIN_DIR"/libggml-*.so; do
         cp "$backend_lib" "$PRECOMPILED_LIBS_DIR"
     done
     shopt -u nullglob
