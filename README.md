@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.7.0-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.7.1-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -93,12 +93,12 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 
 ## Changelog
 
-## [1.7.0] - 2026-03-08
+## [1.7.1] - 2026-03-21
 
-- Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
-- Added an image analysis option to append image creation dates (when available) to category names.
-- Added optional audio/video metadata-based filename suggestions for supported media files.
-- Bug fixes.
+- Improved reliability of local LLM categorization.
+- Better resilience during large scans.
+- macOS local-LLM runtime loading is now more reliable.
+- Linux/macOS build and packaging updates, plus new diagnostics collection scripts for easier troubleshooting.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
