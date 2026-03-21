@@ -107,7 +107,7 @@ endif
     LDFLAGS += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
     TARGET := $(BIN_DIR)/aifilesorter
     INSTALL_DIR := /usr/local/bin
-	INSTALL_LIB_DIR := /usr/local/lib
+	INSTALL_LIB_DIR := /usr/local/lib/aifilesorter
 
     SPDLOG_PATH := $(BREW_PREFIX)/include
     CXXFLAGS += -I$(SPDLOG_PATH)
@@ -621,13 +621,7 @@ else ifeq ($(PLATFORM), MacOS)
 	rm -f $(INSTALL_DIR)/aifilesorter
 
 	@echo "Removing installed libraries..."
-	rm -f $(INSTALL_LIB_DIR)/libggml-base.dylib
-	rm -f $(INSTALL_LIB_DIR)/libggml-blas.dylib
-	rm -f $(INSTALL_LIB_DIR)/libggml-cpu.dylib
-	rm -f $(INSTALL_LIB_DIR)/libggml-metal.dylib
-	rm -f $(INSTALL_LIB_DIR)/libggml.dylib
-	rm -f $(INSTALL_LIB_DIR)/libmtmd.dylib
-	rm -f $(INSTALL_LIB_DIR)/libllama.dylib
+	rm -rf $(INSTALL_LIB_DIR)
 
 	@echo "Core uninstallation complete."
 

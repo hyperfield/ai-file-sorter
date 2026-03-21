@@ -1,5 +1,6 @@
 #include "AppInfo.hpp"
 #include "EmbeddedEnv.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "MainApp.hpp"
 #include "Utils.hpp"
@@ -19,9 +20,9 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
-#include <array>
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
 #include <QPainter>
 #include <memory>
 
@@ -97,43 +98,12 @@ ParsedArguments parse_command_line(int argc, char** argv)
 #define AI_FILE_SORTER_GGML_SUBDIR "precompiled"
 #endif
 
-bool ends_with(const std::string& value, const std::string& suffix)
-{
-    if (suffix.size() > value.size()) {
-        return false;
-    }
-    return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
-}
-
-bool has_ggml_payload(const std::filesystem::path& dir)
-{
-    std::error_code ec;
-    if (!std::filesystem::exists(dir, ec) || !std::filesystem::is_directory(dir, ec)) {
-        return false;
-    }
-
-    for (const auto& entry : std::filesystem::directory_iterator(dir, std::filesystem::directory_options::skip_permission_denied, ec)) {
-        if (ec || !entry.is_regular_file()) {
-            continue;
-        }
-        const std::string filename = entry.path().filename().string();
-        if (filename.rfind("libggml-", 0) != 0) {
-            continue;
-        }
-        if (ends_with(filename, ".so") || ends_with(filename, ".dylib")) {
-            return true;
-        }
-    }
-    return false;
-}
-
 void ensure_ggml_backend_dir()
 {
+    std::optional<std::filesystem::path> current_dir;
     const char* current = std::getenv("AI_FILE_SORTER_GGML_DIR");
     if (current && current[0] != '\0') {
-        if (has_ggml_payload(std::filesystem::path(current))) {
-            return;
-        }
+        current_dir = std::filesystem::path(current);
     }
 
     std::filesystem::path exe_path;
@@ -146,26 +116,15 @@ void ensure_ggml_backend_dir()
         return;
     }
 
-    const std::filesystem::path exe_dir = exe_path.parent_path();
-    const std::filesystem::path ggml_subdir(AI_FILE_SORTER_GGML_SUBDIR);
-    const std::array<std::filesystem::path, 9> candidates = {
-        exe_dir / "../lib" / "precompiled-m1",
-        exe_dir / "../lib" / "precompiled-m2",
-        exe_dir / "../lib" / "precompiled-intel",
-        exe_dir / "../lib" / ggml_subdir,
-        exe_dir / "../../lib" / ggml_subdir,
-        exe_dir / "../lib",
-        exe_dir / "../../lib",
-        std::filesystem::path("/usr/local/lib"),
-        std::filesystem::path("/opt/homebrew/lib")
-    };
-
-    for (const auto& candidate : candidates) {
-        if (has_ggml_payload(candidate)) {
-            setenv("AI_FILE_SORTER_GGML_DIR", candidate.string().c_str(), 1);
-            break;
-        }
+    const auto resolved = GgmlRuntimePaths::resolve_macos_backend_dir(
+        current_dir,
+        exe_path,
+        AI_FILE_SORTER_GGML_SUBDIR);
+    if (!resolved) {
+        return;
     }
+
+    setenv("AI_FILE_SORTER_GGML_DIR", resolved->string().c_str(), 1);
 }
 #endif
 

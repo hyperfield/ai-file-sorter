@@ -414,6 +414,8 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```bash
    ./app/scripts/build_llama_macos.sh
    ```
+   The macOS app and `.app` bundles use the runtime staged under `app/lib/precompiled*`; they do not need Homebrew `ggml` or `llama.cpp` libraries.
+   If you have older `ggml` / `llama.cpp` copies installed in generic library locations, prefer unlinking or removing them instead of relying on them implicitly.
 7. **Compile the application**
 
    ```bash
@@ -434,6 +436,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    These targets rebuild the llama.cpp runtime before compiling the app.
    When cross-compiling Intel on Apple Silicon, use x86_64 Homebrew (under `/usr/local`) or set `BREW_PREFIX=/usr/local` so Qt/pkg-config resolve correctly.
+   `sudo make install` places the macOS runtime libraries under `/usr/local/lib/aifilesorter` to avoid collisions with unrelated system or Homebrew ggml libraries.
    Each variant uses distinct build directories to avoid cross-arch collisions:
    - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`, `app/lib/precompiled-intel`
    - object files: `app/obj/arm64` or `app/obj/x86_64`
@@ -628,7 +631,7 @@ Runtime and GPU:
 - `AI_FILE_SORTER_GPU_BACKEND` - select GPU backend: `auto` (default), `vulkan`, `cuda`, or `cpu`.
 - `AI_FILE_SORTER_N_GPU_LAYERS` - override `n_gpu_layers` for llama.cpp; `-1` = auto, `0` = force CPU.
 - `AI_FILE_SORTER_CTX_TOKENS` - override local LLM context length (default 2048; clamped 512-8192).
-- `AI_FILE_SORTER_GGML_DIR` - directory to load ggml backend shared libraries from.
+- `AI_FILE_SORTER_GGML_DIR` - directory to load ggml backend shared libraries from. On macOS this is only auto-discovered from bundled or sibling app runtime directories; use this variable explicitly if you want a custom ggml runtime.
 
 Visual LLM:
 
