@@ -36,14 +36,14 @@ Instead of relying on fixed rules, the app gradually builds an internal understa
 Categories (and optional subcategories) are suggested for each file, and for supported file types, rename suggestions are provided as well. Once you confirm, the required folders are created automatically and files are sorted accordingly.
 
 Privacy-first by design:
-AI File Sorter runs entirely on your device, using local AI models such as LLaMa 3B (Q4) and Mistral 7B. No files, filenames, images, or metadata are uploaded anywhere, and no telemetry is sent. An internet connection is only used if you explicitly choose to enable a remote model.
+AI File Sorter can run entirely on your device, using local AI models such as Llama 3B (Q4) and Mistral 7B. No files, filenames, images, or metadata are uploaded anywhere, and no telemetry is sent. An internet connection is only needed if you explicitly choose to enable a remote model.
 
 ---
 
 #### How It Works
 
 1. Point the app at a folder or drive  
-2. Files (and image content, when applicable) are analyzed locally  
+2. Files (and image content, when applicable) are analyzed using the selected local or remote model  
 3. Category and rename suggestions are generated  
 4. You review and adjust if needed - done  
 
@@ -82,6 +82,7 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
   - [Using your OpenAI API key](#using-your-openai-api-key)
   - [Using your Gemini API key](#using-your-gemini-api-key)
   - [Testing](#testing)
+  - [Diagnostics](#diagnostics)
   - [How to Use](#how-to-use)
   - [Sorting a Remote Directory (e.g., NAS)](#sorting-a-remote-directory-eg-nas)
   - [Contributing](#contributing)
@@ -106,10 +107,10 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Features
 
-- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or a remote model (ChatGPT with your own OpenAI API key, or Gemini with your own Gemini API key).
+- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (Llama, Mistral) or a remote model (ChatGPT with your own OpenAI API key, or Gemini with your own Gemini API key).
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
-  **Robust Categorization Algorithm**: Consistency across categories is supported by taxonomy and heuristics.
-  **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
+- **Robust categorization**: Taxonomy and heuristics help keep labels more consistent across runs.
+- **Customizable sorting rules**: Automatically assign categories and subcategories for granular organization.
 - **Two categorization modes**: Pick **More Refined** for detailed labels or **More Consistent** to bias toward uniform categories within a folder.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
 - **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
@@ -238,7 +239,7 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 - **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section.
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++` on Linux/macOS, MSVC 2022 on Windows).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS, or a Qt 6 MSVC kit / `qtbase` via vcpkg on Windows).
-- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled`. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
+- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled` on Linux/Windows or `app/lib/precompiled-*` for macOS variant builds. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
 - **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
 - **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. PDFium is required by default so packaged/source builds keep PDF extraction embedded on Windows, macOS, and Linux; set `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF` only if you intentionally want the `pdftotext` fallback.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
@@ -274,7 +275,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    GPU acceleration additionally requires either a working Vulkan 1.2+ stack (Mesa, AMD/Intel/NVIDIA drivers) or, for NVIDIA users, the matching CUDA runtime (`nvidia-cuda-toolkit` or vendor packages). The launcher automatically prefers Vulkan when both are present and falls back to CPU if neither is available.
 2. **Install the package**
    ```bash
-   sudo apt install ./aifilesorter_1.0.0_amd64.deb
+   sudo apt install ./aifilesorter_*.deb
    ```
    Using `apt install` (rather than `dpkg -i`) ensures any missing dependencies listed above are installed automatically.
 
@@ -290,13 +291,8 @@ File categorization with local LLMs is completely free of charge. If you prefer 
     ```
    - Fedora / RHEL:
 
-     ```bash
-     export PATH="/usr/lib64/qt6/libexec:$PATH"
-     sudo mkdir -p /usr/include/jsoncpp/json
-     sudo ln -s /usr/include/json/json.h /usr/include/jsoncpp/json/json.h
-     ```
-
     ```bash
+    export PATH="/usr/lib64/qt6/libexec:$PATH"
     sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel mediainfo-devel
     ```
@@ -315,7 +311,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```bash
    git clone https://github.com/hyperfield/ai-file-sorter.git
    cd ai-file-sorter
-   git submodule update --init --recursive --remote
+   git submodule update --init --recursive
    ```
 
    > **Submodule tip:** If you previously downloaded `llama.cpp` or Catch2 manually, remove or rename `app/include/external/llama.cpp` and `external/Catch2` before running the `git submodule` command. Git needs those directories to be empty so it can populate them with the tracked submodules.
@@ -672,10 +668,11 @@ If you rename or move a file from the Review dialog, the cache entry is updated 
 
 ## Uninstallation
 
-- **Linux**: `cd app && sudo make uninstall`
-- **macOS**: `cd app && sudo make uninstall`
+- **Debian/Ubuntu package installs**: `sudo apt remove aifilesorter`
+- **Linux source installs**: `cd app && sudo make uninstall`
+- **macOS source installs**: `cd app && sudo make uninstall`
 
-The command removes the executable and the staged precompiled libraries. You can also delete cached local LLM models in `~/.local/share/aifilesorter/llms` (Linux) or `~/Library/Application Support/aifilesorter/llms` (macOS) if you no longer need them.
+For source installs, `make uninstall` removes the executable and the staged precompiled libraries. You can also delete cached local LLM models in `~/.local/share/aifilesorter/llms` (Linux) or `~/Library/Application Support/aifilesorter/llms` (macOS) if you no longer need them.
 
 ---
 
@@ -718,6 +715,18 @@ Prefer Google's models? Use your own Gemini API key:
 
 - The script configures to `../build-tests`, builds, then runs `ctest`.
 - If you have multiple copies of the repo (e.g., `ai-file-sorter` and `ai-file-sorter-mac-dist`), each needs its own `build-tests` folder; reusing one from a different path will make CMake complain about mismatched source/build directories.
+
+---
+
+## Diagnostics
+
+If you need to report a bug or collect troubleshooting data, use the bundled diagnostics scripts:
+
+- **macOS:** `./app/scripts/collect_macos_diagnostics.sh`
+- **Linux:** `./app/scripts/collect_linux_diagnostics.sh`
+- **Windows (PowerShell):** `.\app\scripts\collect_windows_diagnostics.ps1`
+
+Each script collects relevant logs, redacts common sensitive paths, and packages the result into a zip archive for sharing. See [app/scripts/README.md](app/scripts/README.md) for options such as time filtering and opening the output folder automatically.
 
 ---
 
@@ -768,7 +777,7 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 - git-scm: <https://git-scm.com>
 - Hugging Face: <https://huggingface.co>
 - JSONCPP: <https://github.com/open-source-parsers/jsoncpp>
-- LLaMa: <https://www.llama.com>
+- Llama: <https://www.llama.com>
 - libzip: <https://libzip.org>
 - Local File Organizer <https://github.com/QiuYannnn/Local-File-Organizer>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
