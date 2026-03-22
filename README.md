@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.7.0-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.7.3-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -36,14 +36,14 @@ Instead of relying on fixed rules, the app gradually builds an internal understa
 Categories (and optional subcategories) are suggested for each file, and for supported file types, rename suggestions are provided as well. Once you confirm, the required folders are created automatically and files are sorted accordingly.
 
 Privacy-first by design:
-AI File Sorter runs entirely on your device, using local AI models such as LLaMa 3B (Q4) and Mistral 7B. No files, filenames, images, or metadata are uploaded anywhere, and no telemetry is sent. An internet connection is only used if you explicitly choose to enable a remote model.
+AI File Sorter can run entirely on your device, using local AI models such as Llama 3B (Q4) and Mistral 7B. No files, filenames, images, or metadata are uploaded anywhere, and no telemetry is sent. An internet connection is only needed if you explicitly choose to enable a remote model.
 
 ---
 
 #### How It Works
 
 1. Point the app at a folder or drive  
-2. Files (and image content, when applicable) are analyzed locally  
+2. Files (and image content, when applicable) are analyzed using the selected local or remote model  
 3. Category and rename suggestions are generated  
 4. You review and adjust if needed - done  
 
@@ -82,6 +82,7 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
   - [Using your OpenAI API key](#using-your-openai-api-key)
   - [Using your Gemini API key](#using-your-gemini-api-key)
   - [Testing](#testing)
+  - [Diagnostics](#diagnostics)
   - [How to Use](#how-to-use)
   - [Sorting a Remote Directory (e.g., NAS)](#sorting-a-remote-directory-eg-nas)
   - [Contributing](#contributing)
@@ -93,12 +94,18 @@ AI File Sorter runs entirely on your device, using local AI models such as LLaMa
 
 ## Changelog
 
-## [1.7.0] - 2026-03-08
+## [1.7.3] - 2026-03-22
 
-- Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.
-- Added an image analysis option to append image creation dates (when available) to category names.
-- Added optional audio/video metadata-based filename suggestions for supported media files.
-- Bug fixes.
+- Non-English categorization is now more reliable: files are categorized canonically in English first, then translated into the selected category language. This change is due to LLM language limitations.
+- App updates now support separate update streams for Windows, macOS, and Linux, while still accepting the legacy single-stream manifest format for newer clients.
+- Windows feeds can now provide a direct installer URL plus SHA-256 checksum so the app can download the installer, show download progress, verify its integrity, and launch it after confirmation.
+- The UI translation system was migrated fully to Qt `.ts` / `.qm` catalogs, and missing translations for all currently supported interface languages were filled in.
+- Local categorization with local LLMs is now more robust: prompt budgeting, output sanitization, and category/subcategory parsing were hardened so verbose or oddly formatted replies no longer cause widespread invalid categorization failures.
+- Recursive scans now tolerate unreadable subfolders and other filesystem errors instead of aborting the overall run.
+- Cached category labels are sanitized more aggressively to avoid malformed UTF-8 data breaking later categorization or display.
+- macOS local-LLM packaging/runtime handling was hardened: bundled llama/ggml dylibs are now relocatable, and the app no longer falls back to conflicting system/Homebrew ggml libraries during backend loading.
+- Linux/macOS build and packaging flows were improved, including staged PDFium runtime files, better Debian package dependencies, CPU/CUDA/Vulkan Debian package variants, and improved Homebrew MediaInfo detection on macOS source builds.
+- Added cross-platform diagnostics collection scripts for Linux, macOS, and Windows.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -106,10 +113,10 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Features
 
-- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (LLaMa, Mistral) or a remote model (ChatGPT with your own OpenAI API key, or Gemini with your own Gemini API key).
+- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (Llama, Mistral) or a remote model (ChatGPT with your own OpenAI API key, or Gemini with your own Gemini API key).
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
-  **Robust Categorization Algorithm**: Consistency across categories is supported by taxonomy and heuristics.
-  **Customizable Sorting Rules**: Automatically assign categories and subcategories for granular organization.
+- **Robust categorization**: Taxonomy and heuristics help keep labels more consistent across runs.
+- **Customizable sorting rules**: Automatically assign categories and subcategories for granular organization.
 - **Two categorization modes**: Pick **More Refined** for detailed labels or **More Consistent** to bias toward uniform categories within a folder.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
 - **Multilingual categorization**: Have the LLM assign categories in Dutch, French, German, Italian, Polish, Portuguese, Spanish, or Turkish (model dependent).
@@ -238,7 +245,7 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 - **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section.
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++` on Linux/macOS, MSVC 2022 on Windows).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS, or a Qt 6 MSVC kit / `qtbase` via vcpkg on Windows).
-- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled`. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
+- **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled` on Linux/Windows or `app/lib/precompiled-*` for macOS variant builds. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
 - **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
 - **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. PDFium is required by default so packaged/source builds keep PDF extraction embedded on Windows, macOS, and Linux; set `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF` only if you intentionally want the `pdftotext` fallback.
 - **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
@@ -274,7 +281,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    GPU acceleration additionally requires either a working Vulkan 1.2+ stack (Mesa, AMD/Intel/NVIDIA drivers) or, for NVIDIA users, the matching CUDA runtime (`nvidia-cuda-toolkit` or vendor packages). The launcher automatically prefers Vulkan when both are present and falls back to CPU if neither is available.
 2. **Install the package**
    ```bash
-   sudo apt install ./aifilesorter_1.0.0_amd64.deb
+   sudo apt install ./aifilesorter_*.deb
    ```
    Using `apt install` (rather than `dpkg -i`) ensures any missing dependencies listed above are installed automatically.
 
@@ -290,13 +297,8 @@ File categorization with local LLMs is completely free of charge. If you prefer 
     ```
    - Fedora / RHEL:
 
-     ```bash
-     export PATH="/usr/lib64/qt6/libexec:$PATH"
-     sudo mkdir -p /usr/include/jsoncpp/json
-     sudo ln -s /usr/include/json/json.h /usr/include/jsoncpp/json/json.h
-     ```
-
     ```bash
+    export PATH="/usr/lib64/qt6/libexec:$PATH"
     sudo dnf install -y gcc-c++ cmake git qt6-qtbase-devel qt6-qttools-devel \
       libcurl-devel jsoncpp-devel sqlite-devel openssl-devel fmt-devel spdlog-devel mediainfo-devel
     ```
@@ -315,7 +317,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```bash
    git clone https://github.com/hyperfield/ai-file-sorter.git
    cd ai-file-sorter
-   git submodule update --init --recursive --remote
+   git submodule update --init --recursive
    ```
 
    > **Submodule tip:** If you previously downloaded `llama.cpp` or Catch2 manually, remove or rename `app/include/external/llama.cpp` and `external/Catch2` before running the `git submodule` command. Git needs those directories to be empty so it can populate them with the tracked submodules.
@@ -372,6 +374,19 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    sudo make install
    ```
 
+7. **Build a Debian package (optional)**
+
+   ```bash
+   ./app/scripts/package_deb.sh
+   ```
+
+   The packaging script always bundles the CPU runtime and auto-includes any staged GPU
+   variants already present under `app/lib/precompiled` (for example `vulkan` after
+   `./app/scripts/build_llama_linux.sh cuda=off vulkan=on`). Use
+   `./app/scripts/package_deb.sh --cpu-only` for a smaller CPU-only package, or
+   `--include-vulkan` / `--include-cuda` if you want the script to fail when a specific
+   staged variant is missing.
+
 ### macOS
 
 1. **Install Xcode command-line tools** (`xcode-select --install`).
@@ -414,6 +429,8 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```bash
    ./app/scripts/build_llama_macos.sh
    ```
+   The macOS app and `.app` bundles use the runtime staged under `app/lib/precompiled*`; they do not need Homebrew `ggml` or `llama.cpp` libraries.
+   If you have older `ggml` / `llama.cpp` copies installed in generic library locations, prefer unlinking or removing them instead of relying on them implicitly.
 7. **Compile the application**
 
    ```bash
@@ -434,6 +451,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    These targets rebuild the llama.cpp runtime before compiling the app.
    When cross-compiling Intel on Apple Silicon, use x86_64 Homebrew (under `/usr/local`) or set `BREW_PREFIX=/usr/local` so Qt/pkg-config resolve correctly.
+   `sudo make install` places the macOS runtime libraries under `/usr/local/lib/aifilesorter` to avoid collisions with unrelated system or Homebrew ggml libraries.
    Each variant uses distinct build directories to avoid cross-arch collisions:
    - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`, `app/lib/precompiled-intel`
    - object files: `app/obj/arm64` or `app/obj/x86_64`
@@ -500,7 +518,7 @@ Option A - CMake + vcpkg (recommended)
   
   Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan>` and copies the runtime DLLs into `app\lib\ggml\w<variant>`. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. Supplying both Vulkan and (optionally) CUDA artifacts lets `StartAiFileSorter.exe` detect the best backend at launch—Vulkan is preferred, CUDA is used when Vulkan is missing, and CPU remains the fallback, so CUDA is not required.
 
-6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
+6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, shares one dependency install tree across variants, and by default produces three Windows builds in one run:
 
    ```powershell
    # One-time per shell if script execution is blocked:
@@ -510,10 +528,15 @@ Option A - CMake + vcpkg (recommended)
    ```
 
    - Replace `C:\dev\vcpkg` with the path where you cloned vcpkg; it must contain `scripts\buildsystems\vcpkg.cmake`.
-   - Always launch the app via `StartAiFileSorter.exe`. This small bootstrapper configures the GGML/CUDA/Vulkan DLLs, auto-selects Vulkan → CUDA → CPU at runtime, and sets the environment before spawning `aifilesorter.exe`. Launching `aifilesorter.exe` directly now shows a reminder dialog; developers can bypass it (for debugging) by adding `--allow-direct-launch` when invoking the GUI manually.
+   - The helper produces these output directories by default:
+     - Standard installer build with Windows auto-update enabled: `app\build-windows\Release`
+     - Microsoft Store build with update checks disabled: `app\build-windows-store\Release`
+     - Standalone Windows build with notification-only/manual updates: `app\build-windows-standalone\Release`
+   - Use `-Variants Standard`, `-Variants MsStore`, or `-Variants Standalone` to build only a subset.
+   - `aifilesorter.exe` is the primary Windows GUI entry point. `StartAiFileSorter.exe` is still built beside it as the legacy bootstrapper and carries the same updater mode.
    - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
-   - The executable and required Qt/third-party DLLs are placed in `app\build-windows\Release`. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
-   - Pass `-Parallel <N>` to override the default “all cores” parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build … --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
+   - Each variant directory receives its own executable and staged Qt/third-party DLLs. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
+   - Pass `-Parallel <N>` to override the default “all cores” parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build ... --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
 
 Option B - CMake + Qt online installer
 
@@ -566,10 +589,11 @@ Option B - CMake + Qt online installer
 
 Notes
 
-- To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
+- To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the selected variant build directories and the shared `app\build-windows-vcpkg_installed` dependency tree before configuring.
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
 - If you plan to ship CUDA or Vulkan acceleration, run the `build_llama_*` helper for each backend you intend to include before configuring CMake so the libraries exist. The runtime can carry both and auto-select at launch, so CUDA remains optional.
+- `-BuildTests` and `-RunTests` currently build and execute tests only in the `Standard` variant, which is the primary Windows development/CI configuration.
 
 ### Running tests
 
@@ -599,7 +623,7 @@ Notes
 On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
 
 ```powershell
-app\build_windows.ps1 -Configuration Release -BuildTests -RunTests
+app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -RunTests
 ```
 
 The current suite (under `tests/unit`) focuses on core utilities; expand it as new functionality gains coverage.
@@ -628,7 +652,7 @@ Runtime and GPU:
 - `AI_FILE_SORTER_GPU_BACKEND` - select GPU backend: `auto` (default), `vulkan`, `cuda`, or `cpu`.
 - `AI_FILE_SORTER_N_GPU_LAYERS` - override `n_gpu_layers` for llama.cpp; `-1` = auto, `0` = force CPU.
 - `AI_FILE_SORTER_CTX_TOKENS` - override local LLM context length (default 2048; clamped 512-8192).
-- `AI_FILE_SORTER_GGML_DIR` - directory to load ggml backend shared libraries from.
+- `AI_FILE_SORTER_GGML_DIR` - directory to load ggml backend shared libraries from. On macOS this is only auto-discovered from bundled or sibling app runtime directories; use this variable explicitly if you want a custom ggml runtime.
 
 Visual LLM:
 
@@ -647,7 +671,86 @@ Storage and updates:
 
 - `AI_FILE_SORTER_CONFIG_DIR` - override the base config directory (where `config.ini` lives).
 - `CATEGORIZATION_CACHE_FILE` - override the SQLite cache filename inside the config dir.
-- `UPDATE_SPEC_FILE_URL` - override the update feed spec URL (dev/testing).
+- `UPDATE_SPEC_FILE_URL` - override the update feed spec URL (dev/testing). The updater now reads per-platform streams from `update.windows`, `update.macos`, and `update.linux`, with legacy single-stream feeds still accepted.
+- `AI_FILE_SORTER_UPDATER_TEST_MODE` - enable Windows updater live-test mode (`1`/`true`). When enabled, the app skips the update feed fetch and synthesizes a newer version from the values below.
+- `AI_FILE_SORTER_UPDATER_TEST_URL` - direct URL for the Windows updater live-test package. This can point to an `.exe`, `.msi`, or a `.zip` containing exactly one `.exe` or `.msi`.
+- `AI_FILE_SORTER_UPDATER_TEST_SHA256` - SHA-256 checksum for the downloaded live-test package. If the URL points to a ZIP, this checksum must be for the ZIP archive itself.
+- `AI_FILE_SORTER_UPDATER_TEST_VERSION` - optional synthetic version shown by live-test mode. Defaults to the current app version with an extra trailing segment, for example `1.7.2.1`.
+- `AI_FILE_SORTER_UPDATER_TEST_MIN_VERSION` - optional synthetic minimum version for live-test mode. Defaults to `0.0.0` so the test behaves like an optional update.
+
+Example update feed:
+
+```json
+{
+  "update": {
+    "current_version": "1.7.1",
+    "min_version": "1.6.0",
+    "download_url": "https://filesorter.app/download",
+    "windows": {
+      "current_version": "1.7.1",
+      "min_version": "1.6.0",
+      "download_url": "https://filesorter.app/download",
+      "installer_url": "https://filesorter.app/downloads/AIFileSorterSetup-1.7.1.exe",
+      "installer_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    "macos": {
+      "current_version": "1.7.1",
+      "min_version": "1.6.0",
+      "download_url": "https://filesorter.app/download"
+    },
+    "linux": {
+      "current_version": "1.7.1",
+      "min_version": "1.6.0",
+      "download_url": "https://filesorter.app/download"
+    }
+  }
+}
+```
+
+Compatibility note:
+
+- Older app versions only read the flat top-level fields under `update`, so keep `current_version`, `min_version`, and `download_url` there as a legacy compatibility stream if you still need to support them.
+- Newer app versions prefer the platform-specific streams and will use `update.windows`, `update.macos`, or `update.linux` when present.
+- The legacy compatibility stream can only represent one generic stream, not separate per-platform versions or installers.
+
+Windows-only direct installer updates:
+
+- `installer_url` - direct URL to the Windows installer package.
+- `installer_sha256` - SHA-256 checksum used to verify the downloaded installer before launch.
+- `installer_url` can now also point to a ZIP archive, as long as the archive contains exactly one installer payload (`.exe` or `.msi`).
+- When both fields are present on Windows, the app can download the installer, verify it, and then prompt: `Quit the app and launch the installer to update`.
+
+Windows updater live-test mode:
+
+- `aifilesorter.exe` accepts the following flags directly on Windows:
+  `--updater-live-test`
+  `--updater-live-test-url=<https://.../AIFileSorterSetup.zip>`
+  `--updater-live-test-sha256=<sha256-of-the-downloaded-package>`
+  `--updater-live-test-version=<optional-version>`
+  `--updater-live-test-min-version=<optional-min-version>`
+- `StartAiFileSorter.exe` accepts and forwards the same flag family if you still use the bootstrapper path.
+- Live-test mode is Windows-only and intentionally bypasses the normal update JSON feed.
+- If the ZIP contains more than one `.exe` or `.msi`, the updater stops instead of guessing which installer to launch.
+- If `--updater-live-test` is present and the URL / SHA flags are omitted, `aifilesorter.exe` also looks for a `live-test.ini` file next to the executable and fills in the missing values from there.
+- Command-line flags still win over `live-test.ini`, so you can keep a default file and override just one field when needed.
+
+Example `live-test.ini`:
+
+```ini
+[LiveTest]
+download_url = https://files.example.com/AIFileSorterSetup-1.7.3.zip
+sha256 = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+current_version = 1.7.3
+min_version = 0.0.0
+```
+
+Example PowerShell launch:
+
+```powershell
+.\aifilesorter.exe `
+  --development `
+  --updater-live-test
+```
 
 ---
 
@@ -669,10 +772,11 @@ If you rename or move a file from the Review dialog, the cache entry is updated 
 
 ## Uninstallation
 
-- **Linux**: `cd app && sudo make uninstall`
-- **macOS**: `cd app && sudo make uninstall`
+- **Debian/Ubuntu package installs**: `sudo apt remove aifilesorter`
+- **Linux source installs**: `cd app && sudo make uninstall`
+- **macOS source installs**: `cd app && sudo make uninstall`
 
-The command removes the executable and the staged precompiled libraries. You can also delete cached local LLM models in `~/.local/share/aifilesorter/llms` (Linux) or `~/Library/Application Support/aifilesorter/llms` (macOS) if you no longer need them.
+For source installs, `make uninstall` removes the executable and the staged precompiled libraries. You can also delete cached local LLM models in `~/.local/share/aifilesorter/llms` (Linux) or `~/Library/Application Support/aifilesorter/llms` (macOS) if you no longer need them.
 
 ---
 
@@ -715,6 +819,18 @@ Prefer Google's models? Use your own Gemini API key:
 
 - The script configures to `../build-tests`, builds, then runs `ctest`.
 - If you have multiple copies of the repo (e.g., `ai-file-sorter` and `ai-file-sorter-mac-dist`), each needs its own `build-tests` folder; reusing one from a different path will make CMake complain about mismatched source/build directories.
+
+---
+
+## Diagnostics
+
+If you need to report a bug or collect troubleshooting data, use the bundled diagnostics scripts:
+
+- **macOS:** `./app/scripts/collect_macos_diagnostics.sh`
+- **Linux:** `./app/scripts/collect_linux_diagnostics.sh`
+- **Windows (PowerShell):** `.\app\scripts\collect_windows_diagnostics.ps1`
+
+Each script collects relevant logs, redacts common sensitive paths, and packages the result into a zip archive for sharing. See [app/scripts/README.md](app/scripts/README.md) for options such as time filtering and opening the output folder automatically.
 
 ---
 
@@ -765,7 +881,7 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 - git-scm: <https://git-scm.com>
 - Hugging Face: <https://huggingface.co>
 - JSONCPP: <https://github.com/open-source-parsers/jsoncpp>
-- LLaMa: <https://www.llama.com>
+- Llama: <https://www.llama.com>
 - libzip: <https://libzip.org>
 - Local File Organizer <https://github.com/QiuYannnn/Local-File-Organizer>
 - llama.cpp <https://github.com/ggml-org/llama.cpp>
