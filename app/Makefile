@@ -420,6 +420,18 @@ endif
 ifndef LRELEASE
 LRELEASE := $(shell command -v lrelease6 2>/dev/null)
 ifeq ($(strip $(LRELEASE)),)
+LRELEASE := $(shell \
+	if command -v qmake6 >/dev/null 2>&1; then \
+		qt_host_bins="$$(qmake6 -query QT_HOST_BINS 2>/dev/null || qmake6 -query QT_INSTALL_BINS 2>/dev/null)"; \
+		if [ -n "$$qt_host_bins" ] && [ -x "$$qt_host_bins/lrelease" ]; then \
+			printf '%s\n' "$$qt_host_bins/lrelease"; \
+		fi; \
+	fi)
+endif
+ifeq ($(strip $(LRELEASE)),)
+LRELEASE := $(wildcard /usr/lib/qt6/bin/lrelease)
+endif
+ifeq ($(strip $(LRELEASE)),)
 LRELEASE := $(shell command -v lrelease 2>/dev/null)
 endif
 ifeq ($(strip $(LRELEASE)),)

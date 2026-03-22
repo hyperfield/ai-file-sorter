@@ -99,7 +99,20 @@ else
     fi
 fi
 
-LRELEASE="$(command -v lrelease6 2>/dev/null || command -v lrelease 2>/dev/null || true)"
+LRELEASE=""
+if command -v lrelease6 >/dev/null 2>&1; then
+    LRELEASE="$(command -v lrelease6)"
+elif command -v qmake6 >/dev/null 2>&1; then
+    qt_host_bins="$(qmake6 -query QT_HOST_BINS 2>/dev/null || qmake6 -query QT_INSTALL_BINS 2>/dev/null || true)"
+    if [[ -n "$qt_host_bins" && -x "$qt_host_bins/lrelease" ]]; then
+        LRELEASE="$qt_host_bins/lrelease"
+    fi
+elif [[ -x /usr/lib/qt6/bin/lrelease ]]; then
+    LRELEASE="/usr/lib/qt6/bin/lrelease"
+elif command -v lrelease >/dev/null 2>&1; then
+    LRELEASE="$(command -v lrelease)"
+fi
+
 if [[ -z "$LRELEASE" ]]; then
     echo "Could not find lrelease or lrelease6" >&2
     exit 1
