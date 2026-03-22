@@ -223,10 +223,7 @@ void LLMSelectionDialog::setup_ui()
     auto* local3_row = new QWidget(radio_container);
     auto* local3_row_layout = new QHBoxLayout(local3_row);
     local3_row_layout->setContentsMargins(0, 0, 0, 0);
-    auto* local3_recommended = new QLabel(tr("Recommended"), local3_row);
-    local3_recommended->setStyleSheet(QStringLiteral("color: #1f6feb; font-weight: 700;"));
     local3_row_layout->addWidget(local3_radio);
-    local3_row_layout->addWidget(local3_recommended);
     local3_row_layout->addStretch(1);
     auto* local3_desc = new QLabel(tr("Less precise, but works quickly even on CPUs. Good for lightweight local use."), radio_container);
     local3_desc->setWordWrap(true);
