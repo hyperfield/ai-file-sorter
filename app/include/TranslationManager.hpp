@@ -29,12 +29,11 @@ public:
     const std::vector<LanguageInfo>& available_languages() const;
 
 private:
-    class StaticTranslator;
-
     TranslationManager();
+    bool load_translation(const LanguageInfo& info);
 
     QApplication* app_{nullptr};
-    std::unique_ptr<StaticTranslator> translator_;
+    std::unique_ptr<QTranslator> translator_;
     Language current_language_{Language::English};
     std::vector<LanguageInfo> languages_;
 };

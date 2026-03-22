@@ -1,6 +1,7 @@
 #ifndef WHITELIST_MANAGER_DIALOG_HPP
 #define WHITELIST_MANAGER_DIALOG_HPP
 
+#include <QCoreApplication>
 #include <QDialog>
 #include <QPointer>
 #include <QString>
@@ -17,6 +18,7 @@ class QLabel;
  * @brief Dialog for creating, editing, and deleting whitelist entries.
  */
 class WhitelistManagerDialog : public QDialog {
+    Q_DECLARE_TR_FUNCTIONS(WhitelistManagerDialog)
 public:
     /**
      * @brief Constructs the whitelist manager dialog.

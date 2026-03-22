@@ -3,6 +3,7 @@
 
 #include "Types.hpp"
 
+#include <QCoreApplication>
 #include <QDialog>
 #include <QStandardItemModel>
 
@@ -22,6 +23,7 @@ class QStandardItem;
 
 class CategorizationDialog : public QDialog
 {
+    Q_DECLARE_TR_FUNCTIONS(CategorizationDialog)
 public:
     CategorizationDialog(DatabaseManager* db_manager,
                          bool show_subcategory_col,

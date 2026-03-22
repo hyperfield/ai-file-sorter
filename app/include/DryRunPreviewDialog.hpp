@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QDialog>
 #include <QTableWidget>
 
@@ -7,6 +8,7 @@
 #include <vector>
 
 class DryRunPreviewDialog : public QDialog {
+    Q_DECLARE_TR_FUNCTIONS(DryRunPreviewDialog)
 public:
     struct Entry {
         std::string from_label;

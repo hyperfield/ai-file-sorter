@@ -3,6 +3,7 @@
 
 #include "Types.hpp"
 
+#include <QCoreApplication>
 #include <QDialog>
 
 class QLineEdit;
@@ -14,6 +15,7 @@ class QTextEdit;
  */
 class CustomLLMDialog : public QDialog
 {
+    Q_DECLARE_TR_FUNCTIONS(CustomLLMDialog)
 public:
     /**
      * @brief Construct a dialog for a new custom LLM entry.

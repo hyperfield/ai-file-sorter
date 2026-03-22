@@ -21,6 +21,26 @@ endif()
 
 # Qt6
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6LinguistTools CONFIG QUIET)
+if(NOT Qt6LinguistTools_FOUND)
+    set(_aifs_qttools_hints "")
+    if(DEFINED ENV{HOMEBREW_PREFIX} AND NOT "$ENV{HOMEBREW_PREFIX}" STREQUAL "")
+        list(APPEND _aifs_qttools_hints "$ENV{HOMEBREW_PREFIX}/opt/qttools")
+    endif()
+    list(APPEND _aifs_qttools_hints /opt/homebrew/opt/qttools /usr/local/opt/qttools)
+    if(DEFINED Qt6_DIR AND NOT "${Qt6_DIR}" STREQUAL "")
+        get_filename_component(_aifs_qt6_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
+        list(APPEND _aifs_qttools_hints "${_aifs_qt6_prefix}")
+    endif()
+    list(REMOVE_DUPLICATES _aifs_qttools_hints)
+    foreach(_aifs_qttools_hint IN LISTS _aifs_qttools_hints)
+        if(EXISTS "${_aifs_qttools_hint}/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfig.cmake")
+            list(APPEND CMAKE_PREFIX_PATH "${_aifs_qttools_hint}")
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
+    find_package(Qt6LinguistTools CONFIG REQUIRED)
+endif()
 
 # Third-party deps (resolved best via vcpkg on Windows)
 find_package(CURL REQUIRED)
@@ -327,7 +347,20 @@ set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 file(GLOB APP_LIB_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
+file(GLOB APP_HEADER_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
+)
 set(APP_SOURCES ${APP_MAIN_SOURCE} ${APP_LIB_SOURCES})
+set(AIFS_TRANSLATION_TS_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_fr.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_de.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_it.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_es.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_nl.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_tr.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_ko.ts"
+)
+set(AIFS_TRANSLATION_QM_DIR "${CMAKE_CURRENT_BINARY_DIR}/i18n")
 
 # Executable (GUI subsystem on Windows)
 if(WIN32)
@@ -342,6 +375,33 @@ target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
     ${DOC_DEPS_INCLUDE_DIRS}
 )
+
+qt_add_lupdate(
+    LUPDATE_TARGET update_translations
+    SOURCE_TARGETS aifilesorter
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
+    OPTIONS -no-obsolete
+)
+
+qt_add_lrelease(
+    LRELEASE_TARGET release_app_translations
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    QM_OUTPUT_DIRECTORY "${AIFS_TRANSLATION_QM_DIR}"
+    QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
+)
+
+set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
+
+function(aifs_add_translation_resources target_name)
+    qt_add_resources(${target_name} "${target_name}_translations"
+        PREFIX "/i18n"
+        BASE "${AIFS_TRANSLATION_QM_DIR}"
+        FILES ${AIFS_TRANSLATION_QM_FILES}
+    )
+endfunction()
+
+aifs_add_translation_resources(aifilesorter)
 
 # Resources (equivalent to rcc generation in Makefile)
 set(APP_RESOURCE_FILES
@@ -727,6 +787,8 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ggml_runtime_paths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_update_feed.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_updater.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_visual.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_image_options.cpp"
@@ -768,6 +830,8 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         ${MEDIAINFO_DEPS_LIBS}
         ${DOC_DEPS_LIBS}
     )
+
+    aifs_add_translation_resources(ai_file_sorter_tests)
 
     target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1 WIN32_LEAN_AND_MEAN NOMINMAX)
 

@@ -11,6 +11,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QAbstractItemView>
 #include <QCheckBox>
 #include <QDir>
@@ -375,7 +376,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
         .file_explorer_dock = app.file_explorer_dock,
         .settings = app.settings,
         .translator = [](const char* source) {
-            return MainApp::tr(source);
+            return QCoreApplication::translate("UiTranslator", source);
         }};
 }
 

@@ -3,6 +3,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/tests/build"
 mkdir -p "$BUILD_DIR"
+mkdir -p "$BUILD_DIR/i18n"
+
+if rg -n '<translation type="unfinished"' "$ROOT_DIR"/app/resources/i18n/*.ts >/dev/null; then
+    echo "Unfinished translations remain in app/resources/i18n" >&2
+    rg -n '<translation type="unfinished"' "$ROOT_DIR"/app/resources/i18n/*.ts >&2
+    exit 1
+fi
+
 SRC="$BUILD_DIR/translation_manager_test.cpp"
 cat > "$SRC" <<'CPP'
 #include "TranslationManager.hpp"
@@ -17,14 +25,14 @@ int main(int argc, char** argv)
     TranslationManager::instance().initialize(qApp);
 
     TranslationManager::instance().set_language(Language::French);
-    const QString french = QCoreApplication::translate("QObject", "Analyze folder");
+    const QString french = QCoreApplication::translate("UiTranslator", "Analyze folder");
     if (french != QStringLiteral("Analyser le dossier")) {
         std::cerr << "Expected French translation, got: " << french.toStdString() << "\n";
         return 1;
     }
 
     TranslationManager::instance().set_language(Language::English);
-    const QString english = QCoreApplication::translate("QObject", "Analyze folder");
+    const QString english = QCoreApplication::translate("UiTranslator", "Analyze folder");
     if (english != QStringLiteral("Analyze folder")) {
         std::cerr << "Expected English fallback, got: " << english.toStdString() << "\n";
         return 2;
@@ -90,6 +98,14 @@ else
         QT_LIB_FLAGS="-L/opt/homebrew/lib -lQt6Core -lQt6Gui -lQt6Widgets"
     fi
 fi
+
+LRELEASE="$(command -v lrelease6 2>/dev/null || command -v lrelease 2>/dev/null || true)"
+if [[ -z "$LRELEASE" ]]; then
+    echo "Could not find lrelease or lrelease6" >&2
+    exit 1
+fi
+
+"$LRELEASE" "$ROOT_DIR/app/resources/i18n/aifilesorter_fr.ts" -qm "$BUILD_DIR/i18n/aifilesorter_fr.qm"
 
 # shellcheck disable=SC2086
 g++ -std=c++20 -fPIC $QT_FLAGS "$SRC" "$ROOT_DIR/app/lib/TranslationManager.cpp" -o "$OUTPUT" $QT_LIB_FLAGS
