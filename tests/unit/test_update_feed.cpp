@@ -11,6 +11,9 @@
 
 #include <filesystem>
 #include <fstream>
+#include <vector>
+
+#include <zip.h>
 
 namespace {
 
@@ -25,6 +28,29 @@ std::string read_file(const std::filesystem::path& path)
 {
     std::ifstream in(path, std::ios::binary);
     return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+}
+
+void create_zip_archive(const std::filesystem::path& archive_path,
+                        const std::vector<std::pair<std::string, std::string>>& entries)
+{
+    int error_code = 0;
+    zip_t* archive = zip_open(archive_path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
+    REQUIRE(archive != nullptr);
+
+    for (const auto& [name, payload] : entries) {
+        zip_source_t* source = zip_source_buffer(archive,
+                                                 payload.data(),
+                                                 static_cast<zip_uint64_t>(payload.size()),
+                                                 0);
+        REQUIRE(source != nullptr);
+        const zip_int64_t index = zip_file_add(archive,
+                                               name.c_str(),
+                                               source,
+                                               ZIP_FL_OVERWRITE | ZIP_FL_ENC_UTF_8);
+        REQUIRE(index >= 0);
+    }
+
+    REQUIRE(zip_close(archive) == 0);
 }
 
 } // namespace
@@ -168,6 +194,80 @@ TEST_CASE("UpdateInstaller rejects installers that fail SHA-256 verification") {
     const auto result = installer.prepare(info);
     REQUIRE(result.status == UpdatePreparationResult::Status::Failed);
     CHECK(result.message.find("SHA-256") != std::string::npos);
+    CHECK(result.installer_path.empty());
+}
+
+TEST_CASE("UpdateInstaller extracts installer payloads from ZIP update packages") {
+    TempDir tmp;
+    EnvVarGuard config_root("AI_FILE_SORTER_CONFIG_DIR", tmp.path().string());
+
+    Settings settings;
+    const std::string installer_payload = "installer-from-zip";
+    const auto archive_path = tmp.path() / "AIFileSorterSetup.zip";
+    create_zip_archive(archive_path, {{"nested/AIFileSorterSetup.exe", installer_payload}});
+    const std::string expected_sha256 = sha256_hex(read_file(archive_path));
+
+    int download_calls = 0;
+    UpdateInstaller installer(
+        settings,
+        [&](const std::string&,
+            const std::filesystem::path& destination_path,
+            UpdateInstaller::ProgressCallback,
+            UpdateInstaller::CancelCheck) {
+            ++download_calls;
+            std::filesystem::copy_file(
+                archive_path,
+                destination_path,
+                std::filesystem::copy_options::overwrite_existing);
+        });
+
+    UpdateInfo info;
+    info.current_version = "1.8.0";
+    info.installer_url = "https://filesorter.app/downloads/AIFileSorterSetup.zip";
+    info.installer_sha256 = expected_sha256;
+
+    const auto first = installer.prepare(info);
+    REQUIRE(first.status == UpdatePreparationResult::Status::Ready);
+    CHECK(download_calls == 1);
+    CHECK(first.installer_path.extension() == ".exe");
+    CHECK(first.installer_path.filename() == "AIFileSorterSetup.exe");
+    CHECK(read_file(first.installer_path) == installer_payload);
+
+    const auto second = installer.prepare(info);
+    REQUIRE(second.status == UpdatePreparationResult::Status::Ready);
+    CHECK(download_calls == 1);
+    CHECK(second.installer_path == first.installer_path);
+}
+
+TEST_CASE("UpdateInstaller rejects ZIP update packages without an installer payload") {
+    TempDir tmp;
+    EnvVarGuard config_root("AI_FILE_SORTER_CONFIG_DIR", tmp.path().string());
+
+    Settings settings;
+    const auto archive_path = tmp.path() / "AIFileSorterSetup.zip";
+    create_zip_archive(archive_path, {{"README.txt", "no installer here"}});
+    const std::string expected_sha256 = sha256_hex(read_file(archive_path));
+
+    UpdateInstaller installer(
+        settings,
+        [&](const std::string&,
+            const std::filesystem::path& destination_path,
+            UpdateInstaller::ProgressCallback,
+            UpdateInstaller::CancelCheck) {
+            std::filesystem::copy_file(
+                archive_path,
+                destination_path,
+                std::filesystem::copy_options::overwrite_existing);
+        });
+
+    UpdateInfo info;
+    info.current_version = "1.8.0";
+    info.installer_url = "https://filesorter.app/downloads/AIFileSorterSetup.zip";
+    info.installer_sha256 = expected_sha256;
+
+    const auto result = installer.prepare(info);
+    REQUIRE(result.status == UpdatePreparationResult::Status::Failed);
+    CHECK(result.message.find("ZIP archive") != std::string::npos);
     CHECK(result.installer_path.empty());
 }
 

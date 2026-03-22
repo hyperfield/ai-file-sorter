@@ -652,6 +652,11 @@ Storage and updates:
 - `AI_FILE_SORTER_CONFIG_DIR` - override the base config directory (where `config.ini` lives).
 - `CATEGORIZATION_CACHE_FILE` - override the SQLite cache filename inside the config dir.
 - `UPDATE_SPEC_FILE_URL` - override the update feed spec URL (dev/testing). The updater now reads per-platform streams from `update.windows`, `update.macos`, and `update.linux`, with legacy single-stream feeds still accepted.
+- `AI_FILE_SORTER_UPDATER_TEST_MODE` - enable Windows updater live-test mode (`1`/`true`). When enabled, the app skips the update feed fetch and synthesizes a newer version from the values below.
+- `AI_FILE_SORTER_UPDATER_TEST_URL` - direct URL for the Windows updater live-test package. This can point to an `.exe`, `.msi`, or a `.zip` containing exactly one `.exe` or `.msi`.
+- `AI_FILE_SORTER_UPDATER_TEST_SHA256` - SHA-256 checksum for the downloaded live-test package. If the URL points to a ZIP, this checksum must be for the ZIP archive itself.
+- `AI_FILE_SORTER_UPDATER_TEST_VERSION` - optional synthetic version shown by live-test mode. Defaults to the current app version with an extra trailing segment, for example `1.7.2.1`.
+- `AI_FILE_SORTER_UPDATER_TEST_MIN_VERSION` - optional synthetic minimum version for live-test mode. Defaults to `0.0.0` so the test behaves like an optional update.
 
 Example update feed:
 
@@ -692,7 +697,40 @@ Windows-only direct installer updates:
 
 - `installer_url` - direct URL to the Windows installer package.
 - `installer_sha256` - SHA-256 checksum used to verify the downloaded installer before launch.
+- `installer_url` can now also point to a ZIP archive, as long as the archive contains exactly one installer payload (`.exe` or `.msi`).
 - When both fields are present on Windows, the app can download the installer, verify it, and then prompt: `Quit the app and launch the installer to update`.
+
+Windows updater live-test mode:
+
+- `aifilesorter.exe` accepts the following flags directly on Windows:
+  `--updater-live-test`
+  `--updater-live-test-url=<https://.../AIFileSorterSetup.zip>`
+  `--updater-live-test-sha256=<sha256-of-the-downloaded-package>`
+  `--updater-live-test-version=<optional-version>`
+  `--updater-live-test-min-version=<optional-min-version>`
+- `StartAiFileSorter.exe` accepts and forwards the same flag family if you still use the bootstrapper path.
+- Live-test mode is Windows-only and intentionally bypasses the normal update JSON feed.
+- If the ZIP contains more than one `.exe` or `.msi`, the updater stops instead of guessing which installer to launch.
+- If `--updater-live-test` is present and the URL / SHA flags are omitted, `aifilesorter.exe` also looks for a `live-test.ini` file next to the executable and fills in the missing values from there.
+- Command-line flags still win over `live-test.ini`, so you can keep a default file and override just one field when needed.
+
+Example `live-test.ini`:
+
+```ini
+[LiveTest]
+download_url = https://files.example.com/AIFileSorterSetup-1.7.3.zip
+sha256 = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+current_version = 1.7.3
+min_version = 0.0.0
+```
+
+Example PowerShell launch:
+
+```powershell
+.\aifilesorter.exe `
+  --development `
+  --updater-live-test
+```
 
 ---
 

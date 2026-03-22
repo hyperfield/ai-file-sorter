@@ -13,6 +13,8 @@
 #include <QObject>
 #include <QStringList>
 
+#include "UpdaterLaunchOptions.hpp"
+
 #include <cstdlib>
 
 #include <windows.h>
@@ -227,7 +229,8 @@ bool launchMainExecutable(const QString& executablePath,
                           bool disableCuda,
                           const QString& backendTag,
                           const QString& ggmlDir,
-                          const QString& llamaDevice) {
+                          const QString& llamaDevice,
+                          const QProcessEnvironment& extraEnvironment) {
     QFileInfo exeInfo(executablePath);
     if (!exeInfo.exists()) {
         return false;
@@ -239,6 +242,9 @@ bool launchMainExecutable(const QString& executablePath,
     environment.insert(QStringLiteral("AI_FILE_SORTER_GPU_BACKEND"), backendTag);
     environment.insert(QStringLiteral("AI_FILE_SORTER_GGML_DIR"), ggmlDir);
     environment.insert(QStringLiteral("LLAMA_ARG_DEVICE"), llamaDevice);
+    for (const QString& key : extraEnvironment.keys()) {
+        environment.insert(key, extraEnvironment.value(key));
+    }
 
     QProcess process;
     process.setProcessEnvironment(environment);
@@ -271,6 +277,14 @@ struct BackendOverrides {
     QStringList observedArgs;
 };
 
+struct UpdaterLiveTestArgs {
+    bool enabled{false};
+    QString installerUrl;
+    QString installerSha256;
+    QString currentVersion;
+    QString minVersion;
+};
+
 struct BackendAvailability {
     bool hasNvidiaDriver{false};
     bool cudaRuntimeDetected{false};
@@ -295,6 +309,64 @@ BackendOverrides parse_backend_overrides(int argc, char* argv[])
         }
     }
     return overrides;
+}
+
+bool consume_flag_value(const QString& argument, const char* prefix, QString& target)
+{
+    const QString prefix_text = QString::fromLatin1(prefix);
+    if (!argument.startsWith(prefix_text)) {
+        return false;
+    }
+    target = argument.mid(prefix_text.size());
+    return true;
+}
+
+UpdaterLiveTestArgs parse_updater_live_test_args(int argc, char* argv[])
+{
+    UpdaterLiveTestArgs args;
+    for (int i = 1; i < argc; ++i) {
+        const QString argument = QString::fromLocal8Bit(argv[i]);
+        if (argument == QLatin1String(UpdaterLaunchOptions::kLiveTestFlag)) {
+            args.enabled = true;
+            continue;
+        }
+        if (consume_flag_value(argument, UpdaterLaunchOptions::kLiveTestUrlFlag, args.installerUrl)) {
+            continue;
+        }
+        if (consume_flag_value(argument, UpdaterLaunchOptions::kLiveTestSha256Flag, args.installerSha256)) {
+            continue;
+        }
+        if (consume_flag_value(argument, UpdaterLaunchOptions::kLiveTestVersionFlag, args.currentVersion)) {
+            continue;
+        }
+        if (consume_flag_value(argument, UpdaterLaunchOptions::kLiveTestMinVersionFlag, args.minVersion)) {
+            continue;
+        }
+    }
+    return args;
+}
+
+QProcessEnvironment build_updater_live_test_environment(const UpdaterLiveTestArgs& args)
+{
+    QProcessEnvironment environment;
+    if (!args.enabled) {
+        return environment;
+    }
+
+    environment.insert(QString::fromLatin1(UpdaterLaunchOptions::kLiveTestModeEnv), QStringLiteral("1"));
+    if (!args.installerUrl.isEmpty()) {
+        environment.insert(QString::fromLatin1(UpdaterLaunchOptions::kLiveTestUrlEnv), args.installerUrl);
+    }
+    if (!args.installerSha256.isEmpty()) {
+        environment.insert(QString::fromLatin1(UpdaterLaunchOptions::kLiveTestSha256Env), args.installerSha256);
+    }
+    if (!args.currentVersion.isEmpty()) {
+        environment.insert(QString::fromLatin1(UpdaterLaunchOptions::kLiveTestVersionEnv), args.currentVersion);
+    }
+    if (!args.minVersion.isEmpty()) {
+        environment.insert(QString::fromLatin1(UpdaterLaunchOptions::kLiveTestMinVersionEnv), args.minVersion);
+    }
+    return environment;
 }
 
 void log_observed_arguments(const QStringList& args)
@@ -585,7 +657,8 @@ QString llama_device_for_selection(BackendSelection selection)
 bool launch_main_process(const QString& mainExecutable,
                          const QStringList& forwardedArgs,
                          BackendSelection selection,
-                         const QString& ggmlPath)
+                         const QString& ggmlPath,
+                         const UpdaterLiveTestArgs& updaterLiveTest)
 {
     const bool disableCudaEnv = (selection != BackendSelection::Cuda);
     const QString backendTag = backend_tag_for_selection(selection);
@@ -595,7 +668,8 @@ bool launch_main_process(const QString& mainExecutable,
                               disableCudaEnv,
                               backendTag,
                               ggmlPath,
-                              llamaDevice)) {
+                              llamaDevice,
+                              build_updater_live_test_environment(updaterLiveTest))) {
         QMessageBox::critical(nullptr,
             QObject::tr("Launch Failed"),
             QObject::tr("Failed to launch the main application executable:\n%1").arg(mainExecutable));
@@ -624,6 +698,7 @@ int main(int argc, char* argv[]) {
     }
 
     BackendOverrides overrides = parse_backend_overrides(argc, argv);
+    const UpdaterLiveTestArgs updaterLiveTest = parse_updater_live_test_args(argc, argv);
     log_observed_arguments(overrides.observedArgs);
     if (!validate_override_conflict(overrides)) {
         return EXIT_FAILURE;
@@ -689,7 +764,7 @@ int main(int argc, char* argv[]) {
     }
 
     const QString mainExecutable = resolveExecutableName(exeDir);
-    if (!launch_main_process(mainExecutable, forwardedArgs, selection, ggmlPath)) {
+    if (!launch_main_process(mainExecutable, forwardedArgs, selection, ggmlPath, updaterLiveTest)) {
         return EXIT_FAILURE;
     }
 

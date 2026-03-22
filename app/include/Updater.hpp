@@ -27,12 +27,13 @@ public:
 private:
     Settings& settings;
     UpdateInstaller installer;
-    const std::string update_spec_file_url;
+    std::optional<std::string> update_spec_file_url_;
     std::function<void(const std::string&)> open_download_url_fn_;
     std::function<void()> quit_fn_;
     std::optional<UpdateInfo> update_info;
     std::future<void> update_future;
     void check_updates();
+    std::optional<UpdateInfo> resolve_live_test_update() const;
     std::string fetch_update_metadata() const;
     Version string_to_Version(const std::string &version_str);
     void display_update_dialog(bool is_required=false);

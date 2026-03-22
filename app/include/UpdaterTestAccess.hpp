@@ -12,6 +12,8 @@ class Updater;
 
 class UpdaterTestAccess {
 public:
+    static bool is_update_available(Updater& updater);
+    static std::optional<UpdateInfo> current_update_info(const Updater& updater);
     static void set_open_download_url_handler(Updater& updater,
                                               std::function<void(const std::string&)> handler);
     static void set_quit_handler(Updater& updater,

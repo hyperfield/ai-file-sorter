@@ -3,6 +3,8 @@
 #include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "MainApp.hpp"
+#include "UpdaterLaunchOptions.hpp"
+#include "UpdaterLiveTestConfig.hpp"
 #include "Utils.hpp"
 #include "LLMSelectionDialog.hpp"
 #include <app_version.hpp>
@@ -62,8 +64,69 @@ struct ParsedArguments {
     bool development_mode{false};
     bool console_log{false};
     bool force_direct_run{false};
+    UpdaterLiveTestConfig updater_live_test;
     std::vector<char*> qt_args;
 };
+
+bool consume_prefixed_value(const char* argument,
+                            const char* prefix,
+                            std::optional<std::string>& target)
+{
+    const std::size_t prefix_length = std::strlen(prefix);
+    if (std::strncmp(argument, prefix, prefix_length) != 0) {
+        return false;
+    }
+    target = std::string(argument + prefix_length);
+    return true;
+}
+
+bool env_has_value(const char* key)
+{
+    const char* value = std::getenv(key);
+    return value && value[0] != '\0';
+}
+
+void set_process_env(const char* key, const std::string& value)
+{
+#ifdef _WIN32
+    _putenv_s(key, value.c_str());
+#else
+    setenv(key, value.c_str(), 1);
+#endif
+}
+
+void apply_updater_live_test_environment(const UpdaterLiveTestConfig& args)
+{
+    if (!args.enabled) {
+        return;
+    }
+
+    set_process_env(UpdaterLaunchOptions::kLiveTestModeEnv, "1");
+
+    if (args.installer_url) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestUrlEnv, *args.installer_url);
+    }
+    if (args.installer_sha256) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestSha256Env, *args.installer_sha256);
+    }
+    if (args.current_version) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestVersionEnv, *args.current_version);
+    } else if (!env_has_value(UpdaterLaunchOptions::kLiveTestVersionEnv)) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestVersionEnv, APP_VERSION.to_string() + ".1");
+    }
+    if (args.min_version) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestMinVersionEnv, *args.min_version);
+    }
+
+    if (!env_has_value(UpdaterLaunchOptions::kLiveTestUrlEnv)) {
+        throw std::runtime_error(
+            "--updater-live-test requires --updater-live-test-url or AI_FILE_SORTER_UPDATER_TEST_URL.");
+    }
+    if (!env_has_value(UpdaterLaunchOptions::kLiveTestSha256Env)) {
+        throw std::runtime_error(
+            "--updater-live-test requires --updater-live-test-sha256 or AI_FILE_SORTER_UPDATER_TEST_SHA256.");
+    }
+}
 
 ParsedArguments parse_command_line(int argc, char** argv)
 {
@@ -85,6 +148,30 @@ ParsedArguments parse_command_line(int argc, char** argv)
         }
         if (is_flag && std::strcmp(argv[i], "--force-direct-run") == 0) {
             parsed.force_direct_run = true;
+            continue;
+        }
+        if (is_flag && std::strcmp(argv[i], UpdaterLaunchOptions::kLiveTestFlag) == 0) {
+            parsed.updater_live_test.enabled = true;
+            continue;
+        }
+        if (is_flag && consume_prefixed_value(argv[i],
+                                              UpdaterLaunchOptions::kLiveTestUrlFlag,
+                                              parsed.updater_live_test.installer_url)) {
+            continue;
+        }
+        if (is_flag && consume_prefixed_value(argv[i],
+                                              UpdaterLaunchOptions::kLiveTestSha256Flag,
+                                              parsed.updater_live_test.installer_sha256)) {
+            continue;
+        }
+        if (is_flag && consume_prefixed_value(argv[i],
+                                              UpdaterLaunchOptions::kLiveTestVersionFlag,
+                                              parsed.updater_live_test.current_version)) {
+            continue;
+        }
+        if (is_flag && consume_prefixed_value(argv[i],
+                                              UpdaterLaunchOptions::kLiveTestMinVersionFlag,
+                                              parsed.updater_live_test.min_version)) {
             continue;
         }
         parsed.qt_args.push_back(argv[i]);
@@ -352,6 +439,11 @@ int run_application(const ParsedArguments& parsed_args)
 {
     EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
     env_loader.load_env();
+    auto updater_live_test = parsed_args.updater_live_test;
+    load_missing_values_from_live_test_ini(
+        updater_live_test,
+        Utils::utf8_to_path(Utils::get_executable_path()));
+    apply_updater_live_test_environment(updater_live_test);
 #if defined(__APPLE__)
     ensure_ggml_backend_dir();
 #endif

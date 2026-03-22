@@ -1,5 +1,6 @@
 #include "UpdateInstaller.hpp"
 
+#include "UpdateArchiveExtractor.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 
@@ -90,6 +91,11 @@ std::string installer_file_name_from_url(const std::string& url)
         file_name = QStringLiteral("aifs-update-installer");
     }
     return file_name.toStdString();
+}
+
+bool is_archive_package(const std::filesystem::path& path)
+{
+    return UpdateArchiveExtractor::supports_archive(path);
 }
 
 bool replace_file(const std::filesystem::path& source,
@@ -195,25 +201,45 @@ UpdatePreparationResult UpdateInstaller::prepare(const UpdateInfo& info,
         return UpdatePreparationResult::failed("No installer SHA-256 is available for this update.");
     }
 
-    const auto final_path = installer_path_for(info);
-    const auto partial_path = std::filesystem::path(final_path.string() + ".part");
+    const auto package_path = package_path_for(info);
+    const auto partial_path = std::filesystem::path(package_path.string() + ".part");
+    const auto extracted_root = extracted_installer_root_for(package_path);
 
     std::error_code ec;
-    std::filesystem::create_directories(final_path.parent_path(), ec);
+    std::filesystem::create_directories(package_path.parent_path(), ec);
     if (ec) {
         return UpdatePreparationResult::failed("Failed to create updater cache directory: " + ec.message());
     }
 
+    const auto finalize_prepared_package = [&]() -> UpdatePreparationResult {
+        if (!is_archive_package(package_path)) {
+            return UpdatePreparationResult::ready(package_path);
+        }
+
+        std::filesystem::remove_all(extracted_root, ec);
+        ec.clear();
+        if (progress_cb) {
+            progress_cb(1.0, "Extracting installer from update package");
+        }
+        const auto extraction = UpdateArchiveExtractor::extract_installer(package_path, extracted_root);
+        if (!extraction.ok()) {
+            return UpdatePreparationResult::failed(extraction.message);
+        }
+        return UpdatePreparationResult::ready(extraction.installer_path);
+    };
+
     if (progress_cb) {
         progress_cb(0.0, "Checking cached installer");
     }
-    if (verify_file(final_path, info.installer_sha256)) {
-        return UpdatePreparationResult::ready(final_path);
+    if (verify_file(package_path, info.installer_sha256)) {
+        return finalize_prepared_package();
     }
 
-    std::filesystem::remove(final_path, ec);
+    std::filesystem::remove(package_path, ec);
     ec.clear();
     std::filesystem::remove(partial_path, ec);
+    ec.clear();
+    std::filesystem::remove_all(extracted_root, ec);
 
     try {
         download_fn_(info.installer_url, partial_path, progress_cb, cancel_check);
@@ -226,11 +252,11 @@ UpdatePreparationResult UpdateInstaller::prepare(const UpdateInfo& info,
         }
 
         std::string replace_error;
-        if (!replace_file(partial_path, final_path, replace_error)) {
+        if (!replace_file(partial_path, package_path, replace_error)) {
             std::filesystem::remove(partial_path, ec);
             return UpdatePreparationResult::failed("Failed to finalize installer download: " + replace_error);
         }
-        return UpdatePreparationResult::ready(final_path);
+        return finalize_prepared_package();
     } catch (const DownloadCanceledError&) {
         std::filesystem::remove(partial_path, ec);
         return UpdatePreparationResult::canceled("Download cancelled");
@@ -250,11 +276,16 @@ std::filesystem::path UpdateInstaller::updates_dir() const
     return Utils::utf8_to_path(settings_.get_config_dir()) / "updates";
 }
 
-std::filesystem::path UpdateInstaller::installer_path_for(const UpdateInfo& info) const
+std::filesystem::path UpdateInstaller::package_path_for(const UpdateInfo& info) const
 {
     const std::string file_name = installer_file_name_from_url(info.installer_url);
     const std::string version_prefix = "v" + safe_version_fragment(info.current_version) + "-";
     return updates_dir() / (version_prefix + file_name);
+}
+
+std::filesystem::path UpdateInstaller::extracted_installer_root_for(const std::filesystem::path& package_path) const
+{
+    return package_path.parent_path() / (package_path.filename().string() + ".contents");
 }
 
 std::string UpdateInstaller::compute_sha256(const std::filesystem::path& path) const

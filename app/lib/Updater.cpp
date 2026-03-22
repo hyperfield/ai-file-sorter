@@ -1,9 +1,11 @@
 #include "Updater.hpp"
 #include "Logger.hpp"
+#include "UpdaterLaunchOptions.hpp"
 #include "Utils.hpp"
 #include "app_version.hpp"
 #include <curl/curl.h>
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <filesystem>
 #include <iostream>
@@ -36,6 +38,53 @@ void updater_log(spdlog::level::level_enum level, const char* fmt, Args&&... arg
     } else {
         std::fprintf(stderr, "%s\n", message.c_str());
     }
+}
+
+std::string trim_copy(const std::string& value)
+{
+    auto trimmed = value;
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    return trimmed;
+}
+
+std::optional<std::string> env_string(const char* key)
+{
+    const char* value = std::getenv(key);
+    if (!value || value[0] == '\0') {
+        return std::nullopt;
+    }
+    const std::string trimmed = trim_copy(value);
+    if (trimmed.empty()) {
+        return std::nullopt;
+    }
+    return trimmed;
+}
+
+bool env_flag_enabled(const char* key)
+{
+    const auto value = env_string(key);
+    if (!value) {
+        return false;
+    }
+
+    std::string lowered = *value;
+    std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on";
+}
+
+std::string normalized_sha256_copy(std::string value)
+{
+    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
+        return std::isspace(ch) != 0;
+    }), value.end());
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
 }
 
 void throw_for_http_status(long http_code)
@@ -78,14 +127,7 @@ Updater::Updater(Settings& settings)
     :
     settings(settings),
     installer(settings),
-    update_spec_file_url([]
-    {
-        const char* url = std::getenv("UPDATE_SPEC_FILE_URL");
-        if (!url) {
-            throw std::runtime_error("Environment variable UPDATE_SPEC_FILE_URL is not set");
-        }
-        return std::string(url);
-    }()),
+    update_spec_file_url_(env_string("UPDATE_SPEC_FILE_URL")),
     open_download_url_fn_([](const std::string& url) { open_download_url(url); }),
     quit_fn_([]() { QApplication::quit(); })
 {}
@@ -93,8 +135,12 @@ Updater::Updater(Settings& settings)
 
 void Updater::check_updates()
 {
-    std::string update_json = fetch_update_metadata();
-    update_info = UpdateFeed::parse_for_current_platform(update_json);
+    if (auto live_test = resolve_live_test_update()) {
+        update_info = std::move(live_test);
+    } else {
+        std::string update_json = fetch_update_metadata();
+        update_info = UpdateFeed::parse_for_current_platform(update_json);
+    }
     if (!update_info) {
         update_info.reset();
         return;
@@ -103,6 +149,45 @@ void Updater::check_updates()
     if (APP_VERSION >= string_to_Version(update_info->current_version)) {
         update_info.reset();
     }
+}
+
+std::optional<UpdateInfo> Updater::resolve_live_test_update() const
+{
+#if !defined(_WIN32)
+    return std::nullopt;
+#else
+    if (!env_flag_enabled(UpdaterLaunchOptions::kLiveTestModeEnv)) {
+        return std::nullopt;
+    }
+
+    const auto installer_url = env_string(UpdaterLaunchOptions::kLiveTestUrlEnv);
+    if (!installer_url) {
+        throw std::runtime_error(
+            "Updater live test mode requires an installer URL via "
+            "--updater-live-test-url or AI_FILE_SORTER_UPDATER_TEST_URL.");
+    }
+
+    const auto installer_sha256 = env_string(UpdaterLaunchOptions::kLiveTestSha256Env);
+    if (!installer_sha256) {
+        throw std::runtime_error(
+            "Updater live test mode requires an archive SHA-256 via "
+            "--updater-live-test-sha256 or AI_FILE_SORTER_UPDATER_TEST_SHA256.");
+    }
+
+    UpdateInfo info;
+    info.current_version = env_string(UpdaterLaunchOptions::kLiveTestVersionEnv)
+                               .value_or(APP_VERSION.to_string() + ".1");
+    info.min_version = env_string(UpdaterLaunchOptions::kLiveTestMinVersionEnv)
+                           .value_or("0.0.0");
+    info.download_url = *installer_url;
+    info.installer_url = *installer_url;
+    info.installer_sha256 = normalized_sha256_copy(*installer_sha256);
+
+    updater_log(spdlog::level::info,
+                "Updater live test mode enabled for package '{}'",
+                info.installer_url);
+    return info;
+#endif
 }
 
 
@@ -353,6 +438,10 @@ size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
 
 
 std::string Updater::fetch_update_metadata() const {
+    if (!update_spec_file_url_) {
+        throw std::runtime_error("Environment variable UPDATE_SPEC_FILE_URL is not set");
+    }
+
     CURL *curl = curl_easy_init();
     if (!curl) {
         throw std::runtime_error("Initialization Error: Failed to initialize cURL.");
@@ -368,7 +457,7 @@ std::string Updater::fetch_update_metadata() const {
         throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
     }
 
-    curl_easy_setopt(curl, CURLOPT_URL, update_spec_file_url.c_str());
+    curl_easy_setopt(curl, CURLOPT_URL, update_spec_file_url_->c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_string);
@@ -427,6 +516,16 @@ Version Updater::string_to_Version(const std::string& version_str) {
 Updater::~Updater() = default;
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
+bool UpdaterTestAccess::is_update_available(Updater& updater)
+{
+    return updater.is_update_available();
+}
+
+std::optional<UpdateInfo> UpdaterTestAccess::current_update_info(const Updater& updater)
+{
+    return updater.update_info;
+}
+
 void UpdaterTestAccess::set_open_download_url_handler(Updater& updater,
                                                       std::function<void(const std::string&)> handler)
 {

@@ -17,6 +17,12 @@ include(CheckCXXSourceCompiles)
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    # Keep MSVC worker processes busy within each project in addition to
+    # the top-level cmake --build --parallel job scheduling.
+    add_compile_options(
+        "$<$<COMPILE_LANGUAGE:C>:/MP>"
+        "$<$<COMPILE_LANGUAGE:CXX>:/MP>"
+    )
 endif()
 
 # Qt6
@@ -377,6 +383,7 @@ target_include_directories(aifilesorter PRIVATE
 )
 
 qt_add_lupdate(
+    NO_GLOBAL_TARGET
     LUPDATE_TARGET update_translations
     SOURCE_TARGETS aifilesorter
     TS_FILES ${AIFS_TRANSLATION_TS_FILES}
@@ -605,6 +612,9 @@ if(WIN32)
     set(STARTER_TARGET StartAiFileSorter)
     add_executable(${STARTER_TARGET} WIN32
         "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp"
+    )
+    target_include_directories(${STARTER_TARGET} PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
     )
     target_link_libraries(${STARTER_TARGET} PRIVATE
         Qt6::Widgets Qt6::Gui Qt6::Core

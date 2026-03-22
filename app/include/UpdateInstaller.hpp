@@ -76,7 +76,8 @@ private:
     LaunchFunction launch_fn_;
 
     std::filesystem::path updates_dir() const;
-    std::filesystem::path installer_path_for(const UpdateInfo& info) const;
+    std::filesystem::path package_path_for(const UpdateInfo& info) const;
+    std::filesystem::path extracted_installer_root_for(const std::filesystem::path& package_path) const;
     std::string compute_sha256(const std::filesystem::path& path) const;
     bool verify_file(const std::filesystem::path& path, const std::string& expected_sha256) const;
     static LaunchRequest build_launch_request(const std::filesystem::path& installer_path);
