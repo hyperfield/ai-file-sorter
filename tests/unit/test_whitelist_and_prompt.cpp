@@ -4,6 +4,7 @@
 #include "CategorizationServiceTestAccess.hpp"
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
+#include "MainAppTestAccess.hpp"
 #include "CategoryLanguage.hpp"
 #include "LocalLLMTestAccess.hpp"
 #include "Settings.hpp"
@@ -12,6 +13,7 @@
 #include "Utils.hpp"
 
 #include <atomic>
+#include <deque>
 #include <memory>
 
 namespace {
@@ -38,6 +40,45 @@ public:
 private:
     std::shared_ptr<int> calls_;
     std::string response_;
+};
+
+class TranslationAwareLLM : public ILLMClient {
+public:
+    TranslationAwareLLM(std::shared_ptr<int> categorize_calls,
+                        std::shared_ptr<int> translation_calls,
+                        std::string categorize_response,
+                        std::deque<std::string> translation_responses)
+        : categorize_calls_(std::move(categorize_calls)),
+          translation_calls_(std::move(translation_calls)),
+          categorize_response_(std::move(categorize_response)),
+          translation_responses_(std::move(translation_responses)) {}
+
+    std::string categorize_file(const std::string&,
+                                const std::string&,
+                                FileType,
+                                const std::string&) override {
+        ++(*categorize_calls_);
+        return categorize_response_;
+    }
+
+    std::string complete_prompt(const std::string&, int) override {
+        ++(*translation_calls_);
+        if (translation_responses_.empty()) {
+            return std::string();
+        }
+        std::string response = translation_responses_.front();
+        translation_responses_.pop_front();
+        return response;
+    }
+
+    void set_prompt_logging_enabled(bool) override {
+    }
+
+private:
+    std::shared_ptr<int> categorize_calls_;
+    std::shared_ptr<int> translation_calls_;
+    std::string categorize_response_;
+    std::deque<std::string> translation_responses_;
 };
 } // namespace
 
@@ -100,6 +141,7 @@ TEST_CASE("CategorizationService builds category language context when non-Engli
     const std::string context = CategorizationServiceTestAccess::build_category_language_context(service);
 
     REQUIRE_FALSE(context.empty());
+    REQUIRE(context.find("English only") != std::string::npos);
     REQUIRE(context.find("French") != std::string::npos);
 }
 
@@ -114,6 +156,7 @@ TEST_CASE("CategorizationService builds category language context for Spanish") 
     const std::string context = CategorizationServiceTestAccess::build_category_language_context(service);
 
     REQUIRE_FALSE(context.empty());
+    REQUIRE(context.find("English only") != std::string::npos);
     REQUIRE(context.find("Spanish") != std::string::npos);
 }
 
@@ -148,6 +191,19 @@ TEST_CASE("LocalLLM sanitizer ignores trailing note lines") {
         "(Note: Since the file is an image and not an installer, this question should not have been directed to me.)";
 
     REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Images : Screenshots");
+}
+
+TEST_CASE("LocalLLM sanitizer strips translated parenthetical glosses") {
+    const std::string output =
+        "Traitement de texte. (Text documents) : Installateurs. (Software installation)";
+
+    REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Traitement de texte : Installateurs");
+}
+
+TEST_CASE("LocalLLM sanitizer strips inline subcategory label artifacts from category values") {
+    const std::string output = "Category: Images, subcategory: Funny seals";
+
+    REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Images : Funny seals");
 }
 
 TEST_CASE("CategorizationService parses category output without spaced colon delimiters") {
@@ -437,4 +493,126 @@ TEST_CASE("CategorizationService progress shows current and categorization paths
                                          Utils::abbreviate_user_path(full_path)) != std::string::npos);
     CHECK(progress_messages.front().find("Categorization Path : " +
                                          Utils::abbreviate_user_path(prompt_path)) != std::string::npos);
+}
+
+TEST_CASE("Document prompt helpers use the suggested filename for categorization") {
+    CHECK(MainAppTestAccess::resolve_document_prompt_name("legacy_name.pdf", "cached_name.pdf") ==
+          "cached_name.pdf");
+    CHECK(MainAppTestAccess::resolve_document_prompt_name("legacy_name.pdf", "") ==
+          "legacy_name.pdf");
+}
+
+TEST_CASE("Document prompt path uses the suggested filename and preserves summaries") {
+    TempDir data_dir;
+    const std::filesystem::path original_path = data_dir.path() / "legacy_name.pdf";
+    const std::string prompt_name = "new_suggested_name.pdf";
+    const std::string summary = "PCI DSS quick reference";
+    const std::string expected_path = Utils::path_to_utf8(data_dir.path() / prompt_name);
+    const std::string prompt_path = MainAppTestAccess::build_document_prompt_path(
+        original_path.string(),
+        prompt_name,
+        summary);
+
+    CHECK(prompt_path.find(expected_path) == 0);
+    CHECK(prompt_path.find("\nDocument summary: " + summary) != std::string::npos);
+    CHECK(prompt_path.find("legacy_name.pdf") == std::string::npos);
+}
+
+TEST_CASE("CategorizationService stores canonical English labels and persists translated taxonomy labels") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    settings.set_category_language(CategoryLanguage::French);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "setup_game.exe";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto categorize_calls = std::make_shared<int>(0);
+    auto translation_calls = std::make_shared<int>(0);
+    auto factory = [categorize_calls, translation_calls]() {
+        return std::make_unique<TranslationAwareLLM>(
+            categorize_calls,
+            translation_calls,
+            "Software : Installers",
+            std::deque<std::string>{
+                "{\"category\":\"Logiciels\",\"subcategory\":\"Installateurs\"}"
+            });
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Logiciels");
+    CHECK(categorized.front().subcategory == "Installateurs");
+    CHECK(categorized.front().canonical_category == "Software");
+    CHECK(categorized.front().canonical_subcategory == "Installers");
+    CHECK(*categorize_calls == 1);
+    CHECK(*translation_calls == 1);
+
+    const auto cached = db.get_categorization_from_db(data_dir.path().string(), file_name, FileType::File);
+    REQUIRE(cached.size() == 2);
+    CHECK(cached[0] == "Software");
+    CHECK(cached[1] == "Installers");
+
+    const auto translated = db.get_category_translation(categorized.front().taxonomy_id, CategoryLanguage::French);
+    REQUIRE(translated.has_value());
+    CHECK(translated->category == "Logiciels");
+    CHECK(translated->subcategory == "Installateurs");
+
+    const auto resolved_french = db.resolve_category_for_language("Logiciels", "Installateurs", CategoryLanguage::French);
+    CHECK(resolved_french.taxonomy_id == categorized.front().taxonomy_id);
+    CHECK(resolved_french.category == "Software");
+    CHECK(resolved_french.subcategory == "Installers");
+
+    const auto cached_entries = service.load_cached_entries(data_dir.path().string());
+    REQUIRE(cached_entries.size() == 1);
+    CHECK(cached_entries.front().category == "Logiciels");
+    CHECK(cached_entries.front().subcategory == "Installateurs");
+    CHECK(cached_entries.front().canonical_category == "Software");
+    CHECK(cached_entries.front().canonical_subcategory == "Installers");
+}
+
+TEST_CASE("CategorizationService strips inline subcategory label artifacts when parsing service output") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "seal_photo.jpg";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(calls, "Category: Images, subcategory: Funny seals");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Images");
+    CHECK(categorized.front().subcategory == "Funny seals");
+    CHECK(*calls == 1);
 }

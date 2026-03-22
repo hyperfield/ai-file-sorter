@@ -94,8 +94,9 @@ AI File Sorter can run entirely on your device, using local AI models such as Ll
 
 ## Changelog
 
-## [1.7.2] - 2026-03-21
+## [1.7.3] - 2026-03-22
 
+- Non-English categorization is now more reliable: files are categorized canonically in English first, then translated into the selected category language. This change is due to LLM language limitations.
 - App updates now support separate update streams for Windows, macOS, and Linux, while still accepting the legacy single-stream manifest format for newer clients.
 - Windows feeds can now provide a direct installer URL plus SHA-256 checksum so the app can download the installer, show download progress, verify its integrity, and launch it after confirmation.
 - The UI translation system was migrated fully to Qt `.ts` / `.qm` catalogs, and missing translations for all currently supported interface languages were filled in.
@@ -504,7 +505,7 @@ Option A - CMake + vcpkg (recommended)
   
   Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan>` and copies the runtime DLLs into `app\lib\ggml\w<variant>`. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. Supplying both Vulkan and (optionally) CUDA artifacts lets `StartAiFileSorter.exe` detect the best backend at launch—Vulkan is preferred, CUDA is used when Vulkan is missing, and CPU remains the fallback, so CUDA is not required.
 
-6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, so `app\build-windows\Release` is immediately runnable:
+6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, shares one dependency install tree across variants, and by default produces three Windows builds in one run:
 
    ```powershell
    # One-time per shell if script execution is blocked:
@@ -514,10 +515,15 @@ Option A - CMake + vcpkg (recommended)
    ```
 
    - Replace `C:\dev\vcpkg` with the path where you cloned vcpkg; it must contain `scripts\buildsystems\vcpkg.cmake`.
-   - Always launch the app via `StartAiFileSorter.exe`. This small bootstrapper configures the GGML/CUDA/Vulkan DLLs, auto-selects Vulkan → CUDA → CPU at runtime, and sets the environment before spawning `aifilesorter.exe`. Launching `aifilesorter.exe` directly now shows a reminder dialog; developers can bypass it (for debugging) by adding `--allow-direct-launch` when invoking the GUI manually.
+   - The helper produces these output directories by default:
+     - Standard installer build with Windows auto-update enabled: `app\build-windows\Release`
+     - Microsoft Store build with update checks disabled: `app\build-windows-store\Release`
+     - Standalone Windows build with notification-only/manual updates: `app\build-windows-standalone\Release`
+   - Use `-Variants Standard`, `-Variants MsStore`, or `-Variants Standalone` to build only a subset.
+   - `aifilesorter.exe` is the primary Windows GUI entry point. `StartAiFileSorter.exe` is still built beside it as the legacy bootstrapper and carries the same updater mode.
    - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
-   - The executable and required Qt/third-party DLLs are placed in `app\build-windows\Release`. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
-   - Pass `-Parallel <N>` to override the default “all cores” parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build … --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
+   - Each variant directory receives its own executable and staged Qt/third-party DLLs. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
+   - Pass `-Parallel <N>` to override the default “all cores” parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build ... --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
 
 Option B - CMake + Qt online installer
 
@@ -570,10 +576,11 @@ Option B - CMake + Qt online installer
 
 Notes
 
-- To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the local `app\build-windows` directory before configuring.
+- To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the selected variant build directories and the shared `app\build-windows-vcpkg_installed` dependency tree before configuring.
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, clone vcpkg to a writable directory (for example `C:\dev\vcpkg`) and pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`.
 - If you plan to ship CUDA or Vulkan acceleration, run the `build_llama_*` helper for each backend you intend to include before configuring CMake so the libraries exist. The runtime can carry both and auto-select at launch, so CUDA remains optional.
+- `-BuildTests` and `-RunTests` currently build and execute tests only in the `Standard` variant, which is the primary Windows development/CI configuration.
 
 ### Running tests
 
@@ -603,7 +610,7 @@ Notes
 On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
 
 ```powershell
-app\build_windows.ps1 -Configuration Release -BuildTests -RunTests
+app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -RunTests
 ```
 
 The current suite (under `tests/unit`) focuses on core utilities; expand it as new functionality gains coverage.

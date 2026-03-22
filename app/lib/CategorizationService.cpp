@@ -7,6 +7,14 @@
 #include "LLMErrors.hpp"
 #include "Utils.hpp"
 
+#if __has_include(<jsoncpp/json/json.h>)
+#include <jsoncpp/json/json.h>
+#elif __has_include(<json/json.h>)
+#include <json/json.h>
+#else
+#error "jsoncpp headers not found. Install jsoncpp development files."
+#endif
+
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
@@ -82,6 +90,32 @@ std::string strip_wrapping_punctuation(std::string value) {
                               value.back() == '.' || value.back() == ',' ||
                               value.back() == ':' || value.back() == ';')) {
         value.pop_back();
+    }
+    return value;
+}
+
+std::string strip_trailing_parenthetical_gloss(std::string value) {
+    value = trim_copy(std::move(value));
+    while (true) {
+        const auto open = value.rfind(" (");
+        if (open == std::string::npos) {
+            break;
+        }
+
+        std::string gloss = trim_copy(value.substr(open + 2));
+        if (!gloss.empty() && gloss.back() == ')') {
+            gloss.pop_back();
+            gloss = trim_copy(std::move(gloss));
+        }
+
+        const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
+            return std::isalpha(ch);
+        });
+        if (!has_alpha_chars) {
+            break;
+        }
+
+        value = trim_copy(value.substr(0, open));
     }
     return value;
 }
@@ -163,6 +197,43 @@ std::string extract_category_phrase(std::string value) {
     return value;
 }
 
+std::string strip_inline_label_artifacts(std::string value, bool category_label) {
+    const std::vector<std::string_view> markers = category_label
+        ? std::vector<std::string_view>{
+              ", subcategory",
+              ", sub category",
+              " - subcategory",
+              " - sub category",
+              "; subcategory",
+              "; sub category",
+              " subcategory:",
+              " sub category:"
+          }
+        : std::vector<std::string_view>{
+              ", category",
+              ", main category",
+              " - category",
+              " - main category",
+              "; category",
+              "; main category",
+              " category:",
+              " main category:"
+          };
+
+    std::size_t cut = std::string::npos;
+    for (const std::string_view marker : markers) {
+        const auto pos = find_case_insensitive(value, marker);
+        if (pos != std::string::npos && (cut == std::string::npos || pos < cut)) {
+            cut = pos;
+        }
+    }
+    if (cut != std::string::npos) {
+        value.resize(cut);
+    }
+
+    return trim_copy(std::move(value));
+}
+
 std::string normalize_candidate_label(std::string value, bool category_label) {
     value = strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(std::move(value))));
     if (value.empty()) {
@@ -172,6 +243,8 @@ std::string normalize_candidate_label(std::string value, bool category_label) {
         value = extract_category_phrase(std::move(value));
     }
     value = strip_explanatory_suffix(std::move(value));
+    value = strip_trailing_parenthetical_gloss(std::move(value));
+    value = strip_inline_label_artifacts(std::move(value), category_label);
     return strip_wrapping_punctuation(collapse_spaces_copy(std::move(value)));
 }
 
@@ -358,6 +431,30 @@ std::pair<std::string, std::string> split_category_subcategory(const std::string
     return {Utils::sanitize_path_label(category), Utils::sanitize_path_label(subcategory)};
 }
 
+std::optional<std::pair<std::string, std::string>> parse_translated_category_response(const std::string& response) {
+    Json::Value root;
+    Json::CharReaderBuilder reader;
+    std::string errors;
+    std::istringstream stream(response);
+    if (Json::parseFromStream(reader, stream, &root, &errors) && root.isObject()) {
+        const std::string category = normalize_candidate_label(root.get("category", "").asString(), true);
+        const std::string subcategory = normalize_candidate_label(root.get("subcategory", "").asString(), false);
+        if (!category.empty()) {
+            return std::make_pair(Utils::sanitize_path_label(category),
+                                  Utils::sanitize_path_label(subcategory.empty() ? category : subcategory));
+        }
+    }
+
+    auto [category, subcategory] = split_category_subcategory(response);
+    if (category.empty()) {
+        return std::nullopt;
+    }
+    if (subcategory.empty()) {
+        subcategory = category;
+    }
+    return std::make_pair(category, subcategory);
+}
+
 // Returns a lowercase copy of the input string.
 std::string to_lower_copy_str(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -503,10 +600,15 @@ std::vector<CategorizedFile> CategorizationService::prune_empty_cached_entries(c
 
 std::vector<CategorizedFile> CategorizationService::load_cached_entries(const std::string& directory_path) const
 {
-    if (settings.get_include_subdirectories()) {
-        return db_manager.get_categorized_files_recursive(directory_path);
+    auto cached = settings.get_include_subdirectories()
+        ? db_manager.get_categorized_files_recursive(directory_path)
+        : db_manager.get_categorized_files(directory_path);
+
+    const CategoryLanguage language = settings.get_category_language();
+    for (auto& entry : cached) {
+        entry = db_manager.localize_categorized_file(entry, language);
     }
-    return db_manager.get_categorized_files(directory_path);
+    return cached;
 }
 
 std::vector<CategorizedFile> CategorizationService::categorize_entries(
@@ -599,7 +701,11 @@ std::string CategorizationService::build_category_language_context() const
         return std::string();
     }
     const std::string name = categoryLanguageDisplay(lang);
-    return fmt::format("Use {} for both the main category and subcategory names. Respond in {}.", name, name);
+    return fmt::format(
+        "Determine the canonical main category and subcategory in English only. "
+        "Do not translate, do not add bilingual text, do not use parentheses, and do not explain. "
+        "The final labels will be translated to {} later.",
+        name);
 }
 
 namespace {
@@ -656,9 +762,11 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
         return std::nullopt;
     }
 
-    auto resolved = db_manager.resolve_category(sanitized_category, sanitized_subcategory);
-    emit_progress_message(progress_callback, "CACHE", item_name, resolved, current_path, categorization_path);
-    return resolved;
+    (void)item_name;
+    (void)current_path;
+    (void)categorization_path;
+    (void)progress_callback;
+    return db_manager.resolve_category(sanitized_category, sanitized_subcategory);
 }
 
 bool CategorizationService::ensure_remote_credentials_for_request(
@@ -750,7 +858,8 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
         if (resolved.category.empty()) {
             resolved.category = "Uncategorized";
         }
-        emit_progress_message(progress_callback, "AI", display_name, resolved, display_path, prompt_path);
+        const auto display_resolved = localize_resolved_category(llm, resolved);
+        emit_progress_message(progress_callback, "AI", display_name, display_resolved, display_path, prompt_path);
         return resolved;
     } catch (const std::exception& ex) {
         const std::string err_msg = fmt::format("[LLM-ERROR] {} ({})", display_name, ex.what());
@@ -806,6 +915,8 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
                                                 dir_path,
                                                 file_type,
                                                 progress_callback)) {
+        const auto display_resolved = localize_resolved_category(llm, *cached);
+        emit_progress_message(progress_callback, "CACHE", display_name, display_resolved, display_path, prompt_path);
         return *cached;
     }
 
@@ -910,10 +1021,13 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
                                suggested_name,
                                session_history);
 
+    const auto display_resolved = db_manager.localize_category(resolved, settings.get_category_language());
     CategorizedFile result{dir_path, entry.file_name, entry.type,
-                           resolved.category, resolved.subcategory, resolved.taxonomy_id};
+                           display_resolved.category, display_resolved.subcategory, resolved.taxonomy_id};
     result.used_consistency_hints = use_consistency_hints;
     result.suggested_name = suggested_name;
+    result.canonical_category = resolved.category;
+    result.canonical_subcategory = resolved.subcategory;
     return result;
 }
 
@@ -943,6 +1057,90 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         combined_context += hint_block;
     }
     return combined_context;
+}
+
+DatabaseManager::ResolvedCategory CategorizationService::localize_resolved_category(
+    ILLMClient& llm,
+    const DatabaseManager::ResolvedCategory& resolved) const
+{
+    const CategoryLanguage language = settings.get_category_language();
+    if (language == CategoryLanguage::English || resolved.taxonomy_id <= 0) {
+        return resolved;
+    }
+
+    if (!db_manager.get_category_translation(resolved.taxonomy_id, language)) {
+        if (const auto translated = translate_resolved_category(llm, resolved)) {
+            db_manager.upsert_category_translation(resolved.taxonomy_id,
+                                                  language,
+                                                  translated->category,
+                                                  translated->subcategory);
+        }
+    }
+
+    return db_manager.localize_category(resolved, language);
+}
+
+std::optional<DatabaseManager::ResolvedCategory> CategorizationService::translate_resolved_category(
+    ILLMClient& llm,
+    const DatabaseManager::ResolvedCategory& resolved) const
+{
+    const CategoryLanguage language = settings.get_category_language();
+    if (language == CategoryLanguage::English || resolved.taxonomy_id <= 0 ||
+        resolved.category.empty() || resolved.subcategory.empty()) {
+        return std::nullopt;
+    }
+
+    const std::string language_name = categoryLanguageDisplay(language);
+    const std::string prompt = fmt::format(
+        "Translate the following taxonomy labels into {}.\n"
+        "Return only JSON in this exact shape: {{\"category\":\"...\",\"subcategory\":\"...\"}}\n"
+        "Rules:\n"
+        "- Keep the meaning precise.\n"
+        "- No English.\n"
+        "- No parentheses.\n"
+        "- No explanations.\n"
+        "- No trailing periods.\n"
+        "- Keep the main category broad and concise.\n"
+        "- Keep the subcategory specific and concise.\n\n"
+        "category: {}\n"
+        "subcategory: {}",
+        language_name,
+        resolved.category,
+        resolved.subcategory);
+
+    try {
+        const std::string response = llm.complete_prompt(prompt, 128);
+        const auto translated = parse_translated_category_response(response);
+        if (!translated) {
+            return std::nullopt;
+        }
+
+        DatabaseManager::ResolvedCategory translated_resolved{
+            resolved.taxonomy_id,
+            translated->first,
+            translated->second
+        };
+        const auto validation = validate_labels(translated_resolved.category, translated_resolved.subcategory);
+        if (!validation.valid) {
+            if (core_logger) {
+                core_logger->warn("Ignoring invalid translated category pair for taxonomy {}: {} (cat='{}', sub='{}')",
+                                  resolved.taxonomy_id,
+                                  validation.error,
+                                  translated_resolved.category,
+                                  translated_resolved.subcategory);
+            }
+            return std::nullopt;
+        }
+        return translated_resolved;
+    } catch (const std::exception& ex) {
+        if (core_logger) {
+            core_logger->warn("Category translation failed for taxonomy {} to {}: {}",
+                              resolved.taxonomy_id,
+                              language_name,
+                              ex.what());
+        }
+        return std::nullopt;
+    }
 }
 
 DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with_cache(

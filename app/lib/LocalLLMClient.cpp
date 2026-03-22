@@ -276,6 +276,32 @@ std::string strip_wrapping_punctuation(std::string value) {
     return value;
 }
 
+std::string strip_trailing_parenthetical_gloss(std::string value) {
+    value = trim_copy(std::move(value));
+    while (true) {
+        const auto open = value.rfind(" (");
+        if (open == std::string::npos) {
+            break;
+        }
+
+        std::string gloss = trim_copy(value.substr(open + 2));
+        if (!gloss.empty() && gloss.back() == ')') {
+            gloss.pop_back();
+            gloss = trim_copy(std::move(gloss));
+        }
+
+        const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
+            return std::isalpha(ch);
+        });
+        if (!has_alpha_chars) {
+            break;
+        }
+
+        value = trim_copy(value.substr(0, open));
+    }
+    return value;
+}
+
 std::size_t find_case_insensitive(const std::string& value, std::string_view needle) {
     const std::string lower_value = to_lower_copy(value);
     std::string lower_needle(needle);
@@ -353,6 +379,43 @@ std::string extract_category_phrase(std::string value) {
     return value;
 }
 
+std::string strip_inline_label_artifacts(std::string value, bool category_label) {
+    const auto markers = category_label
+        ? std::array<std::string_view, 8>{
+              ", subcategory",
+              ", sub category",
+              " - subcategory",
+              " - sub category",
+              "; subcategory",
+              "; sub category",
+              " subcategory:",
+              " sub category:"
+          }
+        : std::array<std::string_view, 8>{
+              ", category",
+              ", main category",
+              " - category",
+              " - main category",
+              "; category",
+              "; main category",
+              " category:",
+              " main category:"
+          };
+
+    std::size_t cut = std::string::npos;
+    for (const std::string_view marker : markers) {
+        const auto pos = find_case_insensitive(value, marker);
+        if (pos != std::string::npos && (cut == std::string::npos || pos < cut)) {
+            cut = pos;
+        }
+    }
+    if (cut != std::string::npos) {
+        value.resize(cut);
+    }
+
+    return trim_copy(std::move(value));
+}
+
 std::string normalize_candidate_label(std::string value, bool category_label) {
     value = strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(std::move(value))));
     if (value.empty()) {
@@ -362,6 +425,8 @@ std::string normalize_candidate_label(std::string value, bool category_label) {
         value = extract_category_phrase(std::move(value));
     }
     value = strip_explanatory_suffix(std::move(value));
+    value = strip_trailing_parenthetical_gloss(std::move(value));
+    value = strip_inline_label_artifacts(std::move(value), category_label);
     return strip_wrapping_punctuation(collapse_spaces_copy(std::move(value)));
 }
 

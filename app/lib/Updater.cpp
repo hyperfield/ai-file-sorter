@@ -1,5 +1,6 @@
 #include "Updater.hpp"
 #include "Logger.hpp"
+#include "UpdaterBuildConfig.hpp"
 #include "UpdaterLaunchOptions.hpp"
 #include "Utils.hpp"
 #include "app_version.hpp"
@@ -206,6 +207,11 @@ bool Updater::is_update_required()
 
 void Updater::begin()
 {
+    if (!UpdaterBuildConfig::update_checks_enabled()) {
+        updater_log(spdlog::level::info, "Updater checks disabled for this build.");
+        return;
+    }
+
     this->update_future = std::async(std::launch::async, [this]() { 
         try {
             if (is_update_available()) {
@@ -346,7 +352,7 @@ UpdatePreparationResult Updater::prepare_installer_update(const UpdateInfo& info
 bool Updater::trigger_update_action(const UpdateInfo& info, QWidget* parent, bool quit_after_open)
 {
 #if defined(_WIN32)
-    if (installer.supports_auto_install(info)) {
+    if (UpdaterBuildConfig::auto_install_enabled() && installer.supports_auto_install(info)) {
         const auto prepared = prepare_installer_update(info, parent);
         if (prepared.status == UpdatePreparationResult::Status::Canceled) {
             return false;
@@ -526,6 +532,18 @@ std::optional<UpdateInfo> UpdaterTestAccess::current_update_info(const Updater& 
     return updater.update_info;
 }
 
+bool UpdaterTestAccess::has_update_task(const Updater& updater)
+{
+    return updater.update_future.valid();
+}
+
+void UpdaterTestAccess::wait_for_update_task(Updater& updater)
+{
+    if (updater.update_future.valid()) {
+        updater.update_future.wait();
+    }
+}
+
 void UpdaterTestAccess::set_open_download_url_handler(Updater& updater,
                                                       std::function<void(const std::string&)> handler)
 {
@@ -536,6 +554,14 @@ void UpdaterTestAccess::set_quit_handler(Updater& updater,
                                          std::function<void()> handler)
 {
     updater.quit_fn_ = std::move(handler);
+}
+
+bool UpdaterTestAccess::trigger_update_action(Updater& updater,
+                                              const UpdateInfo& info,
+                                              QWidget* parent,
+                                              bool quit_after_open)
+{
+    return updater.trigger_update_action(info, parent, quit_after_open);
 }
 
 bool UpdaterTestAccess::handle_update_error(Updater& updater,

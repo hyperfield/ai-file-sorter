@@ -3,6 +3,7 @@
 #include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "MainApp.hpp"
+#include "UpdaterBuildConfig.hpp"
 #include "UpdaterLaunchOptions.hpp"
 #include "UpdaterLiveTestConfig.hpp"
 #include "Utils.hpp"
@@ -440,10 +441,12 @@ int run_application(const ParsedArguments& parsed_args)
     EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
     env_loader.load_env();
     auto updater_live_test = parsed_args.updater_live_test;
-    load_missing_values_from_live_test_ini(
-        updater_live_test,
-        Utils::utf8_to_path(Utils::get_executable_path()));
-    apply_updater_live_test_environment(updater_live_test);
+    if (UpdaterBuildConfig::update_checks_enabled()) {
+        load_missing_values_from_live_test_ini(
+            updater_live_test,
+            Utils::utf8_to_path(Utils::get_executable_path()));
+        apply_updater_live_test_environment(updater_live_test);
+    }
 #if defined(__APPLE__)
     ensure_ggml_backend_dir();
 #endif
