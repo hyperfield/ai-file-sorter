@@ -257,6 +257,94 @@ Procedure: Construct the downloader and query its status.
 Expected outcome: Both local and overall download status report `Complete`.
 Run: `./build-tests/ai_file_sorter_tests "LLMDownloader treats full local file as complete with cached metadata"`
 
+### `tests/unit/test_update_feed.cpp`
+
+#### Test case: UpdateFeed selects the correct platform stream
+Purpose: Ensure the updater resolves the correct platform-specific stream from the shared feed.
+Setup: Build a feed JSON payload with distinct `windows`, `macos`, and `linux` entries.
+Procedure: Parse the feed for each platform enum.
+Expected outcome: Each platform receives its own version and URLs, and the Windows installer checksum is normalized.
+Run: `./build-tests/ai_file_sorter_tests "UpdateFeed selects the correct platform stream"`
+
+#### Test case: UpdateFeed falls back to the legacy single-stream schema
+Purpose: Preserve compatibility with existing single-stream feeds.
+Setup: Build a feed JSON payload with the original flat `update` object.
+Procedure: Parse the feed for a platform.
+Expected outcome: The legacy fields are still accepted and returned as update info.
+Run: `./build-tests/ai_file_sorter_tests "UpdateFeed falls back to the legacy single-stream schema"`
+
+#### Test case: UpdateInstaller downloads, verifies, and reuses a cached installer
+Purpose: Validate the Windows-style installer preparation flow without network access.
+Setup: Inject a fake installer download callback and a fake launch callback.
+Procedure: Prepare the installer twice and then launch it.
+Expected outcome: The first prepare downloads and verifies the installer, the second reuses the cached artifact, and the launch callback receives the finalized path.
+Run: `./build-tests/ai_file_sorter_tests "UpdateInstaller downloads, verifies, and reuses a cached installer"`
+
+#### Test case: UpdateInstaller rejects installers that fail SHA-256 verification
+Purpose: Ensure invalid installer downloads are rejected before launch.
+Setup: Inject a fake download callback that writes mismatched bytes.
+Procedure: Prepare the installer with an expected SHA-256 that does not match.
+Expected outcome: Preparation fails and no finalized installer path is returned.
+Run: `./build-tests/ai_file_sorter_tests "UpdateInstaller rejects installers that fail SHA-256 verification"`
+
+#### Test case: UpdateInstaller redownloads cached installers that fail verification
+Purpose: Ensure corrupted cached installers are not reused silently.
+Setup: Prepare a valid cached installer, then overwrite it with different bytes.
+Procedure: Prepare the installer a second time with the same expected SHA-256.
+Expected outcome: The cached file is rejected, a new download occurs, and the finalized installer contents match the expected payload.
+Run: `./build-tests/ai_file_sorter_tests "UpdateInstaller redownloads cached installers that fail verification"`
+
+#### Test case: UpdateInstaller reports canceled downloads and removes partial files
+Purpose: Confirm cancelation produces a canceled result instead of a generic failure and cleans up partial output.
+Setup: Inject a fake download callback that writes a partial file and then throws the installer cancelation exception when the cancel probe is true.
+Procedure: Call `prepare()` with a cancel probe that always returns true.
+Expected outcome: Preparation returns `Canceled`, no finalized installer path is returned, and the partial `.part` file is removed.
+Run: `./build-tests/ai_file_sorter_tests "UpdateInstaller reports canceled downloads and removes partial files"`
+
+#### Test case: UpdateInstaller requires installer metadata before preparing
+Purpose: Reject malformed update feeds that omit required direct-installer fields.
+Setup: Create update info once without `installer_url` and once without `installer_sha256`.
+Procedure: Call `prepare()` for both cases.
+Expected outcome: Both calls fail with messages indicating the missing field.
+Run: `./build-tests/ai_file_sorter_tests "UpdateInstaller requires installer metadata before preparing"`
+
+#### Test case: UpdateInstaller builds launch requests for EXE and MSI installers
+Purpose: Verify the installer launch plan uses direct execution for `.exe` files and `msiexec /i` for `.msi` packages.
+Setup: Build launch requests for representative `.exe` and `.MSI` paths.
+Procedure: Query the test access helper for both inputs.
+Expected outcome: The `.exe` request launches the installer directly with no extra arguments, while the `.msi` request targets `msiexec.exe` with `/i <path>`.
+Run: `./build-tests/ai_file_sorter_tests "UpdateInstaller builds launch requests for EXE and MSI installers"`
+
+#### Test case: UpdateInstaller auto-install support remains Windows-only
+Purpose: Confirm the direct-installer flow is currently gated to Windows builds.
+Setup: Create update info with installer metadata.
+Procedure: Query the updater installer support state.
+Expected outcome: Windows builds report support; other platforms do not.
+Run: `./build-tests/ai_file_sorter_tests "UpdateInstaller auto-install support remains Windows-only"`
+
+### `tests/unit/test_updater.cpp`
+
+#### Test case: Updater error dialog offers manual update fallback without quitting when not requested
+Purpose: Verify installer-preparation failures still let the user open the normal download page manually for optional updates.
+Setup: Construct an updater with test handlers for opening the download URL and quitting the app, and schedule the error dialog to click `Update manually`.
+Procedure: Invoke the updater error handler with a `download_url` and `quit_after_open=false`.
+Expected outcome: The dialog includes `Update manually`, the download URL handler is called, and the quit handler is not called.
+Run: `./build-tests/ai_file_sorter_tests "Updater error dialog offers manual update fallback without quitting when not requested"`
+
+#### Test case: Updater error dialog can request quit after manual fallback
+Purpose: Ensure required-update failures can still fall back to the manual download link and then close the app.
+Setup: Construct an updater with test handlers and schedule the error dialog to click `Update manually`.
+Procedure: Invoke the updater error handler with a `download_url` and `quit_after_open=true`.
+Expected outcome: The manual download handler is called and the quit handler is triggered.
+Run: `./build-tests/ai_file_sorter_tests "Updater error dialog can request quit after manual fallback"`
+
+#### Test case: Updater error dialog omits manual fallback when no download URL is available
+Purpose: Confirm the fallback button is only offered when a manual download link exists.
+Setup: Construct an updater with test handlers and invoke the error dialog without a `download_url`.
+Procedure: Attempt to click `Update manually`; the helper falls back to `OK` when the button is absent.
+Expected outcome: No manual fallback button is present, the error handler returns `false`, and neither the download nor quit handler runs.
+Run: `./build-tests/ai_file_sorter_tests "Updater error dialog omits manual fallback when no download URL is available"`
+
 ### `tests/unit/test_review_dialog_rename_gate.cpp` (non-Windows only)
 
 #### Test case: Review dialog rename-only toggles disabled when renames are not allowed

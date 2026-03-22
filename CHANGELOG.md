@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## [1.7.2] - 2026-03-22
+
+- App updates now support separate update streams for Windows, macOS, and Linux. Windows feeds can also provide a direct installer URL plus SHA-256 checksum so the app can download, verify, and launch the installer after confirmation.
+
 ## [1.7.1] - 2026-03-21
 
 - Local categorization with local LLMs is now more robust: prompt budgeting, output sanitization, and category/subcategory parsing were hardened so verbose or oddly formatted replies no longer cause widespread invalid categorization failures.

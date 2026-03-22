@@ -3,18 +3,13 @@
 #include "Utils.hpp"
 #include "app_version.hpp"
 #include <curl/curl.h>
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <iostream>
-#include <stdexcept>
-#if __has_include(<jsoncpp/json/json.h>)
-    #include <jsoncpp/json/json.h>
-#elif __has_include(<json/json.h>)
-    #include <json/json.h>
-#else
-    #error "jsoncpp headers not found. Install jsoncpp development files."
-#endif
 #include <optional>
+#include <sstream>
+#include <stdexcept>
 #include <curl/easy.h>
 #include <future>
 #include <spdlog/spdlog.h>
@@ -25,7 +20,12 @@
 #include <QMetaObject>
 #include <QObject>
 #include <QPushButton>
+#include <QProgressDialog>
 #include <QUrl>
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    #include "UpdaterTestAccess.hpp"
+#endif
 
 namespace {
 template <typename... Args>
@@ -77,6 +77,7 @@ void open_download_url(const std::string& url)
 Updater::Updater(Settings& settings) 
     :
     settings(settings),
+    installer(settings),
     update_spec_file_url([]
     {
         const char* url = std::getenv("UPDATE_SPEC_FILE_URL");
@@ -84,48 +85,24 @@ Updater::Updater(Settings& settings)
             throw std::runtime_error("Environment variable UPDATE_SPEC_FILE_URL is not set");
         }
         return std::string(url);
-    }())
+    }()),
+    open_download_url_fn_([](const std::string& url) { open_download_url(url); }),
+    quit_fn_([]() { QApplication::quit(); })
 {}
 
 
 void Updater::check_updates()
 {
     std::string update_json = fetch_update_metadata();
-    Json::CharReaderBuilder readerBuilder;
-    Json::Value root;
-    std::string errors;
-
-    std::unique_ptr<Json::CharReader> reader(readerBuilder.newCharReader());
-    if (!reader->parse(update_json.c_str(), update_json.c_str() + update_json.length(), &root, &errors)) {
-        throw std::runtime_error("JSON Parse Error: " + errors);
-    }
-
-    if (!root.isMember("update")) {
+    update_info = UpdateFeed::parse_for_current_platform(update_json);
+    if (!update_info) {
         update_info.reset();
         return;
     }
 
-    const Json::Value update = root["update"];
-    UpdateInfo info;
-
-    if (update.isMember("current_version") && update["current_version"].isString()) {
-        info.current_version = update["current_version"].asString();
-    }
-
-    if (update.isMember("min_version") && update["min_version"].isString()) {
-        info.min_version = update["min_version"].asString();
-    }
-    
-    if (update.isMember("download_url") && update["download_url"].isString()) {
-        info.download_url = update["download_url"].asString();
-    }
-
-    if (APP_VERSION >= string_to_Version(info.current_version)) {
+    if (APP_VERSION >= string_to_Version(update_info->current_version)) {
         update_info.reset();
-        return;
     }
-
-    update_info = std::make_optional(info);  // Store the update info
 }
 
 
@@ -170,8 +147,11 @@ void Updater::begin()
 
 bool Updater::is_update_skipped()
 {
+    if (!update_info) {
+        return false;
+    }
     Version skipped_version = string_to_Version(settings.get_skipped_version());
-    return APP_VERSION <= skipped_version;
+    return string_to_Version(update_info->current_version) <= skipped_version;
 }
 
 
@@ -193,27 +173,34 @@ void Updater::display_update_dialog(bool is_required) {
 }
 
 
-void Updater::show_required_update_dialog(const UpdateInfo& info, QWidget* parent) const
+void Updater::show_required_update_dialog(const UpdateInfo& info, QWidget* parent)
 {
-    QMessageBox box(parent);
-    box.setIcon(QMessageBox::Warning);
-    box.setWindowTitle(QObject::tr("Required Update Available"));
-    box.setText(QObject::tr("A required update is available. Please update to continue.\nIf you choose to quit, the application will close."));
-    QPushButton* update_now = box.addButton(QObject::tr("Update Now"), QMessageBox::AcceptRole);
-    QPushButton* quit_button = box.addButton(QObject::tr("Quit"), QMessageBox::RejectRole);
-    box.setDefaultButton(update_now);
-    box.exec();
+    while (true) {
+        QMessageBox box(parent);
+        box.setIcon(QMessageBox::Warning);
+        box.setWindowTitle(QObject::tr("Required Update Available"));
+        box.setText(QObject::tr("A required update is available. Please update to continue.\nIf you choose to quit, the application will close."));
+        QPushButton* update_now = box.addButton(QObject::tr("Update Now"), QMessageBox::AcceptRole);
+        QPushButton* quit_button = box.addButton(QObject::tr("Quit"), QMessageBox::RejectRole);
+        box.setDefaultButton(update_now);
+        box.exec();
 
-    if (box.clickedButton() == update_now) {
-        open_download_url(info.download_url);
-        QApplication::quit();
-    } else if (box.clickedButton() == quit_button) {
-        QApplication::quit();
+        if (box.clickedButton() == update_now) {
+            if (trigger_update_action(info, parent, true)) {
+                return;
+            }
+            continue;
+        }
+
+        if (box.clickedButton() == quit_button) {
+            quit_fn_();
+            return;
+        }
     }
 }
 
 
-void Updater::show_optional_update_dialog(const UpdateInfo& info, QWidget* parent) const
+void Updater::show_optional_update_dialog(const UpdateInfo& info, QWidget* parent)
 {
     QMessageBox box(parent);
     box.setIcon(QMessageBox::Information);
@@ -226,7 +213,7 @@ void Updater::show_optional_update_dialog(const UpdateInfo& info, QWidget* paren
     box.exec();
 
     if (box.clickedButton() == update_now) {
-        open_download_url(info.download_url);
+        trigger_update_action(info, parent, false);
     } else if (box.clickedButton() == skip_button) {
         settings.set_skipped_version(info.current_version);
         if (!settings.save()) {
@@ -237,6 +224,123 @@ void Updater::show_optional_update_dialog(const UpdateInfo& info, QWidget* paren
     } else if (box.clickedButton() == cancel_button) {
         // No action needed; user dismissed the dialog.
     }
+}
+
+UpdatePreparationResult Updater::prepare_installer_update(const UpdateInfo& info, QWidget* parent)
+{
+    QProgressDialog progress(parent);
+    progress.setWindowTitle(QObject::tr("Downloading Update"));
+    progress.setLabelText(QObject::tr("Downloading the update installer..."));
+    progress.setCancelButtonText(QObject::tr("Cancel"));
+    progress.setRange(0, 100);
+    progress.setValue(0);
+    progress.setMinimumDuration(0);
+    progress.setWindowModality(Qt::ApplicationModal);
+    progress.show();
+    QApplication::processEvents();
+
+    auto result = installer.prepare(
+        info,
+        [&](double value, const std::string& status) {
+            const double clamped = std::clamp(value, 0.0, 1.0);
+            progress.setValue(static_cast<int>(clamped * 100.0));
+            if (!status.empty()) {
+                progress.setLabelText(QString::fromStdString(status));
+            }
+            QApplication::processEvents();
+        },
+        [&]() {
+            QApplication::processEvents();
+            return progress.wasCanceled();
+        });
+
+    progress.setValue(result.status == UpdatePreparationResult::Status::Ready ? 100 : progress.value());
+    return result;
+}
+
+bool Updater::trigger_update_action(const UpdateInfo& info, QWidget* parent, bool quit_after_open)
+{
+#if defined(_WIN32)
+    if (installer.supports_auto_install(info)) {
+        const auto prepared = prepare_installer_update(info, parent);
+        if (prepared.status == UpdatePreparationResult::Status::Canceled) {
+            return false;
+        }
+        if (prepared.status == UpdatePreparationResult::Status::Failed) {
+            return handle_update_error(info,
+                                       QObject::tr("Failed to prepare the update installer.\n%1")
+                                           .arg(QString::fromStdString(prepared.message)),
+                                       parent,
+                                       quit_after_open);
+        }
+
+        QMessageBox confirm(parent);
+        confirm.setIcon(QMessageBox::Question);
+        confirm.setWindowTitle(QObject::tr("Installer Ready"));
+        confirm.setText(QObject::tr("Quit the app and launch the installer to update"));
+        QPushButton* launch_button = confirm.addButton(QObject::tr("Quit and Launch Installer"),
+                                                       QMessageBox::AcceptRole);
+        QPushButton* cancel_button = confirm.addButton(QObject::tr("Cancel"),
+                                                       QMessageBox::RejectRole);
+        confirm.setDefaultButton(launch_button);
+        confirm.exec();
+
+        if (confirm.clickedButton() != launch_button) {
+            return false;
+        }
+
+        if (!installer.launch(prepared.installer_path)) {
+            return handle_update_error(info,
+                                       QObject::tr("The installer could not be launched."),
+                                       parent,
+                                       quit_after_open);
+        }
+
+        quit_fn_();
+        return true;
+    }
+#endif
+
+    if (info.download_url.empty()) {
+        return handle_update_error(info,
+                                   QObject::tr("No download target is available for this update."),
+                                   parent,
+                                   quit_after_open);
+    }
+
+    open_download_url_fn_(info.download_url);
+    if (quit_after_open) {
+        quit_fn_();
+    }
+    return true;
+}
+
+bool Updater::handle_update_error(const UpdateInfo& info,
+                                  const QString& message,
+                                  QWidget* parent,
+                                  bool quit_after_open)
+{
+    QMessageBox box(parent);
+    box.setIcon(QMessageBox::Critical);
+    box.setWindowTitle(QObject::tr("Update Failed"));
+    box.setText(message);
+    QPushButton* ok_button = box.addButton(QMessageBox::Ok);
+    QPushButton* manual_button = nullptr;
+    if (!info.download_url.empty()) {
+        manual_button = box.addButton(QObject::tr("Update manually"), QMessageBox::ActionRole);
+    }
+    box.setDefaultButton(ok_button);
+    box.exec();
+
+    if (box.clickedButton() != manual_button) {
+        return false;
+    }
+
+    open_download_url_fn_(info.download_url);
+    if (quit_after_open) {
+        quit_fn_();
+    }
+    return true;
 }
 
 
@@ -297,12 +401,23 @@ std::string Updater::fetch_update_metadata() const {
 
 
 Version Updater::string_to_Version(const std::string& version_str) {
+    if (version_str.empty()) {
+        return Version{0, 0, 0};
+    }
+
     std::vector<int> digits;
     std::istringstream stream(version_str);
     std::string segment;
 
     while (std::getline(stream, segment, '.')) {
+        if (segment.empty()) {
+            throw std::runtime_error("Invalid version string: " + version_str);
+        }
         digits.push_back(std::stoi(segment));
+    }
+
+    if (digits.empty()) {
+        return Version{0, 0, 0};
     }
 
     return Version{digits};
@@ -310,3 +425,26 @@ Version Updater::string_to_Version(const std::string& version_str) {
 
 
 Updater::~Updater() = default;
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+void UpdaterTestAccess::set_open_download_url_handler(Updater& updater,
+                                                      std::function<void(const std::string&)> handler)
+{
+    updater.open_download_url_fn_ = std::move(handler);
+}
+
+void UpdaterTestAccess::set_quit_handler(Updater& updater,
+                                         std::function<void()> handler)
+{
+    updater.quit_fn_ = std::move(handler);
+}
+
+bool UpdaterTestAccess::handle_update_error(Updater& updater,
+                                            const UpdateInfo& info,
+                                            const QString& message,
+                                            QWidget* parent,
+                                            bool quit_after_open)
+{
+    return updater.handle_update_error(info, message, parent, quit_after_open);
+}
+#endif

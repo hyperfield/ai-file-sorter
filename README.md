@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.7.1-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.7.2-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -93,6 +93,10 @@ AI File Sorter can run entirely on your device, using local AI models such as Ll
 ---
 
 ## Changelog
+
+## [1.7.2] - 2026-03-21
+
+- App updates now support separate update streams for Windows, macOS, and Linux. Windows feeds can also provide a direct installer URL plus SHA-256 checksum so the app can download, verify, and launch the installer after confirmation.
 
 ## [1.7.1] - 2026-03-21
 
@@ -646,7 +650,48 @@ Storage and updates:
 
 - `AI_FILE_SORTER_CONFIG_DIR` - override the base config directory (where `config.ini` lives).
 - `CATEGORIZATION_CACHE_FILE` - override the SQLite cache filename inside the config dir.
-- `UPDATE_SPEC_FILE_URL` - override the update feed spec URL (dev/testing).
+- `UPDATE_SPEC_FILE_URL` - override the update feed spec URL (dev/testing). The updater now reads per-platform streams from `update.windows`, `update.macos`, and `update.linux`, with legacy single-stream feeds still accepted.
+
+Example update feed:
+
+```json
+{
+  "update": {
+    "current_version": "1.7.1",
+    "min_version": "1.6.0",
+    "download_url": "https://filesorter.app/download",
+    "windows": {
+      "current_version": "1.7.1",
+      "min_version": "1.6.0",
+      "download_url": "https://filesorter.app/download",
+      "installer_url": "https://filesorter.app/downloads/AIFileSorterSetup-1.7.1.exe",
+      "installer_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    "macos": {
+      "current_version": "1.7.1",
+      "min_version": "1.6.0",
+      "download_url": "https://filesorter.app/download"
+    },
+    "linux": {
+      "current_version": "1.7.1",
+      "min_version": "1.6.0",
+      "download_url": "https://filesorter.app/download"
+    }
+  }
+}
+```
+
+Compatibility note:
+
+- Older app versions only read the flat top-level fields under `update`, so keep `current_version`, `min_version`, and `download_url` there as a legacy compatibility stream if you still need to support them.
+- Newer app versions prefer the platform-specific streams and will use `update.windows`, `update.macos`, or `update.linux` when present.
+- The legacy compatibility stream can only represent one generic stream, not separate per-platform versions or installers.
+
+Windows-only direct installer updates:
+
+- `installer_url` - direct URL to the Windows installer package.
+- `installer_sha256` - SHA-256 checksum used to verify the downloaded installer before launch.
+- When both fields are present on Windows, the app can download the installer, verify it, and then prompt: `Quit the app and launch the installer to update`.
 
 ---
 
