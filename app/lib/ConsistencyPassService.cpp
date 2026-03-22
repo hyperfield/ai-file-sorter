@@ -78,6 +78,14 @@ std::string make_item_key(const CategorizedFile& item) {
     return path.generic_string();
 }
 
+std::string canonical_category_text(const CategorizedFile& item) {
+    return item.canonical_category.empty() ? item.category : item.canonical_category;
+}
+
+std::string canonical_subcategory_text(const CategorizedFile& item) {
+    return item.canonical_subcategory.empty() ? item.subcategory : item.canonical_subcategory;
+}
+
 std::unordered_map<std::string, CategorizedFile*> build_items_by_key(std::vector<CategorizedFile>& items) {
     std::unordered_map<std::string, CategorizedFile*> map;
     map.reserve(items.size());
@@ -123,7 +131,8 @@ std::string build_consistency_prompt(
         }
         prompt << "- id: " << make_item_key(*item)
                << ", file: " << item->file_name
-               << ", current: " << item->category << " / " << item->subcategory << "\n";
+               << ", current: " << canonical_category_text(*item)
+               << " / " << canonical_subcategory_text(*item) << "\n";
     }
 
     prompt << "Example response lines:\n";
@@ -238,12 +247,12 @@ std::optional<HarmonizedUpdate> extract_harmonized_update(
         return candidate.empty() ? fallback : candidate;
     };
 
-    std::string category = trim_or_fallback(entry, "category", target->category);
+    std::string category = trim_or_fallback(entry, "category", canonical_category_text(*target));
     if (category.empty()) {
-        category = target->category;
+        category = canonical_category_text(*target);
     }
 
-    std::string subcategory = trim_or_fallback(entry, "subcategory", target->subcategory);
+    std::string subcategory = trim_or_fallback(entry, "subcategory", canonical_subcategory_text(*target));
     if (!entry.isMember("subcategory") || subcategory.empty()) {
         subcategory = category;
     }
@@ -254,19 +263,24 @@ std::optional<HarmonizedUpdate> extract_harmonized_update(
 void apply_harmonized_update(
     const HarmonizedUpdate& update,
     DatabaseManager& db_manager,
+    CategoryLanguage category_language,
     std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
     const ConsistencyPassService::ProgressCallback& progress_callback,
     const std::shared_ptr<spdlog::logger>& logger)
 {
     DatabaseManager::ResolvedCategory resolved =
         db_manager.resolve_category(update.category, update.subcategory);
+    const DatabaseManager::ResolvedCategory display_resolved =
+        db_manager.localize_category(resolved, category_language);
 
-    bool changed = (resolved.category != update.target->category) ||
-                   (resolved.subcategory != update.target->subcategory);
+    bool changed = (display_resolved.category != update.target->category) ||
+                   (display_resolved.subcategory != update.target->subcategory);
 
-    update.target->category = resolved.category;
-    update.target->subcategory = resolved.subcategory;
+    update.target->category = display_resolved.category;
+    update.target->subcategory = display_resolved.subcategory;
     update.target->taxonomy_id = resolved.taxonomy_id;
+    update.target->canonical_category = resolved.category;
+    update.target->canonical_subcategory = resolved.subcategory;
 
     db_manager.insert_or_update_file_with_categorization(
         update.target->file_name,
@@ -278,16 +292,18 @@ void apply_harmonized_update(
         update.target->rename_only);
 
     if (auto new_it = new_items_by_key.find(update.id); new_it != new_items_by_key.end() && new_it->second) {
-        new_it->second->category = resolved.category;
-        new_it->second->subcategory = resolved.subcategory;
+        new_it->second->category = display_resolved.category;
+        new_it->second->subcategory = display_resolved.subcategory;
         new_it->second->taxonomy_id = resolved.taxonomy_id;
+        new_it->second->canonical_category = resolved.category;
+        new_it->second->canonical_subcategory = resolved.subcategory;
     }
 
     if (changed) {
         const std::string message = fmt::format("[CONSISTENCY] {} -> {} / {}",
                                                 update.target->file_name,
-                                                resolved.category,
-                                                resolved.subcategory);
+                                                display_resolved.category,
+                                                display_resolved.subcategory);
         if (progress_callback) {
             progress_callback(message);
         }
@@ -423,6 +439,7 @@ bool apply_ordered_fallback(
     const std::vector<const CategorizedFile*>& chunk,
     std::unordered_map<std::string, CategorizedFile*>& items_by_key,
     DatabaseManager& db_manager,
+    CategoryLanguage category_language,
     std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
     const ConsistencyPassService::ProgressCallback& progress_callback,
     const std::shared_ptr<spdlog::logger>& logger)
@@ -443,7 +460,7 @@ bool apply_ordered_fallback(
         entry["category"] = ordered[index].first;
         entry["subcategory"] = ordered[index].second;
         if (auto update = extract_harmonized_update(entry, items_by_key, logger)) {
-            apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
+            apply_harmonized_update(*update, db_manager, category_language, new_items_by_key, progress_callback, logger);
             applied = true;
         }
     }
@@ -493,7 +510,11 @@ void ConsistencyPassService::log_chunk_items(const std::vector<const Categorized
         if (!item) {
             continue;
         }
-        logger->info("  [{}] {} -> {} / {}", stage, item->file_name, item->category, item->subcategory);
+        logger->info("  [{}] {} -> {} / {}",
+                     stage,
+                     item->file_name,
+                     canonical_category_text(*item),
+                     canonical_subcategory_text(*item));
     }
 }
 
@@ -503,13 +524,14 @@ bool ConsistencyPassService::apply_harmonized_response(
     std::unordered_map<std::string, CategorizedFile*>& items_by_key,
     std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
     const ProgressCallback& progress_callback,
-    DatabaseManager& db_manager) const
+    DatabaseManager& db_manager,
+    CategoryLanguage category_language) const
 {
     Json::Value root;
     if (const Json::Value* harmonized = parse_consistency_response(response, root, logger)) {
         for (const auto& entry : *harmonized) {
             if (auto update = extract_harmonized_update(entry, items_by_key, logger)) {
-                apply_harmonized_update(*update, db_manager, new_items_by_key, progress_callback, logger);
+                apply_harmonized_update(*update, db_manager, category_language, new_items_by_key, progress_callback, logger);
             }
         }
         return true;
@@ -519,6 +541,7 @@ bool ConsistencyPassService::apply_harmonized_response(
                                chunk,
                                items_by_key,
                                db_manager,
+                               category_language,
                                new_items_by_key,
                                progress_callback,
                                logger)) {
@@ -540,6 +563,7 @@ void ConsistencyPassService::process_chunk(
     const std::vector<std::pair<std::string, std::string>>& taxonomy,
     std::unordered_map<std::string, CategorizedFile*>& items_by_key,
     std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
+    CategoryLanguage category_language,
     const ProgressCallback& progress_callback) const
 {
     if (logger) {
@@ -563,7 +587,8 @@ void ConsistencyPassService::process_chunk(
                                   items_by_key,
                                   new_items_by_key,
                                   progress_callback,
-                                  db_manager);
+                                  db_manager,
+                                  category_language);
     } catch (const std::exception& ex) {
         if (logger) {
             logger->warn("Consistency pass chunk failed: {}", ex.what());
@@ -580,6 +605,7 @@ void ConsistencyPassService::process_chunks(
     std::unordered_map<std::string, CategorizedFile*>& items_by_key,
     std::unordered_map<std::string, CategorizedFile*>& new_items_by_key,
     std::atomic<bool>& stop_flag,
+    CategoryLanguage category_language,
     const ProgressCallback& progress_callback) const
 {
     std::vector<const CategorizedFile*> chunk;
@@ -606,6 +632,7 @@ void ConsistencyPassService::process_chunks(
                       taxonomy,
                       items_by_key,
                       new_items_by_key,
+                      category_language,
                       progress_callback);
         chunk.clear();
     }
@@ -615,6 +642,7 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
                                  std::vector<CategorizedFile>& newly_categorized_files,
                                  std::function<std::unique_ptr<ILLMClient>()> llm_factory,
                                  std::atomic<bool>& stop_flag,
+                                 CategoryLanguage category_language,
                                  const ProgressCallback& progress_callback) const
 {
     if (stop_flag.load() || categorized_files.empty()) {
@@ -637,5 +665,6 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
                    items_by_key,
                    new_items_by_key,
                    stop_flag,
+                   category_language,
                    progress_callback);
 }

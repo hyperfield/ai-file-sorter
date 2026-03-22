@@ -11,6 +11,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QAbstractItemView>
 #include <QCheckBox>
 #include <QDir>
@@ -20,6 +21,7 @@
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QLinearGradient>
 #include <QComboBox>
 #include <QFontMetrics>
 #include <QKeySequence>
@@ -30,6 +32,9 @@
 #include <QMessageBox>
 #include <QObject>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPaintEvent>
+#include <QPen>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSlider>
@@ -39,11 +44,292 @@
 #include <QStackedWidget>
 #include <QStandardItemModel>
 #include <QStyle>
+#include <QStyleOption>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QtGlobal>
 
 #include <algorithm>
+#include <functional>
+
+namespace {
+
+class DisclosureToggleButton final : public QToolButton {
+public:
+    explicit DisclosureToggleButton(QWidget* parent = nullptr)
+        : QToolButton(parent)
+    {
+        setCheckable(true);
+        setToolButtonStyle(Qt::ToolButtonIconOnly);
+        setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        setArrowType(Qt::NoArrow);
+        setAutoRaise(true);
+        setFixedSize(QSize(14, 14));
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter painter(this);
+        QStyleOption option;
+        option.initFrom(this);
+        option.rect = rect();
+        option.state |= QStyle::State_Children;
+        if (isChecked()) {
+            option.state |= QStyle::State_Open;
+        }
+        style()->drawPrimitive(QStyle::PE_IndicatorBranch, &option, &painter, this);
+    }
+};
+
+using MenuIconPainter = std::function<void(QPainter&, const QRectF&, bool)>;
+
+QColor with_enabled_alpha(QColor color, bool enabled, int disabled_alpha = 110)
+{
+    if (!enabled) {
+        color.setAlpha(std::min(color.alpha(), disabled_alpha));
+    }
+    return color;
+}
+
+QIcon draw_menu_icon(MainApp& app, const MenuIconPainter& painter_fn)
+{
+    int target_size = app.style()->pixelMetric(QStyle::PM_SmallIconSize);
+    if (target_size <= 0) {
+        target_size = 16;
+    }
+    const int padding = std::max(4, target_size / 4);
+    const QSize canvas_size(target_size + padding * 2, target_size + padding * 2);
+
+    QIcon icon;
+    for (QIcon::Mode mode : {QIcon::Normal, QIcon::Disabled}) {
+        const bool enabled = mode != QIcon::Disabled;
+        QPixmap canvas(canvas_size);
+        canvas.fill(Qt::transparent);
+
+        QPainter painter(&canvas);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::TextAntialiasing, true);
+        painter_fn(painter, QRectF(padding, padding, target_size, target_size), enabled);
+        painter.end();
+
+        icon.addPixmap(canvas, mode);
+    }
+
+    return icon;
+}
+
+QPainterPath sparkle_path(const QPointF& center, qreal outer_radius, qreal inner_radius)
+{
+    const qreal diagonal = inner_radius * 0.72;
+    QPainterPath path;
+    path.moveTo(center.x(), center.y() - outer_radius);
+    path.lineTo(center.x() + diagonal, center.y() - diagonal);
+    path.lineTo(center.x() + outer_radius, center.y());
+    path.lineTo(center.x() + diagonal, center.y() + diagonal);
+    path.lineTo(center.x(), center.y() + outer_radius);
+    path.lineTo(center.x() - diagonal, center.y() + diagonal);
+    path.lineTo(center.x() - outer_radius, center.y());
+    path.lineTo(center.x() - diagonal, center.y() - diagonal);
+    path.closeSubpath();
+    return path;
+}
+
+void draw_card_label(QPainter& painter,
+                     const QRectF& card_rect,
+                     const QString& text,
+                     const QColor& color,
+                     qreal size_factor)
+{
+    QFont font = QApplication::font();
+    font.setBold(true);
+    font.setPixelSize(std::max(7, static_cast<int>(card_rect.height() * size_factor)));
+    painter.setFont(font);
+    painter.setPen(color);
+    painter.drawText(card_rect, Qt::AlignCenter, text);
+}
+
+void draw_translation_cards(QPainter& painter,
+                            const QRectF& rect,
+                            bool enabled,
+                            const QColor& front_start,
+                            const QColor& front_end,
+                            const QColor& front_label,
+                            const QColor& top_start,
+                            const QColor& top_end,
+                            const QColor& top_label,
+                            const QColor& bottom_start,
+                            const QColor& bottom_end,
+                            const QColor& bottom_label)
+{
+    const QRectF top_card(rect.left() + rect.width() * 0.42,
+                          rect.top() + rect.height() * 0.03,
+                          rect.width() * 0.50,
+                          rect.height() * 0.50);
+    const QRectF bottom_card(rect.left() + rect.width() * 0.36,
+                             rect.top() + rect.height() * 0.47,
+                             rect.width() * 0.50,
+                             rect.height() * 0.50);
+    const QRectF front_card(rect.left() + rect.width() * 0.04,
+                            rect.top() + rect.height() * 0.22,
+                            rect.width() * 0.50,
+                            rect.height() * 0.50);
+
+    const auto draw_card = [&](const QRectF& card,
+                               const QColor& start,
+                               const QColor& end,
+                               const QString& label,
+                               const QColor& label_color,
+                               qreal label_size) {
+        QLinearGradient gradient(card.topLeft(), card.bottomRight());
+        gradient.setColorAt(0.0, with_enabled_alpha(start, enabled));
+        gradient.setColorAt(1.0, with_enabled_alpha(end, enabled));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(gradient);
+        const qreal radius = std::max<qreal>(2.0, card.width() * 0.16);
+        painter.drawRoundedRect(card, radius, radius);
+        draw_card_label(painter, card, label, with_enabled_alpha(label_color, enabled), label_size);
+    };
+
+    draw_card(top_card,
+              top_start,
+              top_end,
+              QString(QChar(0x3042)),
+              top_label,
+              0.44);
+    draw_card(bottom_card,
+              bottom_start,
+              bottom_end,
+              QString(QChar(0x6587)),
+              bottom_label,
+              0.40);
+    draw_card(front_card,
+              front_start,
+              front_end,
+              QStringLiteral("A"),
+              front_label,
+              0.54);
+}
+
+QIcon llm_menu_icon(MainApp& app)
+{
+    return draw_menu_icon(app, [](QPainter& painter, const QRectF& rect, bool enabled) {
+        const QPointF main_center(rect.center().x() + rect.width() * 0.06, rect.center().y() - rect.height() * 0.02);
+        const QPointF accent_center(rect.left() + rect.width() * 0.28, rect.top() + rect.height() * 0.28);
+        const qreal main_outer = rect.width() * 0.27;
+        const qreal main_inner = rect.width() * 0.12;
+        const qreal accent_outer = rect.width() * 0.13;
+        const qreal accent_inner = rect.width() * 0.06;
+
+        QLinearGradient main_gradient(main_center.x() - main_outer,
+                                      main_center.y() - main_outer,
+                                      main_center.x() + main_outer,
+                                      main_center.y() + main_outer);
+        main_gradient.setColorAt(0.0, with_enabled_alpha(QColor("#ffd866"), enabled));
+        main_gradient.setColorAt(1.0, with_enabled_alpha(QColor("#ff6b9f"), enabled));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(main_gradient);
+        painter.drawPath(sparkle_path(main_center, main_outer, main_inner));
+
+        painter.setBrush(with_enabled_alpha(QColor("#8a7cff"), enabled));
+        painter.drawPath(sparkle_path(accent_center, accent_outer, accent_inner));
+        painter.drawEllipse(QRectF(rect.right() - rect.width() * 0.17,
+                                   rect.bottom() - rect.height() * 0.19,
+                                   rect.width() * 0.09,
+                                   rect.width() * 0.09));
+    });
+}
+
+QIcon interface_language_menu_icon(MainApp& app)
+{
+    return draw_menu_icon(app, [](QPainter& painter, const QRectF& rect, bool enabled) {
+        draw_translation_cards(painter,
+                               rect,
+                               enabled,
+                               QColor("#1a59c9"),
+                               QColor("#1847b7"),
+                               QColor("#d8b4fe"),
+                               QColor("#6677ff"),
+                               QColor("#5160e8"),
+                               QColor("#bcdcff"),
+                               QColor("#4fc0ff"),
+                               QColor("#37a6f5"),
+                               QColor("#dff7ff"));
+    });
+}
+
+QIcon category_language_menu_icon(MainApp& app)
+{
+    return draw_menu_icon(app, [](QPainter& painter, const QRectF& rect, bool enabled) {
+        draw_translation_cards(painter,
+                               rect,
+                               enabled,
+                               QColor("#1f2937"),
+                               QColor("#374151"),
+                               QColor("#f9fafb"),
+                               QColor("#f3f4f6"),
+                               QColor("#d7dbe3"),
+                               QColor("#1f2937"),
+                               QColor("#6b7280"),
+                               QColor("#4b5563"),
+                               QColor("#f9fafb"));
+    });
+}
+
+QPainterPath tag_path(const QRectF& rect)
+{
+    QPainterPath path;
+    path.moveTo(rect.left() + rect.width() * 0.14, rect.top() + rect.height() * 0.24);
+    path.lineTo(rect.left() + rect.width() * 0.66, rect.top() + rect.height() * 0.24);
+    path.lineTo(rect.right() - rect.width() * 0.06, rect.center().y());
+    path.lineTo(rect.left() + rect.width() * 0.66, rect.bottom() - rect.height() * 0.24);
+    path.lineTo(rect.left() + rect.width() * 0.14, rect.bottom() - rect.height() * 0.24);
+    path.closeSubpath();
+    return path;
+}
+
+QIcon whitelist_menu_icon(MainApp& app)
+{
+    return draw_menu_icon(app, [](QPainter& painter, const QRectF& rect, bool enabled) {
+        const QRectF rear_tag = rect.adjusted(rect.width() * 0.12, rect.height() * 0.06,
+                                              -rect.width() * 0.08, -rect.height() * 0.14);
+        const QRectF front_tag = rect.adjusted(rect.width() * 0.02, rect.height() * 0.16,
+                                               -rect.width() * 0.18, -rect.height() * 0.04);
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(with_enabled_alpha(QColor("#f472b6"), enabled, 95));
+        painter.drawPath(tag_path(rear_tag));
+
+        QLinearGradient gradient(front_tag.topLeft(), front_tag.bottomRight());
+        gradient.setColorAt(0.0, with_enabled_alpha(QColor("#ffe08a"), enabled));
+        gradient.setColorAt(1.0, with_enabled_alpha(QColor("#ffc857"), enabled));
+        painter.setBrush(gradient);
+        painter.setPen(QPen(with_enabled_alpha(QColor("#1f2937"), enabled), 1.1,
+                            Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawPath(tag_path(front_tag));
+
+        painter.save();
+        painter.setCompositionMode(QPainter::CompositionMode_Clear);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(Qt::transparent);
+        painter.drawEllipse(QRectF(front_tag.left() + front_tag.width() * 0.12,
+                                   front_tag.center().y() - front_tag.height() * 0.09,
+                                   front_tag.width() * 0.13,
+                                   front_tag.width() * 0.13));
+        painter.restore();
+
+        QPainterPath check;
+        check.moveTo(front_tag.left() + front_tag.width() * 0.40, front_tag.center().y());
+        check.lineTo(front_tag.left() + front_tag.width() * 0.50, front_tag.center().y() + front_tag.height() * 0.12);
+        check.lineTo(front_tag.left() + front_tag.width() * 0.68, front_tag.center().y() - front_tag.height() * 0.12);
+        painter.setPen(QPen(with_enabled_alpha(QColor("#1f2937"), enabled), 1.5,
+                            Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawPath(check);
+    });
+}
+
+} // namespace
 
 void MainAppUiBuilder::build(MainApp& app) {
     build_central_panel(app);
@@ -84,17 +370,14 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->addLayout(options_layout);
 
     auto* document_options_layout = new QVBoxLayout();
+    document_options_layout->setContentsMargins(0, 0, 0, 0);
     document_options_layout->setSpacing(4);
     auto* document_header_layout = new QHBoxLayout();
+    document_header_layout->setContentsMargins(0, 0, 0, 0);
     document_header_layout->setSpacing(6);
     app.analyze_documents_checkbox = new QCheckBox(central);
-    app.document_options_toggle_button = new QToolButton(central);
-    app.document_options_toggle_button->setCheckable(true);
+    app.document_options_toggle_button = new DisclosureToggleButton(central);
     app.document_options_toggle_button->setChecked(false);
-    app.document_options_toggle_button->setArrowType(Qt::RightArrow);
-    app.document_options_toggle_button->setAutoRaise(true);
-    app.document_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    app.document_options_toggle_button->setMinimumSize(QSize(18, 18));
     document_header_layout->addWidget(app.analyze_documents_checkbox);
     document_header_layout->addWidget(app.document_options_toggle_button);
     document_header_layout->addStretch(1);
@@ -117,17 +400,14 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->addLayout(document_options_layout);
 
     auto* image_options_layout = new QVBoxLayout();
+    image_options_layout->setContentsMargins(0, 0, 0, 0);
     image_options_layout->setSpacing(4);
     auto* image_header_layout = new QHBoxLayout();
+    image_header_layout->setContentsMargins(0, 0, 0, 0);
     image_header_layout->setSpacing(6);
     app.analyze_images_checkbox = new QCheckBox(central);
-    app.image_options_toggle_button = new QToolButton(central);
-    app.image_options_toggle_button->setCheckable(true);
+    app.image_options_toggle_button = new DisclosureToggleButton(central);
     app.image_options_toggle_button->setChecked(false);
-    app.image_options_toggle_button->setArrowType(Qt::RightArrow);
-    app.image_options_toggle_button->setAutoRaise(true);
-    app.image_options_toggle_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    app.image_options_toggle_button->setMinimumSize(QSize(18, 18));
     image_header_layout->addWidget(app.analyze_images_checkbox);
     image_header_layout->addWidget(app.image_options_toggle_button);
     image_header_layout->addStretch(1);
@@ -152,7 +432,11 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->addLayout(image_options_layout);
 
     app.add_audio_video_metadata_to_filename_checkbox = new QCheckBox(central);
-    main_layout->addWidget(app.add_audio_video_metadata_to_filename_checkbox);
+    auto* audio_video_row = new QHBoxLayout();
+    audio_video_row->setContentsMargins(0, 0, 0, 0);
+    audio_video_row->addWidget(app.add_audio_video_metadata_to_filename_checkbox);
+    audio_video_row->addStretch(1);
+    main_layout->addLayout(audio_video_row);
 
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);
@@ -335,7 +619,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
         .file_explorer_dock = app.file_explorer_dock,
         .settings = app.settings,
         .translator = [](const char* source) {
-            return MainApp::tr(source);
+            return QCoreApplication::translate("UiTranslator", source);
         }};
 }
 
@@ -411,13 +695,17 @@ void MainAppUiBuilder::build_view_menu(MainApp& app) {
 
 void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.settings_menu = app.menuBar()->addMenu(QString());
-    app.toggle_llm_action = app.settings_menu->addAction(icon_for(app, "preferences-system", QStyle::SP_DialogApplyButton), QString());
+    app.toggle_llm_action = app.settings_menu->addAction(llm_menu_icon(app), QString());
     QObject::connect(app.toggle_llm_action, &QAction::triggered, &app, &MainApp::show_llm_selection_dialog);
 
-    app.manage_whitelists_action = app.settings_menu->addAction(QString());
+    app.manage_whitelists_action = app.settings_menu->addAction(whitelist_menu_icon(app), QString());
     QObject::connect(app.manage_whitelists_action, &QAction::triggered, &app, &MainApp::show_whitelist_manager);
 
     app.language_menu = app.settings_menu->addMenu(QString());
+    app.language_menu->setIcon(interface_language_menu_icon(app));
+    if (app.language_menu->menuAction()) {
+        app.language_menu->menuAction()->setIcon(interface_language_menu_icon(app));
+    }
     app.language_group = new QActionGroup(&app);
     app.language_group->setExclusive(true);
 
@@ -465,6 +753,10 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     });
 
     app.category_language_menu = app.settings_menu->addMenu(QString());
+    app.category_language_menu->setIcon(category_language_menu_icon(app));
+    if (app.category_language_menu->menuAction()) {
+        app.category_language_menu->menuAction()->setIcon(category_language_menu_icon(app));
+    }
     app.category_language_group = new QActionGroup(&app);
     app.category_language_group->setExclusive(true);
 

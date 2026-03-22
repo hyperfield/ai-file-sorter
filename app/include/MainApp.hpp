@@ -14,6 +14,7 @@
 #include "UiTranslator.hpp"
 #include "UndoManager.hpp"
 
+#include <QCoreApplication>
 #include <QMainWindow>
 #include <QPointer>
 #include <QStandardItemModel>
@@ -64,6 +65,7 @@ class MainAppTestAccess;
  */
 class MainApp : public QMainWindow
 {
+    Q_DECLARE_TR_FUNCTIONS(MainApp)
 public:
     /**
      * @brief Outcome returned from the optional support prompt flow.

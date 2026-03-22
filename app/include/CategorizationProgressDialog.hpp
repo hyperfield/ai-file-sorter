@@ -3,6 +3,7 @@
 
 #include "Types.hpp"
 
+#include <QCoreApplication>
 #include <QDialog>
 
 #include <array>
@@ -22,6 +23,7 @@ class QEvent;
 
 class CategorizationProgressDialog : public QDialog
 {
+    Q_DECLARE_TR_FUNCTIONS(CategorizationProgressDialog)
 public:
     enum class StageId {
         ImageAnalysis,

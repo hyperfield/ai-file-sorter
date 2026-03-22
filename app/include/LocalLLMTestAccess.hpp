@@ -24,6 +24,7 @@ bool handle_cuda_forced_off(bool cuda_forced_off,
 bool configure_cuda_backend(const std::string& model_path,
                             llama_model_params& params);
 llama_model_params prepare_model_params_for_testing(const std::string& model_path);
+std::string sanitize_output_for_testing(const std::string& output);
 
 } // namespace LocalLLMTestAccess
 

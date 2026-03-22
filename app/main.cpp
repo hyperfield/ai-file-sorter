@@ -1,7 +1,11 @@
 #include "AppInfo.hpp"
 #include "EmbeddedEnv.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "MainApp.hpp"
+#include "UpdaterBuildConfig.hpp"
+#include "UpdaterLaunchOptions.hpp"
+#include "UpdaterLiveTestConfig.hpp"
 #include "Utils.hpp"
 #include "LLMSelectionDialog.hpp"
 #include <app_version.hpp>
@@ -19,9 +23,9 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
-#include <array>
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
 #include <QPainter>
 #include <memory>
 
@@ -61,8 +65,69 @@ struct ParsedArguments {
     bool development_mode{false};
     bool console_log{false};
     bool force_direct_run{false};
+    UpdaterLiveTestConfig updater_live_test;
     std::vector<char*> qt_args;
 };
+
+bool consume_prefixed_value(const char* argument,
+                            const char* prefix,
+                            std::optional<std::string>& target)
+{
+    const std::size_t prefix_length = std::strlen(prefix);
+    if (std::strncmp(argument, prefix, prefix_length) != 0) {
+        return false;
+    }
+    target = std::string(argument + prefix_length);
+    return true;
+}
+
+bool env_has_value(const char* key)
+{
+    const char* value = std::getenv(key);
+    return value && value[0] != '\0';
+}
+
+void set_process_env(const char* key, const std::string& value)
+{
+#ifdef _WIN32
+    _putenv_s(key, value.c_str());
+#else
+    setenv(key, value.c_str(), 1);
+#endif
+}
+
+void apply_updater_live_test_environment(const UpdaterLiveTestConfig& args)
+{
+    if (!args.enabled) {
+        return;
+    }
+
+    set_process_env(UpdaterLaunchOptions::kLiveTestModeEnv, "1");
+
+    if (args.installer_url) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestUrlEnv, *args.installer_url);
+    }
+    if (args.installer_sha256) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestSha256Env, *args.installer_sha256);
+    }
+    if (args.current_version) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestVersionEnv, *args.current_version);
+    } else if (!env_has_value(UpdaterLaunchOptions::kLiveTestVersionEnv)) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestVersionEnv, APP_VERSION.to_string() + ".1");
+    }
+    if (args.min_version) {
+        set_process_env(UpdaterLaunchOptions::kLiveTestMinVersionEnv, *args.min_version);
+    }
+
+    if (!env_has_value(UpdaterLaunchOptions::kLiveTestUrlEnv)) {
+        throw std::runtime_error(
+            "--updater-live-test requires --updater-live-test-url or AI_FILE_SORTER_UPDATER_TEST_URL.");
+    }
+    if (!env_has_value(UpdaterLaunchOptions::kLiveTestSha256Env)) {
+        throw std::runtime_error(
+            "--updater-live-test requires --updater-live-test-sha256 or AI_FILE_SORTER_UPDATER_TEST_SHA256.");
+    }
+}
 
 ParsedArguments parse_command_line(int argc, char** argv)
 {
@@ -86,6 +151,30 @@ ParsedArguments parse_command_line(int argc, char** argv)
             parsed.force_direct_run = true;
             continue;
         }
+        if (is_flag && std::strcmp(argv[i], UpdaterLaunchOptions::kLiveTestFlag) == 0) {
+            parsed.updater_live_test.enabled = true;
+            continue;
+        }
+        if (is_flag && consume_prefixed_value(argv[i],
+                                              UpdaterLaunchOptions::kLiveTestUrlFlag,
+                                              parsed.updater_live_test.installer_url)) {
+            continue;
+        }
+        if (is_flag && consume_prefixed_value(argv[i],
+                                              UpdaterLaunchOptions::kLiveTestSha256Flag,
+                                              parsed.updater_live_test.installer_sha256)) {
+            continue;
+        }
+        if (is_flag && consume_prefixed_value(argv[i],
+                                              UpdaterLaunchOptions::kLiveTestVersionFlag,
+                                              parsed.updater_live_test.current_version)) {
+            continue;
+        }
+        if (is_flag && consume_prefixed_value(argv[i],
+                                              UpdaterLaunchOptions::kLiveTestMinVersionFlag,
+                                              parsed.updater_live_test.min_version)) {
+            continue;
+        }
         parsed.qt_args.push_back(argv[i]);
     }
     parsed.qt_args.push_back(nullptr);
@@ -97,43 +186,12 @@ ParsedArguments parse_command_line(int argc, char** argv)
 #define AI_FILE_SORTER_GGML_SUBDIR "precompiled"
 #endif
 
-bool ends_with(const std::string& value, const std::string& suffix)
-{
-    if (suffix.size() > value.size()) {
-        return false;
-    }
-    return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
-}
-
-bool has_ggml_payload(const std::filesystem::path& dir)
-{
-    std::error_code ec;
-    if (!std::filesystem::exists(dir, ec) || !std::filesystem::is_directory(dir, ec)) {
-        return false;
-    }
-
-    for (const auto& entry : std::filesystem::directory_iterator(dir, std::filesystem::directory_options::skip_permission_denied, ec)) {
-        if (ec || !entry.is_regular_file()) {
-            continue;
-        }
-        const std::string filename = entry.path().filename().string();
-        if (filename.rfind("libggml-", 0) != 0) {
-            continue;
-        }
-        if (ends_with(filename, ".so") || ends_with(filename, ".dylib")) {
-            return true;
-        }
-    }
-    return false;
-}
-
 void ensure_ggml_backend_dir()
 {
+    std::optional<std::filesystem::path> current_dir;
     const char* current = std::getenv("AI_FILE_SORTER_GGML_DIR");
     if (current && current[0] != '\0') {
-        if (has_ggml_payload(std::filesystem::path(current))) {
-            return;
-        }
+        current_dir = std::filesystem::path(current);
     }
 
     std::filesystem::path exe_path;
@@ -146,26 +204,15 @@ void ensure_ggml_backend_dir()
         return;
     }
 
-    const std::filesystem::path exe_dir = exe_path.parent_path();
-    const std::filesystem::path ggml_subdir(AI_FILE_SORTER_GGML_SUBDIR);
-    const std::array<std::filesystem::path, 9> candidates = {
-        exe_dir / "../lib" / "precompiled-m1",
-        exe_dir / "../lib" / "precompiled-m2",
-        exe_dir / "../lib" / "precompiled-intel",
-        exe_dir / "../lib" / ggml_subdir,
-        exe_dir / "../../lib" / ggml_subdir,
-        exe_dir / "../lib",
-        exe_dir / "../../lib",
-        std::filesystem::path("/usr/local/lib"),
-        std::filesystem::path("/opt/homebrew/lib")
-    };
-
-    for (const auto& candidate : candidates) {
-        if (has_ggml_payload(candidate)) {
-            setenv("AI_FILE_SORTER_GGML_DIR", candidate.string().c_str(), 1);
-            break;
-        }
+    const auto resolved = GgmlRuntimePaths::resolve_macos_backend_dir(
+        current_dir,
+        exe_path,
+        AI_FILE_SORTER_GGML_SUBDIR);
+    if (!resolved) {
+        return;
     }
+
+    setenv("AI_FILE_SORTER_GGML_DIR", resolved->string().c_str(), 1);
 }
 #endif
 
@@ -393,6 +440,13 @@ int run_application(const ParsedArguments& parsed_args)
 {
     EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
     env_loader.load_env();
+    auto updater_live_test = parsed_args.updater_live_test;
+    if (UpdaterBuildConfig::update_checks_enabled()) {
+        load_missing_values_from_live_test_ini(
+            updater_live_test,
+            Utils::utf8_to_path(Utils::get_executable_path()));
+        apply_updater_live_test_environment(updater_live_test);
+    }
 #if defined(__APPLE__)
     ensure_ggml_backend_dir();
 #endif

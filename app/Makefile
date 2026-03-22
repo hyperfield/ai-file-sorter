@@ -3,7 +3,8 @@ UNAME := $(shell uname | cut -d'-' -f1)
 UNAME_M := $(shell uname -m)
 
 BIN_DIR := ./bin
-OBJ_DIR := ./obj
+OBJ_ROOT := ./obj
+OBJ_DIR := $(OBJ_ROOT)
 SRC_DIR := ./lib
 APP_NAME ?= AI File Sorter
 
@@ -71,7 +72,9 @@ endif
     EXPAT_PREFIX := $(BREW_PREFIX)/opt/expat
     SDKROOT := $(shell xcrun --sdk macosx --show-sdk-path 2>/dev/null)
     MACOSX_DEPLOYMENT_TARGET ?= 11.0
-    MACOS_PKG_CONFIG_DIRS := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig
+    HOMEBREW_OS_PKG_CONFIG_DIRS := $(shell if [ -d "$(BREW_PREFIX)/Library/Homebrew/os/mac/pkgconfig" ]; then find "$(BREW_PREFIX)/Library/Homebrew/os/mac/pkgconfig" -mindepth 1 -maxdepth 1 -type d | tr '\n' ':' | sed 's/:$$//'; fi)
+    # Homebrew exposes system pkg-config metadata like libcurl.pc here; libmediainfo depends on it.
+    MACOS_PKG_CONFIG_DIRS := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig$(if $(strip $(HOMEBREW_OS_PKG_CONFIG_DIRS)),:$(HOMEBREW_OS_PKG_CONFIG_DIRS))
 
     export MACOSX_DEPLOYMENT_TARGET
     PATH := $(QTBASE_PREFIX)/share/qt/libexec:$(QT_PREFIX)/bin:$(CURL_PREFIX)/bin:$(PATH)
@@ -105,7 +108,7 @@ endif
     LDFLAGS += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
     TARGET := $(BIN_DIR)/aifilesorter
     INSTALL_DIR := /usr/local/bin
-	INSTALL_LIB_DIR := /usr/local/lib
+	INSTALL_LIB_DIR := /usr/local/lib/aifilesorter
 
     SPDLOG_PATH := $(BREW_PREFIX)/include
     CXXFLAGS += -I$(SPDLOG_PATH)
@@ -160,7 +163,14 @@ endif
 
 ifeq ($(UNAME), Darwin)
 ifneq ($(strip $(MACOS_ARCH)),)
-OBJ_DIR := ./obj/$(MACOS_ARCH)
+BIN_SUBDIR := $(patsubst ./bin/%,%,$(BIN_DIR))
+OBJ_VARIANT := $(GGML_PRECOMPILED_SUBDIR)
+ifneq ($(BIN_SUBDIR),$(BIN_DIR))
+ifneq ($(strip $(BIN_SUBDIR)),)
+OBJ_VARIANT := $(BIN_SUBDIR)
+endif
+endif
+OBJ_DIR := $(OBJ_ROOT)/$(MACOS_ARCH)/$(OBJ_VARIANT)
 endif
 endif
 
@@ -364,6 +374,21 @@ QRC_OBJ := $(OBJ_DIR)/qrc_app.o
 QRC_DIR := $(dir $(QRC_FILE))
 QRC_RESOURCES := $(shell sed -n -E 's|.*<file>([^<]*)</file>.*|\1|p' $(QRC_FILE))
 QRC_RESOURCES := $(addprefix $(QRC_DIR),$(QRC_RESOURCES))
+MAKEFILE_SELF := $(lastword $(MAKEFILE_LIST))
+TS_DIR := resources/i18n
+TS_FILES := \
+	$(TS_DIR)/aifilesorter_fr.ts \
+	$(TS_DIR)/aifilesorter_de.ts \
+	$(TS_DIR)/aifilesorter_it.ts \
+	$(TS_DIR)/aifilesorter_es.ts \
+	$(TS_DIR)/aifilesorter_nl.ts \
+	$(TS_DIR)/aifilesorter_tr.ts \
+	$(TS_DIR)/aifilesorter_ko.ts
+QM_DIR := $(OBJ_DIR)/i18n
+QM_FILES := $(patsubst $(TS_DIR)/%.ts,$(QM_DIR)/%.qm,$(TS_FILES))
+TRANSLATIONS_QRC := $(OBJ_DIR)/translations.qrc
+TRANSLATIONS_QRC_CPP := $(OBJ_DIR)/qrc_translations.cpp
+TRANSLATIONS_QRC_OBJ := $(OBJ_DIR)/qrc_translations.o
 
 ifndef RCC
 RCC := $(shell command -v qt6-rcc 2>/dev/null)
@@ -392,9 +417,26 @@ $(error Could not find Qt resource compiler (qt6-rcc or rcc))
 endif
 endif
 
+ifndef LRELEASE
+LRELEASE := $(shell command -v lrelease6 2>/dev/null)
+ifeq ($(strip $(LRELEASE)),)
+LRELEASE := $(shell command -v lrelease 2>/dev/null)
+endif
+ifeq ($(strip $(LRELEASE)),)
+LRELEASE := $(wildcard /opt/homebrew/bin/lrelease)
+endif
+endif
+ifeq ($(strip $(LRELEASE)),)
+ifeq ($(NEEDS_BUILD_DEPS),1)
+$(error Could not find Qt translation compiler (lrelease6 or lrelease))
+endif
+endif
+
 # Source files
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
 OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
+DEPS = $(OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
+BUILD_CONFIG_STAMP := $(OBJ_DIR)/.build-config
 
 PRECOMPILED_LLAMA :=
 ifeq ($(UNAME), Darwin)
@@ -409,16 +451,34 @@ endif
 all: $(PRECOMPILED_LLAMA) doc_runtime_libs $(TARGET)
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
-$(TARGET): $(OBJS) $(QRC_OBJ) $(DOC_LIBS) | doc_runtime_libs $(DOC_RUNTIME_DEPS)
+$(TARGET): $(OBJS) $(QRC_OBJ) $(TRANSLATIONS_QRC_OBJ) $(DOC_LIBS) | doc_runtime_libs $(DOC_RUNTIME_DEPS)
 	mkdir -p $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIB_DIRS) $(LDFLAGS)
 ifeq ($(PLATFORM), Linux)
 	@$(MAKE) create_run_wrapper
 endif
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(DOC_DEPS_HEADERS)
+$(BUILD_CONFIG_STAMP): Makefile
 	mkdir -p $(OBJ_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
+	@tmp="$(BUILD_CONFIG_STAMP).tmp.$$"; \
+	printf '%s\n' \
+		'CXX=$(CXX)' \
+		'CXXFLAGS=$(CXXFLAGS)' \
+		'INCLUDE_DIRS=$(INCLUDE_DIRS)' \
+		'APP_NAME=$(APP_NAME)' \
+		'GGML_PRECOMPILED_SUBDIR=$(GGML_PRECOMPILED_SUBDIR)' \
+		'MACOS_ARCH=$(MACOS_ARCH)' \
+		'BIN_DIR=$(BIN_DIR)' \
+		> "$$tmp"; \
+	if [ ! -f "$@" ] || ! cmp -s "$$tmp" "$@"; then \
+		mv "$$tmp" "$@"; \
+	else \
+		rm -f "$$tmp"; \
+	fi
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
+	mkdir -p $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
 $(LIBZIP_CONF): $(LIBZIP_LIB)
 
@@ -495,7 +555,7 @@ ifeq ($(UNAME), Darwin)
 		echo "Building llama.cpp for native (fast) Apple Silicon backends..."; \
 		LLAMA_MACOS_MULTI_VARIANT=0 LLAMA_PRECOMPILED_DIR=./lib/precompiled-m2 ./scripts/build_llama_macos.sh; \
 	fi
-	$(MAKE) LLAMA_MULTI_VARIANT=0 GGML_PRECOMPILED_SUBDIR=precompiled-m2 APP_NAME="AI File Sorter for Mac M2/M3" BIN_DIR=./bin/m2 all
+	$(MAKE) LLAMA_MULTI_VARIANT=0 GGML_PRECOMPILED_SUBDIR=precompiled-m2 APP_NAME="AI File Sorter for Mac M2-M5" BIN_DIR=./bin/m2 all
 else
 	@echo "MACOS_LLAMA_M2 is only supported on macOS."
 endif
@@ -514,19 +574,40 @@ else
 	@echo "MACOS_LLAMA_INTEL is only supported on macOS."
 endif
 
-$(OBJ_DIR)/main.o: main.cpp $(DOC_DEPS_HEADERS)
+$(OBJ_DIR)/main.o: main.cpp $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
 	mkdir -p $(OBJ_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
-$(QRC_CPP): $(QRC_FILE) $(QRC_RESOURCES)
+$(QRC_CPP): $(QRC_FILE) $(QRC_RESOURCES) $(MAKEFILE_SELF)
 	mkdir -p $(OBJ_DIR)
-	$(RCC) -o $@ $<
+	$(RCC) -name app -o $@ $<
 
-$(QRC_OBJ): $(QRC_CPP) $(DOC_DEPS_HEADERS)
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
+$(QRC_OBJ): $(QRC_CPP) $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
+
+$(QM_DIR)/%.qm: $(TS_DIR)/%.ts
+	mkdir -p $(dir $@)
+	$(LRELEASE) $< -qm $@
+
+$(TRANSLATIONS_QRC): $(QM_FILES)
+	mkdir -p $(OBJ_DIR)
+	@tmp="$@.tmp"; \
+	printf '%s\n' '<!DOCTYPE RCC><RCC version="1.0">' '  <qresource prefix="/i18n">' > "$$tmp"; \
+	for qm in $(QM_FILES); do \
+		printf '    <file alias="%s">i18n/%s</file>\n' "$$(basename "$$qm")" "$$(basename "$$qm")" >> "$$tmp"; \
+	done; \
+	printf '%s\n' '  </qresource>' '</RCC>' >> "$$tmp"; \
+	mv "$$tmp" "$@"
+
+$(TRANSLATIONS_QRC_CPP): $(TRANSLATIONS_QRC) $(QM_FILES) $(MAKEFILE_SELF)
+	mkdir -p $(OBJ_DIR)
+	$(RCC) -name translations -o $@ $<
+
+$(TRANSLATIONS_QRC_OBJ): $(TRANSLATIONS_QRC_CPP) $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)
+	rm -rf $(OBJ_ROOT) $(BIN_DIR)
 
 create_run_wrapper:
 	@mkdir -p $(BIN_DIR)
@@ -619,13 +700,7 @@ else ifeq ($(PLATFORM), MacOS)
 	rm -f $(INSTALL_DIR)/aifilesorter
 
 	@echo "Removing installed libraries..."
-	rm -f $(INSTALL_LIB_DIR)/libggml-base.dylib
-	rm -f $(INSTALL_LIB_DIR)/libggml-blas.dylib
-	rm -f $(INSTALL_LIB_DIR)/libggml-cpu.dylib
-	rm -f $(INSTALL_LIB_DIR)/libggml-metal.dylib
-	rm -f $(INSTALL_LIB_DIR)/libggml.dylib
-	rm -f $(INSTALL_LIB_DIR)/libmtmd.dylib
-	rm -f $(INSTALL_LIB_DIR)/libllama.dylib
+	rm -rf $(INSTALL_LIB_DIR)
 
 	@echo "Core uninstallation complete."
 
@@ -637,3 +712,5 @@ else ifeq ($(PLATFORM), MacOS)
 		echo "Keeping downloaded models."; \
 	fi
 endif
+
+-include $(DEPS)

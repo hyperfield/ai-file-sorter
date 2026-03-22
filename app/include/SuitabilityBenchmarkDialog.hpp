@@ -1,6 +1,7 @@
 #ifndef SUITABILITY_BENCHMARK_DIALOG_HPP
 #define SUITABILITY_BENCHMARK_DIALOG_HPP
 
+#include <QCoreApplication>
 #include <QDialog>
 #include <QStringList>
 
@@ -22,6 +23,7 @@ class QEvent;
  */
 class SuitabilityBenchmarkDialog : public QDialog
 {
+    Q_DECLARE_TR_FUNCTIONS(SuitabilityBenchmarkDialog)
 public:
     /**
      * @brief Create a suitability benchmark dialog.

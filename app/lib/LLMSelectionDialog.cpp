@@ -215,7 +215,7 @@ void LLMSelectionDialog::setup_ui()
 
     local7_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_7b), radio_container);
     local7_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* local7_desc = new QLabel(tr("Quite precise. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."), radio_container);
+    auto* local7_desc = new QLabel(tr("Larger local model. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."), radio_container);
     local7_desc->setWordWrap(true);
 
     local3_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_3b), radio_container);
@@ -228,7 +228,7 @@ void LLMSelectionDialog::setup_ui()
     local3_row_layout->addWidget(local3_radio);
     local3_row_layout->addWidget(local3_recommended);
     local3_row_layout->addStretch(1);
-    auto* local3_desc = new QLabel(tr("Less precise, but works quickly even on CPUs. Good for lightweight local use."), radio_container);
+    auto* local3_desc = new QLabel(tr("Smaller local model that works quickly even on CPUs. Good for lightweight local use."), radio_container);
     local3_desc->setWordWrap(true);
 
     local3_legacy_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_3b_legacy), radio_container);

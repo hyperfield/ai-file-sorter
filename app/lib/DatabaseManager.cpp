@@ -1,6 +1,7 @@
 #include "DatabaseManager.hpp"
 #include "Types.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -47,6 +48,10 @@ std::string to_lower_copy(std::string value) {
         return static_cast<char>(std::tolower(c));
     });
     return value;
+}
+
+std::string language_storage_key(CategoryLanguage language) {
+    return to_lower_copy(categoryLanguageDisplay(language));
 }
 
 std::string extract_extension_lower(const std::string& file_name) {
@@ -131,9 +136,9 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     std::string dir_path = file_dir_path ? file_dir_path : "";
     std::string name = file_name ? file_name : "";
     std::string type_str = file_type ? file_type : "";
-    std::string cat = category ? category : "";
-    std::string subcat = subcategory ? subcategory : "";
-    std::string suggested = suggested_name ? suggested_name : "";
+    std::string cat = Utils::sanitize_path_label(category ? category : "");
+    std::string subcat = Utils::sanitize_path_label(subcategory ? subcategory : "");
+    std::string suggested = Utils::sanitize_path_label(suggested_name ? suggested_name : "");
 
     int taxonomy_id = 0;
     if (sqlite3_column_count(stmt) > 6 && sqlite3_column_type(stmt, 6) != SQLITE_NULL) {
@@ -165,6 +170,8 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     entry.suggested_name = suggested;
     entry.rename_only = rename_only;
     entry.rename_applied = rename_applied;
+    entry.canonical_category = cat;
+    entry.canonical_subcategory = subcat;
     return entry;
 }
 
@@ -193,6 +200,7 @@ DatabaseManager::DatabaseManager(std::string config_dir)
     initialize_schema();
     initialize_taxonomy_schema();
     load_taxonomy_cache();
+    load_translation_cache();
 }
 
 DatabaseManager::~DatabaseManager() {
@@ -332,6 +340,32 @@ void DatabaseManager::initialize_taxonomy_schema() {
         db_log(spdlog::level::err, "Failed to create alias index: {}", error_msg);
         sqlite3_free(error_msg);
     }
+
+    const char* translation_sql = R"(
+        CREATE TABLE IF NOT EXISTS category_translation (
+            taxonomy_id INTEGER NOT NULL,
+            language TEXT NOT NULL,
+            category TEXT NOT NULL,
+            subcategory TEXT NOT NULL,
+            normalized_category TEXT NOT NULL,
+            normalized_subcategory TEXT NOT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(taxonomy_id, language),
+            FOREIGN KEY(taxonomy_id) REFERENCES category_taxonomy(id)
+        );
+    )";
+    if (sqlite3_exec(db, translation_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create category_translation table: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
+
+    const char* translation_lookup_index_sql =
+        "CREATE INDEX IF NOT EXISTS idx_category_translation_lookup "
+        "ON category_translation(language, normalized_category, normalized_subcategory);";
+    if (sqlite3_exec(db, translation_lookup_index_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create translation lookup index: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
 }
 
 void DatabaseManager::load_taxonomy_cache() {
@@ -381,6 +415,47 @@ void DatabaseManager::load_taxonomy_cache() {
     if (stmt) sqlite3_finalize(stmt);
 }
 
+void DatabaseManager::load_translation_cache() {
+    translation_entries.clear();
+    translation_lookup.clear();
+
+    if (!db) {
+        return;
+    }
+
+    sqlite3_stmt* stmt = nullptr;
+    const char* select_translation =
+        "SELECT taxonomy_id, language, category, subcategory, normalized_category, normalized_subcategory "
+        "FROM category_translation;";
+
+    if (sqlite3_prepare_v2(db, select_translation, -1, &stmt, nullptr) == SQLITE_OK) {
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            const int taxonomy_id = sqlite3_column_int(stmt, 0);
+            const char* language_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+            const char* category_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+            const char* subcategory_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+            const char* normalized_category = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+            const char* normalized_subcategory = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+
+            CategoryLanguage language = categoryLanguageFromString(QString::fromStdString(language_text ? language_text : ""));
+            ResolvedCategory translated{
+                taxonomy_id,
+                category_text ? category_text : "",
+                subcategory_text ? subcategory_text : ""
+            };
+            translation_entries[make_translation_entry_key(taxonomy_id, language)] = translated;
+            translation_lookup[make_translation_lookup_key(language,
+                                                           normalized_category ? normalized_category : "",
+                                                           normalized_subcategory ? normalized_subcategory : "")] = taxonomy_id;
+        }
+    } else {
+        db_log(spdlog::level::err, "Failed to load category translations: {}", sqlite3_errmsg(db));
+    }
+    if (stmt) {
+        sqlite3_finalize(stmt);
+    }
+}
+
 std::string DatabaseManager::normalize_label(const std::string &input) const {
     std::string result;
     result.reserve(input.size());
@@ -406,6 +481,20 @@ std::string DatabaseManager::normalize_label(const std::string &input) const {
         result.pop_back();
     }
     return result;
+}
+
+std::string DatabaseManager::make_translation_entry_key(int taxonomy_id,
+                                                        CategoryLanguage language) {
+    return fmt::format("{}|{}", taxonomy_id, language_storage_key(language));
+}
+
+std::string DatabaseManager::make_translation_lookup_key(CategoryLanguage language,
+                                                         const std::string& norm_category,
+                                                         const std::string& norm_subcategory) {
+    return fmt::format("{}|{}|{}",
+                       language_storage_key(language),
+                       norm_category,
+                       norm_subcategory);
 }
 
 static std::string strip_trailing_stopwords(const std::string& normalized) {
@@ -845,6 +934,163 @@ DatabaseManager::resolve_category(const std::string &category,
                                    trimmed_subcategory,
                                    norm_category,
                                    match_subcategory);
+}
+
+DatabaseManager::ResolvedCategory
+DatabaseManager::resolve_category_for_language(const std::string& category,
+                                               const std::string& subcategory,
+                                               CategoryLanguage language) {
+    if (language == CategoryLanguage::English || !db) {
+        return resolve_category(category, subcategory);
+    }
+
+    auto trim_copy = [](std::string value) {
+        auto is_space = [](unsigned char ch) { return std::isspace(ch); };
+        value.erase(value.begin(), std::find_if(value.begin(), value.end(),
+                                                [&](unsigned char ch) { return !is_space(ch); }));
+        value.erase(std::find_if(value.rbegin(), value.rend(),
+                                 [&](unsigned char ch) { return !is_space(ch); }).base(),
+                    value.end());
+        return value;
+    };
+
+    std::string trimmed_category = trim_copy(category);
+    std::string trimmed_subcategory = trim_copy(subcategory);
+    if (trimmed_category.empty()) {
+        return resolve_category(category, subcategory);
+    }
+    if (trimmed_subcategory.empty()) {
+        trimmed_subcategory = "General";
+    }
+
+    const std::string normalized_category = normalize_label(trimmed_category);
+    const std::string normalized_subcategory = normalize_label(trimmed_subcategory);
+    const std::string stripped_subcategory = strip_trailing_stopwords(normalized_subcategory);
+
+    const auto lookup_translation = [&](const std::string& norm_subcategory) -> int {
+        const auto it = translation_lookup.find(make_translation_lookup_key(language,
+                                                                            normalized_category,
+                                                                            norm_subcategory));
+        return it != translation_lookup.end() ? it->second : -1;
+    };
+
+    int taxonomy_id = lookup_translation(stripped_subcategory);
+    if (taxonomy_id == -1 && stripped_subcategory != normalized_subcategory) {
+        taxonomy_id = lookup_translation(normalized_subcategory);
+    }
+    if (taxonomy_id != -1) {
+        if (const auto* entry = find_taxonomy_entry(taxonomy_id)) {
+            return ResolvedCategory{entry->id, entry->category, entry->subcategory};
+        }
+        return ResolvedCategory{taxonomy_id, trimmed_category, trimmed_subcategory};
+    }
+
+    return resolve_category(category, subcategory);
+}
+
+std::optional<DatabaseManager::ResolvedCategory>
+DatabaseManager::get_category_translation(int taxonomy_id,
+                                          CategoryLanguage language) const {
+    if (language == CategoryLanguage::English || taxonomy_id <= 0) {
+        return std::nullopt;
+    }
+    const auto it = translation_entries.find(make_translation_entry_key(taxonomy_id, language));
+    if (it == translation_entries.end()) {
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+DatabaseManager::ResolvedCategory
+DatabaseManager::localize_category(const ResolvedCategory& resolved,
+                                   CategoryLanguage language) const {
+    if (language == CategoryLanguage::English || resolved.taxonomy_id <= 0) {
+        return resolved;
+    }
+    if (const auto translated = get_category_translation(resolved.taxonomy_id, language)) {
+        return *translated;
+    }
+    if (const auto* entry = find_taxonomy_entry(resolved.taxonomy_id)) {
+        return ResolvedCategory{entry->id, entry->category, entry->subcategory};
+    }
+    return resolved;
+}
+
+CategorizedFile DatabaseManager::localize_categorized_file(const CategorizedFile& entry,
+                                                           CategoryLanguage language) const {
+    CategorizedFile localized = entry;
+    if (localized.canonical_category.empty()) {
+        localized.canonical_category = entry.category;
+    }
+    if (localized.canonical_subcategory.empty()) {
+        localized.canonical_subcategory = entry.subcategory;
+    }
+    if (const auto translated = get_category_translation(entry.taxonomy_id, language)) {
+        localized.category = translated->category;
+        localized.subcategory = translated->subcategory;
+    }
+    return localized;
+}
+
+bool DatabaseManager::upsert_category_translation(int taxonomy_id,
+                                                  CategoryLanguage language,
+                                                  const std::string& category,
+                                                  const std::string& subcategory) {
+    if (!db || taxonomy_id <= 0 || language == CategoryLanguage::English) {
+        return false;
+    }
+
+    const std::string sanitized_category = Utils::sanitize_path_label(category);
+    const std::string sanitized_subcategory = Utils::sanitize_path_label(subcategory);
+    if (sanitized_category.empty() || sanitized_subcategory.empty()) {
+        return false;
+    }
+
+    const std::string normalized_category = normalize_label(sanitized_category);
+    const std::string normalized_subcategory = normalize_label(sanitized_subcategory);
+    const std::string language_key = language_storage_key(language);
+
+    const char* sql = R"(
+        INSERT INTO category_translation
+            (taxonomy_id, language, category, subcategory, normalized_category, normalized_subcategory, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(taxonomy_id, language)
+        DO UPDATE SET
+            category = excluded.category,
+            subcategory = excluded.subcategory,
+            normalized_category = excluded.normalized_category,
+            normalized_subcategory = excluded.normalized_subcategory,
+            updated_at = CURRENT_TIMESTAMP;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to prepare translation upsert: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_int(stmt, 1, taxonomy_id);
+    sqlite3_bind_text(stmt, 2, language_key.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, sanitized_category.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, sanitized_subcategory.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, normalized_category.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, normalized_subcategory.c_str(), -1, SQLITE_TRANSIENT);
+
+    const bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    if (!success) {
+        db_log(spdlog::level::err, "Failed to upsert category translation: {}", sqlite3_errmsg(db));
+    }
+    sqlite3_finalize(stmt);
+    if (!success) {
+        return false;
+    }
+
+    const ResolvedCategory translated{taxonomy_id, sanitized_category, sanitized_subcategory};
+    translation_entries[make_translation_entry_key(taxonomy_id, language)] = translated;
+    translation_lookup[make_translation_lookup_key(language,
+                                                   normalized_category,
+                                                   normalized_subcategory)] = taxonomy_id;
+    return true;
 }
 
 bool DatabaseManager::insert_or_update_file_with_categorization(
@@ -1291,7 +1537,9 @@ std::vector<std::string> DatabaseManager::get_dir_contents_from_db(const std::st
     return results;
 }
 
-std::vector<std::pair<std::string, std::string>> DatabaseManager::get_taxonomy_snapshot(std::size_t max_entries) const
+std::vector<std::pair<std::string, std::string>> DatabaseManager::get_taxonomy_snapshot(
+    std::size_t max_entries,
+    CategoryLanguage language) const
 {
     std::vector<std::pair<std::string, std::string>> snapshot;
     if (max_entries == 0) {
@@ -1302,7 +1550,9 @@ std::vector<std::pair<std::string, std::string>> DatabaseManager::get_taxonomy_s
         if (snapshot.size() >= max_entries) {
             break;
         }
-        snapshot.emplace_back(entry.category, entry.subcategory);
+        ResolvedCategory resolved{entry.id, entry.category, entry.subcategory};
+        const ResolvedCategory localized = localize_category(resolved, language);
+        snapshot.emplace_back(localized.category, localized.subcategory);
     }
     return snapshot;
 }

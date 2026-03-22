@@ -884,11 +884,16 @@ std::string trim_ws(const std::string& value) {
 
 std::string Utils::sanitize_path_label(const std::string& value) {
     const std::string invalid = R"(<>:"/\|?*)";
+    QString normalized = QString::fromUtf8(value.c_str());
+    normalized.remove(QChar::ReplacementCharacter);
+    const QByteArray normalized_utf8 = normalized.normalized(QString::NormalizationForm_C).toUtf8();
+    const std::string utf8_value(normalized_utf8.constData(),
+                                 static_cast<std::size_t>(normalized_utf8.size()));
     std::string cleaned;
-    cleaned.reserve(value.size());
+    cleaned.reserve(utf8_value.size());
 
     // Replace invalid path characters and control chars with spaces.
-    for (unsigned char ch : value) {
+    for (unsigned char ch : utf8_value) {
         if (std::iscntrl(ch)) {
             continue;
         }

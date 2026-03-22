@@ -10,17 +10,110 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
 option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
     "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
+set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
+    "Updater behavior for this build: PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED")
+set_property(CACHE AI_FILE_SORTER_UPDATE_MODE PROPERTY STRINGS
+    PLATFORM_DEFAULT AUTO_INSTALL NOTIFY_ONLY DISABLED)
+
+set(_aifs_effective_update_mode "${AI_FILE_SORTER_UPDATE_MODE}")
+if(_aifs_effective_update_mode STREQUAL "PLATFORM_DEFAULT")
+    if(WIN32)
+        set(_aifs_effective_update_mode "AUTO_INSTALL")
+    else()
+        set(_aifs_effective_update_mode "NOTIFY_ONLY")
+    endif()
+endif()
+
+set(_aifs_allowed_update_modes AUTO_INSTALL NOTIFY_ONLY DISABLED)
+list(FIND _aifs_allowed_update_modes "${_aifs_effective_update_mode}" _aifs_update_mode_index)
+if(_aifs_update_mode_index EQUAL -1)
+    message(FATAL_ERROR
+        "Unsupported AI_FILE_SORTER_UPDATE_MODE='${AI_FILE_SORTER_UPDATE_MODE}'. "
+        "Expected PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED.")
+endif()
+
+if(_aifs_effective_update_mode STREQUAL "AUTO_INSTALL")
+    set(AI_FILE_SORTER_UPDATE_MODE_DEFINE AI_FILE_SORTER_UPDATE_MODE_AUTO_INSTALL)
+elseif(_aifs_effective_update_mode STREQUAL "NOTIFY_ONLY")
+    set(AI_FILE_SORTER_UPDATE_MODE_DEFINE AI_FILE_SORTER_UPDATE_MODE_NOTIFY_ONLY)
+else()
+    set(AI_FILE_SORTER_UPDATE_MODE_DEFINE AI_FILE_SORTER_UPDATE_MODE_DISABLED)
+endif()
+
+if(DEFINED VCPKG_INSTALLED_DIR AND NOT "${VCPKG_INSTALLED_DIR}" STREQUAL "")
+    set(AIFS_VCPKG_INSTALLED_ROOT "${VCPKG_INSTALLED_DIR}")
+else()
+    set(AIFS_VCPKG_INSTALLED_ROOT "${CMAKE_BINARY_DIR}/vcpkg_installed")
+endif()
+
+message(STATUS "AI File Sorter updater mode: ${_aifs_effective_update_mode}")
 
 include(CheckSymbolExists)
 include(CheckCXXSourceCompiles)
 
+function(aifs_apply_update_mode target_name)
+    target_compile_definitions(${target_name} PRIVATE ${AI_FILE_SORTER_UPDATE_MODE_DEFINE})
+endfunction()
+
+function(aifs_apply_named_update_mode target_name update_mode)
+    if(update_mode STREQUAL "AUTO_INSTALL")
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_UPDATE_MODE_AUTO_INSTALL)
+    elseif(update_mode STREQUAL "NOTIFY_ONLY")
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_UPDATE_MODE_NOTIFY_ONLY)
+    elseif(update_mode STREQUAL "DISABLED")
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_UPDATE_MODE_DISABLED)
+    else()
+        message(FATAL_ERROR
+            "Unsupported explicit updater mode '${update_mode}' for target '${target_name}'.")
+    endif()
+endfunction()
+
+function(aifs_apply_expected_update_mode target_name update_mode)
+    if(update_mode STREQUAL "AUTO_INSTALL")
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_EXPECTED_UPDATE_MODE_AUTO_INSTALL)
+    elseif(update_mode STREQUAL "NOTIFY_ONLY")
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_EXPECTED_UPDATE_MODE_NOTIFY_ONLY)
+    elseif(update_mode STREQUAL "DISABLED")
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_EXPECTED_UPDATE_MODE_DISABLED)
+    else()
+        message(FATAL_ERROR
+            "Unsupported expected updater mode '${update_mode}' for target '${target_name}'.")
+    endif()
+endfunction()
+
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    # Keep MSVC worker processes busy within each project in addition to
+    # the top-level cmake --build --parallel job scheduling.
+    add_compile_options(
+        "$<$<COMPILE_LANGUAGE:C>:/MP>"
+        "$<$<COMPILE_LANGUAGE:CXX>:/MP>"
+    )
 endif()
 
 # Qt6
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6LinguistTools CONFIG QUIET)
+if(NOT Qt6LinguistTools_FOUND)
+    set(_aifs_qttools_hints "")
+    if(DEFINED ENV{HOMEBREW_PREFIX} AND NOT "$ENV{HOMEBREW_PREFIX}" STREQUAL "")
+        list(APPEND _aifs_qttools_hints "$ENV{HOMEBREW_PREFIX}/opt/qttools")
+    endif()
+    list(APPEND _aifs_qttools_hints /opt/homebrew/opt/qttools /usr/local/opt/qttools)
+    if(DEFINED Qt6_DIR AND NOT "${Qt6_DIR}" STREQUAL "")
+        get_filename_component(_aifs_qt6_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
+        list(APPEND _aifs_qttools_hints "${_aifs_qt6_prefix}")
+    endif()
+    list(REMOVE_DUPLICATES _aifs_qttools_hints)
+    foreach(_aifs_qttools_hint IN LISTS _aifs_qttools_hints)
+        if(EXISTS "${_aifs_qttools_hint}/lib/cmake/Qt6LinguistTools/Qt6LinguistToolsConfig.cmake")
+            list(APPEND CMAKE_PREFIX_PATH "${_aifs_qttools_hint}")
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
+    find_package(Qt6LinguistTools CONFIG REQUIRED)
+endif()
 
 # Third-party deps (resolved best via vcpkg on Windows)
 find_package(CURL REQUIRED)
@@ -327,7 +420,20 @@ set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 file(GLOB APP_LIB_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
+file(GLOB APP_HEADER_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
+)
 set(APP_SOURCES ${APP_MAIN_SOURCE} ${APP_LIB_SOURCES})
+set(AIFS_TRANSLATION_TS_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_fr.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_de.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_it.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_es.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_nl.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_tr.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_ko.ts"
+)
+set(AIFS_TRANSLATION_QM_DIR "${CMAKE_CURRENT_BINARY_DIR}/i18n")
 
 # Executable (GUI subsystem on Windows)
 if(WIN32)
@@ -336,12 +442,42 @@ else()
     add_executable(aifilesorter ${APP_SOURCES})
 endif()
 
+aifs_apply_update_mode(aifilesorter)
+
 target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
     ${DOC_DEPS_INCLUDE_DIRS}
 )
+
+qt_add_lupdate(
+    NO_GLOBAL_TARGET
+    LUPDATE_TARGET update_translations
+    SOURCE_TARGETS aifilesorter
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
+    OPTIONS -no-obsolete
+)
+
+qt_add_lrelease(
+    LRELEASE_TARGET release_app_translations
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    QM_OUTPUT_DIRECTORY "${AIFS_TRANSLATION_QM_DIR}"
+    QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
+)
+
+set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
+
+function(aifs_add_translation_resources target_name)
+    qt_add_resources(${target_name} "${target_name}_translations"
+        PREFIX "/i18n"
+        BASE "${AIFS_TRANSLATION_QM_DIR}"
+        FILES ${AIFS_TRANSLATION_QM_FILES}
+    )
+endfunction()
+
+aifs_add_translation_resources(aifilesorter)
 
 # Resources (equivalent to rcc generation in Makefile)
 set(APP_RESOURCE_FILES
@@ -546,6 +682,10 @@ if(WIN32)
     add_executable(${STARTER_TARGET} WIN32
         "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp"
     )
+    aifs_apply_update_mode(${STARTER_TARGET})
+    target_include_directories(${STARTER_TARGET} PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    )
     target_link_libraries(${STARTER_TARGET} PRIVATE
         Qt6::Widgets Qt6::Gui Qt6::Core
     )
@@ -720,12 +860,113 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         FetchContent_MakeAvailable(Catch2)
     endif()
 
+    function(aifs_stage_test_runtime target_name)
+        if(WIN32)
+            set(_aifs_test_runtime_dlls "")
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_RUNTIME_DLLS:${target_name}>
+                    $<TARGET_FILE_DIR:${target_name}>
+                COMMAND_EXPAND_LISTS
+            )
+
+            if(VCPKG_TARGET_TRIPLET)
+                set(_aifs_vcpkg_runtime_dir "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/bin")
+                if(EXISTS "${_aifs_vcpkg_runtime_dir}")
+                    file(GLOB _aifs_vcpkg_runtime_dlls "${_aifs_vcpkg_runtime_dir}/*.dll")
+                    list(APPEND _aifs_test_runtime_dlls ${_aifs_vcpkg_runtime_dlls})
+                endif()
+            endif()
+
+            if(EXISTS "${PRECOMPILED_CPU_ROOT}/bin")
+                file(GLOB _aifs_precompiled_cpu_runtime_dlls
+                    "${PRECOMPILED_CPU_ROOT}/bin/*.dll")
+                list(APPEND _aifs_test_runtime_dlls ${_aifs_precompiled_cpu_runtime_dlls})
+            endif()
+
+            set(_aifs_mingw_runtime_search_paths "")
+            if(DEFINED ENV{OPENBLAS_ROOT} AND NOT "$ENV{OPENBLAS_ROOT}" STREQUAL "")
+                list(APPEND _aifs_mingw_runtime_search_paths "$ENV{OPENBLAS_ROOT}/bin")
+            endif()
+            list(APPEND _aifs_mingw_runtime_search_paths "C:/msys64/mingw64/bin")
+
+            foreach(_aifs_mingw_runtime_name IN ITEMS
+                libgomp-1.dll
+                libgcc_s_seh-1.dll
+                libgfortran-5.dll
+                libwinpthread-1.dll
+                libquadmath-0.dll)
+                foreach(_aifs_runtime_path IN LISTS _aifs_mingw_runtime_search_paths)
+                    if(EXISTS "${_aifs_runtime_path}/${_aifs_mingw_runtime_name}")
+                        list(APPEND _aifs_test_runtime_dlls
+                            "${_aifs_runtime_path}/${_aifs_mingw_runtime_name}")
+                        break()
+                    endif()
+                endforeach()
+            endforeach()
+
+            list(REMOVE_DUPLICATES _aifs_test_runtime_dlls)
+            if(_aifs_test_runtime_dlls)
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${_aifs_test_runtime_dlls}
+                        $<TARGET_FILE_DIR:${target_name}>
+                    COMMAND_EXPAND_LISTS
+                )
+            endif()
+
+            if(VCPKG_TARGET_TRIPLET)
+                set(_aifs_qt_plugin_root "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/Qt6/plugins")
+                foreach(_aifs_qt_plugin_subdir IN ITEMS platforms styles imageformats)
+                    set(_aifs_qt_plugin_src_dir "${_aifs_qt_plugin_root}/${_aifs_qt_plugin_subdir}")
+                    if(EXISTS "${_aifs_qt_plugin_src_dir}")
+                        file(GLOB _aifs_qt_plugin_dlls "${_aifs_qt_plugin_src_dir}/*.dll")
+                        if(_aifs_qt_plugin_dlls)
+                            add_custom_command(TARGET ${target_name} POST_BUILD
+                                COMMAND ${CMAKE_COMMAND} -E make_directory
+                                    "$<TARGET_FILE_DIR:${target_name}>/${_aifs_qt_plugin_subdir}"
+                                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                                    ${_aifs_qt_plugin_dlls}
+                                    "$<TARGET_FILE_DIR:${target_name}>/${_aifs_qt_plugin_subdir}"
+                                COMMAND_EXPAND_LISTS
+                            )
+                        endif()
+                    endif()
+                endforeach()
+            endif()
+        endif()
+
+        if(_aifs_pdfium_ready AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${PDFIUM_RUNTIME}"
+                    "$<TARGET_FILE_DIR:${target_name}>"
+            )
+        endif()
+        if(_aifs_pdfium_ready AND NOT WIN32)
+            if(APPLE)
+                set(_pdfium_rpath "@loader_path")
+            else()
+                set(_pdfium_rpath "$ORIGIN")
+            endif()
+            set_target_properties(${target_name} PROPERTIES
+                BUILD_RPATH "${_pdfium_rpath}"
+                INSTALL_RPATH "${_pdfium_rpath}"
+            )
+            unset(_pdfium_rpath)
+        endif()
+    endfunction()
+
     add_executable(ai_file_sorter_tests
         ${APP_LIB_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ggml_runtime_paths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_update_feed.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_updater.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_updater_build_modes.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_visual.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_image_options.cpp"
@@ -768,7 +1009,11 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         ${DOC_DEPS_LIBS}
     )
 
+    aifs_add_translation_resources(ai_file_sorter_tests)
+
     target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1 WIN32_LEAN_AND_MEAN NOMINMAX)
+    aifs_apply_update_mode(ai_file_sorter_tests)
+    aifs_apply_expected_update_mode(ai_file_sorter_tests "${_aifs_effective_update_mode}")
 
     if(WIN32)
         target_link_libraries(ai_file_sorter_tests PRIVATE ggml ggml_base ggml_cpu)
@@ -781,103 +1026,75 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 target_link_libraries(ai_file_sorter_tests PRIVATE ${libName})
             endif()
         endforeach()
+    endif()
 
-        set(_aifs_test_runtime_dlls "")
-        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_RUNTIME_DLLS:ai_file_sorter_tests>
-                $<TARGET_FILE_DIR:ai_file_sorter_tests>
-            COMMAND_EXPAND_LISTS
+    aifs_stage_test_runtime(ai_file_sorter_tests)
+
+    if(WIN32)
+        set(AIFS_UPDATER_MODE_TEST_APP_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/IniConfig.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/Settings.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/UpdateArchiveExtractor.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/UpdateFeed.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/UpdateInstaller.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/Updater.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/Version.cpp"
         )
 
-        if(VCPKG_TARGET_TRIPLET)
-            set(_aifs_vcpkg_runtime_dir "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/bin")
-            if(EXISTS "${_aifs_vcpkg_runtime_dir}")
-                file(GLOB _aifs_vcpkg_runtime_dlls "${_aifs_vcpkg_runtime_dir}/*.dll")
-                list(APPEND _aifs_test_runtime_dlls ${_aifs_vcpkg_runtime_dlls})
-            endif()
-        endif()
-
-        if(EXISTS "${PRECOMPILED_CPU_ROOT}/bin")
-            file(GLOB _aifs_precompiled_cpu_runtime_dlls
-                "${PRECOMPILED_CPU_ROOT}/bin/*.dll")
-            list(APPEND _aifs_test_runtime_dlls ${_aifs_precompiled_cpu_runtime_dlls})
-        endif()
-
-        set(_aifs_mingw_runtime_search_paths "")
-        if(DEFINED ENV{OPENBLAS_ROOT} AND NOT "$ENV{OPENBLAS_ROOT}" STREQUAL "")
-            list(APPEND _aifs_mingw_runtime_search_paths "$ENV{OPENBLAS_ROOT}/bin")
-        endif()
-        list(APPEND _aifs_mingw_runtime_search_paths "C:/msys64/mingw64/bin")
-
-        foreach(_aifs_mingw_runtime_name IN ITEMS
-            libgomp-1.dll
-            libgcc_s_seh-1.dll
-            libgfortran-5.dll
-            libwinpthread-1.dll
-            libquadmath-0.dll)
-            foreach(_aifs_runtime_path IN LISTS _aifs_mingw_runtime_search_paths)
-                if(EXISTS "${_aifs_runtime_path}/${_aifs_mingw_runtime_name}")
-                    list(APPEND _aifs_test_runtime_dlls
-                        "${_aifs_runtime_path}/${_aifs_mingw_runtime_name}")
-                    break()
-                endif()
-            endforeach()
-        endforeach()
-
-        list(REMOVE_DUPLICATES _aifs_test_runtime_dlls)
-        if(_aifs_test_runtime_dlls)
-            add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    ${_aifs_test_runtime_dlls}
-                    $<TARGET_FILE_DIR:ai_file_sorter_tests>
-                COMMAND_EXPAND_LISTS
+        function(aifs_add_updater_mode_test target_name update_mode)
+            add_executable(${target_name}
+                ${AIFS_UPDATER_MODE_TEST_APP_SOURCES}
+                "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_updater_build_modes.cpp"
             )
-        endif()
 
-        if(VCPKG_TARGET_TRIPLET)
-            set(_aifs_qt_plugin_root "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/Qt6/plugins")
-            foreach(_aifs_qt_plugin_subdir IN ITEMS platforms styles imageformats)
-                set(_aifs_qt_plugin_src_dir "${_aifs_qt_plugin_root}/${_aifs_qt_plugin_subdir}")
-                if(EXISTS "${_aifs_qt_plugin_src_dir}")
-                    file(GLOB _aifs_qt_plugin_dlls "${_aifs_qt_plugin_src_dir}/*.dll")
-                    if(_aifs_qt_plugin_dlls)
-                        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
-                            COMMAND ${CMAKE_COMMAND} -E make_directory
-                                "$<TARGET_FILE_DIR:ai_file_sorter_tests>/${_aifs_qt_plugin_subdir}"
-                            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                                ${_aifs_qt_plugin_dlls}
-                                "$<TARGET_FILE_DIR:ai_file_sorter_tests>/${_aifs_qt_plugin_subdir}"
-                            COMMAND_EXPAND_LISTS
-                        )
-                    endif()
+            target_include_directories(${target_name} PRIVATE
+                "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
+                ${DOC_DEPS_INCLUDE_DIRS}
+            )
+
+            target_link_libraries(${target_name} PRIVATE
+                Catch2::Catch2WithMain
+                Qt6::Core
+                Qt6::Widgets
+                CURL::libcurl
+                OpenSSL::SSL OpenSSL::Crypto
+                SQLite::SQLite3
+                JsonCpp::JsonCpp
+                spdlog::spdlog
+                fmt::fmt
+                Intl::Intl
+                ${DOC_DEPS_LIBS}
+            )
+
+            target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_TEST_BUILD=1 WIN32_LEAN_AND_MEAN NOMINMAX)
+            foreach(libName IN LISTS WIN_SYSTEM_LIBS)
+                string(TOUPPER "${libName}" upperLib)
+                set(varName "${upperLib}_LIBRARY")
+                if(DEFINED ${varName} AND ${varName})
+                    target_link_libraries(${target_name} PRIVATE "${${varName}}")
+                else()
+                    target_link_libraries(${target_name} PRIVATE ${libName})
                 endif()
             endforeach()
-        endif()
-    endif()
 
-    if(_aifs_pdfium_ready AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PDFIUM_RUNTIME}"
-                "$<TARGET_FILE_DIR:ai_file_sorter_tests>"
-        )
-    endif()
-    if(_aifs_pdfium_ready AND NOT WIN32)
-        if(APPLE)
-            set(_pdfium_rpath "@loader_path")
-        else()
-            set(_pdfium_rpath "$ORIGIN")
-        endif()
-        set_target_properties(ai_file_sorter_tests PROPERTIES
-            BUILD_RPATH "${_pdfium_rpath}"
-            INSTALL_RPATH "${_pdfium_rpath}"
-        )
-        unset(_pdfium_rpath)
+            aifs_apply_named_update_mode(${target_name} "${update_mode}")
+            aifs_apply_expected_update_mode(${target_name} "${update_mode}")
+            aifs_stage_test_runtime(${target_name})
+        endfunction()
+
+        aifs_add_updater_mode_test(ai_file_sorter_updater_notify_only_tests "NOTIFY_ONLY")
+        aifs_add_updater_mode_test(ai_file_sorter_updater_disabled_tests "DISABLED")
     endif()
 
     if(BUILD_TESTING)
         add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)
+        if(WIN32)
+            add_test(NAME ai_file_sorter_updater_notify_only_tests COMMAND ai_file_sorter_updater_notify_only_tests)
+            add_test(NAME ai_file_sorter_updater_disabled_tests COMMAND ai_file_sorter_updater_disabled_tests)
+        endif()
     endif()
 
     if(NOT WIN32)

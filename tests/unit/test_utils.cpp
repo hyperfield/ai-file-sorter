@@ -38,3 +38,11 @@ TEST_CASE("abbreviate_user_path strips home prefix") {
         Utils::abbreviate_user_path(file.string());
     REQUIRE(abbreviated == "Documents/taxes.pdf");
 }
+
+TEST_CASE("sanitize_path_label strips invalid UTF-8 bytes") {
+    std::string invalid = "Alpha";
+    invalid.push_back(static_cast<char>(0xFF));
+    invalid += "Beta";
+
+    REQUIRE(Utils::sanitize_path_label(invalid) == "AlphaBeta");
+}

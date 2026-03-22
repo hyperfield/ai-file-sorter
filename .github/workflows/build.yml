@@ -1,13 +1,11 @@
 name: Build
 
 on:
-  push:
-    branches: [ main, dev ]
   pull_request:
     branches: [ main, dev ]
 
 jobs:
-  build:
+  build-linux:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -39,3 +37,41 @@ jobs:
 
       - name: Run ctest
         run: cd build && ctest --output-on-failure
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Enable long paths
+        run: git config --system core.longpaths true
+
+      - name: Set up vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$env:GITHUB_WORKSPACE\vcpkg"
+          & "$env:GITHUB_WORKSPACE\vcpkg\bootstrap-vcpkg.bat"
+
+      - name: Build llama runtime
+        shell: pwsh
+        run: |
+          $vcpkgRoot = "$env:GITHUB_WORKSPACE\vcpkg"
+          & "$env:GITHUB_WORKSPACE\app\scripts\build_llama_windows.ps1" `
+            "cuda=off" `
+            "vulkan=off" `
+            "blas=off" `
+            "vcpkgroot=$vcpkgRoot"
+
+      - name: Build and test Windows app
+        shell: pwsh
+        run: |
+          $vcpkgRoot = "$env:GITHUB_WORKSPACE\vcpkg"
+          & "$env:GITHUB_WORKSPACE\app\build_windows.ps1" `
+            -Configuration Release `
+            -VcpkgRoot $vcpkgRoot `
+            -BuildTests `
+            -RunTests `
+            -Parallel 4

@@ -18,6 +18,7 @@
 #include "MainAppUiBuilder.hpp"
 #include "SuitabilityBenchmarkDialog.hpp"
 #include "UiTranslator.hpp"
+#include "UpdaterBuildConfig.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "ImageRenameMetadataService.hpp"
@@ -73,6 +74,7 @@
 #include <QStackedWidget>
 #include <QThread>
 #include <QTimer>
+#include <QtGlobal>
 
 #include <chrono>
 #include <filesystem>
@@ -141,6 +143,25 @@ std::string normalize_directory_path(const std::string& value) {
         }
     }
     return normalized;
+}
+
+std::string resolve_document_prompt_name(const std::string& original_name,
+                                         const std::string& suggested_name) {
+    return suggested_name.empty() ? original_name : suggested_name;
+}
+
+std::string build_document_prompt_path(const std::string& full_path,
+                                       const std::string& prompt_name,
+                                       const std::string& summary) {
+    const auto entry_path = Utils::utf8_to_path(full_path);
+    const std::string effective_name =
+        prompt_name.empty() ? Utils::path_to_utf8(entry_path.filename()) : prompt_name;
+    std::string prompt_path = Utils::path_to_utf8(
+        entry_path.parent_path() / Utils::utf8_to_path(effective_name));
+    if (!summary.empty()) {
+        prompt_path += "\nDocument summary: " + summary;
+    }
+    return prompt_path;
 }
 
 void schedule_next_support_prompt(Settings& settings, int total_files) {
@@ -469,6 +490,15 @@ void split_entries_for_analysis(const std::vector<FileEntry>& files,
             other_entries.push_back(entry);
         }
     }
+}
+
+void sync_disclosure_button(QToolButton* button, bool expanded)
+{
+    if (!button) {
+        return;
+    }
+    Q_UNUSED(expanded);
+    button->update();
 }
 
 } // namespace
@@ -900,6 +930,9 @@ void MainApp::connect_edit_actions()
 
 void MainApp::start_updater()
 {
+    if (!UpdaterBuildConfig::update_checks_enabled()) {
+        return;
+    }
     auto* updater = new Updater(settings);
     updater->begin();
 }
@@ -1236,6 +1269,14 @@ QCheckBox* MainAppTestAccess::rename_documents_only_checkbox(MainApp& app) {
     return app.rename_documents_only_checkbox;
 }
 
+QToolButton* MainAppTestAccess::image_options_toggle_button(MainApp& app) {
+    return app.image_options_toggle_button;
+}
+
+QToolButton* MainAppTestAccess::document_options_toggle_button(MainApp& app) {
+    return app.document_options_toggle_button;
+}
+
 void MainAppTestAccess::split_entries_for_analysis(const std::vector<FileEntry>& files,
                                                    bool analyze_images,
                                                    bool analyze_documents,
@@ -1278,6 +1319,17 @@ void MainAppTestAccess::set_image_analysis_prompt_override(MainApp& app, std::fu
 
 bool MainAppTestAccess::should_offer_visual_cpu_fallback(const std::string& reason) {
     return ::should_offer_visual_cpu_fallback(reason);
+}
+
+std::string MainAppTestAccess::resolve_document_prompt_name(const std::string& original_name,
+                                                            const std::string& suggested_name) {
+    return ::resolve_document_prompt_name(original_name, suggested_name);
+}
+
+std::string MainAppTestAccess::build_document_prompt_path(const std::string& full_path,
+                                                          const std::string& prompt_name,
+                                                          const std::string& summary) {
+    return ::build_document_prompt_path(full_path, prompt_name, summary);
 }
 
 void MainAppTestAccess::trigger_retranslate(MainApp& app) {
@@ -1635,7 +1687,7 @@ void MainApp::update_image_analysis_controls()
     if (image_options_toggle_button) {
         image_options_toggle_button->setEnabled(analysis_enabled);
         const bool expanded = image_options_toggle_button->isChecked();
-        image_options_toggle_button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        sync_disclosure_button(image_options_toggle_button, expanded);
         if (image_options_container) {
             image_options_container->setVisible(analysis_enabled && expanded);
         }
@@ -1743,7 +1795,7 @@ void MainApp::update_document_analysis_controls()
     if (document_options_toggle_button) {
         document_options_toggle_button->setEnabled(analysis_enabled);
         const bool expanded = document_options_toggle_button->isChecked();
-        document_options_toggle_button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        sync_disclosure_button(document_options_toggle_button, expanded);
         if (document_options_container) {
             document_options_container->setVisible(analysis_enabled && expanded);
         }
@@ -2411,6 +2463,18 @@ void MainApp::perform_analysis()
         auto entry_key = [use_full_path_keys](const FileEntry& entry) {
             return use_full_path_keys ? entry.full_path : entry.file_name;
         };
+        auto resolve_entry_for_storage = [this](const CategorizedFile& entry) {
+            const std::string canonical_category =
+                entry.canonical_category.empty() ? entry.category : entry.canonical_category;
+            const std::string canonical_subcategory =
+                entry.canonical_subcategory.empty() ? entry.subcategory : entry.canonical_subcategory;
+            if (!canonical_category.empty()) {
+                return db_manager.resolve_category(canonical_category, canonical_subcategory);
+            }
+            return db_manager.resolve_category_for_language(entry.category,
+                                                            entry.subcategory,
+                                                            settings.get_category_language());
+        };
         auto persist_rename_only_progress = [this, &is_missing_category_label](const FileEntry& entry,
                                                                               const std::string& suggested_name) {
             // Persist rename-only progress during analysis to avoid losing rename suggestions on crash.
@@ -2494,9 +2558,9 @@ void MainApp::perform_analysis()
                 false,
                 rename_applied);
         };
-        auto persist_cached_suggestion = [this](const CategorizedFile& entry,
+        auto persist_cached_suggestion = [this, &resolve_entry_for_storage](const CategorizedFile& entry,
                                                 const std::string& suggested_name) {
-            DatabaseManager::ResolvedCategory resolved{entry.taxonomy_id, entry.category, entry.subcategory};
+            DatabaseManager::ResolvedCategory resolved = resolve_entry_for_storage(entry);
             const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
             db_manager.insert_or_update_file_with_categorization(
                 entry.file_name,
@@ -2508,7 +2572,7 @@ void MainApp::perform_analysis()
                 entry.rename_only,
                 entry.rename_applied);
         };
-        auto persist_analysis_results = [this, &is_missing_category_label](const std::vector<CategorizedFile>& entries) {
+        auto persist_analysis_results = [this, &is_missing_category_label, &resolve_entry_for_storage](const std::vector<CategorizedFile>& entries) {
             for (const auto& entry : entries) {
                 std::string category = entry.category;
                 std::string subcategory = entry.subcategory;
@@ -2524,7 +2588,7 @@ void MainApp::perform_analysis()
 
                 DatabaseManager::ResolvedCategory resolved{0, "", ""};
                 if (!category.empty()) {
-                    resolved = db_manager.resolve_category(category, subcategory);
+                    resolved = resolve_entry_for_storage(entry);
                 }
 
                 const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
@@ -3283,10 +3347,13 @@ void MainApp::perform_analysis()
                 const std::string suggested_name = already_renamed ? std::string() : entry.file_name;
                 const std::string ui_suggested_name =
                     (allow_document_renames || rename_documents_only) ? suggested_name : std::string();
+                const std::string prompt_name = entry.file_name;
                 document_info.emplace(entry_key(entry),
                                       DocumentAnalysisInfo{ui_suggested_name,
-                                                           entry.file_name,
-                                                           entry.full_path});
+                                                           prompt_name,
+                                                           build_document_prompt_path(entry.full_path,
+                                                                                      prompt_name,
+                                                                                      {})});
                 if (rename_documents_only) {
                     persist_rename_only_progress(entry, suggested_name);
                 }
@@ -3336,10 +3403,14 @@ void MainApp::perform_analysis()
                                                                            : cached_suggestion_it->second;
                         const std::string ui_suggested_name =
                             (allow_document_renames || rename_documents_only) ? suggested_name : std::string();
+                        const std::string prompt_name =
+                            resolve_document_prompt_name(entry.file_name, cached_suggestion_it->second);
                         document_info.emplace(entry_key(entry),
                                               DocumentAnalysisInfo{ui_suggested_name,
-                                                                   entry.file_name,
-                                                                   entry.full_path});
+                                                                   prompt_name,
+                                                                   build_document_prompt_path(entry.full_path,
+                                                                                              prompt_name,
+                                                                                              {})});
                         if (rename_documents_only) {
                             persist_rename_only_progress(entry, suggested_name);
                         }
@@ -3356,18 +3427,16 @@ void MainApp::perform_analysis()
                     const std::string suggested_name = already_renamed ? std::string() : analysis.suggested_name;
                     const std::string ui_suggested_name =
                         (allow_document_renames || rename_documents_only) ? suggested_name : std::string();
-                    std::string prompt_path = entry.full_path;
-                    if (!analysis.summary.empty()) {
-                        prompt_path += "\nDocument summary: " + analysis.summary;
-                    }
+                    const std::string prompt_name =
+                        resolve_document_prompt_name(entry.file_name, analysis.suggested_name);
+                    const std::string prompt_path =
+                        build_document_prompt_path(entry.full_path, prompt_name, analysis.summary);
                     if (!rename_documents_only) {
                         persist_llm_suggestion_progress(entry, suggested_name);
                     }
                     document_info.emplace(entry_key(entry),
                                           DocumentAnalysisInfo{ui_suggested_name,
-                                                               analysis.suggested_name.empty()
-                                                                   ? entry.file_name
-                                                                   : analysis.suggested_name,
+                                                               prompt_name,
                                                                prompt_path});
                     if (rename_documents_only) {
                         persist_rename_only_progress(entry, suggested_name);
@@ -3459,7 +3528,7 @@ void MainApp::perform_analysis()
         };
 
         auto apply_image_dates = [this, add_image_date_to_category, &image_dates, &file_key,
-                                  &image_metadata_service](std::vector<CategorizedFile>& results) {
+                                  &resolve_entry_for_storage, &image_metadata_service](std::vector<CategorizedFile>& results) {
             if (!add_image_date_to_category) {
                 return;
             }
@@ -3491,8 +3560,12 @@ void MainApp::perform_analysis()
                     continue;
                 }
                 entry.category += suffix;
+                if (entry.canonical_category.empty()) {
+                    entry.canonical_category = entry.category.substr(0, entry.category.size() - suffix.size());
+                }
+                entry.canonical_category += suffix;
 
-                DatabaseManager::ResolvedCategory resolved{entry.taxonomy_id, entry.category, entry.subcategory};
+                DatabaseManager::ResolvedCategory resolved = resolve_entry_for_storage(entry);
                 const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
                 db_manager.insert_or_update_file_with_categorization(
                     entry.file_name,
@@ -3506,7 +3579,8 @@ void MainApp::perform_analysis()
             }
         };
 
-        auto apply_document_dates = [this, add_document_date, &document_dates, &file_key](std::vector<CategorizedFile>& results) {
+        auto apply_document_dates = [this, add_document_date, &document_dates, &file_key,
+                                     &resolve_entry_for_storage](std::vector<CategorizedFile>& results) {
             if (!add_document_date || document_dates.empty()) {
                 return;
             }
@@ -3538,8 +3612,12 @@ void MainApp::perform_analysis()
                     continue;
                 }
                 entry.category += suffix;
+                if (entry.canonical_category.empty()) {
+                    entry.canonical_category = entry.category.substr(0, entry.category.size() - suffix.size());
+                }
+                entry.canonical_category += suffix;
 
-                DatabaseManager::ResolvedCategory resolved{entry.taxonomy_id, entry.category, entry.subcategory};
+                DatabaseManager::ResolvedCategory resolved = resolve_entry_for_storage(entry);
                 const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
                 db_manager.insert_or_update_file_with_categorization(
                     entry.file_name,
@@ -3786,6 +3864,7 @@ void MainApp::run_consistency_pass()
         new_files_with_categories,
         [this]() { return make_llm_client(); },
         stop_analysis,
+        settings.get_category_language(),
         progress_sink);
 }
 
@@ -4075,7 +4154,11 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
     try {
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         const std::string undo_dir = settings.get_config_dir() + "/undo";
-        categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager, show_subcategory, undo_dir, this);
+        categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager,
+                                                                       show_subcategory,
+                                                                       undo_dir,
+                                                                       settings.get_category_language(),
+                                                                       this);
         categorization_dialog->show_results(results,
                                             get_folder_path(),
                                             settings.get_include_subdirectories(),

@@ -40,7 +40,10 @@ public:
                             const std::string& file_path,
                             FileType file_type,
                             const std::string& consistency_context);
-    std::string generate_response(const std::string &prompt, int n_predict, bool apply_sanitizer = true);
+    std::string generate_response(const std::string& prompt,
+                                  int n_predict,
+                                  bool apply_sanitizer = true,
+                                  const std::string& system_prompt = {});
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,
                                 FileType file_type,
@@ -77,7 +80,7 @@ private:
     llama_context* ctx;
     const llama_vocab *vocab;
     llama_sampler* smpl;
-    std::string sanitize_output(std::string &output);
+    std::string sanitize_output(const std::string& output);
     llama_context_params ctx_params;
     bool prompt_logging_enabled{false};
     StatusCallback status_callback_;

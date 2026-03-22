@@ -11,7 +11,6 @@
 #include <cctype>
 #include <cstdio>
 #include <stdexcept>
-#include <regex>
 #include <iostream>
 #include <sstream>
 #include <spdlog/spdlog.h>
@@ -215,6 +214,472 @@ bool case_insensitive_contains(std::string_view text, std::string_view needle) {
         return static_cast<char>(std::tolower(c));
     });
     return text_lower.find(needle_lower) != std::string::npos;
+}
+
+std::string to_lower_copy(std::string value);
+
+std::string trim_copy(std::string value) {
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
+    value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
+    return value;
+}
+
+std::string collapse_spaces_copy(std::string value) {
+    std::string collapsed;
+    collapsed.reserve(value.size());
+    bool previous_space = false;
+    for (unsigned char ch : value) {
+        if (std::isspace(ch)) {
+            if (!previous_space) {
+                collapsed.push_back(' ');
+            }
+            previous_space = true;
+            continue;
+        }
+        collapsed.push_back(static_cast<char>(ch));
+        previous_space = false;
+    }
+    return trim_copy(std::move(collapsed));
+}
+
+std::string strip_wrapping_punctuation(std::string value) {
+    auto is_wrapping = [](unsigned char ch) {
+        switch (ch) {
+            case '"':
+            case '\'':
+            case '`':
+            case '(':
+            case ')':
+            case '[':
+            case ']':
+            case '{':
+            case '}':
+            case '<':
+            case '>':
+                return true;
+            default:
+                return false;
+        }
+    };
+
+    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.front())) ||
+                              is_wrapping(static_cast<unsigned char>(value.front())))) {
+        value.erase(value.begin());
+    }
+    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.back())) ||
+                              is_wrapping(static_cast<unsigned char>(value.back())) ||
+                              value.back() == '.' || value.back() == ',' ||
+                              value.back() == ':' || value.back() == ';')) {
+        value.pop_back();
+    }
+    return value;
+}
+
+std::string strip_trailing_parenthetical_gloss(std::string value) {
+    value = trim_copy(std::move(value));
+    while (true) {
+        const auto open = value.rfind(" (");
+        if (open == std::string::npos) {
+            break;
+        }
+
+        std::string gloss = trim_copy(value.substr(open + 2));
+        if (!gloss.empty() && gloss.back() == ')') {
+            gloss.pop_back();
+            gloss = trim_copy(std::move(gloss));
+        }
+
+        const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
+            return std::isalpha(ch);
+        });
+        if (!has_alpha_chars) {
+            break;
+        }
+
+        value = trim_copy(value.substr(0, open));
+    }
+    return value;
+}
+
+std::size_t find_case_insensitive(const std::string& value, std::string_view needle) {
+    const std::string lower_value = to_lower_copy(value);
+    std::string lower_needle(needle);
+    std::transform(lower_needle.begin(), lower_needle.end(), lower_needle.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return lower_value.find(lower_needle);
+}
+
+std::string strip_explanatory_suffix(std::string value) {
+    static const std::vector<std::string_view> markers = {
+        " (based on",
+        " (note",
+        " (since",
+        " - this ",
+        " - based on",
+        " because ",
+        " based on ",
+        " which ",
+        " since ",
+        " however ",
+        " specifically ",
+        " indicating ",
+        " indicates ",
+        " commonly ",
+        " related to "
+    };
+
+    std::size_t cut = std::string::npos;
+    for (const std::string_view marker : markers) {
+        const auto pos = find_case_insensitive(value, marker);
+        if (pos != std::string::npos && (cut == std::string::npos || pos < cut)) {
+            cut = pos;
+        }
+    }
+    if (cut != std::string::npos) {
+        value.resize(cut);
+    }
+
+    return strip_wrapping_punctuation(collapse_spaces_copy(std::move(value)));
+}
+
+std::string extract_category_phrase(std::string value) {
+    struct PhrasePattern {
+        std::string_view prefix;
+        std::string_view suffix;
+    };
+    static const std::vector<PhrasePattern> patterns = {
+        {"falls under the ", " category"},
+        {"falls under ", " category"},
+        {"belongs to the ", " category"},
+        {"belongs to ", " category"},
+        {"categorized as ", ""},
+        {"classified as ", ""},
+        {"category is ", ""},
+        {"category would be ", ""}
+    };
+
+    const std::string lower = to_lower_copy(value);
+    for (const auto& pattern : patterns) {
+        const auto start = lower.find(pattern.prefix);
+        if (start == std::string::npos) {
+            continue;
+        }
+        const std::size_t content_start = start + pattern.prefix.size();
+        std::size_t content_end = value.size();
+        if (!pattern.suffix.empty()) {
+            content_end = lower.find(pattern.suffix, content_start);
+            if (content_end == std::string::npos || content_end <= content_start) {
+                continue;
+            }
+        }
+        return value.substr(content_start, content_end - content_start);
+    }
+    return value;
+}
+
+std::string strip_inline_label_artifacts(std::string value, bool category_label) {
+    const auto markers = category_label
+        ? std::array<std::string_view, 8>{
+              ", subcategory",
+              ", sub category",
+              " - subcategory",
+              " - sub category",
+              "; subcategory",
+              "; sub category",
+              " subcategory:",
+              " sub category:"
+          }
+        : std::array<std::string_view, 8>{
+              ", category",
+              ", main category",
+              " - category",
+              " - main category",
+              "; category",
+              "; main category",
+              " category:",
+              " main category:"
+          };
+
+    std::size_t cut = std::string::npos;
+    for (const std::string_view marker : markers) {
+        const auto pos = find_case_insensitive(value, marker);
+        if (pos != std::string::npos && (cut == std::string::npos || pos < cut)) {
+            cut = pos;
+        }
+    }
+    if (cut != std::string::npos) {
+        value.resize(cut);
+    }
+
+    return trim_copy(std::move(value));
+}
+
+std::string normalize_candidate_label(std::string value, bool category_label) {
+    value = strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(std::move(value))));
+    if (value.empty()) {
+        return value;
+    }
+    if (category_label) {
+        value = extract_category_phrase(std::move(value));
+    }
+    value = strip_explanatory_suffix(std::move(value));
+    value = strip_trailing_parenthetical_gloss(std::move(value));
+    value = strip_inline_label_artifacts(std::move(value), category_label);
+    return strip_wrapping_punctuation(collapse_spaces_copy(std::move(value)));
+}
+
+std::string to_lower_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+bool has_alpha(std::string_view value) {
+    return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
+        return std::isalpha(ch);
+    });
+}
+
+bool is_heading_like_label(const std::string& value) {
+    const std::string lower = to_lower_copy(strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(value))));
+    static const std::array<std::string_view, 16> exact_matches = {
+        "category",
+        "main category",
+        "subcategory",
+        "sub category",
+        "categorization",
+        "classification",
+        "result",
+        "answer",
+        "note",
+        "warning",
+        "disclaimer",
+        "reason",
+        "explanation",
+        "full path",
+        "file name",
+        "directory name"
+    };
+    for (const std::string_view candidate : exact_matches) {
+        if (lower == candidate) {
+            return true;
+        }
+    }
+    return case_insensitive_contains(lower, "categorization") ||
+           case_insensitive_contains(lower, "classification");
+}
+
+std::vector<std::string> split_segments(const std::string& line, std::string_view delimiter) {
+    std::vector<std::string> segments;
+    std::size_t start = 0;
+    while (start <= line.size()) {
+        const auto pos = line.find(delimiter, start);
+        const std::string segment = trim_copy(line.substr(start, pos == std::string::npos ? pos : pos - start));
+        if (!segment.empty()) {
+            segments.push_back(segment);
+        }
+        if (pos == std::string::npos) {
+            break;
+        }
+        start = pos + delimiter.size();
+    }
+    return segments;
+}
+
+std::optional<std::pair<std::string, std::string>> extract_inline_pair_from_line(const std::string& line) {
+    for (std::string_view delimiter : {std::string_view(" : "), std::string_view(":")}) {
+        const auto segments = split_segments(line, delimiter);
+        if (segments.size() < 2) {
+            continue;
+        }
+
+        for (std::size_t idx = segments.size() - 1; idx > 0; --idx) {
+            const std::string left = normalize_candidate_label(segments[idx - 1], true);
+            const std::string right = normalize_candidate_label(segments[idx], false);
+            if (left.size() < 2 || right.empty()) {
+                continue;
+            }
+            if (!has_alpha(left) || !has_alpha(right)) {
+                continue;
+            }
+            if (is_heading_like_label(left)) {
+                continue;
+            }
+            return std::make_pair(left, right);
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> extract_labeled_value(const std::string& line,
+                                                 std::initializer_list<std::string_view> labels,
+                                                 bool category_label) {
+    const auto colon = line.find(':');
+    if (colon == std::string::npos) {
+        return std::nullopt;
+    }
+
+    const std::string key = to_lower_copy(trim_copy(line.substr(0, colon)));
+    for (const std::string_view label : labels) {
+        if (key == label) {
+            const std::string value = normalize_candidate_label(line.substr(colon + 1), category_label);
+            if (!value.empty()) {
+                return value;
+            }
+            break;
+        }
+    }
+    return std::nullopt;
+}
+
+std::string strip_code_fence(std::string output) {
+    output = trim_copy(std::move(output));
+    if (output.rfind("```", 0) != 0) {
+        return output;
+    }
+
+    const auto first_newline = output.find('\n');
+    if (first_newline == std::string::npos) {
+        return output;
+    }
+
+    const auto last_fence = output.rfind("\n```");
+    if (last_fence == std::string::npos || last_fence <= first_newline) {
+        return output;
+    }
+
+    return trim_copy(output.substr(first_newline + 1, last_fence - first_newline - 1));
+}
+
+std::string sanitize_categorization_output(std::string output) {
+    output = strip_code_fence(std::move(output));
+    if (output.empty()) {
+        return output;
+    }
+
+    std::vector<std::string> lines;
+    std::istringstream input(output);
+    for (std::string line; std::getline(input, line); ) {
+        line = trim_copy(std::move(line));
+        if (!line.empty()) {
+            lines.push_back(std::move(line));
+        }
+    }
+
+    if (lines.empty()) {
+        return output;
+    }
+
+    std::string category;
+    std::string subcategory;
+    for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
+        if (subcategory.empty()) {
+            if (auto value = extract_labeled_value(*it, {"subcategory", "sub category"}, false)) {
+                subcategory = std::move(*value);
+            }
+        }
+        if (category.empty()) {
+            if (auto value = extract_labeled_value(*it, {"category", "main category"}, true)) {
+                category = std::move(*value);
+            }
+        }
+        if (!category.empty() && !subcategory.empty()) {
+            return category + " : " + subcategory;
+        }
+    }
+
+    for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
+        if (auto pair = extract_inline_pair_from_line(*it)) {
+            return pair->first + " : " + pair->second;
+        }
+    }
+
+    if (!category.empty()) {
+        return category;
+    }
+
+    return output;
+}
+
+std::string categorization_system_prompt() {
+    return "You are a file categorization assistant. If the file is an installer, "
+           "determine the type of software it installs. Base your answer on the "
+           "filename, extension, and any directory context provided. Reply with "
+           "exactly one line in the format <Main category> : <Subcategory>. Main "
+           "category must be broad (one or two words, plural). Subcategory must be "
+           "specific, relevant, and must not repeat the main category. Do not "
+           "explain your answer, add extra lines, or use label words like "
+           "'Category' or 'Subcategory'. If uncertain, make your best guess from "
+           "the name only.";
+}
+
+int prompt_token_budget(int context_tokens, int max_tokens) {
+    if (context_tokens <= 0) {
+        return 0;
+    }
+    const int generation_reserve = std::max(32, max_tokens);
+    return std::max(1, context_tokens - generation_reserve);
+}
+
+std::string truncate_with_ellipsis(std::string value, std::size_t limit) {
+    if (value.size() <= limit) {
+        return value;
+    }
+    if (limit <= 3) {
+        value.resize(limit);
+        return value;
+    }
+    value.resize(limit - 3);
+    value += "...";
+    return value;
+}
+
+std::string shrink_user_prompt_for_context(const std::string& prompt, int attempt) {
+    static const std::array<std::size_t, 4> kSummaryBudgets = {1200, 800, 500, 300};
+    static const std::array<std::size_t, 4> kPromptBudgets = {1800, 1400, 1000, 700};
+
+    std::string trimmed = prompt;
+    const auto summary_marker = trimmed.find("\nDocument summary: ");
+    if (summary_marker != std::string::npos) {
+        const auto file_name_marker = trimmed.find("\nFile name:", summary_marker + 1);
+        const auto directory_name_marker = trimmed.find("\nDirectory name:", summary_marker + 1);
+        std::size_t suffix_start = std::string::npos;
+        if (file_name_marker != std::string::npos) {
+            suffix_start = file_name_marker;
+        }
+        if (directory_name_marker != std::string::npos) {
+            suffix_start = suffix_start == std::string::npos
+                ? directory_name_marker
+                : std::min(suffix_start, directory_name_marker);
+        }
+        if (suffix_start == std::string::npos) {
+            suffix_start = trimmed.size();
+        }
+
+        const std::size_t summary_start = summary_marker + std::string("\nDocument summary: ").size();
+        const std::size_t summary_length = suffix_start > summary_start ? suffix_start - summary_start : 0;
+        const std::size_t budget = kSummaryBudgets[std::min<std::size_t>(
+            static_cast<std::size_t>(attempt),
+            kSummaryBudgets.size() - 1)];
+        if (summary_length > budget) {
+            const std::string prefix = trimmed.substr(0, summary_start);
+            const std::string summary = truncate_with_ellipsis(trimmed.substr(summary_start, summary_length), budget);
+            const std::string suffix = trimmed.substr(suffix_start);
+            return prefix + summary + suffix;
+        }
+    }
+
+    const std::size_t budget = kPromptBudgets[std::min<std::size_t>(
+        static_cast<std::size_t>(attempt),
+        kPromptBudgets.size() - 1)];
+    if (trimmed.size() > budget) {
+        return truncate_with_ellipsis(trimmed, budget);
+    }
+
+    return trimmed;
 }
 
 bool is_probably_integrated_gpu(ggml_backend_dev_t device,
@@ -536,24 +1001,69 @@ std::optional<int32_t> infer_block_count_from_tensors(gguf_context* ctx)
     return std::nullopt;
 }
 
-bool format_prompt(llama_model* model, const std::string& prompt, std::string& final_prompt)
+bool format_prompt(llama_model* model,
+                   std::string_view system_prompt,
+                   std::string_view user_prompt,
+                   std::string& final_prompt)
 {
-    std::vector<llama_chat_message> messages;
-    messages.push_back({"user", prompt.c_str()});
-    const char* tmpl = llama_model_chat_template(model, nullptr);
-    std::vector<char> formatted_prompt(8192);
+    if (!model) {
+        return false;
+    }
 
+    const char* tmpl = llama_model_chat_template(model, nullptr);
+    if (!tmpl || tmpl[0] == '\0') {
+        final_prompt.clear();
+        if (!system_prompt.empty()) {
+            final_prompt.append(system_prompt);
+            final_prompt.append("\n\n");
+        }
+        final_prompt.append(user_prompt);
+        return true;
+    }
+
+    std::vector<std::string> owned_messages;
+    owned_messages.reserve(system_prompt.empty() ? 1 : 2);
+    std::vector<llama_chat_message> messages;
+    messages.reserve(system_prompt.empty() ? 1 : 2);
+
+    if (!system_prompt.empty()) {
+        owned_messages.emplace_back(system_prompt);
+        messages.push_back({"system", owned_messages.back().c_str()});
+    }
+
+    owned_messages.emplace_back(user_prompt);
+    messages.push_back({"user", owned_messages.back().c_str()});
+
+    std::size_t estimated_size = 4096;
+    for (const auto& message : owned_messages) {
+        estimated_size += message.size() * 2;
+    }
+
+    std::vector<char> formatted_prompt(estimated_size);
     int actual_len = llama_chat_apply_template(tmpl,
                                                messages.data(),
                                                messages.size(),
                                                true,
                                                formatted_prompt.data(),
-                                               formatted_prompt.size());
+                                               static_cast<int32_t>(formatted_prompt.size()));
     if (actual_len < 0) {
         return false;
     }
 
-    final_prompt.assign(formatted_prompt.data(), static_cast<size_t>(actual_len));
+    if (actual_len >= static_cast<int>(formatted_prompt.size())) {
+        formatted_prompt.resize(static_cast<std::size_t>(actual_len) + 1);
+        actual_len = llama_chat_apply_template(tmpl,
+                                               messages.data(),
+                                               messages.size(),
+                                               true,
+                                               formatted_prompt.data(),
+                                               static_cast<int32_t>(formatted_prompt.size()));
+        if (actual_len < 0 || actual_len >= static_cast<int>(formatted_prompt.size())) {
+            return false;
+        }
+    }
+
+    final_prompt.assign(formatted_prompt.data(), static_cast<std::size_t>(actual_len));
     return true;
 }
 
@@ -608,16 +1118,17 @@ std::string run_generation_loop(llama_context* ctx,
         ctx_n_batch = ctx_n_ctx;
     }
 
-    if (ctx_n_ctx > 0 && n_prompt > ctx_n_ctx) {
-        const int overflow = n_prompt - ctx_n_ctx;
+    const int prompt_budget = prompt_token_budget(ctx_n_ctx, max_tokens);
+    if (prompt_budget > 0 && n_prompt > prompt_budget) {
+        const int overflow = n_prompt - prompt_budget;
         if (overflow > 0 && overflow < n_prompt) {
             if (logger) {
-                logger->warn("Prompt tokens ({}) exceed context ({}) by {}; truncating oldest tokens",
-                             n_prompt, ctx_n_ctx, overflow);
+                logger->warn("Prompt tokens ({}) exceed prompt budget ({}) by {}; truncating oldest tokens",
+                             n_prompt, prompt_budget, overflow);
             }
             prompt_tokens.erase(prompt_tokens.begin(),
                                 prompt_tokens.begin() + overflow);
-            n_prompt = ctx_n_ctx;
+            n_prompt = prompt_budget;
         }
     }
 
@@ -1537,6 +2048,16 @@ llama_model_params prepare_model_params_for_testing(const std::string& model_pat
 } // namespace LocalLLMTestAccess
 #endif // AI_FILE_SORTER_TEST_BUILD && !GGML_USE_METAL
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+namespace LocalLLMTestAccess {
+
+std::string sanitize_output_for_testing(const std::string& output) {
+    return sanitize_categorization_output(output);
+}
+
+} // namespace LocalLLMTestAccess
+#endif
+
 
 llama_model_params LocalLLMClient::load_model_or_throw(llama_model_params model_params,
                                                        const std::shared_ptr<spdlog::logger>& logger)
@@ -1603,43 +2124,30 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
                                         FileType file_type,
                                         const std::string& consistency_context)
 {
-    std::ostringstream user_section;
+    std::ostringstream prompt;
+    prompt << (file_type == FileType::File ? "Categorize this file.\n" : "Categorize this directory.\n");
     if (!file_path.empty()) {
-        user_section << "\nFull path: " << file_path << "\n";
+        prompt << "Full path: " << file_path << "\n";
     }
-    user_section << "Name: " << file_name << "\n";
-
-    std::string prompt = (file_type == FileType::File)
-        ? "\nCategorize this file:\n" + user_section.str()
-        : "\nCategorize the directory:\n" + user_section.str();
+    prompt << (file_type == FileType::File ? "File name: " : "Directory name: ")
+           << file_name << "\n";
 
     if (!consistency_context.empty()) {
-        prompt += "\n" + consistency_context + "\n";
+        prompt << "\n" << consistency_context << "\n";
     }
 
-    std::string instruction = R"(<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-    You are a file categorization assistant. You must always follow the exact format. If the file is an installer, determine the type of software it installs. Base your answer on the filename, extension, and any directory context provided. The output must be:
-    <Main category> : <Subcategory>
-    Main category must be broad (one or two words, plural). Subcategory must be specific, relevant, and never just repeat the main category. Output exactly one line. Do not explain, add line breaks, or use words like 'Subcategory'. If uncertain, always make your best guess based on the name only. Do not apologize or state uncertainty. Never say you lack information.
-    Examples:
-    Texts : Documents
-    Productivity : File managers
-    Tables : Financial logs
-    Utilities : Task managers
-    <|eot_id|><|start_header_id|>user<|end_header_id|>
-    )" + prompt + R"(<|eot_id|><|start_header_id|>assistant<|end_header_id|>)";
-
-    return instruction;
+    return prompt.str();
 }
 
 
-std::string LocalLLMClient::generate_response(const std::string &prompt,
+std::string LocalLLMClient::generate_response(const std::string& prompt,
                                               int n_predict,
-                                              bool apply_sanitizer)
+                                              bool apply_sanitizer,
+                                              const std::string& system_prompt)
 {
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
-        logger->debug("Generating response with prompt length {} tokens target {}", prompt.size(), n_predict);
+        logger->debug("Generating response with prompt length {} chars target {} tokens", prompt.size(), n_predict);
     }
 
     struct ContextAttempt {
@@ -1775,22 +2283,47 @@ std::string LocalLLMClient::generate_response(const std::string &prompt,
             llama_sampler_chain_add(smpl, llama_sampler_init_temp(0.8f));
             llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
-            std::string final_prompt;
-            if (!format_prompt(model, prompt, final_prompt)) {
-                if (logger) {
-                    logger->error("Failed to apply chat template to prompt");
-                }
-                llama_free(ctx);
-                llama_sampler_free(smpl);
-                return "";
-            }
-
             std::vector<llama_token> prompt_tokens;
             int n_prompt = 0;
-            if (!tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
-                llama_free(ctx);
-                llama_sampler_free(smpl);
-                return "";
+            std::string working_prompt = prompt;
+            std::string final_prompt;
+            const int context_budget = prompt_token_budget(static_cast<int>(resolved_params.n_ctx), n_predict);
+            for (int shrink_attempt = 0;; ++shrink_attempt) {
+                if (!format_prompt(model, system_prompt, working_prompt, final_prompt)) {
+                    if (logger) {
+                        logger->error("Failed to apply chat template to prompt");
+                    }
+                    llama_free(ctx);
+                    llama_sampler_free(smpl);
+                    return "";
+                }
+
+                if (!tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
+                    llama_free(ctx);
+                    llama_sampler_free(smpl);
+                    return "";
+                }
+
+                if (context_budget <= 0 || n_prompt <= context_budget) {
+                    break;
+                }
+
+                const std::string trimmed_prompt = shrink_user_prompt_for_context(working_prompt, shrink_attempt);
+                if (trimmed_prompt == working_prompt) {
+                    if (logger) {
+                        logger->warn("Prompt tokens ({}) still exceed prompt budget ({}); proceeding with token truncation",
+                                     n_prompt,
+                                     context_budget);
+                    }
+                    break;
+                }
+
+                if (logger) {
+                    logger->warn("Prompt tokens ({}) exceed prompt budget ({}); shrinking user prompt and retrying",
+                                 n_prompt,
+                                 context_budget);
+                }
+                working_prompt = trimmed_prompt;
             }
 
             std::string output = run_generation_loop(ctx,
@@ -1880,10 +2413,13 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
         }
     }
     std::string prompt = make_prompt(file_name, file_path, file_type, consistency_context);
+    const std::string system_prompt = categorization_system_prompt();
     if (prompt_logging_enabled) {
-        std::cout << "\n[DEV][PROMPT] Categorization request\n" << prompt << "\n";
+        std::cout << "\n[DEV][PROMPT] Categorization request\n"
+                  << "[system]\n" << system_prompt << "\n"
+                  << "[user]\n" << prompt << "\n";
     }
-    std::string response = generate_response(prompt, 64, true);
+    std::string response = generate_response(prompt, 64, true, system_prompt);
     if (prompt_logging_enabled) {
         std::cout << "[DEV][RESPONSE] Categorization reply\n" << response << "\n";
     }
@@ -1899,28 +2435,8 @@ std::string LocalLLMClient::complete_prompt(const std::string& prompt,
 }
 
 
-std::string LocalLLMClient::sanitize_output(std::string& output) {
-    output.erase(0, output.find_first_not_of(" \t\n\r\f\v"));
-    output.erase(output.find_last_not_of(" \t\n\r\f\v") + 1);
-
-    std::regex pattern(R"(([^:\s][^\n:]*?\s*:\s*[^\n]+))");
-    std::smatch match;
-    if (std::regex_search(output, match, pattern)) {
-    std::string result = match[1];
-
-    result.erase(0, result.find_first_not_of(" \t\n\r\f\v"));
-    result.erase(result.find_last_not_of(" \t\n\r\f\v") + 1);
-
-    size_t paren_pos = result.find(" (");
-    if (paren_pos != std::string::npos) {
-        result.erase(paren_pos);
-        result.erase(result.find_last_not_of(" \t\n\r\f\v") + 1);
-    }
-
-    return result;
-}
-
-    return output;
+std::string LocalLLMClient::sanitize_output(const std::string& output) {
+    return sanitize_categorization_output(output);
 }
 
 

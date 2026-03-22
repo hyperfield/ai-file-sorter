@@ -18,6 +18,16 @@ public:
 
 private:
     struct ScanContext;
+    void scan_non_recursive(const fs::path& scan_path,
+                            const ScanContext& context,
+                            std::vector<FileEntry>& results);
+    void scan_recursive(const fs::path& scan_path,
+                        const ScanContext& context,
+                        std::vector<FileEntry>& results);
+    void log_scan_warning(const ScanContext& context,
+                          const fs::path& path,
+                          const std::error_code& error,
+                          const char* action) const;
     std::optional<FileEntry> build_entry(const fs::directory_entry& entry,
                                          const ScanContext& context);
     bool should_skip_entry(const fs::path& entry_path,
@@ -26,10 +36,11 @@ private:
                            const std::string& full_path) const;
     std::optional<FileType> classify_entry(const fs::directory_entry& entry,
                                            bool bundle,
+                                           bool is_directory,
                                            const ScanContext& context) const;
     bool is_file_hidden(const fs::path &path) const;
     bool is_junk_file(const std::string& name) const;
-    bool is_file_bundle(const fs::path& path) const;
+    bool is_file_bundle(const fs::path& path, bool is_directory) const;
 };
 
 #endif

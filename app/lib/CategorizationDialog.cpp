@@ -274,9 +274,11 @@ void reset_categorization_move_probe() {
 CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
                                            bool show_subcategory_col,
                                            const std::string& undo_dir,
+                                           CategoryLanguage category_language,
                                            QWidget* parent)
     : QDialog(parent),
       db_manager(db_manager),
+      category_language_(category_language),
       show_subcategory_column(show_subcategory_col),
       core_logger(Logger::get_logger("core_logger")),
       db_logger(Logger::get_logger("db_logger")),
@@ -1092,6 +1094,9 @@ void CategorizationDialog::populate_model()
             category_text.clear();
         }
         auto* category_item = new QStandardItem(QString::fromStdString(category_text));
+        category_item->setData(QString::fromStdString(category_text), kOriginalCategoryRole);
+        category_item->setData(QString::fromStdString(
+            file.canonical_category.empty() ? file.category : file.canonical_category), kCanonicalCategoryRole);
         category_item->setEditable(!file.rename_only);
         if (!file.rename_only) {
             category_item->setIcon(edit_icon());
@@ -1102,6 +1107,9 @@ void CategorizationDialog::populate_model()
             subcategory_text.clear();
         }
         auto* subcategory_item = new QStandardItem(QString::fromStdString(subcategory_text));
+        subcategory_item->setData(QString::fromStdString(subcategory_text), kOriginalSubcategoryRole);
+        subcategory_item->setData(QString::fromStdString(
+            file.canonical_subcategory.empty() ? file.subcategory : file.canonical_subcategory), kCanonicalSubcategoryRole);
         subcategory_item->setEditable(!file.rename_only);
         if (!file.rename_only) {
             subcategory_item->setIcon(edit_icon());
@@ -1168,8 +1176,6 @@ void CategorizationDialog::record_categorization_to_db()
     }
 
     auto entry_is_unchanged = [](const CategorizedFile& cached,
-                                 const std::string& category,
-                                 const std::string& subcategory,
                                  const DatabaseManager::ResolvedCategory& resolved,
                                  const std::string& suggested_name,
                                  bool rename_only,
@@ -1183,13 +1189,49 @@ void CategorizationDialog::record_categorization_to_db()
         if (cached.used_consistency_hints != used_consistency) {
             return false;
         }
-        if (cached.category != category || cached.subcategory != subcategory) {
+        if (cached.category != resolved.category || cached.subcategory != resolved.subcategory) {
             return false;
         }
         if (!resolved.category.empty() && cached.taxonomy_id != resolved.taxonomy_id) {
             return false;
         }
         return true;
+    };
+    auto read_role_text = [](QStandardItem* item, int role) {
+        return item && item->data(role).isValid()
+            ? item->data(role).toString().toStdString()
+            : std::string();
+    };
+    auto update_category_roles = [](QStandardItem* item,
+                                    const std::string& display_value,
+                                    const std::string& canonical_value,
+                                    int original_role,
+                                    int canonical_role) {
+        if (!item) {
+            return;
+        }
+        item->setText(QString::fromStdString(display_value));
+        item->setData(QString::fromStdString(display_value), original_role);
+        item->setData(QString::fromStdString(canonical_value), canonical_role);
+    };
+    auto resolve_for_storage = [this, &read_role_text](QStandardItem* category_item,
+                                                       QStandardItem* subcategory_item,
+                                                       const std::string& category,
+                                                       const std::string& subcategory) {
+        const std::string original_category = read_role_text(category_item, kOriginalCategoryRole);
+        const std::string original_subcategory = read_role_text(subcategory_item, kOriginalSubcategoryRole);
+        const std::string canonical_category = read_role_text(category_item, kCanonicalCategoryRole);
+        const std::string canonical_subcategory = read_role_text(subcategory_item, kCanonicalSubcategoryRole);
+        const bool unchanged_display =
+            category == original_category &&
+            subcategory == original_subcategory &&
+            !canonical_category.empty();
+        if (unchanged_display) {
+            return db_manager->resolve_category(canonical_category, canonical_subcategory);
+        }
+        return db_manager->resolve_category_for_language(category,
+                                                        subcategory,
+                                                        category_language_);
     };
 
     for (int row = 0; row < model->rowCount(); ++row) {
@@ -1229,8 +1271,9 @@ void CategorizationDialog::record_categorization_to_db()
         const auto cached_entry = db_manager->get_categorized_file(file_path, file_name, file_type);
         if (rename_only) {
             if (cached_entry) {
-                category = cached_entry->category;
-                subcategory = cached_entry->subcategory;
+                const auto localized_cached = db_manager->localize_categorized_file(*cached_entry, category_language_);
+                category = localized_cached.category;
+                subcategory = localized_cached.subcategory;
             } else {
                 category.clear();
                 subcategory.clear();
@@ -1247,23 +1290,29 @@ void CategorizationDialog::record_categorization_to_db()
             if (show_subcategory_column && subcategory_item) {
                 subcategory_item->setText(QString::fromStdString(subcategory));
             }
+            if (cached_entry) {
+                update_category_roles(category_item,
+                                      category,
+                                      cached_entry->category,
+                                      kOriginalCategoryRole,
+                                      kCanonicalCategoryRole);
+                update_category_roles(subcategory_item,
+                                      subcategory,
+                                      cached_entry->subcategory,
+                                      kOriginalSubcategoryRole,
+                                      kCanonicalSubcategoryRole);
+            }
         }
         if (rename_only) {
             DatabaseManager::ResolvedCategory resolved{0, "", ""};
-            if (cached_entry && !category.empty()) {
+            if (cached_entry && !cached_entry->category.empty()) {
                 resolved.taxonomy_id = cached_entry->taxonomy_id;
-                resolved.category = category;
-                resolved.subcategory = subcategory;
+                resolved.category = cached_entry->category;
+                resolved.subcategory = cached_entry->subcategory;
             }
             const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
             if (cached_entry &&
-                entry_is_unchanged(*cached_entry,
-                                   category,
-                                   subcategory,
-                                   resolved,
-                                   suggested_name,
-                                   rename_only,
-                                   used_consistency)) {
+                entry_is_unchanged(*cached_entry, resolved, suggested_name, rename_only, used_consistency)) {
                 continue;
             }
             db_manager->insert_or_update_file_with_categorization(
@@ -1275,27 +1324,28 @@ void CategorizationDialog::record_categorization_to_db()
             continue;
         }
 
-        auto resolved = db_manager->resolve_category(category, subcategory);
+        auto resolved = resolve_for_storage(category_item, subcategory_item, category, subcategory);
 
         const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
         if (cached_entry &&
-            entry_is_unchanged(*cached_entry,
-                               category,
-                               subcategory,
-                               resolved,
-                               suggested_name,
-                               rename_only,
-                               used_consistency)) {
+            entry_is_unchanged(*cached_entry, resolved, suggested_name, rename_only, used_consistency)) {
             continue;
         }
         db_manager->insert_or_update_file_with_categorization(
             file_name, file_type_label, file_path, resolved, used_consistency, suggested_name);
 
-        category_item->setText(QString::fromStdString(resolved.category));
+        const auto display_resolved = db_manager->localize_category(resolved, category_language_);
+        update_category_roles(category_item,
+                              display_resolved.category,
+                              resolved.category,
+                              kOriginalCategoryRole,
+                              kCanonicalCategoryRole);
         if (show_subcategory_column) {
-            if (subcategory_item) {
-                subcategory_item->setText(QString::fromStdString(resolved.subcategory));
-            }
+            update_category_roles(subcategory_item,
+                                  display_resolved.subcategory,
+                                  resolved.subcategory,
+                                  kOriginalSubcategoryRole,
+                                  kCanonicalSubcategoryRole);
         }
     }
 }
@@ -1574,6 +1624,13 @@ void CategorizationDialog::handle_selected_row(int row_index,
 {
     const std::string destination_name = resolve_destination_name(file_name, rename_candidate);
     const bool rename_active = destination_name != file_name;
+    auto* category_item_ref = model ? model->item(row_index, ColumnCategory) : nullptr;
+    auto* subcategory_item_ref = model ? model->item(row_index, ColumnSubcategory) : nullptr;
+    auto read_role_text = [](QStandardItem* item, int role) {
+        return item && item->data(role).isValid()
+            ? item->data(role).toString().toStdString()
+            : std::string();
+    };
     auto apply_successful_rename = [this, row_index, &destination_name]() {
         if (!model) {
             return;
@@ -1782,7 +1839,21 @@ void CategorizationDialog::handle_selected_row(int row_index,
             record_move_for_undo(row_index, preview_paths.source, preview_paths.destination, size_bytes, mtime_value);
 
             if (db_manager && (rename_active || include_subdirectories_)) {
-                auto resolved = db_manager->resolve_category(category, effective_subcategory);
+                const std::string original_category = read_role_text(category_item_ref, kOriginalCategoryRole);
+                const std::string original_subcategory = read_role_text(subcategory_item_ref, kOriginalSubcategoryRole);
+                const std::string canonical_category = read_role_text(category_item_ref, kCanonicalCategoryRole);
+                const std::string canonical_subcategory = read_role_text(subcategory_item_ref, kCanonicalSubcategoryRole);
+                const std::string original_effective_subcategory =
+                    original_subcategory.empty() ? original_category : original_subcategory;
+                const bool unchanged_display =
+                    category == original_category &&
+                    effective_subcategory == original_effective_subcategory &&
+                    !canonical_category.empty();
+                auto resolved = unchanged_display
+                    ? db_manager->resolve_category(canonical_category, canonical_subcategory)
+                    : db_manager->resolve_category_for_language(category,
+                                                                effective_subcategory,
+                                                                category_language_);
                 const std::string source_db_dir = include_subdirectories_ ? source_dir : base_dir;
                 std::string destination_db_dir = base_dir;
                 if (include_subdirectories_) {

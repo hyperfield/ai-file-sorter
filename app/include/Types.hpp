@@ -34,6 +34,8 @@ struct CategorizedFile {
     std::string suggested_name;
     bool rename_only{false};
     bool rename_applied{false};
+    std::string canonical_category;
+    std::string canonical_subcategory;
 };
 
 inline std::string to_string(FileType type) {

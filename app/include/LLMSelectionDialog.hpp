@@ -4,6 +4,7 @@
 #include "LLMDownloader.hpp"
 #include "Types.hpp"
 
+#include <QCoreApplication>
 #include <QDialog>
 
 #include <atomic>
@@ -34,6 +35,7 @@ class LLMSelectionDialogTestAccess;
 
 class LLMSelectionDialog : public QDialog
 {
+    Q_DECLARE_TR_FUNCTIONS(LLMSelectionDialog)
 public:
     explicit LLMSelectionDialog(Settings& settings, QWidget* parent = nullptr);
     ~LLMSelectionDialog() override;

@@ -2,34 +2,20 @@
 #define UPDATER_HPP
 
 #include "Settings.hpp"
+#include "UpdateFeed.hpp"
+#include "UpdateInstaller.hpp"
 #include "Version.hpp"
+#include <functional>
 #include <future>
 #include <optional>
 #include <string>
 
 class QWidget;
+class QString;
 
-struct UpdateInfo
-{
-    std::string current_version;
-    std::string min_version;
-    std::string download_url;
-    std::string release_notes_url;
-    bool is_required{false};
-
-    UpdateInfo() = default;
-    UpdateInfo(const std::string& current_version,
-               const std::string& min_version,
-               const std::string& download,
-               const std::string& notes,
-               bool is_required = false)
-        : current_version(current_version),
-          min_version(min_version),
-          download_url(download),
-          release_notes_url(notes),
-          is_required(is_required) {}
-};
-
+#ifdef AI_FILE_SORTER_TEST_BUILD
+class UpdaterTestAccess;
+#endif
 
 class Updater
 {
@@ -40,18 +26,32 @@ public:
 
 private:
     Settings& settings;
-    const std::string update_spec_file_url;
+    UpdateInstaller installer;
+    std::optional<std::string> update_spec_file_url_;
+    std::function<void(const std::string&)> open_download_url_fn_;
+    std::function<void()> quit_fn_;
     std::optional<UpdateInfo> update_info;
     std::future<void> update_future;
     void check_updates();
+    std::optional<UpdateInfo> resolve_live_test_update() const;
     std::string fetch_update_metadata() const;
     Version string_to_Version(const std::string &version_str);
     void display_update_dialog(bool is_required=false);
-    void show_required_update_dialog(const UpdateInfo& info, QWidget* parent) const;
-    void show_optional_update_dialog(const UpdateInfo& info, QWidget* parent) const;
+    void show_required_update_dialog(const UpdateInfo& info, QWidget* parent);
+    void show_optional_update_dialog(const UpdateInfo& info, QWidget* parent);
     bool is_update_available();
     bool is_update_required();
     bool is_update_skipped();
+    bool trigger_update_action(const UpdateInfo& info, QWidget* parent, bool quit_after_open);
+    UpdatePreparationResult prepare_installer_update(const UpdateInfo& info, QWidget* parent);
+    bool handle_update_error(const UpdateInfo& info,
+                             const QString& message,
+                             QWidget* parent,
+                             bool quit_after_open);
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend class UpdaterTestAccess;
+#endif
 };
 
 #endif

@@ -1,5 +1,20 @@
 ﻿# Changelog
 
+## [1.7.3] - 2026-03-22
+
+- Non-English categorization is now more reliable: files are categorized canonically in English first, then translated into the selected category language, with localized labels persisted separately from the canonical taxonomy/cache.
+- App updates now support separate update streams for Windows, macOS, and Linux, while still accepting the legacy single-stream manifest format for newer clients.
+- Windows feeds can now provide a direct installer URL plus SHA-256 checksum so the app can download the installer, show download progress, verify its integrity, and launch it after confirmation.
+- The UI translation system was migrated fully to Qt `.ts` / `.qm` catalogs, and missing translations for all currently supported interface languages were filled in.
+- Local categorization with local LLMs is now more robust: prompt budgeting, output sanitization, and category/subcategory parsing were hardened so verbose or oddly formatted replies no longer cause widespread invalid categorization failures.
+- Recursive scans now tolerate unreadable subfolders and other filesystem errors instead of aborting the overall run.
+- Cached category labels are sanitized more aggressively to avoid malformed UTF-8 data breaking later categorization or display.
+- macOS local-LLM packaging/runtime handling was hardened: bundled llama/ggml dylibs are now relocatable, and the app no longer falls back to conflicting system/Homebrew ggml libraries during backend loading.
+- Linux/macOS build and packaging flows were improved, including staged PDFium runtime files, better Debian package dependencies, CPU/CUDA/Vulkan Debian package variants, and improved Homebrew MediaInfo detection on macOS source builds.
+- Added cross-platform diagnostics collection scripts for Linux, macOS, and Windows.
+- Misc improvements.
+- Misc bug fixes.
+
 ## [1.7.0] - 2026-03-08
 
 - Progress dialog redesigned into a stage-based table view with explicit stages for Image analysis, Document analysis, and Categorization.

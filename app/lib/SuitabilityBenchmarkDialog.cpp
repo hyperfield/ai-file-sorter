@@ -1497,7 +1497,7 @@ void SuitabilityBenchmarkDialog::setup_ui()
 
 void SuitabilityBenchmarkDialog::retranslate_ui()
 {
-    setWindowTitle(QObject::tr("Compatability Benchmark"));
+    setWindowTitle(QObject::tr("Compatibility Benchmark"));
     if (intro_label_) {
         const QString intro_main = QObject::tr("Run a quick performance check to estimate how image analysis, document analysis, and file categorization will perform on your system.");
         const QString intro_warning = QObject::tr("It is recommended to quit any CPU- and GPU-intensive applications before running this test.");

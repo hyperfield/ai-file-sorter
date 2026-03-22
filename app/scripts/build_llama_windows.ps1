@@ -56,6 +56,40 @@ function Resolve-CMake {
 
 $cmakeExe = Resolve-CMake
 
+function Resolve-MSVCCompiler {
+    $cmd = Get-Command cl.exe -ErrorAction SilentlyContinue
+    if ($cmd -and (Test-Path $cmd.Source)) {
+        return $cmd.Source
+    }
+
+    $vswherePath = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vswherePath) {
+        $installationPath = & $vswherePath `
+            -latest `
+            -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+
+        if ($installationPath) {
+            $toolRoot = Join-Path $installationPath "VC\Tools\MSVC"
+            if (Test-Path $toolRoot) {
+                $toolsets = Get-ChildItem -Path $toolRoot -Directory |
+                    Sort-Object Name -Descending
+                foreach ($toolset in $toolsets) {
+                    $candidate = Join-Path $toolset.FullName "bin\Hostx64\x64\cl.exe"
+                    if (Test-Path $candidate) {
+                        return $candidate
+                    }
+                }
+            }
+        }
+    }
+
+    throw "Could not locate MSVC cl.exe. Run this script from a Developer PowerShell or install the Visual Studio C++ toolchain."
+}
+
+$msvcCompiler = Resolve-MSVCCompiler
+
 # --- Locate OpenBLAS (required on Windows) ---
 function Resolve-VcpkgRoot {
     param([string]$Explicit)
@@ -256,8 +290,8 @@ if (Test-Path "build") {
 New-Item -ItemType Directory -Path "build" | Out-Null
 
 $cmakeArgs = @(
-    "-DCMAKE_C_COMPILER=`"C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe`"",
-    "-DCMAKE_CXX_COMPILER=`"C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe`"",
+    "-DCMAKE_C_COMPILER=`"$msvcCompiler`"",
+    "-DCMAKE_CXX_COMPILER=`"$msvcCompiler`"",
     "-DCURL_LIBRARY=`"$curlLib`"",
     "-DCURL_INCLUDE_DIR=`"$curlInclude`"",
     "-DBUILD_SHARED_LIBS=ON",

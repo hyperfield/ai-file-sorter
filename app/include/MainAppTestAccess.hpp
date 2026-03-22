@@ -9,8 +9,9 @@
 #include "Types.hpp"
 
 #include <QString>
-#include <functional>
 #include <QCheckBox>
+#include <QToolButton>
+#include <functional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -112,6 +113,18 @@ public:
      */
     static QCheckBox* rename_documents_only_checkbox(MainApp& app);
     /**
+     * @brief Access the picture-analysis disclosure toggle.
+     * @param app MainApp instance.
+     * @return Pointer to the toggle button, or nullptr if unavailable.
+     */
+    static QToolButton* image_options_toggle_button(MainApp& app);
+    /**
+     * @brief Access the document-analysis disclosure toggle.
+     * @param app MainApp instance.
+     * @return Pointer to the toggle button, or nullptr if unavailable.
+     */
+    static QToolButton* document_options_toggle_button(MainApp& app);
+    /**
      * @brief Split file entries into image/document/other buckets for analysis.
      * @param files Input entries to split.
      * @param analyze_images Whether to analyze images by content.
@@ -164,6 +177,24 @@ public:
      * @return True when the failure looks like GPU memory pressure.
      */
     static bool should_offer_visual_cpu_fallback(const std::string& reason);
+    /**
+     * @brief Resolve the prompt filename used for document categorization.
+     * @param original_name Original file name.
+     * @param suggested_name Suggested file name, when available.
+     * @return Suggested name when present; otherwise the original name.
+     */
+    static std::string resolve_document_prompt_name(const std::string& original_name,
+                                                    const std::string& suggested_name);
+    /**
+     * @brief Build the document prompt path shown in categorization progress.
+     * @param full_path Original full path to the document.
+     * @param prompt_name File name to use in the categorization prompt.
+     * @param summary Optional summary appended for the LLM prompt.
+     * @return Prompt path string used for categorization.
+     */
+    static std::string build_document_prompt_path(const std::string& full_path,
+                                                  const std::string& prompt_name,
+                                                  const std::string& summary);
     /**
      * @brief Trigger a UI retranslate on the MainApp instance.
      * @param app MainApp instance.

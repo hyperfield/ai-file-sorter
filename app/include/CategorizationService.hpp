@@ -155,6 +155,12 @@ private:
      * @return Combined prompt context.
      */
     std::string build_combined_context(const std::string& hint_block) const;
+    DatabaseManager::ResolvedCategory localize_resolved_category(
+        ILLMClient& llm,
+        const DatabaseManager::ResolvedCategory& resolved) const;
+    std::optional<DatabaseManager::ResolvedCategory> translate_resolved_category(
+        ILLMClient& llm,
+        const DatabaseManager::ResolvedCategory& resolved) const;
     /**
      * @brief Runs the categorization flow with cache handling for a single entry.
      * @param llm LLM client used for the request.

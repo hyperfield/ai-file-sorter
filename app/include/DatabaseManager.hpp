@@ -1,6 +1,7 @@
 #ifndef DATABASEMANAGER_HPP
 #define DATABASEMANAGER_HPP
 
+#include "CategoryLanguage.hpp"
 #include "Types.hpp"
 #include <string>
 #include <map>
@@ -23,6 +24,19 @@ public:
 
     ResolvedCategory resolve_category(const std::string& category,
                                       const std::string& subcategory);
+    ResolvedCategory resolve_category_for_language(const std::string& category,
+                                                   const std::string& subcategory,
+                                                   CategoryLanguage language);
+    std::optional<ResolvedCategory> get_category_translation(int taxonomy_id,
+                                                             CategoryLanguage language) const;
+    ResolvedCategory localize_category(const ResolvedCategory& resolved,
+                                       CategoryLanguage language) const;
+    CategorizedFile localize_categorized_file(const CategorizedFile& entry,
+                                              CategoryLanguage language) const;
+    bool upsert_category_translation(int taxonomy_id,
+                                     CategoryLanguage language,
+                                     const std::string& category,
+                                     const std::string& subcategory);
 
     bool insert_or_update_file_with_categorization(const std::string& file_name,
                                                    const std::string& file_type,
@@ -57,7 +71,8 @@ public:
                                    FileType file_type);
     void increment_taxonomy_frequency(int taxonomy_id);
     std::vector<std::pair<std::string, std::string>>
-        get_taxonomy_snapshot(std::size_t max_entries) const;
+        get_taxonomy_snapshot(std::size_t max_entries,
+                              CategoryLanguage language = CategoryLanguage::English) const;
     std::vector<std::pair<std::string, std::string>>
         get_recent_categories_for_extension(const std::string& extension,
                                             FileType file_type,
@@ -81,10 +96,16 @@ private:
     void initialize_schema();
     void initialize_taxonomy_schema();
     void load_taxonomy_cache();
+    void load_translation_cache();
     std::string normalize_label(const std::string& input) const;
     static double string_similarity(const std::string& a, const std::string& b);
     static std::string make_key(const std::string& norm_category,
                                 const std::string& norm_subcategory);
+    static std::string make_translation_entry_key(int taxonomy_id,
+                                                  CategoryLanguage language);
+    static std::string make_translation_lookup_key(CategoryLanguage language,
+                                                   const std::string& norm_category,
+                                                   const std::string& norm_subcategory);
     std::pair<int, double> find_fuzzy_match(const std::string& norm_category,
                                             const std::string& norm_subcategory) const;
     int resolve_existing_taxonomy(const std::string& key,
@@ -118,6 +139,8 @@ private:
     std::unordered_map<std::string, int> canonical_lookup;
     std::unordered_map<std::string, int> alias_lookup;
     std::unordered_map<int, size_t> taxonomy_index;
+    std::unordered_map<std::string, ResolvedCategory> translation_entries;
+    std::unordered_map<std::string, int> translation_lookup;
 
     static bool is_duplicate_category(
         const std::vector<std::pair<std::string, std::string>>& results,

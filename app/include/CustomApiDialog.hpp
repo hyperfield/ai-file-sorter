@@ -3,6 +3,7 @@
 
 #include "Types.hpp"
 
+#include <QCoreApplication>
 #include <QDialog>
 
 class QCheckBox;
@@ -15,6 +16,7 @@ class QTextEdit;
  */
 class CustomApiDialog : public QDialog
 {
+    Q_DECLARE_TR_FUNCTIONS(CustomApiDialog)
 public:
     /**
      * @brief Construct a dialog for a new custom API entry.

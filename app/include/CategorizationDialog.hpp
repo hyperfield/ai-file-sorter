@@ -1,8 +1,10 @@
 #ifndef CATEGORIZATIONDIALOG_HPP
 #define CATEGORIZATIONDIALOG_HPP
 
+#include "CategoryLanguage.hpp"
 #include "Types.hpp"
 
+#include <QCoreApplication>
 #include <QDialog>
 #include <QStandardItemModel>
 
@@ -22,10 +24,12 @@ class QStandardItem;
 
 class CategorizationDialog : public QDialog
 {
+    Q_DECLARE_TR_FUNCTIONS(CategorizationDialog)
 public:
     CategorizationDialog(DatabaseManager* db_manager,
                          bool show_subcategory_col,
                          const std::string& undo_dir,
+                         CategoryLanguage category_language = CategoryLanguage::English,
                          QWidget* parent = nullptr);
 
     void set_show_subcategory_column(bool enabled);
@@ -70,6 +74,10 @@ private:
     static constexpr int kHiddenCategoryRole = Qt::UserRole + 7;
     static constexpr int kHiddenSubcategoryRole = Qt::UserRole + 8;
     static constexpr int kOriginalFileNameRole = Qt::UserRole + 9;
+    static constexpr int kOriginalCategoryRole = Qt::UserRole + 10;
+    static constexpr int kOriginalSubcategoryRole = Qt::UserRole + 11;
+    static constexpr int kCanonicalCategoryRole = Qt::UserRole + 12;
+    static constexpr int kCanonicalSubcategoryRole = Qt::UserRole + 13;
 
     enum Column {
         ColumnSelect = 0,
@@ -211,6 +219,7 @@ private:
     void on_bulk_edit_clicked();
 
     DatabaseManager* db_manager;
+    CategoryLanguage category_language_{CategoryLanguage::English};
     bool show_subcategory_column;
     bool include_subdirectories_{false};
     bool allow_image_renames_{true};

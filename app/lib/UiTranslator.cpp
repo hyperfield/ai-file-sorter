@@ -6,6 +6,7 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QCoreApplication>
 #include <QChar>
 #include <QCheckBox>
 #include <QComboBox>
@@ -38,7 +39,7 @@ UiTranslator::UiTranslator(Dependencies deps)
 {
     if (!deps_.translator) {
         deps_.translator = [](const char* source) {
-            return QObject::tr(source);
+            return QCoreApplication::translate("UiTranslator", source);
         };
     }
 }
@@ -376,5 +377,5 @@ QString UiTranslator::tr(const char* source) const
     if (deps_.translator) {
         return deps_.translator(source);
     }
-    return QObject::tr(source);
+    return QCoreApplication::translate("UiTranslator", source);
 }
