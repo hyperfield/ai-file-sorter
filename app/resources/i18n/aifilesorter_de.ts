@@ -402,9 +402,9 @@
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="218" />
-            <source>Quite precise. Slower on CPU, but performs much better with GPU acceleration.
+            <source>Larger local model. Slower on CPU, but performs much better with GPU acceleration.
 Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
-            <translation>Ziemlich präzise. Auf der CPU langsamer, mit GPU-Beschleunigung jedoch deutlich besser.
+            <translation>Größeres lokales Modell. Auf der CPU langsamer, mit GPU-Beschleunigung jedoch deutlich besser.
 Unterstützt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
@@ -414,8 +414,8 @@ Unterstützt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="231" />
-            <source>Less precise, but works quickly even on CPUs. Good for lightweight local use.</source>
-            <translation>Weniger präzise, arbeitet aber auch auf CPUs schnell. Gut für leichte lokale Nutzung.</translation>
+            <source>Smaller local model that works quickly even on CPUs. Good for lightweight local use.</source>
+            <translation>Kleineres lokales Modell, das auch auf CPUs schnell arbeitet. Gut für leichte lokale Nutzung.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="236" />
