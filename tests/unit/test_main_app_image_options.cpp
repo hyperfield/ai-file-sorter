@@ -140,8 +140,7 @@ TEST_CASE("Top-level analysis rows share the same leading edge") {
     CHECK(add_media_metadata->x() == analyze_images->x());
 }
 
-#ifdef Q_OS_MACOS
-TEST_CASE("macOS analysis toggles use disclosure indicators instead of toolbutton arrows") {
+TEST_CASE("Analysis toggles use disclosure indicators instead of toolbutton arrows") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt_context;
 
@@ -165,7 +164,6 @@ TEST_CASE("macOS analysis toggles use disclosure indicators instead of toolbutto
     CHECK(image_toggle->isCheckable());
     CHECK(document_toggle->isCheckable());
 }
-#endif
 
 TEST_CASE("Image rename-only does not disable categorization unless processing images only") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));

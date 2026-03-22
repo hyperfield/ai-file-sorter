@@ -477,12 +477,8 @@ void sync_disclosure_button(QToolButton* button, bool expanded)
     if (!button) {
         return;
     }
-#if defined(Q_OS_MACOS)
     Q_UNUSED(expanded);
     button->update();
-#else
-    button->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
-#endif
 }
 
 } // namespace
