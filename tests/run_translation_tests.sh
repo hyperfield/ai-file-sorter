@@ -45,6 +45,82 @@ CPP
 
 OUTPUT="$BUILD_DIR/translation_manager_test"
 
+find_qt6_path_tool() {
+    local tool_name="$1"
+    local fallback_path="$2"
+    if command -v "$tool_name" >/dev/null 2>&1; then
+        command -v "$tool_name"
+        return 0
+    fi
+    if [[ -x "$fallback_path" ]]; then
+        printf '%s\n' "$fallback_path"
+        return 0
+    fi
+    return 1
+}
+
+find_qt6_lrelease() {
+    local candidate qt_host_dir
+
+    for candidate in lrelease6 lrelease-qt6; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            command -v "$candidate"
+            return 0
+        fi
+    done
+
+    if [[ -n "${QTPATHS6:-}" ]]; then
+        while IFS= read -r qt_host_dir; do
+            if [[ -n "$qt_host_dir" && -x "$qt_host_dir/lrelease" ]]; then
+                printf '%s\n' "$qt_host_dir/lrelease"
+                return 0
+            fi
+        done < <(
+            "$QTPATHS6" --query QT_HOST_LIBEXECS 2>/dev/null || true
+            "$QTPATHS6" --query QT_HOST_BINS 2>/dev/null || true
+        )
+    fi
+
+    if [[ -n "${QMAKE6:-}" ]]; then
+        while IFS= read -r qt_host_dir; do
+            if [[ -n "$qt_host_dir" && -x "$qt_host_dir/lrelease" ]]; then
+                printf '%s\n' "$qt_host_dir/lrelease"
+                return 0
+            fi
+        done < <(
+            "$QMAKE6" -query QT_HOST_LIBEXECS 2>/dev/null || true
+            "$QMAKE6" -query QT_HOST_BINS 2>/dev/null || true
+            "$QMAKE6" -query QT_INSTALL_BINS 2>/dev/null || true
+        )
+    fi
+
+    for candidate in \
+        /usr/lib/qt6/libexec/lrelease \
+        /usr/lib/qt6/bin/lrelease \
+        /opt/homebrew/bin/lrelease \
+        /opt/homebrew/opt/qt/share/qt/libexec/lrelease \
+        /opt/homebrew/opt/qtbase/share/qt/libexec/lrelease \
+        /usr/local/opt/qtbase/share/qt/libexec/lrelease; do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    if command -v lrelease >/dev/null 2>&1; then
+        candidate="$(command -v lrelease)"
+        if "$candidate" -version 2>&1 | grep -Eq 'Qt[^0-9]*6|version 6'; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+QMAKE6="$(find_qt6_path_tool qmake6 /usr/lib/qt6/bin/qmake6 || true)"
+QTPATHS6="$(find_qt6_path_tool qtpaths6 /usr/lib/qt6/bin/qtpaths6 || true)"
+
 pkg_includes="$(pkg-config --cflags Qt6Core Qt6Gui Qt6Widgets 2>/dev/null || true)"
 pkg_libs="$(pkg-config --libs Qt6Core Qt6Gui Qt6Widgets 2>/dev/null || true)"
 
@@ -54,14 +130,14 @@ if [[ -n "$pkg_includes" && -n "$pkg_libs" ]]; then
 else
     qt_headers=""
     qt_libs=""
-    if command -v qmake6 >/dev/null 2>&1; then
-        qt_headers="$(qmake6 -query QT_INSTALL_HEADERS 2>/dev/null || true)"
-        qt_libs="$(qmake6 -query QT_INSTALL_LIBS 2>/dev/null || true)"
+    if [[ -n "$QMAKE6" ]]; then
+        qt_headers="$("$QMAKE6" -query QT_INSTALL_HEADERS 2>/dev/null || true)"
+        qt_libs="$("$QMAKE6" -query QT_INSTALL_LIBS 2>/dev/null || true)"
     elif command -v qmake >/dev/null 2>&1; then
         qt_headers="$(qmake -query QT_INSTALL_HEADERS 2>/dev/null || true)"
         qt_libs="$(qmake -query QT_INSTALL_LIBS 2>/dev/null || true)"
-    elif command -v qtpaths6 >/dev/null 2>&1; then
-        prefix="$(qtpaths6 --install-prefix 2>/dev/null || true)"
+    elif [[ -n "$QTPATHS6" ]]; then
+        prefix="$("$QTPATHS6" --install-prefix 2>/dev/null || true)"
         if [[ -n "$prefix" ]]; then
             qt_headers="$prefix/include"
             qt_libs="$prefix/lib"
@@ -99,22 +175,10 @@ else
     fi
 fi
 
-LRELEASE=""
-if command -v lrelease6 >/dev/null 2>&1; then
-    LRELEASE="$(command -v lrelease6)"
-elif command -v qmake6 >/dev/null 2>&1; then
-    qt_host_bins="$(qmake6 -query QT_HOST_BINS 2>/dev/null || qmake6 -query QT_INSTALL_BINS 2>/dev/null || true)"
-    if [[ -n "$qt_host_bins" && -x "$qt_host_bins/lrelease" ]]; then
-        LRELEASE="$qt_host_bins/lrelease"
-    fi
-elif [[ -x /usr/lib/qt6/bin/lrelease ]]; then
-    LRELEASE="/usr/lib/qt6/bin/lrelease"
-elif command -v lrelease >/dev/null 2>&1; then
-    LRELEASE="$(command -v lrelease)"
-fi
+LRELEASE="$(find_qt6_lrelease || true)"
 
 if [[ -z "$LRELEASE" ]]; then
-    echo "Could not find lrelease or lrelease6" >&2
+    echo "Could not find a Qt 6 lrelease binary. Install qt6-l10n-tools or set LRELEASE=/path/to/qt6/lrelease" >&2
     exit 1
 fi
 
