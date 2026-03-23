@@ -389,6 +389,18 @@ QM_FILES := $(patsubst $(TS_DIR)/%.ts,$(QM_DIR)/%.qm,$(TS_FILES))
 TRANSLATIONS_QRC := $(OBJ_DIR)/translations.qrc
 TRANSLATIONS_QRC_CPP := $(OBJ_DIR)/qrc_translations.cpp
 TRANSLATIONS_QRC_OBJ := $(OBJ_DIR)/qrc_translations.o
+QMAKE6 := $(shell \
+	if command -v qmake6 >/dev/null 2>&1; then \
+		command -v qmake6; \
+	elif [ -x /usr/lib/qt6/bin/qmake6 ]; then \
+		printf '%s\n' /usr/lib/qt6/bin/qmake6; \
+	fi)
+QTPATHS6 := $(shell \
+	if command -v qtpaths6 >/dev/null 2>&1; then \
+		command -v qtpaths6; \
+	elif [ -x /usr/lib/qt6/bin/qtpaths6 ]; then \
+		printf '%s\n' /usr/lib/qt6/bin/qtpaths6; \
+	fi)
 
 ifndef RCC
 RCC := $(shell command -v qt6-rcc 2>/dev/null)
@@ -418,29 +430,51 @@ endif
 endif
 
 ifndef LRELEASE
-LRELEASE := $(shell command -v lrelease6 2>/dev/null)
-ifeq ($(strip $(LRELEASE)),)
 LRELEASE := $(shell \
-	if command -v qmake6 >/dev/null 2>&1; then \
-		qt_host_bins="$$(qmake6 -query QT_HOST_BINS 2>/dev/null || qmake6 -query QT_INSTALL_BINS 2>/dev/null)"; \
-		if [ -n "$$qt_host_bins" ] && [ -x "$$qt_host_bins/lrelease" ]; then \
-			printf '%s\n' "$$qt_host_bins/lrelease"; \
+	for candidate in lrelease6 lrelease-qt6; do \
+		if command -v "$$candidate" >/dev/null 2>&1; then \
+			command -v "$$candidate"; \
+			exit 0; \
+		fi; \
+	done; \
+	if [ -n "$(QTPATHS6)" ]; then \
+		for qt_host_dir in "$$($(QTPATHS6) --query QT_HOST_LIBEXECS 2>/dev/null)" "$$($(QTPATHS6) --query QT_HOST_BINS 2>/dev/null)"; do \
+			if [ -n "$$qt_host_dir" ] && [ -x "$$qt_host_dir/lrelease" ]; then \
+				printf '%s\n' "$$qt_host_dir/lrelease"; \
+				exit 0; \
+			fi; \
+		done; \
+	fi; \
+	if [ -n "$(QMAKE6)" ]; then \
+		for qt_host_dir in "$$($(QMAKE6) -query QT_HOST_LIBEXECS 2>/dev/null)" "$$($(QMAKE6) -query QT_HOST_BINS 2>/dev/null)" "$$($(QMAKE6) -query QT_INSTALL_BINS 2>/dev/null)"; do \
+			if [ -n "$$qt_host_dir" ] && [ -x "$$qt_host_dir/lrelease" ]; then \
+				printf '%s\n' "$$qt_host_dir/lrelease"; \
+				exit 0; \
+			fi; \
+		done; \
+	fi; \
+	for candidate in \
+		/usr/lib/qt6/libexec/lrelease \
+		/usr/lib/qt6/bin/lrelease \
+		/opt/homebrew/bin/lrelease \
+		/opt/homebrew/opt/qt/share/qt/libexec/lrelease \
+		/opt/homebrew/opt/qtbase/share/qt/libexec/lrelease \
+		/usr/local/opt/qtbase/share/qt/libexec/lrelease; do \
+		if [ -x "$$candidate" ]; then \
+			printf '%s\n' "$$candidate"; \
+			exit 0; \
+		fi; \
+	done; \
+	if command -v lrelease >/dev/null 2>&1; then \
+		candidate="$$(command -v lrelease)"; \
+		if "$$candidate" -version 2>&1 | grep -Eq 'Qt[^0-9]*6|version 6'; then \
+			printf '%s\n' "$$candidate"; \
 		fi; \
 	fi)
 endif
 ifeq ($(strip $(LRELEASE)),)
-LRELEASE := $(wildcard /usr/lib/qt6/bin/lrelease)
-endif
-ifeq ($(strip $(LRELEASE)),)
-LRELEASE := $(shell command -v lrelease 2>/dev/null)
-endif
-ifeq ($(strip $(LRELEASE)),)
-LRELEASE := $(wildcard /opt/homebrew/bin/lrelease)
-endif
-endif
-ifeq ($(strip $(LRELEASE)),)
 ifeq ($(NEEDS_BUILD_DEPS),1)
-$(error Could not find Qt translation compiler (lrelease6 or lrelease))
+$(error Could not find a Qt 6 translation compiler (install qt6-l10n-tools / qt6-tools-dev-tools, or set LRELEASE=/path/to/qt6/lrelease))
 endif
 endif
 
