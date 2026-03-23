@@ -99,13 +99,11 @@ AI File Sorter can run entirely on your device, using local AI models such as Ll
 - Non-English categorization is now more reliable: files are categorized canonically in English first, then translated into the selected category language. This change is due to LLM language limitations.
 - App updates now support separate update streams for Windows, macOS, and Linux, while still accepting the legacy single-stream manifest format for newer clients.
 - Windows feeds can now provide a direct installer URL plus SHA-256 checksum so the app can download the installer, show download progress, verify its integrity, and launch it after confirmation.
-- The UI translation system was migrated fully to Qt `.ts` / `.qm` catalogs, and missing translations for all currently supported interface languages were filled in.
-- Local categorization with local LLMs is now more robust: prompt budgeting, output sanitization, and category/subcategory parsing were hardened so verbose or oddly formatted replies no longer cause widespread invalid categorization failures.
-- Recursive scans now tolerate unreadable subfolders and other filesystem errors instead of aborting the overall run.
+- The UI translation system was migrated fully to Qt `.ts` / `.qm` catalogs.
+- Local categorization with local LLMs is now more robust.
 - Cached category labels are sanitized more aggressively to avoid malformed UTF-8 data breaking later categorization or display.
-- macOS local-LLM packaging/runtime handling was hardened: bundled llama/ggml dylibs are now relocatable, and the app no longer falls back to conflicting system/Homebrew ggml libraries during backend loading.
-- Linux/macOS build and packaging flows were improved, including staged PDFium runtime files, better Debian package dependencies, CPU/CUDA/Vulkan Debian package variants, and improved Homebrew MediaInfo detection on macOS source builds.
-- Added cross-platform diagnostics collection scripts for Linux, macOS, and Windows.
+- Misc improvements.
+- Misc bug fixes.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
@@ -291,7 +289,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    - Debian / Ubuntu:
     ```bash
     sudo apt update && sudo apt install -y \
-      build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools \
+      build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
       libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev libmediainfo-dev \
       zlib1g-dev
     ```
