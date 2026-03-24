@@ -133,6 +133,8 @@ app/include/llama/*.h
 /models/
 /rd/
 /prototypes/
+/store/ms-store/
+/.github/workflows/ms-store-listing.yml
 
 # Build artifacts
 
