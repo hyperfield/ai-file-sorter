@@ -2128,13 +2128,12 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     };
 
     if (clicked == support_btn) {
-        constexpr const char* kDonationUrl = "https://www.paypal.com/donate/?hosted_button_id=Z3XYTG38C62HQ";
         if (!MainAppHelpActions::open_support_page()) {
             QMessageBox::information(
                 this,
                 tr("Open donation page"),
                 tr("Could not open your browser automatically.\nPlease open this link manually:\n%1")
-                    .arg(QString::fromUtf8(kDonationUrl)));
+                    .arg(MainAppHelpActions::support_page_url()));
         }
         return prompt_for_donation_code();
     }

@@ -16,6 +16,11 @@
 
 namespace {
 
+QString support_page_url_string()
+{
+    return QStringLiteral("https://filesorter.app/donate/");
+}
+
 bool open_external_url(const QUrl& url)
 {
     if (QDesktopServices::openUrl(url)) {
@@ -140,8 +145,13 @@ void MainAppHelpActions::show_agpl_info(QWidget* parent)
     dialog.exec();
 }
 
+QString MainAppHelpActions::support_page_url()
+{
+    return support_page_url_string();
+}
+
 bool MainAppHelpActions::open_support_page()
 {
-    const QUrl donation_url(QStringLiteral("https://www.paypal.com/donate/?hosted_button_id=Z3XYTG38C62HQ"));
+    const QUrl donation_url(support_page_url_string());
     return open_external_url(donation_url);
 }

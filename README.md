@@ -6,7 +6,7 @@
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/2c646c836a9844be964fbf681649c3cd)](https://app.codacy.com/gh/hyperfield/ai-file-sorter/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![Donate](https://img.shields.io/badge/Support%20AI%20File%20Sorter-orange)](https://filesorter.app/donate)
+[![Donate](https://img.shields.io/badge/Support%20AI%20File%20Sorter-orange)](https://filesorter.app/donate/)
 
 <p align="center">
   <img src="app/resources/images/icon_256x256.png" alt="AI File Sorter logo" width="128" height="128">
@@ -904,11 +904,6 @@ This project is licensed under the GNU AFFERO GENERAL PUBLIC LICENSE (GNU AGPL).
 
 Support the development of **AI File Sorter** and its future features. Every contribution counts!
 
-- **[Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=Z3XYTG38C62HQ)**
-- **Bitcoin**: 12H8VvRG9PGyHoBzbYxVGcu8PaLL6pc3NM
-- **Ethereum**: 0x09c6918160e2AA2b57BfD40BCF2A4BD61B38B2F9
-- **Tron**: TGPr8b5RxC5JEaZXkzeGVxq7hExEAi7Yaj
-
-USDT is also accepted in Ethereum and Tron chains.
+- **[Donate](https://filesorter.app/donate/)**
 
 ---
