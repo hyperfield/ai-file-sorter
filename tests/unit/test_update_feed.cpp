@@ -6,7 +6,6 @@
 #include "UpdateInstallerTestAccess.hpp"
 #include "TestHelpers.hpp"
 
-#include <QByteArrayView>
 #include <QCryptographicHash>
 
 #include <filesystem>
@@ -20,7 +19,7 @@ namespace {
 std::string sha256_hex(std::string_view payload)
 {
     QCryptographicHash hash(QCryptographicHash::Sha256);
-    hash.addData(QByteArrayView(payload.data(), static_cast<qsizetype>(payload.size())));
+    hash.addData(payload.data(), static_cast<qsizetype>(payload.size()));
     return hash.result().toHex().toStdString();
 }
 

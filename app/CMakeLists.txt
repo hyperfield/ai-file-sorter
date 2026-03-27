@@ -420,6 +420,10 @@ set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 file(GLOB APP_LIB_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
+set(AIFS_TEST_ONLY_APP_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/MainAppTestAccess.cpp"
+)
+list(REMOVE_ITEM APP_LIB_SOURCES ${AIFS_TEST_ONLY_APP_SOURCES})
 file(GLOB APP_HEADER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
 )
@@ -452,18 +456,19 @@ target_include_directories(aifilesorter PRIVATE
 )
 
 qt_add_lupdate(
+    aifilesorter
     NO_GLOBAL_TARGET
-    LUPDATE_TARGET update_translations
-    SOURCE_TARGETS aifilesorter
     TS_FILES ${AIFS_TRANSLATION_TS_FILES}
     SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
     OPTIONS -no-obsolete
 )
 
+set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
+    PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
+
 qt_add_lrelease(
-    LRELEASE_TARGET release_app_translations
+    aifilesorter
     TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-    QM_OUTPUT_DIRECTORY "${AIFS_TRANSLATION_QM_DIR}"
     QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
 )
 
@@ -959,6 +964,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     add_executable(ai_file_sorter_tests
         ${APP_LIB_SOURCES}
+        ${AIFS_TEST_ONLY_APP_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"

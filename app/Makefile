@@ -480,6 +480,7 @@ endif
 
 # Source files
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
+SRCS := $(filter-out $(SRC_DIR)/MainAppTestAccess.cpp,$(SRCS))
 OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
 DEPS = $(OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
 BUILD_CONFIG_STAMP := $(OBJ_DIR)/.build-config
