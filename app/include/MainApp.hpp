@@ -50,8 +50,10 @@ class QWidget;
 class QLabel;
 class QEvent;
 class MainAppUiBuilder;
+class MainWindowStateBinder;
 class WhitelistManagerDialog;
 class SuitabilityBenchmarkDialog;
+class AnalysisCoordinator;
 
 struct CategorizedFile;
 struct FileEntry;
@@ -240,6 +242,8 @@ private:
     bool prompt_text_cpu_fallback(const std::string& reason);
 
     friend class MainAppUiBuilder;
+    friend class AnalysisCoordinator;
+    friend class MainWindowStateBinder;
 #ifdef AI_FILE_SORTER_TEST_BUILD
     friend class MainAppTestAccess;
 #endif
@@ -368,6 +372,7 @@ private:
     void apply_development_logging();
 
     std::unique_ptr<UiTranslator> ui_translator_;
+    std::unique_ptr<MainWindowStateBinder> main_window_state_binder_;
 
 #if defined(AI_FILE_SORTER_TEST_BUILD)
     std::function<bool()> visual_llm_available_probe_;
@@ -377,4 +382,3 @@ private:
 };
 
 #endif // MAINAPP_HPP
-class WhitelistManagerDialog;

@@ -8,6 +8,7 @@
 #include "Settings.hpp"
 #include "Types.hpp"
 #include "Utils.hpp"
+#include "VisualLlmRuntime.hpp"
 #include "ggml-backend.h"
 
 #include <QCloseEvent>
@@ -53,13 +54,6 @@
 #include <vector>
 
 namespace {
-struct VisualLlmPaths {
-    std::filesystem::path model_path;
-    std::filesystem::path mmproj_path;
-};
-
-std::optional<VisualLlmPaths> resolve_visual_llm_paths(std::string* error);
-
 enum class PerfClass {
     Optimal,
     Acceptable,
@@ -690,7 +684,7 @@ double median_seconds(std::vector<double> seconds)
 
 bool has_visual_llm_files()
 {
-    return resolve_visual_llm_paths(nullptr).has_value();
+    return VisualLlmRuntime::resolve_paths(nullptr).has_value();
 }
 
 bool has_any_llm_available()
@@ -790,81 +784,6 @@ bool write_sample_image(const std::filesystem::path& path)
     painter.fillRect(QRect(18, 18, 60, 60), QColor(240, 200, 60));
     painter.end();
     return image.save(QString::fromStdString(path.string()), "PNG");
-}
-
-std::optional<std::filesystem::path> resolve_mmproj_path(const std::filesystem::path& primary)
-{
-    if (std::filesystem::exists(primary)) {
-        return primary;
-    }
-
-    const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
-    static const char* kAltMmprojNames[] = {
-        "mmproj-model-f16.gguf",
-        "llava-v1.6-mistral-7b-mmproj-f16.gguf"
-    };
-    for (const char* alt_name : kAltMmprojNames) {
-        const auto candidate = llm_dir / alt_name;
-        if (std::filesystem::exists(candidate)) {
-            return candidate;
-        }
-    }
-
-    return std::nullopt;
-}
-
-std::optional<VisualLlmPaths> resolve_visual_llm_paths(std::string* error)
-{
-    const char* model_url = std::getenv("LLAVA_MODEL_URL");
-    const char* mmproj_url = std::getenv("LLAVA_MMPROJ_URL");
-    if (!model_url || !*model_url || !mmproj_url || !*mmproj_url) {
-        if (error) {
-            *error = "Missing visual LLM download URLs.";
-        }
-        return std::nullopt;
-    }
-
-    std::filesystem::path model_path;
-    std::filesystem::path mmproj_primary;
-    try {
-        model_path = std::filesystem::path(Utils::make_default_path_to_file_from_download_url(model_url));
-        mmproj_primary = std::filesystem::path(Utils::make_default_path_to_file_from_download_url(mmproj_url));
-    } catch (...) {
-        if (error) {
-            *error = "Failed to resolve visual LLM file paths.";
-        }
-        return std::nullopt;
-    }
-
-    if (!std::filesystem::exists(model_path)) {
-        if (error) {
-            *error = "Visual LLM model file is missing.";
-        }
-        return std::nullopt;
-    }
-
-    auto mmproj_path = resolve_mmproj_path(mmproj_primary);
-    if (!mmproj_path) {
-        if (error) {
-            *error = "Visual LLM mmproj file is missing.";
-        }
-        return std::nullopt;
-    }
-
-    return VisualLlmPaths{model_path, *mmproj_path};
-}
-
-bool should_use_visual_gpu()
-{
-    const char* backend = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
-    if (!backend || !*backend) {
-        return true;
-    }
-    std::string lowered = backend;
-    std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return lowered != "cpu";
 }
 
 std::optional<std::pair<std::string, std::string>> parse_category_pair(const std::string& response)
@@ -1012,7 +931,7 @@ StepResult run_image_test(const std::filesystem::path& temp_dir)
     }
 
     std::string visual_error;
-    auto visual_paths = resolve_visual_llm_paths(&visual_error);
+    auto visual_paths = VisualLlmRuntime::resolve_paths(&visual_error);
     if (!visual_paths) {
         result.skipped = true;
         result.detail = visual_error.empty() ? "Visual LLM files unavailable." : visual_error;
@@ -1028,7 +947,7 @@ StepResult run_image_test(const std::filesystem::path& temp_dir)
     const auto start = std::chrono::steady_clock::now();
     try {
         LlavaImageAnalyzer::Settings settings;
-        settings.use_gpu = should_use_visual_gpu();
+        settings.use_gpu = VisualLlmRuntime::should_use_gpu();
         LlavaImageAnalyzer analyzer(visual_paths->model_path, visual_paths->mmproj_path, settings);
         const auto analysis = analyzer.analyze(image_path);
         result.success = !analysis.suggested_name.empty();
@@ -1792,7 +1711,7 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
             }
 
             QString backend_note;
-            if (!should_use_visual_gpu()) {
+            if (!VisualLlmRuntime::should_use_gpu()) {
                 backend_note = build_cpu_backend_note(QObject::tr("GPU disabled by backend override"), std::nullopt);
             } else if (case_insensitive_contains(visual_backend, "vulkan") &&
                        !backend_info.vulkan_available) {
