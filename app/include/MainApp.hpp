@@ -7,9 +7,9 @@
 #include "CategorizationService.hpp"
 #include "ConsistencyPassService.hpp"
 #include "ResultsCoordinator.hpp"
-#include "FileScanner.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
+#include "StorageProviderRegistry.hpp"
 #include "WhitelistStore.hpp"
 #include "UiTranslator.hpp"
 #include "UndoManager.hpp"
@@ -192,6 +192,7 @@ private:
     void update_results_view_mode();
     void update_folder_contents(const QString& directory);
     void focus_file_explorer_on_path(const QString& path);
+    void refresh_active_storage_provider(const std::string& directory_path);
 
     void handle_analysis_finished();
     void handle_analysis_cancelled();
@@ -250,7 +251,6 @@ private:
 
     Settings& settings;
     DatabaseManager db_manager;
-    FileScanner dirscanner;
     bool using_local_llm{false};
 
     std::vector<CategorizedFile> already_categorized_files;
@@ -354,6 +354,8 @@ private:
     std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
+    StorageProviderRegistry storage_provider_registry_;
+    std::shared_ptr<IStorageProvider> active_storage_provider_;
     ResultsCoordinator results_coordinator;
     UndoManager undo_manager_;
     bool development_mode_{false};

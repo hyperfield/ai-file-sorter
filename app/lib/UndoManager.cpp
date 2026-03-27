@@ -1,5 +1,8 @@
 #include "UndoManager.hpp"
 
+#include "LocalFsProvider.hpp"
+#include "StorageProviderRegistry.hpp"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -12,11 +15,14 @@
 
 #include <fmt/format.h>
 
-UndoManager::UndoManager(std::string undo_dir)
-    : undo_dir_(std::move(undo_dir))
+UndoManager::UndoManager(std::string undo_dir,
+                         const StorageProviderRegistry* storage_provider_registry)
+    : undo_dir_(std::move(undo_dir)),
+      storage_provider_registry_(storage_provider_registry)
 {}
 
 bool UndoManager::save_plan(const std::string& run_base_dir,
+                            const std::string& provider_id,
                             const std::vector<Entry>& entries,
                             const std::shared_ptr<spdlog::logger>& logger) const
 {
@@ -42,6 +48,7 @@ bool UndoManager::save_plan(const std::string& run_base_dir,
     QJsonObject root;
     root["version"] = 1;
     root["base_dir"] = QString::fromStdString(run_base_dir);
+    root["provider_id"] = QString::fromStdString(provider_id);
     root["created_at_utc"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
     root["entries"] = arr;
 
@@ -99,7 +106,24 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
         return result;
     }
 
-    const QJsonArray entries = doc.object().value("entries").toArray();
+    const QJsonObject root = doc.object();
+    const QJsonArray entries = root.value("entries").toArray();
+    const std::string provider_id =
+        root.value("provider_id").toString(QStringLiteral("local_fs")).toStdString();
+    LocalFsProvider fallback_provider;
+    std::shared_ptr<IStorageProvider> resolved_provider =
+        storage_provider_registry_ ? storage_provider_registry_->find_by_id(provider_id) : nullptr;
+    IStorageProvider* provider = nullptr;
+    if (resolved_provider) {
+        provider = resolved_provider.get();
+    } else if (provider_id.empty() || provider_id == "local_fs") {
+        provider = &fallback_provider;
+    } else {
+        result.details << QString("Missing storage provider: %1")
+                              .arg(QString::fromStdString(provider_id));
+        result.skipped += entries.size();
+        return result;
+    }
     for (const auto& val : entries) {
         if (!val.isObject()) {
             result.skipped++;
@@ -140,11 +164,14 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
             }
         }
 
-        QDir().mkpath(src_info.path());
-        if (QFile::rename(destination, source)) {
+        const auto undo_result = provider->undo_move(source.toStdString(), destination.toStdString());
+        if (undo_result.success) {
             result.restored++;
         } else {
-            result.details << QString("Failed to move %1 back to %2").arg(destination, source);
+            const QString detail = undo_result.message.empty()
+                ? QString("Failed to move %1 back to %2").arg(destination, source)
+                : QString::fromStdString(undo_result.message);
+            result.details << detail;
             result.skipped++;
         }
     }

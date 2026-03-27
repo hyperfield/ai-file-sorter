@@ -1,6 +1,7 @@
 #include "CategorizationDialog.hpp"
 
 #include "DatabaseManager.hpp"
+#include "LocalFsProvider.hpp"
 #include "Logger.hpp"
 #include "MovableCategorizedFile.hpp"
 #include "TestHooks.hpp"
@@ -67,6 +68,12 @@ namespace {
 TestHooks::CategorizationMoveProbe& move_probe_slot() {
     static TestHooks::CategorizationMoveProbe probe;
     return probe;
+}
+
+IStorageProvider& default_storage_provider()
+{
+    static LocalFsProvider provider;
+    return provider;
 }
 
 struct ScopedFlag {
@@ -247,16 +254,6 @@ bool validate_labels(const std::string& category,
     return true;
 }
 
-std::chrono::system_clock::time_point to_system_clock(std::filesystem::file_time_type file_time) {
-#if defined(__cpp_lib_chrono) && __cpp_lib_chrono >= 201907L
-    return std::chrono::clock_cast<std::chrono::system_clock>(file_time);
-#else
-    const auto now = decltype(file_time)::clock::now();
-    const auto delta = std::chrono::duration_cast<std::chrono::system_clock::duration>(file_time - now);
-    return std::chrono::system_clock::now() + delta;
-#endif
-}
-
 } // namespace
 
 namespace TestHooks {
@@ -276,8 +273,24 @@ CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
                                            const std::string& undo_dir,
                                            CategoryLanguage category_language,
                                            QWidget* parent)
+    : CategorizationDialog(db_manager,
+                           default_storage_provider(),
+                           show_subcategory_col,
+                           undo_dir,
+                           category_language,
+                           parent)
+{
+}
+
+CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
+                                           IStorageProvider& storage_provider,
+                                           bool show_subcategory_col,
+                                           const std::string& undo_dir,
+                                           CategoryLanguage category_language,
+                                           QWidget* parent)
     : QDialog(parent),
       db_manager(db_manager),
+      storage_provider_(&storage_provider),
       category_language_(category_language),
       show_subcategory_column(show_subcategory_col),
       core_logger(Logger::get_logger("core_logger")),
@@ -1705,7 +1718,7 @@ void CategorizationDialog::handle_selected_row(int row_index,
             return;
         }
 
-        if (!std::filesystem::exists(source_path)) {
+        if (!storage_provider_ || !storage_provider_->path_exists(Utils::path_to_utf8(source_path))) {
             update_status_column(row_index, false);
             files_not_moved.push_back(file_name);
             if (core_logger) {
@@ -1713,7 +1726,7 @@ void CategorizationDialog::handle_selected_row(int row_index,
             }
             return;
         }
-        if (std::filesystem::exists(dest_path)) {
+        if (!storage_provider_ || storage_provider_->path_exists(Utils::path_to_utf8(dest_path))) {
             update_status_column(row_index, false);
             files_not_moved.push_back(file_name);
             if (core_logger) {
@@ -1722,25 +1735,15 @@ void CategorizationDialog::handle_selected_row(int row_index,
             return;
         }
 
-        try {
-            std::filesystem::rename(source_path, dest_path);
+        const auto move_result = storage_provider_->move_entry(Utils::path_to_utf8(source_path),
+                                                               Utils::path_to_utf8(dest_path));
+        if (move_result.success) {
             update_status_column(row_index, true, true, rename_active, false);
-
-            std::error_code ec;
-            const std::uintmax_t size_bytes = std::filesystem::file_size(dest_path, ec);
-            std::time_t mtime_value = 0;
-            if (!ec) {
-                const auto ftime = std::filesystem::last_write_time(dest_path, ec);
-                if (!ec) {
-                    const auto sys = to_system_clock(ftime);
-                    mtime_value = std::chrono::system_clock::to_time_t(sys);
-                }
-            }
             record_move_for_undo(row_index,
                                  Utils::path_to_utf8(source_path),
                                  Utils::path_to_utf8(dest_path),
-                                 size_bytes,
-                                 mtime_value);
+                                 move_result.metadata.size_bytes,
+                                 move_result.metadata.mtime);
             if (db_manager) {
                 DatabaseManager::ResolvedCategory resolved{0, "", ""};
                 if (auto cached = db_manager->get_categorized_file(source_dir, file_name, file_type)) {
@@ -1765,11 +1768,13 @@ void CategorizationDialog::handle_selected_row(int row_index,
                     true);
             }
             apply_successful_rename();
-        } catch (const std::exception& ex) {
+        } else {
             update_status_column(row_index, false);
             files_not_moved.push_back(file_name);
             if (core_logger) {
-                core_logger->error("Failed to rename '{}': {}", file_name, ex.what());
+                core_logger->error("Failed to rename '{}': {}",
+                                   file_name,
+                                   move_result.message.empty() ? "unknown error" : move_result.message);
             }
         }
         return;
@@ -1793,7 +1798,7 @@ void CategorizationDialog::handle_selected_row(int row_index,
 
     try {
         MovableCategorizedFile categorized_file(
-            source_dir, base_dir, category, effective_subcategory, file_name, destination_name);
+            *storage_provider_, source_dir, base_dir, category, effective_subcategory, file_name, destination_name);
 
         const auto preview_paths = categorized_file.preview_move_paths(show_subcategory_column);
 
@@ -1817,26 +1822,26 @@ void CategorizationDialog::handle_selected_row(int row_index,
         }
 
         categorized_file.create_cat_dirs(show_subcategory_column);
-        bool moved = categorized_file.move_file(show_subcategory_column);
-        update_status_column(row_index, moved, true, rename_active && moved, moved);
+        const auto move_result = categorized_file.move_file(show_subcategory_column);
+        update_status_column(row_index,
+                             move_result.success,
+                             true,
+                             rename_active && move_result.success,
+                             move_result.success);
 
-        if (!moved) {
+        if (!move_result.success) {
             files_not_moved.push_back(file_name);
             if (core_logger) {
-                core_logger->warn("File {} already exists in the destination.", file_name);
+                core_logger->warn("File {} was not moved: {}",
+                                  file_name,
+                                  move_result.message.empty() ? "operation skipped" : move_result.message);
             }
         } else {
-            std::error_code ec;
-            const std::uintmax_t size_bytes = std::filesystem::file_size(Utils::utf8_to_path(preview_paths.destination), ec);
-            std::time_t mtime_value = 0;
-            if (!ec) {
-                const auto ftime = std::filesystem::last_write_time(Utils::utf8_to_path(preview_paths.destination), ec);
-                if (!ec) {
-                    const auto sys = to_system_clock(ftime);
-                    mtime_value = std::chrono::system_clock::to_time_t(sys);
-                }
-            }
-            record_move_for_undo(row_index, preview_paths.source, preview_paths.destination, size_bytes, mtime_value);
+            record_move_for_undo(row_index,
+                                 preview_paths.source,
+                                 preview_paths.destination,
+                                 move_result.metadata.size_bytes,
+                                 move_result.metadata.mtime);
 
             if (db_manager && (rename_active || include_subdirectories_)) {
                 const std::string original_category = read_role_text(category_item_ref, kOriginalCategoryRole);
@@ -2042,30 +2047,23 @@ void CategorizationDialog::remove_empty_parent_directories(const std::string& de
 
 bool CategorizationDialog::move_file_back(const std::string& source, const std::string& destination)
 {
-    std::error_code ec;
-    auto destination_path = Utils::utf8_to_path(destination);
-    auto source_path = Utils::utf8_to_path(source);
-
-    if (!std::filesystem::exists(destination_path)) {
+    if (!storage_provider_) {
         if (core_logger) {
-            core_logger->warn("Undo skipped; destination '{}' missing", destination);
+            core_logger->error("Undo move failed '{}' -> '{}': no storage provider available",
+                               destination,
+                               source);
         }
         return false;
     }
 
-    std::filesystem::create_directories(source_path.parent_path(), ec);
-
-    try {
-        std::filesystem::rename(destination_path, source_path);
-    } catch (const std::filesystem::filesystem_error& ex) {
-        if (core_logger) {
-            core_logger->error("Undo move failed '{}' -> '{}': {}", destination, source, ex.what());
-        }
-        return false;
+    const auto undo_result = storage_provider_->undo_move(source, destination);
+    if (!undo_result.success && core_logger) {
+        core_logger->error("Undo move failed '{}' -> '{}': {}",
+                           destination,
+                           source,
+                           undo_result.message.empty() ? "unknown error" : undo_result.message);
     }
-
-    remove_empty_parent_directories(destination);
-    return true;
+    return undo_result.success;
 }
 
 bool CategorizationDialog::undo_move_history()
@@ -2661,7 +2659,8 @@ CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_r
     }
 
     try {
-        MovableCategorizedFile categorized_file(source_dir,
+        MovableCategorizedFile categorized_file(*storage_provider_,
+                                                source_dir,
                                                 base_dir_,
                                                 category,
                                                 effective_subcategory,
@@ -2833,7 +2832,10 @@ void CategorizationDialog::persist_move_plan()
     }
 
     UndoManager manager(undo_dir_);
-    manager.save_plan(base_dir_, entries, core_logger);
+    manager.save_plan(base_dir_,
+                      storage_provider_ ? storage_provider_->id() : std::string("local_fs"),
+                      entries,
+                      core_logger);
 }
 
 void CategorizationDialog::clear_move_history()

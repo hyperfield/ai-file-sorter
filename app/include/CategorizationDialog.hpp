@@ -15,6 +15,7 @@
 #include <spdlog/logger.h>
 
 class DatabaseManager;
+class IStorageProvider;
 class QCloseEvent;
 class QEvent;
 class QPushButton;
@@ -27,6 +28,12 @@ class CategorizationDialog : public QDialog
     Q_DECLARE_TR_FUNCTIONS(CategorizationDialog)
 public:
     CategorizationDialog(DatabaseManager* db_manager,
+                         bool show_subcategory_col,
+                         const std::string& undo_dir,
+                         CategoryLanguage category_language = CategoryLanguage::English,
+                         QWidget* parent = nullptr);
+    CategorizationDialog(DatabaseManager* db_manager,
+                         IStorageProvider& storage_provider,
                          bool show_subcategory_col,
                          const std::string& undo_dir,
                          CategoryLanguage category_language = CategoryLanguage::English,
@@ -219,6 +226,7 @@ private:
     void on_bulk_edit_clicked();
 
     DatabaseManager* db_manager;
+    IStorageProvider* storage_provider_{nullptr};
     CategoryLanguage category_language_{CategoryLanguage::English};
     bool show_subcategory_column;
     bool include_subdirectories_{false};

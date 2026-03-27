@@ -1,17 +1,24 @@
 #include "ResultsCoordinator.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <filesystem>
 
-ResultsCoordinator::ResultsCoordinator(FileScanner& scanner)
-    : scanner(scanner)
+ResultsCoordinator::ResultsCoordinator(IStorageProvider& storage_provider)
+    : storage_provider_(&storage_provider)
 {
+}
+
+void ResultsCoordinator::set_storage_provider(IStorageProvider& storage_provider)
+{
+    storage_provider_ = &storage_provider;
 }
 
 std::vector<FileEntry> ResultsCoordinator::list_directory(const std::string& directory,
                                                           FileScanOptions options) const
 {
-    return scanner.get_directory_entries(directory, options);
+    assert(storage_provider_ != nullptr);
+    return storage_provider_->list_directory(directory, options);
 }
 
 std::vector<FileEntry> ResultsCoordinator::find_files_to_categorize(

@@ -122,7 +122,7 @@ MovableCategorizedFile::build_move_paths(bool use_subcategory) const
 
 bool MovableCategorizedFile::source_is_available(const std::filesystem::path& source_path) const
 {
-    if (std::filesystem::exists(source_path)) {
+    if (storage_provider_.path_exists(Utils::path_to_utf8(source_path))) {
         return true;
     }
 
@@ -134,7 +134,7 @@ bool MovableCategorizedFile::source_is_available(const std::filesystem::path& so
 
 bool MovableCategorizedFile::destination_is_available(const std::filesystem::path& destination_path) const
 {
-    if (!std::filesystem::exists(destination_path)) {
+    if (!storage_provider_.path_exists(Utils::path_to_utf8(destination_path))) {
         return true;
     }
 
@@ -144,39 +144,45 @@ bool MovableCategorizedFile::destination_is_available(const std::filesystem::pat
     return false;
 }
 
-bool MovableCategorizedFile::perform_move(const std::filesystem::path& source_path,
-                                          const std::filesystem::path& destination_path) const
+StorageMutationResult MovableCategorizedFile::perform_move(const std::filesystem::path& source_path,
+                                                           const std::filesystem::path& destination_path) const
 {
-    try {
-        std::filesystem::rename(source_path, destination_path);
+    auto result = storage_provider_.move_entry(Utils::path_to_utf8(source_path),
+                                               Utils::path_to_utf8(destination_path));
+    if (result.success) {
         with_core_logger([&](auto& logger) {
             logger.info("Moved '{}' to '{}'", Utils::path_to_utf8(source_path), Utils::path_to_utf8(destination_path));
         });
-        return true;
-    } catch (const std::filesystem::filesystem_error& e) {
+    } else if (!result.skipped) {
         with_core_logger([&](auto& logger) {
-            logger.error("Failed to move '{}' to '{}': {}", Utils::path_to_utf8(source_path), Utils::path_to_utf8(destination_path), e.what());
+            logger.error("Failed to move '{}' to '{}': {}",
+                         Utils::path_to_utf8(source_path),
+                         Utils::path_to_utf8(destination_path),
+                         result.message);
         });
-        return false;
     }
+    return result;
 }
 
 
 MovableCategorizedFile::MovableCategorizedFile(
+    const IStorageProvider& storage_provider,
     const std::string& dir_path, const std::string& cat, const std::string& subcat,
     const std::string& file_name, const std::string& destination_name)
-    : MovableCategorizedFile(dir_path, dir_path, cat, subcat, file_name, destination_name)
+    : MovableCategorizedFile(storage_provider, dir_path, dir_path, cat, subcat, file_name, destination_name)
 {
 }
 
 MovableCategorizedFile::MovableCategorizedFile(
+    const IStorageProvider& storage_provider,
     const std::string& source_dir,
     const std::string& destination_root,
     const std::string& cat,
     const std::string& subcat,
     const std::string& file_name,
     const std::string& destination_name)
-    : file_name(file_name),
+    : storage_provider_(storage_provider),
+      file_name(file_name),
       destination_file_name(destination_name.empty() ? file_name : destination_name),
       source_dir(source_dir),
       dir_path(destination_root),
@@ -208,32 +214,41 @@ MovableCategorizedFile::MovableCategorizedFile(
 
 void MovableCategorizedFile::create_cat_dirs(bool use_subcategory)
 {
-    try {
-        if (!std::filesystem::exists(category_path)) {
-            std::filesystem::create_directory(category_path);
-        }
-        if (use_subcategory && !std::filesystem::exists(subcategory_path)) {
-            std::filesystem::create_directory(subcategory_path);
-        }
-    } catch (const std::filesystem::filesystem_error& e) {
+    std::string error;
+    if (!storage_provider_.ensure_directory(Utils::path_to_utf8(category_path), &error)) {
         if (auto logger = Logger::get_logger("core_logger")) {
-            logger->error("Failed to create directories for '{}': {}", file_name, e.what());
+            logger->error("Failed to create category directory for '{}': {}", file_name, error);
         }
-        throw;
+        throw std::runtime_error(error.empty() ? "Failed to create category directory." : error);
+    }
+    if (use_subcategory &&
+        !storage_provider_.ensure_directory(Utils::path_to_utf8(subcategory_path), &error)) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->error("Failed to create subcategory directory for '{}': {}", file_name, error);
+        }
+        throw std::runtime_error(error.empty() ? "Failed to create subcategory directory." : error);
     }
 }
 
 
-bool MovableCategorizedFile::move_file(bool use_subcategory)
+StorageMutationResult MovableCategorizedFile::move_file(bool use_subcategory)
 {
     const MovePaths paths = build_move_paths(use_subcategory);
 
     if (!source_is_available(paths.source)) {
-        return false;
+        return StorageMutationResult{
+            .success = false,
+            .skipped = true,
+            .message = "Source path is missing."
+        };
     }
 
     if (!destination_is_available(paths.destination)) {
-        return false;
+        return StorageMutationResult{
+            .success = false,
+            .skipped = true,
+            .message = "Destination path already exists."
+        };
     }
 
     return perform_move(paths.source, paths.destination);

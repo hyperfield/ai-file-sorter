@@ -1,6 +1,8 @@
 #ifndef MOVABLECATEGORIZEDFILE_HPP
 #define MOVABLECATEGORIZEDFILE_HPP
 
+#include "StorageProvider.hpp"
+
 #include <string>
 #include <filesystem>
 
@@ -12,12 +14,14 @@ public:
     };
 
     MovableCategorizedFile();
-    MovableCategorizedFile(const std::string& dir_path,
+    MovableCategorizedFile(const IStorageProvider& storage_provider,
+                           const std::string& dir_path,
                            const std::string& cat,
                            const std::string& subcat,
                            const std::string& file_name,
                            const std::string& destination_name = std::string());
-    MovableCategorizedFile(const std::string& source_dir,
+    MovableCategorizedFile(const IStorageProvider& storage_provider,
+                           const std::string& source_dir,
                            const std::string& destination_root,
                            const std::string& cat,
                            const std::string& subcat,
@@ -25,7 +29,7 @@ public:
                            const std::string& destination_name);
     ~MovableCategorizedFile();
     void create_cat_dirs(bool use_subcategory);
-    bool move_file(bool use_subcategory);
+    StorageMutationResult move_file(bool use_subcategory);
     PreviewPaths preview_move_paths(bool use_subcategory) const;
 
     std::string get_subcategory_path() const;
@@ -47,9 +51,10 @@ private:
     MovePaths build_move_paths(bool use_subcategory) const;
     bool source_is_available(const std::filesystem::path& source_path) const;
     bool destination_is_available(const std::filesystem::path& destination_path) const;
-    bool perform_move(const std::filesystem::path& source_path,
-                      const std::filesystem::path& destination_path) const;
+    StorageMutationResult perform_move(const std::filesystem::path& source_path,
+                                       const std::filesystem::path& destination_path) const;
 
+    const IStorageProvider& storage_provider_;
     std::string file_name;
     std::string destination_file_name;
     std::string source_dir;

@@ -29,7 +29,7 @@ struct FileScanner::ScanContext {
 
 std::vector<FileEntry>
 FileScanner::get_directory_entries(const std::string &directory_path,
-                                   FileScanOptions options)
+                                   FileScanOptions options) const
 {
     std::vector<FileEntry> file_paths_and_names;
     auto logger = Logger::get_logger("core_logger");
@@ -69,7 +69,7 @@ FileScanner::get_directory_entries(const std::string &directory_path,
 
 void FileScanner::scan_non_recursive(const fs::path& scan_path,
                                      const ScanContext& context,
-                                     std::vector<FileEntry>& results)
+                                     std::vector<FileEntry>& results) const
 {
     std::error_code ec;
     fs::directory_iterator it(scan_path, kIteratorOptions, ec);
@@ -98,7 +98,7 @@ void FileScanner::scan_non_recursive(const fs::path& scan_path,
 
 void FileScanner::scan_recursive(const fs::path& scan_path,
                                  const ScanContext& context,
-                                 std::vector<FileEntry>& results)
+                                 std::vector<FileEntry>& results) const
 {
     std::vector<fs::path> pending_dirs;
     pending_dirs.push_back(scan_path);
@@ -202,7 +202,7 @@ bool FileScanner::is_file_bundle(const fs::path& path, bool is_directory) const 
 }
 
 std::optional<FileEntry> FileScanner::build_entry(const fs::directory_entry& entry,
-                                                  const ScanContext& context)
+                                                  const ScanContext& context) const
 {
     const fs::path& entry_path = entry.path();
     std::string full_path = Utils::path_to_utf8(entry_path);

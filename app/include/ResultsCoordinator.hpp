@@ -2,7 +2,7 @@
 #define RESULTS_COORDINATOR_HPP
 
 #include "Types.hpp"
-#include "FileScanner.hpp"
+#include "StorageProvider.hpp"
 
 #include <unordered_set>
 #include <vector>
@@ -10,16 +10,22 @@
 /**
  * @brief Coordinates scan results and determines which files should be categorized or sorted.
  *
- * The coordinator relies on a FileScanner to list directory contents and then
+ * The coordinator relies on a storage provider to list directory contents and then
  * filters/merges those results against cached or newly categorized entries.
  */
 class ResultsCoordinator {
 public:
     /**
-     * @brief Constructs a coordinator that uses the provided scanner.
-     * @param scanner FileScanner used to enumerate directory entries.
+     * @brief Constructs a coordinator that uses the provided storage provider.
+     * @param storage_provider Provider used to enumerate directory entries.
      */
-    explicit ResultsCoordinator(FileScanner& scanner);
+    explicit ResultsCoordinator(IStorageProvider& storage_provider);
+
+    /**
+     * @brief Rebinds the coordinator to a different active storage provider.
+     * @param storage_provider Provider used to enumerate directory entries.
+     */
+    void set_storage_provider(IStorageProvider& storage_provider);
 
     /**
      * @brief Lists entries in a directory using the provided scan options.
@@ -66,9 +72,9 @@ public:
 
 private:
     /**
-     * @brief Scanner used to read directory entries.
+     * @brief Provider used to read directory entries.
      */
-    FileScanner& scanner;
+    IStorageProvider* storage_provider_;
 };
 
 #endif

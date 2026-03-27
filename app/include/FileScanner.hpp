@@ -14,22 +14,22 @@ public:
     FileScanner() = default;
     std::vector<FileEntry>
         get_directory_entries(const std::string &directory_path,
-                              FileScanOptions options);
+                              FileScanOptions options) const;
 
 private:
     struct ScanContext;
     void scan_non_recursive(const fs::path& scan_path,
                             const ScanContext& context,
-                            std::vector<FileEntry>& results);
+                            std::vector<FileEntry>& results) const;
     void scan_recursive(const fs::path& scan_path,
                         const ScanContext& context,
-                        std::vector<FileEntry>& results);
+                        std::vector<FileEntry>& results) const;
     void log_scan_warning(const ScanContext& context,
                           const fs::path& path,
                           const std::error_code& error,
                           const char* action) const;
     std::optional<FileEntry> build_entry(const fs::directory_entry& entry,
-                                         const ScanContext& context);
+                                         const ScanContext& context) const;
     bool should_skip_entry(const fs::path& entry_path,
                            const std::string& file_name,
                            const ScanContext& context,

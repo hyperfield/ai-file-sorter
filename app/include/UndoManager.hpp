@@ -11,6 +11,8 @@
 
 #include <spdlog/logger.h>
 
+class StorageProviderRegistry;
+
 class UndoManager {
 public:
     struct Entry {
@@ -20,9 +22,11 @@ public:
         std::time_t mtime{0};
     };
 
-    explicit UndoManager(std::string undo_dir);
+    explicit UndoManager(std::string undo_dir,
+                         const StorageProviderRegistry* storage_provider_registry = nullptr);
 
     bool save_plan(const std::string& run_base_dir,
+                   const std::string& provider_id,
                    const std::vector<Entry>& entries,
                    const std::shared_ptr<spdlog::logger>& logger) const;
 
@@ -38,4 +42,5 @@ public:
 
 private:
     std::string undo_dir_;
+    const StorageProviderRegistry* storage_provider_registry_{nullptr};
 };

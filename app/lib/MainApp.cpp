@@ -7,6 +7,7 @@
 #include "ErrorMessages.hpp"
 #include "LLMClient.hpp"
 #include "GeminiClient.hpp"
+#include "LocalFsProvider.hpp"
 #include "LLMSelectionDialog.hpp"
 #include "Logger.hpp"
 #include "MainAppEditActions.hpp"
@@ -214,12 +215,15 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
       whitelist_store(settings.get_config_dir()),
       categorization_service(settings, db_manager, core_logger),
       consistency_pass_service(db_manager, core_logger),
-      results_coordinator(dirscanner),
-      undo_manager_(settings.get_config_dir() + "/undo"),
+      storage_provider_registry_(),
+      active_storage_provider_(std::make_shared<LocalFsProvider>()),
+      results_coordinator(*active_storage_provider_),
+      undo_manager_(settings.get_config_dir() + "/undo", &storage_provider_registry_),
       development_mode_(development_mode),
       development_prompt_logging_enabled_(development_mode ? settings.get_development_prompt_logging() : false),
       main_window_state_binder_(std::make_unique<MainWindowStateBinder>(*this))
 {
+    storage_provider_registry_.register_builtin(active_storage_provider_);
     TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
     initialize_whitelists();
 
@@ -834,6 +838,8 @@ void MainApp::update_folder_contents(const QString& directory)
         return;
     }
 
+    refresh_active_storage_provider(to_utf8(directory));
+
     const bool previous_flag = suppress_folder_view_sync_;
     suppress_folder_view_sync_ = true;
 
@@ -844,6 +850,23 @@ void MainApp::update_folder_contents(const QString& directory)
     folder_contents_view->resizeColumnToContents(0);
 
     suppress_folder_view_sync_ = previous_flag;
+}
+
+void MainApp::refresh_active_storage_provider(const std::string& directory_path)
+{
+    const auto resolved = storage_provider_registry_.resolve_for(directory_path);
+    if (!resolved || resolved == active_storage_provider_) {
+        return;
+    }
+
+    active_storage_provider_ = resolved;
+    results_coordinator.set_storage_provider(*active_storage_provider_);
+
+    if (core_logger) {
+        core_logger->info("Selected storage provider '{}' for '{}'",
+                          active_storage_provider_->id(),
+                          directory_path);
+    }
 }
 
 void MainApp::focus_file_explorer_on_path(const QString& path)
@@ -1595,6 +1618,7 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         const std::string undo_dir = settings.get_config_dir() + "/undo";
         categorization_dialog = std::make_unique<CategorizationDialog>(&db_manager,
+                                                                       *active_storage_provider_,
                                                                        show_subcategory,
                                                                        undo_dir,
                                                                        settings.get_category_language(),
