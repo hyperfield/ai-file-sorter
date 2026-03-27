@@ -2,10 +2,11 @@
 
 #include "CategorizationService.hpp"
 #include "DatabaseManager.hpp"
-#include "FileScanner.hpp"
 #include "ILLMClient.hpp"
+#include "LocalFsProvider.hpp"
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
+#include "StorageProviderRegistry.hpp"
 #include "TestHelpers.hpp"
 
 #include <atomic>
@@ -245,8 +246,8 @@ TEST_CASE("ResultsCoordinator respects full-path cache keys for recursive scans"
     write_file(root_file);
     write_file(nested_file);
 
-    FileScanner scanner;
-    ResultsCoordinator coordinator(scanner);
+    LocalFsProvider provider;
+    ResultsCoordinator coordinator(provider);
     const auto options = FileScanOptions::Files | FileScanOptions::Recursive;
 
     std::unordered_set<std::string> cached_by_name{"sample.txt"};
@@ -265,4 +266,18 @@ TEST_CASE("ResultsCoordinator respects full-path cache keys for recursive scans"
         true);
     REQUIRE(uncached_by_path.size() == 1);
     CHECK(uncached_by_path.front().full_path == nested_file.string());
+}
+
+TEST_CASE("StorageProviderRegistry resolves the local filesystem provider by default") {
+    StorageProviderRegistry registry;
+    auto local_provider = std::make_shared<LocalFsProvider>();
+    registry.register_builtin(local_provider);
+
+    const auto detection = registry.detect(std::string());
+    REQUIRE(detection.matched);
+    CHECK(detection.provider_id == "local_fs");
+
+    const auto resolved = registry.resolve_for(std::string());
+    REQUIRE(resolved);
+    CHECK(resolved->id() == "local_fs");
 }

@@ -1,8 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CategorizationDialog.hpp"
 #include "DatabaseManager.hpp"
+#include "LocalFsProvider.hpp"
+#include "StorageProviderRegistry.hpp"
 #include "TestHooks.hpp"
 #include "TestHelpers.hpp"
+#include "UndoManager.hpp"
 #include <QCheckBox>
 #include <QTableView>
 #include <QStandardItemModel>
@@ -186,6 +189,44 @@ TEST_CASE("CategorizationDialog undo allows renaming again") {
     dialog.test_trigger_confirm();
     REQUIRE_FALSE(std::filesystem::exists(source));
     REQUIRE(std::filesystem::exists(destination));
+}
+
+TEST_CASE("UndoManager restores saved plans through the active storage provider") {
+    TempDir undo_dir;
+    TempDir data_dir;
+
+    StorageProviderRegistry registry;
+    auto local_provider = std::make_shared<LocalFsProvider>();
+    registry.register_builtin(local_provider);
+
+    const std::filesystem::path source = data_dir.path() / "original.txt";
+    const std::filesystem::path destination = data_dir.path() / "Moved" / "original.txt";
+    std::ofstream(source).put('x');
+
+    const auto move_result = local_provider->move_entry(source.string(), destination.string());
+    REQUIRE(move_result.success);
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    UndoManager writer(undo_dir.path().string());
+    REQUIRE(writer.save_plan(data_dir.path().string(),
+                             local_provider->id(),
+                             {UndoManager::Entry{
+                                 source.string(),
+                                 destination.string(),
+                                 move_result.metadata.size_bytes,
+                                 move_result.metadata.mtime}},
+                             nullptr));
+
+    UndoManager reader(undo_dir.path().string(), &registry);
+    const auto plan_path = reader.latest_plan_path();
+    REQUIRE(plan_path.has_value());
+
+    const auto undo_result = reader.undo_plan(*plan_path);
+    CHECK(undo_result.restored == 1);
+    CHECK(undo_result.skipped == 0);
+    REQUIRE(std::filesystem::exists(source));
+    REQUIRE_FALSE(std::filesystem::exists(destination));
 }
 
 TEST_CASE("CategorizationDialog rename-only updates cached filename") {
