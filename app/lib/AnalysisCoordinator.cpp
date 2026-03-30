@@ -1645,11 +1645,12 @@ void AnalysisCoordinator::execute()
                                 app_.new_files_to_sort.size());
 
         const bool cancelled = stop_requested;
-        app_.run_on_ui([this, cancelled]() {
-            if (cancelled && app_.new_files_to_sort.empty()) {
-                app_.handle_analysis_cancelled();
+        MainApp* const app = &app_;
+        app_.run_on_ui([app, cancelled]() {
+            if (cancelled && app->new_files_to_sort.empty()) {
+                app->handle_analysis_cancelled();
             } else {
-                app_.handle_analysis_finished();
+                app->handle_analysis_finished();
             }
         });
     } catch (const std::exception& ex) {
@@ -1657,11 +1658,12 @@ void AnalysisCoordinator::execute()
         const bool cancelled =
             app_.stop_analysis.load() ||
             (app_.text_cpu_fallback_choice_.has_value() && !app_.text_cpu_fallback_choice_.value());
+        MainApp* const app = &app_;
         if (cancelled) {
-            app_.run_on_ui([this]() { app_.handle_analysis_cancelled(); });
+            app_.run_on_ui([app]() { app->handle_analysis_cancelled(); });
         } else {
-            app_.run_on_ui([this, message = std::string("Analysis error: ") + ex.what()]() {
-                app_.handle_analysis_failure(message);
+            app_.run_on_ui([app, message = std::string("Analysis error: ") + ex.what()]() {
+                app->handle_analysis_failure(message);
             });
         }
     }
