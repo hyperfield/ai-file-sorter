@@ -17,6 +17,11 @@ void StorageProviderRegistry::register_builtin(std::shared_ptr<IStorageProvider>
     providers_.push_back(std::move(provider));
 }
 
+void StorageProviderRegistry::clear()
+{
+    providers_.clear();
+}
+
 StorageProviderDetection StorageProviderRegistry::detect(const std::string& root_path) const
 {
     StorageProviderDetection best_detection;
@@ -60,7 +65,7 @@ std::shared_ptr<IStorageProvider> StorageProviderRegistry::resolve_for(const std
         }
 
         const auto detection = provider->detect(root_path);
-        if (!detection.matched) {
+        if (!detection.matched || detection.needs_additional_support) {
             continue;
         }
 

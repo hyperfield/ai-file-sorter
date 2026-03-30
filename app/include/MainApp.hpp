@@ -9,6 +9,7 @@
 #include "ResultsCoordinator.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
+#include "StoragePluginLoader.hpp"
 #include "StorageProviderRegistry.hpp"
 #include "WhitelistStore.hpp"
 #include "UiTranslator.hpp"
@@ -54,6 +55,7 @@ class MainWindowStateBinder;
 class WhitelistManagerDialog;
 class SuitabilityBenchmarkDialog;
 class AnalysisCoordinator;
+class StoragePluginManager;
 
 struct CategorizedFile;
 struct FileEntry;
@@ -192,7 +194,16 @@ private:
     void update_results_view_mode();
     void update_folder_contents(const QString& directory);
     void focus_file_explorer_on_path(const QString& path);
-    void refresh_active_storage_provider(const std::string& directory_path);
+    void rebuild_storage_provider_registry();
+    void refresh_active_storage_provider(const std::string& directory_path,
+                                         bool allow_support_prompt = false);
+    bool maybe_install_storage_support(const StorageProviderDetection& detection,
+                                       const std::string& directory_path);
+    void maybe_warn_about_storage_detection(const StorageProviderDetection& detection,
+                                           const std::string& directory_path);
+    void maybe_notify_storage_provider_switch(const StorageProviderDetection& detection,
+                                              const std::string& directory_path);
+    void show_storage_plugin_dialog();
 
     void handle_analysis_finished();
     void handle_analysis_cancelled();
@@ -317,6 +328,7 @@ private:
     QAction* undo_last_run_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
+    QAction* manage_storage_plugins_action{nullptr};
     QAction* manage_whitelists_action{nullptr};
     QAction* development_prompt_logging_action{nullptr};
     QAction* consistency_pass_action{nullptr};
@@ -352,6 +364,8 @@ private:
     std::shared_ptr<spdlog::logger> ui_logger;
     WhitelistStore whitelist_store;
     std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
+    StoragePluginLoader storage_plugin_loader_;
+    std::unique_ptr<StoragePluginManager> storage_plugin_manager_;
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
     StorageProviderRegistry storage_provider_registry_;
@@ -369,6 +383,8 @@ private:
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
     bool donation_prompt_active_{false};
+    std::string last_storage_support_warning_key_;
+    std::string last_storage_provider_notice_key_;
     std::optional<bool> text_cpu_fallback_choice_;
     bool should_log_prompts() const;
     void apply_development_logging();

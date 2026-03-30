@@ -114,10 +114,13 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
     std::shared_ptr<IStorageProvider> resolved_provider =
         storage_provider_registry_ ? storage_provider_registry_->find_by_id(provider_id) : nullptr;
     IStorageProvider* provider = nullptr;
+    StorageProviderCapabilities capabilities;
     if (resolved_provider) {
         provider = resolved_provider.get();
+        capabilities = provider->capabilities();
     } else if (provider_id.empty() || provider_id == "local_fs") {
         provider = &fallback_provider;
+        capabilities = provider->capabilities();
     } else {
         result.details << QString("Missing storage provider: %1")
                               .arg(QString::fromStdString(provider_id));
@@ -155,7 +158,7 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
             continue;
         }
 
-        if (expected_mtime > 0) {
+        if (expected_mtime > 0 && !capabilities.should_relax_undo_mtime_validation) {
             const auto mtime = dest_info.lastModified().toSecsSinceEpoch();
             if (mtime != expected_mtime) {
                 result.details << QString("Timestamp mismatch for %1").arg(destination);

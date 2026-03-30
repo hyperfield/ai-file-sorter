@@ -571,6 +571,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.delete_action,
             app.toggle_explorer_action,
             app.toggle_llm_action,
+            app.manage_storage_plugins_action,
             app.manage_whitelists_action,
             app.development_prompt_logging_action,
             app.consistency_pass_action,
@@ -697,6 +698,9 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.settings_menu = app.menuBar()->addMenu(QString());
     app.toggle_llm_action = app.settings_menu->addAction(llm_menu_icon(app), QString());
     QObject::connect(app.toggle_llm_action, &QAction::triggered, &app, &MainApp::show_llm_selection_dialog);
+
+    app.manage_storage_plugins_action = app.settings_menu->addAction(icon_for(app, "preferences-plugin", QStyle::SP_DriveFDIcon), QString());
+    QObject::connect(app.manage_storage_plugins_action, &QAction::triggered, &app, &MainApp::show_storage_plugin_dialog);
 
     app.manage_whitelists_action = app.settings_menu->addAction(whitelist_menu_icon(app), QString());
     QObject::connect(app.manage_whitelists_action, &QAction::triggered, &app, &MainApp::show_whitelist_manager);

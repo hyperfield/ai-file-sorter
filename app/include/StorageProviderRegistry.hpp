@@ -11,6 +11,7 @@
 class StorageProviderRegistry {
 public:
     void register_builtin(std::shared_ptr<IStorageProvider> provider);
+    void clear();
 
     StorageProviderDetection detect(const std::string& root_path) const;
     std::shared_ptr<IStorageProvider> find_by_id(const std::string& provider_id) const;

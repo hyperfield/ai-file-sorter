@@ -25,6 +25,7 @@ struct StorageProviderCapabilities {
     bool supports_online_only_files{false};
     bool supports_atomic_rename{true};
     bool should_skip_reparse_points{false};
+    bool should_relax_undo_mtime_validation{false};
 };
 
 /**

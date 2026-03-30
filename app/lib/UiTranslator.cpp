@@ -233,6 +233,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.delete_action, "&Delete"},
         {deps_.actions.toggle_explorer_action, "File &Explorer"},
         {deps_.actions.toggle_llm_action, "Select &LLM…"},
+        {deps_.actions.manage_storage_plugins_action, "Manage storage plugins…"},
         {deps_.actions.manage_whitelists_action, "Manage category whitelists…"},
         {deps_.actions.development_prompt_logging_action, "Log prompts and responses to stdout"},
         {deps_.actions.consistency_pass_action, "Run &consistency pass"},

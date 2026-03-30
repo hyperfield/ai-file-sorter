@@ -24,12 +24,14 @@ struct FileScanner::ScanContext {
     bool include_files{false};
     bool include_directories{false};
     bool include_hidden{false};
+    FileScannerBehavior behavior;
     std::shared_ptr<spdlog::logger> logger;
 };
 
 std::vector<FileEntry>
 FileScanner::get_directory_entries(const std::string &directory_path,
-                                   FileScanOptions options) const
+                                   FileScanOptions options,
+                                   const FileScannerBehavior& behavior) const
 {
     std::vector<FileEntry> file_paths_and_names;
     auto logger = Logger::get_logger("core_logger");
@@ -42,6 +44,7 @@ FileScanner::get_directory_entries(const std::string &directory_path,
     context.include_files = has_flag(options, FileScanOptions::Files);
     context.include_directories = has_flag(options, FileScanOptions::Directories);
     context.include_hidden = has_flag(options, FileScanOptions::HiddenFiles);
+    context.behavior = behavior;
     context.logger = logger;
     const bool recursive = has_flag(options, FileScanOptions::Recursive);
 
@@ -132,7 +135,7 @@ void FileScanner::scan_recursive(const fs::path& scan_path,
                                  "Skipping entry after filesystem error");
             } else {
                 const bool bundle = is_file_bundle(entry_path, is_directory);
-                const bool skip_entry = should_skip_entry(entry_path, file_name, context, full_path);
+                const bool skip_entry = should_skip_entry(entry, entry_path, file_name, context, full_path);
                 if (!skip_entry) {
                     if (auto type = classify_entry(entry, bundle, is_directory, context)) {
                         results.push_back(FileEntry{full_path, file_name, *type});
@@ -184,6 +187,22 @@ bool FileScanner::is_junk_file(const std::string& name) const {
     return junk.contains(name);
 }
 
+bool FileScanner::is_additional_junk_file(const std::string& name,
+                                          const ScanContext& context) const
+{
+    if (std::find(context.behavior.additional_junk_names.begin(),
+                  context.behavior.additional_junk_names.end(),
+                  name) != context.behavior.additional_junk_names.end()) {
+        return true;
+    }
+
+    return std::any_of(context.behavior.junk_name_prefixes.begin(),
+                       context.behavior.junk_name_prefixes.end(),
+                       [&name](const std::string& prefix) {
+                           return !prefix.empty() && name.starts_with(prefix);
+                       });
+}
+
 
 bool FileScanner::is_file_bundle(const fs::path& path, bool is_directory) const {
     static const std::unordered_set<std::string> bundle_extensions = {
@@ -208,7 +227,7 @@ std::optional<FileEntry> FileScanner::build_entry(const fs::directory_entry& ent
     std::string full_path = Utils::path_to_utf8(entry_path);
     std::string file_name = Utils::path_to_utf8(entry_path.filename());
 
-    if (should_skip_entry(entry_path, file_name, context, full_path)) {
+    if (should_skip_entry(entry, entry_path, file_name, context, full_path)) {
         return std::nullopt;
     }
 
@@ -227,7 +246,21 @@ std::optional<FileEntry> FileScanner::build_entry(const fs::directory_entry& ent
     return std::nullopt;
 }
 
-bool FileScanner::should_skip_entry(const fs::path& entry_path,
+bool FileScanner::is_reparse_point_or_symlink(const fs::directory_entry& entry) const
+{
+#ifdef _WIN32
+    const DWORD attrs = GetFileAttributesW(entry.path().c_str());
+    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        return true;
+    }
+#endif
+
+    std::error_code ec;
+    return fs::is_symlink(entry.symlink_status(ec)) && !ec;
+}
+
+bool FileScanner::should_skip_entry(const fs::directory_entry& entry,
+                                    const fs::path& entry_path,
                                     const std::string& file_name,
                                     const ScanContext& context,
                                     const std::string& full_path) const
@@ -236,9 +269,23 @@ bool FileScanner::should_skip_entry(const fs::path& entry_path,
         return true;
     }
 
+    if (is_additional_junk_file(file_name, context)) {
+        if (context.logger) {
+            context.logger->trace("Skipping provider-specific entry '{}'", full_path);
+        }
+        return true;
+    }
+
     if (is_file_hidden(entry_path) && !context.include_hidden) {
         if (context.logger) {
             context.logger->trace("Skipping hidden entry '{}'", full_path);
+        }
+        return true;
+    }
+
+    if (context.behavior.skip_reparse_points && is_reparse_point_or_symlink(entry)) {
+        if (context.logger) {
+            context.logger->trace("Skipping reparse or symlink entry '{}'", full_path);
         }
         return true;
     }

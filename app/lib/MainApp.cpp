@@ -24,6 +24,8 @@
 #include "UiTranslator.hpp"
 #include "UpdaterBuildConfig.hpp"
 #include "SupportCodeManager.hpp"
+#include "StoragePluginDialog.hpp"
+#include "StoragePluginManager.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
 
@@ -204,6 +206,20 @@ std::string to_utf8(const QString& value)
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
 
+QString display_name_for_provider_id(const std::string& provider_id)
+{
+    if (provider_id == "onedrive") {
+        return QStringLiteral("OneDrive");
+    }
+    if (provider_id == "dropbox") {
+        return QStringLiteral("Dropbox");
+    }
+    if (provider_id == "pcloud") {
+        return QStringLiteral("pCloud");
+    }
+    return QString::fromStdString(provider_id);
+}
+
 } // namespace
 
 MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
@@ -213,6 +229,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
       core_logger(Logger::get_logger("core_logger")),
       ui_logger(Logger::get_logger("ui_logger")),
       whitelist_store(settings.get_config_dir()),
+      storage_plugin_manager_(std::make_unique<StoragePluginManager>(settings.get_config_dir())),
       categorization_service(settings, db_manager, core_logger),
       consistency_pass_service(db_manager, core_logger),
       storage_provider_registry_(),
@@ -223,7 +240,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
       development_prompt_logging_enabled_(development_mode ? settings.get_development_prompt_logging() : false),
       main_window_state_binder_(std::make_unique<MainWindowStateBinder>(*this))
 {
-    storage_provider_registry_.register_builtin(active_storage_provider_);
+    rebuild_storage_provider_registry();
     TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
     initialize_whitelists();
 
@@ -633,6 +650,7 @@ void MainApp::on_directory_selected(const QString& path, bool user_initiated)
     path_entry->setText(path);
     statusBar()->showMessage(tr("Folder selected: %1").arg(path), 3000);
     status_is_ready_ = false;
+    refresh_active_storage_provider(to_utf8(path), user_initiated);
 
     if (!user_initiated) {
         focus_file_explorer_on_path(path);
@@ -838,7 +856,7 @@ void MainApp::update_folder_contents(const QString& directory)
         return;
     }
 
-    refresh_active_storage_provider(to_utf8(directory));
+    refresh_active_storage_provider(to_utf8(directory), false);
 
     const bool previous_flag = suppress_folder_view_sync_;
     suppress_folder_view_sync_ = true;
@@ -852,10 +870,49 @@ void MainApp::update_folder_contents(const QString& directory)
     suppress_folder_view_sync_ = previous_flag;
 }
 
-void MainApp::refresh_active_storage_provider(const std::string& directory_path)
+void MainApp::rebuild_storage_provider_registry()
 {
+    storage_provider_registry_.clear();
+
+    auto local_provider = std::make_shared<LocalFsProvider>();
+    storage_provider_registry_.register_builtin(local_provider);
+    for (auto& provider : storage_plugin_loader_.create_detection_providers()) {
+        storage_provider_registry_.register_builtin(std::move(provider));
+    }
+
+    if (storage_plugin_manager_) {
+        for (auto& provider : storage_plugin_loader_.create_providers_for_installed_plugins(
+                 storage_plugin_manager_->installed_plugin_ids())) {
+            storage_provider_registry_.register_builtin(std::move(provider));
+        }
+    }
+
+    active_storage_provider_ = local_provider;
+    results_coordinator.set_storage_provider(*active_storage_provider_);
+}
+
+void MainApp::refresh_active_storage_provider(const std::string& directory_path,
+                                              bool allow_support_prompt)
+{
+    auto detection = storage_provider_registry_.detect(directory_path);
+    if (allow_support_prompt && detection.matched && detection.needs_additional_support) {
+        const bool plugin_available =
+            storage_plugin_manager_ &&
+            storage_plugin_loader_.find_plugin_for_provider(detection.provider_id).has_value();
+        if (plugin_available) {
+            if (maybe_install_storage_support(detection, directory_path)) {
+                detection = storage_provider_registry_.detect(directory_path);
+            }
+        } else {
+            maybe_warn_about_storage_detection(detection, directory_path);
+        }
+    }
+
     const auto resolved = storage_provider_registry_.resolve_for(directory_path);
     if (!resolved || resolved == active_storage_provider_) {
+        if (allow_support_prompt) {
+            maybe_notify_storage_provider_switch(detection, directory_path);
+        }
         return;
     }
 
@@ -867,6 +924,108 @@ void MainApp::refresh_active_storage_provider(const std::string& directory_path)
                           active_storage_provider_->id(),
                           directory_path);
     }
+
+    if (allow_support_prompt) {
+        maybe_notify_storage_provider_switch(detection, directory_path);
+    }
+}
+
+bool MainApp::maybe_install_storage_support(const StorageProviderDetection& detection,
+                                            const std::string& directory_path)
+{
+    if (!storage_plugin_manager_ || !detection.matched || !detection.needs_additional_support) {
+        return false;
+    }
+
+    const auto plugin = storage_plugin_loader_.find_plugin_for_provider(detection.provider_id);
+    if (!plugin.has_value()) {
+        return false;
+    }
+
+    const std::string prompt_key = plugin->id + "|" + directory_path;
+    if (prompt_key == last_storage_support_warning_key_) {
+        return false;
+    }
+    last_storage_support_warning_key_ = prompt_key;
+
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Information);
+    box.setWindowTitle(tr("Install Compatibility Support"));
+    box.setText(detection.message.empty()
+                    ? tr("Detected a cloud-synced folder.")
+                    : QString::fromStdString(detection.message));
+    box.setInformativeText(
+        tr("Install \"%1\" now to enable provider-specific compatibility mode for this folder?")
+            .arg(QString::fromStdString(plugin->name)));
+
+    auto* install_button = box.addButton(tr("Install support"), QMessageBox::AcceptRole);
+    box.addButton(tr("Continue in local mode"), QMessageBox::RejectRole);
+    box.exec();
+
+    if (box.clickedButton() != install_button) {
+        return false;
+    }
+
+    std::string error;
+    if (!storage_plugin_manager_->install(plugin->id, &error)) {
+        QMessageBox::warning(this,
+                             tr("Install failed"),
+                             error.empty()
+                                 ? tr("Failed to install compatibility support.")
+                                 : QString::fromStdString(error));
+        return false;
+    }
+
+    rebuild_storage_provider_registry();
+    QMessageBox::information(
+        this,
+        tr("Compatibility Support Installed"),
+        tr("Installed \"%1\". The app will now switch to compatibility mode for detected cloud folders.")
+            .arg(QString::fromStdString(plugin->name)));
+    return true;
+}
+
+void MainApp::maybe_warn_about_storage_detection(const StorageProviderDetection& detection,
+                                                 const std::string& directory_path)
+{
+    if (!detection.matched || !detection.needs_additional_support) {
+        return;
+    }
+
+    const std::string warning_key = detection.provider_id + "|" + directory_path;
+    if (warning_key == last_storage_support_warning_key_) {
+        return;
+    }
+    last_storage_support_warning_key_ = warning_key;
+
+    const QString title = tr("Compatibility Support Not Installed");
+    const QString message = detection.message.empty()
+        ? tr("Detected a cloud-synced folder. Dedicated compatibility support is not installed, so the app will continue in local filesystem mode.")
+        : QString::fromStdString(detection.message);
+
+    QMessageBox::warning(this, title, message);
+}
+
+void MainApp::maybe_notify_storage_provider_switch(const StorageProviderDetection& detection,
+                                                   const std::string& directory_path)
+{
+    if (!detection.matched || detection.needs_additional_support || !active_storage_provider_ ||
+        active_storage_provider_->id() == "local_fs" ||
+        active_storage_provider_->id() != detection.provider_id) {
+        return;
+    }
+
+    const std::string notice_key = detection.provider_id + "|" + directory_path;
+    if (notice_key == last_storage_provider_notice_key_) {
+        return;
+    }
+    last_storage_provider_notice_key_ = notice_key;
+
+    QMessageBox::information(
+        this,
+        tr("Compatibility Mode Active"),
+        tr("Detected a supported cloud folder. The app switched to %1 compatibility mode.")
+            .arg(display_name_for_provider_id(detection.provider_id)));
 }
 
 void MainApp::focus_file_explorer_on_path(const QString& path)
@@ -888,6 +1047,23 @@ void MainApp::focus_file_explorer_on_path(const QString& path)
     file_explorer_view->scrollTo(index, QAbstractItemView::PositionAtCenter);
 
     suppress_explorer_sync_ = previous_suppress;
+}
+
+void MainApp::show_storage_plugin_dialog()
+{
+    if (!storage_plugin_manager_) {
+        return;
+    }
+
+    StoragePluginDialog dialog(*storage_plugin_manager_, this);
+    dialog.exec();
+
+    rebuild_storage_provider_registry();
+
+    const std::string folder_path = get_folder_path();
+    if (!folder_path.empty()) {
+        refresh_active_storage_provider(folder_path, false);
+    }
 }
 
 void MainApp::record_categorized_metrics(int count)

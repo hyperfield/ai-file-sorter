@@ -70,14 +70,15 @@ StorageProviderCapabilities LocalFsProvider::capabilities() const
     return StorageProviderCapabilities{
         .supports_online_only_files = false,
         .supports_atomic_rename = true,
-        .should_skip_reparse_points = false
+        .should_skip_reparse_points = false,
+        .should_relax_undo_mtime_validation = false
     };
 }
 
 std::vector<FileEntry> LocalFsProvider::list_directory(const std::string& directory,
                                                        FileScanOptions options) const
 {
-    return scanner_.get_directory_entries(directory, options);
+    return scanner_.get_directory_entries(directory, options, {});
 }
 
 bool LocalFsProvider::path_exists(const std::string& path) const

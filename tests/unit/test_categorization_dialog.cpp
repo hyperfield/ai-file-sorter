@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CategorizationDialog.hpp"
+#include "CloudCompatibilityProvider.hpp"
 #include "DatabaseManager.hpp"
 #include "LocalFsProvider.hpp"
 #include "StorageProviderRegistry.hpp"
@@ -9,6 +10,7 @@
 #include <QCheckBox>
 #include <QTableView>
 #include <QStandardItemModel>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 
@@ -211,6 +213,52 @@ TEST_CASE("UndoManager restores saved plans through the active storage provider"
     UndoManager writer(undo_dir.path().string());
     REQUIRE(writer.save_plan(data_dir.path().string(),
                              local_provider->id(),
+                             {UndoManager::Entry{
+                                 source.string(),
+                                 destination.string(),
+                                 move_result.metadata.size_bytes,
+                                 move_result.metadata.mtime}},
+                             nullptr));
+
+    UndoManager reader(undo_dir.path().string(), &registry);
+    const auto plan_path = reader.latest_plan_path();
+    REQUIRE(plan_path.has_value());
+
+    const auto undo_result = reader.undo_plan(*plan_path);
+    CHECK(undo_result.restored == 1);
+    CHECK(undo_result.skipped == 0);
+    REQUIRE(std::filesystem::exists(source));
+    REQUIRE_FALSE(std::filesystem::exists(destination));
+}
+
+TEST_CASE("UndoManager relaxes timestamp validation for cloud providers") {
+    TempDir undo_dir;
+    TempDir data_dir;
+
+    StorageProviderRegistry registry;
+    auto cloud_provider = std::make_shared<CloudCompatibilityProvider>(
+        "onedrive",
+        "OneDrive",
+        std::vector<std::string>{"onedrive"});
+    registry.register_builtin(cloud_provider);
+
+    const std::filesystem::path source = data_dir.path() / "original.txt";
+    const std::filesystem::path destination = data_dir.path() / "Moved" / "original.txt";
+    std::ofstream(source).put('x');
+
+    const auto move_result = cloud_provider->move_entry(source.string(), destination.string());
+    REQUIRE(move_result.success);
+
+    std::error_code ec;
+    std::filesystem::last_write_time(
+        destination,
+        std::filesystem::file_time_type::clock::now() + std::chrono::seconds(10),
+        ec);
+    REQUIRE(!ec);
+
+    UndoManager writer(undo_dir.path().string());
+    REQUIRE(writer.save_plan(data_dir.path().string(),
+                             cloud_provider->id(),
                              {UndoManager::Entry{
                                  source.string(),
                                  destination.string(),

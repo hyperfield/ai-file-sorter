@@ -5,7 +5,9 @@
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
 #include "ResultsCoordinator.hpp"
+#include "StoragePluginLoader.hpp"
 #include "Settings.hpp"
+#include "StoragePluginManager.hpp"
 #include "StorageProviderRegistry.hpp"
 #include "TestHelpers.hpp"
 
@@ -280,4 +282,70 @@ TEST_CASE("StorageProviderRegistry resolves the local filesystem provider by def
     const auto resolved = registry.resolve_for(std::string());
     REQUIRE(resolved);
     CHECK(resolved->id() == "local_fs");
+}
+
+TEST_CASE("StorageProviderRegistry detects cloud folders while resolving local fallback") {
+    StorageProviderRegistry registry;
+    StoragePluginLoader loader;
+    for (auto& provider : loader.create_detection_providers()) {
+        registry.register_builtin(std::move(provider));
+    }
+    auto local_provider = std::make_shared<LocalFsProvider>();
+    registry.register_builtin(local_provider);
+
+    const std::string folder_path = "/Users/example/OneDrive - Work/Documents";
+    const auto detection = registry.detect(folder_path);
+    REQUIRE(detection.matched);
+    CHECK(detection.provider_id == "onedrive");
+    CHECK(detection.needs_additional_support);
+
+    const auto resolved = registry.resolve_for(folder_path);
+    REQUIRE(resolved);
+    CHECK(resolved->id() == "local_fs");
+}
+
+TEST_CASE("StoragePluginManager persists installed plugins") {
+    TempDir config_dir;
+
+    StoragePluginManager writer(config_dir.path().string());
+    CHECK_FALSE(writer.is_installed("cloud_storage_compat"));
+    REQUIRE(writer.install("cloud_storage_compat"));
+
+    StoragePluginManager reader(config_dir.path().string());
+    CHECK(reader.is_installed("cloud_storage_compat"));
+    const auto installed_ids = reader.installed_plugin_ids();
+    REQUIRE(installed_ids.size() == 1);
+    CHECK(installed_ids.front() == "cloud_storage_compat");
+
+    const auto plugin = reader.find_plugin_for_provider("onedrive");
+    REQUIRE(plugin.has_value());
+    CHECK(plugin->id == "cloud_storage_compat");
+    CHECK(plugin->version == "1.0.0");
+}
+
+TEST_CASE("StorageProviderRegistry resolves installed cloud provider ahead of local fallback") {
+    StoragePluginLoader loader;
+    TempDir config_dir;
+    StoragePluginManager plugin_manager(config_dir.path().string());
+    REQUIRE(plugin_manager.install("cloud_storage_compat"));
+
+    StorageProviderRegistry registry;
+    auto local_provider = std::make_shared<LocalFsProvider>();
+    registry.register_builtin(local_provider);
+    for (auto& provider : loader.create_detection_providers()) {
+        registry.register_builtin(std::move(provider));
+    }
+    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_ids())) {
+        registry.register_builtin(std::move(provider));
+    }
+
+    const std::string folder_path = "/Users/example/OneDrive - Work/Documents";
+    const auto detection = registry.detect(folder_path);
+    REQUIRE(detection.matched);
+    CHECK(detection.provider_id == "onedrive");
+    CHECK_FALSE(detection.needs_additional_support);
+
+    const auto resolved = registry.resolve_for(folder_path);
+    REQUIRE(resolved);
+    CHECK(resolved->id() == "onedrive");
 }

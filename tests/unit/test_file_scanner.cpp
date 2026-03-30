@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include "CloudCompatibilityProvider.hpp"
 #include "FileScanner.hpp"
 #include "TestHelpers.hpp"
 #include <algorithm>
@@ -86,6 +87,32 @@ TEST_CASE("recursive scans include nested files") {
         return entry.file_name == "deep.txt";
     }));
 }
+
+#ifndef _WIN32
+TEST_CASE("cloud compatibility providers skip recursive symlink traversal") {
+    TempDir temp_dir;
+    const auto real_dir = temp_dir.path() / "real";
+    const auto link_dir = temp_dir.path() / "linked";
+    write_file(real_dir / "deep.txt");
+
+    std::error_code ec;
+    std::filesystem::create_directory_symlink(real_dir, link_dir, ec);
+    if (ec) {
+        SKIP("symlink creation is not available in this test environment");
+    }
+
+    CloudCompatibilityProvider provider(
+        "onedrive",
+        "OneDrive",
+        std::vector<std::string>{"onedrive"});
+    const auto entries = provider.list_directory(
+        temp_dir.path().string(),
+        FileScanOptions::Files | FileScanOptions::Recursive);
+
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().file_name == "deep.txt");
+}
+#endif
 
 #ifndef _WIN32
 class PermissionRestore {
