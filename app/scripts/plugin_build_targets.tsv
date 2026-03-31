@@ -1,0 +1,2 @@
+# plugin_id<TAB>display_name<TAB>cmake_target<TAB>output_stem<TAB>platforms
+onedrive_storage_support	OneDrive Storage Support	aifs_onedrive_storage_plugin	aifs_onedrive_storage_plugin	linux,macos,windows

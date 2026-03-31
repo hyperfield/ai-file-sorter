@@ -123,6 +123,7 @@ app/include/llama/*.h
 # R & D stage
 /assets/
 /docs/
+/plugins/
 /scripts/
 !app/scripts/
 /tools/

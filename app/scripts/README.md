@@ -8,6 +8,11 @@ automatically redacting common sensitive data, and creating a zipped bundle to s
 - `collect_macos_diagnostics.sh` (macOS)
 - `collect_linux_diagnostics.sh` (Linux)
 - `collect_windows_diagnostics.ps1` (Windows PowerShell)
+- `generate_storage_plugin_payload.sh` (Generate a publishable OneDrive storage-plugin payload)
+- `build_plugins_linux.sh` (Build Linux plugin targets)
+- `build_plugins_macos.sh` (Build macOS plugin targets)
+- `build_plugins_windows.ps1` (Build Windows plugin targets)
+- `upload_storage_plugins.py` (Upload prepared plugin payloads and merge the remote catalog)
 
 ## What they do
 
@@ -109,6 +114,103 @@ Scripts write to your output directory (default desktop/home), with names like:
 - `aifs-windows-diagnostics-YYYYMMDD_HHMMSS-redacted.zip`
 
 Inside, the archive contains a `redacted/` folder with sanitized artifacts.
+
+## Storage Plugin Payload
+
+To regenerate the local OneDrive storage-plugin publish payload from the current build:
+
+```bash
+./app/scripts/generate_storage_plugin_payload.sh \
+  --base-url=https://filesorter.app/download/plugins/storage
+```
+
+Options:
+
+- `--base-url=<https-url>` required
+- `--output-dir=<path>` optional, defaults to `plugins/storage`
+- `--build-dir=<path>` optional, defaults to `build-tests`
+
+The script writes a ready-to-upload `storage/` tree containing:
+
+- `catalog.json`
+- `onedrive/manifest.json`
+- `onedrive/*.aifsplugin`
+- `SHA256SUMS`
+
+## Plugin Build Scripts
+
+The plugin build scripts read their target list from:
+
+- `app/scripts/plugin_build_targets.tsv`
+
+Each plugin entry includes:
+
+- internal plugin ID
+- display name
+- CMake target name
+- output stem
+- supported OS list
+
+Examples:
+
+```bash
+./app/scripts/build_plugins_linux.sh --list
+./app/scripts/build_plugins_linux.sh
+./app/scripts/build_plugins_linux.sh --plugins=onedrive_storage_support
+./app/scripts/build_plugins_linux.sh --interactive
+
+./app/scripts/build_plugins_macos.sh --list
+./app/scripts/build_plugins_macos.sh --interactive
+```
+
+```powershell
+.\app\scripts\build_plugins_windows.ps1 -List
+.\app\scripts\build_plugins_windows.ps1
+.\app\scripts\build_plugins_windows.ps1 -Plugins onedrive_storage_support
+.\app\scripts\build_plugins_windows.ps1 -Interactive
+```
+
+Behavior:
+
+- default: build all plugin targets supported on the current OS
+- `--list` / `-List`: list available plugin IDs for that OS
+- `--plugins=...` / `-Plugins ...`: build only the requested plugin IDs
+- `--interactive` / `-Interactive`: choose plugins interactively; all are selected by default
+
+## Plugin Upload Script
+
+To upload prepared plugin payloads from `plugins/storage` to a remote static server tree:
+
+```bash
+python3 ./app/scripts/upload_storage_plugins.py \
+  --base-url=https://downloads.example.com/aifilesorter/plugins/storage \
+  --remote-dir=user@host:/var/www/downloads/aifilesorter/plugins/storage
+```
+
+Useful options:
+
+- `--list` to show prepared plugin IDs in the local payload
+- `--plugins=...` to upload only selected plugin IDs
+- `--interactive` to choose which prepared plugins to upload
+- `--assume-empty-remote` for first-time publication
+- `--dry-run` to preview the `rsync` upload
+- `--allow-downgrade` to permit uploading an older version over a newer remote one
+- `--force-same-version` to republish the same version when the package hash differs
+
+What it verifies before upload:
+
+- local manifest/package presence
+- archive SHA-256 matches the manifest
+- archive contains `manifest.json`, the plugin entry point, and package paths
+- local build artifact exists for matching current-runtime plugin packages
+- remote public catalog/manifest version and package hash, when available
+
+What it updates on the remote:
+
+- selected plugin `manifest.json`
+- selected plugin `.aifsplugin` archives
+- merged `catalog.json`
+- merged `SHA256SUMS`
 
 ## Redaction notes
 
