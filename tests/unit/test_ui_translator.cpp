@@ -64,6 +64,7 @@ struct UiTranslatorTestHarness {
     QMenu* edit_menu = new QMenu(&window);
     QMenu* view_menu = new QMenu(&window);
     QMenu* settings_menu = new QMenu(&window);
+    QMenu* plugins_menu = new QMenu(&window);
     QMenu* development_menu = new QMenu(&window);
     QMenu* development_settings_menu = new QMenu(&window);
     QMenu* language_menu = new QMenu(&window);
@@ -199,6 +200,7 @@ struct UiTranslatorTestHarness {
                 edit_menu,
                 view_menu,
                 settings_menu,
+                plugins_menu,
                 development_menu,
                 development_settings_menu,
                 language_menu,
@@ -306,6 +308,7 @@ void verify_menus_and_actions(const UiTranslatorTestHarness& h)
 {
     REQUIRE(h.file_menu->title() == QStringLiteral("&File"));
     REQUIRE(h.settings_menu->title() == QStringLiteral("&Settings"));
+    REQUIRE(h.plugins_menu->title() == QStringLiteral("&Plugins"));
     REQUIRE(h.run_benchmark_action->text() == QStringLiteral("System compatibility check…"));
     REQUIRE(h.toggle_llm_action->text() == QStringLiteral("Select &LLM…"));
     REQUIRE(h.manage_storage_plugins_action->text() == QStringLiteral("Manage storage plugins…"));

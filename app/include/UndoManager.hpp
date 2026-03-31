@@ -20,6 +20,8 @@ public:
         std::string destination;
         std::uintmax_t size_bytes{0};
         std::time_t mtime{0};
+        std::string stable_identity;
+        std::string revision_token;
     };
 
     explicit UndoManager(std::string undo_dir,

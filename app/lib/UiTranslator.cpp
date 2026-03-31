@@ -206,6 +206,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.menus.edit_menu, "&Edit"},
         {deps_.menus.view_menu, "&View"},
         {deps_.menus.settings_menu, "&Settings"},
+        {deps_.menus.plugins_menu, "&Plugins"},
         {deps_.menus.development_menu, "&Development"},
         {deps_.menus.development_settings_menu, "&Settings"},
         {deps_.menus.language_menu, "Interface &language"},

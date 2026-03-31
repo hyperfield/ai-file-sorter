@@ -962,6 +962,38 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         endif()
     endfunction()
 
+    add_executable(aifs_onedrive_storage_plugin
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/onedrive_storage_plugin_main.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/CloudPathSupport.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/FileScanner.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/LocalFsProvider.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/OneDriveStorageProvider.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
+    )
+    target_include_directories(aifs_onedrive_storage_plugin PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+    )
+    target_link_libraries(aifs_onedrive_storage_plugin PRIVATE
+        Qt6::Core
+        CURL::libcurl
+        spdlog::spdlog
+        fmt::fmt
+    )
+    if(WIN32)
+        target_compile_definitions(aifs_onedrive_storage_plugin PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+        target_link_libraries(aifs_onedrive_storage_plugin PRIVATE ${WIN_SYSTEM_LIBS})
+    endif()
+    set_target_properties(aifs_onedrive_storage_plugin PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    )
+
+    target_compile_definitions(aifilesorter PRIVATE
+        AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$<TARGET_FILE_NAME:aifs_onedrive_storage_plugin>"
+    )
+    add_dependencies(aifilesorter aifs_onedrive_storage_plugin)
+
     add_executable(ai_file_sorter_tests
         ${APP_LIB_SOURCES}
         ${AIFS_TEST_ONLY_APP_SOURCES}
@@ -979,6 +1011,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_visual_fallback.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_settings_image_options.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_checkbox_matrix.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_dialog_rename_gate.cpp"
@@ -990,6 +1023,14 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_image_rename_metadata_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llava_image_analyzer.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_media_rename_metadata_service.cpp"
+    )
+
+    add_executable(aifs_storage_plugin_stub
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/storage_plugin_stub.cpp"
+    )
+    target_link_libraries(aifs_storage_plugin_stub PRIVATE Qt6::Core)
+    set_target_properties(aifs_storage_plugin_stub PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     )
 
     target_include_directories(ai_file_sorter_tests PRIVATE
@@ -1017,7 +1058,15 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     aifs_add_translation_resources(ai_file_sorter_tests)
 
-    target_compile_definitions(ai_file_sorter_tests PRIVATE AI_FILE_SORTER_TEST_BUILD=1 WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_compile_definitions(ai_file_sorter_tests PRIVATE
+        AI_FILE_SORTER_TEST_BUILD=1
+        AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$<TARGET_FILE_NAME:aifs_onedrive_storage_plugin>"
+        AIFS_STORAGE_PLUGIN_STUB_NAME="$<TARGET_FILE_NAME:aifs_storage_plugin_stub>"
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+    )
+    add_dependencies(ai_file_sorter_tests aifs_onedrive_storage_plugin)
+    add_dependencies(ai_file_sorter_tests aifs_storage_plugin_stub)
     aifs_apply_update_mode(ai_file_sorter_tests)
     aifs_apply_expected_update_mode(ai_file_sorter_tests "${_aifs_effective_update_mode}")
 

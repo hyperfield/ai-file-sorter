@@ -21,6 +21,9 @@ public:
     StorageProviderCapabilities capabilities() const override;
     std::vector<FileEntry> list_directory(const std::string& directory,
                                           FileScanOptions options) const override;
+    StoragePathStatus inspect_path(const std::string& path) const override;
+    StorageMovePreflight preflight_move(const std::string& source,
+                                        const std::string& destination) const override;
     bool path_exists(const std::string& path) const override;
     bool ensure_directory(const std::string& directory, std::string* error = nullptr) const override;
     StorageMutationResult move_entry(const std::string& source,

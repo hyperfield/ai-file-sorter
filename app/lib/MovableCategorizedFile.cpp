@@ -120,33 +120,31 @@ MovableCategorizedFile::build_move_paths(bool use_subcategory) const
     };
 }
 
-bool MovableCategorizedFile::source_is_available(const std::filesystem::path& source_path) const
-{
-    if (storage_provider_.path_exists(Utils::path_to_utf8(source_path))) {
-        return true;
-    }
-
-    with_core_logger([&](auto& logger) {
-        logger.warn("Source file missing when moving '{}': {}", file_name, Utils::path_to_utf8(source_path));
-    });
-    return false;
-}
-
-bool MovableCategorizedFile::destination_is_available(const std::filesystem::path& destination_path) const
-{
-    if (!storage_provider_.path_exists(Utils::path_to_utf8(destination_path))) {
-        return true;
-    }
-
-    with_core_logger([&](auto& logger) {
-        logger.info("Destination already contains '{}'; skipping move", Utils::path_to_utf8(destination_path));
-    });
-    return false;
-}
-
 StorageMutationResult MovableCategorizedFile::perform_move(const std::filesystem::path& source_path,
                                                            const std::filesystem::path& destination_path) const
 {
+    const auto preflight = storage_provider_.preflight_move(Utils::path_to_utf8(source_path),
+                                                            Utils::path_to_utf8(destination_path));
+    if (!preflight.allowed) {
+        with_core_logger([&](auto& logger) {
+            logger.warn("Preflight blocked move '{}' -> '{}': {}",
+                        Utils::path_to_utf8(source_path),
+                        Utils::path_to_utf8(destination_path),
+                        preflight.message);
+        });
+        return StorageMutationResult{
+            .success = false,
+            .skipped = preflight.skipped,
+            .message = preflight.message,
+            .metadata = {
+                .size_bytes = 0,
+                .mtime = 0,
+                .stable_identity = preflight.source_status.stable_identity,
+                .revision_token = preflight.source_status.revision_token
+            }
+        };
+    }
+
     auto result = storage_provider_.move_entry(Utils::path_to_utf8(source_path),
                                                Utils::path_to_utf8(destination_path));
     if (result.success) {
@@ -234,22 +232,6 @@ void MovableCategorizedFile::create_cat_dirs(bool use_subcategory)
 StorageMutationResult MovableCategorizedFile::move_file(bool use_subcategory)
 {
     const MovePaths paths = build_move_paths(use_subcategory);
-
-    if (!source_is_available(paths.source)) {
-        return StorageMutationResult{
-            .success = false,
-            .skipped = true,
-            .message = "Source path is missing."
-        };
-    }
-
-    if (!destination_is_available(paths.destination)) {
-        return StorageMutationResult{
-            .success = false,
-            .skipped = true,
-            .message = "Destination path already exists."
-        };
-    }
 
     return perform_move(paths.source, paths.destination);
 }

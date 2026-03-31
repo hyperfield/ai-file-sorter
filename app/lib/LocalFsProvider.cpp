@@ -25,6 +25,10 @@ StorageEntryMetadata read_metadata(const std::filesystem::path& path)
         metadata.mtime = std::chrono::system_clock::to_time_t(system_time);
     }
 
+    metadata.stable_identity = Utils::path_to_utf8(path.lexically_normal());
+    metadata.revision_token =
+        std::to_string(metadata.size_bytes) + ":" + std::to_string(metadata.mtime);
+
     return metadata;
 }
 
@@ -81,6 +85,47 @@ std::vector<FileEntry> LocalFsProvider::list_directory(const std::string& direct
     return scanner_.get_directory_entries(directory, options, {});
 }
 
+StoragePathStatus LocalFsProvider::inspect_path(const std::string& path) const
+{
+    StoragePathStatus status;
+    status.exists = path_exists(path);
+    status.stable_identity = path;
+    if (!status.exists) {
+        status.message = "Path does not exist.";
+        return status;
+    }
+
+    const auto metadata = read_metadata(Utils::utf8_to_path(path));
+    status.stable_identity = metadata.stable_identity;
+    status.revision_token = metadata.revision_token;
+    return status;
+}
+
+StorageMovePreflight LocalFsProvider::preflight_move(const std::string& source,
+                                                     const std::string& destination) const
+{
+    StorageMovePreflight preflight;
+    preflight.source_status = inspect_path(source);
+    preflight.destination_status = inspect_path(destination);
+
+    if (!preflight.source_status.exists) {
+        preflight.allowed = false;
+        preflight.skipped = true;
+        preflight.message = "Source path is missing.";
+        return preflight;
+    }
+
+    if (preflight.destination_status.exists) {
+        preflight.allowed = false;
+        preflight.skipped = true;
+        preflight.destination_conflict = true;
+        preflight.message = "Destination path already exists.";
+        return preflight;
+    }
+
+    return preflight;
+}
+
 bool LocalFsProvider::path_exists(const std::string& path) const
 {
     std::error_code ec;
@@ -115,15 +160,10 @@ StorageMutationResult LocalFsProvider::move_entry(const std::string& source,
     const auto source_path = Utils::utf8_to_path(source);
     const auto destination_path = Utils::utf8_to_path(destination);
 
-    if (!path_exists(source)) {
-        result.skipped = true;
-        result.message = "Source path is missing.";
-        return result;
-    }
-
-    if (path_exists(destination)) {
-        result.skipped = true;
-        result.message = "Destination path already exists.";
+    const auto preflight = preflight_move(source, destination);
+    if (!preflight.allowed) {
+        result.skipped = preflight.skipped;
+        result.message = preflight.message;
         return result;
     }
 
@@ -152,13 +192,15 @@ StorageMutationResult LocalFsProvider::undo_move(const std::string& source,
     const auto source_path = Utils::utf8_to_path(source);
     const auto destination_path = Utils::utf8_to_path(destination);
 
-    if (!path_exists(destination)) {
+    const auto source_status = inspect_path(source);
+    const auto destination_status = inspect_path(destination);
+    if (!destination_status.exists) {
         result.skipped = true;
         result.message = "Destination path is missing.";
         return result;
     }
 
-    if (path_exists(source)) {
+    if (source_status.exists) {
         result.skipped = true;
         result.message = "Source path already exists.";
         return result;

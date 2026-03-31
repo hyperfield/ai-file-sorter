@@ -103,6 +103,8 @@ private:
         std::string destination_path;
         std::uintmax_t size_bytes{0};
         std::time_t mtime{0};
+        std::string stable_identity;
+        std::string revision_token;
     };
     struct PreviewRecord {
         std::string source;
@@ -152,7 +154,9 @@ private:
                               const std::string& source,
                               const std::string& destination,
                               std::uintmax_t size_bytes,
-                              std::time_t mtime);
+                              std::time_t mtime,
+                              const std::string& stable_identity,
+                              const std::string& revision_token);
     void handle_selected_row(int row_index,
                              const std::string& file_name,
                              const std::string& rename_candidate,

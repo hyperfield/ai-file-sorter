@@ -63,6 +63,17 @@ std::vector<FileEntry> CloudCompatibilityProvider::list_directory(const std::str
     return scanner_.get_directory_entries(directory, options, scan_behavior_);
 }
 
+StoragePathStatus CloudCompatibilityProvider::inspect_path(const std::string& path) const
+{
+    return fallback_provider_.inspect_path(path);
+}
+
+StorageMovePreflight CloudCompatibilityProvider::preflight_move(const std::string& source,
+                                                                const std::string& destination) const
+{
+    return fallback_provider_.preflight_move(source, destination);
+}
+
 bool CloudCompatibilityProvider::path_exists(const std::string& path) const
 {
     return fallback_provider_.path_exists(path);
@@ -76,6 +87,14 @@ bool CloudCompatibilityProvider::ensure_directory(const std::string& directory, 
 StorageMutationResult CloudCompatibilityProvider::move_entry(const std::string& source,
                                                              const std::string& destination) const
 {
+    const auto preflight = preflight_move(source, destination);
+    if (!preflight.allowed) {
+        return StorageMutationResult{
+            .success = false,
+            .skipped = preflight.skipped,
+            .message = preflight.message
+        };
+    }
     return fallback_provider_.move_entry(source, destination);
 }
 

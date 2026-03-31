@@ -6,7 +6,10 @@ BIN_DIR := ./bin
 OBJ_ROOT := ./obj
 OBJ_DIR := $(OBJ_ROOT)
 SRC_DIR := ./lib
+PLUGIN_SRC_DIR := ./plugins
 APP_NAME ?= AI File Sorter
+ONEDRIVE_PLUGIN_BINARY := aifs_onedrive_storage_plugin
+ONEDRIVE_PLUGIN_TARGET := $(BIN_DIR)/$(ONEDRIVE_PLUGIN_BINARY)
 
 # Goals that should not require toolchain/dependency discovery.
 NON_BUILD_GOALS := clean
@@ -220,7 +223,7 @@ CXX := clang++
 else
 CXX := g++
 endif
-CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"' '-DAI_FILE_SORTER_GGML_SUBDIR="$(GGML_PRECOMPILED_SUBDIR)"'
+CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"' '-DAI_FILE_SORTER_GGML_SUBDIR="$(GGML_PRECOMPILED_SUBDIR)"' '-DAIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$(ONEDRIVE_PLUGIN_BINARY)"'
 CXX_VERSION_INFO := $(shell $(CXX) --version 2>/dev/null)
 # Suppress GCC-only diagnostics; clang (macOS) does not support some of them
 ifneq (,$(findstring clang,$(CXX_VERSION_INFO)))
@@ -482,7 +485,11 @@ endif
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
 SRCS := $(filter-out $(SRC_DIR)/MainAppTestAccess.cpp,$(SRCS))
 OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
-DEPS = $(OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
+ONEDRIVE_PLUGIN_MAIN_SRC := $(PLUGIN_SRC_DIR)/onedrive_storage_plugin_main.cpp
+ONEDRIVE_PLUGIN_MAIN_OBJ := $(OBJ_DIR)/onedrive_storage_plugin_main.o
+ONEDRIVE_PLUGIN_SHARED_OBJ_NAMES := CloudPathSupport.o FileScanner.o LocalFsProvider.o Logger.o OneDriveStorageProvider.o Utils.o
+ONEDRIVE_PLUGIN_OBJS := $(ONEDRIVE_PLUGIN_MAIN_OBJ) $(addprefix $(OBJ_DIR)/,$(ONEDRIVE_PLUGIN_SHARED_OBJ_NAMES))
+DEPS = $(OBJS:.o=.d) $(ONEDRIVE_PLUGIN_OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
 BUILD_CONFIG_STAMP := $(OBJ_DIR)/.build-config
 
 PRECOMPILED_LLAMA :=
@@ -495,7 +502,7 @@ endif
 .PHONY: all clean install uninstall doc_runtime_libs precompiled_llama MACOS_LLAMA_M1 MACOS_LLAMA_M2 MACOS_LLAMA_INTEL
 
 # Main rules
-all: $(PRECOMPILED_LLAMA) doc_runtime_libs $(TARGET)
+all: $(PRECOMPILED_LLAMA) doc_runtime_libs $(TARGET) $(ONEDRIVE_PLUGIN_TARGET)
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
 $(TARGET): $(OBJS) $(QRC_OBJ) $(TRANSLATIONS_QRC_OBJ) $(DOC_LIBS) | doc_runtime_libs $(DOC_RUNTIME_DEPS)
@@ -504,6 +511,10 @@ $(TARGET): $(OBJS) $(QRC_OBJ) $(TRANSLATIONS_QRC_OBJ) $(DOC_LIBS) | doc_runtime_
 ifeq ($(PLATFORM), Linux)
 	@$(MAKE) create_run_wrapper
 endif
+
+$(ONEDRIVE_PLUGIN_TARGET): $(ONEDRIVE_PLUGIN_OBJS) $(DOC_LIBS) | doc_runtime_libs $(DOC_RUNTIME_DEPS)
+	mkdir -p $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIB_DIRS) $(LDFLAGS)
 
 $(BUILD_CONFIG_STAMP): Makefile
 	mkdir -p $(OBJ_DIR)
@@ -524,6 +535,10 @@ $(BUILD_CONFIG_STAMP): Makefile
 	fi
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
+	mkdir -p $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
+
+$(ONEDRIVE_PLUGIN_MAIN_OBJ): $(ONEDRIVE_PLUGIN_MAIN_SRC) $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
@@ -664,12 +679,13 @@ create_run_wrapper:
 		--output '$(BIN_DIR)/run_aifilesorter.sh'
 	@chmod 755 $(BIN_DIR)/run_aifilesorter.sh
 
-install: $(TARGET)
+install: $(TARGET) $(ONEDRIVE_PLUGIN_TARGET)
 ifeq ($(PLATFORM), Linux)
 	@echo "Installing runtime payload into $(INSTALL_LIB_DIR)..."
 	mkdir -p $(INSTALL_LIB_DIR)/bin
 	mkdir -p $(INSTALL_LIB_DIR)/lib
 	cp $(TARGET) $(INSTALL_LIB_DIR)/bin/$(WRAPPED_BINARY)
+	cp $(ONEDRIVE_PLUGIN_TARGET) $(INSTALL_LIB_DIR)/bin/$(ONEDRIVE_PLUGIN_BINARY)
 	rm -rf $(INSTALL_LIB_DIR)/lib/$(GGML_PRECOMPILED_SUBDIR)
 	cp -a lib/$(GGML_PRECOMPILED_SUBDIR) $(INSTALL_LIB_DIR)/lib/
 	if [ -f ../external/pdfium/linux-x64/lib/libpdfium.so ]; then \
@@ -694,6 +710,7 @@ else ifeq ($(PLATFORM), MacOS)
 	@echo "Installing binary to $(INSTALL_DIR)..."
 	mkdir -p $(INSTALL_DIR)
 	cp $(TARGET) $(INSTALL_DIR)/aifilesorter
+	cp $(ONEDRIVE_PLUGIN_TARGET) $(INSTALL_DIR)/$(ONEDRIVE_PLUGIN_BINARY)
 
 	@echo "Installing libraries to $(INSTALL_LIB_DIR)..."
 	mkdir -p $(INSTALL_LIB_DIR)
@@ -745,6 +762,7 @@ else ifeq ($(PLATFORM), MacOS)
 
 	@echo "Removing binary from $(INSTALL_DIR)..."
 	rm -f $(INSTALL_DIR)/aifilesorter
+	rm -f $(INSTALL_DIR)/$(ONEDRIVE_PLUGIN_BINARY)
 
 	@echo "Removing installed libraries..."
 	rm -rf $(INSTALL_LIB_DIR)

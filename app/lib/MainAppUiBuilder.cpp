@@ -556,6 +556,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.edit_menu,
             app.view_menu,
             app.settings_menu,
+            app.plugins_menu,
             app.development_menu,
             app.development_settings_menu,
             app.language_menu,
@@ -629,6 +630,7 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
     build_edit_menu(app);
     build_view_menu(app);
     build_settings_menu(app);
+    build_plugins_menu(app);
     if (app.is_development_mode()) {
         build_development_menu(app);
     }
@@ -698,9 +700,6 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.settings_menu = app.menuBar()->addMenu(QString());
     app.toggle_llm_action = app.settings_menu->addAction(llm_menu_icon(app), QString());
     QObject::connect(app.toggle_llm_action, &QAction::triggered, &app, &MainApp::show_llm_selection_dialog);
-
-    app.manage_storage_plugins_action = app.settings_menu->addAction(icon_for(app, "preferences-plugin", QStyle::SP_DriveFDIcon), QString());
-    QObject::connect(app.manage_storage_plugins_action, &QAction::triggered, &app, &MainApp::show_storage_plugin_dialog);
 
     app.manage_whitelists_action = app.settings_menu->addAction(whitelist_menu_icon(app), QString());
     QObject::connect(app.manage_whitelists_action, &QAction::triggered, &app, &MainApp::show_whitelist_manager);
@@ -788,6 +787,17 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
         const CategoryLanguage chosen = static_cast<CategoryLanguage>(action->data().toInt());
         app.on_category_language_selected(chosen);
     });
+}
+
+void MainAppUiBuilder::build_plugins_menu(MainApp& app) {
+    app.plugins_menu = app.menuBar()->addMenu(QString());
+    app.manage_storage_plugins_action = app.plugins_menu->addAction(
+        icon_for(app, "preferences-plugin", QStyle::SP_DriveFDIcon),
+        QString());
+    QObject::connect(app.manage_storage_plugins_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::show_storage_plugin_dialog);
 }
 
 void MainAppUiBuilder::build_development_menu(MainApp& app) {

@@ -49,8 +49,6 @@ private:
     };
 
     MovePaths build_move_paths(bool use_subcategory) const;
-    bool source_is_available(const std::filesystem::path& source_path) const;
-    bool destination_is_available(const std::filesystem::path& destination_path) const;
     StorageMutationResult perform_move(const std::filesystem::path& source_path,
                                        const std::filesystem::path& destination_path) const;
 

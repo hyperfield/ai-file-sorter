@@ -72,6 +72,7 @@ public:
         QMenu*& edit_menu;
         QMenu*& view_menu;
         QMenu*& settings_menu;
+        QMenu*& plugins_menu;
         QMenu*& development_menu;
         QMenu*& development_settings_menu;
         QMenu*& language_menu;

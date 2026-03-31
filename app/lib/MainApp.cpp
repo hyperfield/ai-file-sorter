@@ -230,6 +230,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
       ui_logger(Logger::get_logger("ui_logger")),
       whitelist_store(settings.get_config_dir()),
       storage_plugin_manager_(std::make_unique<StoragePluginManager>(settings.get_config_dir())),
+      storage_plugin_loader_(StoragePluginManager::manifest_directory_for_config_dir(settings.get_config_dir())),
       categorization_service(settings, db_manager, core_logger),
       consistency_pass_service(db_manager, core_logger),
       storage_provider_registry_(),
@@ -267,6 +268,7 @@ MainApp::~MainApp() = default;
 void MainApp::run()
 {
     show();
+    schedule_storage_plugin_update_check();
 #if !defined(AI_FILE_SORTER_TEST_BUILD)
     maybe_show_suitability_benchmark();
 #endif
@@ -896,9 +898,12 @@ void MainApp::refresh_active_storage_provider(const std::string& directory_path,
 {
     auto detection = storage_provider_registry_.detect(directory_path);
     if (allow_support_prompt && detection.matched && detection.needs_additional_support) {
+        const auto plugin =
+            storage_plugin_loader_.find_plugin_for_provider(detection.provider_id);
         const bool plugin_available =
             storage_plugin_manager_ &&
-            storage_plugin_loader_.find_plugin_for_provider(detection.provider_id).has_value();
+            plugin.has_value() &&
+            storage_plugin_loader_.supports_plugin(*plugin);
         if (plugin_available) {
             if (maybe_install_storage_support(detection, directory_path)) {
                 detection = storage_provider_registry_.detect(directory_path);
@@ -938,7 +943,7 @@ bool MainApp::maybe_install_storage_support(const StorageProviderDetection& dete
     }
 
     const auto plugin = storage_plugin_loader_.find_plugin_for_provider(detection.provider_id);
-    if (!plugin.has_value()) {
+    if (!plugin.has_value() || !storage_plugin_loader_.supports_plugin(*plugin)) {
         return false;
     }
 
@@ -1047,6 +1052,48 @@ void MainApp::focus_file_explorer_on_path(const QString& path)
     file_explorer_view->scrollTo(index, QAbstractItemView::PositionAtCenter);
 
     suppress_explorer_sync_ = previous_suppress;
+}
+
+void MainApp::schedule_storage_plugin_update_check()
+{
+    if (storage_plugin_update_check_started_) {
+        return;
+    }
+    storage_plugin_update_check_started_ = true;
+
+    QTimer::singleShot(0, this, [this]() {
+        check_storage_plugin_updates_on_startup();
+    });
+}
+
+void MainApp::check_storage_plugin_updates_on_startup()
+{
+    if (!storage_plugin_manager_ || !storage_plugin_manager_->can_check_for_updates()) {
+        return;
+    }
+
+    std::string error;
+    if (!storage_plugin_manager_->refresh_remote_catalog(&error)) {
+        if (core_logger && !error.empty()) {
+            core_logger->debug("Storage plugin update check skipped: {}", error);
+        }
+        return;
+    }
+
+    int updates_available = 0;
+    for (const auto& plugin_id : storage_plugin_manager_->installed_plugin_ids()) {
+        if (storage_plugin_manager_->can_update(plugin_id)) {
+            ++updates_available;
+        }
+    }
+
+    if (updates_available > 0 && statusBar()) {
+        statusBar()->showMessage(
+            tr("%n storage plugin update(s) available in Plugins > Manage storage plugins…",
+               nullptr,
+               updates_available),
+            10000);
+    }
 }
 
 void MainApp::show_storage_plugin_dialog()

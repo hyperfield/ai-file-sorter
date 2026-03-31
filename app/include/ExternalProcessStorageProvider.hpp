@@ -1,13 +1,24 @@
 #pragma once
 
-#include "FileScanner.hpp"
+#include "StoragePluginManifest.hpp"
 #include "StorageProvider.hpp"
 
+#include <optional>
+#include <string>
+
 /**
- * @brief Default provider for normal local filesystems and mounted shares.
+ * @brief Proxies storage-provider operations to an external plugin process over stdio JSON.
  */
-class LocalFsProvider : public IStorageProvider {
+class ExternalProcessStorageProvider : public IStorageProvider {
 public:
+    ExternalProcessStorageProvider(StoragePluginManifest manifest,
+                                   std::string provider_id,
+                                   std::string instance_id,
+                                   bool requires_installation);
+
+    static bool validate_plugin_manifest(const StoragePluginManifest& manifest,
+                                         std::string* error = nullptr);
+
     std::string id() const override;
     StorageProviderDetection detect(const std::string& root_path) const override;
     StorageProviderCapabilities capabilities() const override;
@@ -24,5 +35,11 @@ public:
                                     const std::string& destination) const override;
 
 private:
-    FileScanner scanner_;
+    std::optional<StorageProviderCapabilities> fetch_capabilities() const;
+
+    StoragePluginManifest manifest_;
+    std::string provider_id_;
+    std::string instance_id_;
+    bool requires_installation_{false};
+    mutable std::optional<StorageProviderCapabilities> cached_capabilities_;
 };

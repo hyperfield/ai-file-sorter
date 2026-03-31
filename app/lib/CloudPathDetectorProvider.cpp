@@ -53,6 +53,17 @@ std::vector<FileEntry> CloudPathDetectorProvider::list_directory(const std::stri
     return fallback_provider_.list_directory(directory, options);
 }
 
+StoragePathStatus CloudPathDetectorProvider::inspect_path(const std::string& path) const
+{
+    return fallback_provider_.inspect_path(path);
+}
+
+StorageMovePreflight CloudPathDetectorProvider::preflight_move(const std::string& source,
+                                                               const std::string& destination) const
+{
+    return fallback_provider_.preflight_move(source, destination);
+}
+
 bool CloudPathDetectorProvider::path_exists(const std::string& path) const
 {
     return fallback_provider_.path_exists(path);

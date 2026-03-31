@@ -1743,7 +1743,9 @@ void CategorizationDialog::handle_selected_row(int row_index,
                                  Utils::path_to_utf8(source_path),
                                  Utils::path_to_utf8(dest_path),
                                  move_result.metadata.size_bytes,
-                                 move_result.metadata.mtime);
+                                 move_result.metadata.mtime,
+                                 move_result.metadata.stable_identity,
+                                 move_result.metadata.revision_token);
             if (db_manager) {
                 DatabaseManager::ResolvedCategory resolved{0, "", ""};
                 if (auto cached = db_manager->get_categorized_file(source_dir, file_name, file_type)) {
@@ -1841,7 +1843,9 @@ void CategorizationDialog::handle_selected_row(int row_index,
                                  preview_paths.source,
                                  preview_paths.destination,
                                  move_result.metadata.size_bytes,
-                                 move_result.metadata.mtime);
+                                 move_result.metadata.mtime,
+                                 move_result.metadata.stable_identity,
+                                 move_result.metadata.revision_token);
 
             if (db_manager && (rename_active || include_subdirectories_)) {
                 const std::string original_category = read_role_text(category_item_ref, kOriginalCategoryRole);
@@ -2020,9 +2024,18 @@ void CategorizationDialog::record_move_for_undo(int row,
                                                 const std::string& source,
                                                 const std::string& destination,
                                                 std::uintmax_t size_bytes,
-                                                std::time_t mtime)
+                                                std::time_t mtime,
+                                                const std::string& stable_identity,
+                                                const std::string& revision_token)
 {
-    move_history_.push_back(MoveRecord{row, source, destination, size_bytes, mtime});
+    move_history_.push_back(MoveRecord{
+        row,
+        source,
+        destination,
+        size_bytes,
+        mtime,
+        stable_identity,
+        revision_token});
 }
 
 void CategorizationDialog::remove_empty_parent_directories(const std::string& destination)
@@ -2828,7 +2841,9 @@ void CategorizationDialog::persist_move_plan()
             rec.source_path,
             rec.destination_path,
             rec.size_bytes,
-            rec.mtime});
+            rec.mtime,
+            rec.stable_identity,
+            rec.revision_token});
     }
 
     UndoManager manager(undo_dir_);

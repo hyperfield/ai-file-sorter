@@ -42,6 +42,8 @@ bool UndoManager::save_plan(const std::string& run_base_dir,
         obj["destination"] = QString::fromStdString(entry.destination);
         obj["size"] = static_cast<qint64>(entry.size_bytes);
         obj["mtime"] = static_cast<qint64>(entry.mtime);
+        obj["stable_identity"] = QString::fromStdString(entry.stable_identity);
+        obj["revision_token"] = QString::fromStdString(entry.revision_token);
         arr.push_back(obj);
     }
 
@@ -137,6 +139,8 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
         const QString destination = obj.value("destination").toString();
         const qint64 expected_size = obj.value("size").toInteger(0);
         const qint64 expected_mtime = obj.value("mtime").toInteger(0);
+        const QString expected_stable_identity = obj.value("stable_identity").toString();
+        const QString expected_revision_token = obj.value("revision_token").toString();
 
         QFileInfo dest_info(destination);
         if (!dest_info.exists()) {
@@ -165,6 +169,23 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
                 result.skipped++;
                 continue;
             }
+        }
+
+        const auto destination_status = provider->inspect_path(destination.toStdString());
+        if (!expected_stable_identity.isEmpty() &&
+            !destination_status.stable_identity.empty() &&
+            destination_status.stable_identity != expected_stable_identity.toStdString()) {
+            result.details << QString("Identity mismatch for %1").arg(destination);
+            result.skipped++;
+            continue;
+        }
+
+        if (!expected_revision_token.isEmpty() &&
+            !destination_status.revision_token.empty() &&
+            destination_status.revision_token != expected_revision_token.toStdString()) {
+            result.details << QString("Revision mismatch for %1").arg(destination);
+            result.skipped++;
+            continue;
         }
 
         const auto undo_result = provider->undo_move(source.toStdString(), destination.toStdString());

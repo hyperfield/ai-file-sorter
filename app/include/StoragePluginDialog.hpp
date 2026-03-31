@@ -2,7 +2,10 @@
 
 #include <QDialog>
 
-class QListWidget;
+#include <string>
+
+class QTreeWidget;
+class QTreeWidgetItem;
 class QLabel;
 class QPushButton;
 
@@ -18,12 +21,18 @@ public:
 private:
     void populate_plugins();
     void update_selection_state();
+    void refresh_catalog(bool interactive);
+    void update_selected_plugin(const std::string& plugin_id);
+    void import_plugin_archive();
     void install_selected_plugin();
     void uninstall_selected_plugin();
+    std::string selected_plugin_id() const;
 
     StoragePluginManager& plugin_manager_;
-    QListWidget* plugin_list_{nullptr};
+    QTreeWidget* plugin_list_{nullptr};
     QLabel* description_label_{nullptr};
+    QPushButton* check_updates_button_{nullptr};
+    QPushButton* import_button_{nullptr};
     QPushButton* install_button_{nullptr};
     QPushButton* uninstall_button_{nullptr};
 };

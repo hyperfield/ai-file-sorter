@@ -1,4 +1,5 @@
 #include "ResultsCoordinator.hpp"
+#include "Utils.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -63,9 +64,9 @@ std::vector<CategorizedFile> ResultsCoordinator::compute_files_to_sort(
                     return false;
                 }
                 if (use_full_path_keys) {
-                    const auto full_path = std::filesystem::path(categorized_file.file_path) /
-                                           std::filesystem::path(categorized_file.file_name);
-                    return full_path == std::filesystem::path(entry.full_path);
+                    const auto full_path = Utils::utf8_to_path(categorized_file.file_path) /
+                                           Utils::utf8_to_path(categorized_file.file_name);
+                    return full_path == Utils::utf8_to_path(entry.full_path);
                 }
                 return categorized_file.file_name == entry.file_name;
             });
@@ -86,9 +87,9 @@ std::unordered_set<std::string> ResultsCoordinator::extract_file_names(
     file_names.reserve(categorized_files.size());
     for (const auto& file : categorized_files) {
         if (use_full_path_keys) {
-            const auto full_path = std::filesystem::path(file.file_path) /
-                                   std::filesystem::path(file.file_name);
-            file_names.insert(full_path.string());
+            const auto full_path = Utils::utf8_to_path(file.file_path) /
+                                   Utils::utf8_to_path(file.file_name);
+            file_names.insert(Utils::path_to_utf8(full_path));
         } else {
             file_names.insert(file.file_name);
         }
