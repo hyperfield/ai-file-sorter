@@ -537,9 +537,10 @@ void AnalysisCoordinator::execute()
                                    if (entry.type != FileType::File) {
                                        return true;
                                    }
-                                   const bool is_image = LlavaImageAnalyzer::is_supported_image(entry.full_path);
+                                   const auto full_path = Utils::utf8_to_path(entry.full_path);
+                                   const bool is_image = LlavaImageAnalyzer::is_supported_image(full_path);
                                    const bool is_document =
-                                       DocumentTextAnalyzer::is_supported_document(entry.full_path);
+                                       DocumentTextAnalyzer::is_supported_document(full_path);
                                    if (is_image && allow_images) {
                                        return false;
                                    }

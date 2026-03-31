@@ -4,6 +4,7 @@
 #include "LlavaImageAnalyzer.hpp"
 #include "Logger.hpp"
 #include "MainApp.hpp"
+#include "Utils.hpp"
 
 #include <QAbstractItemView>
 #include <QColor>
@@ -314,10 +315,11 @@ CategorizationProgressDialog::DisplayType CategorizationProgressDialog::classify
     if (entry.type == FileType::Directory) {
         return DisplayType::Directory;
     }
-    if (LlavaImageAnalyzer::is_supported_image(entry.full_path)) {
+    const auto full_path = Utils::utf8_to_path(entry.full_path);
+    if (LlavaImageAnalyzer::is_supported_image(full_path)) {
         return DisplayType::Image;
     }
-    if (DocumentTextAnalyzer::is_supported_document(entry.full_path)) {
+    if (DocumentTextAnalyzer::is_supported_document(full_path)) {
         return DisplayType::Document;
     }
     return DisplayType::File;

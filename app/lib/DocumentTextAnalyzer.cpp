@@ -1,6 +1,7 @@
 #include "DocumentTextAnalyzer.hpp"
 
 #include "ILLMClient.hpp"
+#include "Utils.hpp"
 
 #include <QProcess>
 #include <QStandardPaths>
@@ -42,6 +43,11 @@ namespace {
 constexpr size_t kDefaultMaxChars = 8000;
 constexpr int kDefaultMaxTokens = 256;
 constexpr size_t kMaxProcessOutput = 200000;
+
+QString path_to_qstring(const std::filesystem::path& path) {
+    const std::string utf8 = Utils::path_to_utf8(path);
+    return QString::fromUtf8(utf8.c_str(), static_cast<qsizetype>(utf8.size()));
+}
 
 std::string to_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
@@ -201,7 +207,8 @@ std::optional<QString> find_executable(const QString& name) {
 std::optional<std::string> extract_zip_member_libzip(const std::filesystem::path& path,
                                                      std::initializer_list<QString> members) {
     int error_code = 0;
-    zip_t* archive = zip_open(path.string().c_str(), ZIP_RDONLY, &error_code);
+    const std::string archive_path = Utils::path_to_utf8(path);
+    zip_t* archive = zip_open(archive_path.c_str(), ZIP_RDONLY, &error_code);
     if (!archive) {
         return std::nullopt;
     }
@@ -246,7 +253,7 @@ std::optional<std::string> extract_zip_member(const std::filesystem::path& path,
     if (!unzip) {
         return std::nullopt;
     }
-    const QString file_path = QString::fromStdString(path.string());
+    const QString file_path = path_to_qstring(path);
     for (const auto& member : members) {
         if (auto output = run_process(*unzip, {QStringLiteral("-p"), file_path, member}, timeout_ms)) {
             if (!output->empty()) {
@@ -314,7 +321,7 @@ std::optional<std::string> extract_docx_date(const std::filesystem::path& path) 
 }
 
 std::optional<std::string> extract_pdf_date(const std::filesystem::path& path) {
-    const QString file_path = QString::fromStdString(path.string());
+    const QString file_path = path_to_qstring(path);
     if (const auto pdfinfo = find_executable(QStringLiteral("pdfinfo"))) {
         if (auto output = run_process(*pdfinfo, {file_path}, 4000)) {
             std::istringstream iss(*output);
@@ -355,7 +362,7 @@ PdfiumLibraryGuard& pdfium_library() {
 
 std::string extract_pdf_text_pdfium(const std::filesystem::path& path, size_t max_chars) {
     pdfium_library();
-    const std::string pdf_path = path.string();
+    const std::string pdf_path = Utils::path_to_utf8(path);
     FPDF_DOCUMENT doc = FPDF_LoadDocument(pdf_path.c_str(), nullptr);
     if (!doc) {
         return {};
@@ -384,7 +391,8 @@ std::string extract_pdf_text_pdfium(const std::filesystem::path& path, size_t ma
             }
             const int count = std::max(0, extracted - 1);
             QString text = QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer.data()), count);
-            result.append(text.toStdString());
+            const QByteArray bytes = text.toUtf8();
+            result.append(bytes.constData(), static_cast<size_t>(bytes.size()));
             if (result.size() >= max_chars) {
                 result.resize(max_chars);
                 break;
@@ -516,7 +524,7 @@ DocumentAnalysisResult DocumentTextAnalyzer::analyze(const std::filesystem::path
     }
 
     const std::string excerpt = truncate_excerpt(raw_text, settings_.max_characters);
-    const std::string prompt = build_prompt(excerpt, document_path.filename().string());
+    const std::string prompt = build_prompt(excerpt, Utils::path_to_utf8(document_path.filename()));
     const std::string response = llm.complete_prompt(prompt, settings_.max_tokens);
 
     std::string summary;
@@ -535,7 +543,7 @@ DocumentAnalysisResult DocumentTextAnalyzer::analyze(const std::filesystem::path
         sanitized = sanitize_filename(summary, settings_.max_filename_words, settings_.max_filename_length);
     }
     if (sanitized.empty()) {
-        sanitized = "document_" + slugify(document_path.stem().string());
+        sanitized = "document_" + slugify(Utils::path_to_utf8(document_path.stem()));
     }
 
     result.summary = summary;
@@ -547,7 +555,7 @@ bool DocumentTextAnalyzer::is_supported_document(const std::filesystem::path& pa
     if (!path.has_extension()) {
         return false;
     }
-    const std::string ext = to_lower_copy(path.extension().string());
+    const std::string ext = to_lower_copy(Utils::path_to_utf8(path.extension()));
     return kDocumentExtensions.find(ext) != kDocumentExtensions.end();
 }
 
@@ -555,7 +563,7 @@ std::optional<std::string> DocumentTextAnalyzer::extract_creation_date(const std
     if (!path.has_extension()) {
         return std::nullopt;
     }
-    const std::string ext = to_lower_copy(path.extension().string());
+    const std::string ext = to_lower_copy(Utils::path_to_utf8(path.extension()));
     if (ext == ".pdf") {
         return extract_pdf_date(path);
     }
@@ -569,7 +577,7 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
     if (!path.has_extension()) {
         return {};
     }
-    const std::string ext = to_lower_copy(path.extension().string());
+    const std::string ext = to_lower_copy(Utils::path_to_utf8(path.extension()));
 
     if (kTextExtensions.find(ext) != kTextExtensions.end()) {
         std::string text = read_file_prefix(path, settings_.max_characters);
@@ -586,7 +594,7 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
         if (!pdftotext) {
             return {};
         }
-        const QString file_path = QString::fromStdString(path.string());
+        const QString file_path = path_to_qstring(path);
         auto output = run_process(*pdftotext,
                                   {QStringLiteral("-layout"), QStringLiteral("-q"), file_path, QStringLiteral("-")},
                                   15000);
@@ -770,9 +778,9 @@ std::string DocumentTextAnalyzer::slugify(const std::string& value) {
 
 std::string DocumentTextAnalyzer::normalize_filename(const std::string& base,
                                                      const std::filesystem::path& original_path) {
-    const std::string ext = original_path.extension().string();
+    const std::string ext = Utils::path_to_utf8(original_path.extension());
     if (base.empty()) {
-        return original_path.filename().string();
+        return Utils::path_to_utf8(original_path.filename());
     }
     return ext.empty() ? base : base + ext;
 }

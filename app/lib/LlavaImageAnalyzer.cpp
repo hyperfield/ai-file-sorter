@@ -2,6 +2,7 @@
 
 #include "Logger.hpp"
 #include "LlamaModelParams.hpp"
+#include "Utils.hpp"
 
 #include <QString>
 
@@ -341,7 +342,7 @@ bool should_enable_mmproj_gpu(const std::filesystem::path& mmproj_path,
         if (logger) {
             logger->warn("Failed to stat mmproj file '{}'; using CPU for visual encoder to avoid OOM. "
                          "Set AI_FILE_SORTER_VISUAL_USE_GPU=1 to force GPU.",
-                         mmproj_path.string());
+                         Utils::path_to_utf8(mmproj_path));
         }
         return false;
     }
@@ -465,17 +466,19 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     };
 
     llama_model_params model_params = llama_model_default_params();
+    const std::string model_path_utf8 = Utils::path_to_utf8(model_path);
+    const std::string mmproj_path_utf8 = Utils::path_to_utf8(mmproj_path);
     if (settings_.use_gpu) {
-        model_params = build_visual_model_params_for_path(model_path.string(), logger);
+        model_params = build_visual_model_params_for_path(model_path_utf8, logger);
     } else {
         model_params.n_gpu_layers = 0;
     }
     text_gpu_enabled_ = settings_.use_gpu && model_params.n_gpu_layers != 0;
     context_tokens_ = settings_.n_ctx;
     batch_size_ = resolve_default_visual_batch_size(text_gpu_enabled_, backend_name);
-    model_ = llama_model_load_from_file(model_path.string().c_str(), model_params);
+    model_ = llama_model_load_from_file(model_path_utf8.c_str(), model_params);
     if (!model_) {
-        throw std::runtime_error("Failed to load LLaVA text model at " + model_path.string());
+        throw std::runtime_error("Failed to load LLaVA text model at " + model_path_utf8);
     }
 
     vocab_ = llama_model_get_vocab(model_);
@@ -489,10 +492,10 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     mtmd_context_params mm_params = mtmd_context_params_default();
     mm_params.use_gpu = mmproj_gpu_enabled_;
     mm_params.n_threads = settings_.n_threads;
-    vision_ctx_ = mtmd_init_from_file(mmproj_path.string().c_str(), model_, mm_params);
+    vision_ctx_ = mtmd_init_from_file(mmproj_path_utf8.c_str(), model_, mm_params);
     if (!vision_ctx_) {
         cleanup();
-        throw std::runtime_error("Failed to load mmproj file at " + mmproj_path.string());
+        throw std::runtime_error("Failed to load mmproj file at " + mmproj_path_utf8);
     }
     if (!mtmd_support_vision(vision_ctx_)) {
         cleanup();
@@ -621,7 +624,7 @@ bool LlavaImageAnalyzer::is_supported_image(const std::filesystem::path& path) {
     if (!path.has_extension()) {
         return false;
     }
-    std::string ext = to_lower_copy(path.extension().string());
+    std::string ext = to_lower_copy(Utils::path_to_utf8(path.extension()));
     static const std::unordered_set<std::string> kExtensions = {
         ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tga", ".psd", ".hdr",
         ".pic", ".pnm", ".ppm", ".pgm", ".pbm"
@@ -635,9 +638,10 @@ LlavaImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path
     throw std::runtime_error("Visual LLM support is not available in this build.");
 #else
     auto logger = Logger::get_logger("core_logger");
-    BitmapPtr bitmap(mtmd_helper_bitmap_init_from_file(vision_ctx_, image_path.string().c_str()));
+    const std::string image_path_utf8 = Utils::path_to_utf8(image_path);
+    BitmapPtr bitmap(mtmd_helper_bitmap_init_from_file(vision_ctx_, image_path_utf8.c_str()));
     if (!bitmap) {
-        throw std::runtime_error("Failed to load image for LLaVA: " + image_path.string());
+        throw std::runtime_error("Failed to load image for LLaVA: " + image_path_utf8);
     }
 
     const std::string description = infer_text(bitmap.get(),
@@ -655,7 +659,7 @@ LlavaImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path
         filename_base = sanitize_filename(description, kMaxFilenameWords, kMaxFilenameLength);
     }
     if (filename_base.empty()) {
-        filename_base = "image_" + slugify(image_path.stem().string());
+        filename_base = "image_" + slugify(Utils::path_to_utf8(image_path.stem()));
     }
 
     LlavaImageAnalysisResult result;
@@ -969,9 +973,9 @@ std::string LlavaImageAnalyzer::slugify(const std::string& value) {
 
 std::string LlavaImageAnalyzer::normalize_filename(const std::string& base,
                                                    const std::filesystem::path& original_path) {
-    const std::string ext = original_path.extension().string();
+    const std::string ext = Utils::path_to_utf8(original_path.extension());
     if (base.empty()) {
-        return original_path.filename().string();
+        return Utils::path_to_utf8(original_path.filename());
     }
     return ext.empty() ? base : base + ext;
 }
