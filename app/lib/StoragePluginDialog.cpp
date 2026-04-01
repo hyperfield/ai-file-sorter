@@ -59,6 +59,7 @@ StoragePluginDialog::StoragePluginDialog(StoragePluginManager& plugin_manager, Q
     import_button_ = button_row->addButton(dialog_tr("Install from File…"), QDialogButtonBox::ActionRole);
     install_button_ = button_row->addButton(dialog_tr("Install"), QDialogButtonBox::ActionRole);
     uninstall_button_ = button_row->addButton(dialog_tr("Uninstall"), QDialogButtonBox::ActionRole);
+    button_row->setCenterButtons(true);
     layout->addWidget(button_row);
 
     connect(button_row, &QDialogButtonBox::rejected, this, &QDialog::accept);
