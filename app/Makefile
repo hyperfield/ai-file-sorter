@@ -10,6 +10,7 @@ PLUGIN_SRC_DIR := ./plugins
 APP_NAME ?= AI File Sorter
 ONEDRIVE_PLUGIN_BINARY := aifs_onedrive_storage_plugin
 ONEDRIVE_PLUGIN_TARGET := $(BIN_DIR)/$(ONEDRIVE_PLUGIN_BINARY)
+AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL ?= https://filesorter.app/download/plugins/storage/catalog.json
 
 # Goals that should not require toolchain/dependency discovery.
 NON_BUILD_GOALS := clean
@@ -223,7 +224,7 @@ CXX := clang++
 else
 CXX := g++
 endif
-CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"' '-DAI_FILE_SORTER_GGML_SUBDIR="$(GGML_PRECOMPILED_SUBDIR)"' '-DAIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$(ONEDRIVE_PLUGIN_BINARY)"'
+CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"' '-DAI_FILE_SORTER_GGML_SUBDIR="$(GGML_PRECOMPILED_SUBDIR)"' '-DAIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$(ONEDRIVE_PLUGIN_BINARY)"' '-DAIFS_STORAGE_PLUGIN_CATALOG_URL="$(AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL)"'
 CXX_VERSION_INFO := $(shell $(CXX) --version 2>/dev/null)
 # Suppress GCC-only diagnostics; clang (macOS) does not support some of them
 ifneq (,$(findstring clang,$(CXX_VERSION_INFO)))

@@ -430,9 +430,11 @@ void StoragePluginPackageFetcher::default_download(const std::string& url,
     std::fclose(file);
 
     if (result != CURLE_OK) {
-        throw std::runtime_error("Plugin download failed: " + std::string(curl_easy_strerror(result)));
+        throw std::runtime_error("Plugin download failed for " + url + ": " +
+                                 std::string(curl_easy_strerror(result)));
     }
     if (http_code < 200 || http_code >= 300) {
-        throw std::runtime_error("Plugin download returned HTTP " + std::to_string(http_code) + ".");
+        throw std::runtime_error("Plugin download returned HTTP " + std::to_string(http_code) +
+                                 " for " + url + ".");
     }
 }

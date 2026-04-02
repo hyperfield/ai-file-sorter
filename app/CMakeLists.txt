@@ -14,6 +14,10 @@ set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
     "Updater behavior for this build: PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED")
 set_property(CACHE AI_FILE_SORTER_UPDATE_MODE PROPERTY STRINGS
     PLATFORM_DEFAULT AUTO_INSTALL NOTIFY_ONLY DISABLED)
+set(AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL
+    "https://filesorter.app/download/plugins/storage/catalog.json"
+    CACHE STRING
+    "Default remote storage plugin catalog URL baked into the application build.")
 
 set(_aifs_effective_update_mode "${AI_FILE_SORTER_UPDATE_MODE}")
 if(_aifs_effective_update_mode STREQUAL "PLATFORM_DEFAULT")
@@ -643,7 +647,7 @@ target_link_libraries(aifilesorter PRIVATE
     Qt6::Widgets Qt6::Gui Qt6::Core
     CURL::libcurl
     OpenSSL::SSL OpenSSL::Crypto
-    SQLite::SQLite3
+    SQLite3::SQLite3
     JsonCpp::JsonCpp
     fmt::fmt
     spdlog::spdlog
@@ -651,6 +655,9 @@ target_link_libraries(aifilesorter PRIVATE
     llama           # imported on Windows or built from submodule on other platforms
     ${MEDIAINFO_DEPS_LIBS}
     ${DOC_DEPS_LIBS}
+)
+target_compile_definitions(aifilesorter PRIVATE
+    AIFS_STORAGE_PLUGIN_CATALOG_URL="${AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL}"
 )
 
 if(WIN32)
@@ -1047,7 +1054,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         Qt6::Widgets
         CURL::libcurl
         OpenSSL::SSL OpenSSL::Crypto
-        SQLite::SQLite3
+        SQLite3::SQLite3
         JsonCpp::JsonCpp
         spdlog::spdlog
         fmt::fmt
@@ -1117,7 +1124,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 Qt6::Widgets
                 CURL::libcurl
                 OpenSSL::SSL OpenSSL::Crypto
-                SQLite::SQLite3
+                SQLite3::SQLite3
                 JsonCpp::JsonCpp
                 spdlog::spdlog
                 fmt::fmt
