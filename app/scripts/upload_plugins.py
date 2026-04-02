@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import platform as py_platform
+import posixpath
 import shutil
 import subprocess
 import sys
@@ -38,6 +39,56 @@ def normalize_url(value: str) -> str:
     while value.endswith("/"):
         value = value[:-1]
     return value
+
+
+def split_remote_dir(remote_dir: str) -> tuple[str | None, str]:
+    if ":" not in remote_dir:
+        return None, remote_dir
+    host, path = remote_dir.split(":", 1)
+    return host, path
+
+
+def remote_parent_dir(remote_dir: str) -> str | None:
+    host, path = split_remote_dir(remote_dir)
+    normalized = path.rstrip("/")
+    if not normalized:
+        return None
+    parent = posixpath.dirname(normalized)
+    if not parent or parent == normalized:
+        return None
+    if host:
+        return f"{host}:{parent}"
+    return parent
+
+
+def format_rsync_error(remote_dir: str, output: str, returncode: int) -> str:
+    message_lines = [
+        f"Failed to upload plugin payload with rsync (exit code {returncode}).",
+    ]
+
+    if "mkdir" in output and "No such file or directory" in output:
+        parent = remote_parent_dir(remote_dir)
+        message_lines.append("The remote destination directory does not exist yet.")
+        message_lines.append(f"Configured destination: {remote_dir}")
+        if parent:
+            host, path = split_remote_dir(parent)
+            if host:
+                message_lines.append(f"Create it first, for example: ssh {host} 'mkdir -p {path}'")
+            else:
+                message_lines.append(f"Create it first, for example: mkdir -p {parent}")
+    elif "Permission denied" in output:
+        message_lines.append("The remote server rejected the upload due to missing permissions.")
+        message_lines.append(f"Configured destination: {remote_dir}")
+    else:
+        message_lines.append(f"Configured destination: {remote_dir}")
+
+    trimmed_output = output.strip()
+    if trimmed_output:
+        message_lines.append("")
+        message_lines.append("rsync output:")
+        message_lines.append(trimmed_output)
+
+    return "\n".join(message_lines)
 
 
 def current_platform() -> str:
@@ -208,6 +259,7 @@ class BuildTarget:
 class LocalPluginPayload:
     category: str
     plugin_id: str
+    runtime_id: str
     display_name: str
     manifest_path: Path
     manifest: dict[str, Any]
@@ -218,7 +270,7 @@ class LocalPluginPayload:
 
     @property
     def selection_key(self) -> str:
-        return f"{self.category}/{self.plugin_id}"
+        return f"{self.category}/{self.plugin_id}/{self.runtime_id}"
 
 
 def load_build_targets() -> dict[str, BuildTarget]:
@@ -253,16 +305,17 @@ def find_local_plugin_payloads_for_category(category_dir: Path) -> dict[str, Loc
     catalog_by_key = {runtime_key(entry): entry for entry in catalog_entries}
 
     payloads: dict[str, LocalPluginPayload] = {}
-    for manifest_path in sorted(category_dir.glob("*/manifest.json")):
+    for manifest_path in sorted(category_dir.glob("*/*/manifest.json")):
         manifest = load_json_file(manifest_path)
         plugin_id = str(manifest.get("id", "")).strip()
         if not plugin_id:
             fail(f"Manifest is missing plugin id: {manifest_path}")
+        runtime_id = manifest_path.parent.name
 
         key = runtime_key(manifest)
         catalog_entry = catalog_by_key.get(key)
         if catalog_entry is None:
-            fail(f"Payload catalog.json is missing entry for {plugin_id} ({manifest_path.parent.name})")
+            fail(f"Payload catalog.json is missing entry for {plugin_id} ({runtime_id})")
 
         package_url = str(manifest.get("package_download_url", "")).strip()
         if not package_url:
@@ -273,10 +326,11 @@ def find_local_plugin_payloads_for_category(category_dir: Path) -> dict[str, Loc
         if not package_path.exists():
             fail(f"Manifest package file is missing: {package_path}")
 
-        package_relative = str(Path(manifest_path.parent.name) / package_name).replace("\\", "/")
-        payloads[plugin_id] = LocalPluginPayload(
+        package_relative = str(Path(manifest_path.parent.parent.name) / runtime_id / package_name).replace("\\", "/")
+        payload = LocalPluginPayload(
             category=category,
             plugin_id=plugin_id,
+            runtime_id=runtime_id,
             display_name=str(manifest.get("name", plugin_id)),
             manifest_path=manifest_path,
             manifest=manifest,
@@ -285,6 +339,7 @@ def find_local_plugin_payloads_for_category(category_dir: Path) -> dict[str, Loc
             package_relative_path=package_relative,
             package_sha256=str(manifest.get("package_sha256", "")).strip().lower(),
         )
+        payloads[payload.selection_key] = payload
     return payloads
 
 
@@ -298,8 +353,7 @@ def find_local_plugin_payloads(payload_root: Path) -> dict[str, LocalPluginPaylo
         fail(f"No plugin categories with catalog.json were found under: {payload_root}")
 
     for category_dir in category_dirs:
-        for plugin_id, payload in find_local_plugin_payloads_for_category(category_dir).items():
-            selection_key = payload.selection_key
+        for selection_key, payload in find_local_plugin_payloads_for_category(category_dir).items():
             if selection_key in payloads:
                 fail(f"Duplicate prepared payload key detected: {selection_key}")
             payloads[selection_key] = payload
@@ -336,17 +390,23 @@ def verify_publish_urls(payload: LocalPluginPayload, base_url: str) -> None:
     catalog_manifest_url = str(payload.catalog_entry.get("remote_manifest_url", "")).strip()
 
     if remote_manifest_url:
-        ensure_url_under_base(remote_manifest_url,
-                              category_base_url,
-                              f"{payload.selection_key} manifest remote_manifest_url")
+        ensure_url_under_base(
+            remote_manifest_url,
+            category_base_url,
+            f"{payload.selection_key} manifest remote_manifest_url",
+        )
     if package_download_url:
-        ensure_url_under_base(package_download_url,
-                              category_base_url,
-                              f"{payload.selection_key} manifest package_download_url")
+        ensure_url_under_base(
+            package_download_url,
+            category_base_url,
+            f"{payload.selection_key} manifest package_download_url",
+        )
     if catalog_manifest_url:
-        ensure_url_under_base(catalog_manifest_url,
-                              category_base_url,
-                              f"{payload.selection_key} catalog remote_manifest_url")
+        ensure_url_under_base(
+            catalog_manifest_url,
+            category_base_url,
+            f"{payload.selection_key} catalog remote_manifest_url",
+        )
 
 
 def verify_build_artifact(payload: LocalPluginPayload, build_targets: dict[str, BuildTarget], build_dir: Path) -> None:
@@ -383,8 +443,10 @@ def choose_plugins_interactively(payloads: dict[str, LocalPluginPayload]) -> lis
         version = payload.manifest.get("version", "")
         plats = ",".join(normalize_list(payload.manifest.get("platforms")) or ["any"])
         archs = ",".join(normalize_list(payload.manifest.get("architectures")) or ["any"])
-        print(f"  {selection_key:<36} {payload.display_name} [{version}] ({plats}/{archs})")
-    answer = input("Enter comma-separated plugin IDs or category/plugin IDs to upload [all]: ").strip()
+        print(f"  {selection_key:<48} {payload.display_name} [{version}] ({plats}/{archs})")
+    answer = input(
+        "Enter comma-separated plugin IDs, category/plugin IDs, or category/plugin/runtime IDs to upload [all]: "
+    ).strip()
     if not answer:
         return list(payloads.keys())
     return [value.strip() for value in answer.split(",") if value.strip()]
@@ -399,23 +461,37 @@ def resolve_selected_plugins(payloads: dict[str, LocalPluginPayload], args: argp
         requested_ids = list(payloads.keys())
 
     payloads_by_plugin_id: dict[str, list[LocalPluginPayload]] = {}
+    payloads_by_category_plugin: dict[str, list[LocalPluginPayload]] = {}
     for payload in payloads.values():
         payloads_by_plugin_id.setdefault(payload.plugin_id, []).append(payload)
+        payloads_by_category_plugin.setdefault(f"{payload.category}/{payload.plugin_id}", []).append(payload)
 
     selected: list[LocalPluginPayload] = []
     seen_keys: set[str] = set()
     for plugin_id in requested_ids:
         payload = payloads.get(plugin_id)
+        if payload is None and plugin_id.count("/") == 1:
+            matches = payloads_by_category_plugin.get(plugin_id, [])
+            if len(matches) == 1:
+                payload = matches[0]
+            elif len(matches) > 1:
+                for match in sorted(matches, key=lambda item: item.selection_key):
+                    if match.selection_key in seen_keys:
+                        continue
+                    seen_keys.add(match.selection_key)
+                    selected.append(match)
+                continue
         if payload is None and "/" not in plugin_id:
             matches = payloads_by_plugin_id.get(plugin_id, [])
             if len(matches) == 1:
                 payload = matches[0]
             elif len(matches) > 1:
-                categories = ", ".join(sorted(match.category for match in matches))
-                fail(
-                    f"Plugin id '{plugin_id}' is ambiguous across categories: {categories}. "
-                    "Use category/plugin_id."
-                )
+                for match in sorted(matches, key=lambda item: item.selection_key):
+                    if match.selection_key in seen_keys:
+                        continue
+                    seen_keys.add(match.selection_key)
+                    selected.append(match)
+                continue
         if payload is None:
             fail(f"Prepared payload does not include plugin id: {plugin_id}")
         if payload.selection_key in seen_keys:
@@ -447,7 +523,7 @@ def decide_actions(
         key = runtime_key(payload.manifest)
         remote_entry = remote_by_key.get(key)
         if remote_entry is None:
-            info(f"{payload.plugin_id}: no remote entry for this runtime; will upload.")
+            info(f"{payload.selection_key}: no remote entry for this runtime; will upload.")
             to_upload.append(payload)
             continue
 
@@ -470,7 +546,7 @@ def decide_actions(
         comparison = compare_versions(local_version, remote_version)
         if comparison < 0 and not allow_downgrade:
             fail(
-                f"{payload.plugin_id}: local version {local_version} is older than remote {remote_version}. "
+                f"{payload.selection_key}: local version {local_version} is older than remote {remote_version}. "
                 "Use --allow-downgrade to override."
             )
 
@@ -556,7 +632,16 @@ def rsync_upload(stage_root: Path, remote_dir: str, dry_run: bool) -> None:
 
     info("Uploading staged plugin payload with rsync")
     info("Command: " + " ".join(command))
-    subprocess.run(command, check=True)
+    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    if completed.stdout:
+        print(completed.stdout, end="")
+    if completed.stderr:
+        print(completed.stderr, end="", file=sys.stderr)
+    if completed.returncode != 0:
+        combined_output = "\n".join(
+            part for part in [completed.stdout.strip(), completed.stderr.strip()] if part
+        )
+        fail(format_rsync_error(remote_dir, combined_output, completed.returncode))
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -602,7 +687,7 @@ def main() -> int:
             version = payload.manifest.get("version", "")
             plats = ",".join(normalize_list(payload.manifest.get("platforms")) or ["any"])
             archs = ",".join(normalize_list(payload.manifest.get("architectures")) or ["any"])
-            print(f"  {selection_key:<36} {payload.display_name} [{version}] ({plats}/{archs})")
+            print(f"  {selection_key:<48} {payload.display_name} [{version}] ({plats}/{archs})")
         return 0
 
     selected_payloads = resolve_selected_plugins(payloads, args)
@@ -647,4 +732,13 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except urllib.error.HTTPError as exc:
+        fail(f"HTTP {exc.code} while fetching {exc.url}")
+    except urllib.error.URLError as exc:
+        fail(f"Failed to reach the remote plugin server: {exc.reason}")
+    except json.JSONDecodeError as exc:
+        fail(f"Received invalid JSON while reading plugin metadata: {exc}")
+    except OSError as exc:
+        fail(f"File operation failed: {exc}")

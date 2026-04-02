@@ -9,6 +9,7 @@ default_build_dir="${repo_root}/build-tests"
 plugin_id="onedrive_storage_support"
 plugin_name="OneDrive Storage Support"
 plugin_binary_name="aifs_onedrive_storage_plugin"
+category="storage"
 
 base_url=""
 output_dir="${default_output_dir}"
@@ -122,10 +123,10 @@ done
 }
 
 base_url="$(normalize_url "${base_url}")"
-category="storage"
 category_base_url="${base_url}/${category}"
 platform="$(detect_platform)"
 architecture="$(detect_architecture)"
+runtime_id="${platform}-${architecture}"
 plugin_version="$(extract_plugin_version)"
 binary_path="${build_dir}/${plugin_binary_name}"
 
@@ -133,7 +134,8 @@ binary_path="${build_dir}/${plugin_binary_name}"
 command -v zip >/dev/null 2>&1 || fail "The 'zip' command is required."
 command -v sha256sum >/dev/null 2>&1 || fail "The 'sha256sum' command is required."
 
-plugin_dir="${output_dir}/onedrive"
+plugin_dir="${output_dir}/onedrive/${runtime_id}"
+legacy_plugin_dir="${output_dir}/onedrive"
 package_name="${plugin_id}-${plugin_version}-${platform}-${architecture}.aifsplugin"
 package_path="${plugin_dir}/${package_name}"
 runtime_manifest_path="${plugin_dir}/manifest.json"
@@ -141,8 +143,13 @@ catalog_path="${output_dir}/catalog.json"
 checksums_path="${output_dir}/SHA256SUMS"
 readme_path="${output_dir}/README.md"
 
-rm -rf "${output_dir}"
 mkdir -p "${plugin_dir}"
+
+# Clean up the pre-runtime layout so the payload tree reflects the new per-OS structure.
+if [[ -f "${legacy_plugin_dir}/manifest.json" ]]; then
+    rm -f "${legacy_plugin_dir}/manifest.json"
+fi
+find "${legacy_plugin_dir}" -maxdepth 1 -type f -name '*.aifsplugin' -delete 2>/dev/null || true
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
@@ -185,8 +192,8 @@ cat > "${runtime_manifest_path}" <<EOF
   "provider_ids": ["onedrive"],
   "platforms": ["$(escape_json "${platform}")"],
   "architectures": ["$(escape_json "${architecture}")"],
-  "remote_manifest_url": "$(escape_json "${category_base_url}/onedrive/manifest.json")",
-  "package_download_url": "$(escape_json "${category_base_url}/onedrive/${package_name}")",
+  "remote_manifest_url": "$(escape_json "${category_base_url}/onedrive/${runtime_id}/manifest.json")",
+  "package_download_url": "$(escape_json "${category_base_url}/onedrive/${runtime_id}/${package_name}")",
   "package_sha256": "${package_sha}",
   "entry_point_kind": "external_process",
   "entry_point": "bin/${plugin_binary_name}",
@@ -194,28 +201,79 @@ cat > "${runtime_manifest_path}" <<EOF
 }
 EOF
 
-cat > "${catalog_path}" <<EOF
-{
-  "plugins": [
-    {
-      "id": "$(escape_json "${plugin_id}")",
-      "name": "$(escape_json "${plugin_name}")",
-      "description": "Adds a dedicated OneDrive connector process with stronger sync-state detection, move preflight checks, and richer undo metadata for synced folders.",
-      "version": "$(escape_json "${plugin_version}")",
-      "provider_ids": ["onedrive"],
-      "platforms": ["$(escape_json "${platform}")"],
-      "architectures": ["$(escape_json "${architecture}")"],
-      "remote_manifest_url": "$(escape_json "${category_base_url}/onedrive/manifest.json")",
-      "entry_point_kind": "external_process",
-      "entry_point": "${plugin_binary_name}"
-    }
-  ]
-}
-EOF
+python3 - <<'PY' "${catalog_path}" "${runtime_manifest_path}" "${checksums_path}" "${runtime_id}" "${package_sha}" "${package_name}"
+import json
+import sys
+from pathlib import Path
 
-cat > "${checksums_path}" <<EOF
-${package_sha}  onedrive/${package_name}
-EOF
+catalog_path = Path(sys.argv[1])
+manifest_path = Path(sys.argv[2])
+checksums_path = Path(sys.argv[3])
+runtime_id = sys.argv[4]
+package_sha = sys.argv[5]
+package_name = sys.argv[6]
+
+with manifest_path.open("r", encoding="utf-8") as handle:
+    manifest = json.load(handle)
+
+catalog_entry = {
+    "id": manifest["id"],
+    "name": manifest["name"],
+    "description": manifest["description"],
+    "version": manifest["version"],
+    "provider_ids": manifest.get("provider_ids", []),
+    "platforms": manifest.get("platforms", []),
+    "architectures": manifest.get("architectures", []),
+    "remote_manifest_url": manifest["remote_manifest_url"],
+    "entry_point_kind": manifest.get("entry_point_kind", ""),
+    "entry_point": Path(manifest.get("entry_point", "")).name,
+}
+
+def runtime_key(entry: dict) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+    platforms = tuple(sorted((entry.get("platforms") or ["any"])))
+    architectures = tuple(sorted((entry.get("architectures") or ["any"])))
+    return entry.get("id", ""), platforms, architectures
+
+entries = []
+if catalog_path.exists():
+    with catalog_path.open("r", encoding="utf-8") as handle:
+        existing = json.load(handle)
+    if isinstance(existing, dict) and isinstance(existing.get("plugins"), list):
+        entries = [entry for entry in existing["plugins"] if isinstance(entry, dict)]
+
+merged = {runtime_key(entry): entry for entry in entries}
+merged[runtime_key(catalog_entry)] = catalog_entry
+catalog_path.write_text(
+    json.dumps(
+        {"plugins": sorted(
+            merged.values(),
+            key=lambda entry: (
+                str(entry.get("id", "")),
+                ",".join(entry.get("platforms", []) or ["any"]),
+                ",".join(entry.get("architectures", []) or ["any"]),
+            ),
+        )},
+        indent=2,
+    ) + "\n",
+    encoding="utf-8",
+)
+
+checksums = {}
+if checksums_path.exists():
+    for raw_line in checksums_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2:
+            checksums[parts[-1]] = parts[0]
+
+checksums[f"onedrive/{runtime_id}/{package_name}"] = package_sha
+checksums_path.write_text(
+    "".join(f"{checksums[path]}  {path}\n" for path in sorted(checksums)),
+    encoding="utf-8",
+)
+PY
 
 cat > "${readme_path}" <<EOF
 Storage Plugin Publish Payload
@@ -228,18 +286,20 @@ Generated values
 - Category base URL: ${category_base_url}
 - Platform: ${platform}
 - Architecture: ${architecture}
+- Runtime id: ${runtime_id}
 - Plugin version: ${plugin_version}
 - Build directory: ${build_dir}
 
 Contents
-- catalog.json: server-side storage plugin catalog
-- onedrive/manifest.json: remote OneDrive plugin manifest
-- onedrive/${package_name}: installable plugin archive for ${platform}/${architecture}
-- SHA256SUMS: checksum for the archive
+- catalog.json: merged server-side storage plugin catalog for all runtime variants
+- onedrive/${runtime_id}/manifest.json: remote OneDrive plugin manifest for ${platform}/${architecture}
+- onedrive/${runtime_id}/${package_name}: installable plugin archive for ${platform}/${architecture}
+- SHA256SUMS: merged checksums for all runtime variants under this category
 
 Publish steps
-1. Upload the full storage/ directory to your server so the URLs map 1:1.
-2. Point the app at:
+1. Repeat this script once per supported OS/architecture build.
+2. Upload the full storage/ directory to your server so the URLs map 1:1.
+3. Point the app at:
    ${category_base_url}/catalog.json
 
 Example:

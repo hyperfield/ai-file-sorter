@@ -8,11 +8,11 @@ automatically redacting common sensitive data, and creating a zipped bundle to s
 - `collect_macos_diagnostics.sh` (macOS)
 - `collect_linux_diagnostics.sh` (Linux)
 - `collect_windows_diagnostics.ps1` (Windows PowerShell)
-- `generate_storage_plugin_payload.sh` (Generate a publishable OneDrive storage-plugin payload)
+- `generate_plugin_payload.sh` (Generate a publishable plugin payload; currently for the OneDrive storage plugin)
 - `build_plugins_linux.sh` (Build Linux plugin targets)
 - `build_plugins_macos.sh` (Build macOS plugin targets)
 - `build_plugins_windows.ps1` (Build Windows plugin targets)
-- `upload_storage_plugins.py` (Upload prepared plugin payloads and merge the remote catalog)
+- `upload_plugins.py` (Upload prepared plugin payloads and merge the remote catalog)
 - `verify_onedrive_windows_sync_root.ps1` (Run real Windows OneDrive sync-root verification tests)
 
 ## What they do
@@ -121,8 +121,8 @@ Inside, the archive contains a `redacted/` folder with sanitized artifacts.
 To regenerate the local OneDrive storage-plugin publish payload from the current build:
 
 ```bash
-./app/scripts/generate_storage_plugin_payload.sh \
-  --base-url=https://filesorter.app/downloads/plugins
+./app/scripts/generate_plugin_payload.sh \
+  --base-url=https://filesorter.app/download/plugins
 ```
 
 Options:
@@ -134,11 +134,17 @@ Options:
 The script writes a ready-to-upload `storage/` category tree under the local `plugins/` root and
 generates URLs under `<base-url>/storage/...`.
 
+Runtime variants are stored in per-OS/per-arch subdirectories so multiple builds can coexist:
+
+- `plugins/storage/onedrive/linux-x86_64/...`
+- `plugins/storage/onedrive/windows-x86_64/...`
+- `plugins/storage/onedrive/macos-arm64/...`
+
 Contents:
 
 - `catalog.json`
-- `onedrive/manifest.json`
-- `onedrive/*.aifsplugin`
+- `onedrive/<platform>-<arch>/manifest.json`
+- `onedrive/<platform>-<arch>/*.aifsplugin`
 - `SHA256SUMS`
 
 ## Plugin Build Scripts
@@ -186,7 +192,7 @@ Behavior:
 To upload prepared plugin payloads from the local `plugins/` root to a remote static server tree:
 
 ```bash
-python3 ./app/scripts/upload_storage_plugins.py \
+python3 ./app/scripts/upload_plugins.py \
   --base-url=https://downloads.example.com/aifilesorter/plugins \
   --remote-dir=user@host:/var/www/downloads/aifilesorter/plugins
 ```
@@ -200,17 +206,17 @@ Each category is expected to contain its own:
 
 - `catalog.json`
 - `SHA256SUMS`
-- per-plugin `manifest.json`
-- `.aifsplugin` archives
+- per-plugin runtime subdirectories containing `manifest.json`
+- `.aifsplugin` archives inside those runtime subdirectories
 
 The current OneDrive payload still lives under `plugins/storage`.
 
 For example, if your local payload is generated under `plugins/storage`, you can upload with:
 
 ```bash
-python3 ./app/scripts/upload_storage_plugins.py \
-  --base-url=https://filesorter.app/downloads/plugins \
-  --remote-dir=user@filesorter.app:/home/webforce/filesorter_web/downloads/plugins \
+python3 ./app/scripts/upload_plugins.py \
+  --base-url=https://filesorter.app/download/plugins \
+  --remote-dir=user@filesorter.app:/home/webforce/filesorter_web/download/plugins \
   --dry-run
 ```
 
@@ -218,7 +224,30 @@ Useful options:
 
 - `--list` to show prepared plugin IDs in the local payload
 - `--plugins=...` to upload only selected plugin IDs
-- plugin selection accepts either `plugin_id` or `category/plugin_id`
+- plugin selection accepts:
+  - `plugin_id` to upload all prepared runtime variants for that plugin
+  - `category/plugin_id` to upload all prepared runtime variants in that category
+  - `category/plugin_id/runtime` to upload one specific runtime variant
+- `--interactive` to choose which prepared plugins to upload
+- `--assume-empty-remote` for first-time publication
+- `--dry-run` to preview the `rsync` upload
+- `--allow-downgrade` to permit uploading an older version over a newer remote one
+- `--force-same-version` to republish the same version when the package hash differs
+
+What it verifies before upload:
+
+- local manifest/package presence
+- archive SHA-256 matches the manifest
+- archive contains `manifest.json`, the plugin entry point, and package paths
+- local build artifact exists for matching current-runtime plugin packages
+- remote public catalog/manifest version and package hash, when available
+
+What it updates on the remote:
+
+- selected plugin `manifest.json`
+- selected plugin `.aifsplugin` archives
+- merged per-category `catalog.json`
+- merged per-category `SHA256SUMS`
 
 ## OneDrive Windows Sync-Root Verification
 
@@ -250,26 +279,6 @@ The script:
   - the external OneDrive plugin process reports the same authoritative detection result
 
 These tests are skipped automatically on non-Windows systems.
-- `--interactive` to choose which prepared plugins to upload
-- `--assume-empty-remote` for first-time publication
-- `--dry-run` to preview the `rsync` upload
-- `--allow-downgrade` to permit uploading an older version over a newer remote one
-- `--force-same-version` to republish the same version when the package hash differs
-
-What it verifies before upload:
-
-- local manifest/package presence
-- archive SHA-256 matches the manifest
-- archive contains `manifest.json`, the plugin entry point, and package paths
-- local build artifact exists for matching current-runtime plugin packages
-- remote public catalog/manifest version and package hash, when available
-
-What it updates on the remote:
-
-- selected plugin `manifest.json`
-- selected plugin `.aifsplugin` archives
-- merged per-category `catalog.json`
-- merged per-category `SHA256SUMS`
 
 ## Redaction notes
 
