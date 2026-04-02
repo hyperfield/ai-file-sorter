@@ -379,7 +379,7 @@ private:
     std::shared_ptr<spdlog::logger> ui_logger;
     WhitelistStore whitelist_store;
     std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
-    std::unique_ptr<StoragePluginManager> storage_plugin_manager_;
+    std::shared_ptr<StoragePluginManager> storage_plugin_manager_;
     StoragePluginLoader storage_plugin_loader_;
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;

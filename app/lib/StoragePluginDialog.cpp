@@ -8,11 +8,15 @@
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMetaObject>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
+
+#include <thread>
 
 namespace {
 
@@ -23,9 +27,10 @@ QString dialog_tr(const char* source)
 
 } // namespace
 
-StoragePluginDialog::StoragePluginDialog(StoragePluginManager& plugin_manager, QWidget* parent)
+StoragePluginDialog::StoragePluginDialog(std::shared_ptr<StoragePluginManager> plugin_manager,
+                                         QWidget* parent)
     : QDialog(parent),
-      plugin_manager_(plugin_manager)
+      plugin_manager_(std::move(plugin_manager))
 {
     setWindowTitle(dialog_tr("Manage Storage Plugins"));
     resize(620, 380);
@@ -67,7 +72,7 @@ StoragePluginDialog::StoragePluginDialog(StoragePluginManager& plugin_manager, Q
         update_selection_state();
     });
     connect(check_updates_button_, &QPushButton::clicked, this, [this]() {
-        refresh_catalog(true);
+        start_catalog_refresh(true);
     });
     connect(import_button_, &QPushButton::clicked, this, [this]() {
         import_plugin_archive();
@@ -81,21 +86,21 @@ StoragePluginDialog::StoragePluginDialog(StoragePluginManager& plugin_manager, Q
 
     populate_plugins();
     update_selection_state();
-    refresh_catalog(false);
+    start_catalog_refresh(false);
 }
 
 void StoragePluginDialog::populate_plugins()
 {
-    if (!plugin_list_) {
+    if (!plugin_manager_ || !plugin_list_) {
         return;
     }
 
     const std::string current_plugin_id = selected_plugin_id();
     plugin_list_->clear();
-    for (const auto& plugin : plugin_manager_.available_plugins()) {
-        const bool installed = plugin_manager_.is_installed(plugin.id);
-        const bool supported = plugin_manager_.supports_plugin(plugin.id);
-        const bool can_update = plugin_manager_.can_update(plugin.id);
+    for (const auto& plugin : plugin_manager_->available_plugins()) {
+        const bool installed = plugin_manager_->is_installed(plugin.id);
+        const bool supported = plugin_manager_->supports_plugin(plugin.id);
+        const bool can_update = plugin_manager_->can_update(plugin.id);
         QString label = QString::fromStdString(plugin.name);
         if (installed) {
             label += dialog_tr(" (Installed)");
@@ -141,34 +146,39 @@ void StoragePluginDialog::populate_plugins()
 
 void StoragePluginDialog::update_selection_state()
 {
-    if (!plugin_list_ || !description_label_ || !check_updates_button_ || !install_button_ ||
-        !uninstall_button_) {
+    if (!plugin_manager_ || !plugin_list_ || !description_label_ || !check_updates_button_ || !import_button_ ||
+        !install_button_ || !uninstall_button_) {
         return;
     }
 
-    check_updates_button_->setEnabled(plugin_manager_.can_check_for_updates());
+    const bool refresh_active = refresh_in_progress_.load();
+    plugin_list_->setEnabled(!refresh_active);
+    check_updates_button_->setEnabled(!refresh_active && plugin_manager_->can_check_for_updates());
+    import_button_->setEnabled(!refresh_active);
 
     auto* current = plugin_list_->currentItem();
     if (!current) {
         description_label_->clear();
+        import_button_->setEnabled(!refresh_active);
         install_button_->setEnabled(false);
         uninstall_button_->setEnabled(false);
         return;
     }
 
     const std::string plugin_id = current->data(0, Qt::UserRole).toString().toStdString();
-    const auto plugin = plugin_manager_.find_plugin(plugin_id);
+    const auto plugin = plugin_manager_->find_plugin(plugin_id);
     if (!plugin.has_value()) {
         description_label_->setText(dialog_tr("Unknown plugin."));
+        import_button_->setEnabled(!refresh_active);
         install_button_->setEnabled(false);
         uninstall_button_->setEnabled(false);
         return;
     }
 
     QString description = QString::fromStdString(plugin->description);
-    const bool installed = plugin_manager_.is_installed(plugin_id);
-    const bool supported = plugin_manager_.supports_plugin(plugin_id);
-    const bool can_update = plugin_manager_.can_update(plugin_id);
+    const bool installed = plugin_manager_->is_installed(plugin_id);
+    const bool supported = plugin_manager_->supports_plugin(plugin_id);
+    const bool can_update = plugin_manager_->can_update(plugin_id);
     if (!supported) {
         description +=
             QStringLiteral("\n\n") +
@@ -180,14 +190,46 @@ void StoragePluginDialog::update_selection_state()
     }
     description_label_->setText(description);
 
-    install_button_->setEnabled(!installed && supported);
-    uninstall_button_->setEnabled(installed);
+    install_button_->setEnabled(!refresh_active && !installed && supported);
+    uninstall_button_->setEnabled(!refresh_active && installed);
 }
 
-void StoragePluginDialog::refresh_catalog(bool interactive)
+void StoragePluginDialog::start_catalog_refresh(bool interactive)
 {
-    std::string error;
-    if (!plugin_manager_.refresh_remote_catalog(&error)) {
+    if (!plugin_manager_ || refresh_in_progress_.exchange(true)) {
+        return;
+    }
+
+    update_selection_state();
+
+    auto manager = plugin_manager_;
+    QPointer<StoragePluginDialog> self(this);
+    std::thread([manager, self, interactive]() {
+        std::string error;
+        const bool success = manager->refresh_remote_catalog(&error);
+        if (!self) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(
+            self,
+            [self, success, error = std::move(error), interactive]() mutable {
+                if (!self) {
+                    return;
+                }
+                self->finish_catalog_refresh(success, error, interactive);
+            },
+            Qt::QueuedConnection);
+    }).detach();
+}
+
+void StoragePluginDialog::finish_catalog_refresh(bool success,
+                                                 const std::string& error,
+                                                 bool interactive)
+{
+    refresh_in_progress_ = false;
+    if (!success) {
+        update_selection_state();
         if (interactive) {
             QMessageBox::warning(this,
                                  dialog_tr("Update check failed"),
@@ -215,7 +257,8 @@ void StoragePluginDialog::import_plugin_archive()
 
     std::string installed_plugin_id;
     std::string error;
-    if (!plugin_manager_.install_from_archive(archive_path.toStdString(), &installed_plugin_id, &error)) {
+    if (!plugin_manager_ ||
+        !plugin_manager_->install_from_archive(archive_path.toStdString(), &installed_plugin_id, &error)) {
         QMessageBox::warning(this,
                              dialog_tr("Install failed"),
                              error.empty()
@@ -245,7 +288,7 @@ void StoragePluginDialog::install_selected_plugin()
     }
 
     std::string error;
-    if (!plugin_manager_.install(plugin_id, &error)) {
+    if (!plugin_manager_ || !plugin_manager_->install(plugin_id, &error)) {
         QMessageBox::warning(this,
                              dialog_tr("Install failed"),
                              error.empty() ? dialog_tr("Failed to install plugin.") : QString::fromStdString(error));
@@ -263,7 +306,7 @@ void StoragePluginDialog::update_selected_plugin(const std::string& plugin_id)
     }
 
     std::string error;
-    if (!plugin_manager_.update(plugin_id, &error)) {
+    if (!plugin_manager_ || !plugin_manager_->update(plugin_id, &error)) {
         QMessageBox::warning(this,
                              dialog_tr("Update failed"),
                              error.empty() ? dialog_tr("Failed to update plugin.") : QString::fromStdString(error));
@@ -282,7 +325,7 @@ void StoragePluginDialog::uninstall_selected_plugin()
     }
 
     std::string error;
-    if (!plugin_manager_.uninstall(plugin_id, &error)) {
+    if (!plugin_manager_ || !plugin_manager_->uninstall(plugin_id, &error)) {
         QMessageBox::warning(this,
                              dialog_tr("Uninstall failed"),
                              error.empty() ? dialog_tr("Failed to uninstall plugin.") : QString::fromStdString(error));

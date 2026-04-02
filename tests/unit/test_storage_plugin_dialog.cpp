@@ -6,13 +6,16 @@
 #include "TestHelpers.hpp"
 
 #include <QCoreApplication>
+#include <QEventLoop>
 #include <QPushButton>
 #include <QTreeWidget>
 
 #include <fmt/format.h>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <thread>
 
 namespace {
 
@@ -24,6 +27,20 @@ std::filesystem::path storage_plugin_stub_path()
 {
     return std::filesystem::path(QCoreApplication::applicationDirPath().toStdString()) /
            AIFS_STORAGE_PLUGIN_STUB_NAME;
+}
+
+QTreeWidgetItem* find_plugin_item(QTreeWidget* plugin_list, const QString& plugin_id)
+{
+    if (!plugin_list) {
+        return nullptr;
+    }
+    for (int row = 0; row < plugin_list->topLevelItemCount(); ++row) {
+        auto* item = plugin_list->topLevelItem(row);
+        if (item && item->data(0, Qt::UserRole).toString() == plugin_id) {
+            return item;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace
@@ -90,12 +107,19 @@ TEST_CASE("StoragePluginDialog refreshes plugin metadata on open and shows updat
         throw std::runtime_error("Unexpected remote plugin URL");
     };
 
-    StoragePluginManager manager(config_dir.path().string(), download_fn);
-    REQUIRE(manager.install("mockcloud_support"));
+    auto manager = std::make_shared<StoragePluginManager>(config_dir.path().string(), download_fn);
+    REQUIRE(manager->install("mockcloud_support"));
 
     StoragePluginDialog dialog(manager);
 
-    REQUIRE(manager.can_update("mockcloud_support"));
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (!manager->can_update("mockcloud_support") &&
+           std::chrono::steady_clock::now() < deadline) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 25);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    REQUIRE(manager->can_update("mockcloud_support"));
 
     auto* plugin_list = dialog.findChild<QTreeWidget*>();
     REQUIRE(plugin_list != nullptr);
@@ -110,17 +134,21 @@ TEST_CASE("StoragePluginDialog refreshes plugin metadata on open and shows updat
     }
     REQUIRE(check_updates_button != nullptr);
 
-    QTreeWidgetItem* target_item = nullptr;
-    for (int row = 0; row < plugin_list->topLevelItemCount(); ++row) {
-        auto* item = plugin_list->topLevelItem(row);
-        if (item && item->data(0, Qt::UserRole).toString() == QStringLiteral("mockcloud_support")) {
-            target_item = item;
-            break;
-        }
-    }
+    QTreeWidgetItem* target_item = find_plugin_item(plugin_list, QStringLiteral("mockcloud_support"));
     REQUIRE(target_item != nullptr);
 
-    QWidget* action_widget = plugin_list->itemWidget(target_item, 1);
+    QWidget* action_widget = nullptr;
+    while (std::chrono::steady_clock::now() < deadline) {
+        target_item = find_plugin_item(plugin_list, QStringLiteral("mockcloud_support"));
+        if (target_item) {
+            action_widget = plugin_list->itemWidget(target_item, 1);
+            if (action_widget) {
+                break;
+            }
+        }
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 25);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     REQUIRE(action_widget != nullptr);
 
     QPushButton* update_button = nullptr;

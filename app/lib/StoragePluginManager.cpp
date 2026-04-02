@@ -309,11 +309,13 @@ std::filesystem::path StoragePluginManager::download_directory_for_config_dir(co
 
 std::vector<StoragePluginManifest> StoragePluginManager::available_plugins() const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return merged_available_plugins();
 }
 
 std::optional<StoragePluginManifest> StoragePluginManager::find_plugin(const std::string& plugin_id) const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (is_installed(plugin_id)) {
         const auto installed_manifest = loader_.find_plugin(plugin_id);
         if (installed_manifest.has_value()) {
@@ -333,6 +335,7 @@ std::optional<StoragePluginManifest> StoragePluginManager::find_plugin(const std
 std::optional<StoragePluginManifest> StoragePluginManager::find_plugin_for_provider(
     const std::string& provider_id) const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto installed_manifest = loader_.find_plugin_for_provider(provider_id);
     if (installed_manifest.has_value() && is_installed(installed_manifest->id)) {
         return installed_manifest;
@@ -351,11 +354,13 @@ std::optional<StoragePluginManifest> StoragePluginManager::find_plugin_for_provi
 
 bool StoragePluginManager::remote_catalog_configured() const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return !remote_catalog_url_.empty();
 }
 
 bool StoragePluginManager::can_check_for_updates() const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (remote_catalog_configured()) {
         return true;
     }
@@ -368,6 +373,7 @@ bool StoragePluginManager::can_check_for_updates() const
 
 bool StoragePluginManager::refresh_remote_catalog(std::string* error)
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!can_check_for_updates()) {
         if (error) {
             *error = "No remote plugin update sources are configured.";
@@ -438,6 +444,7 @@ bool StoragePluginManager::refresh_remote_catalog(std::string* error)
 
 bool StoragePluginManager::supports_plugin(const std::string& plugin_id) const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto manifest = find_plugin(plugin_id);
     if (!manifest.has_value()) {
         return false;
@@ -450,11 +457,13 @@ bool StoragePluginManager::supports_plugin(const std::string& plugin_id) const
 
 bool StoragePluginManager::is_installed(const std::string& plugin_id) const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return installed_plugins_.contains(plugin_id);
 }
 
 bool StoragePluginManager::can_update(const std::string& plugin_id) const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto installed = installed_plugins_.find(plugin_id);
     if (installed == installed_plugins_.end()) {
         return false;
@@ -473,6 +482,7 @@ bool StoragePluginManager::can_update(const std::string& plugin_id) const
 
 std::vector<std::string> StoragePluginManager::installed_plugin_ids() const
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     std::vector<std::string> plugin_ids;
     plugin_ids.reserve(installed_plugins_.size());
     for (const auto& [plugin_id, record] : installed_plugins_) {
@@ -484,6 +494,7 @@ std::vector<std::string> StoragePluginManager::installed_plugin_ids() const
 
 bool StoragePluginManager::install(const std::string& plugin_id, std::string* error)
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto manifests = merged_available_plugins();
     const auto manifest = std::find_if(manifests.begin(), manifests.end(), [&](const StoragePluginManifest& entry) {
         return entry.id == plugin_id;
@@ -507,6 +518,7 @@ bool StoragePluginManager::install(const std::string& plugin_id, std::string* er
 
 bool StoragePluginManager::update(const std::string& plugin_id, std::string* error)
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!is_installed(plugin_id)) {
         if (error) {
             *error = "Plugin is not installed.";
@@ -551,6 +563,7 @@ bool StoragePluginManager::install_from_archive(const std::filesystem::path& arc
                                                 std::string* installed_plugin_id,
                                                 std::string* error)
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     return install_from_archive_internal(archive_path, nullptr, installed_plugin_id, error);
 }
 
@@ -695,6 +708,7 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
 
 bool StoragePluginManager::uninstall(const std::string& plugin_id, std::string* error)
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     installed_plugins_.erase(plugin_id);
     if (!remove_plugin_artifacts(plugin_id, error)) {
         return false;
@@ -704,6 +718,7 @@ bool StoragePluginManager::uninstall(const std::string& plugin_id, std::string* 
 
 bool StoragePluginManager::reload(std::string* error)
 {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     installed_plugins_.clear();
 
     QFile file(QString::fromStdString(install_state_path()));

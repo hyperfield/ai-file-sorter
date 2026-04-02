@@ -243,7 +243,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
       core_logger(Logger::get_logger("core_logger")),
       ui_logger(Logger::get_logger("ui_logger")),
       whitelist_store(settings.get_config_dir()),
-      storage_plugin_manager_(std::make_unique<StoragePluginManager>(settings.get_config_dir())),
+      storage_plugin_manager_(std::make_shared<StoragePluginManager>(settings.get_config_dir())),
       storage_plugin_loader_(StoragePluginManager::manifest_directory_for_config_dir(settings.get_config_dir())),
       categorization_service(settings, db_manager, core_logger),
       consistency_pass_service(db_manager, core_logger),
@@ -1153,7 +1153,7 @@ void MainApp::show_storage_plugin_dialog()
         return;
     }
 
-    StoragePluginDialog dialog(*storage_plugin_manager_, this);
+    StoragePluginDialog dialog(storage_plugin_manager_, this);
     dialog.exec();
 
     rebuild_storage_provider_registry();
