@@ -37,6 +37,7 @@ private:
     std::string file_path_;
     std::unordered_map<std::string, WhitelistEntry> entries_;
     std::string default_name_ = "Default";
+    int built_in_seed_version_{0};
 };
 
 #endif

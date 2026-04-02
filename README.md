@@ -147,7 +147,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 ### Category whitelists
 
 - Enable **Use a whitelist** to inject the selected whitelist into the LLM prompt; disable it to let the model choose freely.
-- Manage lists (add, edit, remove) under **Settings → Manage category whitelists…**. A default list is auto-created only when no lists exist, and multiple named lists can be kept for different projects.
+- Manage lists (add, edit, remove) under **Settings → Manage category whitelists…**. Built-in `Default` and `Documents` lists are auto-created only when no lists exist, and multiple named lists can be kept for different projects.
 - Keep each whitelist to roughly **15–20 categories/subcategories** to avoid overlong prompts on smaller local models. Use several narrower lists instead of a single very long one.
 - Whitelists apply in either categorization mode; pair them with **More consistent** when you want the strongest adherence to a constrained vocabulary.
 

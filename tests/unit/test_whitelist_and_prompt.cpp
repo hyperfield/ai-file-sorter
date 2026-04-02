@@ -12,6 +12,8 @@
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
 
+#include <QSettings>
+
 #include <atomic>
 #include <deque>
 #include <memory>
@@ -81,6 +83,52 @@ private:
     std::deque<std::string> translation_responses_;
 };
 } // namespace
+
+TEST_CASE("WhitelistStore seeds built-in presets when empty") {
+    TempDir base_dir;
+    WhitelistStore store(base_dir.path().string());
+
+    REQUIRE(store.load());
+
+    REQUIRE(store.list_names() == std::vector<std::string>{"Default", "Documents"});
+
+    const auto documents = store.get("Documents");
+    REQUIRE(documents.has_value());
+    REQUIRE(documents->categories == std::vector<std::string>{
+                                        "Invoices", "Receipts", "Taxes", "Contracts", "Reports",
+                                        "Statements", "Letters", "Forms", "Certificates", "Policies",
+                                        "Manuals", "Notes", "Presentations", "Spreadsheets", "Legal",
+                                        "Insurance", "Banking"});
+    REQUIRE(documents->subcategories.empty());
+}
+
+TEST_CASE("WhitelistStore migrates the Documents preset once for legacy stores") {
+    TempDir base_dir;
+    const auto legacy_path = base_dir.path() / "whitelists.ini";
+
+    QSettings legacy_settings(QString::fromStdString(legacy_path.string()), QSettings::IniFormat);
+    legacy_settings.beginGroup("Default");
+    legacy_settings.setValue("Categories", "Alpha, Beta");
+    legacy_settings.setValue("Subcategories", "One, Two");
+    legacy_settings.endGroup();
+    legacy_settings.sync();
+
+    WhitelistStore store(base_dir.path().string());
+    REQUIRE(store.load());
+
+    const auto legacy_default = store.get("Default");
+    REQUIRE(legacy_default.has_value());
+    REQUIRE(legacy_default->categories == std::vector<std::string>{"Alpha", "Beta"});
+    REQUIRE(legacy_default->subcategories == std::vector<std::string>{"One", "Two"});
+    REQUIRE(store.get("Documents").has_value());
+
+    store.remove("Documents");
+    REQUIRE(store.save());
+
+    WhitelistStore reloaded(base_dir.path().string());
+    REQUIRE(reloaded.load());
+    REQUIRE_FALSE(reloaded.get("Documents").has_value());
+}
 
 TEST_CASE("WhitelistStore initializes from settings and persists defaults") {
     TempDir base_dir;

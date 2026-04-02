@@ -6,6 +6,11 @@
 #include <algorithm>
 
 namespace {
+constexpr char kMetadataGroup[] = "__meta__";
+constexpr char kBuiltInSeedVersionKey[] = "BuiltInSeedVersion";
+constexpr int kCurrentBuiltInSeedVersion = 2;
+constexpr char kDocumentsWhitelistName[] = "Documents";
+
 std::vector<std::string> split_csv(const QString& value) {
     std::vector<std::string> out;
     const auto parts = value.split(",");
@@ -25,6 +30,18 @@ QString join_csv(const std::vector<std::string>& values) {
     }
     return list.join(", ");
 }
+
+WhitelistEntry make_documents_entry()
+{
+    return WhitelistEntry{
+        {
+            "Invoices", "Receipts", "Taxes", "Contracts", "Reports", "Statements",
+            "Letters", "Forms", "Certificates", "Policies", "Manuals", "Notes",
+            "Presentations", "Spreadsheets", "Legal", "Insurance", "Banking"
+        },
+        {}
+    };
+}
 }
 
 WhitelistStore::WhitelistStore(std::string config_dir)
@@ -34,8 +51,17 @@ bool WhitelistStore::load()
 {
     entries_.clear();
     QSettings settings(QString::fromStdString(file_path_), QSettings::IniFormat);
+    built_in_seed_version_ = settings.value(QString::fromLatin1("%1/%2")
+                                                .arg(QString::fromLatin1(kMetadataGroup),
+                                                     QString::fromLatin1(kBuiltInSeedVersionKey)),
+                                            0)
+                                 .toInt();
+    bool changed = built_in_seed_version_ < kCurrentBuiltInSeedVersion;
     const QStringList groups = settings.childGroups();
     for (const auto& group : groups) {
+        if (group == QString::fromLatin1(kMetadataGroup)) {
+            continue;
+        }
         settings.beginGroup(group);
         const auto cats = split_csv(settings.value("Categories").toString());
         const auto subs = split_csv(settings.value("Subcategories").toString());
@@ -46,6 +72,12 @@ bool WhitelistStore::load()
     }
     if (entries_.empty()) {
         ensure_default_from_legacy({}, {});
+        changed = true;
+    } else if (built_in_seed_version_ < kCurrentBuiltInSeedVersion &&
+               entries_.find(kDocumentsWhitelistName) == entries_.end()) {
+        entries_.emplace(kDocumentsWhitelistName, make_documents_entry());
+    }
+    if (changed) {
         save();
     }
     return true;
@@ -55,6 +87,9 @@ bool WhitelistStore::save() const
 {
     QSettings settings(QString::fromStdString(file_path_), QSettings::IniFormat);
     settings.clear();
+    settings.beginGroup(QString::fromLatin1(kMetadataGroup));
+    settings.setValue(QString::fromLatin1(kBuiltInSeedVersionKey), kCurrentBuiltInSeedVersion);
+    settings.endGroup();
     for (const auto& pair : entries_) {
         settings.beginGroup(QString::fromStdString(pair.first));
         settings.setValue("Categories", join_csv(pair.second.categories));
@@ -115,6 +150,7 @@ void WhitelistStore::ensure_default_from_legacy(const std::vector<std::string>& 
         use_subs = {};
     }
     entries_[default_name_] = WhitelistEntry{use_cats, use_subs};
+    entries_[kDocumentsWhitelistName] = make_documents_entry();
 }
 
 void WhitelistStore::initialize_from_settings(Settings& settings)
