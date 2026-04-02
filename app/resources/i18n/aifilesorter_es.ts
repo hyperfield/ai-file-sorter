@@ -2109,4 +2109,103 @@ Intentado:
             <translation>La lista predeterminada no se puede quitar.</translation>
         </message>
     </context>
+    <context>
+        <name>StoragePluginDialog</name>
+        <message>
+            <source>Manage Storage Plugins</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Install optional storage plugins to enable compatibility support for cloud-backed folders.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Plugin</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Action</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Check for updates</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Install from File…</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Install</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Uninstall</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source> (Installed)</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Update</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Unknown plugin.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>This plugin entry point is not supported by this version of the app.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>A newer or refreshed package can be installed from the configured plugin source.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Update check failed</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Failed to check for storage plugin updates.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Install Storage Plugin</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>AI File Sorter plugins (*.aifsplugin *.zip);;All files (*)</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Install failed</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Failed to install plugin archive.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Failed to install plugin.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Update failed</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Failed to update plugin.</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Uninstall failed</source>
+            <translation type="unfinished"></translation>
+        </message>
+        <message>
+            <source>Failed to uninstall plugin.</source>
+            <translation type="unfinished"></translation>
+        </message>
+    </context>
 </TS>
