@@ -666,6 +666,73 @@ Procedure: Run `categorize_entries` and capture callback counters.
 Expected outcome: Queue and completion callbacks are each invoked once per processed entry.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService invokes completion callback per entry"`
 
+#### Test case: StoragePluginManager refreshes available plugins from a remote catalog
+Purpose: Confirm remote catalog refresh merges plugin metadata for the current runtime.
+Setup: Point the manager at a mock remote catalog URL with a runtime-matching plugin manifest.
+Procedure: Call `refresh_remote_catalog` and inspect the available plugin list afterward.
+Expected outcome: The refreshed catalog entry appears in the available plugin list and is eligible for install/update checks.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager refreshes available plugins from a remote catalog"`
+
+#### Test case: StoragePluginManager installs catalog plugins on demand
+Purpose: Verify remote catalog entries can be downloaded and installed when the user selects them.
+Setup: Provide a mock catalog entry plus mock remote manifest and archive downloads.
+Procedure: Call `install` for the catalog-delivered plugin id.
+Expected outcome: The plugin installs successfully and its managed manifest/package artifacts are written to disk.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs catalog plugins on demand"`
+
+#### Test case: OneDriveStorageProvider prefers authoritative sync-root detection when available
+Purpose: Ensure OneDrive detection uses authoritative sync-root information ahead of heuristic path matching.
+Setup: Inject a sync-root resolver that reports a OneDrive provider for the selected root.
+Procedure: Call `detect` on a matching root path.
+Expected outcome: Detection succeeds with the authoritative source and the provider resolves as OneDrive.
+Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider prefers authoritative sync-root detection when available"`
+
+#### Test case: OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider
+Purpose: Prevent false positives when Windows reports a different cloud provider for the selected root.
+Setup: Inject a sync-root resolver that reports a non-OneDrive provider for a path whose name still looks like OneDrive.
+Procedure: Call `detect` on that path.
+Expected outcome: The authoritative non-OneDrive result vetoes the heuristic match.
+Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider"`
+
+#### Test case: OneDriveStorageProvider owns undo moves and cleans empty folders
+Purpose: Verify OneDrive move/undo operations are handled by the provider itself rather than delegated to the local provider.
+Setup: Create a source file and destination folder tree in a temporary directory.
+Procedure: Move the file through `move_entry`, then restore it with `undo_move`.
+Expected outcome: The file returns to its original location and provider-created empty directories are removed.
+Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider owns undo moves and cleans empty folders"`
+
+### `tests/unit/test_main_app_storage_support.cpp`
+
+#### Test case: MainApp resolves installable storage support when plugin is not installed
+Purpose: Ensure detected cloud folders map to the correct installable plugin when support exists but is not installed yet.
+Setup: Build `MainApp` with a clean config directory and synthesize Dropbox detection metadata.
+Procedure: Resolve the storage-support state and plugin id via the test-access helpers.
+Expected outcome: The state is `detected_but_plugin_not_installed` and the plugin id resolves to `cloud_storage_compat`.
+Run: `./build-tests/ai_file_sorter_tests "MainApp resolves installable storage support when plugin is not installed"`
+
+#### Test case: MainApp resolves plugin-backed storage support when plugin is installed
+Purpose: Confirm detected cloud folders resolve to the installed plugin-backed mode when support is already present.
+Setup: Install `cloud_storage_compat`, then build `MainApp` with Dropbox detection metadata.
+Procedure: Resolve the storage-support state and plugin id via the test-access helpers.
+Expected outcome: The state is `detected_and_supported_via_plugin` and the plugin id resolves to `cloud_storage_compat`.
+Run: `./build-tests/ai_file_sorter_tests "MainApp resolves plugin-backed storage support when plugin is installed"`
+
+#### Test case: MainApp resolves unsupported storage support when no plugin exists
+Purpose: Distinguish cloud providers that are detected heuristically but have no matching plugin support.
+Setup: Build `MainApp` and synthesize detection metadata for an unsupported provider such as Google Drive.
+Procedure: Resolve the storage-support state and plugin id via the test-access helpers.
+Expected outcome: The state is `detected_but_no_plugin_exists` and no plugin id is returned.
+Run: `./build-tests/ai_file_sorter_tests "MainApp resolves unsupported storage support when no plugin exists"`
+
+### `tests/unit/test_storage_plugin_dialog.cpp`
+
+#### Test case: StoragePluginDialog refreshes plugin metadata on open and shows update actions
+Purpose: Ensure opening the plugin dialog refreshes remote metadata in the background and exposes per-plugin update actions.
+Setup: Install a mock external-process plugin locally and provide a mock remote catalog entry advertising a newer version.
+Procedure: Construct the dialog, pump events until the background refresh completes, and inspect the plugin list row.
+Expected outcome: The installed plugin becomes updateable and its row shows an `Update` action button.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginDialog refreshes plugin metadata on open and shows update actions"`
+
 ### Test infrastructure: `tests/unit/test_cli_reporter.cpp`
 
 This file registers a Catch2 event listener that prints a one-line "[TEST]" banner for each test case as it begins. It does not define test cases itself, but it makes CLI output easier to follow during long runs.
