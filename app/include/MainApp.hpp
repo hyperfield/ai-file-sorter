@@ -75,6 +75,19 @@ public:
      * @brief Outcome returned from the optional support prompt flow.
      */
     enum class SupportPromptResult { Support, NotSure };
+    enum class StorageSupportState {
+        None,
+        DetectedAndSupportedViaPlugin,
+        DetectedButPluginNotInstalled,
+        DetectedButNoPluginExists
+    };
+
+    struct StorageSupportResolution {
+        StorageSupportState state{StorageSupportState::None};
+        std::optional<StoragePluginManifest> plugin;
+        bool plugin_supported{false};
+        bool plugin_installed{false};
+    };
     /**
      * @brief Constructs the main application window.
      * @param settings Persistent settings store used by the window.
@@ -254,6 +267,7 @@ private:
     void changeEvent(QEvent* event) override;
     FileScanOptions effective_scan_options() const;
     bool prompt_text_cpu_fallback(const std::string& reason);
+    StorageSupportResolution resolve_storage_support(const StorageProviderDetection& detection) const;
 
     friend class MainAppUiBuilder;
     friend class AnalysisCoordinator;

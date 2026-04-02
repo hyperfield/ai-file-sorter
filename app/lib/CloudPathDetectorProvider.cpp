@@ -32,6 +32,7 @@ StorageProviderDetection CloudPathDetectorProvider::detect(const std::string& ro
         .matched = true,
         .needs_additional_support = true,
         .confidence = match.confidence,
+        .detection_source = "path_heuristic",
         .message = "Detected a " + display_name_ +
             " folder. Dedicated compatibility support is not installed, so the app will continue in local filesystem mode."
     };

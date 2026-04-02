@@ -12,12 +12,14 @@
 #include <QCheckBox>
 #include <QToolButton>
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
 class MainApp;
 class Settings;
+struct StorageProviderDetection;
 
 /**
  * @brief Provides test access to MainApp internals and helpers.
@@ -206,6 +208,24 @@ public:
      * @param count Number of files to add.
      */
     static void add_categorized_files(MainApp& app, int count);
+    /**
+     * @brief Resolve the storage-support state for a detected provider.
+     * @param app MainApp instance.
+     * @param detection Provider detection result to classify.
+     * @return State name used by tests.
+     */
+    static std::string resolve_storage_support_state_name(
+        MainApp& app,
+        const StorageProviderDetection& detection);
+    /**
+     * @brief Resolve the matched plugin id for a detected provider, if any.
+     * @param app MainApp instance.
+     * @param detection Provider detection result to classify.
+     * @return Matching plugin id when available.
+     */
+    static std::optional<std::string> resolve_storage_support_plugin_id(
+        MainApp& app,
+        const StorageProviderDetection& detection);
     /**
      * @brief Simulate the support prompt logic for tests.
      * @param settings Settings instance to update.

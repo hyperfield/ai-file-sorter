@@ -169,6 +169,9 @@ int main(int argc, char* argv[])
             root_path.contains(QStringLiteral("MockCloud"), Qt::CaseInsensitive);
         detection["matched"] = matched;
         detection["confidence"] = matched ? 65 : 0;
+        detection["detection_source"] = matched
+            ? QStringLiteral("path_heuristic")
+            : QString();
         detection["message"] = matched
             ? QStringLiteral("Detected a MockCloud folder. External compatibility support is available.")
             : QString();

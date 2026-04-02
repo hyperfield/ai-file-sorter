@@ -31,6 +31,7 @@ QJsonObject detection_to_json(const StorageProviderDetection& detection)
     object["matched"] = detection.matched;
     object["needs_additional_support"] = detection.needs_additional_support;
     object["confidence"] = detection.confidence;
+    object["detection_source"] = QString::fromStdString(detection.detection_source);
     object["message"] = QString::fromStdString(detection.message);
     return object;
 }

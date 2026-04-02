@@ -138,6 +138,33 @@ void MainAppTestAccess::add_categorized_files(MainApp& app, int count) {
     app.record_categorized_metrics(count);
 }
 
+std::string MainAppTestAccess::resolve_storage_support_state_name(
+    MainApp& app,
+    const StorageProviderDetection& detection) {
+    const auto resolution = app.resolve_storage_support(detection);
+    switch (resolution.state) {
+    case MainApp::StorageSupportState::None:
+        return "none";
+    case MainApp::StorageSupportState::DetectedAndSupportedViaPlugin:
+        return "detected_and_supported_via_plugin";
+    case MainApp::StorageSupportState::DetectedButPluginNotInstalled:
+        return "detected_but_plugin_not_installed";
+    case MainApp::StorageSupportState::DetectedButNoPluginExists:
+        return "detected_but_no_plugin_exists";
+    }
+    return "none";
+}
+
+std::optional<std::string> MainAppTestAccess::resolve_storage_support_plugin_id(
+    MainApp& app,
+    const StorageProviderDetection& detection) {
+    const auto resolution = app.resolve_storage_support(detection);
+    if (!resolution.plugin.has_value()) {
+        return std::nullopt;
+    }
+    return resolution.plugin->id;
+}
+
 void MainAppTestAccess::simulate_support_prompt(Settings& settings,
                                                 bool& prompt_state,
                                                 int count,

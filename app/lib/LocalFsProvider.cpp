@@ -65,6 +65,7 @@ StorageProviderDetection LocalFsProvider::detect(const std::string& root_path) c
         .matched = true,
         .needs_additional_support = false,
         .confidence = 1,
+        .detection_source = "default_fallback",
         .message = {}
     };
 }

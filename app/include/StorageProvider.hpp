@@ -15,6 +15,7 @@ struct StorageProviderDetection {
     bool matched{false};
     bool needs_additional_support{false};
     int confidence{0};
+    std::string detection_source;
     std::string message;
 };
 

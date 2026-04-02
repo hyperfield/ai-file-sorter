@@ -48,6 +48,7 @@ StorageProviderDetection CloudCompatibilityProvider::detect(const std::string& r
         .matched = true,
         .needs_additional_support = false,
         .confidence = match.confidence + 20,
+        .detection_source = "path_heuristic",
         .message = "Detected a " + display_name_ + " folder. Compatibility support is active."
     };
 }

@@ -274,6 +274,11 @@ std::string ExternalProcessStorageProvider::id() const
 
 StorageProviderDetection ExternalProcessStorageProvider::detect(const std::string& root_path) const
 {
+    const auto cached = detection_cache_.find(root_path);
+    if (cached != detection_cache_.end()) {
+        return cached->second;
+    }
+
     QJsonObject request = make_request(manifest_, provider_id_, "detect");
     request["root_path"] = QString::fromStdString(root_path);
 
@@ -288,13 +293,16 @@ StorageProviderDetection ExternalProcessStorageProvider::detect(const std::strin
         return {};
     }
 
-    return StorageProviderDetection{
+    StorageProviderDetection resolved{
         .provider_id = provider_id_,
         .matched = true,
         .needs_additional_support = requires_installation_,
         .confidence = detection.value("confidence").toInt(0) + (requires_installation_ ? 0 : 20),
+        .detection_source = detection.value("detection_source").toString().toStdString(),
         .message = detection.value("message").toString().toStdString()
     };
+    detection_cache_.emplace(root_path, resolved);
+    return resolved;
 }
 
 StorageProviderCapabilities ExternalProcessStorageProvider::capabilities() const

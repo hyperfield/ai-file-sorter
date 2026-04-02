@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 /**
  * @brief Proxies storage-provider operations to an external plugin process over stdio JSON.
@@ -42,4 +43,5 @@ private:
     std::string instance_id_;
     bool requires_installation_{false};
     mutable std::optional<StorageProviderCapabilities> cached_capabilities_;
+    mutable std::unordered_map<std::string, StorageProviderDetection> detection_cache_;
 };
