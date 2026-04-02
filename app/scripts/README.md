@@ -13,6 +13,7 @@ automatically redacting common sensitive data, and creating a zipped bundle to s
 - `build_plugins_macos.sh` (Build macOS plugin targets)
 - `build_plugins_windows.ps1` (Build Windows plugin targets)
 - `upload_storage_plugins.py` (Upload prepared plugin payloads and merge the remote catalog)
+- `verify_onedrive_windows_sync_root.ps1` (Run real Windows OneDrive sync-root verification tests)
 
 ## What they do
 
@@ -121,7 +122,7 @@ To regenerate the local OneDrive storage-plugin publish payload from the current
 
 ```bash
 ./app/scripts/generate_storage_plugin_payload.sh \
-  --base-url=https://filesorter.app/download/plugins/storage
+  --base-url=https://filesorter.app/downloads/plugins
 ```
 
 Options:
@@ -130,7 +131,10 @@ Options:
 - `--output-dir=<path>` optional, defaults to `plugins/storage`
 - `--build-dir=<path>` optional, defaults to `build-tests`
 
-The script writes a ready-to-upload `storage/` tree containing:
+The script writes a ready-to-upload `storage/` category tree under the local `plugins/` root and
+generates URLs under `<base-url>/storage/...`.
+
+Contents:
 
 - `catalog.json`
 - `onedrive/manifest.json`
@@ -179,18 +183,73 @@ Behavior:
 
 ## Plugin Upload Script
 
-To upload prepared plugin payloads from `plugins/storage` to a remote static server tree:
+To upload prepared plugin payloads from the local `plugins/` root to a remote static server tree:
 
 ```bash
 python3 ./app/scripts/upload_storage_plugins.py \
-  --base-url=https://downloads.example.com/aifilesorter/plugins/storage \
-  --remote-dir=user@host:/var/www/downloads/aifilesorter/plugins/storage
+  --base-url=https://downloads.example.com/aifilesorter/plugins \
+  --remote-dir=user@host:/var/www/downloads/aifilesorter/plugins
+```
+
+The uploader now treats `plugins/` as the root and handles category subtrees such as:
+
+- `plugins/storage/...`
+- `plugins/other-category/...`
+
+Each category is expected to contain its own:
+
+- `catalog.json`
+- `SHA256SUMS`
+- per-plugin `manifest.json`
+- `.aifsplugin` archives
+
+The current OneDrive payload still lives under `plugins/storage`.
+
+For example, if your local payload is generated under `plugins/storage`, you can upload with:
+
+```bash
+python3 ./app/scripts/upload_storage_plugins.py \
+  --base-url=https://filesorter.app/downloads/plugins \
+  --remote-dir=user@filesorter.app:/home/webforce/filesorter_web/downloads/plugins \
+  --dry-run
 ```
 
 Useful options:
 
 - `--list` to show prepared plugin IDs in the local payload
 - `--plugins=...` to upload only selected plugin IDs
+- plugin selection accepts either `plugin_id` or `category/plugin_id`
+
+## OneDrive Windows Sync-Root Verification
+
+To verify the authoritative Windows Cloud Files detection path against a real
+OneDrive sync root on a Windows machine:
+
+```powershell
+.\app\scripts\verify_onedrive_windows_sync_root.ps1
+```
+
+or explicitly:
+
+```powershell
+.\app\scripts\verify_onedrive_windows_sync_root.ps1 `
+  -BuildDir .\app\build-windows `
+  -Configuration Release `
+  -SyncRoot "$env:OneDrive"
+```
+
+The script:
+
+- finds `ai_file_sorter_tests.exe`
+- resolves a real OneDrive sync root from:
+  - `-SyncRoot`
+  - `AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT`
+  - `OneDrive`
+- runs the two Windows-only integration tests that verify:
+  - direct `OneDriveStorageProvider` detection uses `CfGetSyncRootInfoByPath`
+  - the external OneDrive plugin process reports the same authoritative detection result
+
+These tests are skipped automatically on non-Windows systems.
 - `--interactive` to choose which prepared plugins to upload
 - `--assume-empty-remote` for first-time publication
 - `--dry-run` to preview the `rsync` upload
@@ -209,8 +268,8 @@ What it updates on the remote:
 
 - selected plugin `manifest.json`
 - selected plugin `.aifsplugin` archives
-- merged `catalog.json`
-- merged `SHA256SUMS`
+- merged per-category `catalog.json`
+- merged per-category `SHA256SUMS`
 
 ## Redaction notes
 

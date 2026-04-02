@@ -16,13 +16,13 @@ build_dir="${default_build_dir}"
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") --base-url=<https://host/path/to/storage> [options]
+Usage: $(basename "$0") --base-url=<https://host/path/to/plugins> [options]
 
 Generates a local storage plugin publish payload for the OneDrive plugin.
 
 Options:
-  --base-url=<url>       Public HTTPS base URL where the storage payload will be hosted.
-                         Example: https://downloads.example.com/aifilesorter/plugins/storage
+  --base-url=<url>       Public HTTPS base URL where the plugin root will be hosted.
+                         Example: https://downloads.example.com/aifilesorter/plugins
   --output-dir=<path>    Output directory for the generated payload.
                          Default: ${default_output_dir}
   --build-dir=<path>     Build directory containing ${plugin_binary_name}.
@@ -122,6 +122,8 @@ done
 }
 
 base_url="$(normalize_url "${base_url}")"
+category="storage"
+category_base_url="${base_url}/${category}"
 platform="$(detect_platform)"
 architecture="$(detect_architecture)"
 plugin_version="$(extract_plugin_version)"
@@ -183,8 +185,8 @@ cat > "${runtime_manifest_path}" <<EOF
   "provider_ids": ["onedrive"],
   "platforms": ["$(escape_json "${platform}")"],
   "architectures": ["$(escape_json "${architecture}")"],
-  "remote_manifest_url": "$(escape_json "${base_url}/onedrive/manifest.json")",
-  "package_download_url": "$(escape_json "${base_url}/onedrive/${package_name}")",
+  "remote_manifest_url": "$(escape_json "${category_base_url}/onedrive/manifest.json")",
+  "package_download_url": "$(escape_json "${category_base_url}/onedrive/${package_name}")",
   "package_sha256": "${package_sha}",
   "entry_point_kind": "external_process",
   "entry_point": "bin/${plugin_binary_name}",
@@ -203,7 +205,7 @@ cat > "${catalog_path}" <<EOF
       "provider_ids": ["onedrive"],
       "platforms": ["$(escape_json "${platform}")"],
       "architectures": ["$(escape_json "${architecture}")"],
-      "remote_manifest_url": "$(escape_json "${base_url}/onedrive/manifest.json")",
+      "remote_manifest_url": "$(escape_json "${category_base_url}/onedrive/manifest.json")",
       "entry_point_kind": "external_process",
       "entry_point": "${plugin_binary_name}"
     }
@@ -222,7 +224,8 @@ Storage Plugin Publish Payload
 This directory contains a generated publish payload for the current OneDrive storage plugin build.
 
 Generated values
-- Base URL: ${base_url}
+- Plugin root base URL: ${base_url}
+- Category base URL: ${category_base_url}
 - Platform: ${platform}
 - Architecture: ${architecture}
 - Plugin version: ${plugin_version}
@@ -237,12 +240,12 @@ Contents
 Publish steps
 1. Upload the full storage/ directory to your server so the URLs map 1:1.
 2. Point the app at:
-   ${base_url}/catalog.json
+   ${category_base_url}/catalog.json
 
 Example:
-  AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL=${base_url}/catalog.json
+  AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL=${category_base_url}/catalog.json
 EOF
 
 echo "[INFO] Generated storage plugin payload in ${output_dir}"
-echo "[INFO] Catalog URL: ${base_url}/catalog.json"
+echo "[INFO] Catalog URL: ${category_base_url}/catalog.json"
 echo "[INFO] Package SHA-256: ${package_sha}"

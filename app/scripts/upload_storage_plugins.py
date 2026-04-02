@@ -20,7 +20,7 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent.parent
-DEFAULT_PAYLOAD_DIR = REPO_ROOT / "plugins" / "storage"
+DEFAULT_PAYLOAD_DIR = REPO_ROOT / "plugins"
 DEFAULT_BUILD_DIR = REPO_ROOT / "build-tests"
 PLUGIN_TARGETS_PATH = SCRIPT_DIR / "plugin_build_targets.tsv"
 
@@ -206,6 +206,7 @@ class BuildTarget:
 
 @dataclass
 class LocalPluginPayload:
+    category: str
     plugin_id: str
     display_name: str
     manifest_path: Path
@@ -214,6 +215,10 @@ class LocalPluginPayload:
     package_path: Path
     package_relative_path: str
     package_sha256: str
+
+    @property
+    def selection_key(self) -> str:
+        return f"{self.category}/{self.plugin_id}"
 
 
 def load_build_targets() -> dict[str, BuildTarget]:
@@ -238,8 +243,9 @@ def load_build_targets() -> dict[str, BuildTarget]:
     return targets
 
 
-def find_local_plugin_payloads(payload_dir: Path) -> dict[str, LocalPluginPayload]:
-    catalog_path = payload_dir / "catalog.json"
+def find_local_plugin_payloads_for_category(category_dir: Path) -> dict[str, LocalPluginPayload]:
+    category = category_dir.name
+    catalog_path = category_dir / "catalog.json"
     if not catalog_path.exists():
         fail(f"Missing payload catalog: {catalog_path}")
 
@@ -247,7 +253,7 @@ def find_local_plugin_payloads(payload_dir: Path) -> dict[str, LocalPluginPayloa
     catalog_by_key = {runtime_key(entry): entry for entry in catalog_entries}
 
     payloads: dict[str, LocalPluginPayload] = {}
-    for manifest_path in sorted(payload_dir.glob("*/manifest.json")):
+    for manifest_path in sorted(category_dir.glob("*/manifest.json")):
         manifest = load_json_file(manifest_path)
         plugin_id = str(manifest.get("id", "")).strip()
         if not plugin_id:
@@ -269,6 +275,7 @@ def find_local_plugin_payloads(payload_dir: Path) -> dict[str, LocalPluginPayloa
 
         package_relative = str(Path(manifest_path.parent.name) / package_name).replace("\\", "/")
         payloads[plugin_id] = LocalPluginPayload(
+            category=category,
             plugin_id=plugin_id,
             display_name=str(manifest.get("name", plugin_id)),
             manifest_path=manifest_path,
@@ -278,6 +285,24 @@ def find_local_plugin_payloads(payload_dir: Path) -> dict[str, LocalPluginPayloa
             package_relative_path=package_relative,
             package_sha256=str(manifest.get("package_sha256", "")).strip().lower(),
         )
+    return payloads
+
+
+def find_local_plugin_payloads(payload_root: Path) -> dict[str, LocalPluginPayload]:
+    payloads: dict[str, LocalPluginPayload] = {}
+    category_dirs = sorted(
+        entry for entry in payload_root.iterdir()
+        if entry.is_dir() and (entry / "catalog.json").exists()
+    )
+    if not category_dirs:
+        fail(f"No plugin categories with catalog.json were found under: {payload_root}")
+
+    for category_dir in category_dirs:
+        for plugin_id, payload in find_local_plugin_payloads_for_category(category_dir).items():
+            selection_key = payload.selection_key
+            if selection_key in payloads:
+                fail(f"Duplicate prepared payload key detected: {selection_key}")
+            payloads[selection_key] = payload
     return payloads
 
 
@@ -305,16 +330,23 @@ def verify_archive(payload: LocalPluginPayload) -> None:
 
 
 def verify_publish_urls(payload: LocalPluginPayload, base_url: str) -> None:
+    category_base_url = f"{normalize_url(base_url)}/{payload.category}"
     remote_manifest_url = str(payload.manifest.get("remote_manifest_url", "")).strip()
     package_download_url = str(payload.manifest.get("package_download_url", "")).strip()
     catalog_manifest_url = str(payload.catalog_entry.get("remote_manifest_url", "")).strip()
 
     if remote_manifest_url:
-        ensure_url_under_base(remote_manifest_url, base_url, f"{payload.plugin_id} manifest remote_manifest_url")
+        ensure_url_under_base(remote_manifest_url,
+                              category_base_url,
+                              f"{payload.selection_key} manifest remote_manifest_url")
     if package_download_url:
-        ensure_url_under_base(package_download_url, base_url, f"{payload.plugin_id} manifest package_download_url")
+        ensure_url_under_base(package_download_url,
+                              category_base_url,
+                              f"{payload.selection_key} manifest package_download_url")
     if catalog_manifest_url:
-        ensure_url_under_base(catalog_manifest_url, base_url, f"{payload.plugin_id} catalog remote_manifest_url")
+        ensure_url_under_base(catalog_manifest_url,
+                              category_base_url,
+                              f"{payload.selection_key} catalog remote_manifest_url")
 
 
 def verify_build_artifact(payload: LocalPluginPayload, build_targets: dict[str, BuildTarget], build_dir: Path) -> None:
@@ -347,12 +379,12 @@ def verify_build_artifact(payload: LocalPluginPayload, build_targets: dict[str, 
 
 def choose_plugins_interactively(payloads: dict[str, LocalPluginPayload]) -> list[str]:
     print("Available prepared plugins:")
-    for plugin_id, payload in payloads.items():
+    for selection_key, payload in payloads.items():
         version = payload.manifest.get("version", "")
         plats = ",".join(normalize_list(payload.manifest.get("platforms")) or ["any"])
         archs = ",".join(normalize_list(payload.manifest.get("architectures")) or ["any"])
-        print(f"  {plugin_id:<28} {payload.display_name} [{version}] ({plats}/{archs})")
-    answer = input("Enter comma-separated plugin IDs to upload [all]: ").strip()
+        print(f"  {selection_key:<36} {payload.display_name} [{version}] ({plats}/{archs})")
+    answer = input("Enter comma-separated plugin IDs or category/plugin IDs to upload [all]: ").strip()
     if not answer:
         return list(payloads.keys())
     return [value.strip() for value in answer.split(",") if value.strip()]
@@ -366,19 +398,37 @@ def resolve_selected_plugins(payloads: dict[str, LocalPluginPayload], args: argp
     else:
         requested_ids = list(payloads.keys())
 
+    payloads_by_plugin_id: dict[str, list[LocalPluginPayload]] = {}
+    for payload in payloads.values():
+        payloads_by_plugin_id.setdefault(payload.plugin_id, []).append(payload)
+
     selected: list[LocalPluginPayload] = []
+    seen_keys: set[str] = set()
     for plugin_id in requested_ids:
         payload = payloads.get(plugin_id)
+        if payload is None and "/" not in plugin_id:
+            matches = payloads_by_plugin_id.get(plugin_id, [])
+            if len(matches) == 1:
+                payload = matches[0]
+            elif len(matches) > 1:
+                categories = ", ".join(sorted(match.category for match in matches))
+                fail(
+                    f"Plugin id '{plugin_id}' is ambiguous across categories: {categories}. "
+                    "Use category/plugin_id."
+                )
         if payload is None:
             fail(f"Prepared payload does not include plugin id: {plugin_id}")
+        if payload.selection_key in seen_keys:
+            continue
+        seen_keys.add(payload.selection_key)
         selected.append(payload)
     return selected
 
 
-def fetch_remote_catalog(base_url: str, assume_empty: bool) -> list[dict[str, Any]]:
+def fetch_remote_catalog(base_url: str, category: str, assume_empty: bool) -> list[dict[str, Any]]:
     if assume_empty:
         return []
-    catalog = fetch_json_url(f"{base_url}/catalog.json")
+    catalog = fetch_json_url(f"{normalize_url(base_url)}/{category}/catalog.json")
     if catalog is None:
         return []
     return parse_catalog(catalog)
@@ -426,69 +476,74 @@ def decide_actions(
 
         if comparison == 0:
             if remote_sha and remote_sha == local_sha:
-                info(f"{payload.plugin_id}: remote version {remote_version} already matches local package; skipping.")
+                info(f"{payload.selection_key}: remote version {remote_version} already matches local package; skipping.")
                 continue
             if remote_sha and remote_sha != local_sha and not force_same_version:
                 fail(
-                    f"{payload.plugin_id}: remote version {remote_version} has a different package SHA-256. "
+                    f"{payload.selection_key}: remote version {remote_version} has a different package SHA-256. "
                     "Refusing same-version republish without --force-same-version."
                 )
             if not remote_sha and not force_same_version:
                 info(
-                    f"{payload.plugin_id}: remote version {remote_version} matches local version "
+                    f"{payload.selection_key}: remote version {remote_version} matches local version "
                     "and no remote package hash is available; skipping."
                 )
                 continue
 
         if comparison > 0:
-            info(f"{payload.plugin_id}: local version {local_version} is newer than remote {remote_version}; will upload.")
+            info(f"{payload.selection_key}: local version {local_version} is newer than remote {remote_version}; will upload.")
         elif comparison < 0:
-            info(f"{payload.plugin_id}: local version {local_version} is older than remote {remote_version}; will upload.")
+            info(f"{payload.selection_key}: local version {local_version} is older than remote {remote_version}; will upload.")
         else:
-            info(f"{payload.plugin_id}: same version but forced package refresh; will upload.")
+            info(f"{payload.selection_key}: same version but forced package refresh; will upload.")
         to_upload.append(payload)
 
     return to_upload, remote_by_key
 
 
 def stage_upload(
-    payload_dir: Path,
+    payload_root: Path,
     selected_payloads: list[LocalPluginPayload],
-    remote_catalog: list[dict[str, Any]],
-    remote_checksum_text: str | None,
+    remote_catalogs: dict[str, list[dict[str, Any]]],
+    remote_checksums: dict[str, str | None],
 ) -> Path:
     stage_root = Path(tempfile.mkdtemp(prefix="aifs-plugin-upload-"))
-    stage_storage = stage_root / "storage"
-    stage_storage.mkdir(parents=True, exist_ok=True)
-
-    merged_catalog = {runtime_key(entry): entry for entry in remote_catalog}
+    selected_by_category: dict[str, list[LocalPluginPayload]] = {}
     for payload in selected_payloads:
-        merged_catalog[runtime_key(payload.catalog_entry)] = payload.catalog_entry
+        selected_by_category.setdefault(payload.category, []).append(payload)
 
-        relative_manifest = payload.manifest_path.relative_to(payload_dir)
-        staged_manifest = stage_storage / relative_manifest
-        staged_manifest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(payload.manifest_path, staged_manifest)
+    for category, category_payloads in selected_by_category.items():
+        stage_category = stage_root / category
+        stage_category.mkdir(parents=True, exist_ok=True)
 
-        relative_package = Path(payload.package_relative_path)
-        staged_package = stage_storage / relative_package
-        staged_package.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(payload.package_path, staged_package)
+        merged_catalog = {runtime_key(entry): entry for entry in remote_catalogs.get(category, [])}
+        for payload in category_payloads:
+            merged_catalog[runtime_key(payload.catalog_entry)] = payload.catalog_entry
 
-    merged_entries = sorted(
-        merged_catalog.values(),
-        key=lambda entry: (
-            str(entry.get("id", "")),
-            ",".join(normalize_list(entry.get("platforms")) or ["any"]),
-            ",".join(normalize_list(entry.get("architectures")) or ["any"]),
-        ),
-    )
-    (stage_storage / "catalog.json").write_text(serialize_catalog(merged_entries), encoding="utf-8")
+            relative_manifest = payload.manifest_path.relative_to(payload_root / category)
+            staged_manifest = stage_category / relative_manifest
+            staged_manifest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(payload.manifest_path, staged_manifest)
 
-    checksum_entries = parse_checksums(remote_checksum_text)
-    for payload in selected_payloads:
-        checksum_entries[payload.package_relative_path] = payload.package_sha256
-    (stage_storage / "SHA256SUMS").write_text(serialize_checksums(checksum_entries), encoding="utf-8")
+            relative_package = Path(payload.package_relative_path)
+            staged_package = stage_category / relative_package
+            staged_package.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(payload.package_path, staged_package)
+
+        merged_entries = sorted(
+            merged_catalog.values(),
+            key=lambda entry: (
+                str(entry.get("id", "")),
+                ",".join(normalize_list(entry.get("platforms")) or ["any"]),
+                ",".join(normalize_list(entry.get("architectures")) or ["any"]),
+            ),
+        )
+        (stage_category / "catalog.json").write_text(serialize_catalog(merged_entries), encoding="utf-8")
+
+        checksum_entries = parse_checksums(remote_checksums.get(category))
+        for payload in category_payloads:
+            checksum_entries[payload.package_relative_path] = payload.package_sha256
+        (stage_category / "SHA256SUMS").write_text(serialize_checksums(checksum_entries), encoding="utf-8")
 
     return stage_root
 
@@ -497,7 +552,7 @@ def rsync_upload(stage_root: Path, remote_dir: str, dry_run: bool) -> None:
     command = ["rsync", "-av"]
     if dry_run:
         command.append("--dry-run")
-    command.extend([str(stage_root / "storage") + "/", remote_dir.rstrip("/") + "/"])
+    command.extend([str(stage_root) + "/", remote_dir.rstrip("/") + "/"])
 
     info("Uploading staged plugin payload with rsync")
     info("Command: " + " ".join(command))
@@ -506,12 +561,12 @@ def rsync_upload(stage_root: Path, remote_dir: str, dry_run: bool) -> None:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Upload prepared storage plugin payloads to a remote server, "
-        "skipping unchanged versions and merging the remote catalog."
+        description="Upload prepared plugin payloads to a remote server, "
+        "skipping unchanged versions and merging per-category remote catalogs."
     )
-    parser.add_argument("--base-url", required=True, help="Public HTTPS base URL for the storage plugin tree.")
-    parser.add_argument("--remote-dir", required=True, help="rsync destination for the storage plugin tree.")
-    parser.add_argument("--payload-dir", default=str(DEFAULT_PAYLOAD_DIR), help="Local prepared payload directory.")
+    parser.add_argument("--base-url", required=True, help="Public HTTPS base URL for the plugin root.")
+    parser.add_argument("--remote-dir", required=True, help="rsync destination for the plugin root.")
+    parser.add_argument("--payload-dir", default=str(DEFAULT_PAYLOAD_DIR), help="Local prepared plugin root directory.")
     parser.add_argument("--build-dir", default=str(DEFAULT_BUILD_DIR), help="Local build directory for compile checks.")
     parser.add_argument("--plugins", action="append", help="Comma-separated plugin IDs to upload.")
     parser.add_argument("--list", action="store_true", help="List prepared plugins and exit.")
@@ -543,11 +598,11 @@ def main() -> int:
 
     if args.list:
         print("Prepared plugins available for upload:")
-        for plugin_id, payload in payloads.items():
+        for selection_key, payload in payloads.items():
             version = payload.manifest.get("version", "")
             plats = ",".join(normalize_list(payload.manifest.get("platforms")) or ["any"])
             archs = ",".join(normalize_list(payload.manifest.get("architectures")) or ["any"])
-            print(f"  {plugin_id:<28} {payload.display_name} [{version}] ({plats}/{archs})")
+            print(f"  {selection_key:<36} {payload.display_name} [{version}] ({plats}/{archs})")
         return 0
 
     selected_payloads = resolve_selected_plugins(payloads, args)
@@ -557,21 +612,31 @@ def main() -> int:
         verify_publish_urls(payload, base_url)
         verify_build_artifact(payload, build_targets, build_dir)
 
-    remote_catalog = fetch_remote_catalog(base_url, args.assume_empty_remote)
-    remote_checksums = None if args.assume_empty_remote else fetch_text_url(f"{base_url}/SHA256SUMS")
+    remote_catalogs: dict[str, list[dict[str, Any]]] = {}
+    remote_checksums: dict[str, str | None] = {}
+    to_upload: list[LocalPluginPayload] = []
+    for category in sorted({payload.category for payload in selected_payloads}):
+        category_payloads = [payload for payload in selected_payloads if payload.category == category]
+        remote_catalog = fetch_remote_catalog(base_url, category, args.assume_empty_remote)
+        remote_checksum_text = None if args.assume_empty_remote else fetch_text_url(
+            f"{normalize_url(base_url)}/{category}/SHA256SUMS"
+        )
+        remote_catalogs[category] = remote_catalog
+        remote_checksums[category] = remote_checksum_text
 
-    to_upload, _ = decide_actions(
-        selected_payloads,
-        remote_catalog,
-        allow_downgrade=args.allow_downgrade,
-        force_same_version=args.force_same_version,
-    )
+        category_uploads, _ = decide_actions(
+            category_payloads,
+            remote_catalog,
+            allow_downgrade=args.allow_downgrade,
+            force_same_version=args.force_same_version,
+        )
+        to_upload.extend(category_uploads)
 
     if not to_upload:
         info("Nothing to upload; all selected plugins already match the remote state.")
         return 0
 
-    stage_root = stage_upload(payload_dir, to_upload, remote_catalog, remote_checksums)
+    stage_root = stage_upload(payload_dir, to_upload, remote_catalogs, remote_checksums)
     try:
         rsync_upload(stage_root, args.remote_dir, args.dry_run)
     finally:
