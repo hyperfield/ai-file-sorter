@@ -210,8 +210,6 @@ private:
     void rebuild_storage_provider_registry();
     void refresh_active_storage_provider(const std::string& directory_path,
                                          bool allow_support_prompt = false);
-    void schedule_storage_plugin_update_check();
-    void check_storage_plugin_updates_on_startup();
     bool maybe_install_storage_support(const StorageProviderDetection& detection,
                                        const std::string& directory_path);
     void maybe_warn_about_storage_detection(const StorageProviderDetection& detection,
@@ -383,7 +381,6 @@ private:
     std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
     std::unique_ptr<StoragePluginManager> storage_plugin_manager_;
     StoragePluginLoader storage_plugin_loader_;
-    bool storage_plugin_update_check_started_{false};
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
     StorageProviderRegistry storage_provider_registry_;

@@ -282,7 +282,6 @@ MainApp::~MainApp() = default;
 void MainApp::run()
 {
     show();
-    schedule_storage_plugin_update_check();
 #if !defined(AI_FILE_SORTER_TEST_BUILD)
     maybe_show_suitability_benchmark();
 #endif
@@ -1146,48 +1145,6 @@ void MainApp::focus_file_explorer_on_path(const QString& path)
     file_explorer_view->scrollTo(index, QAbstractItemView::PositionAtCenter);
 
     suppress_explorer_sync_ = previous_suppress;
-}
-
-void MainApp::schedule_storage_plugin_update_check()
-{
-    if (storage_plugin_update_check_started_) {
-        return;
-    }
-    storage_plugin_update_check_started_ = true;
-
-    QTimer::singleShot(0, this, [this]() {
-        check_storage_plugin_updates_on_startup();
-    });
-}
-
-void MainApp::check_storage_plugin_updates_on_startup()
-{
-    if (!storage_plugin_manager_ || !storage_plugin_manager_->can_check_for_updates()) {
-        return;
-    }
-
-    std::string error;
-    if (!storage_plugin_manager_->refresh_remote_catalog(&error)) {
-        if (core_logger && !error.empty()) {
-            core_logger->debug("Storage plugin update check skipped: {}", error);
-        }
-        return;
-    }
-
-    int updates_available = 0;
-    for (const auto& plugin_id : storage_plugin_manager_->installed_plugin_ids()) {
-        if (storage_plugin_manager_->can_update(plugin_id)) {
-            ++updates_available;
-        }
-    }
-
-    if (updates_available > 0 && statusBar()) {
-        statusBar()->showMessage(
-            tr("%n storage plugin update(s) available in Plugins > Manage storage plugins…",
-               nullptr,
-               updates_available),
-            10000);
-    }
 }
 
 void MainApp::show_storage_plugin_dialog()

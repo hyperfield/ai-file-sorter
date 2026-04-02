@@ -81,6 +81,7 @@ StoragePluginDialog::StoragePluginDialog(StoragePluginManager& plugin_manager, Q
 
     populate_plugins();
     update_selection_state();
+    refresh_catalog(false);
 }
 
 void StoragePluginDialog::populate_plugins()

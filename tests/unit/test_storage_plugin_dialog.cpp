@@ -28,7 +28,7 @@ std::filesystem::path storage_plugin_stub_path()
 
 } // namespace
 
-TEST_CASE("StoragePluginDialog shows check for updates button and per-plugin update actions")
+TEST_CASE("StoragePluginDialog refreshes plugin metadata on open and shows update actions")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     EnvVarGuard catalog_guard("AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL",
@@ -92,10 +92,10 @@ TEST_CASE("StoragePluginDialog shows check for updates button and per-plugin upd
 
     StoragePluginManager manager(config_dir.path().string(), download_fn);
     REQUIRE(manager.install("mockcloud_support"));
-    REQUIRE(manager.refresh_remote_catalog());
-    REQUIRE(manager.can_update("mockcloud_support"));
 
     StoragePluginDialog dialog(manager);
+
+    REQUIRE(manager.can_update("mockcloud_support"));
 
     auto* plugin_list = dialog.findChild<QTreeWidget*>();
     REQUIRE(plugin_list != nullptr);
