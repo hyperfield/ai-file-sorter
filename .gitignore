@@ -126,6 +126,7 @@ app/include/llama/*.h
 /plugins/
 /scripts/
 !app/scripts/
+app/scripts/upload_storage_plugins.py
 /tools/
 /reports/
 /logo-workdir-temp/
