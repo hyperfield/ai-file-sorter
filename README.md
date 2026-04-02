@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.7.3-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.8.0-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -94,6 +94,12 @@ AI File Sorter can run entirely on your device, using local AI models such as Ll
 
 ## Changelog
 
+## [1.8.0] - 2026-04-02
+
+- New plugin system with install, update, and removal via a dedicated Plugins menu.
+- Install plugins locally (.aifsplugin) or fetch them from an online catalog.
+- New OneDrive plugin with improved sync handling, safer moves, and better undo support.
+
 ## [1.7.3] - 2026-03-22
 
 - Non-English categorization is now more reliable: files are categorized canonically in English first, then translated into the selected category language. This change is due to LLM language limitations.
@@ -133,6 +139,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Persistent Undo** ("Undo last run") even after closing the sort dialog.
 - **Bring your own key**: Paste your OpenAI or Gemini API key once; it's stored locally and reused for remote runs.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
+- **Storage plugin support**: Install provider-specific compatibility modes from the **Plugins** menu when the app detects supported cloud-backed folders.
+- **Dedicated OneDrive support**: Use the OneDrive plugin for stronger sync-aware handling than plain local-folder mode.
 
 ---
 

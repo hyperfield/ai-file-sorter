@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## [1.8.0] - 2026-04-02
+
+- Added installable storage plugin support, including a dedicated **Plugins** menu and a management dialog for install, uninstall, and update flows.
+- Added local and remote plugin installation paths: plugins can now be installed from `.aifsplugin` archives or fetched on demand from the remote plugin catalog.
+- Added per-runtime plugin packaging/publishing support for Linux, macOS, and Windows, plus helper scripts for building, packaging, and uploading plugin releases.
+- Added a dedicated **OneDrive Storage Support** plugin with stronger sync-aware handling, including move preflight checks, richer undo metadata, Graph-backed identity/revision support when available, and Windows Cloud Files sync-root detection.
+
 ## [1.7.3] - 2026-03-22
 
 - Non-English categorization is now more reliable: files are categorized canonically in English first, then translated into the selected category language, with localized labels persisted separately from the canonical taxonomy/cache.

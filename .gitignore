@@ -154,3 +154,4 @@ api-key-encryption/
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+/changelog/
