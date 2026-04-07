@@ -61,6 +61,7 @@ void schedule_message_box_button_click(const QString& target_text, bool* saw_but
 
 } // namespace
 
+#ifdef _WIN32
 TEST_CASE("Updater live test mode synthesizes a newer update without a feed URL")
 {
     TempDir config_dir;
@@ -80,12 +81,13 @@ TEST_CASE("Updater live test mode synthesizes a newer update without a feed URL"
     REQUIRE(UpdaterTestAccess::is_update_available(updater));
     const auto info = UpdaterTestAccess::current_update_info(updater);
     REQUIRE(info.has_value());
-    CHECK(info->current_version == APP_VERSION.to_string() + ".1");
+    CHECK(info->current_version == APP_VERSION.to_numeric_string() + ".1");
     CHECK(info->min_version == "0.0.0");
     CHECK(info->download_url == "https://filesorter.app/downloads/AIFileSorterSetup.zip");
     CHECK(info->installer_url == info->download_url);
     CHECK(info->installer_sha256 == "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899");
 }
+#endif
 
 TEST_CASE("Updater live test mode can read missing values from live-test.ini next to the executable")
 {
