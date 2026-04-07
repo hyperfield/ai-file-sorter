@@ -430,10 +430,16 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    cmake --build external/libzip/build
    ```
 
-6. **Build the llama runtime (Metal-enabled on Apple Silicon)**
+6. **Build the llama runtime**
 
    ```bash
    ./app/scripts/build_llama_macos.sh
+   ```
+   Architecture-specific examples:
+
+   ```bash
+   ./app/scripts/build_llama_macos.sh --arm64   # Apple Silicon
+   ./app/scripts/build_llama_macos.sh --intel   # Intel Mac
    ```
    The macOS app and `.app` bundles use the runtime staged under `app/lib/precompiled*`; they do not need Homebrew `ggml` or `llama.cpp` libraries.
    If you have older `ggml` / `llama.cpp` copies installed in generic library locations, prefer unlinking or removing them instead of relying on them implicitly.
@@ -456,8 +462,18 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```
 
    These targets rebuild the llama.cpp runtime before compiling the app.
+   On a native Intel Mac, the most direct path is:
+
+   ```bash
+   cd app
+   make -j8 MACOS_LLAMA_INTEL
+   ```
+
+   That target assumes the normal Intel Homebrew prefix (`/usr/local`) and produces `app/bin/intel/aifilesorter`.
    When cross-compiling Intel on Apple Silicon, use x86_64 Homebrew (under `/usr/local`) or set `BREW_PREFIX=/usr/local` so Qt/pkg-config resolve correctly.
    `sudo make install` places the macOS runtime libraries under `/usr/local/lib/aifilesorter` to avoid collisions with unrelated system or Homebrew ggml libraries.
+   The commands above build the raw executable only; they do **not** currently create a distributable `.app` bundle or `.dmg`.
+   This repository does not yet ship a documented or automated macOS bundle/DMG packaging target in `README.md`, so any `.app` / `.dmg` release packaging must be handled as a separate macOS-hosted release step.
    Each variant uses distinct build directories to avoid cross-arch collisions:
    - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`, `app/lib/precompiled-intel`
    - object files: `app/obj/arm64` or `app/obj/x86_64`
