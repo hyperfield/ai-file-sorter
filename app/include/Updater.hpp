@@ -35,7 +35,6 @@ private:
     void check_updates();
     std::optional<UpdateInfo> resolve_live_test_update() const;
     std::string fetch_update_metadata() const;
-    Version string_to_Version(const std::string &version_str);
     void display_update_dialog(bool is_required=false);
     void show_required_update_dialog(const UpdateInfo& info, QWidget* parent);
     void show_optional_update_dialog(const UpdateInfo& info, QWidget* parent);

@@ -147,7 +147,7 @@ void Updater::check_updates()
         return;
     }
 
-    if (APP_VERSION >= string_to_Version(update_info->current_version)) {
+    if (APP_VERSION >= Version::parse(update_info->current_version)) {
         update_info.reset();
     }
 }
@@ -177,7 +177,7 @@ std::optional<UpdateInfo> Updater::resolve_live_test_update() const
 
     UpdateInfo info;
     info.current_version = env_string(UpdaterLaunchOptions::kLiveTestVersionEnv)
-                               .value_or(APP_VERSION.to_string() + ".1");
+                               .value_or(APP_VERSION.to_numeric_string() + ".1");
     info.min_version = env_string(UpdaterLaunchOptions::kLiveTestMinVersionEnv)
                            .value_or("0.0.0");
     info.download_url = *installer_url;
@@ -201,7 +201,7 @@ bool Updater::is_update_available()
 
 bool Updater::is_update_required()
 {
-    return string_to_Version(update_info.value_or(UpdateInfo()).min_version) > APP_VERSION;
+    return Version::parse(update_info.value_or(UpdateInfo()).min_version) > APP_VERSION;
 }
 
 
@@ -241,8 +241,8 @@ bool Updater::is_update_skipped()
     if (!update_info) {
         return false;
     }
-    Version skipped_version = string_to_Version(settings.get_skipped_version());
-    return string_to_Version(update_info->current_version) <= skipped_version;
+    Version skipped_version = Version::parse(settings.get_skipped_version());
+    return Version::parse(update_info->current_version) <= skipped_version;
 }
 
 
@@ -492,30 +492,6 @@ std::string Updater::fetch_update_metadata() const {
     throw_for_http_status(http_code);
 
     return response_string;
-}
-
-
-Version Updater::string_to_Version(const std::string& version_str) {
-    if (version_str.empty()) {
-        return Version{0, 0, 0};
-    }
-
-    std::vector<int> digits;
-    std::istringstream stream(version_str);
-    std::string segment;
-
-    while (std::getline(stream, segment, '.')) {
-        if (segment.empty()) {
-            throw std::runtime_error("Invalid version string: " + version_str);
-        }
-        digits.push_back(std::stoi(segment));
-    }
-
-    if (digits.empty()) {
-        return Version{0, 0, 0};
-    }
-
-    return Version{digits};
 }
 
 

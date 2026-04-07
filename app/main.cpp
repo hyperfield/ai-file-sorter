@@ -113,7 +113,8 @@ void apply_updater_live_test_environment(const UpdaterLiveTestConfig& args)
     if (args.current_version) {
         set_process_env(UpdaterLaunchOptions::kLiveTestVersionEnv, *args.current_version);
     } else if (!env_has_value(UpdaterLaunchOptions::kLiveTestVersionEnv)) {
-        set_process_env(UpdaterLaunchOptions::kLiveTestVersionEnv, APP_VERSION.to_string() + ".1");
+        set_process_env(UpdaterLaunchOptions::kLiveTestVersionEnv,
+                        APP_VERSION.to_numeric_string() + ".1");
     }
     if (args.min_version) {
         set_process_env(UpdaterLaunchOptions::kLiveTestMinVersionEnv, *args.min_version);

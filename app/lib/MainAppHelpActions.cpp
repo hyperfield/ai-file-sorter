@@ -62,7 +62,8 @@ void MainAppHelpActions::show_about(QWidget* parent)
     program_name->setAlignment(Qt::AlignHCenter);
     about_layout->addWidget(program_name);
 
-    const QString version_text = QStringLiteral("Version: %1").arg(QString::fromStdString(APP_VERSION.to_string()));
+    const QString version_text =
+        QStringLiteral("Version: %1").arg(QString::fromStdString(APP_VERSION.to_string()));
     auto* version_label = new QLabel(version_text, about_tab);
     version_label->setAlignment(Qt::AlignHCenter);
     about_layout->addWidget(version_label);
