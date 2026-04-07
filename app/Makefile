@@ -11,6 +11,7 @@ APP_NAME ?= AI File Sorter
 ONEDRIVE_PLUGIN_BINARY := aifs_onedrive_storage_plugin
 ONEDRIVE_PLUGIN_TARGET := $(BIN_DIR)/$(ONEDRIVE_PLUGIN_BINARY)
 AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL ?= https://filesorter.app/download/plugins/storage/catalog.json
+MACOS_ADHOC_CODESIGN_SCRIPT := ./scripts/adhoc_codesign_macos.sh
 
 # Goals that should not require toolchain/dependency discovery.
 NON_BUILD_GOALS := clean
@@ -572,8 +573,11 @@ $(PDFIUM_STAGED_LIB): $(PDFIUM_LIB)
 	mkdir -p $(dir $(PDFIUM_STAGED_LIB))
 	cp $(PDFIUM_LIB) $(PDFIUM_STAGED_LIB)
 ifeq ($(UNAME), Darwin)
-	chmod u+w $(PDFIUM_STAGED_LIB) 2>/dev/null || true
-	install_name_tool -id @rpath/libpdfium.dylib $(PDFIUM_STAGED_LIB)
+		chmod u+w $(PDFIUM_STAGED_LIB) 2>/dev/null || true
+		install_name_tool -id @rpath/libpdfium.dylib $(PDFIUM_STAGED_LIB)
+ifeq ($(MACOS_ARCH),x86_64)
+		bash $(MACOS_ADHOC_CODESIGN_SCRIPT) "$(PDFIUM_STAGED_LIB)"
+endif
 endif
 
 $(PDFIUM_STAGED_STAMP): $(PDFIUM_STAGED_LIB)
@@ -727,6 +731,9 @@ else ifeq ($(PLATFORM), MacOS)
 	fi
 
 	install_name_tool -add_rpath $(INSTALL_LIB_DIR) $(INSTALL_DIR)/aifilesorter
+ifeq ($(MACOS_ARCH),x86_64)
+	bash $(MACOS_ADHOC_CODESIGN_SCRIPT) "$(INSTALL_DIR)/aifilesorter"
+endif
 
 	@echo "macOS installation complete."
 endif

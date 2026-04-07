@@ -82,6 +82,17 @@ HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 BUILD_DIR="$LLAMA_DIR/build"
 BUILD_BIN_DIR="$BUILD_DIR/bin"
 DYLIB_RPATH="@loader_path"
+ADHOC_CODESIGN_SCRIPT="$(cd "$(dirname "$0")" && pwd)/adhoc_codesign_macos.sh"
+
+adhoc_sign_if_needed() {
+    local target="$1"
+
+    # Intel builds have proven sensitive to post-link/load-command mutations in
+    # packaged app bundles; keep the Apple Silicon path untouched.
+    if [ "$TARGET_ARCH" = "x86_64" ]; then
+        bash "$ADHOC_CODESIGN_SCRIPT" "$target"
+    fi
+}
 
 normalize_macos_dylib_rpaths() {
     local dylib_dir="$1"
@@ -96,6 +107,8 @@ normalize_macos_dylib_rpaths() {
         if otool -l "$dylib" | grep -Fq "$stale_rpath"; then
             install_name_tool -delete_rpath "$stale_rpath" "$dylib"
         fi
+
+        adhoc_sign_if_needed "$dylib"
     done
     shopt -u nullglob
 }
