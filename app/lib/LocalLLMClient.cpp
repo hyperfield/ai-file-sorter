@@ -1683,6 +1683,24 @@ bool apply_vulkan_backend(const std::string& model_path,
     return true;
 }
 
+void select_vulkan_backend_environment()
+{
+    set_env_var("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+    set_env_var("LLAMA_ARG_DEVICE", "vulkan");
+}
+
+void apply_vulkan_fallback(const std::string& model_path,
+                           llama_model_params& params,
+                           const std::shared_ptr<spdlog::logger>& logger,
+                           const char* reason)
+{
+    if (logger && reason && *reason != '\0') {
+        logger->info("{}", reason);
+    }
+    select_vulkan_backend_environment();
+    apply_vulkan_backend(model_path, params, logger);
+}
+
 bool handle_cuda_forced_off(bool cuda_forced_off,
                             PreferredBackend backend_pref,
                             llama_model_params& params,
@@ -1951,35 +1969,26 @@ llama_model_params build_model_params_for_path(const std::string& model_path,
     }
 
     if (handle_cuda_forced_off(cuda_forced_off, backend_pref, model_params, logger)) {
-        return model_params;
-    }
-
-    const bool prefer_vulkan = (backend_pref == PreferredBackend::Vulkan) ||
-                               (backend_pref == PreferredBackend::Auto);
-
-    if (prefer_vulkan) {
-        // Vulkan is the primary backend; keep CUDA disabled and steer llama.cpp to Vulkan.
-        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
-        set_env_var("LLAMA_ARG_DEVICE", "vulkan");
-        apply_vulkan_backend(model_path, model_params, logger);
-        return model_params;
-    }
-
-    // CUDA requested explicitly.
-    if (handle_cuda_forced_off(cuda_forced_off, backend_pref, model_params, logger)) {
+        if (backend_pref == PreferredBackend::Auto) {
+            apply_vulkan_fallback(model_path,
+                                  model_params,
+                                  logger,
+                                  "CUDA auto-selection disabled via GGML_DISABLE_CUDA; attempting Vulkan fallback.");
+        }
         return model_params;
     }
 
     const bool cudaConfigured = configure_cuda_backend(model_path, model_params, logger);
-    if (!cudaConfigured) {
-        if (logger) {
-            logger->warn("CUDA backend explicitly requested but unavailable; attempting Vulkan fallback.");
-        }
-        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
-        set_env_var("LLAMA_ARG_DEVICE", "vulkan");
-        apply_vulkan_backend(model_path, model_params, logger);
+    if (cudaConfigured) {
         return model_params;
     }
+
+    const char* fallbackReason =
+        (backend_pref == PreferredBackend::Cuda)
+            ? "CUDA backend explicitly requested but unavailable; attempting Vulkan fallback."
+            : "CUDA auto-selection unavailable; attempting Vulkan fallback.";
+    apply_vulkan_fallback(model_path, model_params, logger, fallbackReason);
+    return model_params;
 #endif
 
     return model_params;
@@ -2088,9 +2097,9 @@ llama_model_params LocalLLMClient::load_model_or_throw(llama_model_params model_
             }
             throw std::runtime_error("GPU backend failed to initialize and CPU fallback was declined.");
         }
-        notify_status(Status::GpuFallbackToCpu);
         set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
         set_env_var("LLAMA_ARG_DEVICE", "cpu");
+        notify_status(Status::GpuFallbackToCpu);
         model_params.n_gpu_layers = 0;
         if (try_load(model_params)) {
             return model_params;
@@ -2239,12 +2248,12 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
                 if (logger) {
                     logger->warn("Context init failed on GPU; reloading model on CPU and retrying.");
                 }
-                notify_status(Status::GpuFallbackToCpu);
                 llama_model_params cpu_params = llama_model_default_params();
                 cpu_params.n_gpu_layers = 0;
                 set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
                 set_env_var("LLAMA_ARG_DEVICE", "cpu");
                 set_env_var("GGML_DISABLE_CUDA", "1");
+                notify_status(Status::GpuFallbackToCpu);
 
                 llama_model* old_model = model;
                 llama_model* cpu_model = llama_model_load_from_file(model_path.c_str(), cpu_params);
@@ -2363,13 +2372,12 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
                 if (logger) {
                     logger->warn("LLM generation failed on GPU ({}); retrying on CPU.", ex.what());
                 }
-                notify_status(Status::GpuFallbackToCpu);
-
                 llama_model_params cpu_params = llama_model_default_params();
                 cpu_params.n_gpu_layers = 0;
                 set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
                 set_env_var("LLAMA_ARG_DEVICE", "cpu");
                 set_env_var("GGML_DISABLE_CUDA", "1");
+                notify_status(Status::GpuFallbackToCpu);
 
                 llama_model* old_model = model;
                 llama_model* cpu_model = llama_model_load_from_file(model_path.c_str(), cpu_params);

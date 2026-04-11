@@ -254,7 +254,7 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled` on Linux/Windows or `app/lib/precompiled-*` for macOS variant builds. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
 - **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
 - **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. PDFium is required by default so packaged/source builds keep PDF extraction embedded on Windows, macOS, and Linux; set `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF` only if you intentionally want the `pdftotext` fallback.
-- **Optional GPU backends**: A Vulkan 1.2+ runtime (preferred) or CUDA 12.x for NVIDIA cards. `StartAiFileSorter.exe`/`run_aifilesorter.sh` auto-detect the best available backend and fall back to CPU/OpenBLAS automatically, so CUDA is never required to run the app.
+- **Optional GPU backends**: CUDA 12.x for NVIDIA cards or a Vulkan 1.2+ runtime. On Windows installer/standalone builds, `aifilesorter.exe` auto-detects the best available backend and now prefers CUDA over Vulkan when both are available, falling back to CPU/OpenBLAS automatically. On Linux, the same applies through `run_aifilesorter.sh`, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **OpenAI or Gemini API key** (optional): Required only when using the remote ChatGPT or Gemini workflow.
 
@@ -284,7 +284,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    If you build the Vulkan backend from source, install `glslc` (Debian/Ubuntu package: `glslc`; on some distros: `shaderc` or `shaderc-tools`).
    On Debian 13, use `libjsoncpp26`, `libfmt10`, and `libcurl4t64` (APT may auto-select `libcurl4t64` if `libcurl4` is not available).
    Ensure that the Qt platform plugins are installed (on Ubuntu 22.04 this is provided by `qt6-wayland`).
-   GPU acceleration additionally requires either a working Vulkan 1.2+ stack (Mesa, AMD/Intel/NVIDIA drivers) or, for NVIDIA users, the matching CUDA runtime (`nvidia-cuda-toolkit` or vendor packages). The launcher automatically prefers Vulkan when both are present and falls back to CPU if neither is available.
+   GPU acceleration additionally requires either a working Vulkan 1.2+ stack (Mesa, AMD/Intel/NVIDIA drivers) or, for NVIDIA users, the matching CUDA runtime (`nvidia-cuda-toolkit` or vendor packages). The launcher automatically prefers CUDA when both are present and falls back to CPU if neither is available.
 2. **Install the package**
    ```bash
    sudo apt install ./aifilesorter_*.deb
@@ -362,7 +362,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ./app/scripts/build_llama_linux.sh cuda=off vulkan=on
    ```
 
-   Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick Vulkan when available, then CUDA, and otherwise stay on CPU—no CUDA-only dependency remains.
+   Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick CUDA when available, then Vulkan, and otherwise stay on CPU—no CUDA-only dependency remains.
 
 5. **Compile the application**
 
@@ -489,7 +489,7 @@ Option A - CMake + vcpkg (recommended)
    - CMake 3.21+ (Visual Studio ships a recent version)
    - vcpkg: <https://github.com/microsoft/vcpkg> (clone and bootstrap)
    - package-managed `libmediainfo` via vcpkg manifest (no vendored MediaInfo submodule/binaries)
-   - **MSYS2 MinGW64 + OpenBLAS**: install MSYS2 from <https://www.msys2.org>, open an *MSYS2 MINGW64* shell, and run `pacman -S --needed mingw-w64-x86_64-openblas`. The `build_llama_windows.ps1` script uses this OpenBLAS copy for CPU-only builds (the vcpkg variant is not suitable), defaulting to `C:\msys64\mingw64` unless you pass `openblasroot=<path>` or set `OPENBLAS_ROOT`.
+   - **MSYS2 MinGW64 + OpenBLAS**: install MSYS2 from <https://www.msys2.org>, open an *MSYS2 MINGW64* shell, and run `pacman -S --needed mingw-w64-x86_64-openblas`. The `build_llama_windows.ps1` script uses this OpenBLAS copy by default for CPU-only builds and also supports forcing it with `blas=on` for other variants if needed. It defaults to `C:\msys64\mingw64` unless you pass `openblasroot=<path>` or set `OPENBLAS_ROOT`.
 2. Clone repo and submodules:
 
    ```powershell
@@ -527,18 +527,20 @@ Option A - CMake + vcpkg (recommended)
     - Otherwise use the directory where you cloned vcpkg.
 
    MediaInfo note: you do **not** manually add `MediaInfoLib` include/lib paths on Windows. The project already declares `libmediainfo` in `app/vcpkg.json`, and `app\build_windows.ps1` configures CMake with the vcpkg toolchain + manifest so `find_package(MediaInfoLib ...)` resolves it automatically. If you want to preinstall or verify it explicitly, run `vcpkg install libmediainfo:x64-windows`.
-5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
+5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need. The script accepts `cuda=on|off`, `vulkan=on|off`, `blas=on|off`, `vcpkgroot=<path>`, and `openblasroot=<path>`. `blas` defaults to `AUTO`: it is enabled automatically for CPU-only builds and disabled automatically for CUDA/Vulkan builds unless you force it on. For CUDA builds, the helper prefers a valid `CUDA_PATH` and otherwise auto-selects the newest installed toolkit it can validate under `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA`. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
 
    ```powershell
    # CPU / OpenBLAS only
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=off vcpkgroot=C:\dev\vcpkg
    # CUDA (requires matching NVIDIA toolkit/driver)
    app\scripts\build_llama_windows.ps1 cuda=on vulkan=off vcpkgroot=C:\dev\vcpkg
+   # CUDA + OpenBLAS (optional override if you want that combination explicitly)
+   app\scripts\build_llama_windows.ps1 cuda=on vulkan=off blas=on vcpkgroot=C:\dev\vcpkg
    # Vulkan (requires LunarG Vulkan SDK or vendor Vulkan 1.2+ runtime)
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=on vcpkgroot=C:\dev\vcpkg
    ```
   
-  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan>` and copies the runtime DLLs into `app\lib\ggml\w<variant>`. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. Supplying both Vulkan and (optionally) CUDA artifacts lets `StartAiFileSorter.exe` detect the best backend at launch—Vulkan is preferred, CUDA is used when Vulkan is missing, and CPU remains the fallback, so CUDA is not required.
+  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan>` and copies the runtime DLLs into `app\lib\ggml\w<variant>`. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. Supplying both Vulkan and (optionally) CUDA artifacts lets the non-MSIX Windows launcher `aifilesorter.exe` detect the best backend at launch—CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback, so CUDA is not required.
 
 6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt`, shares one dependency install tree across variants, and by default produces three Windows builds in one run:
 
@@ -555,7 +557,7 @@ Option A - CMake + vcpkg (recommended)
      - Microsoft Store build with update checks disabled: `app\build-windows-store\Release`
      - Standalone Windows build with notification-only/manual updates: `app\build-windows-standalone\Release`
    - Use `-Variants Standard`, `-Variants MsStore`, or `-Variants Standalone` to build only a subset.
-   - `aifilesorter.exe` is the primary Windows GUI entry point. `StartAiFileSorter.exe` is still built beside it as the legacy bootstrapper and carries the same updater mode.
+   - `aifilesorter.exe` is the Windows entry point in every variant. In `Standard` and `Standalone`, it is the bootstrapper and launches `aifilesorter-bin.exe`; in `MsStore`, it remains the main application executable directly.
    - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
    - Each variant directory receives its own executable and staged Qt/third-party DLLs. Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
    - Pass `-Parallel <N>` to override the default “all cores” parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build ... --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
@@ -589,10 +591,10 @@ Option B - CMake + Qt online installer
 3. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
 
    ```powershell
-   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [vcpkgroot=C:\dev\vcpkg]
+   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [blas=on|off] [vcpkgroot=C:\dev\vcpkg] [openblasroot=C:\msys64\mingw64]
    ```
 
-   This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
+   `blas` defaults to `AUTO`, which means ON for CPU-only builds and OFF for CUDA/Vulkan builds unless you force it. This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
 4. Configure CMake from the repo root so CMake sees both the Qt install and the app's vcpkg manifest (adapt `CMAKE_PREFIX_PATH` to your Qt install):
 
     ```powershell
@@ -652,16 +654,16 @@ The current suite (under `tests/unit`) focuses on core utilities; expand it as n
 
 ### Selecting a backend at runtime
 
-Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and the Windows starter accept the following optional flags:
+Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and the Windows launcher (`aifilesorter.exe` on `Standard` / `Standalone`) accept the following optional flags:
 
 - `--cuda={on|off}` – force-enable or disable the CUDA backend.
 - `--vulkan={on|off}` – force-enable or disable the Vulkan backend.
 
-When no flags are provided the app auto-detects available runtimes in priority order (Vulkan → CUDA → CPU). Use the flags to skip a backend (`--cuda=off` forces Vulkan/CPU even if CUDA is installed, `--vulkan=off` tests CUDA explicitly) or to validate a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected, and if neither GPU backend is detected the app automatically stays on CPU.
+When no flags are provided the app auto-detects available runtimes in priority order (CUDA → Vulkan → CPU). Use the flags to skip a backend (`--cuda=off` forces Vulkan/CPU even if CUDA is installed, `--vulkan=off` tests CUDA explicitly) or to validate a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected, and if neither GPU backend is detected the app automatically stays on CPU.
 
 #### Vulkan and VRAM notes
 
-- Vulkan is preferred when available; CUDA is used only if Vulkan is missing or explicitly requested.
+- CUDA is preferred when available; Vulkan is used when CUDA is unavailable or explicitly requested.
 - The app auto-estimates `n_gpu_layers` based on available VRAM. Integrated GPUs are capped to 4 GiB for safety, which can limit offloading.
 - If VRAM is tight, the app may fall back to CPU or reduce offload. As a rule of thumb, 8 GB+ VRAM provides a smoother experience for Vulkan offload and image analysis; 4 GB often results in partial offload or CPU fallback.
 - Override auto-estimation with `AI_FILE_SORTER_N_GPU_LAYERS` (`-1` auto, `0` force CPU) or `AI_FILE_SORTER_GPU_BACKEND=cpu`.
@@ -750,7 +752,6 @@ Windows updater live-test mode:
   `--updater-live-test-sha256=<sha256-of-the-downloaded-package>`
   `--updater-live-test-version=<optional-version>`
   `--updater-live-test-min-version=<optional-min-version>`
-- `StartAiFileSorter.exe` accepts and forwards the same flag family if you still use the bootstrapper path.
 - Live-test mode is Windows-only and intentionally bypasses the normal update JSON feed.
 - If the ZIP contains more than one `.exe` or `.msi`, the updater stops instead of guessing which installer to launch.
 - If `--updater-live-test` is present and the URL / SHA flags are omitted, `aifilesorter.exe` also looks for a `live-test.ini` file next to the executable and fills in the missing values from there.

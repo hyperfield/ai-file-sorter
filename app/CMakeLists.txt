@@ -14,6 +14,10 @@ set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
     "Updater behavior for this build: PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED")
 set_property(CACHE AI_FILE_SORTER_UPDATE_MODE PROPERTY STRINGS
     PLATFORM_DEFAULT AUTO_INSTALL NOTIFY_ONLY DISABLED)
+set(AI_FILE_SORTER_WINDOWS_PACKAGE_KIND "STANDARD" CACHE STRING
+    "Windows packaging target: STANDARD, MSIX, or STANDALONE")
+set_property(CACHE AI_FILE_SORTER_WINDOWS_PACKAGE_KIND PROPERTY STRINGS
+    STANDARD MSIX STANDALONE)
 set(AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL
     "https://filesorter.app/download/plugins/storage/catalog.json"
     CACHE STRING
@@ -51,6 +55,29 @@ else()
 endif()
 
 message(STATUS "AI File Sorter updater mode: ${_aifs_effective_update_mode}")
+
+set(_aifs_effective_windows_package_kind "")
+set(_aifs_windows_enable_starter FALSE)
+set(_aifs_windows_main_output_name "aifilesorter")
+if(WIN32)
+    set(_aifs_effective_windows_package_kind "${AI_FILE_SORTER_WINDOWS_PACKAGE_KIND}")
+    set(_aifs_allowed_windows_package_kinds STANDARD MSIX STANDALONE)
+    list(FIND _aifs_allowed_windows_package_kinds
+        "${_aifs_effective_windows_package_kind}"
+        _aifs_windows_package_kind_index)
+    if(_aifs_windows_package_kind_index EQUAL -1)
+        message(FATAL_ERROR
+            "Unsupported AI_FILE_SORTER_WINDOWS_PACKAGE_KIND='${AI_FILE_SORTER_WINDOWS_PACKAGE_KIND}'. "
+            "Expected STANDARD, MSIX, or STANDALONE.")
+    endif()
+
+    if(NOT _aifs_effective_windows_package_kind STREQUAL "MSIX")
+        set(_aifs_windows_enable_starter TRUE)
+        set(_aifs_windows_main_output_name "aifilesorter-bin")
+    endif()
+
+    message(STATUS "AI File Sorter Windows package kind: ${_aifs_effective_windows_package_kind}")
+endif()
 
 include(CheckSymbolExists)
 include(CheckCXXSourceCompiles)
@@ -314,6 +341,7 @@ endif()
 # libzip (build from vendored source)
 if(EXISTS "${LIBZIP_DIR}/CMakeLists.txt")
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(BUILD_REGRESS OFF CACHE BOOL "" FORCE)
     set(ENABLE_BZIP2 OFF CACHE BOOL "" FORCE)
     set(ENABLE_LZMA OFF CACHE BOOL "" FORCE)
     set(ENABLE_ZSTD OFF CACHE BOOL "" FORCE)
@@ -446,6 +474,9 @@ set(AIFS_TRANSLATION_QM_DIR "${CMAKE_CURRENT_BINARY_DIR}/i18n")
 # Executable (GUI subsystem on Windows)
 if(WIN32)
     add_executable(aifilesorter WIN32 ${APP_SOURCES})
+    set_target_properties(aifilesorter PROPERTIES
+        OUTPUT_NAME "${_aifs_windows_main_output_name}"
+    )
 else()
     add_executable(aifilesorter ${APP_SOURCES})
 endif()
@@ -542,6 +573,10 @@ if(WIN32)
 
     set(PRECOMPILED_CPU_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cpu/lib")
     set(PRECOMPILED_CPU_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cpu/bin")
+    set(PRECOMPILED_CUDA_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cuda/lib")
+    set(PRECOMPILED_CUDA_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cuda/bin")
+    set(PRECOMPILED_VULKAN_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/vulkan/lib")
+    set(PRECOMPILED_VULKAN_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/vulkan/bin")
     set(LLAMA_CPU_IMPORT "${PRECOMPILED_CPU_LIB_DIR}/llama.lib")
     set(LLAMA_CPU_DLL "${PRECOMPILED_CPU_BIN_DIR}/llama.dll")
     if(NOT EXISTS "${LLAMA_CPU_IMPORT}")
@@ -689,10 +724,15 @@ if(_aifs_pdfium_ready)
     endif()
 endif()
 
-if(WIN32)
+set(STARTER_TARGET "")
+if(WIN32 AND _aifs_windows_enable_starter)
     set(STARTER_TARGET StartAiFileSorter)
     add_executable(${STARTER_TARGET} WIN32
         "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
+    )
+    set_target_properties(${STARTER_TARGET} PROPERTIES
+        OUTPUT_NAME "aifilesorter"
     )
     aifs_apply_update_mode(${STARTER_TARGET})
     target_include_directories(${STARTER_TARGET} PRIVATE
@@ -701,7 +741,13 @@ if(WIN32)
     target_link_libraries(${STARTER_TARGET} PRIVATE
         Qt6::Widgets Qt6::Gui Qt6::Core
     )
+    target_compile_definitions(${STARTER_TARGET} PRIVATE
+        AIFS_MAIN_EXECUTABLE_NAME="${_aifs_windows_main_output_name}.exe"
+    )
     target_compile_definitions(${STARTER_TARGET} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    add_custom_command(TARGET ${STARTER_TARGET} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -f "$<TARGET_FILE_DIR:${STARTER_TARGET}>/StartAiFileSorter.exe"
+    )
 endif()
 
 # On Windows, ensure Unicode and lean Windows headers in deps that need it
@@ -792,13 +838,11 @@ if(WIN32)
     set_source_files_properties("${APP_ICON_ICO}" PROPERTIES GENERATED TRUE)
     add_custom_target(app_icon_resource ALL DEPENDS "${APP_ICON_ICO}")
     add_dependencies(aifilesorter app_icon_resource)
-    add_dependencies(aifilesorter app_icon_resource)
-    if(WIN32)
+    if(STARTER_TARGET)
         add_dependencies(${STARTER_TARGET} app_icon_resource)
     endif()
     target_sources(aifilesorter PRIVATE "${APP_ICON_RC}")
-    target_sources(aifilesorter PRIVATE "${APP_ICON_RC}")
-    if(WIN32)
+    if(STARTER_TARGET)
         target_sources(${STARTER_TARGET} PRIVATE "${APP_ICON_RC}")
     endif()
 
@@ -822,38 +866,55 @@ if(WIN32)
         @ONLY
     )
     target_sources(aifilesorter PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/version.rc")
-    target_sources(${STARTER_TARGET} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/version.rc")
+    if(STARTER_TARGET)
+        target_sources(${STARTER_TARGET} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/version.rc")
+    endif()
 
-    set(PRECOMPILED_CPU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cpu")
-    set(PRECOMPILED_CUDA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/cuda")
-    set(PRECOMPILED_VULKAN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/lib/precompiled/vulkan")
+    file(GLOB _aifs_precompiled_cpu_payload LIST_DIRECTORIES false
+        "${PRECOMPILED_CPU_BIN_DIR}/*")
+    file(GLOB _aifs_precompiled_cuda_payload LIST_DIRECTORIES false
+        "${PRECOMPILED_CUDA_BIN_DIR}/*")
+    file(GLOB _aifs_precompiled_vulkan_payload LIST_DIRECTORIES false
+        "${PRECOMPILED_VULKAN_BIN_DIR}/*")
 
-    add_custom_command(TARGET aifilesorter POST_BUILD
-        # COMMAND ${CMAKE_COMMAND} -E remove -f "$<TARGET_FILE_DIR:aifilesorter>/openblas.dll"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${PRECOMPILED_CPU_ROOT}"
-            "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${PRECOMPILED_CUDA_ROOT}"
-            "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${PRECOMPILED_VULKAN_ROOT}"
-            "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
-    )
+    if(_aifs_precompiled_cpu_payload)
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_aifs_precompiled_cpu_payload}
+                "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
+        )
+    else()
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wocuda"
+        )
+    endif()
 
-    # set(_precompiled_libopenblas "${PRECOMPILED_CPU_ROOT}/bin/libopenblas.dll")
-    # if(EXISTS "${_precompiled_libopenblas}")
-    #     add_custom_command(TARGET aifilesorter POST_BUILD
-    #         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    #             "${_precompiled_libopenblas}"
-    #             "$<TARGET_FILE_DIR:aifilesorter>/libopenblas.dll"
-    #     )
-    # else()
-    #     message(WARNING "Expected ${_precompiled_libopenblas} to exist. Run app/scripts/build_llama_windows.ps1 to stage GGML artifacts.")
-    # endif()
+    if(_aifs_precompiled_cuda_payload)
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_aifs_precompiled_cuda_payload}
+                "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
+        )
+    else()
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wcuda"
+        )
+    endif()
+
+    if(_aifs_precompiled_vulkan_payload)
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_aifs_precompiled_vulkan_payload}
+                "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
+        )
+    else()
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:aifilesorter>/lib/ggml/wvulkan"
+        )
+    endif()
 endif()
 
 if(AI_FILE_SORTER_BUILD_TESTS)
@@ -1104,6 +1165,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/UpdateInstaller.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Updater.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Version.cpp"
         )
 

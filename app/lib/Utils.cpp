@@ -1,6 +1,7 @@
 #include "Utils.hpp"
 #include "Logger.hpp"
 #include "TestHooks.hpp"
+#include "WindowsCudaProbe.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>  // for memset
@@ -148,6 +149,13 @@ std::optional<std::string> strip_prefix(const std::string& path,
 
     LibraryHandle loadLibrary(const char* name) {
         return LoadLibraryA(name);
+    }
+
+    LibraryHandle loadLibrary(const std::filesystem::path& path) {
+        return LoadLibraryExW(
+            path.c_str(),
+            nullptr,
+            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
     }
 
     void* getSymbol(LibraryHandle lib, const char* symbol) {
@@ -474,8 +482,12 @@ std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
         return probe();
     }
 #ifdef _WIN32
-    std::string dllName = get_cudart_dll_name();
-    LibraryHandle lib = loadLibrary(dllName.c_str());
+    const auto runtime_path = WindowsCudaProbe::best_runtime_library_path();
+    if (!runtime_path.has_value()) {
+        log_core(spdlog::level::err, "Failed to locate a usable CUDA runtime library.");
+        return std::nullopt;
+    }
+    LibraryHandle lib = loadLibrary(*runtime_path);
 #else
     LibraryHandle lib = loadLibrary("libcudart.so");
     if (!lib) {
@@ -708,6 +720,45 @@ bool Utils::is_cuda_available() {
         return probe();
     }
 
+#ifdef _WIN32
+    std::optional<std::filesystem::path> ggml_directory;
+    if (const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+        ggml_dir && ggml_dir[0] != '\0') {
+        ggml_directory = std::filesystem::path(std::string(ggml_dir));
+    }
+
+    const auto probe_result = WindowsCudaProbe::probe(ggml_directory);
+    if (!probe_result.driver_present) {
+        log_core(spdlog::level::warn, "[CUDA] Failed to load the NVIDIA CUDA driver (nvcuda.dll).");
+        return false;
+    }
+    if (!probe_result.driver_initialized || probe_result.device_count <= 0) {
+        log_core(spdlog::level::warn,
+                 "[CUDA] NVIDIA driver is present but no usable CUDA device was initialized.");
+        return false;
+    }
+    if (!probe_result.runtime_present) {
+        log_core(spdlog::level::warn, "[CUDA] No CUDA runtime library (cudart64*.dll) was found.");
+        return false;
+    }
+    if (!probe_result.runtime_usable) {
+        log_core(spdlog::level::warn,
+                 "[CUDA] CUDA runtime libraries were found, but none could be initialized successfully.");
+        return false;
+    }
+    if (ggml_directory.has_value() && !probe_result.backend_loadable) {
+        log_core(spdlog::level::warn,
+                 "[CUDA] ggml-cuda.dll could not be loaded with the discovered CUDA runtime.");
+        return false;
+    }
+
+    log_core(spdlog::level::info,
+             "[CUDA] CUDA is available and {} device(s) found using runtime '{}'.",
+             probe_result.device_count,
+             probe_result.runtime_library_path.filename().string());
+    return true;
+#else
+
     LibraryHandle handle = open_cuda_runtime();
     if (!handle) {
         log_core(spdlog::level::warn, "[CUDA] Failed to load CUDA runtime library.");
@@ -751,6 +802,7 @@ bool Utils::is_cuda_available() {
     log_core(spdlog::level::info, "[CUDA] CUDA is available and {} device(s) found.", count);
     closeLibrary(handle);
     return true;
+#endif
 }
 
 namespace TestHooks {
@@ -776,33 +828,12 @@ void reset_cuda_memory_probe() {
 #ifdef _WIN32
 int Utils::get_installed_cuda_runtime_version()
 {
-    HMODULE hCuda = LoadLibraryA("nvcuda.dll");
-    if (!hCuda) {
-        log_core(spdlog::level::warn, "Failed to load nvcuda.dll");
-        return 0;
+    const int version = WindowsCudaProbe::installed_runtime_version_token();
+    if (version > 0) {
+        log_core(spdlog::level::info, "[CUDA] Detected CUDA runtime token: {}", version);
+    } else {
+        log_core(spdlog::level::warn, "[CUDA] Unable to locate an installed CUDA runtime token.");
     }
-
-    using cudaDriverGetVersion_t = int(__cdecl *)(int*);
-    auto cudaDriverGetVersion = reinterpret_cast<cudaDriverGetVersion_t>(
-        GetProcAddress(hCuda, "cuDriverGetVersion")
-    );
-
-    if (!cudaDriverGetVersion) {
-        log_core(spdlog::level::warn, "Failed to get cuDriverGetVersion symbol");
-        FreeLibrary(hCuda);
-        return 0;
-    }
-
-    int version = 0;
-    if (cudaDriverGetVersion(&version) != 0) {
-        log_core(spdlog::level::warn, "cuDriverGetVersion call failed");
-        FreeLibrary(hCuda);
-        return 0;
-    }
-
-    log_core(spdlog::level::info, "[CUDA] Detected CUDA driver version: {}", version);
-
-    FreeLibrary(hCuda);
     return version;
 }
 #endif
@@ -810,36 +841,13 @@ int Utils::get_installed_cuda_runtime_version()
 
 #ifdef _WIN32
 std::string Utils::get_cudart_dll_name() {
-    int version = get_installed_cuda_runtime_version();
-    std::vector<int> candidates;
-
-    if (version > 0) {
-        int suggested = version / 1000;
-        if (suggested > 0) {
-            candidates.push_back(suggested);
-        }
+    const std::string name = WindowsCudaProbe::best_runtime_library_name();
+    if (!name.empty()) {
+        log_core(spdlog::level::info, "[CUDA] Selected runtime DLL: {}", name);
+    } else {
+        log_core(spdlog::level::warn, "[CUDA] Unable to locate a compatible cudart64*.dll");
     }
-
-    // probe the most common recent runtimes (highest first)
-    for (int v = 15; v >= 10; --v) {
-        if (std::find(candidates.begin(), candidates.end(), v) == candidates.end()) {
-            candidates.push_back(v);
-        }
-    }
-
-    for (int major : candidates) {
-        char buffer[32];
-        std::snprintf(buffer, sizeof(buffer), "cudart64_%d.dll", major);
-        HMODULE h = LoadLibraryA(buffer);
-        if (h) {
-            FreeLibrary(h);
-            log_core(spdlog::level::info, "[CUDA] Selected runtime DLL: {}", buffer);
-            return buffer;
-        }
-    }
-
-    log_core(spdlog::level::warn, "[CUDA] Unable to locate a compatible cudart64_XX.dll");
-    return "";
+    return name;
 }
 #endif
 

@@ -40,6 +40,20 @@ Procedure: Call `prepare_model_params_for_testing()`.
 Expected outcome: `n_gpu_layers` equals `7`.
 Run: `./build-tests/ai_file_sorter_tests "CUDA override is applied when backend is available"`
 
+#### Test case: Auto backend prefers CUDA when both backends are possible
+Purpose: Verify that automatic backend selection uses CUDA before Vulkan.
+Setup: Leave `AI_FILE_SORTER_GPU_BACKEND` unset, clear `GGML_DISABLE_CUDA`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, inject a CUDA-available probe, and inject a Vulkan probe that reports unavailable.
+Procedure: Call `prepare_model_params_for_testing()`.
+Expected outcome: `n_gpu_layers` equals `7`, proving the auto path chose CUDA without consulting Vulkan first.
+Run: `./build-tests/ai_file_sorter_tests "Auto backend prefers CUDA when both backends are possible"`
+
+#### Test case: Auto backend falls back to Vulkan when CUDA is disabled
+Purpose: Ensure automatic backend selection still reaches Vulkan when CUDA is globally disabled.
+Setup: Leave `AI_FILE_SORTER_GPU_BACKEND` unset, set `GGML_DISABLE_CUDA=1`, set `AI_FILE_SORTER_N_GPU_LAYERS=12`, and inject a Vulkan-available probe.
+Procedure: Call `prepare_model_params_for_testing()`.
+Expected outcome: `n_gpu_layers` equals `12`, proving the auto path fell through to Vulkan instead of CPU.
+Run: `./build-tests/ai_file_sorter_tests "Auto backend falls back to Vulkan when CUDA is disabled"`
+
 #### Test case: CUDA fallback when no GPU is available
 Purpose: Ensure CUDA preference falls back when no GPU is detected.
 Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave layer override unset, and inject a CUDA-unavailable probe.

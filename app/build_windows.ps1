@@ -31,18 +31,21 @@ $variantDefinitions = @{
         Name = "Standard"
         BuildDir = (Join-Path $appDir "build-windows")
         UpdateMode = "AUTO_INSTALL"
+        PackageKind = "STANDARD"
         Description = "Auto-install updates"
     }
     MsStore = [pscustomobject]@{
         Name = "MsStore"
         BuildDir = (Join-Path $appDir "build-windows-store")
         UpdateMode = "DISABLED"
+        PackageKind = "MSIX"
         Description = "No update checks"
     }
     Standalone = [pscustomobject]@{
         Name = "Standalone"
         BuildDir = (Join-Path $appDir "build-windows-standalone")
         UpdateMode = "NOTIFY_ONLY"
+        PackageKind = "STANDALONE"
         Description = "Notification-only updates"
     }
 }
@@ -119,6 +122,7 @@ function Get-ConfigureArguments {
     $configureArgs += "-DVCPKG_MANIFEST_DIR=$appDir"
     $configureArgs += "-DVCPKG_INSTALLED_DIR=$sharedVcpkgInstalledDir"
     $configureArgs += "-DAI_FILE_SORTER_UPDATE_MODE=$($Variant.UpdateMode)"
+    $configureArgs += "-DAI_FILE_SORTER_WINDOWS_PACKAGE_KIND=$($Variant.PackageKind)"
 
     if ($EnableTests) {
         $configureArgs += "-DAI_FILE_SORTER_BUILD_TESTS=ON"
@@ -436,6 +440,7 @@ foreach ($variant in $selectedVariants) {
     Write-Output "Description : $($variant.Description)"
     Write-Output "Build dir   : $($variant.BuildDir)"
     Write-Output "Update mode : $($variant.UpdateMode)"
+    Write-Output "Pkg kind    : $($variant.PackageKind)"
     Write-Output "Configure   : cmake $($configureArgs -join ' ')"
     Write-Output "====================================="
 
@@ -485,6 +490,7 @@ foreach ($variant in $selectedVariants) {
     $builtOutputs.Add([pscustomobject]@{
         Variant = $variant.Name
         UpdateMode = $variant.UpdateMode
+        PackageKind = $variant.PackageKind
         Executable = $outputExe
     }) | Out-Null
 }
@@ -492,5 +498,5 @@ foreach ($variant in $selectedVariants) {
 Write-Output ""
 Write-Output "Build summary:"
 foreach ($output in $builtOutputs) {
-    Write-Output (" - {0} [{1}]: {2}" -f $output.Variant, $output.UpdateMode, $output.Executable)
+    Write-Output (" - {0} [{1}, {2}]: {3}" -f $output.Variant, $output.UpdateMode, $output.PackageKind, $output.Executable)
 }

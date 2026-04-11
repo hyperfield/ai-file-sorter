@@ -131,6 +131,87 @@ function Resolve-OpenBlasRoot {
     return $null
 }
 
+function Test-CudaToolkitRoot {
+    param([string]$Root)
+
+    if (-not $Root) {
+        return $false
+    }
+
+    $cudaHeader = Join-Path $Root "include\cuda.h"
+    $cudartLib = Join-Path $Root "lib\x64\cudart.lib"
+    return (Test-Path $cudaHeader) -and (Test-Path $cudartLib)
+}
+
+function Get-CudaToolkitVersion {
+    param([string]$Path)
+
+    if (-not $Path) {
+        return [version]"0.0"
+    }
+
+    $name = Split-Path $Path -Leaf
+    $normalized = $name.TrimStart('v', 'V')
+    try {
+        return [version]$normalized
+    } catch {
+        return [version]"0.0"
+    }
+}
+
+function Resolve-CudaRoot {
+    $candidates = New-Object System.Collections.Generic.List[string]
+
+    if ($env:CUDA_PATH) {
+        $candidates.Add($env:CUDA_PATH)
+    }
+
+    Get-ChildItem Env:CUDA_PATH_V* -ErrorAction SilentlyContinue |
+        Sort-Object { Get-CudaToolkitVersion $_.Value } -Descending |
+        ForEach-Object {
+            if ($_.Value) {
+                $candidates.Add($_.Value)
+            }
+        }
+
+    $defaultCudaRoot = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA"
+    if (Test-Path $defaultCudaRoot) {
+        Get-ChildItem -Path $defaultCudaRoot -Directory |
+            Sort-Object { Get-CudaToolkitVersion $_.FullName } -Descending |
+            ForEach-Object {
+                $candidates.Add($_.FullName)
+            }
+    }
+
+    $seen = @{}
+    foreach ($candidate in $candidates) {
+        if (-not $candidate) {
+            continue
+        }
+
+        $resolved = $candidate
+        try {
+            if (Test-Path $candidate) {
+                $resolved = (Resolve-Path $candidate).Path
+            }
+        } catch {
+            $resolved = $candidate
+        }
+
+        $key = $resolved.ToLowerInvariant()
+        if ($seen.ContainsKey($key)) {
+            continue
+        }
+        $seen[$key] = $true
+
+        if (Test-CudaToolkitRoot -Root $resolved) {
+            return $resolved
+        }
+    }
+
+    throw "Could not resolve a usable CUDA toolkit. Expected include\cuda.h and lib\x64\cudart.lib under CUDA_PATH or a standard install such as C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\vX.Y."
+}
+
 $vcpkgRoot = Resolve-VcpkgRoot -Explicit $vcpkgRootArg
 if (-not $vcpkgRoot -or -not (Test-Path $vcpkgRoot)) {
     throw "Could not resolve a writable vcpkg root. Pass vcpkgroot=<path> (e.g. C:\dev\vcpkg) or set VCPKG_ROOT accordingly."
@@ -321,12 +402,23 @@ if ($enableBlas) {
 }
 
 if ($useCuda -eq "ON") {
-    $cudaRoot = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9"
+    $cudaRoot = Resolve-CudaRoot
     $includeDir = "$cudaRoot/include"
     $libDir = "$cudaRoot/lib/x64/cudart.lib"
+    $cudaBinDir = "$cudaRoot/bin"
+
+    Write-Host "Using CUDA toolkit from $cudaRoot"
+    if (Test-Path $cudaBinDir) {
+        $env:PATH = "$cudaBinDir;$env:PATH"
+    }
+    $env:CUDA_PATH = $cudaRoot
+    $env:CUDAToolkit_ROOT = $cudaRoot
+    $env:CudaToolkitDir = "$cudaRoot\"
 
     $cmakeArgs += @(
         "-DGGML_CUDA=ON",
+        "-DCUDAToolkit_ROOT=`"$cudaRoot`"",
+        "-DCMAKE_CUDA_COMPILER=`"$cudaBinDir/nvcc.exe`"",
         "-DCUDA_TOOLKIT_ROOT_DIR=`"$cudaRoot`"",
         "-DCUDA_INCLUDE_DIRS=`"$includeDir`"",
         "-DCUDA_CUDART=`"$libDir`""
@@ -349,8 +441,21 @@ if ($useVulkan -eq "ON") {
     }
 }
 
-& $cmakeExe -S . -B build @cmakeArgs
+$cmakeConfigureArgs = @("-S", ".", "-B", "build")
+if ($useCuda -eq "ON") {
+    $cmakeConfigureArgs += @("-G", "Visual Studio 17 2022", "-A", "x64", "-T", "cuda=$cudaRoot,host=x64")
+}
+$cmakeConfigureArgs += $cmakeArgs
+
+& $cmakeExe @cmakeConfigureArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "CMake configure failed with exit code $LASTEXITCODE"
+}
+
 & $cmakeExe --build build --config Release -- /m
+if ($LASTEXITCODE -ne 0) {
+    throw "CMake build failed with exit code $LASTEXITCODE"
+}
 
 Pop-Location
 

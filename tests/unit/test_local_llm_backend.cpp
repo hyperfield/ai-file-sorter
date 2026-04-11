@@ -68,6 +68,39 @@ TEST_CASE("CUDA override is applied when backend is available") {
     REQUIRE(params.n_gpu_layers == 7);
 }
 
+TEST_CASE("Auto backend prefers CUDA when both backends are possible") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", std::nullopt);
+    EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
+    EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "7");
+    CudaProbeGuard cuda_guard;
+    BackendProbeGuard backend_guard;
+    TestHooks::set_cuda_availability_probe([] { return true; });
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return false;
+    });
+
+    auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
+        model.path().string());
+    REQUIRE(params.n_gpu_layers == 7);
+}
+
+TEST_CASE("Auto backend falls back to Vulkan when CUDA is disabled") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", std::nullopt);
+    EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", "1");
+    EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "12");
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return true;
+    });
+
+    auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
+        model.path().string());
+    REQUIRE(params.n_gpu_layers == 12);
+}
+
 TEST_CASE("CUDA fallback when no GPU is available") {
     TempModelFile model;
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
