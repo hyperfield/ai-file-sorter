@@ -124,7 +124,7 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 # Qt6
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
 find_package(Qt6LinguistTools CONFIG QUIET)
 if(NOT Qt6LinguistTools_FOUND)
     set(_aifs_qttools_hints "")
@@ -150,6 +150,24 @@ endif()
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(SQLite3 REQUIRED)
+if(TARGET SQLite::SQLite3)
+    set(AIFS_SQLITE_TARGET SQLite::SQLite3)
+elseif(TARGET SQLite3::SQLite3)
+    set(AIFS_SQLITE_TARGET SQLite3::SQLite3)
+elseif(TARGET unofficial::sqlite3::sqlite3)
+    set(AIFS_SQLITE_TARGET unofficial::sqlite3::sqlite3)
+elseif(SQLite3_LIBRARIES)
+    add_library(AIFS::SQLite3 INTERFACE IMPORTED)
+    target_link_libraries(AIFS::SQLite3 INTERFACE ${SQLite3_LIBRARIES})
+    if(SQLite3_INCLUDE_DIRS)
+        target_include_directories(AIFS::SQLite3 INTERFACE ${SQLite3_INCLUDE_DIRS})
+    endif()
+    set(AIFS_SQLITE_TARGET AIFS::SQLite3)
+else()
+    message(FATAL_ERROR
+        "SQLite3 was found, but no usable imported target is available. "
+        "Expected one of SQLite::SQLite3, SQLite3::SQLite3, or unofficial::sqlite3::sqlite3.")
+endif()
 # JsonCpp may not ship a CMake config on some distros (e.g. Ubuntu). Try
 # config mode first, then fall back to pkg-config.
 find_package(JsonCpp CONFIG QUIET)
@@ -679,10 +697,10 @@ endif()
 
 # Link libraries
 target_link_libraries(aifilesorter PRIVATE
-    Qt6::Widgets Qt6::Gui Qt6::Core
+    Qt6::Widgets Qt6::Gui Qt6::Core Qt6::Network
     CURL::libcurl
     OpenSSL::SSL OpenSSL::Crypto
-    SQLite3::SQLite3
+    ${AIFS_SQLITE_TARGET}
     JsonCpp::JsonCpp
     fmt::fmt
     spdlog::spdlog
@@ -1038,6 +1056,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/OneDriveStorageProvider.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
     )
     target_include_directories(aifs_onedrive_storage_plugin PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -1093,6 +1112,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_image_rename_metadata_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llava_image_analyzer.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_media_rename_metadata_service.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_single_instance_coordinator.cpp"
     )
 
     add_executable(aifs_storage_plugin_stub
@@ -1113,10 +1133,11 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     target_link_libraries(ai_file_sorter_tests PRIVATE
         Catch2::Catch2WithMain
         Qt6::Core
+        Qt6::Network
         Qt6::Widgets
         CURL::libcurl
         OpenSSL::SSL OpenSSL::Crypto
-        SQLite3::SQLite3
+        ${AIFS_SQLITE_TARGET}
         JsonCpp::JsonCpp
         spdlog::spdlog
         fmt::fmt
@@ -1187,7 +1208,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 Qt6::Widgets
                 CURL::libcurl
                 OpenSSL::SSL OpenSSL::Crypto
-                SQLite3::SQLite3
+                ${AIFS_SQLITE_TARGET}
                 JsonCpp::JsonCpp
                 spdlog::spdlog
                 fmt::fmt

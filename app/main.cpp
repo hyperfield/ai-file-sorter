@@ -3,6 +3,7 @@
 #include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "MainApp.hpp"
+#include "SingleInstanceCoordinator.hpp"
 #include "UpdaterBuildConfig.hpp"
 #include "UpdaterLaunchOptions.hpp"
 #include "UpdaterLiveTestConfig.hpp"
@@ -18,6 +19,7 @@
 #include <QSize>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QWidget>
 
 #include <functional>
 #include <algorithm>
@@ -437,6 +439,47 @@ bool ensure_llm_choice(Settings& settings, const std::function<void()>& finish_s
     return true;
 }
 
+QWidget* preferred_activation_target()
+{
+    if (QWidget* modal = QApplication::activeModalWidget()) {
+        return modal;
+    }
+    if (QWidget* active = QApplication::activeWindow()) {
+        return active;
+    }
+
+    const auto top_level_widgets = QApplication::topLevelWidgets();
+    const auto it = std::find_if(top_level_widgets.cbegin(),
+                                 top_level_widgets.cend(),
+                                 [](QWidget* widget) {
+                                     return widget && widget->isVisible();
+                                 });
+    return it != top_level_widgets.cend() ? *it : nullptr;
+}
+
+void activate_widget(QWidget* widget)
+{
+    if (!widget) {
+        return;
+    }
+
+    if (widget->isMinimized()) {
+        widget->showNormal();
+    } else {
+        widget->show();
+    }
+    widget->raise();
+    widget->activateWindow();
+
+#ifdef _WIN32
+    HWND hwnd = reinterpret_cast<HWND>(widget->winId());
+    if (hwnd) {
+        ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd);
+    }
+#endif
+}
+
 int run_application(const ParsedArguments& parsed_args)
 {
     EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
@@ -462,6 +505,13 @@ int run_application(const ParsedArguments& parsed_args)
     int qt_argc = static_cast<int>(parsed_args.qt_args.size()) - 1;
     char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());
     QApplication app(qt_argc, qt_argv);
+    SingleInstanceCoordinator instance_guard(QStringLiteral("net.quicknode.AIFileSorter"));
+    instance_guard.set_activation_callback([]() {
+        activate_widget(preferred_activation_target());
+    });
+    if (!instance_guard.acquire_primary_instance()) {
+        return EXIT_SUCCESS;
+    }
 
     Settings settings;
     settings.load();

@@ -75,6 +75,22 @@ Procedure: Call `prepare_model_params_for_testing()`.
 Expected outcome: `n_gpu_layers` is greater than `0` and less than or equal to `48`.
 Run: `./build-tests/ai_file_sorter_tests "Vulkan backend derives layer count from memory probe"`
 
+### `tests/unit/test_single_instance_coordinator.cpp`
+
+#### Test case: SingleInstanceCoordinator notifies the primary instance on relaunch
+Purpose: Verify that a second launch notifies the already running primary process instead of becoming a second app instance.
+Setup: Create a unique logical instance id, start one coordinator as the primary instance, and install an activation callback on it.
+Procedure: Start a second coordinator with the same instance id and wait for the primary callback to fire.
+Expected outcome: The second coordinator reports that it is not primary, and the first coordinator receives exactly the relaunch activation request.
+Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator notifies the primary instance on relaunch"`
+
+#### Test case: SingleInstanceCoordinator allows different instance ids to coexist
+Purpose: Ensure the coordinator only deduplicates launches that share the same logical app id.
+Setup: Create two coordinators with different unique instance ids.
+Procedure: Acquire the primary-instance lock for both coordinators.
+Expected outcome: Both coordinators become primary because they represent different logical applications.
+Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator allows different instance ids to coexist"`
+
 ### `tests/unit/test_main_app_image_options.cpp` (non-Windows only)
 
 #### Test case: Image analysis checkboxes enable and enforce rename-only behavior
