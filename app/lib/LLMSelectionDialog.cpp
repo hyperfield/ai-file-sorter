@@ -11,6 +11,7 @@
 #include "LLMSelectionDialogTestAccess.hpp"
 #endif
 
+#include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -27,6 +28,7 @@
 #include <QSizePolicy>
 #include <QComboBox>
 #include <QFileDialog>
+#include <QIcon>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QScrollArea>
@@ -105,6 +107,17 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     , settings(settings)
     , downloads_expanded_(settings.get_llm_downloads_expanded())
 {
+    QIcon icon = QApplication::windowIcon();
+    if (icon.isNull()) {
+        icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/app_icon_128.png"));
+    }
+    if (icon.isNull()) {
+        icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png"));
+    }
+    if (!icon.isNull()) {
+        setWindowIcon(icon);
+    }
+
     setWindowTitle(tr("Choose LLM Mode"));
     setModal(true);
     setup_ui();

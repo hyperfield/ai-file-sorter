@@ -249,6 +249,9 @@ private:
     bool perform_undo_from_plan(const QString& plan_path);
     void show_suitability_benchmark_dialog(bool auto_start);
     void maybe_show_suitability_benchmark();
+    void refresh_backend_status_label();
+    void schedule_backend_status_label_refresh();
+    QString current_backend_status_text() const;
 
     std::unique_ptr<ILLMClient> make_llm_client();
     void notify_recategorization_reset(const std::vector<CategorizedFile>& entries,
@@ -286,6 +289,7 @@ private:
     QPointer<QLineEdit> path_entry;
     QPointer<QPushButton> analyze_button;
     QPointer<QPushButton> browse_button;
+    QPointer<QLabel> backend_status_label;
     QPointer<QLabel> path_label;
     QPointer<QCheckBox> use_subcategories_checkbox;
     QPointer<QLabel> categorization_style_heading;

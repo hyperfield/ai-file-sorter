@@ -28,6 +28,7 @@
 #include "StoragePluginManager.hpp"
 #include "WhitelistManagerDialog.hpp"
 #include "UndoManager.hpp"
+#include "ggml-backend.h"
 
 #include <QAction>
 #include <QActionGroup>
@@ -85,6 +86,7 @@
 #include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
 #include <unordered_set>
 #include <unordered_map>
@@ -220,6 +222,154 @@ QString display_name_for_provider_id(const std::string& provider_id)
     return QString::fromStdString(provider_id);
 }
 
+std::string to_lower_copy(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+bool case_insensitive_contains(std::string_view haystack, std::string_view needle)
+{
+    if (needle.empty()) {
+        return true;
+    }
+
+    const auto it = std::search(
+        haystack.begin(),
+        haystack.end(),
+        needle.begin(),
+        needle.end(),
+        [](char lhs, char rhs) {
+            return std::tolower(static_cast<unsigned char>(lhs)) ==
+                   std::tolower(static_cast<unsigned char>(rhs));
+        });
+    return it != haystack.end();
+}
+
+void load_status_ggml_backends_once()
+{
+    static bool loaded = false;
+    if (loaded) {
+        return;
+    }
+
+    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+    if (ggml_dir && *ggml_dir) {
+        ggml_backend_load_all_from_path(ggml_dir);
+    } else {
+        ggml_backend_load_all();
+    }
+    loaded = true;
+}
+
+std::optional<std::string> detect_status_blas_backend_label()
+{
+    load_status_ggml_backends_once();
+
+    const size_t device_count = ggml_backend_dev_count();
+    for (size_t i = 0; i < device_count; ++i) {
+        auto* device = ggml_backend_dev_get(i);
+        if (!device) {
+            continue;
+        }
+
+        const auto type = ggml_backend_dev_type(device);
+        if (type != GGML_BACKEND_DEVICE_TYPE_ACCEL &&
+            type != GGML_BACKEND_DEVICE_TYPE_CPU) {
+            continue;
+        }
+
+        const char* dev_name = ggml_backend_dev_name(device);
+        const char* dev_desc = ggml_backend_dev_description(device);
+        auto* reg = ggml_backend_dev_backend_reg(device);
+        const char* reg_name = reg ? ggml_backend_reg_name(reg) : nullptr;
+
+        const auto matches = [&](std::string_view needle) {
+            return case_insensitive_contains(dev_name ? dev_name : "", needle) ||
+                   case_insensitive_contains(dev_desc ? dev_desc : "", needle) ||
+                   case_insensitive_contains(reg_name ? reg_name : "", needle);
+        };
+
+        if (matches("openblas")) {
+            return std::string("OpenBLAS");
+        }
+        if (matches("accelerate")) {
+            return std::string("Accelerate");
+        }
+        if (matches("mkl")) {
+            return std::string("MKL");
+        }
+        if (matches("blis")) {
+            return std::string("BLIS");
+        }
+        if (matches("blas")) {
+            return std::string("BLAS");
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::string detect_loaded_backend_key()
+{
+    const auto read_env = [](const char* name) -> std::string {
+        const char* value = std::getenv(name);
+        if (!value || !*value) {
+            return {};
+        }
+        return to_lower_copy(trim_ws_copy(value));
+    };
+
+    if (std::string backend = read_env("AI_FILE_SORTER_GPU_BACKEND"); !backend.empty()) {
+        return backend;
+    }
+    if (std::string device = read_env("LLAMA_ARG_DEVICE"); !device.empty()) {
+        return device;
+    }
+
+    if (const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+        ggml_dir && *ggml_dir) {
+        const std::string normalized = to_lower_copy(ggml_dir);
+        if (normalized.find("vulkan") != std::string::npos) {
+            return "vulkan";
+        }
+        if (normalized.find("cuda") != std::string::npos) {
+            return "cuda";
+        }
+        if (normalized.find("metal") != std::string::npos ||
+            normalized.find("mtl") != std::string::npos) {
+            return "metal";
+        }
+        if (normalized.find("cpu") != std::string::npos ||
+            normalized.find("wocuda") != std::string::npos) {
+            return "cpu";
+        }
+    }
+
+    const char* disable_cuda = std::getenv("GGML_DISABLE_CUDA");
+    if (disable_cuda && disable_cuda[0] != '\0' && disable_cuda[0] != '0') {
+        return "cpu";
+    }
+
+    return "cpu";
+}
+
+QString backend_display_name(std::string_view backend_key)
+{
+    if (backend_key == "cuda") {
+        return QStringLiteral("CUDA");
+    }
+    if (backend_key == "vulkan") {
+        return QStringLiteral("Vulkan");
+    }
+    if (backend_key == "metal" || backend_key == "mtl") {
+        return QStringLiteral("Metal");
+    }
+    return QStringLiteral("CPU");
+}
+
 QString display_name_for_detection_source(const std::string& detection_source)
 {
     if (detection_source == "windows_sync_root") {
@@ -263,6 +413,10 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
 
     MainAppUiBuilder ui_builder;
     ui_builder.build(*this);
+    backend_status_label = new QLabel(this);
+    backend_status_label->setObjectName(QStringLiteral("backendStatusLabel"));
+    backend_status_label->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Preferred);
+    statusBar()->addPermanentWidget(backend_status_label);
     ui_translator_ = std::make_unique<UiTranslator>(ui_builder.build_translator_dependencies(*this));
     retranslate_ui();
     setup_file_explorer();
@@ -272,6 +426,7 @@ MainApp::MainApp(Settings& settings, bool development_mode, QWidget* parent)
     start_updater();
 #endif
     load_settings();
+    refresh_backend_status_label();
     set_app_icon();
 }
 
@@ -571,6 +726,57 @@ void MainApp::retranslate_ui()
         .status_is_ready = status_is_ready_
     };
     ui_translator_->retranslate_all(state);
+    refresh_backend_status_label();
+}
+
+QString MainApp::current_backend_status_text() const
+{
+    const LLMChoice choice = settings.get_llm_choice();
+    switch (choice) {
+        case LLMChoice::Remote_OpenAI:
+            return tr("Loaded backend: OpenAI API");
+        case LLMChoice::Remote_Gemini:
+            return tr("Loaded backend: Gemini API");
+        case LLMChoice::Remote_Custom:
+            return tr("Loaded backend: Custom API");
+        default:
+            break;
+    }
+
+    if (!using_local_llm) {
+        return tr("Loaded backend: Remote API");
+    }
+
+    const QString cpu_backend = QString::fromStdString(
+        detect_status_blas_backend_label().value_or(std::string("CPU")));
+    const std::string backend_key = detect_loaded_backend_key();
+    const QString backend_name = backend_display_name(backend_key);
+
+    if (backend_key == "cuda" || backend_key == "vulkan" ||
+        backend_key == "metal" || backend_key == "mtl") {
+        return tr("Loaded GPU backend: %1 with %2").arg(backend_name, cpu_backend);
+    }
+
+    if (cpu_backend.compare(QStringLiteral("CPU"), Qt::CaseInsensitive) == 0) {
+        return tr("Loaded CPU backend: CPU");
+    }
+    return tr("Loaded CPU backend: CPU with %1").arg(cpu_backend);
+}
+
+void MainApp::refresh_backend_status_label()
+{
+    if (!backend_status_label) {
+        return;
+    }
+    backend_status_label->setText(current_backend_status_text());
+    backend_status_label->setToolTip(current_backend_status_text());
+}
+
+void MainApp::schedule_backend_status_label_refresh()
+{
+    run_on_ui([this]() {
+        refresh_backend_status_label();
+    });
 }
 
 void MainApp::on_language_selected(Language language)
@@ -1711,6 +1917,7 @@ void MainApp::show_llm_selection_dialog()
             }
             using_local_llm = !is_remote_choice(settings.get_llm_choice());
             settings.save();
+            refresh_backend_status_label();
         }
     } catch (const std::exception& ex) {
         show_error_dialog(fmt::format("LLM selection error: {}", ex.what()));
@@ -1779,6 +1986,7 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         CategorizationSession session(api_key, model);
         auto client = std::make_unique<LLMClient>(session.create_llm_client());
         client->set_prompt_logging_enabled(should_log_prompts());
+        schedule_backend_status_label_refresh();
         return client;
     }
 
@@ -1790,6 +1998,7 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         }
         auto client = std::make_unique<GeminiClient>(api_key, model);
         client->set_prompt_logging_enabled(should_log_prompts());
+        schedule_backend_status_label_refresh();
         return client;
     }
 
@@ -1801,6 +2010,7 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         }
         auto client = std::make_unique<LLMClient>(endpoint.api_key, endpoint.model, endpoint.base_url);
         client->set_prompt_logging_enabled(should_log_prompts());
+        schedule_backend_status_label_refresh();
         return client;
     }
 
@@ -1815,10 +2025,12 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
             [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); });
         client->set_status_callback([this](LocalLLMClient::Status status) {
             if (status == LocalLLMClient::Status::GpuFallbackToCpu) {
+                schedule_backend_status_label_refresh();
                 report_progress(to_utf8(tr("[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).")));
             }
         });
         client->set_prompt_logging_enabled(should_log_prompts());
+        schedule_backend_status_label_refresh();
         return client;
     }
 
@@ -1847,10 +2059,12 @@ std::unique_ptr<ILLMClient> MainApp::make_llm_client()
         [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); });
     client->set_status_callback([this](LocalLLMClient::Status status) {
         if (status == LocalLLMClient::Status::GpuFallbackToCpu) {
+            schedule_backend_status_label_refresh();
             report_progress(to_utf8(tr("[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).")));
         }
     });
     client->set_prompt_logging_enabled(should_log_prompts());
+    schedule_backend_status_label_refresh();
     return client;
 }
 
