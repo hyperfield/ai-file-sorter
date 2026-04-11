@@ -19,8 +19,9 @@
 #include <unordered_set>
 
 #ifdef _WIN32
-#include <cfapi.h>
 #include <windows.h>
+#include <winternl.h>
+#include <cfapi.h>
 #ifndef FILE_ATTRIBUTE_RECALL_ON_OPEN
 #define FILE_ATTRIBUTE_RECALL_ON_OPEN 0x00040000
 #endif

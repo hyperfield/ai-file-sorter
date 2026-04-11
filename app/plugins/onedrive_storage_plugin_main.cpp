@@ -6,6 +6,7 @@
 #include <QJsonObject>
 
 #include <iostream>
+#include <iterator>
 #include <string>
 
 namespace {
@@ -235,8 +236,8 @@ int main(int argc, char* argv[])
 {
     QCoreApplication app(argc, argv);
 
-    const std::string payload(std::istreambuf_iterator<char>(std::cin),
-                              std::istreambuf_iterator<char>());
+    const std::string payload{std::istreambuf_iterator<char>(std::cin),
+                              std::istreambuf_iterator<char>()};
     const QJsonDocument request_document =
         QJsonDocument::fromJson(QByteArray::fromStdString(payload));
     if (!request_document.isObject()) {
