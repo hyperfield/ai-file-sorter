@@ -147,6 +147,10 @@ Contents:
 - `onedrive/<platform>-<arch>/*.aifsplugin`
 - `SHA256SUMS`
 
+A checked-in sample catalog covering Linux, Windows, and macOS runtime variants lives at:
+
+- `app/scripts/examples/storage/catalog.sample.json`
+
 ## Plugin Build Scripts
 
 The plugin build scripts read their target list from:

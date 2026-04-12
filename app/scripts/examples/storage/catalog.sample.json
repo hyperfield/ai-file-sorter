@@ -1,0 +1,76 @@
+{
+  "plugins": [
+    {
+      "id": "onedrive_storage_support",
+      "name": "OneDrive Storage Support",
+      "description": "Adds a dedicated OneDrive connector process with stronger sync-state detection, move preflight checks, and richer undo metadata for synced folders.",
+      "version": "1.1.0",
+      "provider_ids": [
+        "onedrive"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "remote_manifest_url": "https://filesorter.app/download/plugins/storage/onedrive/linux-x86_64/manifest.json",
+      "entry_point_kind": "external_process",
+      "entry_point": "aifs_onedrive_storage_plugin"
+    },
+    {
+      "id": "onedrive_storage_support",
+      "name": "OneDrive Storage Support",
+      "description": "Adds a dedicated OneDrive connector process with stronger sync-state detection, move preflight checks, and richer undo metadata for synced folders.",
+      "version": "1.1.0",
+      "provider_ids": [
+        "onedrive"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "remote_manifest_url": "https://filesorter.app/download/plugins/storage/onedrive/windows-x86_64/manifest.json",
+      "entry_point_kind": "external_process",
+      "entry_point": "aifs_onedrive_storage_plugin.exe"
+    },
+    {
+      "id": "onedrive_storage_support",
+      "name": "OneDrive Storage Support",
+      "description": "Adds a dedicated OneDrive connector process with stronger sync-state detection, move preflight checks, and richer undo metadata for synced folders.",
+      "version": "1.1.0",
+      "provider_ids": [
+        "onedrive"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "architectures": [
+        "arm64"
+      ],
+      "remote_manifest_url": "https://filesorter.app/download/plugins/storage/onedrive/macos-arm64/manifest.json",
+      "entry_point_kind": "external_process",
+      "entry_point": "aifs_onedrive_storage_plugin"
+    },
+    {
+      "id": "onedrive_storage_support",
+      "name": "OneDrive Storage Support",
+      "description": "Adds a dedicated OneDrive connector process with stronger sync-state detection, move preflight checks, and richer undo metadata for synced folders.",
+      "version": "1.1.0",
+      "provider_ids": [
+        "onedrive"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "remote_manifest_url": "https://filesorter.app/download/plugins/storage/onedrive/macos-x86_64/manifest.json",
+      "entry_point_kind": "external_process",
+      "entry_point": "aifs_onedrive_storage_plugin"
+    }
+  ]
+}
