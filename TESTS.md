@@ -703,6 +703,13 @@ Procedure: Call `refresh_remote_catalog` and inspect the available plugin list a
 Expected outcome: The refreshed catalog entry appears in the available plugin list and is eligible for install/update checks.
 Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager refreshes available plugins from a remote catalog"`
 
+#### Test case: StoragePluginManager reports when a remote catalog lacks a matching runtime
+Purpose: Ensure remote update checks fail with a precise runtime-mismatch message instead of a generic fetch failure.
+Setup: Point the manager at a mock remote catalog URL whose only plugin entry targets a different platform and architecture.
+Procedure: Call `refresh_remote_catalog` and capture the returned error string.
+Expected outcome: Refresh fails and reports that the catalog does not contain any entries for the current runtime.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager reports when a remote catalog lacks a matching runtime"`
+
 #### Test case: StoragePluginManager installs catalog plugins on demand
 Purpose: Verify remote catalog entries can be downloaded and installed when the user selects them.
 Setup: Provide a mock catalog entry plus mock remote manifest and archive downloads.

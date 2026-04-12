@@ -196,6 +196,20 @@ std::vector<StoragePluginManifest> select_best_runtime_manifests(
     return filtered;
 }
 
+std::vector<StoragePluginManifest> filter_catalog_manifests_for_runtime(
+    std::vector<StoragePluginManifest> manifests,
+    std::string* error)
+{
+    const bool had_entries = !manifests.empty();
+    auto filtered = select_best_runtime_manifests(std::move(manifests));
+    if (filtered.empty() && had_entries && error && error->empty()) {
+        *error = "Plugin catalog does not contain any entries for this runtime (" +
+                 storage_plugin_current_platform() + "/" +
+                 storage_plugin_current_architecture() + ").";
+    }
+    return filtered;
+}
+
 const std::vector<StoragePluginManifest>& manifest_catalog()
 {
     static const std::vector<StoragePluginManifest> catalog = {
@@ -356,7 +370,7 @@ std::vector<StoragePluginManifest> manifests_from_json_document(const QJsonDocum
             }
             append_manifest(value.toObject());
         }
-        return select_best_runtime_manifests(std::move(manifests));
+        return filter_catalog_manifests_for_runtime(std::move(manifests), error);
     }
 
     if (doc.isObject()) {
@@ -373,11 +387,11 @@ std::vector<StoragePluginManifest> manifests_from_json_document(const QJsonDocum
                 }
                 append_manifest(value.toObject());
             }
-            return select_best_runtime_manifests(std::move(manifests));
+            return filter_catalog_manifests_for_runtime(std::move(manifests), error);
         }
 
         append_manifest(object);
-        return select_best_runtime_manifests(std::move(manifests));
+        return filter_catalog_manifests_for_runtime(std::move(manifests), error);
     }
 
     if (error) {

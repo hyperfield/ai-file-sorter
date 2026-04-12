@@ -940,6 +940,52 @@ TEST_CASE("StoragePluginManager refreshes available plugins from a remote catalo
     CHECK(cached_plugin->version == "2.0.0");
 }
 
+TEST_CASE("StoragePluginManager reports when a remote catalog lacks a matching runtime") {
+    TempDir config_dir;
+    const std::string catalog_url = "https://plugins.example.invalid/storage/catalog.json";
+    EnvVarGuard catalog_guard("AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL", catalog_url);
+    const std::string catalog_json = fmt::format(R"json({{
+  "plugins": [
+    {{
+      "id": "servercloud_support",
+      "name": "ServerCloud Storage Support",
+      "description": "Only published for a foreign runtime.",
+      "version": "2.0.0",
+      "provider_ids": ["servercloud"],
+      "platforms": ["{}"],
+      "architectures": ["{}"],
+      "remote_manifest_url": "https://plugins.example.invalid/storage/servercloud/manifest.json",
+      "entry_point_kind": "external_process",
+      "entry_point": "servercloud_plugin"
+    }}
+  ]
+}})json",
+                                                 alternate_platform_name(),
+                                                 alternate_architecture_name());
+
+    auto download_fn = [catalog_url, catalog_json](
+                           const std::string& url,
+                           const std::filesystem::path& destination,
+                           StoragePluginPackageFetcher::ProgressCallback,
+                           StoragePluginPackageFetcher::CancelCheck) {
+        if (url != catalog_url) {
+            throw std::runtime_error("Unexpected remote catalog URL");
+        }
+        std::filesystem::create_directories(destination.parent_path());
+        std::ofstream out(destination, std::ios::binary | std::ios::trunc);
+        out << catalog_json;
+    };
+
+    StoragePluginManager manager(config_dir.path().string(), download_fn);
+    REQUIRE(manager.remote_catalog_configured());
+
+    std::string error;
+    CHECK_FALSE(manager.refresh_remote_catalog(&error));
+    CHECK(error == fmt::format("Plugin catalog does not contain any entries for this runtime ({}/{}).",
+                               storage_plugin_current_platform(),
+                               storage_plugin_current_architecture()));
+}
+
 TEST_CASE("StoragePluginManager installs catalog plugins on demand") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
