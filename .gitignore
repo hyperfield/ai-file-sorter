@@ -147,6 +147,27 @@ app/lib/ggml/
 app/lib/precompiled*/
 external/libzip/build*/
 
+# Defensive CMake/Ninja outputs outside build*/ if they appear later
+CMakeCache.txt
+CMakeFiles/
+Testing/
+compile_commands.json
+.ninja_log
+.ninja_deps
+CMakeUserPresets.json
+
+# Additional IDE / OS noise
+.idea/
+Thumbs.db
+Desktop.ini
+
+# Generic Python cache outside the already-listed script paths
+__pycache__/
+.pytest_cache/
+
+# Local SQLite scratch files
+*.sqlite
+
 # No longer relevant
 api-key-encryption/
 
