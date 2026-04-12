@@ -550,8 +550,8 @@ Unterstützt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="477" />
-            <source>Image analysis models (LLaVA)</source>
-            <translation>Bildanalyse-Modelle (LLaVA)</translation>
+            <source>Image analysis models</source>
+            <translation>Bildanalyse-Modelle</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="479" />

@@ -3,6 +3,7 @@
 
 #include "LLMDownloader.hpp"
 #include "Types.hpp"
+#include "VisualModelCatalog.hpp"
 
 #include <QCoreApplication>
 #include <QDialog>
@@ -11,6 +12,8 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
+#include <vector>
 
 class QLabel;
 class QProgressBar;
@@ -51,6 +54,11 @@ public:
     std::string get_gemini_api_key() const;
     std::string get_gemini_model() const;
     bool get_llm_downloads_expanded() const;
+    /**
+     * @brief Return the selected visual model backend id.
+     * @return Stable visual model identifier.
+     */
+    std::string get_selected_visual_model_id() const;
 
 private:
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -58,7 +66,10 @@ private:
 #endif
 
     struct VisualLlmDownloadEntry {
+        const VisualModelDescriptor* backend_descriptor{nullptr};
+        const VisualModelArtifactDescriptor* artifact_descriptor{nullptr};
         std::string env_var;
+        std::string backend_id;
         std::string display_name;
         QWidget* container{nullptr};
         QLabel* title_label{nullptr};
@@ -134,8 +145,8 @@ private:
     void adjust_dialog_size();
     void setup_visual_llm_download_entry(VisualLlmDownloadEntry& entry,
                                      QWidget* parent,
-                                     const QString& title,
-                                     const std::string& env_var);
+                                     const VisualModelDescriptor& backend,
+                                     const VisualModelArtifactDescriptor& artifact);
     void refresh_visual_llm_download_entry(VisualLlmDownloadEntry& entry);
     void update_visual_llm_download_entry(VisualLlmDownloadEntry& entry);
     void update_visual_llm_downloads();
@@ -146,12 +157,21 @@ private:
      */
     void handle_delete_visual_download(VisualLlmDownloadEntry& entry);
     void set_visual_status_message(VisualLlmDownloadEntry& entry, const QString& message);
+    void update_visual_backend_selection();
+    const VisualModelDescriptor* selected_visual_model_descriptor() const;
+    VisualLlmDownloadEntry* find_visual_download_entry(std::string_view backend_id,
+                                                       VisualModelArtifactKind kind);
+    const VisualLlmDownloadEntry* find_visual_download_entry(std::string_view backend_id,
+                                                             VisualModelArtifactKind kind) const;
+    VisualLlmDownloadEntry* find_visual_download_entry_by_env_var(std::string_view env_var);
+    const VisualLlmDownloadEntry* find_visual_download_entry_by_env_var(std::string_view env_var) const;
     bool legacy_local_3b_available() const;
 
     Settings& settings;
     LLMChoice selected_choice{LLMChoice::Unset};
     std::string selected_custom_id;
     std::string selected_custom_api_id;
+    std::string selected_visual_model_id_;
     std::string openai_api_key;
     std::string openai_model;
     std::string gemini_api_key;
@@ -188,6 +208,7 @@ private:
     QWidget* downloads_container{nullptr};
     QWidget* download_section{nullptr};
     QWidget* visual_llm_download_section{nullptr};
+    QComboBox* visual_backend_combo{nullptr};
     QWidget* openai_inputs{nullptr};
     QWidget* gemini_inputs{nullptr};
     QLineEdit* openai_api_key_edit{nullptr};
@@ -205,8 +226,7 @@ private:
     std::atomic<bool> is_downloading{false};
     std::mutex download_mutex;
 
-    VisualLlmDownloadEntry llava_model_download;
-    VisualLlmDownloadEntry llava_mmproj_download;
+    std::vector<std::unique_ptr<VisualLlmDownloadEntry>> visual_download_entries_;
 
 #if defined(AI_FILE_SORTER_TEST_BUILD)
     bool use_network_available_override_{false};

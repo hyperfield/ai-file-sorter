@@ -190,26 +190,63 @@ Run: `./build-tests/ai_file_sorter_tests "sanitize_path_label strips invalid UTF
 
 ### `tests/unit/test_llm_selection_dialog_visual.cpp` (non-Windows only)
 
-#### Test case: Visual LLaVA entry shows missing env var state
-Purpose: Confirm UI indicates missing LLaVA download URLs.
+#### Test case: Visual model entry shows missing env var state
+Purpose: Confirm UI indicates missing download URLs for the active visual backend.
 Setup: Clear `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL` and construct the dialog.
-Procedure: Fetch the LLaVA entry via test access.
+Procedure: Fetch the default visual-model entry via test access.
 Expected outcome: The status label reports the missing environment variable and the download button is disabled.
-Run: `./build-tests/ai_file_sorter_tests "Visual LLaVA entry shows missing env var state"`
+Run: `./build-tests/ai_file_sorter_tests "Visual model entry shows missing env var state"`
 
-#### Test case: Visual LLaVA entry shows resume state for partial downloads
-Purpose: Validate resume state for partial LLaVA downloads.
+#### Test case: Visual model entry shows resume state for partial downloads
+Purpose: Validate resume state for partial visual-model downloads.
 Setup: Create a fake source file and a smaller destination file, inject metadata headers with an expected size.
-Procedure: Update the LLaVA entry state.
+Procedure: Update the default visual-model entry state.
 Expected outcome: The status label indicates a partial download and the download button changes to "Resume download" and is enabled.
-Run: `./build-tests/ai_file_sorter_tests "Visual LLaVA entry shows resume state for partial downloads"`
+Run: `./build-tests/ai_file_sorter_tests "Visual model entry shows resume state for partial downloads"`
 
-#### Test case: Visual LLaVA entry reports download errors
+#### Test case: Visual model entry reports download errors
 Purpose: Ensure download failures are surfaced in the UI.
 Setup: Inject a network-available override and a download probe that returns a CURL connection error.
-Procedure: Start the LLaVA model download and wait for the label to update.
+Procedure: Start the default visual-model download and wait for the label to update.
 Expected outcome: The status label begins with "Download error:" indicating the failure is shown to the user.
-Run: `./build-tests/ai_file_sorter_tests "Visual LLaVA entry reports download errors"`
+Run: `./build-tests/ai_file_sorter_tests "Visual model entry reports download errors"`
+
+#### Test case: Visual backend selection switches descriptor-driven download state
+Purpose: Verify the visual download UI is driven by the selected backend descriptor rather than hardcoded LLaVA rows.
+Setup: Clear both the default LLaVA env vars and the alternate Gemma env vars, initialize settings with the default visual backend, and construct the dialog.
+Procedure: Confirm the default backend id and missing-env state, switch the dialog to the Gemma backend through the test access layer, and inspect the active model entry again.
+Expected outcome: The selected backend id changes to `gemma-3-4b-it`, and the visible model entry now reports the missing `GEMMA3_4B_MODEL_URL` variable instead of the default backend env var.
+Run: `./build-tests/ai_file_sorter_tests "Visual backend selection switches descriptor-driven download state"`
+
+### `tests/unit/test_visual_llm_runtime.cpp`
+
+#### Test case: Default visual model descriptor exposes the MTMD backend catalog
+Purpose: Verify the built-in visual model catalog exposes the expected default backend descriptor and the alternate backend entries used by the selector UI.
+Setup: Load the default visual model descriptor from the catalog.
+Procedure: Inspect the backend id, display name, architecture, prompt policy, required artifact env vars, and the presence of the alternate Vicuna and Gemma backend descriptors.
+Expected outcome: The default backend resolves to the LLaVA descriptor with separate model and mmproj artifact entries and the legacy prompt policy, while the catalog also exposes both `llava-v1.6-vicuna-7b` and `gemma-3-4b-it`, with Gemma using the structured multimodal prompt policy.
+Run: `./build-tests/ai_file_sorter_tests "Default visual model descriptor exposes the MTMD backend catalog"`
+
+#### Test case: VisualLlmRuntime resolves the active backend through descriptor artifacts
+Purpose: Ensure runtime resolution goes through the descriptor catalog and can satisfy the mmproj artifact via fallback filenames.
+Setup: Set `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`, create the main model file at its default destination, and create a fallback mmproj file in the default LLM directory.
+Procedure: Call `resolve_active_backend()` and `resolve_paths()`.
+Expected outcome: The backend resolves successfully, returns the LLaVA descriptor, maps the model artifact to the primary file, and maps the mmproj artifact to the fallback file.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the active backend through descriptor artifacts"`
+
+#### Test case: VisualLlmRuntime reports missing backend URLs before resolving artifacts
+Purpose: Confirm runtime resolution fails early when the configured visual backend is missing its required URL environment variables.
+Setup: Clear `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`.
+Procedure: Call `resolve_active_backend()` with an error string output.
+Expected outcome: Resolution fails and reports the existing missing-URL guidance message.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime reports missing backend URLs before resolving artifacts"`
+
+#### Test case: VisualLlmRuntime resolves a non-default backend by id
+Purpose: Confirm the runtime abstraction can resolve a second visual backend without changing the calling code.
+Setup: Set `GEMMA3_4B_MODEL_URL` and `GEMMA3_4B_MMPROJ_URL`, then create the corresponding model and mmproj files at their resolved download destinations.
+Procedure: Call `resolve_active_backend("gemma-3-4b-it")`.
+Expected outcome: The runtime returns the Gemma descriptor and resolves both artifact paths from the alternate backend env vars.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves a non-default backend by id"`
 
 ### `tests/unit/test_settings_image_options.cpp`
 
@@ -240,6 +277,29 @@ Setup: Use a temporary config directory and set expanded flags for image and doc
 Procedure: Save settings, reload into a new `Settings` instance, and read the flags.
 Expected outcome: The expansion flags match the saved values.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists options group expansion state"`
+
+#### Test case: Settings persists selected visual model backend
+Purpose: Ensure the chosen visual backend survives a save/load round-trip so the dialog and runtime stay aligned.
+Setup: Use a temporary config directory and set the visual backend id to `gemma-3-4b-it`.
+Procedure: Save settings, reload into a new `Settings` instance, and read the stored visual backend id.
+Expected outcome: The reloaded settings still report `gemma-3-4b-it`.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists selected visual model backend"`
+
+### `tests/unit/test_llava_image_analyzer.cpp`
+
+#### Test case: LlavaImageAnalyzer exposes legacy LLaVA prompt policy
+Purpose: Verify the legacy visual backends keep the older prompt wording expected by the LLaVA path.
+Setup: Use the prompt-policy test access helpers with the legacy policy.
+Procedure: Inspect the generated description and filename prompts.
+Expected outcome: The description prompt keeps the `Image: <__media__>` / `Description:` shape, and the filename prompt still includes the legacy filename example and trailing `Filename:` cue.
+Run: `./build-tests/ai_file_sorter_tests "LlavaImageAnalyzer exposes legacy LLaVA prompt policy"`
+
+#### Test case: LlavaImageAnalyzer exposes structured multimodal prompt policy
+Purpose: Verify newer multimodal backends can use a stricter instruction-oriented prompt without changing the runtime abstraction.
+Setup: Use the prompt-policy test access helpers with the structured multimodal policy.
+Procedure: Inspect the generated description and filename prompts.
+Expected outcome: The policy adds explicit system guidance, keeps the media marker in the user prompt, and uses structured filename rules aimed at instruction-tuned backends.
+Run: `./build-tests/ai_file_sorter_tests "LlavaImageAnalyzer exposes structured multimodal prompt policy"`
 
 ### `tests/unit/test_checkbox_matrix.cpp`
 

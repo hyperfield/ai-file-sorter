@@ -28,6 +28,46 @@ TEST_CASE("LlavaImageAnalyzer uses conservative default visual batch sizing") {
 #endif
 }
 
+TEST_CASE("LlavaImageAnalyzer exposes legacy LLaVA prompt policy") {
+    CHECK(LlavaImageAnalyzerTestAccess::description_system_prompt(
+              VisualPromptPolicy::LegacyLlava).empty());
+    CHECK(LlavaImageAnalyzerTestAccess::filename_system_prompt(
+              VisualPromptPolicy::LegacyLlava).empty());
+
+    const auto description_prompt =
+        LlavaImageAnalyzerTestAccess::description_user_prompt(VisualPromptPolicy::LegacyLlava);
+    CHECK(description_prompt.find("Image: <__media__>") != std::string::npos);
+    CHECK(description_prompt.find("Description:") != std::string::npos);
+
+    const auto filename_prompt = LlavaImageAnalyzerTestAccess::filename_user_prompt(
+        VisualPromptPolicy::LegacyLlava, "A photo of a sunset over the mountains.");
+    CHECK(filename_prompt.find("Filename:") != std::string::npos);
+    CHECK(filename_prompt.find("sunset_over_mountains") != std::string::npos);
+}
+
+TEST_CASE("LlavaImageAnalyzer exposes structured multimodal prompt policy") {
+    const auto description_system = LlavaImageAnalyzerTestAccess::description_system_prompt(
+        VisualPromptPolicy::StructuredVisionInstruct);
+    CHECK(description_system.find("file organization") != std::string::npos);
+
+    const auto description_prompt =
+        LlavaImageAnalyzerTestAccess::description_user_prompt(
+            VisualPromptPolicy::StructuredVisionInstruct);
+    CHECK(description_prompt.find("<__media__>") != std::string::npos);
+    CHECK(description_prompt.find("Output only the description.") != std::string::npos);
+
+    const auto filename_system = LlavaImageAnalyzerTestAccess::filename_system_prompt(
+        VisualPromptPolicy::StructuredVisionInstruct);
+    CHECK(filename_system.find("filesystem-safe filename stems") != std::string::npos);
+
+    const auto filename_prompt = LlavaImageAnalyzerTestAccess::filename_user_prompt(
+        VisualPromptPolicy::StructuredVisionInstruct,
+        "Invoice with handwritten totals and customer notes.");
+    CHECK(filename_prompt.find("maximum 3 words") != std::string::npos);
+    CHECK(filename_prompt.find("lowercase letters only") != std::string::npos);
+    CHECK(filename_prompt.find("Output only the filename stem.") != std::string::npos);
+}
+
 #ifndef GGML_USE_METAL
 TEST_CASE("LlavaImageAnalyzer ignores global GPU layer override by default") {
     TempModelFile model(48, 8 * 1024 * 1024);

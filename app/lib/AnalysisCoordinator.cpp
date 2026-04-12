@@ -3,6 +3,7 @@
 #include "AnalysisEntryRouter.hpp"
 #include "CategorizationProgressDialog.hpp"
 #include "DocumentTextAnalyzer.hpp"
+#include "ImageAnalyzerFactory.hpp"
 #include "ImageRenameMetadataService.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "MainApp.hpp"
@@ -771,12 +772,18 @@ void AnalysisCoordinator::execute()
             };
 
             std::string error;
-            auto visual_paths = VisualLlmRuntime::resolve_paths(&error);
-            if (!visual_paths) {
+            auto visual_backend =
+                VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(), &error);
+            if (!visual_backend) {
                 throw std::runtime_error(error);
             }
+            if (app_.core_logger && visual_backend->descriptor) {
+                app_.core_logger->info("Using visual backend '{}' ({})",
+                                       visual_backend->descriptor->display_name,
+                                       visual_backend->descriptor->id);
+            }
 
-            LlavaImageAnalyzer::Settings vision_settings;
+            ImageAnalyzerSettings vision_settings;
             vision_settings.use_gpu = VisualLlmRuntime::should_use_gpu();
             const auto visual_gpu_override = read_env_bool("AI_FILE_SORTER_VISUAL_USE_GPU");
             if (visual_gpu_override.has_value()) {
@@ -869,13 +876,11 @@ void AnalysisCoordinator::execute()
                 }
             };
 
-            auto create_analyzer = [&]() -> std::unique_ptr<LlavaImageAnalyzer> {
-                return std::make_unique<LlavaImageAnalyzer>(visual_paths->model_path,
-                                                            visual_paths->mmproj_path,
-                                                            vision_settings);
+            auto create_analyzer = [&]() -> std::unique_ptr<ImageAnalyzer> {
+                return ImageAnalyzerFactory::create(*visual_backend, vision_settings);
             };
 
-            std::unique_ptr<LlavaImageAnalyzer> analyzer;
+            std::unique_ptr<ImageAnalyzer> analyzer;
             bool skip_visual_analysis = false;
             std::string skip_visual_reason;
             try {

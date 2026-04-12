@@ -173,3 +173,20 @@ TEST_CASE("Settings persists image date-to-category toggle") {
     REQUIRE(reloaded.get_analyze_images_by_content());
     REQUIRE(reloaded.get_add_image_date_to_category());
 }
+
+TEST_CASE("Settings persists selected visual model backend") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_visual_model_id("gemma-3-4b-it");
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_visual_model_id() == "gemma-3-4b-it");
+}

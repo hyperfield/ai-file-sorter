@@ -20,6 +20,7 @@
 #include <string_view>
 #include <thread>
 #include <unordered_set>
+#include <vector>
 
 #ifdef AI_FILE_SORTER_HAS_MTMD
 #include "ggml-backend.h"
@@ -47,6 +48,80 @@ MTMD_API void mtmd_helper_log_set(ggml_log_callback log_callback, void* user_dat
 namespace {
 constexpr size_t kMaxFilenameWords = 3;
 constexpr size_t kMaxFilenameLength = 50;
+
+struct PromptRequest {
+    std::string system_prompt;
+    std::string user_prompt;
+};
+
+PromptRequest build_description_request(VisualPromptPolicy policy) {
+    switch (policy) {
+    case VisualPromptPolicy::LegacyLlava: {
+        std::ostringstream oss;
+        oss << "Please provide a detailed description of this image, focusing on the main subject "
+            << "and any important details.\n"
+            << "Image: <__media__>\n"
+            << "Description:";
+        return {"", oss.str()};
+    }
+    case VisualPromptPolicy::StructuredVisionInstruct: {
+        std::ostringstream oss;
+        oss << "Analyze this image for file organization.\n"
+            << "<__media__>\n"
+            << "Return one concise description that captures the file type or scene, the main subject, "
+            << "the setting or context, any visible text, and concrete details that would help with "
+            << "categorization or naming.\n"
+            << "Output only the description.";
+        return {
+            "You describe images for file organization and retrieval. Focus on concrete details that "
+            "help with sorting and naming.",
+            oss.str()
+        };
+    }
+    }
+
+    return {"", ""};
+}
+
+PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view description) {
+    switch (policy) {
+    case VisualPromptPolicy::LegacyLlava: {
+        std::ostringstream oss;
+        oss << "Based on the description below, generate a specific and descriptive filename for the image.\n"
+            << "Limit the filename to a maximum of 3 words. Use nouns and avoid starting with verbs like "
+            << "'depicts', 'shows', 'presents', etc.\n"
+            << "Do not include any data type words like 'image', 'jpg', 'png', etc. Use only letters and "
+            << "connect words with underscores.\n\n"
+            << "Description: " << description << "\n\n"
+            << "Example:\n"
+            << "Description: A photo of a sunset over the mountains.\n"
+            << "Filename: sunset_over_mountains\n\n"
+            << "Now generate the filename.\n\n"
+            << "Output only the filename, without any additional text.\n\n"
+            << "Filename:";
+        return {"", oss.str()};
+    }
+    case VisualPromptPolicy::StructuredVisionInstruct: {
+        std::ostringstream oss;
+        oss << "Create a short filename stem from this image description.\n"
+            << "Description: " << description << "\n\n"
+            << "Rules:\n"
+            << "- maximum 3 words\n"
+            << "- lowercase letters only\n"
+            << "- join words with underscores\n"
+            << "- prefer concrete nouns\n"
+            << "- do not include a file extension\n"
+            << "- do not include quotes or extra commentary\n\n"
+            << "Output only the filename stem.";
+        return {
+            "You generate short filesystem-safe filename stems from image descriptions.",
+            oss.str()
+        };
+    }
+    }
+
+    return {"", ""};
+}
 
 #if defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
 bool is_mtmd_prompt_log_line(std::string_view line) {
@@ -400,6 +475,71 @@ llama_token greedy_sample(const float* logits, int vocab_size, float temperature
     }
     return static_cast<llama_token>(best_index);
 }
+
+bool format_visual_prompt(llama_model* model,
+                          std::string_view system_prompt,
+                          std::string_view user_prompt,
+                          std::string& final_prompt) {
+    if (!model) {
+        return false;
+    }
+
+    const char* tmpl = llama_model_chat_template(model, nullptr);
+    if (!tmpl || tmpl[0] == '\0') {
+        final_prompt.clear();
+        if (!system_prompt.empty()) {
+            final_prompt.append(system_prompt);
+            final_prompt.append("\n\n");
+        }
+        final_prompt.append(user_prompt);
+        return true;
+    }
+
+    std::vector<std::string> owned_messages;
+    owned_messages.reserve(system_prompt.empty() ? 1 : 2);
+    std::vector<llama_chat_message> messages;
+    messages.reserve(system_prompt.empty() ? 1 : 2);
+
+    if (!system_prompt.empty()) {
+        owned_messages.emplace_back(system_prompt);
+        messages.push_back({"system", owned_messages.back().c_str()});
+    }
+
+    owned_messages.emplace_back(user_prompt);
+    messages.push_back({"user", owned_messages.back().c_str()});
+
+    std::size_t estimated_size = 4096;
+    for (const auto& message : owned_messages) {
+        estimated_size += message.size() * 2;
+    }
+
+    std::vector<char> formatted_prompt(estimated_size);
+    int actual_len = llama_chat_apply_template(tmpl,
+                                               messages.data(),
+                                               messages.size(),
+                                               true,
+                                               formatted_prompt.data(),
+                                               static_cast<int32_t>(formatted_prompt.size()));
+    if (actual_len < 0) {
+        return false;
+    }
+
+    if (actual_len >= static_cast<int>(formatted_prompt.size())) {
+        formatted_prompt.resize(static_cast<std::size_t>(actual_len) + 1);
+        actual_len = llama_chat_apply_template(tmpl,
+                                               messages.data(),
+                                               messages.size(),
+                                               true,
+                                               formatted_prompt.data(),
+                                               static_cast<int32_t>(formatted_prompt.size()));
+        if (actual_len < 0 || actual_len >= static_cast<int>(formatted_prompt.size())) {
+            return false;
+        }
+    }
+
+    final_prompt.assign(formatted_prompt.data(), static_cast<std::size_t>(actual_len));
+    return true;
+}
 #endif
 
 } // namespace
@@ -413,22 +553,42 @@ int32_t default_visual_batch_size(bool gpu_enabled, std::string_view backend_nam
 int32_t visual_model_n_gpu_layers_for_model(const std::string& model_path) {
     return build_visual_model_params_for_path(model_path, nullptr).n_gpu_layers;
 }
+
+std::string description_system_prompt(VisualPromptPolicy policy) {
+    return build_description_request(policy).system_prompt;
+}
+
+std::string description_user_prompt(VisualPromptPolicy policy) {
+    return build_description_request(policy).user_prompt;
+}
+
+std::string filename_system_prompt(VisualPromptPolicy policy) {
+    return build_filename_request(policy, "example description").system_prompt;
+}
+
+std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description) {
+    return build_filename_request(policy, description).user_prompt;
+}
 }
 #endif
 
 LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
-                                       const std::filesystem::path& mmproj_path)
-    : LlavaImageAnalyzer(model_path, mmproj_path, Settings{}) {}
+                                       const std::filesystem::path& mmproj_path,
+                                       VisualPromptPolicy prompt_policy)
+    : LlavaImageAnalyzer(model_path, mmproj_path, prompt_policy, Settings{}) {}
 
 LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
                                        const std::filesystem::path& mmproj_path,
+                                       VisualPromptPolicy prompt_policy,
                                        Settings settings)
 #ifdef AI_FILE_SORTER_HAS_MTMD
     : model_path_(model_path)
     , mmproj_path_(mmproj_path)
     , settings_(settings)
+    , prompt_policy_(prompt_policy)
 #else
     : settings_(settings)
+    , prompt_policy_(prompt_policy)
 #endif
 {
     if (settings_.n_threads <= 0) {
@@ -478,7 +638,7 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     batch_size_ = resolve_default_visual_batch_size(text_gpu_enabled_, backend_name);
     model_ = llama_model_load_from_file(model_path_utf8.c_str(), model_params);
     if (!model_) {
-        throw std::runtime_error("Failed to load LLaVA text model at " + model_path_utf8);
+        throw std::runtime_error("Failed to load visual text model at " + model_path_utf8);
     }
 
     vocab_ = llama_model_get_vocab(model_);
@@ -495,11 +655,11 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     vision_ctx_ = mtmd_init_from_file(mmproj_path_utf8.c_str(), model_, mm_params);
     if (!vision_ctx_) {
         cleanup();
-        throw std::runtime_error("Failed to load mmproj file at " + mmproj_path_utf8);
+        throw std::runtime_error("Failed to load multimodal projector file at " + mmproj_path_utf8);
     }
     if (!mtmd_support_vision(vision_ctx_)) {
         cleanup();
-        throw std::runtime_error("The provided mmproj file does not expose vision capabilities");
+        throw std::runtime_error("The provided multimodal projector does not expose vision capabilities");
     }
     try {
         initialize_context();
@@ -632,7 +792,7 @@ bool LlavaImageAnalyzer::is_supported_image(const std::filesystem::path& path) {
     return kExtensions.find(ext) != kExtensions.end();
 }
 
-LlavaImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& image_path) {
+ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& image_path) {
 #ifndef AI_FILE_SORTER_HAS_MTMD
     (void)image_path;
     throw std::runtime_error("Visual LLM support is not available in this build.");
@@ -641,18 +801,22 @@ LlavaImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path
     const std::string image_path_utf8 = Utils::path_to_utf8(image_path);
     BitmapPtr bitmap(mtmd_helper_bitmap_init_from_file(vision_ctx_, image_path_utf8.c_str()));
     if (!bitmap) {
-        throw std::runtime_error("Failed to load image for LLaVA: " + image_path_utf8);
+        throw std::runtime_error("Failed to load image for visual analysis: " + image_path_utf8);
     }
 
+    const auto description_request = build_description_request(prompt_policy_);
     const std::string description = infer_text(bitmap.get(),
-                                               build_description_prompt(),
+                                               description_request.system_prompt,
+                                               description_request.user_prompt,
                                                settings_.n_predict);
 
+    const auto filename_request = build_filename_request(prompt_policy_, description);
     const std::string raw_filename = infer_text(nullptr,
-                                                build_filename_prompt(description),
+                                                filename_request.system_prompt,
+                                                filename_request.user_prompt,
                                                 settings_.n_predict);
     if (logger) {
-        logger->info("LLaVA raw filename: {}", raw_filename);
+        logger->info("Visual raw filename: {}", raw_filename);
     }
     std::string filename_base = sanitize_filename(raw_filename, kMaxFilenameWords, kMaxFilenameLength);
     if (filename_base.empty()) {
@@ -662,40 +826,14 @@ LlavaImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path
         filename_base = "image_" + slugify(Utils::path_to_utf8(image_path.stem()));
     }
 
-    LlavaImageAnalysisResult result;
+    ImageAnalysisResult result;
     result.description = description;
     result.suggested_name = normalize_filename(filename_base, image_path);
     if (logger) {
-        logger->info("LLaVA suggested filename: {}", result.suggested_name);
+        logger->info("Visual suggested filename: {}", result.suggested_name);
     }
     return result;
 #endif
-}
-
-std::string LlavaImageAnalyzer::build_description_prompt() const {
-    std::ostringstream oss;
-    oss << "Please provide a detailed description of this image, focusing on the main subject "
-        << "and any important details.\n"
-        << "Image: <__media__>\n"
-        << "Description:";
-    return oss.str();
-}
-
-std::string LlavaImageAnalyzer::build_filename_prompt(const std::string& description) const {
-    std::ostringstream oss;
-    oss << "Based on the description below, generate a specific and descriptive filename for the image.\n"
-        << "Limit the filename to a maximum of 3 words. Use nouns and avoid starting with verbs like "
-        << "'depicts', 'shows', 'presents', etc.\n"
-        << "Do not include any data type words like 'image', 'jpg', 'png', etc. Use only letters and "
-        << "connect words with underscores.\n\n"
-        << "Description: " << description << "\n\n"
-        << "Example:\n"
-        << "Description: A photo of a sunset over the mountains.\n"
-        << "Filename: sunset_over_mountains\n\n"
-        << "Now generate the filename.\n\n"
-        << "Output only the filename, without any additional text.\n\n"
-        << "Filename:";
-    return oss.str();
 }
 
 #ifdef AI_FILE_SORTER_HAS_MTMD
@@ -753,12 +891,18 @@ void LlavaImageAnalyzer::mtmd_log_callback(enum ggml_log_level level,
 
 #ifdef AI_FILE_SORTER_HAS_MTMD
 std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
-                                           const std::string& prompt,
+                                           std::string_view system_prompt,
+                                           const std::string& user_prompt,
                                            int32_t max_tokens) {
     if (!context_) {
         initialize_context();
     }
     reset_context_state();
+
+    std::string formatted_prompt;
+    if (!format_visual_prompt(model_, system_prompt, user_prompt, formatted_prompt) || formatted_prompt.empty()) {
+        formatted_prompt = user_prompt;
+    }
 
     ChunkPtr chunks(mtmd_input_chunks_init());
     if (!chunks) {
@@ -766,7 +910,7 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
     }
 
     mtmd_input_text text{};
-    text.text = prompt.c_str();
+    text.text = formatted_prompt.c_str();
     text.add_special = true;
     text.parse_special = true;
 
@@ -870,10 +1014,12 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
 }
 #else
 std::string LlavaImageAnalyzer::infer_text(void* bitmap,
-                                           const std::string& prompt,
+                                           std::string_view system_prompt,
+                                           const std::string& user_prompt,
                                            int32_t max_tokens) {
     (void)bitmap;
-    (void)prompt;
+    (void)system_prompt;
+    (void)user_prompt;
     (void)max_tokens;
     throw std::runtime_error("Visual LLM support is not available in this build.");
 }

@@ -3,6 +3,7 @@
 #include "Logger.hpp"
 #include "Language.hpp"
 #include "Utils.hpp"
+#include "VisualModelCatalog.hpp"
 #include <filesystem>
 #include <cstdio>
 #include <iostream>
@@ -161,6 +162,18 @@ std::string generate_custom_api_id() {
     return oss.str();
 }
 
+std::string normalize_visual_model_id(const std::string& value)
+{
+    const auto trimmed = trim_copy(value);
+    if (trimmed.empty()) {
+        return default_visual_model_descriptor().id;
+    }
+    if (find_visual_model_descriptor(trimmed)) {
+        return trimmed;
+    }
+    return default_visual_model_descriptor().id;
+}
+
 Language system_default_language()
 {
     switch (QLocale::system().language()) {
@@ -247,6 +260,7 @@ Settings::Settings()
     // Default language follows system locale on first run (before any config file exists).
     language = system_default_language();
     category_language = CategoryLanguage::English;
+    visual_model_id = default_visual_model_descriptor().id;
     analyze_images_by_content = false;
     offer_rename_images = false;
     add_image_date_place_to_filename = false;
@@ -281,6 +295,8 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     set_gemini_api_key(config.getValue("Settings", "GeminiApiKey", ""));
     set_gemini_model(config.getValue("Settings", "GeminiModel", "gemini-2.5-flash-lite"));
     llm_downloads_expanded = load_bool("LLMDownloadsExpanded", true);
+    visual_model_id = normalize_visual_model_id(
+        config.getValue("Settings", "VisualModelId", default_visual_model_descriptor().id));
     use_subcategories = load_bool("UseSubcategories", false);
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
@@ -401,7 +417,7 @@ void Settings::load_custom_api_settings()
 void Settings::log_loaded_settings() const
 {
     if (auto logger = Logger::get_logger("core_logger")) {
-        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {}, custom apis: {}, category language: {})",
+        logger->info("Loaded settings from '{}' (allowed categories: {}, allowed subcategories: {}, use whitelist: {}, active whitelist: '{}', custom llms: {}, custom apis: {}, category language: {}, visual model: '{}')",
                      config_path,
                      allowed_categories.size(),
                      allowed_subcategories.size(),
@@ -409,7 +425,8 @@ void Settings::log_loaded_settings() const
                      active_whitelist,
                      custom_llms.size(),
                      custom_api_endpoints.size(),
-                     categoryLanguageDisplay(category_language));
+                     categoryLanguageDisplay(category_language),
+                     visual_model_id);
     }
 }
 
@@ -423,6 +440,7 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "GeminiApiKey", gemini_api_key);
     config.setValue(settings_section, "GeminiModel", gemini_model.empty() ? "gemini-2.5-flash-lite" : gemini_model);
     set_bool_setting(config, settings_section, "LLMDownloadsExpanded", llm_downloads_expanded);
+    config.setValue(settings_section, "VisualModelId", normalize_visual_model_id(visual_model_id));
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
     set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
@@ -669,6 +687,16 @@ bool Settings::get_llm_downloads_expanded() const
 void Settings::set_llm_downloads_expanded(bool value)
 {
     llm_downloads_expanded = value;
+}
+
+std::string Settings::get_visual_model_id() const
+{
+    return visual_model_id;
+}
+
+void Settings::set_visual_model_id(const std::string& id)
+{
+    visual_model_id = normalize_visual_model_id(id);
 }
 
 std::string Settings::get_active_custom_llm_id() const

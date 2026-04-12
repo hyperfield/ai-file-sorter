@@ -1,8 +1,8 @@
 #include "SuitabilityBenchmarkDialog.hpp"
 
 #include "DocumentTextAnalyzer.hpp"
+#include "ImageAnalyzerFactory.hpp"
 #include "ILLMClient.hpp"
-#include "LlavaImageAnalyzer.hpp"
 #include "LlmCatalog.hpp"
 #include "LocalLLMClient.hpp"
 #include "Settings.hpp"
@@ -597,6 +597,7 @@ std::optional<BackendMemorySnapshot> query_backend_memory(std::string_view backe
     return std::nullopt;
 }
 
+#if defined(__APPLE__)
 bool is_backend_available(std::string_view backend_name)
 {
     load_ggml_backends_once();
@@ -607,6 +608,7 @@ bool is_backend_available(std::string_view backend_name)
     }
     return ggml_backend_reg_dev_count(reg) > 0;
 }
+#endif
 
 QString build_cpu_backend_note(const QString& reason,
                                const std::optional<std::string>& blas_label)
@@ -684,7 +686,7 @@ double median_seconds(std::vector<double> seconds)
 
 bool has_visual_llm_files()
 {
-    return VisualLlmRuntime::resolve_paths(nullptr).has_value();
+    return VisualLlmRuntime::resolve_paths().has_value();
 }
 
 bool has_any_llm_available()
@@ -921,7 +923,8 @@ StepResult run_document_test(ILLMClient& llm, const std::filesystem::path& temp_
     return result;
 }
 
-StepResult run_image_test(const std::filesystem::path& temp_dir)
+StepResult run_image_test(const std::filesystem::path& temp_dir,
+                          std::string_view visual_backend_id)
 {
     StepResult result;
 #if defined(AI_FILE_SORTER_HAS_MTMD)
@@ -931,8 +934,9 @@ StepResult run_image_test(const std::filesystem::path& temp_dir)
     }
 
     std::string visual_error;
-    auto visual_paths = VisualLlmRuntime::resolve_paths(&visual_error);
-    if (!visual_paths) {
+    auto visual_backend = VisualLlmRuntime::resolve_active_backend(visual_backend_id,
+                                                                  &visual_error);
+    if (!visual_backend) {
         result.skipped = true;
         result.detail = visual_error.empty() ? "Visual LLM files unavailable." : visual_error;
         return result;
@@ -946,10 +950,10 @@ StepResult run_image_test(const std::filesystem::path& temp_dir)
 
     const auto start = std::chrono::steady_clock::now();
     try {
-        LlavaImageAnalyzer::Settings settings;
-        settings.use_gpu = VisualLlmRuntime::should_use_gpu();
-        LlavaImageAnalyzer analyzer(visual_paths->model_path, visual_paths->mmproj_path, settings);
-        const auto analysis = analyzer.analyze(image_path);
+        ImageAnalyzerSettings analyzer_settings;
+        analyzer_settings.use_gpu = VisualLlmRuntime::should_use_gpu();
+        auto analyzer = ImageAnalyzerFactory::create(*visual_backend, analyzer_settings);
+        const auto analysis = analyzer->analyze(image_path);
         result.success = !analysis.suggested_name.empty();
         if (!result.success) {
             result.detail = "Empty suggestion.";
@@ -1679,7 +1683,7 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
             finish();
             return;
         }
-        StepResult image_result = run_image_test(temp_dir);
+        StepResult image_result = run_image_test(temp_dir, settings_.get_visual_model_id());
 
         if (image_result.skipped) {
             const QString detail = image_result.detail.empty()

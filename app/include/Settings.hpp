@@ -93,6 +93,16 @@ public:
      */
     void set_llm_downloads_expanded(bool value);
     /**
+     * @brief Returns the selected visual model backend identifier.
+     * @return Stable visual model id.
+     */
+    std::string get_visual_model_id() const;
+    /**
+     * @brief Sets the selected visual model backend identifier.
+     * @param id Stable visual model id to store.
+     */
+    void set_visual_model_id(const std::string& id);
+    /**
      * @brief Returns the configured output language for categories.
      * @return Selected category language.
      */
@@ -574,6 +584,7 @@ private:
     std::string gemini_api_key;
     std::string gemini_model{ "gemini-2.5-flash-lite" };
     bool llm_downloads_expanded{true};
+    std::string visual_model_id;
     bool use_subcategories;
     bool categorize_files;
     bool categorize_directories;

@@ -3,6 +3,7 @@
 #ifdef AI_FILE_SORTER_TEST_BUILD
 
 #include <optional>
+#include <string>
 
 #include <QLabel>
 #include <QProgressBar>
@@ -24,6 +25,9 @@ public:
     static void refresh_visual_downloads(LLMSelectionDialog& dialog);
     static void update_llava_model_entry(LLMSelectionDialog& dialog);
     static void start_llava_model_download(LLMSelectionDialog& dialog);
+    static VisualEntryRefs visual_entry_for_env_var(LLMSelectionDialog& dialog, const std::string& env_var);
+    static std::string selected_visual_model_id(const LLMSelectionDialog& dialog);
+    static void select_visual_backend(LLMSelectionDialog& dialog, const std::string& backend_id);
     static void set_network_available_override(LLMSelectionDialog& dialog, std::optional<bool> value);
 };
 

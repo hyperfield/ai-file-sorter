@@ -163,16 +163,18 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Image analysis (Visual LLM)
 
-Image analysis uses a local LLaVA-based visual LLM to describe image contents and (optionally) suggest a better filename. This runs locally and does not require an API key.
+Image analysis uses a local MTMD-backed visual LLM to describe image contents and (optionally) suggest a better filename. This runs locally and does not require an API key.
+
+The app currently exposes multiple built-in visual backends, including LLaVA 1.6 and Gemma 3 4B. In the current embedded runtime, all supported local visual backends still require two GGUF files: the main text model and a matching `mmproj` projector file.
 
 ### Required visual LLM files
 
-The **Select LLM** dialog now includes an "Image analysis models (LLaVA)" section with two downloads:
+The **Select LLM** dialog includes an "Image analysis models" section with backend-specific downloads:
 
-- **LLaVA text model (GGUF)**: The main language model that produces the description and the filename suggestion.
-- **LLaVA mmproj (vision encoder projection, GGUF)**: The adapter that maps vision embeddings into the LLM token space so the model can accept images.
+- **Visual text model (GGUF)**: The language model that produces the description and the filename suggestion.
+- **Matching `mmproj` file (GGUF)**: The multimodal projector that maps image embeddings into the model token space so the backend can accept images.
 
-Both files are required. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+Both files are required for the selected backend. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL` or `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
 
 ### Main window options
 
@@ -680,8 +682,12 @@ Runtime and GPU:
 
 Visual LLM:
 
-- `LLAVA_MODEL_URL` - download URL for the visual LLM GGUF model (required to enable image analysis).
-- `LLAVA_MMPROJ_URL` - download URL for the visual LLM mmproj GGUF file (required to enable image analysis).
+- `LLAVA_MODEL_URL` - download URL for the default LLaVA 1.6 Mistral 7B text model.
+- `LLAVA_MMPROJ_URL` - download URL for the default LLaVA 1.6 Mistral 7B mmproj file.
+- `LLAVA_VICUNA_MODEL_URL` - download URL for the LLaVA 1.6 Vicuna 7B text model.
+- `LLAVA_VICUNA_MMPROJ_URL` - download URL for the LLaVA 1.6 Vicuna 7B mmproj file.
+- `GEMMA3_4B_MODEL_URL` - download URL for the Gemma 3 4B IT text model.
+- `GEMMA3_4B_MMPROJ_URL` - download URL for the Gemma 3 4B IT mmproj file.
 - `AI_FILE_SORTER_VISUAL_USE_GPU` - force visual encoder GPU usage (`1`) or CPU (`0`). Defaults to auto; Vulkan may fall back to CPU if VRAM is low.
 
 Timeouts and logging:

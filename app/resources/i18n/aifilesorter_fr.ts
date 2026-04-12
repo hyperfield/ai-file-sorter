@@ -550,8 +550,8 @@ Prend en charge : Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="477" />
-            <source>Image analysis models (LLaVA)</source>
-            <translation>Modèles d'analyse d'images (LLaVA)</translation>
+            <source>Image analysis models</source>
+            <translation>Modèles d'analyse d'images</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="479" />

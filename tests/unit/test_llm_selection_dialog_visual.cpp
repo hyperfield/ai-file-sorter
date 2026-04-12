@@ -51,7 +51,7 @@ bool wait_for_label(QLabel* label, const QString& starts_with, std::chrono::mill
 
 } // namespace
 
-TEST_CASE("Visual LLaVA entry shows missing env var state") {
+TEST_CASE("Visual model entry shows missing env var state") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt_context;
 
@@ -60,6 +60,10 @@ TEST_CASE("Visual LLaVA entry shows missing env var state") {
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
     EnvVarGuard llava_model_guard("LLAVA_MODEL_URL", std::nullopt);
     EnvVarGuard llava_mmproj_guard("LLAVA_MMPROJ_URL", std::nullopt);
+    EnvVarGuard llava_vicuna_model_guard("LLAVA_VICUNA_MODEL_URL", std::nullopt);
+    EnvVarGuard llava_vicuna_mmproj_guard("LLAVA_VICUNA_MMPROJ_URL", std::nullopt);
+    EnvVarGuard gemma_model_guard("GEMMA3_4B_MODEL_URL", std::nullopt);
+    EnvVarGuard gemma_mmproj_guard("GEMMA3_4B_MMPROJ_URL", std::nullopt);
 
     Settings settings;
     LLMSelectionDialog dialog(settings);
@@ -72,7 +76,7 @@ TEST_CASE("Visual LLaVA entry shows missing env var state") {
     CHECK_FALSE(entry.download_button->isEnabled());
 }
 
-TEST_CASE("Visual LLaVA entry shows resume state for partial downloads") {
+TEST_CASE("Visual model entry shows resume state for partial downloads") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt_context;
 
@@ -86,6 +90,10 @@ TEST_CASE("Visual LLaVA entry shows resume state for partial downloads") {
 
     EnvVarGuard llava_model_guard("LLAVA_MODEL_URL", model_url);
     EnvVarGuard llava_mmproj_guard("LLAVA_MMPROJ_URL", std::nullopt);
+    EnvVarGuard llava_vicuna_model_guard("LLAVA_VICUNA_MODEL_URL", std::nullopt);
+    EnvVarGuard llava_vicuna_mmproj_guard("LLAVA_VICUNA_MMPROJ_URL", std::nullopt);
+    EnvVarGuard gemma_model_guard("GEMMA3_4B_MODEL_URL", std::nullopt);
+    EnvVarGuard gemma_mmproj_guard("GEMMA3_4B_MMPROJ_URL", std::nullopt);
 
     Settings settings;
     LLMSelectionDialog dialog(settings);
@@ -107,7 +115,7 @@ TEST_CASE("Visual LLaVA entry shows resume state for partial downloads") {
     CHECK(entry.download_button->isEnabled());
 }
 
-TEST_CASE("Visual LLaVA entry reports download errors") {
+TEST_CASE("Visual model entry reports download errors") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt_context;
 
@@ -121,6 +129,10 @@ TEST_CASE("Visual LLaVA entry reports download errors") {
 
     EnvVarGuard llava_model_guard("LLAVA_MODEL_URL", model_url);
     EnvVarGuard llava_mmproj_guard("LLAVA_MMPROJ_URL", std::nullopt);
+    EnvVarGuard llava_vicuna_model_guard("LLAVA_VICUNA_MODEL_URL", std::nullopt);
+    EnvVarGuard llava_vicuna_mmproj_guard("LLAVA_VICUNA_MMPROJ_URL", std::nullopt);
+    EnvVarGuard gemma_model_guard("GEMMA3_4B_MODEL_URL", std::nullopt);
+    EnvVarGuard gemma_mmproj_guard("GEMMA3_4B_MMPROJ_URL", std::nullopt);
 
     Settings settings;
     LLMSelectionDialog dialog(settings);
@@ -142,5 +154,43 @@ TEST_CASE("Visual LLaVA entry reports download errors") {
     CHECK(updated);
 
     TestHooks::reset_llm_download_probe();
+}
+
+TEST_CASE("Visual backend selection switches descriptor-driven download state") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    EnvVarGuard llava_model_guard("LLAVA_MODEL_URL", std::nullopt);
+    EnvVarGuard llava_mmproj_guard("LLAVA_MMPROJ_URL", std::nullopt);
+    EnvVarGuard llava_vicuna_model_guard("LLAVA_VICUNA_MODEL_URL", std::nullopt);
+    EnvVarGuard llava_vicuna_mmproj_guard("LLAVA_VICUNA_MMPROJ_URL", std::nullopt);
+    EnvVarGuard gemma_model_guard("GEMMA3_4B_MODEL_URL", std::nullopt);
+    EnvVarGuard gemma_mmproj_guard("GEMMA3_4B_MMPROJ_URL", std::nullopt);
+
+    Settings settings;
+    settings.set_visual_model_id("llava-v1.6-mistral-7b");
+
+    LLMSelectionDialog dialog(settings);
+
+    CHECK(LLMSelectionDialogTestAccess::selected_visual_model_id(dialog) == "llava-v1.6-mistral-7b");
+
+    const auto default_entry =
+        LLMSelectionDialogTestAccess::visual_entry_for_env_var(dialog, "LLAVA_MODEL_URL");
+    REQUIRE(default_entry.status_label != nullptr);
+    CHECK(default_entry.status_label->text() ==
+          QStringLiteral("Missing download URL environment variable (LLAVA_MODEL_URL)."));
+
+    LLMSelectionDialogTestAccess::select_visual_backend(dialog, "gemma-3-4b-it");
+
+    CHECK(LLMSelectionDialogTestAccess::selected_visual_model_id(dialog) == "gemma-3-4b-it");
+
+    const auto gemma_entry =
+        LLMSelectionDialogTestAccess::visual_entry_for_env_var(dialog, "GEMMA3_4B_MODEL_URL");
+    REQUIRE(gemma_entry.status_label != nullptr);
+    CHECK(gemma_entry.status_label->text() ==
+          QStringLiteral("Missing download URL environment variable (GEMMA3_4B_MODEL_URL)."));
 }
 #endif

@@ -14,9 +14,9 @@ TEST_CASE("Visual CPU fallback detection recognizes retryable GPU failures") {
 
 TEST_CASE("Visual CPU fallback detection ignores non-retryable startup failures") {
     CHECK_FALSE(MainAppTestAccess::should_offer_visual_cpu_fallback(
-        "Failed to load mmproj file at C:/models/mmproj.gguf"));
+        "Failed to load multimodal projector file at C:/models/mmproj.gguf"));
     CHECK_FALSE(MainAppTestAccess::should_offer_visual_cpu_fallback(
-        "Failed to load LLaVA text model at C:/models/model.gguf"));
+        "Failed to load visual text model at C:/models/model.gguf"));
     CHECK_FALSE(MainAppTestAccess::should_offer_visual_cpu_fallback(
-        "The provided mmproj file does not expose vision capabilities"));
+        "The provided multimodal projector does not expose vision capabilities"));
 }

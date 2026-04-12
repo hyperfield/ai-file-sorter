@@ -1,8 +1,9 @@
 #pragma once
 
-#include <cstdint>
+#include "ImageAnalyzer.hpp"
+#include "VisualModelCatalog.hpp"
+
 #include <filesystem>
-#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -17,65 +18,38 @@ struct mtmd_context;
 struct mtmd_bitmap;
 #endif
 
-/**
- * @brief Result returned by LlavaImageAnalyzer.
- */
-struct LlavaImageAnalysisResult {
-    /**
-     * @brief Natural language description of the image contents.
-     */
-    std::string description;
-    /**
-     * @brief Suggested filename derived from the description.
-     */
-    std::string suggested_name;
-};
+using LlavaImageAnalysisResult = ImageAnalysisResult;
 
 /**
- * @brief Runs local LLaVA inference to describe images and suggest filenames.
+ * @brief Runs local MTMD-backed visual inference to describe images and suggest filenames.
+ *
+ * The class keeps its historical name, but it now serves any supported local
+ * visual backend that uses the current text-model-plus-mmproj runtime path.
  */
-class LlavaImageAnalyzer {
+class LlavaImageAnalyzer final : public ImageAnalyzer {
 public:
-    /**
-     * @brief Analyzer configuration for LLaVA inference.
-     */
-    struct Settings {
-        /** @brief Context length (tokens). */
-        int32_t n_ctx = 4096;
-        /** @brief Maximum tokens to predict. */
-        int32_t n_predict = 80;
-        /** @brief Number of CPU threads to use (0 = auto). */
-        int32_t n_threads = 0;
-        /** @brief Sampling temperature. */
-        float temperature = 0.2f;
-        /** @brief Whether to use GPU acceleration. */
-        bool use_gpu = true;
-        /** @brief Enable verbose visual model logging. */
-        bool log_visual_output = false;
-        /**
-         * @brief Optional callback for image batch progress.
-         * @param current_batch Batch index (1-based).
-         * @param total_batches Total number of batches.
-         */
-        std::function<void(int32_t current_batch, int32_t total_batches)> batch_progress;
-    };
+    using Settings = ImageAnalyzerSettings;
 
     /**
      * @brief Constructs the analyzer with explicit settings.
-     * @param model_path Path to the LLaVA text model (GGUF).
-     * @param mmproj_path Path to the LLaVA mmproj file (GGUF).
+     * @param model_path Path to the visual text model (GGUF).
+     * @param mmproj_path Path to the matching multimodal projector file (GGUF).
+     * @param prompt_policy Backend-specific prompt policy.
      * @param settings Inference settings.
      */
     LlavaImageAnalyzer(const std::filesystem::path& model_path,
                        const std::filesystem::path& mmproj_path,
+                       VisualPromptPolicy prompt_policy,
                        Settings settings);
     /**
      * @brief Constructs the analyzer with default settings.
-     * @param model_path Path to the LLaVA text model (GGUF).
-     * @param mmproj_path Path to the LLaVA mmproj file (GGUF).
+     * @param model_path Path to the visual text model (GGUF).
+     * @param mmproj_path Path to the matching multimodal projector file (GGUF).
+     * @param prompt_policy Backend-specific prompt policy.
      */
     LlavaImageAnalyzer(const std::filesystem::path& model_path,
-                       const std::filesystem::path& mmproj_path);
+                       const std::filesystem::path& mmproj_path,
+                       VisualPromptPolicy prompt_policy = VisualPromptPolicy::LegacyLlava);
     /**
      * @brief Destructor; releases model resources.
      */
@@ -89,7 +63,7 @@ public:
      * @param image_path Path to the image file.
      * @return Analysis result with description and suggested name.
      */
-    LlavaImageAnalysisResult analyze(const std::filesystem::path& image_path);
+    ImageAnalysisResult analyze(const std::filesystem::path& image_path) override;
 
     /**
      * @brief Returns true if the image path has a supported extension.
@@ -99,38 +73,31 @@ public:
     static bool is_supported_image(const std::filesystem::path& path);
 
 private:
-    /**
-     * @brief Builds the description prompt for the visual model.
-     * @return Prompt string.
-     */
-    std::string build_description_prompt() const;
-    /**
-     * @brief Builds the filename prompt from an image description.
-     * @param description Model-generated description.
-     * @return Prompt string.
-     */
-    std::string build_filename_prompt(const std::string& description) const;
 #ifdef AI_FILE_SORTER_HAS_MTMD
     /**
      * @brief Runs inference on the given bitmap.
      * @param bitmap Input bitmap.
-     * @param prompt Prompt to run.
+     * @param system_prompt Optional system prompt to apply via chat template.
+     * @param user_prompt Prompt to run.
      * @param max_tokens Maximum tokens to generate.
      * @return Model response text.
      */
     std::string infer_text(mtmd_bitmap* bitmap,
-                           const std::string& prompt,
+                           std::string_view system_prompt,
+                           const std::string& user_prompt,
                            int32_t max_tokens);
 #else
     /**
      * @brief Runs inference on the given bitmap (stub for non-MTMD builds).
      * @param bitmap Input bitmap.
-     * @param prompt Prompt to run.
+     * @param system_prompt Optional system prompt to apply via chat template.
+     * @param user_prompt Prompt to run.
      * @param max_tokens Maximum tokens to generate.
      * @return Model response text.
      */
     std::string infer_text(void* bitmap,
-                           const std::string& prompt,
+                           std::string_view system_prompt,
+                           const std::string& user_prompt,
                            int32_t max_tokens);
 #endif
     /**
@@ -199,11 +166,17 @@ private:
      * @brief Stored analyzer settings.
      */
     Settings settings_;
+    /** @brief Backend-specific prompt policy. */
+    VisualPromptPolicy prompt_policy_{VisualPromptPolicy::LegacyLlava};
 };
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
 namespace LlavaImageAnalyzerTestAccess {
 int32_t default_visual_batch_size(bool gpu_enabled, std::string_view backend_name);
 int32_t visual_model_n_gpu_layers_for_model(const std::string& model_path);
+std::string description_system_prompt(VisualPromptPolicy policy);
+std::string description_user_prompt(VisualPromptPolicy policy);
+std::string filename_system_prompt(VisualPromptPolicy policy);
+std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description);
 }
 #endif

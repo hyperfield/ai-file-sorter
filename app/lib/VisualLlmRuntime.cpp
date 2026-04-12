@@ -15,19 +15,17 @@ std::string to_lower_copy(std::string value)
     return value;
 }
 
-std::optional<std::filesystem::path> resolve_mmproj_path(const std::filesystem::path& primary)
+std::optional<std::filesystem::path> resolve_artifact_path(
+    const std::filesystem::path& primary,
+    const VisualModelArtifactDescriptor& descriptor)
 {
     if (std::filesystem::exists(primary)) {
         return primary;
     }
 
     const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
-    static const char* kAltMmprojNames[] = {
-        "mmproj-model-f16.gguf",
-        "llava-v1.6-mistral-7b-mmproj-f16.gguf"
-    };
-    for (const char* alt_name : kAltMmprojNames) {
-        const auto candidate = llm_dir / alt_name;
+    for (const auto alt_name : descriptor.fallback_filenames) {
+        const auto candidate = llm_dir / std::filesystem::path(std::string(alt_name));
         if (std::filesystem::exists(candidate)) {
             return candidate;
         }
@@ -37,6 +35,18 @@ std::optional<std::filesystem::path> resolve_mmproj_path(const std::filesystem::
 }
 
 } // namespace
+
+std::optional<std::filesystem::path> VisualLlmRuntime::Backend::path_for(VisualModelArtifactKind kind) const
+{
+    const auto it =
+        std::find_if(artifacts.begin(), artifacts.end(), [kind](const ResolvedArtifact& artifact) {
+            return artifact.descriptor && artifact.descriptor->kind == kind;
+        });
+    if (it == artifacts.end()) {
+        return std::nullopt;
+    }
+    return it->path;
+}
 
 bool VisualLlmRuntime::default_text_llm_files_available()
 {
@@ -67,45 +77,93 @@ bool VisualLlmRuntime::default_text_llm_files_available()
     return false;
 }
 
-std::optional<VisualLlmRuntime::Paths> VisualLlmRuntime::resolve_paths(std::string* error)
+std::optional<VisualLlmRuntime::Backend> VisualLlmRuntime::resolve_active_backend(
+    std::string_view backend_id,
+    std::string* error)
 {
-    const char* model_url = std::getenv("LLAVA_MODEL_URL");
-    const char* mmproj_url = std::getenv("LLAVA_MMPROJ_URL");
-    if (!model_url || !*model_url || !mmproj_url || !*mmproj_url) {
+    const VisualModelDescriptor* descriptor_ptr = nullptr;
+    if (!backend_id.empty()) {
+        descriptor_ptr = find_visual_model_descriptor(backend_id);
+    }
+    if (!descriptor_ptr) {
+        descriptor_ptr = &default_visual_model_descriptor();
+    }
+    const auto& descriptor = *descriptor_ptr;
+    std::vector<ResolvedArtifact> artifacts;
+    artifacts.reserve(descriptor.artifacts.size());
+
+    std::vector<const char*> missing_envs;
+    for (const auto& artifact : descriptor.artifacts) {
+        const char* env_url = std::getenv(artifact.url_env);
+        if (!env_url || !*env_url) {
+            missing_envs.push_back(artifact.url_env);
+        }
+    }
+
+    if (!missing_envs.empty()) {
         if (error) {
-            *error = "Missing visual LLM download URLs. Check LLAVA_MODEL_URL and LLAVA_MMPROJ_URL.";
+            std::string message = "Missing visual LLM download URLs. Check ";
+            for (size_t i = 0; i < missing_envs.size(); ++i) {
+                if (i > 0) {
+                    message += " and ";
+                }
+                message += missing_envs[i];
+            }
+            message.push_back('.');
+            *error = std::move(message);
         }
         return std::nullopt;
     }
 
-    std::filesystem::path model_path;
-    std::filesystem::path mmproj_primary;
-    try {
-        model_path = std::filesystem::path(Utils::make_default_path_to_file_from_download_url(model_url));
-        mmproj_primary = std::filesystem::path(Utils::make_default_path_to_file_from_download_url(mmproj_url));
-    } catch (...) {
+    for (const auto& artifact : descriptor.artifacts) {
+        const char* env_url = std::getenv(artifact.url_env);
+        std::filesystem::path primary_path;
+        try {
+            primary_path = std::filesystem::path(
+                Utils::make_default_path_to_file_from_download_url(env_url));
+        } catch (...) {
+            if (error) {
+                *error = "Failed to resolve visual LLM file paths.";
+            }
+            return std::nullopt;
+        }
+
+        const auto resolved_path = resolve_artifact_path(primary_path, artifact);
+        if (!resolved_path) {
+            if (error) {
+                if (artifact.kind == VisualModelArtifactKind::Model) {
+                    *error = "Visual LLM model file is missing: " + primary_path.string();
+                } else {
+                    *error = "Visual LLM mmproj file is missing: " + primary_path.string();
+                }
+            }
+            return std::nullopt;
+        }
+
+        artifacts.push_back(ResolvedArtifact{&artifact, *resolved_path});
+    }
+
+    return Backend{&descriptor, std::move(artifacts)};
+}
+
+std::optional<VisualLlmRuntime::Paths> VisualLlmRuntime::resolve_paths(std::string_view backend_id,
+                                                                       std::string* error)
+{
+    const auto backend = resolve_active_backend(backend_id, error);
+    if (!backend.has_value()) {
+        return std::nullopt;
+    }
+
+    const auto model_path = backend->path_for(VisualModelArtifactKind::Model);
+    const auto mmproj_path = backend->path_for(VisualModelArtifactKind::Mmproj);
+    if (!model_path.has_value() || !mmproj_path.has_value()) {
         if (error) {
-            *error = "Failed to resolve visual LLM file paths.";
+            *error = "Resolved visual backend is missing required model/mmproj artifacts.";
         }
         return std::nullopt;
     }
 
-    if (!std::filesystem::exists(model_path)) {
-        if (error) {
-            *error = "Visual LLM model file is missing: " + model_path.string();
-        }
-        return std::nullopt;
-    }
-
-    const auto mmproj_path = resolve_mmproj_path(mmproj_primary);
-    if (!mmproj_path) {
-        if (error) {
-            *error = "Visual LLM mmproj file is missing: " + mmproj_primary.string();
-        }
-        return std::nullopt;
-    }
-
-    return Paths{model_path, *mmproj_path};
+    return Paths{*model_path, *mmproj_path};
 }
 
 bool VisualLlmRuntime::should_use_gpu()

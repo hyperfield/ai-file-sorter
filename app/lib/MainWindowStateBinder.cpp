@@ -536,7 +536,9 @@ bool MainWindowStateBinder::visual_llm_files_available() const
         return app_.visual_llm_available_probe_();
     }
 #endif
-    return VisualLlmRuntime::resolve_paths(nullptr).has_value();
+    return VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
+                                                    nullptr)
+        .has_value();
 }
 
 void MainWindowStateBinder::update_image_analysis_controls()
