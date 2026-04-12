@@ -38,7 +38,7 @@ ifeq ($(UNAME), Linux)
 
     # --- Qt6 setup ---
     PKG_CONFIG := $(shell command -v pkg-config 2>/dev/null)
-    QT_PACKAGES := Qt6Widgets Qt6Gui Qt6Core
+    QT_PACKAGES := Qt6Widgets Qt6Gui Qt6Core Qt6Network
     QT_CXXFLAGS :=
     QT_LDFLAGS :=
 ifneq ($(strip $(PKG_CONFIG)),)
@@ -48,8 +48,8 @@ endif
 ifeq ($(strip $(QT_CXXFLAGS)),)
     QT_INCLUDE_BASE ?= /usr/include/x86_64-linux-gnu/qt6
     QT_LIB_BASE     ?= /usr/lib/x86_64-linux-gnu
-    CXXFLAGS += -I$(QT_INCLUDE_BASE) -I$(QT_INCLUDE_BASE)/QtCore -I$(QT_INCLUDE_BASE)/QtGui -I$(QT_INCLUDE_BASE)/QtWidgets
-    LDFLAGS  += -L$(QT_LIB_BASE) -lQt6Widgets -lQt6Gui -lQt6Core
+    CXXFLAGS += -I$(QT_INCLUDE_BASE) -I$(QT_INCLUDE_BASE)/QtCore -I$(QT_INCLUDE_BASE)/QtGui -I$(QT_INCLUDE_BASE)/QtWidgets -I$(QT_INCLUDE_BASE)/QtNetwork
+    LDFLAGS  += -L$(QT_LIB_BASE) -lQt6Widgets -lQt6Gui -lQt6Core -lQt6Network
 else
     CXXFLAGS += $(QT_CXXFLAGS)
     LDFLAGS  += $(QT_LDFLAGS)
@@ -135,7 +135,7 @@ $(error pkg-config is required to locate Qt6 frameworks on macOS. Please install
 endif
 endif
 
-    QT_PACKAGES := Qt6Widgets Qt6Gui Qt6Core
+    QT_PACKAGES := Qt6Widgets Qt6Gui Qt6Core Qt6Network
     QT_CXXFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --cflags $(QT_PACKAGES))
     QT_LDFLAGS := $(shell PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(PKG_CONFIG) --libs $(QT_PACKAGES))
 ifeq ($(strip $(QT_CXXFLAGS)),)
