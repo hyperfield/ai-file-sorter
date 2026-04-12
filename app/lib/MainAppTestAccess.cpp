@@ -124,6 +124,12 @@ std::string MainAppTestAccess::resolve_document_prompt_name(const std::string& o
     return AnalysisCoordinator::resolve_document_prompt_name(original_name, suggested_name);
 }
 
+std::string MainAppTestAccess::build_image_prompt_path(const std::string& full_path,
+                                                       const std::string& prompt_name,
+                                                       const std::string& description) {
+    return AnalysisCoordinator::build_image_prompt_path(full_path, prompt_name, description);
+}
+
 std::string MainAppTestAccess::build_document_prompt_path(const std::string& full_path,
                                                           const std::string& prompt_name,
                                                           const std::string& summary) {

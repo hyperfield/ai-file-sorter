@@ -44,6 +44,37 @@ private:
     std::string response_;
 };
 
+class PromptCaptureLLM : public ILLMClient {
+public:
+    PromptCaptureLLM(std::shared_ptr<std::string> captured_path,
+                     std::shared_ptr<int> calls,
+                     std::string response)
+        : captured_path_(std::move(captured_path)),
+          calls_(std::move(calls)),
+          response_(std::move(response)) {}
+
+    std::string categorize_file(const std::string&,
+                                const std::string& file_path,
+                                FileType,
+                                const std::string&) override {
+        ++(*calls_);
+        *captured_path_ = file_path;
+        return response_;
+    }
+
+    std::string complete_prompt(const std::string&, int) override {
+        return std::string();
+    }
+
+    void set_prompt_logging_enabled(bool) override {
+    }
+
+private:
+    std::shared_ptr<std::string> captured_path_;
+    std::shared_ptr<int> calls_;
+    std::string response_;
+};
+
 class TranslationAwareLLM : public ILLMClient {
 public:
     TranslationAwareLLM(std::shared_ptr<int> categorize_calls,
@@ -564,6 +595,70 @@ TEST_CASE("Document prompt path uses the suggested filename and preserves summar
     CHECK(prompt_path.find(expected_path) == 0);
     CHECK(prompt_path.find("\nDocument summary: " + summary) != std::string::npos);
     CHECK(prompt_path.find("legacy_name.pdf") == std::string::npos);
+}
+
+TEST_CASE("Image prompt path uses the suggested filename and preserves descriptions") {
+    TempDir data_dir;
+    const std::filesystem::path original_path = data_dir.path() / "legacy_name.jpg";
+    const std::string prompt_name = "snowy_mountain.jpg";
+    const std::string description = "A snow-covered mountain under a clear blue sky.";
+    const std::string expected_path = Utils::path_to_utf8(data_dir.path() / prompt_name);
+    const std::string prompt_path = MainAppTestAccess::build_image_prompt_path(
+        original_path.string(),
+        prompt_name,
+        description);
+
+    CHECK(prompt_path.find(expected_path) == 0);
+    CHECK(prompt_path.find("\nImage description: " + description) != std::string::npos);
+    CHECK(prompt_path.find("legacy_name.jpg") == std::string::npos);
+}
+
+TEST_CASE("CategorizationService passes image descriptions through prompt overrides") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "legacy_name.jpg";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::string suggested_name = "snowy_mountain.jpg";
+    const std::string description = "A snow-covered mountain under a clear blue sky.";
+    const std::string prompt_path = MainAppTestAccess::build_image_prompt_path(
+        full_path,
+        suggested_name,
+        description);
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto factory = [captured_path, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            calls,
+            "Category: Nature\nSubcategory: Mountains");
+    };
+
+    const auto categorized = service.categorize_entries(
+        files,
+        true,
+        stop_flag,
+        {},
+        {},
+        {},
+        {},
+        factory,
+        [suggested_name, prompt_path](const FileEntry&) {
+            return CategorizationService::PromptOverride{suggested_name, prompt_path};
+        });
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 1);
+    CHECK(captured_path->find(suggested_name) != std::string::npos);
+    CHECK(captured_path->find("\nImage description: " + description) != std::string::npos);
+    CHECK(captured_path->find("legacy_name.jpg") == std::string::npos);
 }
 
 TEST_CASE("CategorizationService stores canonical English labels and persists translated taxonomy labels") {

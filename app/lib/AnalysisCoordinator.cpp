@@ -35,6 +35,39 @@ std::string to_utf8(const QString& value)
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
 
+std::string trim_copy(const std::string& value)
+{
+    auto trimmed = value;
+    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
+    trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
+    return trimmed;
+}
+
+std::string collapse_spaces_copy(const std::string& value)
+{
+    std::string collapsed;
+    collapsed.reserve(value.size());
+    bool previous_space = false;
+    for (unsigned char ch : value) {
+        if (std::isspace(ch)) {
+            if (!previous_space) {
+                collapsed.push_back(' ');
+            }
+            previous_space = true;
+            continue;
+        }
+        collapsed.push_back(static_cast<char>(ch));
+        previous_space = false;
+    }
+    return trim_copy(collapsed);
+}
+
+std::string normalize_prompt_snippet(const std::string& value)
+{
+    return collapse_spaces_copy(value);
+}
+
 std::optional<bool> read_env_bool(const char* key)
 {
     const char* value = std::getenv(key);
@@ -104,6 +137,22 @@ std::string AnalysisCoordinator::resolve_document_prompt_name(const std::string&
                                                               const std::string& suggested_name)
 {
     return suggested_name.empty() ? original_name : suggested_name;
+}
+
+std::string AnalysisCoordinator::build_image_prompt_path(const std::string& full_path,
+                                                         const std::string& prompt_name,
+                                                         const std::string& description)
+{
+    const auto entry_path = Utils::utf8_to_path(full_path);
+    const std::string effective_name =
+        prompt_name.empty() ? Utils::path_to_utf8(entry_path.filename()) : prompt_name;
+    std::string prompt_path = Utils::path_to_utf8(
+        entry_path.parent_path() / Utils::utf8_to_path(effective_name));
+    const std::string normalized_description = normalize_prompt_snippet(description);
+    if (!normalized_description.empty()) {
+        prompt_path += "\nImage description: " + normalized_description;
+    }
+    return prompt_path;
 }
 
 std::string AnalysisCoordinator::build_document_prompt_path(const std::string& full_path,
@@ -974,9 +1023,9 @@ void AnalysisCoordinator::execute()
                             const auto analysis = analyzer->analyze(entry.full_path);
                             const std::string prompt_name = analysis.suggested_name;
                             const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
-                            const auto entry_path = Utils::utf8_to_path(entry.full_path);
-                            const auto prompt_path = Utils::path_to_utf8(
-                                entry_path.parent_path() / Utils::utf8_to_path(prompt_name));
+                            const auto prompt_path = build_image_prompt_path(entry.full_path,
+                                                                             prompt_name,
+                                                                             analysis.description);
 
                             const std::string suggested_name =
                                 already_renamed ? std::string() : enriched_name;

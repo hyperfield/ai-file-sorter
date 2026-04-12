@@ -641,11 +641,14 @@ std::string shrink_user_prompt_for_context(const std::string& prompt, int attemp
     static const std::array<std::size_t, 4> kSummaryBudgets = {1200, 800, 500, 300};
     static const std::array<std::size_t, 4> kPromptBudgets = {1800, 1400, 1000, 700};
 
-    std::string trimmed = prompt;
-    const auto summary_marker = trimmed.find("\nDocument summary: ");
-    if (summary_marker != std::string::npos) {
-        const auto file_name_marker = trimmed.find("\nFile name:", summary_marker + 1);
-        const auto directory_name_marker = trimmed.find("\nDirectory name:", summary_marker + 1);
+    auto trim_labeled_section = [&](std::string text, std::string_view marker) {
+        const auto marker_pos = text.find(marker);
+        if (marker_pos == std::string::npos) {
+            return text;
+        }
+
+        const auto file_name_marker = text.find("\nFile name:", marker_pos + 1);
+        const auto directory_name_marker = text.find("\nDirectory name:", marker_pos + 1);
         std::size_t suffix_start = std::string::npos;
         if (file_name_marker != std::string::npos) {
             suffix_start = file_name_marker;
@@ -656,21 +659,27 @@ std::string shrink_user_prompt_for_context(const std::string& prompt, int attemp
                 : std::min(suffix_start, directory_name_marker);
         }
         if (suffix_start == std::string::npos) {
-            suffix_start = trimmed.size();
+            suffix_start = text.size();
         }
 
-        const std::size_t summary_start = summary_marker + std::string("\nDocument summary: ").size();
-        const std::size_t summary_length = suffix_start > summary_start ? suffix_start - summary_start : 0;
+        const std::size_t section_start = marker_pos + marker.size();
+        const std::size_t section_length = suffix_start > section_start ? suffix_start - section_start : 0;
         const std::size_t budget = kSummaryBudgets[std::min<std::size_t>(
             static_cast<std::size_t>(attempt),
             kSummaryBudgets.size() - 1)];
-        if (summary_length > budget) {
-            const std::string prefix = trimmed.substr(0, summary_start);
-            const std::string summary = truncate_with_ellipsis(trimmed.substr(summary_start, summary_length), budget);
-            const std::string suffix = trimmed.substr(suffix_start);
-            return prefix + summary + suffix;
+        if (section_length <= budget) {
+            return text;
         }
-    }
+
+        const std::string prefix = text.substr(0, section_start);
+        const std::string section = truncate_with_ellipsis(text.substr(section_start, section_length), budget);
+        const std::string suffix = text.substr(suffix_start);
+        return prefix + section + suffix;
+    };
+
+    std::string trimmed = prompt;
+    trimmed = trim_labeled_section(std::move(trimmed), "\nDocument summary: ");
+    trimmed = trim_labeled_section(std::move(trimmed), "\nImage description: ");
 
     const std::size_t budget = kPromptBudgets[std::min<std::size_t>(
         static_cast<std::size_t>(attempt),

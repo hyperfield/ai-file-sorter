@@ -659,6 +659,20 @@ Procedure: Run `categorize_entries` for one file entry.
 Expected outcome: Parsed labels match the provided category and subcategory values.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService parses labeled category and subcategory lines"`
 
+#### Test case: Image prompt path uses the suggested filename and preserves descriptions
+Purpose: Ensure image categorization prompts use the suggested filename while preserving the visual description payload.
+Setup: Create a temporary image path, a suggested filename, and a sample visual description.
+Procedure: Build the image prompt path through the test access helper.
+Expected outcome: The generated prompt path starts with the suggested filename path, includes the `Image description:` suffix, and omits the legacy filename.
+Run: `./build-tests/ai_file_sorter_tests "Image prompt path uses the suggested filename and preserves descriptions"`
+
+#### Test case: CategorizationService passes image descriptions through prompt overrides
+Purpose: Verify that image prompt overrides forward the visual description payload to the categorization LLM.
+Setup: Create a categorization service with a prompt-capturing LLM stub, then prepare an image entry with a suggested filename and generated image prompt path.
+Procedure: Run `categorize_entries` with a prompt override for the image entry and inspect the captured prompt path passed to the LLM.
+Expected outcome: The captured prompt contains the suggested filename and `Image description:` section, and omits the original filename.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService passes image descriptions through prompt overrides"`
+
 ### `tests/unit/test_cache_interactions.cpp`
 
 #### Test case: CategorizationService uses cached categorization without calling LLM

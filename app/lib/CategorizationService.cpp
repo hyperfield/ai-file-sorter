@@ -61,6 +61,14 @@ std::string collapse_spaces_copy(std::string value) {
     return trim_copy(std::move(collapsed));
 }
 
+std::string first_line_copy(std::string value) {
+    const auto newline = value.find('\n');
+    if (newline != std::string::npos) {
+        value.resize(newline);
+    }
+    return trim_copy(std::move(value));
+}
+
 std::string strip_wrapping_punctuation(std::string value) {
     auto is_wrapping = [](unsigned char ch) {
         switch (ch) {
@@ -886,7 +894,7 @@ void CategorizationService::emit_progress_message(const ProgressCallback& progre
     const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
     const std::string current_path_display = current_path.empty() ? "-" : current_path;
     const std::string categorization_path_display =
-        categorization_path.empty() ? current_path_display : categorization_path;
+        categorization_path.empty() ? current_path_display : first_line_copy(categorization_path);
 
     progress_callback(fmt::format(
         "[{}] {}\n"
