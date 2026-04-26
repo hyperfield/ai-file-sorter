@@ -184,7 +184,7 @@ function(aifs_assert_path_not_in_repo path_value label)
         # vcpkg manifest mode can stage package-managed headers/libs inside the
         # build tree under a local vcpkg_installed directory. That is still a
         # package-manager origin, not vendored MediaInfo content.
-        if(_entry_norm MATCHES "(^|/)vcpkg_installed(/|$)")
+        if(_entry_norm MATCHES "(^|/)(vcpkg_installed|build-windows-vcpkg_installed)(/|$)")
             continue()
         endif()
         if(_entry_norm MATCHES "^${_repo_root_regex}(/|$)")
