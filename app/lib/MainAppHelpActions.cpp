@@ -68,6 +68,8 @@ QString quick_start_resource_path(Language language)
         return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_ko.md");
     case Language::SimplifiedChinese:
         return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_zh_cn.md");
+    case Language::TraditionalChinese:
+        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_zh_tw.md");
     case Language::English:
     default:
         return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start.md");

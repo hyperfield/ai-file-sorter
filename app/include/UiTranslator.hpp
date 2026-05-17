@@ -111,6 +111,7 @@ public:
         QAction*& hindi_action;
         QAction*& italian_action;
         QAction*& simplified_chinese_action;
+        QAction*& traditional_chinese_action;
         QAction*& swedish_action;
         QAction*& icelandic_action;
         QAction*& norwegian_action;
@@ -139,6 +140,7 @@ public:
         QAction*& hindi_action;
         QAction*& italian_action;
         QAction*& simplified_chinese_action;
+        QAction*& traditional_chinese_action;
         QAction*& swedish_action;
         QAction*& icelandic_action;
         QAction*& norwegian_action;

@@ -397,6 +397,7 @@ TS_FILES := \
 	$(TS_DIR)/aifilesorter_es.ts \
 	$(TS_DIR)/aifilesorter_nl.ts \
 	$(TS_DIR)/aifilesorter_zh_cn.ts \
+	$(TS_DIR)/aifilesorter_zh_tw.ts \
 	$(TS_DIR)/aifilesorter_sv.ts \
 	$(TS_DIR)/aifilesorter_is.ts \
 	$(TS_DIR)/aifilesorter_nb.ts \

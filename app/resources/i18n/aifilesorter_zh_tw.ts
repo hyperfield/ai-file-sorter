@@ -1,37 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="da_DK">
+<TS version="2.1" language="zh_TW">
     <context>
         <name>AnalysisCoordinator</name>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="237" />
             <source>[SCAN] Exploring %1</source>
-            <translation>[SCAN] Udforsker %1</translation>
+            <translation>[SCAN] 正在探索 %1</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="661" />
             <source>[PROCESS] Letting the AI do its magic...</source>
-            <translation>[PROCESS] Lader AI'en gøre sin magi...</translation>
+            <translation>[PROCESS] 讓 AI 施展魔法……</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="848" />
             <source>[VISION] Decoding image batch %1/%2 (%3%)</source>
-            <translation>[VISION] Afkodning af billedbatch %1/%2 (%3%)</translation>
+            <translation>[VISION] 正在解碼圖片批次 %1/%2 (%3%)</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="888" />
             <source>Unknown</source>
-            <translation>Ukendt</translation>
+            <translation>未知</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="893" />
             <source>[VISION] Runtime: backend=%1 | text=%2 | mmproj=%3 | batch_size=%4</source>
-            <translation>[VISION] Runtime: backend=%1 | text=%2 | mmproj=%3 | batch_size=%4</translation>
+            <translation>[VISION] 執行環境：backend=%1 | text=%2 | mmproj=%3 | batch_size=%4</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="903" />
             <source>[VISION] Timing %1: load %2 | describe %3 | filename %4 | total %5</source>
-            <translation>[VISION] Timing %1: indlæs %2 | beskriv %3 | filnavn %4 | i alt %5</translation>
+            <translation>[VISION] 計時 %1：載入 %2 | 描述 %3 | 檔名 %4 | 合計 %5</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="945" />
@@ -41,7 +41,7 @@
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1005" />
             <source>[VISION] Switching visual analysis to CPU.</source>
-            <translation>[VISION] Skifter visuel analyse til CPU.</translation>
+            <translation>[VISION] 正在將視覺分析切換至 CPU。</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1041" />
@@ -51,27 +51,27 @@
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1045" />
             <source>[VISION] Visual analysis disabled; falling back to filenames.</source>
-            <translation>[VISION] Visuel analyse deaktiveret; falder tilbage til filnavne.</translation>
+            <translation>[VISION] 視覺分析已停用，改以檔名進行分析。</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1082" />
             <source>[VISION] Using cached suggestion for %1</source>
-            <translation>[VISION] Bruger cachelagret forslag til %1</translation>
+            <translation>[VISION] 正在使用 %1 的快取建議</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1112" />
             <source>[VISION] Analyzing %1</source>
-            <translation>[VISION] Analyserer %1</translation>
+            <translation>[VISION] 正在分析 %1</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1161" />
             <source>[VISION] GPU memory issue detected. Switching to CPU.</source>
-            <translation>[VISION] GPU-hukommelsesproblem registreret. Skift til CPU.</translation>
+            <translation>[VISION] 偵測到 GPU 記憶體問題，正在切換至 CPU。</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1192" />
             <source>[VISION] Visual analysis disabled for remaining images.</source>
-            <translation>[VISION] Visuel analyse deaktiveret for resterende billeder.</translation>
+            <translation>[VISION] 已停用剩餘圖片的視覺分析。</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1276" />
@@ -81,26 +81,26 @@
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1348" />
             <source>[DOC] Using cached suggestion for %1</source>
-            <translation>[DOC] Bruger cachelagret forslag til %1</translation>
+            <translation>[DOC] 正在使用 %1 的快取建議</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1375" />
             <source>[DOC] Analyzing %1</source>
-            <translation>[DOC] Analyserer %1</translation>
+            <translation>[DOC] 正在分析 %1</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1604" />
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1667" />
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1733" />
             <source>Directory</source>
-            <translation>Vejviser</translation>
+            <translation>目錄</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1604" />
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1667" />
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1733" />
             <source>File</source>
-            <translation>Fil</translation>
+            <translation>檔案</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="1605" />
@@ -115,174 +115,174 @@
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="440" />
             <source>Tip: Click %1 cells to rename them.</source>
-            <translation>Tip: Klik på %1-celler for at omdøbe dem.</translation>
+            <translation>提示：按一下 %1 儲存格即可重新命名。</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2047" />
             <location filename="../../lib/CategorizationDialog.cpp" line="2201" />
             <source>No items selected</source>
-            <translation>Ingen elementer er valgt</translation>
+            <translation>尚未選取</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2048" />
             <source>Highlight one or more rows to select them for processing.</source>
-            <translation>Fremhæv en eller flere rækker for at vælge dem til behandling.</translation>
+            <translation>請標示一或多列以選取要處理的資料。</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2194" />
             <source>Bulk edit unavailable</source>
-            <translation>Masseredigering er ikke tilgængelig</translation>
+            <translation>無法批次編輯</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2195" />
             <source>Bulk editing categories is unavailable while picture rename-only mode is active.</source>
-            <translation>Masseredigeringskategorier er ikke tilgængelige, mens tilstanden Kun billedomdøbning er aktiv.</translation>
+            <translation>圖片僅重新命名模式啟用時，無法批次編輯類別。</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2202" />
             <source>Highlight one or more rows to edit their categories.</source>
-            <translation>Fremhæv en eller flere rækker for at redigere deres kategorier.</translation>
+            <translation>請標示一或多列以編輯類別。</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2852" />
             <location filename="../../lib/CategorizationDialog.cpp" line="2965" />
             <source>Preview</source>
-            <translation>Forhåndsvisning</translation>
+            <translation>預覽</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2894" />
             <source>Review and Confirm</source>
-            <translation>Gennemgå og bekræft</translation>
+            <translation>檢閱並確認</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2902" />
             <source>Select all</source>
-            <translation>Vælg alle</translation>
+            <translation>全選</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2903" />
             <source>Select highlighted</source>
-            <translation>Vælg fremhævet</translation>
+            <translation>選取已標示的資料</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2904" />
             <source>Edit selected...</source>
-            <translation>Rediger valgte...</translation>
+            <translation>編輯已選取…</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2905" />
             <source>Create subcategory folders</source>
-            <translation>Opret underkategorimapper</translation>
+            <translation>建立子類別資料夾</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2906" />
             <source>Dry run (preview only, do not move files)</source>
-            <translation>Tørkørsel (kun forhåndsvisning, flyt ikke filer)</translation>
+            <translation>試執行（僅預覽，不移動檔案）</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2907" />
             <source>Do not categorize picture files (only rename)</source>
-            <translation>Kategoriser ikke billedfiler (kun omdøb)</translation>
+            <translation>不分類圖片檔（僅重新命名）</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2908" />
             <source>Do not categorize document files (only rename)</source>
-            <translation>Kategoriser ikke dokumentfiler (kun omdøb)</translation>
+            <translation>不分類文件檔（僅重新命名）</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2909" />
             <source>Confirm and Process</source>
-            <translation>Bekræft og bearbejd</translation>
+            <translation>確認並處理</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2910" />
             <source>Continue Later</source>
-            <translation>Fortsæt senere</translation>
+            <translation>稍後繼續</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2911" />
             <source>Undo this change</source>
-            <translation>Fortryd denne ændring</translation>
+            <translation>復原此變更</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2912" />
             <source>Close</source>
-            <translation>Luk</translation>
+            <translation>關閉</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2915" />
             <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>Marker fremhævede rækker til behandling (Ctrl+Mellemrum).</translation>
+            <translation>將已標示的列標記為待處理 (Ctrl+Space)。</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2918" />
             <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>Anvend kategori-/underkategoriværdier på fremhævede rækker.</translation>
+            <translation>將類別/子類別值套用至已標示的列。</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2923" />
             <source>Process</source>
-            <translation>Proces</translation>
+            <translation>處理</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2924" />
             <source>File</source>
-            <translation>Fil</translation>
+            <translation>檔案</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2925" />
             <source>Type</source>
-            <translation>Type</translation>
+            <translation>類型</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2926" />
             <source>Suggested filename</source>
-            <translation>Foreslået filnavn</translation>
+            <translation>建議的檔名</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2927" />
             <source>Category</source>
-            <translation>Kategori</translation>
+            <translation>類別</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2928" />
             <source>Subcategory</source>
-            <translation>Underkategori</translation>
+            <translation>子類別</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2929" />
             <source>Status</source>
-            <translation>Status</translation>
+            <translation>狀態</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2930" />
             <source>Planned destination</source>
-            <translation>Planlagt destination</translation>
+            <translation>預定目的地</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2953" />
             <source>Moved</source>
-            <translation>Flyttet</translation>
+            <translation>已移動</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2956" />
             <source>Renamed</source>
-            <translation>Omdøbt</translation>
+            <translation>已重新命名</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2959" />
             <source>Renamed &amp; Moved</source>
-            <translation>&amp;Omdøbt Flyttet</translation>
+            <translation>已重新命名 &amp; 已移動</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2962" />
             <source>Skipped</source>
-            <translation>Sprang over</translation>
+            <translation>已略過</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="2968" />
             <source>Not selected</source>
-            <translation>Ikke valgt</translation>
+            <translation>未選取</translation>
         </message>
     </context>
     <context>
@@ -290,98 +290,98 @@
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="277" />
             <source>[STOP] Analysis will stop after the current item is processed.</source>
-            <translation>[STOP] Analyse stopper, når det aktuelle element er behandlet.</translation>
+            <translation>[STOP] 分析將在目前處理的資料完成後停止。</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="309" />
             <source>Image analysis</source>
-            <translation>Billedanalyse</translation>
+            <translation>圖片分析</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="311" />
             <source>Document analysis</source>
-            <translation>Dokumentanalyse</translation>
+            <translation>文件分析</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="314" />
             <source>Categorization</source>
-            <translation>Kategorisering</translation>
+            <translation>分類</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="339" />
             <source>Directory</source>
-            <translation>Vejviser</translation>
+            <translation>目錄</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="341" />
             <source>Image</source>
-            <translation>Billede</translation>
+            <translation>圖片</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="343" />
             <source>Document</source>
-            <translation>Dokument</translation>
+            <translation>文件</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="346" />
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="501" />
             <source>File</source>
-            <translation>Fil</translation>
+            <translation>檔案</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="501" />
             <source>Type</source>
-            <translation>Type</translation>
+            <translation>類型</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="534" />
             <source>Stage %1: %2</source>
-            <translation>Trin %1: %2</translation>
+            <translation>階段 %1：%2</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="641" />
             <source>Pending</source>
-            <translation>Afventer</translation>
+            <translation>待處理</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="646" />
             <source>In progress</source>
-            <translation>I gang</translation>
+            <translation>處理中</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="650" />
             <source>Complete</source>
-            <translation>Komplet</translation>
+            <translation>完成</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="654" />
             <source>Skipped</source>
-            <translation>Sprang over</translation>
+            <translation>已略過</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="671" />
             <source>Processed 0/0  |  In progress: 0  |  Pending: 0</source>
-            <translation>Behandlet 0/0 |  I gang: 0 |  Afventer: 0</translation>
+            <translation>已處理 0/0 | 處理中：0 | 待處理：0</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="707" />
             <source>Processed %1/%2  |  In progress: %3  |  Pending: %4</source>
-            <translation>Behandlet %1/%2 |  I gang: %3 |  Afventer: %4</translation>
+            <translation>已處理 %1/%2 | 處理中：%3 | 待處理：%4</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="763" />
             <source>Analyzing Files</source>
-            <translation>Analyse af filer</translation>
+            <translation>正在分析檔案</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="765" />
             <source>Stop Analysis</source>
-            <translation>Stop analyse</translation>
+            <translation>停止分析</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="768" />
             <source>Activity log</source>
-            <translation>Aktivitetslog</translation>
+            <translation>活動記錄</translation>
         </message>
     </context>
     <context>
@@ -389,52 +389,52 @@
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="30" />
             <source>Custom OpenAI-compatible API</source>
-            <translation>Brugerdefineret OpenAI-kompatibel API</translation>
+            <translation>自訂 OpenAI 相容 API</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="39" />
             <source>e.g. http://localhost:1234/v1</source>
-            <translation>f.eks. http://localhost:1234/v1</translation>
+            <translation>例如 http://localhost:1234/v1</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="42" />
             <source>e.g. llama-3.1, gpt-4o-mini</source>
-            <translation>f.eks. lama-3.1, gpt-4o-mini</translation>
+            <translation>例如 llama-3.1、gpt-4o-mini</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="47" />
             <source>Show</source>
-            <translation>Vis</translation>
+            <translation>顯示</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="54" />
             <source>Display name</source>
-            <translation>Vist navn</translation>
+            <translation>顯示名稱</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="55" />
             <source>Description</source>
-            <translation>Beskrivelse</translation>
+            <translation>描述</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="56" />
             <source>Base URL or endpoint</source>
-            <translation>Basis-URL eller slutpunkt</translation>
+            <translation>基底 URL 或端點</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="57" />
             <source>Model</source>
-            <translation>Model</translation>
+            <translation>模型</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="58" />
             <source>API key (optional)</source>
-            <translation>API-nøgle (valgfrit)</translation>
+            <translation>API 金鑰（選用）</translation>
         </message>
         <message>
             <location filename="../../lib/CustomApiDialog.cpp" line="62" />
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
-            <translation>Indtast en basis-URL (f.eks. http://localhost:1234/v1) eller et komplet /chat/completions-slutpunkt.</translation>
+            <translation>請輸入基底 URL（例如 http://localhost:1234/v1）或完整的 /chat/completions 端點。</translation>
         </message>
     </context>
     <context>
@@ -442,37 +442,37 @@
         <message>
             <location filename="../../lib/CustomLLMDialog.cpp" line="31" />
             <source>Custom local LLM</source>
-            <translation>Tilpasset lokal LLM</translation>
+            <translation>自訂本機 LLM</translation>
         </message>
         <message>
             <location filename="../../lib/CustomLLMDialog.cpp" line="39" />
             <source>Browse…</source>
-            <translation>Gennemse…</translation>
+            <translation>瀏覽…</translation>
         </message>
         <message>
             <location filename="../../lib/CustomLLMDialog.cpp" line="44" />
             <source>Display name</source>
-            <translation>Vist navn</translation>
+            <translation>顯示名稱</translation>
         </message>
         <message>
             <location filename="../../lib/CustomLLMDialog.cpp" line="45" />
             <source>Description</source>
-            <translation>Beskrivelse</translation>
+            <translation>描述</translation>
         </message>
         <message>
             <location filename="../../lib/CustomLLMDialog.cpp" line="46" />
             <source>Model file (.gguf)</source>
-            <translation>Modelfil (.gguf)</translation>
+            <translation>模型檔案（.gguf）</translation>
         </message>
         <message>
             <location filename="../../lib/CustomLLMDialog.cpp" line="86" />
             <source>Select .gguf model</source>
-            <translation>Vælg .gguf-model</translation>
+            <translation>選取 .gguf 模型</translation>
         </message>
         <message>
             <location filename="../../lib/CustomLLMDialog.cpp" line="88" />
             <source>GGUF models (*.gguf);;All files (*.*)</source>
-            <translation>GGUF-modeller (*.gguf);;Alle filer (*.*)</translation>
+            <translation>GGUF 模型 (*.gguf);;所有檔案 (*.*)</translation>
         </message>
     </context>
     <context>
@@ -480,12 +480,12 @@
         <message>
             <location filename="../../lib/DryRunPreviewDialog.cpp" line="12" />
             <source>Dry run preview</source>
-            <translation>Forhåndsvisning af tørløb</translation>
+            <translation>試執行預覽</translation>
         </message>
         <message>
             <location filename="../../lib/DryRunPreviewDialog.cpp" line="23" />
             <source>From</source>
-            <translation>Fra</translation>
+            <translation>來源</translation>
         </message>
         <message>
             <location filename="../../lib/DryRunPreviewDialog.cpp" line="23" />
@@ -495,12 +495,12 @@
         <message>
             <location filename="../../lib/DryRunPreviewDialog.cpp" line="23" />
             <source>To</source>
-            <translation>Til</translation>
+            <translation>目標</translation>
         </message>
         <message>
             <location filename="../../lib/DryRunPreviewDialog.cpp" line="50" />
             <source>Close</source>
-            <translation>Luk</translation>
+            <translation>關閉</translation>
         </message>
     </context>
     <context>
@@ -508,55 +508,55 @@
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="132" />
             <source>Choose LLM Mode</source>
-            <translation>Vælg LLM-tilstand</translation>
+            <translation>選擇 LLM 模式</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="238" />
             <source>Select LLM Mode</source>
-            <translation>Vælg LLM-tilstand</translation>
+            <translation>選擇 LLM 模式</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="251" />
             <source>Balanced local model for categorization with lower hardware requirements than 7B models.
 Supports many languages for categorization.
 Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
-            <translation>Afbalanceret lokal model til kategorisering med lavere hardwarekrav end 7B-modeller.
-Understøtter mange sprog til kategorisering.
-Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
+            <translation>平衡式本機分類模型，硬體需求比 7B 模型更低。
+支援多種語言的分類。
+支援：Nvidia (CUDA)、Apple (Metal)、CPU。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="258" />
             <source>Larger local model. Slower on CPU, but performs much better with GPU acceleration.
 Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
-            <translation>Større lokal model. Langsommere på CPU, men yder meget bedre med GPU-acceleration.
-Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
+            <translation>較大型的本機模型。在 CPU 上較慢，但透過 GPU 加速效能會大幅提升。
+支援：Nvidia (CUDA)、Apple (Metal)、CPU。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="107" />
             <source>Recommended</source>
-            <translation>Anbefales</translation>
+            <translation>推薦</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="266" />
             <source>Alternative 7B local model with strong instruction following. Best with GPU acceleration.
 Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
-            <translation>Alternativ 7B lokal model med stærk instruktion efter. Bedst med GPU-acceleration.
-Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
+            <translation>替代 7B 本機模型，具備強大的指令遵循能力。搭配 GPU 加速效果最佳。
+支援：Nvidia (CUDA)、Apple (Metal)、CPU。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="272" />
             <source>Legacy model kept for existing downloads.</source>
-            <translation>Ældre model gemt til eksisterende downloads.</translation>
+            <translation>為已下載的使用者保留的舊版模型。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="278" />
             <source>Gemini (Google AI Studio API key)</source>
-            <translation>Gemini (Google AI Studio API-nøgle)</translation>
+            <translation>Gemini（Google AI Studio API 金鑰）</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="280" />
             <source>Use Google's Gemini models with your AI Studio API key (internet required).</source>
-            <translation>Brug Googles Gemini-modeller med din AI Studio API-nøgle (internet påkrævet).</translation>
+            <translation>使用 AI Studio API 金鑰來使用 Google 的 Gemini 模型（需要網路連線）。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="290" />
@@ -567,44 +567,44 @@ Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="291" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="331" />
             <source>Show</source>
-            <translation>Vis</translation>
+            <translation>顯示</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="297" />
             <source>Gemini API key</source>
-            <translation>Gemini API nøgle</translation>
+            <translation>Gemini API 金鑰</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="302" />
             <source>e.g. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro</source>
-            <translation>f.eks. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro</translation>
+            <translation>例如 gemini-2.5-flash-lite、gemini-2.5-flash、gemini-2.5-pro</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="303" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="344" />
             <source>Model</source>
-            <translation>Model</translation>
+            <translation>模型</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="307" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="349" />
             <source>Your key is stored locally in the config file for this device.</source>
-            <translation>Din nøgle er gemt lokalt i konfigurationsfilen for denne enhed.</translation>
+            <translation>金鑰會儲存在此裝置的本機設定檔中。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="314" />
             <source>&lt;a href="https://aistudio.google.com/app/apikey"&gt;Get a Gemini API key&lt;/a&gt;</source>
-            <translation>&lt;a href="https://aistudio.google.com/app/apikey"&gt;Få en Gemini API-nøgle&lt;/a&gt;</translation>
+            <translation>&lt;a href="https://aistudio.google.com/app/apikey"&gt;取得 Gemini API 金鑰&lt;/a&gt;</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="318" />
             <source>ChatGPT (OpenAI API key)</source>
-            <translation>ChatGPT (OpenAI API-nøgle)</translation>
+            <translation>ChatGPT（OpenAI API 金鑰）</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="320" />
             <source>Use your own OpenAI API key to access ChatGPT models (internet required).</source>
-            <translation>Brug din egen OpenAI API-nøgle til at få adgang til ChatGPT-modeller (internet påkrævet).</translation>
+            <translation>使用自己的 OpenAI API 金鑰來存取 ChatGPT 模型（需要網路連線）。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="330" />
@@ -614,39 +614,39 @@ Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="337" />
             <source>OpenAI API key</source>
-            <translation>OpenAI API nøgle</translation>
+            <translation>OpenAI API 金鑰</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="343" />
             <source>e.g. gpt-4o-mini, gpt-4.1, o3-mini</source>
-            <translation>f.eks. gpt-4o-mini, gpt-4.1, o3-mini</translation>
+            <translation>例如 gpt-4o-mini、gpt-4.1、o3-mini</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="358" />
             <source>&lt;a href="https://platform.openai.com/api-keys"&gt;Get an OpenAI API key&lt;/a&gt;</source>
-            <translation>&lt;a href="https://platform.openai.com/api-keys"&gt;Få en OpenAI API-nøgle&lt;/a&gt;</translation>
+            <translation>&lt;a href="https://platform.openai.com/api-keys"&gt;取得 OpenAI API 金鑰&lt;/a&gt;</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="363" />
             <source>Custom OpenAI-compatible API (advanced)</source>
-            <translation>Brugerdefineret OpenAI-kompatibel API (avanceret)</translation>
+            <translation>自訂 OpenAI 相容 API（進階）</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="366" />
             <source>Use OpenAI-compatible endpoints such as LM Studio or Ollama (local or remote).</source>
-            <translation>Brug OpenAI-kompatible slutpunkter såsom LM Studio eller Ollama (lokalt eller eksternt).</translation>
+            <translation>使用 OpenAI 相容端點，例如 LM Studio 或 Ollama（本機或遠端）。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="377" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="400" />
             <source>Add…</source>
-            <translation>Tilføj…</translation>
+            <translation>新增…</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="378" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="401" />
             <source>Edit…</source>
-            <translation>Rediger…</translation>
+            <translation>編輯…</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="379" />
@@ -654,17 +654,17 @@ Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="495" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1442" />
             <source>Delete</source>
-            <translation>Slet</translation>
+            <translation>刪除</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="390" />
             <source>Custom local LLM (gguf)</source>
-            <translation>Tilpasset lokal LLM (gguf)</translation>
+            <translation>自訂本機 LLM（gguf）</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="448" />
             <source>Downloads</source>
-            <translation>Downloads</translation>
+            <translation>下載</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="493" />
@@ -674,224 +674,224 @@ Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1635" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1667" />
             <source>Download</source>
-            <translation>Download</translation>
+            <translation>下載</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="516" />
             <source>Image analysis models</source>
-            <translation>Billedanalysemodeller</translation>
+            <translation>圖片分析模型</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="518" />
             <source>Download the visual LLM files required for image analysis.</source>
-            <translation>Download de visuelle LLM-filer, der kræves til billedanalyse.</translation>
+            <translation>下載圖片分析所需的視覺 LLM 檔案。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="526" />
             <source>Visual model</source>
-            <translation>Visuel model</translation>
+            <translation>視覺模型</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="813" />
             <source>Choose or add a custom model.</source>
-            <translation>Vælg eller tilføj en brugerdefineret model.</translation>
+            <translation>請選擇或新增自訂模型。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="813" />
             <source>Custom model selected.</source>
-            <translation>Brugerdefineret model valgt.</translation>
+            <translation>已選取自訂模型。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="834" />
             <source>Selection ready.</source>
-            <translation>Udvælgelse klar.</translation>
+            <translation>選取完成。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="878" />
             <source>Choose or add a custom API endpoint.</source>
-            <translation>Vælg eller tilføj et tilpasset API-slutpunkt.</translation>
+            <translation>請選擇或新增自訂 API 端點。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="879" />
             <source>Custom API selected.</source>
-            <translation>Brugerdefineret API valgt.</translation>
+            <translation>已選取自訂 API。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="898" />
             <source>ChatGPT will use your API key and model.</source>
-            <translation>ChatGPT bruger din API-nøgle og model.</translation>
+            <translation>ChatGPT 會使用指定的 API 金鑰和模型。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="899" />
             <source>Enter your OpenAI API key and model to continue.</source>
-            <translation>Indtast din OpenAI API-nøgle og model for at fortsætte.</translation>
+            <translation>請輸入 OpenAI API 金鑰和模型以繼續。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="931" />
             <source>Gemini will use your API key and model.</source>
-            <translation>Gemini vil bruge din API-nøgle og model.</translation>
+            <translation>Gemini 會使用指定的 API 金鑰和模型。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="932" />
             <source>Enter your Gemini API key and model to continue.</source>
-            <translation>Indtast din Gemini API-nøgle og model for at fortsætte.</translation>
+            <translation>請輸入 Gemini API 金鑰和模型以繼續。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1008" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1625" />
             <source>Model ready.</source>
-            <translation>Model klar.</translation>
+            <translation>模型已就緒。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1029" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1650" />
             <source>Resume download</source>
-            <translation>Genoptag download</translation>
+            <translation>繼續下載</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1037" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1656" />
             <source>Partial download detected. You can resume.</source>
-            <translation>Delvis download fundet. Du kan genoptage.</translation>
+            <translation>偵測到部分下載，可以繼續下載。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1023" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1641" />
             <source>Downloaded file is invalid or incomplete. Delete it and download again.</source>
-            <translation>Den downloadede fil er ugyldig eller ufuldstændig. Slet det og download igen.</translation>
+            <translation>已下載的檔案無效或不完整，請刪除後重新下載。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1053" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1673" />
             <source>Download required.</source>
-            <translation>Download påkrævet.</translation>
+            <translation>需要下載。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1064" />
             <source>Unsupported LLM selection.</source>
-            <translation>Ikke-understøttet LLM-valg.</translation>
+            <translation>不支援的 LLM 選項。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1071" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1502" />
             <source>Missing download URL environment variable (%1).</source>
-            <translation>Manglende download-URL-miljøvariabel (%1).</translation>
+            <translation>缺少下載 URL 環境變數（%1）。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1118" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1790" />
             <source>Delete downloaded model?</source>
-            <translation>Vil du slette den downloadede model?</translation>
+            <translation>要刪除已下載的模型嗎？</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1119" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1791" />
             <source>Delete the downloaded model %1?</source>
-            <translation>Slet den downloadede model %1?</translation>
+            <translation>要刪除已下載的模型 %1 嗎？</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1144" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1832" />
             <source>Failed to delete downloaded model.</source>
-            <translation>Kunne ikke slette den downloadede model.</translation>
+            <translation>無法刪除已下載的模型。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1146" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1834" />
             <source>Deleted downloaded model.</source>
-            <translation>Slettet downloadet model.</translation>
+            <translation>已刪除下載的模型。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1148" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1836" />
             <source>No downloaded model found to delete.</source>
-            <translation>Ingen downloadet model fundet at slette.</translation>
+            <translation>找不到可刪除的已下載模型。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1163" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1511" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1570" />
             <source>Remote URL</source>
-            <translation>Fjern URL</translation>
+            <translation>遠端 URL</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1167" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1537" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1578" />
             <source>Local path</source>
-            <translation>Lokal sti</translation>
+            <translation>本機路徑</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1179" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1600" />
             <source>File size</source>
-            <translation>Filstørrelse</translation>
+            <translation>檔案大小</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1183" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1486" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1604" />
             <source>File size: unknown</source>
-            <translation>Filstørrelse: ukendt</translation>
+            <translation>檔案大小：未知</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1344" />
             <source>Delete custom model</source>
-            <translation>Slet tilpasset model</translation>
+            <translation>刪除自訂模型</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1345" />
             <source>Remove '%1' from your custom LLMs? This does not delete the file on disk.</source>
-            <translation>Vil du fjerne '%1' fra dine tilpassede LLM'er? Dette sletter ikke filen på disken.</translation>
+            <translation>要將「%1」從自訂 LLM 清單中移除嗎？這不會刪除磁碟上的檔案。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1367" />
             <source>Delete custom API</source>
-            <translation>Slet tilpasset API</translation>
+            <translation>刪除自訂 API</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1368" />
             <source>Remove '%1' from your custom API list? This does not affect the server.</source>
-            <translation>Vil du fjerne '%1' fra din tilpassede API-liste? Dette påvirker ikke serveren.</translation>
+            <translation>要將「%1」從自訂 API 清單中移除嗎？這不會影響伺服器。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1480" />
             <source>Remote URL: unknown</source>
-            <translation>Fjern-URL: ukendt</translation>
+            <translation>遠端 URL：未知</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1483" />
             <source>Local path: unavailable</source>
-            <translation>Lokal sti: ikke tilgængelig</translation>
+            <translation>本機路徑：無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1491" />
             <source>Missing download URL environment variable.</source>
-            <translation>Manglende download-URL-miljøvariabel.</translation>
+            <translation>缺少下載 URL 環境變數。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1734" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="2026" />
             <source>Downloading…</source>
-            <translation>Downloader…</translation>
+            <translation>正在下載…</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1749" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="2041" />
             <source>Download complete.</source>
-            <translation>Download fuldført.</translation>
+            <translation>下載完成。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1770" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="2059" />
             <source>Download cancelled.</source>
-            <translation>Download annulleret.</translation>
+            <translation>下載已取消。</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1772" />
             <location filename="../../lib/LLMSelectionDialog.cpp" line="2061" />
             <source>Download error: %1</source>
-            <translation>Downloadfejl: %1</translation>
+            <translation>下載錯誤：%1</translation>
         </message>
     </context>
     <context>
@@ -899,253 +899,255 @@ Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="511" />
             <source>File Explorer</source>
-            <translation>Fil Explorer</translation>
+            <translation>檔案總管</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="607" />
             <source>Select Directory</source>
-            <translation>Vælg Directory</translation>
+            <translation>選取目錄</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="880" />
             <location filename="../../lib/MainApp.cpp" line="1725" />
             <source>Analysis cancelled</source>
-            <translation>Analyse annulleret</translation>
+            <translation>分析已取消</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="935" />
             <source>Folder selected: %1</source>
-            <translation>Mappe valgt: %1</translation>
+            <translation>已選取資料夾：%1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1070" />
             <source>More consistent</source>
-            <translation>Mere konsekvent</translation>
+            <translation>更一致</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1070" />
             <source>More refined</source>
-            <translation>Mere raffineret</translation>
+            <translation>更精細</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1075" />
             <source>Recategorize folder?</source>
-            <translation>Omkategorisere mappe?</translation>
+            <translation>要重新分類資料夾嗎？</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1076" />
             <source>This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?</source>
-            <translation>Denne mappe blev kategoriseret ved hjælp af tilstanden %1. Vil du omkategorisere det nu ved hjælp af %2-tilstanden?</translation>
+            <translation>此資料夾之前使用 %1 模式進行分類。是否要改用 %2 模式重新分類？</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1078" />
             <source>Recategorize</source>
-            <translation>Rekategoriser</translation>
+            <translation>重新分類</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1079" />
             <source>Keep existing</source>
-            <translation>Bliv ved med at eksistere</translation>
+            <translation>保留現有</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1089" />
             <source>Failed to reset cached categorization for this folder.</source>
-            <translation>Kunne ikke nulstille cachelagret kategorisering for denne mappe.</translation>
+            <translation>無法重設此資料夾的快取分類。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1149" />
             <source>Stop analyzing</source>
-            <translation>Stop med at analysere</translation>
+            <translation>停止分析</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1150" />
             <source>Analyzing…</source>
-            <translation>Analyserer…</translation>
+            <translation>正在分析…</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1153" />
             <source>Analyze folder</source>
-            <translation>Analyser mappe</translation>
+            <translation>分析資料夾</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1154" />
             <location filename="../../lib/MainApp.cpp" line="1761" />
             <source>Ready</source>
-            <translation>Klar</translation>
+            <translation>就緒</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1326" />
             <source>Install Compatibility Support</source>
-            <translation>Installer kompatibilitetssupport</translation>
+            <translation>安裝相容性支援</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1328" />
             <source>Detected a %1 folder.</source>
-            <translation>Registrerede en %1-mappe.</translation>
+            <translation>偵測到 %1 資料夾。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1331" />
             <source>Install the "%1" plugin mode now to enable provider-specific compatibility mode for this folder.</source>
-            <translation>Installer "%1" plugin-tilstanden nu for at aktivere udbyderspecifik kompatibilitetstilstand for denne mappe.</translation>
+            <translation>立即安裝「%1」外掛模式，為此資料夾啟用供應商專屬的相容性模式。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1335" />
             <location filename="../../lib/MainApp.cpp" line="1407" />
             <source>Detection source: %1</source>
-            <translation>Detektionskilde: %1</translation>
+            <translation>偵測來源：%1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1340" />
             <source>Install the %1 plugin mode</source>
-            <translation>Installer %1 plugin-tilstanden</translation>
+            <translation>安裝 %1 外掛模式</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1352" />
             <source>Install failed</source>
-            <translation>Installationen mislykkedes</translation>
+            <translation>安裝失敗</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1354" />
             <source>Failed to install compatibility support.</source>
-            <translation>Kunne ikke installere kompatibilitetssupport.</translation>
+            <translation>無法安裝相容性支援。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1362" />
             <source>Compatibility Support Installed</source>
-            <translation>Kompatibilitetssupport installeret</translation>
+            <translation>已安裝相容性支援</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1363" />
             <source>Installed "%1". The app will now switch to compatibility mode for detected cloud folders.</source>
-            <translation>Installeret "%1". Appen skifter nu til kompatibilitetstilstand for registrerede skymapper.</translation>
+            <translation>已安裝「%1」。應用程式現在會針對偵測到的雲端資料夾切換至相容模式。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1387" />
             <source>Native Plugin Support Unavailable</source>
-            <translation>Native plugin-understøttelse er ikke tilgængelig</translation>
+            <translation>原生外掛支援無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1390" />
             <source>A %1 folder has been detected, but the "%2" plugin mode is not available on this build. The app will continue in local filesystem mode.</source>
-            <translation>En %1-mappe er blevet fundet, men "%2"-plugin-tilstanden er ikke tilgængelig på denne build. Appen fortsætter i lokal filsystemtilstand.</translation>
+            <translation>偵測到 %1 資料夾，但此版本不提供「%2」外掛模式。應用程式將以本機檔案系統模式繼續執行。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1393" />
             <source>A %1 folder has been detected. Sorting on it is not currently supported in native mode via a plugin. The app will continue in local filesystem mode.</source>
-            <translation>En %1-mappe er blevet fundet. Sortering på det er i øjeblikket ikke understøttet i indbygget tilstand via et plugin. Appen fortsætter i lokal filsystemtilstand.</translation>
+            <translation>偵測到 %1 資料夾。目前不支援透過外掛在原生模式下對其進行排序。應用程式將以本機檔案系統模式繼續執行。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1397" />
             <source>
 
 %1</source>
-            <translation>%1</translation>
+            <translation>
+
+%1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1434" />
             <source>Compatibility Mode Active</source>
-            <translation>Kompatibilitetstilstand aktiv</translation>
+            <translation>相容模式已啟用</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1436" />
             <source>Detected a supported cloud folder. The app switched to %1 compatibility mode.</source>
-            <translation>Registrerede en understøttet cloud-mappe. Appen skiftede til %1-kompatibilitetstilstand.</translation>
+            <translation>偵測到支援的雲端資料夾。應用程式已切換至 %1 相容模式。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1438" />
             <source>Detected a supported cloud folder using %1. The app switched to %2 compatibility mode.</source>
-            <translation>Registrerede en understøttet cloud-mappe ved hjælp af %1. Appen skiftede til %2-kompatibilitetstilstand.</translation>
+            <translation>使用 %1 偵測到支援的雲端資料夾。應用程式已切換至 %2 相容模式。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1502" />
             <source>Undo last run</source>
-            <translation>Fortryd sidste kørsel</translation>
+            <translation>復原上次執行</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1503" />
             <source>This will attempt to move files back to their original locations based on the last run.
 
 Plan file: %1</source>
-            <translation>Dette vil forsøge at flytte filer tilbage til deres oprindelige placering baseret på den sidste kørsel.
+            <translation>系統會根據上次執行結果，嘗試將檔案移回原始位置。
 
-Planfil: %1</translation>
+計畫檔：%1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1512" />
             <location filename="../../lib/MainApp.cpp" line="1530" />
             <source>Restored %1 file(s). Skipped %2.</source>
-            <translation>Gendannet %1 fil(er). Sprang %2 over.</translation>
+            <translation>已還原 %1 個檔案。略過 %2 個。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1518" />
             <location filename="../../lib/MainApp.cpp" line="1535" />
             <source>Undo complete</source>
-            <translation>Fortryd fuldført</translation>
+            <translation>復原完成</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1545" />
             <source>Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you.</source>
-            <translation>Tak fordi du bruger AI File Sorter! Du har kategoriseret %1 filer indtil videre. Jeg, forfatteren, håber virkelig, at denne app var nyttig for dig.</translation>
+            <translation>感謝使用 AI File Sorter！目前已分類 %1 個檔案。作者衷心希望這個應用程式對您有所幫助。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1547" />
             <source>AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. If the app saves you time or brings value, please consider supporting it so it can keep improving.</source>
-            <translation>AI File Sorter tager hundredvis af timers udvikling, funktionsarbejde, supportsvar og løbende omkostninger såsom servere og fjernmodelinfrastruktur. Hvis appen sparer dig tid eller giver værdi, kan du overveje at støtte den, så den kan blive ved med at blive bedre.</translation>
+            <translation>AI File Sorter 耗費了數百小時的開發、功能設計、技術支援回覆，以及伺服器與遠端模型基礎設施等持續性成本。如果這個應用程式節省了時間或帶來了價值，請考慮贊助以讓它能持續改進。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1549" />
             <source>Already donated? Click "I have already donated" to enter your donation code and permanently disable this reminder.</source>
-            <translation>Allerede doneret? Klik på "Jeg har allerede doneret" for at indtaste din donationskode og deaktivere denne påmindelse permanent.</translation>
+            <translation>已經贊助了嗎？按一下 [我已經贊助] 輸入贊助碼，即可永久關閉此提醒。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1554" />
             <source>Donate to permanently hide the donation dialog</source>
-            <translation>Donér for permanent at skjule donationsdialogen</translation>
+            <translation>贊助以永久隱藏贊助對話框</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1555" />
             <source>I'm not yet sure</source>
-            <translation>Jeg er ikke sikker endnu</translation>
+            <translation>我還不確定</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1556" />
             <source>I have already donated</source>
-            <translation>Jeg har allerede doneret</translation>
+            <translation>我已經贊助</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1649" />
             <source>Donation code</source>
-            <translation>Donationskode</translation>
+            <translation>贊助碼</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1650" />
             <source>Enter the donation code generated after your donation.
 A valid code will permanently hide the donation dialog.</source>
-            <translation>Indtast den donationskode, der blev genereret efter din donation.
-En gyldig kode vil permanent skjule donationsdialogen.</translation>
+            <translation>請輸入贊助後產生的贊助碼。
+有效的贊助碼會永久隱藏贊助對話框。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1665" />
             <source>Invalid donation code</source>
-            <translation>Ugyldig donationskode</translation>
+            <translation>無效的贊助碼</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1666" />
             <source>The donation code is invalid. Please try again or press Cancel.</source>
-            <translation>Donationskoden er ugyldig. Prøv venligst igen, eller tryk på Annuller.</translation>
+            <translation>贊助碼無效。請重試或按 [取消]。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1674" />
             <source>Open donation page</source>
-            <translation>Åbn donationsside</translation>
+            <translation>開啟贊助頁面</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1675" />
             <source>Could not open your browser automatically.
 Please open this link manually:
 %1</source>
-            <translation>Kunne ikke åbne din browser automatisk.
-Åbn venligst dette link manuelt:
+            <translation>無法自動開啟瀏覽器。
+請手動開啟此連結：
 %1</translation>
         </message>
         <message>
@@ -1153,162 +1155,162 @@ Please open this link manually:
             <location filename="../../lib/MainApp.cpp" line="1885" />
             <location filename="../../lib/MainApp.cpp" line="1910" />
             <source>Directory</source>
-            <translation>Vejviser</translation>
+            <translation>目錄</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1757" />
             <location filename="../../lib/MainApp.cpp" line="1885" />
             <location filename="../../lib/MainApp.cpp" line="1910" />
             <source>File</source>
-            <translation>Fil</translation>
+            <translation>檔案</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1883" />
             <source>[ARCHIVE] Already categorized highlights:</source>
-            <translation>[ARCHIVE] Allerede kategoriserede højdepunkter:</translation>
+            <translation>[ARCHIVE] 已分類的重點摘要：</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1904" />
             <source>[DONE] No files to categorize.</source>
-            <translation>[DONE] Ingen filer at kategorisere.</translation>
+            <translation>[DONE] 沒有檔案需要分類。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1908" />
             <source>[QUEUE] Items waiting for categorization:</source>
-            <translation>[QUEUE] Elementer, der venter på kategorisering:</translation>
+            <translation>[QUEUE] 等待分類的資料：</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2109" />
             <source>Switch image analysis to CPU?</source>
-            <translation>Skift billedanalyse til CPU?</translation>
+            <translation>要將圖片分析切換至 CPU 嗎？</translation>
         </message>
         <message>
             <source>Image analysis ran out of GPU memory.</source>
-            <translation>Billedanalyse løb tør for GPU-hukommelse.</translation>
+            <translation>圖片分析的 GPU 記憶體已不足。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2046" />
             <source>Cancelling analysis…</source>
-            <translation>Annullerer analyse…</translation>
+            <translation>正在取消分析…</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2059" />
             <source>Switch local AI to CPU?</source>
-            <translation>Skift lokal AI til CPU?</translation>
+            <translation>要將本機 AI 切換至 CPU 嗎？</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2060" />
             <source>The local model encountered a GPU error or ran out of memory.</source>
-            <translation>Den lokale model stødte på en GPU-fejl eller løb tør for hukommelse.</translation>
+            <translation>本機模型發生 GPU 錯誤或記憶體不足。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2061" />
             <location filename="../../lib/MainApp.cpp" line="2111" />
             <source>Retry on CPU instead? Cancel will stop this analysis.</source>
-            <translation>Prøv igen på CPU i stedet? Annuller stopper denne analyse.</translation>
+            <translation>要改用 CPU 重試嗎？取消將停止此次分析。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2081" />
             <location filename="../../lib/MainApp.cpp" line="2131" />
             <source>[WARN] GPU fallback to CPU declined. Cancelling analysis.</source>
-            <translation>[WARN] GPU faldback til CPU afvist. Annullering af analyse.</translation>
+            <translation>[WARN] 已拒絕 GPU 退回 CPU。正在取消分析。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2158" />
             <source>Continue without visual analysis?</source>
-            <translation>Vil du fortsætte uden visuel analyse?</translation>
+            <translation>要不進行視覺分析直接繼續嗎？</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2159" />
             <source>Image analysis is unavailable.</source>
-            <translation>Billedanalyse er ikke tilgængelig.</translation>
+            <translation>圖片分析無法使用。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2161" />
             <source>Continue this analysis using filenames only? Cancel will stop this analysis.</source>
-            <translation>Vil du fortsætte denne analyse med kun filnavne? Annuller stopper denne analyse.</translation>
+            <translation>要僅使用檔名繼續此次分析嗎？取消將停止此次分析。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2185" />
             <source>[WARN] Continue without visual analysis declined. Cancelling analysis.</source>
-            <translation>[WARN] Fortsæt uden visuel analyse afvist. Annullering af analyse.</translation>
+            <translation>[WARN] 已拒絕不進行視覺分析繼續。正在取消分析。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2355" />
             <source>[WARN] Available GPU memory is too low for GPU acceleration. Continuing on CPU (slower).</source>
-            <translation>[WARN] Den tilgængelige GPU-hukommelse er for lav til GPU-acceleration. Fortsætter på CPU (langsommere).</translation>
+            <translation>[WARN] 可用的 GPU 記憶體不足以進行 GPU 加速。繼續使用 CPU（較慢）。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2359" />
             <source>[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).</source>
-            <translation>[WARN] GPU-acceleration kunne ikke initialiseres. Fortsætter på CPU (langsommere).</translation>
+            <translation>[WARN] GPU 加速初始化失敗。繼續使用 CPU（較慢）。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2450" />
             <source>[WARN] %1 will be re-categorized: %2</source>
-            <translation>[WARN] %1 vil blive omkategoriseret: %2</translation>
+            <translation>[WARN] %1 將重新分類：%2</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2271" />
             <location filename="../../lib/MainApp.cpp" line="2286" />
             <location filename="../../lib/MainApp.cpp" line="2294" />
             <source>Reset learned behavior?</source>
-            <translation>Nulstille indlært adfærd?</translation>
+            <translation>要重設已學習的行為嗎？</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="800" />
             <source>Loaded backend: OpenAI API</source>
-            <translation>Indlæst backend: OpenAI API</translation>
+            <translation>已載入後端：OpenAI API</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="802" />
             <source>Loaded backend: Gemini API</source>
-            <translation>Indlæst backend: Gemini API</translation>
+            <translation>已載入後端：Gemini API</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="804" />
             <source>Loaded backend: Custom API</source>
-            <translation>Indlæst backend: Custom API</translation>
+            <translation>已載入後端：自訂 API</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="810" />
             <source>Loaded backend: Remote API</source>
-            <translation>Indlæst backend: Remote API</translation>
+            <translation>已載入後端：遠端 API</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="820" />
             <source>Loaded GPU backend: %1 with %2</source>
-            <translation>Indlæst GPU-backend: %1 med %2</translation>
+            <translation>已載入 GPU 後端：%1 搭配 %2</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="824" />
             <source>Loaded CPU backend: CPU</source>
-            <translation>Belæst CPU-backend: CPU</translation>
+            <translation>已載入 CPU 後端：CPU</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="826" />
             <source>Loaded CPU backend: CPU with %1</source>
-            <translation>Belastet CPU-backend: CPU med %1</translation>
+            <translation>已載入 CPU 後端：CPU 搭配 %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1971" />
             <source>Test mode</source>
-            <translation>Testtilstand</translation>
+            <translation>測試模式</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1972" />
             <source>An analysis is already running. Stop it before starting a test preset.</source>
-            <translation>En analyse er allerede i gang. Stop det, før du starter en testforudindstilling.</translation>
+            <translation>分析已在執行中。請先停止分析，再啟動測試預設。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1996" />
             <source>Run large whitelist LLM test?</source>
-            <translation>Køre stor hvidliste LLM-test?</translation>
+            <translation>要執行大型白名單 LLM 測試嗎？</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1997" />
             <source>This will configure a temporary large whitelist, create sample files, and run the normal analysis flow with the currently selected real LLM.</source>
-            <translation>Dette vil konfigurere en midlertidig stor hvidliste, oprette prøvefiler og køre det normale analyseflow med den aktuelt valgte rigtige LLM.</translation>
+            <translation>系統會設定暫時的大型白名單、建立範例檔案，並使用目前選取的 LLM 執行一般分析流程。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1999" />
@@ -1319,58 +1321,58 @@ The sample folder is:
 
 Expected broad categories:
 %2</source>
-            <translation>Tidligere cachelagrede resultater for denne prøvemappe vil blive ryddet, så LLM kaldes igen.
+            <translation>此範例資料夾先前的快取結果會被清除，以便重新呼叫 LLM。
 
-Eksempelmappen er:
+範例資料夾：
 %1
 
-Forventede brede kategorier:
+預期的主要類別：
 %2</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2003" />
             <source>Run test</source>
-            <translation>Kør test</translation>
+            <translation>執行測試</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2039" />
             <source>Running large whitelist LLM test…</source>
-            <translation>Kører stor hvidliste LLM-test…</translation>
+            <translation>正在執行大型白名單 LLM 測試…</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2250" />
             <source>Failed to clear the categorization cache.</source>
-            <translation>Det lykkedes ikke at rydde kategoriseringscachen.</translation>
+            <translation>無法清除分類快取。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2272" />
             <source>This removes category examples learned from your approved reviews. It does not clear ordinary caches or touch your files.</source>
-            <translation>Dette fjerner kategorieksempler lært fra dine godkendte anmeldelser. Det rydder ikke almindelige caches eller rører ved dine filer.</translation>
+            <translation>此操作會移除從已核准的檢閱中學習到的類別範例。不會清除一般快取或動到檔案。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2274" />
             <source>Current whitelists will be re-imported afterwards so selected whitelists still work.</source>
-            <translation>Nuværende hvidlister vil blive genimporteret bagefter, så udvalgte hvidlister stadig fungerer.</translation>
+            <translation>目前的白名單會在之後重新匯入，因此已選取的白名單仍可正常運作。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2275" />
             <source>Reset</source>
-            <translation>Nulstil</translation>
+            <translation>重設</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2287" />
             <source>Failed to reset learned behavior: %1</source>
-            <translation>Kunne ikke nulstille indlært adfærd: %1</translation>
+            <translation>無法重設已學習的行為：%1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2295" />
             <source>Learned behavior reset. Current whitelists remain configured.</source>
-            <translation>Lært adfærd nulstilles. Aktuelle hvidlister forbliver konfigurerede.</translation>
+            <translation>已重設學習行為。目前的白名單設定維持不變。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2110" />
             <source>Image analysis failed to start with the GPU backend.</source>
-            <translation>Billedanalyse kunne ikke starte med GPU-backend.</translation>
+            <translation>圖片分析無法以 GPU 後端啟動。</translation>
         </message>
     </context>
     <context>
@@ -1378,22 +1380,22 @@ Forventede brede kategorier:
         <message>
             <location filename="../../lib/MainWindowStateBinder.cpp" line="360" />
             <source>Loaded folder %1</source>
-            <translation>Indlæst mappe %1</translation>
+            <translation>已載入資料夾 %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainWindowStateBinder.cpp" line="749" />
             <source>Download required</source>
-            <translation>Download påkrævet</translation>
+            <translation>需要下載</translation>
         </message>
         <message>
             <location filename="../../lib/MainWindowStateBinder.cpp" line="750" />
             <source>Image analysis requires visual LLM files. Download them now?</source>
-            <translation>Billedanalyse kræver visuelle LLM-filer. Vil du downloade dem nu?</translation>
+            <translation>圖片分析需要視覺 LLM 檔案。要立即下載嗎？</translation>
         </message>
         <message>
             <location filename="../../lib/MainWindowStateBinder.cpp" line="751" />
             <source>OK</source>
-            <translation>OK</translation>
+            <translation>確定</translation>
         </message>
     </context>
     <context>
@@ -1401,53 +1403,53 @@ Forventede brede kategorier:
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="121" />
             <source>Edit selected items</source>
-            <translation>Rediger valgte elementer</translation>
+            <translation>編輯已選取的資料</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="127" />
             <location filename="../../lib/CategorizationDialog.cpp" line="132" />
             <source>Leave empty to keep existing</source>
-            <translation>Lad være tom for at bevare eksisterende</translation>
+            <translation>留空以保留現有值</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="128" />
             <source>Category</source>
-            <translation>Kategori</translation>
+            <translation>類別</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="133" />
             <source>Subcategory</source>
-            <translation>Underkategori</translation>
+            <translation>子類別</translation>
         </message>
         <message>
             <location filename="../../lib/MainAppHelpActions.cpp" line="107" />
             <source>About %1</source>
-            <translation>Om %1</translation>
+            <translation>關於 %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainAppHelpActions.cpp" line="148" />
             <source>About</source>
-            <translation>Om</translation>
+            <translation>關於</translation>
         </message>
         <message>
             <location filename="../../lib/MainAppHelpActions.cpp" line="175" />
             <source>Credits</source>
-            <translation>Credits</translation>
+            <translation>製作團隊</translation>
         </message>
         <message>
             <location filename="../../lib/MainAppHelpActions.cpp" line="187" />
             <source>Quick Start Guide</source>
-            <translation>Hurtig startvejledning</translation>
+            <translation>快速入門指南</translation>
         </message>
         <message>
             <location filename="../../lib/MainAppHelpActions.cpp" line="209" />
             <source>About the AGPL License</source>
-            <translation>Om AGPL-licensen</translation>
+            <translation>關於 AGPL 授權條款</translation>
         </message>
         <message>
             <location filename="../../lib/MainAppHelpActions.cpp" line="214" />
             <source>AI File Sorter is distributed under the GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;You can access the full source code at &lt;a href="https://github.com/hyperfield/ai-file-sorter"&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;A full copy of the license is provided with this application and available online at &lt;a href="https://www.gnu.org/licenses/agpl-3.0.html"&gt;gnu.org&lt;/a&gt;.</source>
-            <translation>AI File Sorter distribueres under GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;Du kan få adgang til den fulde kildekode på &lt;a href="https://github.com/hyperfield/ai-file-sorter"&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;En fuld kopi af licensen følger med denne applikation og er tilgængelig online på &lt;a href="https://www.gnu.org/licenses/agpl-3.0.html"&gt;gnu.org&lt;/a&gt;.</translation>
+            <translation>AI File Sorter 係以 GNU Affero 通用公共授權條款 v3.0 發行。&lt;br&gt;&lt;br&gt;完整原始碼可於 &lt;a href="https://github.com/hyperfield/ai-file-sorter"&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt; 取得。&lt;br&gt;&lt;br&gt;本應用程式隨附完整的授權條款副本，亦可於 &lt;a href="https://www.gnu.org/licenses/agpl-3.0.html"&gt;gnu.org&lt;/a&gt; 線上取得。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="408" />
@@ -1478,95 +1480,95 @@ Forventede brede kategorier:
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="421" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="431" />
             <source>Metal (auto)</source>
-            <translation>Metal (auto)</translation>
+            <translation>Metal（自動）</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="423" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="433" />
             <source>Vulkan (auto)</source>
-            <translation>Vulkan (auto)</translation>
+            <translation>Vulkan（自動）</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="428" />
             <source>%1 (auto)</source>
-            <translation>%1 (auto)</translation>
+            <translation>%1（自動）</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="440" />
             <source>Auto</source>
-            <translation>Auto</translation>
+            <translation>自動</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="634" />
             <source>CPU (%1)</source>
-            <translation>CPU (%1)</translation>
+            <translation>CPU（%1）</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="639" />
             <source>GPU (target: %1)</source>
-            <translation>GPU (mål: %1)</translation>
+            <translation>GPU（目標：%1）</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="653" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1733" />
             <source>GPU via Vulkan unavailable</source>
-            <translation>GPU via Vulkan ikke tilgængelig</translation>
+            <translation>透過 Vulkan 的 GPU 無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="655" />
             <source>GPU via CUDA unavailable</source>
-            <translation>GPU via CUDA er ikke tilgængelig</translation>
+            <translation>透過 CUDA 的 GPU 無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="657" />
             <source>Vulkan unavailable</source>
-            <translation>Vulkan er ikke tilgængelig</translation>
+            <translation>Vulkan 無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="660" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1736" />
             <source>GPU via Metal unavailable</source>
-            <translation>GPU via Metal ikke tilgængelig</translation>
+            <translation>透過 Metal 的 GPU 無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="662" />
             <source>GPU init failed</source>
-            <translation>GPU-initiering mislykkedes</translation>
+            <translation>GPU 初始化失敗</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1010" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1012" />
             <source>Default model: %1</source>
-            <translation>Standardmodel: %1</translation>
+            <translation>預設模型：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1037" />
             <source>    Measuring categorization (warm-up + %1 run(s))...</source>
-            <translation>Måler kategorisering (opvarmning + %1 kørsler)...</translation>
+            <translation>    正在測量分類效能（暖機 + %1 次執行）…</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1067" />
             <source>    Measuring document analysis (warm-up + %1 run(s))...</source>
-            <translation>Måling af dokumentanalyse (opvarmning + %1 kørsler)...</translation>
+            <translation>    正在測量文件分析效能（暖機 + %1 次執行）…</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1128" />
             <source>Categorization: %1</source>
-            <translation>Kategorisering: %1</translation>
+            <translation>分類：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1129" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1175" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1708" />
             <source>done</source>
-            <translation>gjort</translation>
+            <translation>完成</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1129" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1175" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1708" />
             <source>failed</source>
-            <translation>mislykkedes</translation>
+            <translation>失敗</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1131" />
@@ -1574,7 +1576,7 @@ Forventede brede kategorier:
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1177" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1191" />
             <source>    Warm-up: %1</source>
-            <translation>Opvarmning: %1</translation>
+            <translation>    暖機：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1133" />
@@ -1582,7 +1584,7 @@ Forventede brede kategorier:
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1179" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1193" />
             <source>    Init: %1</source>
-            <translation>Start: %1</translation>
+            <translation>    初始化：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1135" />
@@ -1590,7 +1592,7 @@ Forventede brede kategorier:
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1181" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1195" />
             <source>    Per-item (median of %1): %2</source>
-            <translation>Pr. vare (medianen af %1): %2</translation>
+            <translation>    每筆資料（%1 的中位數）：%2</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1138" />
@@ -1598,433 +1600,433 @@ Forventede brede kategorier:
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1184" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1198" />
             <source>    Per-item runs: %1</source>
-            <translation>Kørsler pr. vare: %1</translation>
+            <translation>    每筆資料的執行次數：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1169" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1215" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1712" />
             <source>Details: %1</source>
-            <translation>Detaljer: %1</translation>
+            <translation>詳細資訊：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1172" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1218" />
             <source>Backend used: %1</source>
-            <translation>Brugt backend: %1</translation>
+            <translation>使用的後端：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1174" />
             <source>Document analysis: %1</source>
-            <translation>Dokumentanalyse: %1</translation>
+            <translation>文件分析：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1225" />
             <source>Model failed to load: %1</source>
-            <translation>Modellen kunne ikke indlæses: %1</translation>
+            <translation>模型載入失敗：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1239" />
             <source>optimal</source>
-            <translation>optimal</translation>
+            <translation>最佳</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1241" />
             <source>acceptable</source>
-            <translation>acceptabelt</translation>
+            <translation>可接受</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1243" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1245" />
             <source>a bit long</source>
-            <translation>lidt lang</translation>
+            <translation>稍長</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1266" />
             <source>n/a</source>
-            <translation>n/a</translation>
+            <translation>不適用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1283" />
             <source>Result</source>
-            <translation>Resultat</translation>
+            <translation>結果</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1286" />
             <source>Categorization speed: unavailable</source>
-            <translation>Kategoriseringshastighed: ikke tilgængelig</translation>
+            <translation>分類速度：無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1287" />
             <source>Document analysis speed: unavailable</source>
-            <translation>Dokumentanalysehastighed: ikke tilgængelig</translation>
+            <translation>文件分析速度：無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1299" />
             <source>Categorization speed: %1</source>
-            <translation>Kategoriseringshastighed: %1</translation>
+            <translation>分類速度：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1300" />
             <source>Document analysis speed: %1</source>
-            <translation>Dokumentanalysehastighed: %1</translation>
+            <translation>文件分析速度：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1304" />
             <source>Image analysis speed: unavailable</source>
-            <translation>Billedanalysehastighed: ikke tilgængelig</translation>
+            <translation>圖片分析速度：無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1308" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1310" />
             <source>Image analysis speed: %1</source>
-            <translation>Billedanalysehastighed: %1</translation>
+            <translation>圖片分析速度：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1356" />
             <source>Recommended Local LLM choice: %1</source>
-            <translation>Anbefalet lokalt LLM-valg: %1</translation>
+            <translation>推薦的本機 LLM 選項：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1362" />
             <source>You can toggle LLMs in Settings -&gt; Select LLM</source>
-            <translation>Du kan skifte mellem LLM'er i Indstillinger -&gt; Vælg LLM</translation>
+            <translation>可以在 [設定] -&gt; [選擇 LLM] 中切換 LLM</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1434" />
             <source>Compatibility Benchmark</source>
-            <translation>Benchmark for kompatibilitet</translation>
+            <translation>相容性效能測試</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1436" />
             <source>Run a quick performance check to estimate how image analysis, document analysis, and file categorization will perform on your system.</source>
-            <translation>Kør et hurtigt ydelsestjek for at estimere, hvordan billedanalyse, dokumentanalyse og filkategorisering vil fungere på dit system.</translation>
+            <translation>執行快速效能檢查，評估圖片分析、文件分析和檔案分類在系統上的表現。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1437" />
             <source>It is recommended to quit any CPU- and GPU-intensive applications before running this test.</source>
-            <translation>Det anbefales at afslutte alle CPU- og GPU-intensive programmer, før du kører denne test.</translation>
+            <translation>建議在執行此測試前先關閉所有高 CPU 及 GPU 使用量的應用程式。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1442" />
             <source>Run benchmark</source>
-            <translation>Kør benchmark</translation>
+            <translation>執行效能測試</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1445" />
             <source>Do not auto-show this dialog again</source>
-            <translation>Vis ikke automatisk denne dialogboks igen</translation>
+            <translation>不再自動顯示此對話框</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1448" />
             <source>Stop Benchmark</source>
-            <translation>Stop Benchmark</translation>
+            <translation>停止效能測試</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1451" />
             <source>Close</source>
-            <translation>Luk</translation>
+            <translation>關閉</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1485" />
             <source>No previous results yet.</source>
-            <translation>Ingen tidligere resultater endnu.</translation>
+            <translation>尚無先前的結果。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1491" />
             <source>Last run: %1</source>
-            <translation>Sidste kørsel: %1</translation>
+            <translation>上次執行：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1493" />
             <source>Previous results:</source>
-            <translation>Tidligere resultater:</translation>
+            <translation>先前的結果：</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1530" />
             <source>No downloaded LLM files detected. Download a categorization or visual model to run the benchmark.</source>
-            <translation>Der blev ikke fundet nogen downloadede LLM-filer. Download en kategorisering eller visuel model for at køre benchmark.</translation>
+            <translation>未偵測到已下載的 LLM 檔案。請下載分類或視覺模型以執行效能測試。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1590" />
             <source>Starting system compatibility check...</source>
-            <translation>Starter systemkompatibilitetstjek...</translation>
+            <translation>正在啟動系統相容性檢查…</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1601" />
             <source>CPU threads detected: %1</source>
-            <translation>CPU-tråde fundet: %1</translation>
+            <translation>偵測到的 CPU 執行緒數：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1606" />
             <source>GPU backend override: %1</source>
-            <translation>GPU-backend-tilsidesættelse: %1</translation>
+            <translation>GPU 後端覆寫：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1616" />
             <source>Metal available: %1</source>
-            <translation>Metal tilgængelig: %1</translation>
+            <translation>Metal 可用：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1617" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1629" />
             <source>yes</source>
-            <translation>ja</translation>
+            <translation>是</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1617" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1629" />
             <source>no</source>
-            <translation>nej</translation>
+            <translation>否</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1620" />
             <source>GPU memory allocation (Metal): %1 free / %2 total</source>
-            <translation>GPU-hukommelsesallokering (metal): %1 fri / %2 i alt</translation>
+            <translation>GPU 記憶體狀態（Metal）：%1 可用 / %2 總計</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1624" />
             <source>GPU memory allocation (Metal): unavailable</source>
-            <translation>GPU-hukommelsesallokering (metal): ikke tilgængelig</translation>
+            <translation>GPU 記憶體狀態（Metal）：無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1628" />
             <source>CUDA available: %1</source>
-            <translation>CUDA tilgængelig: %1</translation>
+            <translation>CUDA 可用：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1633" />
             <source>CUDA memory (allocatable): %1 free / %2 total</source>
-            <translation>CUDA-hukommelse (kan allokeres): %1 fri / %2 i alt</translation>
+            <translation>CUDA 可用記憶體：%1 可用 / %2 總計</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1637" />
             <source> (device total: %1)</source>
-            <translation>(enhed i alt: %1)</translation>
+            <translation>（裝置總計：%1）</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1646" />
             <source>GPU memory allocation (Vulkan): %1 free / %2 total</source>
-            <translation>GPU-hukommelsesallokering (Vulkan): %1 gratis / %2 i alt</translation>
+            <translation>GPU 記憶體狀態（Vulkan）：%1 可用 / %2 總計</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1650" />
             <source>GPU memory allocation (Vulkan): unavailable</source>
-            <translation>GPU-hukommelsesallokering (Vulkan): ikke tilgængelig</translation>
+            <translation>GPU 記憶體狀態（Vulkan）：無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1664" />
             <source>Temporary directory setup failed; benchmark sample file creation may fail.</source>
-            <translation>Midlertidig biblioteksopsætning mislykkedes; Oprettelse af benchmark-eksempelfil kan mislykkes.</translation>
+            <translation>暫存目錄設定失敗；效能測試的範例檔案建立可能會失敗。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1668" />
             <source>No default models downloaded; skipping categorization and document checks.</source>
-            <translation>Ingen standardmodeller downloadet; springe kategorisering og dokumenttjek over.</translation>
+            <translation>未下載預設模型；略過分類和文件檢查。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1670" />
             <source>Default models detected: %1</source>
-            <translation>Standardmodeller fundet: %1</translation>
+            <translation>偵測到的預設模型：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1683" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1693" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1717" />
             <source>Benchmark stopped.</source>
-            <translation>Benchmark stoppet.</translation>
+            <translation>效能測試已停止。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1689" />
             <source>Running image analysis test...</source>
-            <translation>Kører billedanalysetest...</translation>
+            <translation>正在執行圖片分析測試…</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1701" />
             <source>unavailable</source>
-            <translation>ikke tilgængelig</translation>
+            <translation>無法使用</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1703" />
             <source>Image analysis: skipped (%1)</source>
-            <translation>Billedanalyse: sprunget over (%1)</translation>
+            <translation>圖片分析：已略過（%1）</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1707" />
             <source>Image analysis: %1</source>
-            <translation>Billedanalyse: %1</translation>
+            <translation>圖片分析：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1709" />
             <source>    Time: %1</source>
-            <translation>Tid: %1</translation>
+            <translation>    時間：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1730" />
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1740" />
             <source>GPU disabled by backend override</source>
-            <translation>GPU deaktiveret af backend-tilsidesættelse</translation>
+            <translation>後端覆寫已停用 GPU</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1749" />
             <source>Backend used (image analysis): %1</source>
-            <translation>Backend brugt (billedanalyse): %1</translation>
+            <translation>使用的後端（圖片分析）：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1766" />
             <source>Benchmark failed: %1</source>
-            <translation>Benchmark mislykkedes: %1</translation>
+            <translation>效能測試失敗：%1</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1778" />
             <source>[STOP] Benchmark will stop after the current step is processed.</source>
-            <translation>[STOP] Benchmark stopper, når det aktuelle trin er behandlet.</translation>
+            <translation>[STOP] 效能測試將在目前的步驟處理完成後停止。</translation>
         </message>
         <message>
             <location filename="../../lib/DialogUtils.cpp" line="9" />
             <source>Error</source>
-            <translation>Fejl</translation>
+            <translation>錯誤</translation>
         </message>
         <message>
             <location filename="../../lib/LlmCatalog.cpp" line="109" />
             <source>Local LLM (%1)</source>
-            <translation>Lokal LLM (%1)</translation>
+            <translation>本機 LLM（%1）</translation>
         </message>
         <message>
             <location filename="../../lib/LlmCatalog.cpp" line="116" />
             <source>Local LLM</source>
-            <translation>Lokal LLM</translation>
+            <translation>本機 LLM</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="1543" />
             <source>Support %1</source>
-            <translation>Understøtter %1</translation>
+            <translation>贊助 %1</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="313" />
             <source>Required Update Available</source>
-            <translation>Påkrævet opdatering tilgængelig</translation>
+            <translation>有必要更新</translation>
         </message>
         <message>
             <source>A required update is available. Please update to continue.
 If you choose to quit, the application will close.</source>
-            <translation>En påkrævet opdatering er tilgængelig. Opdater venligst for at fortsætte.
-Hvis du vælger at afslutte, lukkes applikationen.</translation>
+            <translation>有必要的更新可供使用。請更新以繼續。
+如果選擇離開，應用程式將關閉。</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="319" />
             <location filename="../../lib/Updater.cpp" line="346" />
             <source>Update Now</source>
-            <translation>Opdater nu</translation>
+            <translation>立即更新</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="320" />
             <source>Quit</source>
-            <translation>Afslut</translation>
+            <translation>離開</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="343" />
             <source>Optional Update Available</source>
-            <translation>Valgfri opdatering tilgængelig</translation>
+            <translation>有選用更新</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="344" />
             <source>An optional update is available. Would you like to update now?</source>
-            <translation>En valgfri opdatering er tilgængelig. Vil du opdatere nu?</translation>
+            <translation>有選用的更新可供使用。是否要立即更新？</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="151" />
             <source>What's new in version %1:</source>
-            <translation>Hvad er nyt i version %1:</translation>
+            <translation>版本 %1 的新功能：</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="347" />
             <source>Skip This Version</source>
-            <translation>Spring over denne version</translation>
+            <translation>略過此版本</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="348" />
             <location filename="../../lib/Updater.cpp" line="371" />
             <location filename="../../lib/Updater.cpp" line="420" />
             <source>Cancel</source>
-            <translation>Annuller</translation>
+            <translation>取消</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="369" />
             <source>Downloading Update</source>
-            <translation>Downloader opdatering</translation>
+            <translation>正在下載更新</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="370" />
             <source>Downloading the update installer...</source>
-            <translation>Downloader opdateringsinstallationsprogrammet...</translation>
+            <translation>正在下載更新安裝程式…</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="408" />
             <source>Failed to prepare the update installer.
 %1</source>
-            <translation>Kunne ikke forberede opdateringsinstallationsprogrammet.
+            <translation>無法準備更新安裝程式。
 %1</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="416" />
             <source>Installer Ready</source>
-            <translation>Installatør klar</translation>
+            <translation>安裝程式已就緒</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="417" />
             <source>Quit the app and launch the installer to update</source>
-            <translation>Afslut appen og start installationsprogrammet for at opdatere</translation>
+            <translation>離開應用程式並啟動安裝程式以進行更新</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="418" />
             <source>Quit and Launch Installer</source>
-            <translation>Afslut og start installationsprogrammet</translation>
+            <translation>離開並啟動安裝程式</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="431" />
             <source>The installer could not be launched.</source>
-            <translation>Installationsprogrammet kunne ikke startes.</translation>
+            <translation>無法啟動安裝程式。</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="443" />
             <source>No download target is available for this update.</source>
-            <translation>Intet downloadmål er tilgængeligt for denne opdatering.</translation>
+            <translation>此更新沒有可用的下載目標。</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="462" />
             <source>Update Failed</source>
-            <translation>Opdatering mislykkedes</translation>
+            <translation>更新失敗</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="467" />
             <source>Update manually</source>
-            <translation>Opdater manuelt</translation>
+            <translation>手動更新</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="46" />
             <source>Edit whitelist</source>
-            <translation>Rediger hvidliste</translation>
+            <translation>編輯白名單</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="51" />
             <source>Name:</source>
-            <translation>Navn:</translation>
+            <translation>名稱：</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="56" />
             <source>Categories (comma separated):</source>
-            <translation>Kategorier (kommasepareret):</translation>
+            <translation>類別（以逗號分隔）：</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="61" />
             <source>Subcategories (comma separated):</source>
-            <translation>Underkategorier (kommasepareret):</translation>
+            <translation>子類別（以逗號分隔）：</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="385" />
             <source>CUDA Runtime Missing or Incompatible</source>
-            <translation>CUDA Runtime mangler eller er inkompatibel</translation>
+            <translation>CUDA 執行環境遺失或不相容</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="386" />
@@ -2033,32 +2035,32 @@ Hvis du vælger at afslutte, lukkes applikationen.</translation>
 CUDA is required for GPU acceleration in this application.
 
 Would you like to download and install it now?</source>
-            <translation>En kompatibel NVIDIA GPU blev fundet, men den nødvendige CUDA-runtid for den medfølgende CUDA-backend kunne ikke findes eller initialiseres.
+            <translation>偵測到相容的 NVIDIA GPU，但無法找到或初始化隨附 CUDA 後端所需的 CUDA 執行環境。
 
-CUDA er påkrævet for GPU-acceleration i denne applikation.
+此應用程式的 GPU 加速需要 CUDA。
 
-Vil du downloade og installere det nu?</translation>
+是否要立即下載並安裝？</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="649" />
             <location filename="../../startapp_windows.cpp" line="655" />
             <source>Launch Error</source>
-            <translation>Startfejl</translation>
+            <translation>啟動錯誤</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="650" />
             <source>Cannot enable both CUDA and Vulkan simultaneously.</source>
-            <translation>Kan ikke aktivere både CUDA og Vulkan samtidigt.</translation>
+            <translation>無法同時啟用 CUDA 和 Vulkan。</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="656" />
             <source>Cannot force CUDA while %1 is active.</source>
-            <translation>Kan ikke tvinge CUDA, mens %1 er aktiv.</translation>
+            <translation>%1 啟用時無法強制使用 CUDA。</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="846" />
             <source>Missing GGML Runtime</source>
-            <translation>Mangler GGML Runtime</translation>
+            <translation>缺少 GGML 執行環境</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="847" />
@@ -2066,55 +2068,55 @@ Vil du downloade og installere det nu?</translation>
 Tried:
 %1
 %2</source>
-            <translation>Kunne ikke finde brugbare backend-runtime-DLL'er.
-Forsøgte:
+            <translation>無法找到可用的後端執行環境 DLL。
+已嘗試：
 %1
 %2</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="948" />
             <source>Launch Failed</source>
-            <translation>Start mislykkedes</translation>
+            <translation>啟動失敗</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="949" />
             <source>Failed to launch the main application executable:
 %1</source>
-            <translation>Kunne ikke starte den eksekverbare hovedapplikation:
+            <translation>無法啟動主應用程式執行檔：
 %1</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="88" />
             <source>%1 s</source>
-            <translation>%1 s</translation>
+            <translation>%1 秒</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="91" />
             <location filename="../../lib/AnalysisCoordinator.cpp" line="93" />
             <source>%1 ms</source>
-            <translation>%1 ms</translation>
+            <translation>%1 毫秒</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="103" />
             <source>%1 total</source>
-            <translation>%1 i alt</translation>
+            <translation>%1 總計</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="104" />
             <source> (tokenize %1, eval %2, gen %3)</source>
-            <translation>(tokenize %1, eval %2, gen %3)</translation>
+            <translation>（斷詞 %1、評估 %2、產生 %3）</translation>
         </message>
         <message>
             <location filename="../../lib/AnalysisCoordinator.cpp" line="109" />
             <source>, image batches %1/%2</source>
-            <translation>, billedbatcher %1/%2</translation>
+            <translation>，圖片批次 %1/%2</translation>
         </message>
         <message>
             <location filename="../../lib/Updater.cpp" line="314" />
             <source>A new update is available. It is required because of major improvements.
 Please update to continue. If you choose to quit, the application will close.</source>
-            <translation>En ny opdatering er tilgængelig. Det er påkrævet på grund af store forbedringer.
-Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikationen.</translation>
+            <translation>有新的更新可供使用，由於有重大改進因此為必要更新。
+請更新以繼續。如果選擇離開，應用程式將關閉。</translation>
         </message>
     </context>
     <context>
@@ -2122,574 +2124,574 @@ Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikat
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="29" />
             <source>&amp;File</source>
-            <translation>&amp;Fil</translation>
+            <translation>檔案(&amp;F)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="30" />
             <source>&amp;Edit</source>
-            <translation>&amp;Rediger</translation>
+            <translation>編輯(&amp;E)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="31" />
             <source>&amp;View</source>
-            <translation>&amp;Visning</translation>
+            <translation>檢視(&amp;V)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="32" />
             <source>&amp;Settings</source>
-            <translation>&amp;Indstillinger</translation>
+            <translation>設定(&amp;S)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="33" />
             <source>&amp;Plugins</source>
-            <translation>&amp;Plugins</translation>
+            <translation>外掛程式(&amp;P)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="34" />
             <source>&amp;Development</source>
-            <translation>&amp;Udvikling</translation>
+            <translation>開發(&amp;D)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="35" />
             <source>&amp;Tests</source>
-            <translation>&amp;Tests</translation>
+            <translation>測試(&amp;T)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="37" />
             <source>Interface &amp;language</source>
-            <translation>&amp;Interface sprog</translation>
+            <translation>介面語言(&amp;L)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="39" />
             <source>Category &amp;language</source>
-            <translation>&amp;Kategori sprog</translation>
+            <translation>分類語言(&amp;L)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="40" />
             <source>&amp;Quit</source>
-            <translation>&amp;Afslut</translation>
+            <translation>離開(&amp;Q)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="42" />
             <source>System compatibility check…</source>
-            <translation>Kontrol af systemkompatibilitet…</translation>
+            <translation>系統相容性檢查…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="43" />
             <source>&amp;Copy</source>
-            <translation>&amp;Kopiér</translation>
+            <translation>複製(&amp;C)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="44" />
             <source>Cu&amp;t</source>
-            <translation>&amp;Klip</translation>
+            <translation>剪下(&amp;T)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="45" />
             <source>Undo last run</source>
-            <translation>Fortryd sidste kørsel</translation>
+            <translation>復原上次執行</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="46" />
             <source>&amp;Paste</source>
-            <translation>&amp;Indsæt</translation>
+            <translation>貼上(&amp;P)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="47" />
             <source>&amp;Delete</source>
-            <translation>&amp;Slet</translation>
+            <translation>刪除(&amp;D)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="48" />
             <source>File &amp;Explorer</source>
-            <translation>&amp;Fil Explorer</translation>
+            <translation>檔案總管(&amp;E)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="49" />
             <source>Select &amp;LLM…</source>
-            <translation>&amp;Vælg LLM…</translation>
+            <translation>選擇 LLM(&amp;L)…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="51" />
             <source>Manage storage plugins…</source>
-            <translation>Administrer storage-plugins…</translation>
+            <translation>管理儲存外掛程式…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="53" />
             <source>Manage category whitelists…</source>
-            <translation>Administrer kategorihvidlister…</translation>
+            <translation>管理類別白名單…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="55" />
             <source>Reset learned behavior…</source>
-            <translation>Nulstil indlært adfærd…</translation>
+            <translation>重設已學習的行為…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="56" />
             <source>Clear cache…</source>
-            <translation>Ryd cache…</translation>
+            <translation>清除快取…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="58" />
             <source>Log prompts and responses to stdout</source>
-            <translation>Log prompter og svar til stdout</translation>
+            <translation>將提示與回應記錄至標準輸出</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="60" />
             <source>Run large whitelist LLM test…</source>
-            <translation>Kør stor hvidliste LLM-test…</translation>
+            <translation>執行大型白名單 LLM 測試…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="62" />
             <source>Run &amp;consistency pass</source>
-            <translation>&amp;Kør konsistenspas</translation>
+            <translation>執行一致性處理(&amp;C)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="63" />
             <source>&amp;English</source>
-            <translation>&amp;engelsk</translation>
+            <translation>英文(&amp;E)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="64" />
             <source>&amp;Dutch</source>
-            <translation>&amp;hollandsk</translation>
+            <translation>荷蘭文(&amp;D)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="65" />
             <source>&amp;French</source>
-            <translation>&amp;fransk</translation>
+            <translation>法文(&amp;F)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="66" />
             <source>&amp;German</source>
-            <translation>&amp;tysk</translation>
+            <translation>德文(&amp;G)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="68" />
             <source>&amp;Italian</source>
-            <translation>&amp;italiensk</translation>
+            <translation>義大利文(&amp;I)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="69" />
             <source>&amp;Spanish</source>
-            <translation>&amp;spansk</translation>
+            <translation>西班牙文(&amp;S)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70" />
             <source>&amp;Turkish</source>
-            <translation>&amp;tyrkisk</translation>
+            <translation>土耳其文(&amp;T)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="71" />
             <source>&amp;Korean</source>
-            <translation>&amp;koreansk</translation>
+            <translation>韓文(&amp;K)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72" />
             <source>Dutch</source>
-            <translation>hollandsk</translation>
+            <translation>荷蘭文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="73" />
             <source>English</source>
-            <translation>engelsk</translation>
+            <translation>英文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="74" />
             <source>French</source>
-            <translation>fransk</translation>
+            <translation>法文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="75" />
             <source>German</source>
-            <translation>tysk</translation>
+            <translation>德文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="76" />
             <source>Italian</source>
-            <translation>italiensk</translation>
+            <translation>義大利文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="77" />
             <source>Polish</source>
-            <translation>polsk</translation>
+            <translation>波蘭文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="79" />
             <source>Portuguese</source>
-            <translation>portugisisk</translation>
+            <translation>葡萄牙文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="80" />
             <source>Spanish</source>
-            <translation>spansk</translation>
+            <translation>西班牙文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="81" />
             <source>Turkish</source>
-            <translation>tyrkisk</translation>
+            <translation>土耳其文</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="83" />
             <source>&amp;About AI File Sorter</source>
-            <translation>&amp;Om AI File Sorter</translation>
+            <translation>關於 AI File Sorter(&amp;A)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="87" />
             <source>About &amp;Qt</source>
-            <translation>&amp;Om Qt</translation>
+            <translation>關於 Qt(&amp;Q)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="88" />
             <source>About &amp;AGPL</source>
-            <translation>&amp;Om AGPL</translation>
+            <translation>關於 AGPL(&amp;A)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="90" />
             <source>&amp;Support Project</source>
-            <translation>&amp;Støtte projekt</translation>
+            <translation>贊助專案(&amp;S)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="130" />
             <source>Folder:</source>
-            <translation>Mappe:</translation>
+            <translation>資料夾：</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="133" />
             <source>Browse…</source>
-            <translation>Gennemse…</translation>
+            <translation>瀏覽…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="136" />
             <source>Use subcategories</source>
-            <translation>Brug underkategorier</translation>
+            <translation>使用子類別</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="137" />
             <source>Create subcategory folders within each category.</source>
-            <translation>Opret underkategorimapper inden for hver kategori.</translation>
+            <translation>在每個類別中建立子類別資料夾。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="140" />
             <source>Categorization type</source>
-            <translation>Kategoriseringstype</translation>
+            <translation>分類類型</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="141" />
             <source>Choose how strict the category labels should be.</source>
-            <translation>Vælg, hvor strenge kategorietiketterne skal være.</translation>
+            <translation>選擇類別標籤的嚴格程度。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="144" />
             <source>More refined</source>
-            <translation>Mere raffineret</translation>
+            <translation>更精細</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="145" />
             <source>Favor detailed labels even if similar items vary.</source>
-            <translation>Foretræk detaljerede etiketter, selvom lignende varer varierer.</translation>
+            <translation>即使相似的資料有差異，也優先採用詳細標籤。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="148" />
             <source>More consistent</source>
-            <translation>Mere konsekvent</translation>
+            <translation>更一致</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="149" />
             <source>Favor consistent labels across similar items.</source>
-            <translation>Foretræk konsistente etiketter på tværs af lignende varer.</translation>
+            <translation>在相似的資料間優先採用一致的標籤。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="152" />
             <source>Use a whitelist</source>
-            <translation>Brug en hvidliste</translation>
+            <translation>使用白名單</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="153" />
             <source>Restrict categories and subcategories to the selected whitelist.</source>
-            <translation>Begræns kategorier og underkategorier til den valgte hvidliste.</translation>
+            <translation>將類別和子類別限制在選取的白名單範圍內。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="156" />
             <source>Select the whitelist used for this run.</source>
-            <translation>Vælg den hvidliste, der bruges til denne kørsel.</translation>
+            <translation>選取此次執行所使用的白名單。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="159" />
             <source>Categorize files</source>
-            <translation>Kategoriser filer</translation>
+            <translation>分類檔案</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="160" />
             <source>Include files in the categorization pass.</source>
-            <translation>Inkluder filer i kategoriseringspasset.</translation>
+            <translation>將檔案納入分類處理。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="163" />
             <source>Categorize folders</source>
-            <translation>Kategoriser mapper</translation>
+            <translation>分類資料夾</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="164" />
             <source>Include directories in the categorization pass.</source>
-            <translation>Inkluder mapper i kategoriseringspasset.</translation>
+            <translation>將目錄納入分類處理。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="167" />
             <source>Scan subfolders</source>
-            <translation>Scan undermapper</translation>
+            <translation>掃描子資料夾</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="168" />
             <source>Scan files inside subfolders and treat them as part of the main folder.</source>
-            <translation>Scan filer inde i undermapper og behandle dem som en del af hovedmappen.</translation>
+            <translation>掃描子資料夾內的檔案，並視為主要資料夾的一部分。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="171" />
             <source>Analyze picture files by content</source>
-            <translation>Analyser billedfiler efter indhold</translation>
+            <translation>依內容分析圖片檔</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="172" />
             <source>Run the visual LLM on supported picture files.</source>
-            <translation>Kør den visuelle LLM på understøttede billedfiler.</translation>
+            <translation>對支援的圖片檔執行視覺 LLM。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="175" />
             <source>Process picture files only (ignore any other files)</source>
-            <translation>Behandl kun billedfiler (ignorer eventuelle andre filer)</translation>
+            <translation>僅處理圖片檔（忽略其他所有檔案）</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="176" />
             <source>Ignore non-picture files in this run.</source>
-            <translation>Ignorer ikke-billedfiler i denne kørsel.</translation>
+            <translation>此次執行忽略非圖片檔。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="179" />
             <source>Add image creation date (if available) to category name</source>
-            <translation>Tilføj billedoprettelsesdato (hvis tilgængelig) til kategorinavnet</translation>
+            <translation>將圖片建立日期（如有）加入類別名稱</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="180" />
             <source>Append the image creation date from metadata to the category label.</source>
-            <translation>Tilføj billedoprettelsesdatoen fra metadata til kategorietiketten.</translation>
+            <translation>將中繼資料中的圖片建立日期附加至類別標籤。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="183" />
             <source>Add photo date and place to filename (if available)</source>
-            <translation>Tilføj fotodato og sted til filnavn (hvis tilgængeligt)</translation>
+            <translation>將拍攝日期和地點加入檔名（如有）</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="184" />
             <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>Dato kommer fra foto EXIF metadata. Stednavne løses online ud fra GPS-koordinater, så der kræves netværksadgang for stedpræfikser.</translation>
+            <translation>日期來自照片 EXIF 中繼資料。地名是透過 GPS 座標線上解析，因此地名前綴需要網路存取。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="187" />
             <source>Add audio/video metadata to file name (if available)</source>
-            <translation>Tilføj lyd/video metadata til filnavn (hvis tilgængeligt)</translation>
+            <translation>將音訊/影片中繼資料加入檔名（如有）</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="188" />
             <source>Use embedded media tags (for example year, artist, album, title) to build suggested audio/video filenames.</source>
-            <translation>Brug indlejrede medietags (f.eks. år, kunstner, album, titel) til at bygge foreslåede lyd-/videofilnavne.</translation>
+            <translation>使用內嵌的媒體標籤（例如年份、演出者、專輯、標題）來組成建議的音訊/影片檔名。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="191" />
             <source>Offer to rename picture files</source>
-            <translation>Tilbyd at omdøbe billedfiler</translation>
+            <translation>提供圖片檔重新命名建議</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="192" />
             <source>Show suggested filenames for picture files.</source>
-            <translation>Vis foreslåede filnavne til billedfiler.</translation>
+            <translation>顯示圖片檔的建議檔名。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="195" />
             <source>Do not categorize picture files (only rename)</source>
-            <translation>Kategoriser ikke billedfiler (kun omdøb)</translation>
+            <translation>不分類圖片檔（僅重新命名）</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="196" />
             <source>Skip categorization for picture files and only rename them.</source>
-            <translation>Spring over kategorisering for billedfiler og omdøb dem kun.</translation>
+            <translation>略過圖片檔的分類，僅進行重新命名。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="199" />
             <source>Show or hide picture analysis options</source>
-            <translation>Vis eller skjul billedanalysemuligheder</translation>
+            <translation>顯示或隱藏圖片分析選項</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="202" />
             <source>Analyze document files by content</source>
-            <translation>Analyser dokumentfiler efter indhold</translation>
+            <translation>依內容分析文件檔</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="203" />
             <source>Summarize document contents with the selected LLM.</source>
-            <translation>Opsummer dokumentindholdet med den valgte LLM.</translation>
+            <translation>使用選取的 LLM 摘要文件內容。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="206" />
             <source>Process document files only (ignore any other files)</source>
-            <translation>Behandl kun dokumentfiler (ignorer eventuelle andre filer)</translation>
+            <translation>僅處理文件檔（忽略其他所有檔案）</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="207" />
             <source>Ignore non-document files in this run.</source>
-            <translation>Ignorer ikke-dokumentfiler i denne kørsel.</translation>
+            <translation>此次執行忽略非文件檔。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="210" />
             <source>Offer to rename document files</source>
-            <translation>Tilbyd at omdøbe dokumentfiler</translation>
+            <translation>提供文件檔重新命名建議</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="211" />
             <source>Show suggested filenames for document files.</source>
-            <translation>Vis foreslåede filnavne til dokumentfiler.</translation>
+            <translation>顯示文件檔的建議檔名。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="214" />
             <source>Do not categorize document files (only rename)</source>
-            <translation>Kategoriser ikke dokumentfiler (kun omdøb)</translation>
+            <translation>不分類文件檔（僅重新命名）</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="215" />
             <source>Skip categorization for document files and only rename them.</source>
-            <translation>Spring over kategorisering for dokumentfiler og omdøb dem kun.</translation>
+            <translation>略過文件檔的分類，僅進行重新命名。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="218" />
             <source>Add document creation date (if available) to category name</source>
-            <translation>Tilføj dokumentets oprettelsesdato (hvis tilgængelig) til kategorinavnet</translation>
+            <translation>將文件建立日期（如有）加入類別名稱</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="219" />
             <source>Append the document creation date from metadata to the category label.</source>
-            <translation>Føj dokumentets oprettelsesdato fra metadata til kategorietiketten.</translation>
+            <translation>將中繼資料中的文件建立日期附加至類別標籤。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="222" />
             <source>Show or hide document analysis options</source>
-            <translation>Vis eller skjul muligheder for dokumentanalyse</translation>
+            <translation>顯示或隱藏文件分析選項</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="225" />
             <source>Stop analyzing</source>
-            <translation>Stop med at analysere</translation>
+            <translation>停止分析</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="225" />
             <source>Analyze folder</source>
-            <translation>Analyser mappe</translation>
+            <translation>分析資料夾</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="237" />
             <location filename="../../lib/UiTranslator.cpp" line="250" />
             <source>File</source>
-            <translation>Fil</translation>
+            <translation>檔案</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="238" />
             <source>Type</source>
-            <translation>Type</translation>
+            <translation>類型</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="239" />
             <source>Category</source>
-            <translation>Kategori</translation>
+            <translation>類別</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="240" />
             <source>Subcategory</source>
-            <translation>Underkategori</translation>
+            <translation>子類別</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="241" />
             <source>Status</source>
-            <translation>Status</translation>
+            <translation>狀態</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="248" />
             <source>Directory</source>
-            <translation>Vejviser</translation>
+            <translation>目錄</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="256" />
             <location filename="../../lib/UiTranslator.cpp" line="369" />
             <source>Ready</source>
-            <translation>Klar</translation>
+            <translation>就緒</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="91" />
             <source>&amp;Help</source>
-            <translation>&amp;Hjælp</translation>
+            <translation>說明(&amp;H)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="92" />
             <source>File Explorer</source>
-            <translation>Fil Explorer</translation>
+            <translation>檔案總管</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="364" />
             <source>Cancelling analysis…</source>
-            <translation>Annullerer analyse…</translation>
+            <translation>正在取消分析…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="366" />
             <source>Analyzing…</source>
-            <translation>Analyserer…</translation>
+            <translation>正在分析…</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="85" />
             <source>&amp;Quick Start Guide</source>
-            <translation>&amp;Hurtig startvejledning</translation>
+            <translation>快速入門指南(&amp;Q)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="86" />
             <source>&amp;FAQ</source>
-            <translation>&amp;FAQ</translation>
+            <translation>常見問題(&amp;F)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="67" />
             <source>&amp;Hindi</source>
-            <translation>&amp;hindi</translation>
+            <translation>印地文(&amp;H)</translation>
         </message>
         <message>
             <source>Image analysis failed to start with the GPU backend.</source>
-            <translation>Billedanalyse kunne ikke starte med GPU-backend.</translation>
+            <translation>圖片分析無法以 GPU 後端啟動。</translation>
         </message>
         <message>
             <source>A new update is available. It is required because of major improvements.
 Please update to continue. If you choose to quit, the application will close.</source>
-            <translation>En ny opdatering er tilgængelig. Det er påkrævet på grund af store forbedringer.
-Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikationen.</translation>
+            <translation>有新的更新可供使用，由於有重大改進因此為必要更新。
+請更新以繼續。如果選擇離開，應用程式將關閉。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="69" />
             <source>&amp;Swedish</source>
-            <translation>&amp;svensk</translation>
+            <translation>瑞典文(&amp;W)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70" />
             <source>&amp;Icelandic</source>
-            <translation>&amp;islandsk</translation>
+            <translation>冰島文(&amp;I)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="71" />
             <source>&amp;Norwegian</source>
-            <translation>&amp;norsk</translation>
+            <translation>挪威文(&amp;N)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72" />
             <source>&amp;Finnish</source>
-            <translation>&amp;finsk</translation>
+            <translation>芬蘭文(&amp;F)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="73" />
             <source>&amp;Danish</source>
-            <translation>&amp;dansk</translation>
+            <translation>丹麥文(&amp;D)</translation>
         </message>
 
         <message>
@@ -2698,7 +2700,7 @@ Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikat
 
             <source>&amp;Simplified Chinese</source>
 
-            <translation>&amp;forenklet kinesisk</translation>
+            <translation>簡體中文(&amp;S)</translation>
 
         </message>
         <message>
@@ -2707,7 +2709,7 @@ Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikat
 
             <source>&amp;Traditional Chinese</source>
 
-            <translation>&amp;traditionelt kinesisk</translation>
+            <translation>繁體中文(&amp;T)</translation>
 
         </message>
     </context>
@@ -2716,32 +2718,32 @@ Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikat
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="87" />
             <source>Category whitelists</source>
-            <translation>Kategori hvidlister</translation>
+            <translation>類別白名單</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="94" />
             <source>Add</source>
-            <translation>Tilføj</translation>
+            <translation>新增</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="95" />
             <source>Edit</source>
-            <translation>Rediger</translation>
+            <translation>編輯</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="96" />
             <source>Remove</source>
-            <translation>Fjern</translation>
+            <translation>移除</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="170" />
             <source>Cannot remove</source>
-            <translation>Kan ikke fjernes</translation>
+            <translation>無法移除</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="170" />
             <source>The default list cannot be removed.</source>
-            <translation>Standardlisten kan ikke fjernes.</translation>
+            <translation>無法移除預設清單。</translation>
         </message>
     </context>
 </TS>

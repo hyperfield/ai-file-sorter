@@ -2347,6 +2347,11 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
 
     </message>
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="73"/>
+        <source>&amp;Traditional Chinese</source>
+        <translation>&amp;Traditioneel Chinees</translation>
+    </message>
+    <message>
         <location filename="../../lib/UiTranslator.cpp" line="72"/>
         <source>Dutch</source>
         <translation>Nederlands</translation>

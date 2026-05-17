@@ -2701,6 +2701,15 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>&amp;yksinkertaistettu kiina</translation>
 
         </message>
+        <message>
+
+            <location filename="../../lib/UiTranslator.cpp" line="73"/>
+
+            <source>&amp;Traditional Chinese</source>
+
+            <translation>&amp;perinteinen kiina</translation>
+
+        </message>
     </context>
     <context>
         <name>WhitelistManagerDialog</name>

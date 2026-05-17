@@ -98,6 +98,7 @@ struct UiTranslatorTestHarness {
     QAction* hindi_action = new QAction(&window);
     QAction* italian_action = new QAction(&window);
     QAction* simplified_chinese_action = new QAction(&window);
+    QAction* traditional_chinese_action = new QAction(&window);
     QAction* swedish_action = new QAction(&window);
     QAction* icelandic_action = new QAction(&window);
     QAction* norwegian_action = new QAction(&window);
@@ -160,6 +161,8 @@ struct UiTranslatorTestHarness {
         italian_action->setData(static_cast<int>(Language::Italian));
         simplified_chinese_action->setCheckable(true);
         simplified_chinese_action->setData(static_cast<int>(Language::SimplifiedChinese));
+        traditional_chinese_action->setCheckable(true);
+        traditional_chinese_action->setData(static_cast<int>(Language::TraditionalChinese));
         swedish_action->setCheckable(true);
         swedish_action->setData(static_cast<int>(Language::Swedish));
         icelandic_action->setCheckable(true);
@@ -183,6 +186,7 @@ struct UiTranslatorTestHarness {
         language_group->addAction(hindi_action);
         language_group->addAction(italian_action);
         language_group->addAction(simplified_chinese_action);
+        language_group->addAction(traditional_chinese_action);
         language_group->addAction(swedish_action);
         language_group->addAction(icelandic_action);
         language_group->addAction(norwegian_action);
@@ -199,6 +203,7 @@ struct UiTranslatorTestHarness {
         language_menu->addAction(hindi_action);
         language_menu->addAction(italian_action);
         language_menu->addAction(simplified_chinese_action);
+        language_menu->addAction(traditional_chinese_action);
         language_menu->addAction(swedish_action);
         language_menu->addAction(icelandic_action);
         language_menu->addAction(korean_action);
@@ -294,6 +299,7 @@ struct UiTranslatorTestHarness {
                 hindi_action,
                 italian_action,
                 simplified_chinese_action,
+                traditional_chinese_action,
                 swedish_action,
                 icelandic_action,
                 norwegian_action,
@@ -317,6 +323,7 @@ struct UiTranslatorTestHarness {
                 hindi_action,
                 italian_action,
                 simplified_chinese_action,
+                traditional_chinese_action,
                 swedish_action,
                 icelandic_action,
                 norwegian_action,
