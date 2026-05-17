@@ -8,8 +8,10 @@
 #include "TranslationManager.hpp"
 
 #include <QAction>
+#include <QCoreApplication>
 #include <QMenu>
 #include <QStringList>
+#include <QTranslator>
 
 #include <algorithm>
 #include <vector>
@@ -98,6 +100,48 @@ std::vector<CategoryLanguage> sorted_by_enum(std::vector<CategoryLanguage> langu
               });
     return languages;
 }
+
+class PostfixMnemonicTranslator final : public QTranslator {
+public:
+    void set_swedish_translation(const QString& translation)
+    {
+        swedish_translation_ = translation;
+    }
+
+    QString translate(const char* context,
+                      const char* source_text,
+                      const char* disambiguation = nullptr,
+                      int n = -1) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        if (QString::fromLatin1(context) == QStringLiteral("UiTranslator")
+            && QString::fromLatin1(source_text) == QStringLiteral("&Swedish")) {
+            return swedish_translation_;
+        }
+        return {};
+    }
+
+private:
+    QString swedish_translation_;
+};
+
+class TranslatorInstallGuard {
+public:
+    explicit TranslatorInstallGuard(QTranslator& translator)
+        : translator_(translator)
+    {
+        QCoreApplication::installTranslator(&translator_);
+    }
+
+    ~TranslatorInstallGuard()
+    {
+        QCoreApplication::removeTranslator(&translator_);
+    }
+
+private:
+    QTranslator& translator_;
+};
 
 } // namespace
 
@@ -226,6 +270,38 @@ TEST_CASE("Category language menu keeps visible entries alphabetized")
               });
 
     CHECK(labels == sorted_labels);
+}
+
+TEST_CASE("Category language labels strip postfix interface mnemonics")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    PostfixMnemonicTranslator translator;
+    TranslatorInstallGuard translator_guard(translator);
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+    settings.set_llm_choice(LLMChoice::Local_4b_Gemma);
+
+    translator.set_swedish_translation(QStringLiteral("瑞典文(&W)"));
+    MainAppTestAccess::trigger_retranslate(window);
+
+    QAction* const swedish_action = find_category_language_action(
+        MainAppTestAccess::category_language_menu(window),
+        CategoryLanguage::Swedish);
+    REQUIRE(swedish_action != nullptr);
+    CHECK(swedish_action->text() == QStringLiteral("瑞典文"));
+
+    translator.set_swedish_translation(QStringLiteral("瑞典文 (&W)"));
+    MainAppTestAccess::trigger_retranslate(window);
+    CHECK(swedish_action->text() == QStringLiteral("瑞典文"));
 }
 
 TEST_CASE("Full Gemma 3 category language menus are compartmentalized into submenus")

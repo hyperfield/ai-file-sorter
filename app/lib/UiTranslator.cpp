@@ -98,9 +98,19 @@ Widget* raw_ptr(const QPointer<Widget>& pointer)
 
 QString strip_mnemonic_markers(const QString& value)
 {
+    const bool has_postfix_mnemonic =
+        value.size() >= 4 && value.at(value.size() - 4) == QChar('(')
+        && value.at(value.size() - 3) == QChar('&')
+        && value.at(value.size() - 2) != QChar('&')
+        && value.at(value.size() - 1) == QChar(')');
+    int end = has_postfix_mnemonic ? value.size() - 4 : value.size();
+    while (has_postfix_mnemonic && end > 0 && value.at(end - 1).isSpace()) {
+        --end;
+    }
+
     QString result;
-    result.reserve(value.size());
-    for (int i = 0; i < value.size(); ++i) {
+    result.reserve(end);
+    for (int i = 0; i < end; ++i) {
         const QChar ch = value.at(i);
         if (ch != QChar('&')) {
             result.push_back(ch);
