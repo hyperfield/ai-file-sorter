@@ -2347,6 +2347,11 @@ Veuillez mettre à jour pour continuer. Si vous choisissez de quitter, l&apos;ap
 
     </message>
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="73"/>
+        <source>&amp;Traditional Chinese</source>
+        <translation>&amp;Chinois traditionnel</translation>
+    </message>
+    <message>
         <location filename="../../lib/UiTranslator.cpp" line="72"/>
         <source>Dutch</source>
         <translation>Néerlandais</translation>

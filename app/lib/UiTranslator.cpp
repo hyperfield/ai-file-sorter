@@ -70,6 +70,8 @@ constexpr auto kActionHindi = QT_TRANSLATE_NOOP("UiTranslator", "&Hindi");
 constexpr auto kActionItalian = QT_TRANSLATE_NOOP("UiTranslator", "&Italian");
 constexpr auto kActionSimplifiedChinese =
     QT_TRANSLATE_NOOP("UiTranslator", "&Simplified Chinese");
+constexpr auto kActionTraditionalChinese =
+    QT_TRANSLATE_NOOP("UiTranslator", "&Traditional Chinese");
 constexpr auto kActionSwedish = QT_TRANSLATE_NOOP("UiTranslator", "&Swedish");
 constexpr auto kActionIcelandic = QT_TRANSLATE_NOOP("UiTranslator", "&Icelandic");
 constexpr auto kActionNorwegian = QT_TRANSLATE_NOOP("UiTranslator", "&Norwegian");
@@ -160,6 +162,7 @@ QAction* shared_interface_language_action(const UiTranslator::Dependencies& deps
     case CategoryLanguage::Korean: return deps.actions.korean_action;
     case CategoryLanguage::Norwegian: return deps.actions.norwegian_action;
     case CategoryLanguage::SimplifiedChinese: return deps.actions.simplified_chinese_action;
+    case CategoryLanguage::TraditionalChinese: return deps.actions.traditional_chinese_action;
     case CategoryLanguage::Spanish: return deps.actions.spanish_action;
     case CategoryLanguage::Swedish: return deps.actions.swedish_action;
     case CategoryLanguage::Turkish: return deps.actions.turkish_action;
@@ -384,6 +387,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.hindi_action, kActionHindi},
         {deps_.actions.italian_action, kActionItalian},
         {deps_.actions.simplified_chinese_action, kActionSimplifiedChinese},
+        {deps_.actions.traditional_chinese_action, kActionTraditionalChinese},
         {deps_.actions.swedish_action, kActionSwedish},
         {deps_.actions.icelandic_action, kActionIcelandic},
         {deps_.actions.norwegian_action, kActionNorwegian},
@@ -492,6 +496,10 @@ void UiTranslator::update_language_group_checks(Language configured) const
     if (deps_.language.simplified_chinese_action) {
         deps_.language.simplified_chinese_action->setChecked(
             configured == Language::SimplifiedChinese);
+    }
+    if (deps_.language.traditional_chinese_action) {
+        deps_.language.traditional_chinese_action->setChecked(
+            configured == Language::TraditionalChinese);
     }
     if (deps_.language.swedish_action) {
         deps_.language.swedish_action->setChecked(configured == Language::Swedish);

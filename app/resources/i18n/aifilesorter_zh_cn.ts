@@ -2701,6 +2701,15 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>&amp;简体中文</translation>
 
         </message>
+        <message>
+
+            <location filename="../../lib/UiTranslator.cpp" line="73"/>
+
+            <source>&amp;Traditional Chinese</source>
+
+            <translation>&amp;繁体中文</translation>
+
+        </message>
     </context>
     <context>
         <name>WhitelistManagerDialog</name>

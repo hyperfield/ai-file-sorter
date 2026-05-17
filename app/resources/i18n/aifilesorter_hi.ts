@@ -2689,6 +2689,11 @@ Please update to continue. If you choose to quit, the application will close.</s
 
     </message>
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="73"/>
+        <source>&amp;Traditional Chinese</source>
+        <translation>&amp;पारंपरिक चीनी</translation>
+    </message>
+    <message>
         <location filename="../../lib/UiTranslator.cpp" line="85"/>
         <source>&amp;Quick Start Guide</source>
         <translation>&amp;त्वरित प्रारंभ मार्गदर्शिका</translation>

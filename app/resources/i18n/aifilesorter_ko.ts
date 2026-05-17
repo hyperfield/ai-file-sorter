@@ -2347,6 +2347,11 @@ Please update to continue. If you choose to quit, the application will close.</s
 
     </message>
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="73"/>
+        <source>&amp;Traditional Chinese</source>
+        <translation>&amp;중국어 번체</translation>
+    </message>
+    <message>
         <location filename="../../lib/UiTranslator.cpp" line="72"/>
         <source>Dutch</source>
         <translation>네덜란드어</translation>

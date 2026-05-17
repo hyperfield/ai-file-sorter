@@ -19,6 +19,7 @@
     <file>help/quick_start_es.md</file>
     <file>help/quick_start_tr.md</file>
     <file>help/quick_start_ko.md</file>
+    <file>help/quick_start_zh_tw.md</file>
     <file>.env</file>
     <file>certs/cacert.pem</file>
   </qresource>

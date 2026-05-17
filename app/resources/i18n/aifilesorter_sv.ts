@@ -2701,6 +2701,15 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <translation>&amp;förenklad kinesiska</translation>
 
         </message>
+        <message>
+
+            <location filename="../../lib/UiTranslator.cpp" line="73"/>
+
+            <source>&amp;Traditional Chinese</source>
+
+            <translation>&amp;traditionell kinesiska</translation>
+
+        </message>
     </context>
     <context>
         <name>WhitelistManagerDialog</name>

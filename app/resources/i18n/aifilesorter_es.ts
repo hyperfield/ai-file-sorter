@@ -2347,6 +2347,11 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
 
     </message>
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="73"/>
+        <source>&amp;Traditional Chinese</source>
+        <translation>&amp;Chino tradicional</translation>
+    </message>
+    <message>
         <location filename="../../lib/UiTranslator.cpp" line="72"/>
         <source>Dutch</source>
         <translation>Neerlandés</translation>

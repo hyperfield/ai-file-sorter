@@ -185,6 +185,12 @@ Language system_default_language()
                 || locale.territory() == QLocale::Singapore) {
                 return Language::SimplifiedChinese;
             }
+            if (locale.script() == QLocale::TraditionalHanScript
+                || locale.territory() == QLocale::Taiwan
+                || locale.territory() == QLocale::HongKong
+                || locale.territory() == QLocale::Macau) {
+                return Language::TraditionalChinese;
+            }
             return Language::English;
         case QLocale::Danish: return Language::Danish;
         case QLocale::Finnish: return Language::Finnish;

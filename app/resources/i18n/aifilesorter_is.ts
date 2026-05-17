@@ -2701,6 +2701,15 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>&amp;einfölduð kínverska</translation>
 
         </message>
+        <message>
+
+            <location filename="../../lib/UiTranslator.cpp" line="73"/>
+
+            <source>&amp;Traditional Chinese</source>
+
+            <translation>&amp;hefðbundin kínverska</translation>
+
+        </message>
     </context>
     <context>
         <name>WhitelistManagerDialog</name>
