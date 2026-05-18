@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "CategorizationProgressDialog.hpp"
 #include "MainApp.hpp"
 #include "MainAppTestAccess.hpp"
 #include "Settings.hpp"
@@ -8,6 +9,10 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QToolButton>
 #include <algorithm>
 #include <filesystem>
@@ -164,6 +169,90 @@ TEST_CASE("Analysis toggles use disclosure indicators instead of toolbutton arro
     CHECK(document_toggle->arrowType() == Qt::NoArrow);
     CHECK(image_toggle->isCheckable());
     CHECK(document_toggle->isCheckable());
+}
+
+TEST_CASE("Main window controls expose accessibility metadata") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+    window.show();
+    QApplication::processEvents();
+
+    QLineEdit* path_entry = MainAppTestAccess::path_entry(window);
+    QPushButton* browse_button = MainAppTestAccess::browse_button(window);
+    QPushButton* analyze_button = MainAppTestAccess::analyze_button(window);
+    QToolButton* image_toggle = MainAppTestAccess::image_options_toggle_button(window);
+    QToolButton* document_toggle = MainAppTestAccess::document_options_toggle_button(window);
+
+    REQUIRE(path_entry != nullptr);
+    REQUIRE(browse_button != nullptr);
+    REQUIRE(analyze_button != nullptr);
+    REQUIRE(image_toggle != nullptr);
+    REQUIRE(document_toggle != nullptr);
+
+    QLabel* path_label = nullptr;
+    for (QLabel* label : window.findChildren<QLabel*>()) {
+        if (label && label->text() == MainAppTestAccess::path_label_text(window)) {
+            path_label = label;
+            break;
+        }
+    }
+
+    REQUIRE(path_label != nullptr);
+    CHECK(path_label->buddy() == path_entry);
+    CHECK(path_entry->accessibleName() == MainAppTestAccess::path_label_text(window));
+    CHECK(browse_button->accessibleName() == browse_button->text());
+    CHECK(analyze_button->accessibleName() == analyze_button->text());
+    CHECK_FALSE(image_toggle->accessibleName().isEmpty());
+    CHECK_FALSE(document_toggle->accessibleName().isEmpty());
+}
+
+TEST_CASE("Progress dialog takes focus and exposes accessibility metadata") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+    window.show();
+    QApplication::processEvents();
+
+    CategorizationProgressDialog dialog(&window, &window, false);
+    const std::vector<FileEntry> image_entries = {
+        {"/tmp/photo.jpg", "photo.jpg", FileType::File}
+    };
+    dialog.configure_stages({
+        {CategorizationProgressDialog::StageId::ImageAnalysis, image_entries}
+    });
+
+    dialog.show();
+    QApplication::processEvents();
+
+    auto* stop_button = dialog.findChild<QPushButton*>(QStringLiteral("stopAnalysisButton"));
+    auto* log_view = dialog.findChild<QPlainTextEdit*>(QStringLiteral("analysisLogView"));
+
+    REQUIRE(stop_button != nullptr);
+    REQUIRE(log_view != nullptr);
+
+    CHECK(dialog.isActiveWindow());
+    CHECK(dialog.focusWidget() == stop_button);
+    CHECK_FALSE(dialog.accessibleName().isEmpty());
+    CHECK_FALSE(dialog.accessibleDescription().isEmpty());
+    CHECK(stop_button->accessibleName() == stop_button->text());
+    CHECK_FALSE(log_view->accessibleName().isEmpty());
 }
 
 TEST_CASE("Image rename-only does not disable categorization unless processing images only") {

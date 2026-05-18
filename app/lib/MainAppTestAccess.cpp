@@ -10,6 +10,7 @@
 #include "VisualLlmRuntime.hpp"
 
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QToolButton>
 
@@ -21,6 +22,21 @@ QString MainAppTestAccess::analyze_button_text(const MainApp& app) {
 
 QString MainAppTestAccess::path_label_text(const MainApp& app) {
     return app.path_label ? app.path_label->text() : QString();
+}
+
+QLineEdit* MainAppTestAccess::path_entry(MainApp& app)
+{
+    return app.path_entry;
+}
+
+QPushButton* MainAppTestAccess::browse_button(MainApp& app)
+{
+    return app.browse_button;
+}
+
+QPushButton* MainAppTestAccess::analyze_button(MainApp& app)
+{
+    return app.analyze_button;
 }
 
 QAction* MainAppTestAccess::clear_cache_action(MainApp& app)
