@@ -3,6 +3,7 @@
 
 #include "Types.hpp"
 
+#include <QAccessible>
 #include <QCoreApplication>
 #include <QDialog>
 
@@ -103,6 +104,22 @@ private:
     void refresh_row(int row);
     void refresh_summary();
     void refresh_spinner();
+    /**
+     * @brief Applies accessible names and descriptions to the dialog controls.
+     */
+    void apply_accessibility_metadata();
+    /**
+     * @brief Announces a high-priority progress message to assistive technology.
+     * @param message Message text to expose.
+     * @param event Accessibility event type to dispatch.
+     */
+    void announce_accessibility_message(const QString& message,
+                                        QAccessible::Event event = QAccessible::Alert);
+    /**
+     * @brief Notifies assistive technology that new log text was appended.
+     * @param text Newly inserted text block.
+     */
+    void notify_accessible_text_insert(const QString& text) const;
     bool has_in_progress_item() const;
     ItemStatus stage_status_for_row(const ItemState& state, StageId stage_id) const;
     std::optional<int> find_stage_row(StageId stage_id, ItemStatus status) const;
@@ -121,6 +138,7 @@ private:
     std::optional<StageId> active_stage_;
     std::unordered_map<std::string, ItemState> item_states_;
     int spinner_frame_index_{0};
+    QString last_announced_message_;
 };
 
 #endif // CATEGORIZATIONPROGRESSDIALOG_HPP
