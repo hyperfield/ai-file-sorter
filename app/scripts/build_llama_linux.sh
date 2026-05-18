@@ -19,9 +19,17 @@ HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 CUDASWITCH="OFF"
 VULKANSWITCH="OFF"
 BLASSWITCH="AUTO"
+CUDA_ARCHITECTURES_OVERRIDE=""
 for arg in "$@"; do
+    case "$arg" in
+        -[^-]*=*)
+            echo "Unsupported option syntax '$arg'. Use cuda=on or --cuda=on." >&2
+            exit 1
+            ;;
+    esac
     normalized_arg="${arg#--}"
-    case "${normalized_arg,,}" in
+    lower_arg="${normalized_arg,,}"
+    case "${lower_arg}" in
         cuda=on) CUDASWITCH="ON" ;;
         cuda=off) CUDASWITCH="OFF" ;;
         vulkan=on) VULKANSWITCH="ON" ;;
@@ -29,6 +37,9 @@ for arg in "$@"; do
         blas=on) BLASSWITCH="ON" ;;
         blas=off) BLASSWITCH="OFF" ;;
         blas=auto) BLASSWITCH="AUTO" ;;
+        cuda_arch=*|cuda-arch=*)
+            CUDA_ARCHITECTURES_OVERRIDE="${normalized_arg#*=}"
+            ;;
     esac
 done
 
@@ -40,6 +51,25 @@ fi
 echo "CUDA support: $CUDASWITCH"
 echo "VULKAN support: $VULKANSWITCH"
 echo "BLAS support: $BLASSWITCH (auto prefers OpenBLAS for CPU baseline)"
+
+resolve_cuda_architectures() {
+    if [[ -n "$CUDA_ARCHITECTURES_OVERRIDE" ]]; then
+        echo "$CUDA_ARCHITECTURES_OVERRIDE"
+        return 0
+    fi
+
+    if [[ -n "${CMAKE_CUDA_ARCHITECTURES:-}" ]]; then
+        echo "${CMAKE_CUDA_ARCHITECTURES}"
+        return 0
+    fi
+
+    if [[ -n "${CUDAARCHS:-}" ]]; then
+        echo "${CUDAARCHS}"
+        return 0
+    fi
+
+    echo ""
+}
 
 # Resolve OpenBLAS availability for both AUTO and explicit BLAS=ON requests.
 openblas_available() {
@@ -99,11 +129,47 @@ resolve_blas_setting() {
 }
 
 resolve_cuda_host_compiler() {
+    local cuda_version="$1"
     local candidate=""
     local version=""
     local major=""
 
-    for candidate in /usr/bin/g++-15 /usr/bin/g++-14 /usr/bin/g++-13 /usr/bin/g++-12 /usr/bin/g++-11 /usr/bin/g++-10 /usr/bin/g++; do
+    if [[ -n "${CUDAHOSTCXX:-}" && -x "${CUDAHOSTCXX}" ]]; then
+        echo "${CUDAHOSTCXX}"
+        return 0
+    fi
+
+    if [[ -n "${NVCC_CCBIN:-}" && -x "${NVCC_CCBIN}" ]]; then
+        echo "${NVCC_CCBIN}"
+        return 0
+    fi
+
+    local -a compiler_candidates=()
+    if [[ "$cuda_version" =~ ^11\.([0-5])($|[^0-9]) ]]; then
+        compiler_candidates=(
+            /usr/bin/g++-10
+            /usr/bin/g++-9
+            /usr/bin/g++-11
+            /usr/bin/g++-12
+            /usr/bin/g++-13
+            /usr/bin/g++-14
+            /usr/bin/g++-15
+            /usr/bin/g++
+        )
+    else
+        compiler_candidates=(
+            /usr/bin/g++-15
+            /usr/bin/g++-14
+            /usr/bin/g++-13
+            /usr/bin/g++-12
+            /usr/bin/g++-11
+            /usr/bin/g++-10
+            /usr/bin/g++-9
+            /usr/bin/g++
+        )
+    fi
+
+    for candidate in "${compiler_candidates[@]}"; do
         [ -x "$candidate" ] || continue
         version="$("$candidate" -dumpfullversion -dumpversion 2>/dev/null || true)"
         major="${version%%.*}"
@@ -112,6 +178,24 @@ resolve_cuda_host_compiler() {
             return 0
         fi
     done
+
+    echo ""
+}
+
+resolve_cuda_compiler_version() {
+    local compiler="$1"
+    local version_output=""
+
+    if [[ -z "$compiler" || ! -x "$compiler" ]]; then
+        echo ""
+        return 0
+    fi
+
+    version_output="$("$compiler" --version 2>/dev/null || true)"
+    if [[ "$version_output" =~ release[[:space:]]+([0-9]+\.[0-9]+) ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
 
     echo ""
 }
@@ -216,6 +300,7 @@ build_variant() {
     local cuda_host_compiler="$6"
     local cuda_compiler="$7"
     local cuda_driver_link_dir="$8"
+    local cuda_architectures="$9"
 
     local build_dir="$LLAMA_DIR/build-$variant"
     rm -rf "$build_dir"
@@ -231,6 +316,7 @@ build_variant() {
         -DGGML_OPENCL=OFF
         -DGGML_BLAS="$blas_flag"
         -DBUILD_SHARED_LIBS=ON
+        -DGGML_BACKEND_DL=ON
         -DGGML_NATIVE=OFF
         -DCMAKE_C_FLAGS="-mavx2 -mfma"
         -DCMAKE_CXX_FLAGS="-mavx2 -mfma"
@@ -246,6 +332,9 @@ build_variant() {
             -DCMAKE_CUDA_COMPILER="$cuda_compiler"
             -DCMAKE_CUDA_HOST_COMPILER="$cuda_host_compiler"
         )
+        if [[ -n "$cuda_architectures" ]]; then
+            cmake_args+=( -DCMAKE_CUDA_ARCHITECTURES="$cuda_architectures" )
+        fi
         if [[ -n "$cuda_driver_link_dir" ]]; then
             local linker_flags="-Wl,-rpath-link,$cuda_driver_link_dir"
             cmake_args+=(
@@ -265,8 +354,18 @@ build_variant() {
         build_env=(env "LIBRARY_PATH=$library_path")
     fi
 
+    local -a build_targets=(ggml-base ggml ggml-cpu llama mtmd)
+    if [[ "$blas_flag" == "ON" ]]; then
+        build_targets+=(ggml-blas)
+    fi
+    if [[ "$cuda_flag" == "ON" ]]; then
+        build_targets+=(ggml-cuda)
+    elif [[ "$vulkan_flag" == "ON" ]]; then
+        build_targets+=(ggml-vulkan)
+    fi
+
     "${build_env[@]}" cmake "${cmake_args[@]}"
-    "${build_env[@]}" cmake --build "$build_dir" --config Release -- -j"$(nproc)"
+    "${build_env[@]}" cmake --build "$build_dir" --config Release --target "${build_targets[@]}" -- -j"$(nproc)"
 
     local variant_root="$PRECOMPILED_ROOT_DIR/$variant"
     local variant_bin="$variant_root/bin"
@@ -310,8 +409,10 @@ fi
 # Always build a CPU baseline (OpenBLAS when available)
 CUDA_HOST_COMPILER=""
 CUDA_COMPILER=""
+CUDA_COMPILER_VERSION=""
 CUDA_DRIVER_LIB=""
 CUDA_DRIVER_LINK_DIR=""
+CUDA_ARCHITECTURES="$(resolve_cuda_architectures)"
 if [[ "$CUDASWITCH" == "ON" ]]; then
     CUDA_COMPILER="$(resolve_cuda_compiler)"
     if [[ -z "$CUDA_COMPILER" ]]; then
@@ -319,14 +420,21 @@ if [[ "$CUDASWITCH" == "ON" ]]; then
         echo "Ensure the full CUDA Toolkit is installed and either set CUDACXX=/full/path/to/nvcc or add nvcc to PATH." >&2
         exit 1
     fi
-    CUDA_HOST_COMPILER="$(resolve_cuda_host_compiler)"
+    CUDA_COMPILER_VERSION="$(resolve_cuda_compiler_version "$CUDA_COMPILER")"
+    CUDA_HOST_COMPILER="$(resolve_cuda_host_compiler "$CUDA_COMPILER_VERSION")"
     if [[ -z "$CUDA_HOST_COMPILER" ]]; then
         echo "CUDA requested but no supported g++ host compiler was found." >&2
         echo "Install a CUDA-supported g++ version (for example g++-15, g++-14, or g++-13 depending on your CUDA release) and retry." >&2
         exit 1
     fi
     echo "CUDA compiler: $CUDA_COMPILER"
+    if [[ -n "$CUDA_COMPILER_VERSION" ]]; then
+        echo "CUDA compiler version: $CUDA_COMPILER_VERSION"
+    fi
     echo "CUDA host compiler: $CUDA_HOST_COMPILER"
+    if [[ -n "$CUDA_ARCHITECTURES" ]]; then
+        echo "CUDA architectures override: $CUDA_ARCHITECTURES"
+    fi
     CUDA_DRIVER_LIB="$(resolve_cuda_driver_library)"
     if [[ -z "$CUDA_DRIVER_LIB" ]]; then
         echo "CUDA requested but no libcuda driver library or toolkit stub was found." >&2
@@ -340,7 +448,7 @@ if [[ "$CUDASWITCH" == "ON" ]]; then
     fi
 fi
 
-build_variant "cpu" "OFF" "OFF" "$RESOLVED_BLAS" "wocuda" "$CUDA_HOST_COMPILER" "$CUDA_COMPILER" "$CUDA_DRIVER_LINK_DIR"
+build_variant "cpu" "OFF" "OFF" "$RESOLVED_BLAS" "wocuda" "$CUDA_HOST_COMPILER" "$CUDA_COMPILER" "$CUDA_DRIVER_LINK_DIR" "$CUDA_ARCHITECTURES"
 
 # Build requested accelerator variant if applicable
 REQUESTED_VARIANT="cpu"
@@ -354,7 +462,7 @@ elif [[ "$VULKANSWITCH" == "ON" ]]; then
 fi
 
 if [[ "$REQUESTED_VARIANT" != "cpu" ]]; then
-    build_variant "$REQUESTED_VARIANT" "$CUDASWITCH" "$VULKANSWITCH" "$RESOLVED_BLAS" "$REQUESTED_RUNTIME" "$CUDA_HOST_COMPILER" "$CUDA_COMPILER" "$CUDA_DRIVER_LINK_DIR"
+    build_variant "$REQUESTED_VARIANT" "$CUDASWITCH" "$VULKANSWITCH" "$RESOLVED_BLAS" "$REQUESTED_RUNTIME" "$CUDA_HOST_COMPILER" "$CUDA_COMPILER" "$CUDA_DRIVER_LINK_DIR" "$CUDA_ARCHITECTURES"
 fi
 
 # Copy headers once (from the source tree)
