@@ -37,6 +37,7 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QAccessible>
 #include <QApplication>
 #include <QBoxLayout>
 #include <QCheckBox>
@@ -66,6 +67,7 @@
 #include <QStandardItemModel>
 #include <QCoreApplication>
 #include <QStatusBar>
+#include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QSizePolicy>
@@ -130,6 +132,24 @@ std::string trim_ws_copy(const std::string& value) {
     }
     const auto end = value.find_last_not_of(whitespace);
     return value.substr(start, end - start + 1);
+}
+
+QString strip_mnemonic_markers(const QString& value)
+{
+    QString result;
+    result.reserve(value.size());
+    for (int i = 0; i < value.size(); ++i) {
+        const QChar ch = value.at(i);
+        if (ch != QChar('&')) {
+            result.push_back(ch);
+            continue;
+        }
+        if (i + 1 < value.size() && value.at(i + 1) == QChar('&')) {
+            result.push_back(QChar('&'));
+            ++i;
+        }
+    }
+    return result;
 }
 
 QString category_language_sort_key(CategoryLanguage language)
@@ -876,6 +896,146 @@ void MainApp::retranslate_ui()
     ui_translator_->retranslate_all(state);
     refresh_category_language_menu();
     refresh_backend_status_label();
+    apply_accessibility_metadata();
+}
+
+void MainApp::apply_accessibility_metadata()
+{
+    const auto apply_named_control = [](QWidget* widget,
+                                        const QString& label_text,
+                                        const QString& description = QString()) {
+        if (!widget) {
+            return;
+        }
+
+        const QString accessible_name = strip_mnemonic_markers(label_text).trimmed();
+        if (!accessible_name.isEmpty()) {
+            widget->setAccessibleName(accessible_name);
+        }
+
+        const QString accessible_description = description.trimmed();
+        if (!accessible_description.isEmpty()) {
+            widget->setAccessibleDescription(accessible_description);
+        }
+    };
+
+    if (path_label && path_entry) {
+        path_label->setBuddy(path_entry);
+        apply_named_control(path_entry, path_label->text(), path_entry->toolTip());
+    }
+
+    apply_named_control(browse_button, browse_button ? browse_button->text() : QString());
+    apply_named_control(use_subcategories_checkbox,
+                        use_subcategories_checkbox ? use_subcategories_checkbox->text() : QString(),
+                        use_subcategories_checkbox ? use_subcategories_checkbox->toolTip() : QString());
+    apply_named_control(categorize_files_checkbox,
+                        categorize_files_checkbox ? categorize_files_checkbox->text() : QString(),
+                        categorize_files_checkbox ? categorize_files_checkbox->toolTip() : QString());
+    apply_named_control(categorize_directories_checkbox,
+                        categorize_directories_checkbox ? categorize_directories_checkbox->text() : QString(),
+                        categorize_directories_checkbox ? categorize_directories_checkbox->toolTip() : QString());
+    apply_named_control(include_subdirectories_checkbox,
+                        include_subdirectories_checkbox ? include_subdirectories_checkbox->text() : QString(),
+                        include_subdirectories_checkbox ? include_subdirectories_checkbox->toolTip() : QString());
+    apply_named_control(categorization_style_refined_radio,
+                        categorization_style_refined_radio ? categorization_style_refined_radio->text() : QString(),
+                        categorization_style_refined_radio
+                            ? categorization_style_refined_radio->toolTip()
+                            : QString());
+    apply_named_control(categorization_style_consistent_radio,
+                        categorization_style_consistent_radio
+                            ? categorization_style_consistent_radio->text()
+                            : QString(),
+                        categorization_style_consistent_radio
+                            ? categorization_style_consistent_radio->toolTip()
+                            : QString());
+    apply_named_control(use_whitelist_checkbox,
+                        use_whitelist_checkbox ? use_whitelist_checkbox->text() : QString(),
+                        use_whitelist_checkbox ? use_whitelist_checkbox->toolTip() : QString());
+    apply_named_control(whitelist_selector,
+                        use_whitelist_checkbox ? use_whitelist_checkbox->text() : QString(),
+                        whitelist_selector ? whitelist_selector->toolTip() : QString());
+    apply_named_control(analyze_images_checkbox,
+                        analyze_images_checkbox ? analyze_images_checkbox->text() : QString(),
+                        analyze_images_checkbox ? analyze_images_checkbox->toolTip() : QString());
+    apply_named_control(process_images_only_checkbox,
+                        process_images_only_checkbox ? process_images_only_checkbox->text() : QString(),
+                        process_images_only_checkbox
+                            ? process_images_only_checkbox->toolTip()
+                            : QString());
+    apply_named_control(add_image_date_to_category_checkbox,
+                        add_image_date_to_category_checkbox
+                            ? add_image_date_to_category_checkbox->text()
+                            : QString(),
+                        add_image_date_to_category_checkbox
+                            ? add_image_date_to_category_checkbox->toolTip()
+                            : QString());
+    apply_named_control(add_image_date_place_to_filename_checkbox,
+                        add_image_date_place_to_filename_checkbox
+                            ? add_image_date_place_to_filename_checkbox->text()
+                            : QString(),
+                        add_image_date_place_to_filename_checkbox
+                            ? add_image_date_place_to_filename_checkbox->toolTip()
+                            : QString());
+    apply_named_control(add_audio_video_metadata_to_filename_checkbox,
+                        add_audio_video_metadata_to_filename_checkbox
+                            ? add_audio_video_metadata_to_filename_checkbox->text()
+                            : QString(),
+                        add_audio_video_metadata_to_filename_checkbox
+                            ? add_audio_video_metadata_to_filename_checkbox->toolTip()
+                            : QString());
+    apply_named_control(offer_rename_images_checkbox,
+                        offer_rename_images_checkbox ? offer_rename_images_checkbox->text() : QString(),
+                        offer_rename_images_checkbox
+                            ? offer_rename_images_checkbox->toolTip()
+                            : QString());
+    apply_named_control(rename_images_only_checkbox,
+                        rename_images_only_checkbox ? rename_images_only_checkbox->text() : QString(),
+                        rename_images_only_checkbox
+                            ? rename_images_only_checkbox->toolTip()
+                            : QString());
+    apply_named_control(image_options_toggle_button,
+                        image_options_toggle_button ? image_options_toggle_button->toolTip() : QString(),
+                        image_options_toggle_button ? image_options_toggle_button->toolTip() : QString());
+    apply_named_control(analyze_documents_checkbox,
+                        analyze_documents_checkbox ? analyze_documents_checkbox->text() : QString(),
+                        analyze_documents_checkbox ? analyze_documents_checkbox->toolTip() : QString());
+    apply_named_control(process_documents_only_checkbox,
+                        process_documents_only_checkbox
+                            ? process_documents_only_checkbox->text()
+                            : QString(),
+                        process_documents_only_checkbox
+                            ? process_documents_only_checkbox->toolTip()
+                            : QString());
+    apply_named_control(offer_rename_documents_checkbox,
+                        offer_rename_documents_checkbox
+                            ? offer_rename_documents_checkbox->text()
+                            : QString(),
+                        offer_rename_documents_checkbox
+                            ? offer_rename_documents_checkbox->toolTip()
+                            : QString());
+    apply_named_control(rename_documents_only_checkbox,
+                        rename_documents_only_checkbox
+                            ? rename_documents_only_checkbox->text()
+                            : QString(),
+                        rename_documents_only_checkbox
+                            ? rename_documents_only_checkbox->toolTip()
+                            : QString());
+    apply_named_control(add_document_date_to_category_checkbox,
+                        add_document_date_to_category_checkbox
+                            ? add_document_date_to_category_checkbox->text()
+                            : QString(),
+                        add_document_date_to_category_checkbox
+                            ? add_document_date_to_category_checkbox->toolTip()
+                            : QString());
+    apply_named_control(document_options_toggle_button,
+                        document_options_toggle_button
+                            ? document_options_toggle_button->toolTip()
+                            : QString(),
+                        document_options_toggle_button
+                            ? document_options_toggle_button->toolTip()
+                            : QString());
+    apply_named_control(analyze_button, analyze_button ? analyze_button->text() : QString());
 }
 
 void MainApp::update_settings_action_states()
@@ -930,8 +1090,11 @@ void MainApp::refresh_backend_status_label()
     if (!backend_status_label) {
         return;
     }
-    backend_status_label->setText(current_backend_status_text());
-    backend_status_label->setToolTip(current_backend_status_text());
+    const QString status_text = current_backend_status_text();
+    backend_status_label->setText(status_text);
+    backend_status_label->setToolTip(status_text);
+    backend_status_label->setAccessibleName(status_text);
+    backend_status_label->setAccessibleDescription(status_text);
 }
 
 void MainApp::schedule_backend_status_label_refresh()
@@ -1340,6 +1503,11 @@ void MainApp::update_analyze_button_state(bool analyzing)
         analyze_button->setText(tr("Analyze folder"));
         statusBar()->showMessage(tr("Ready"));
         status_is_ready_ = true;
+    }
+    apply_accessibility_metadata();
+    if (analyze_button) {
+        QAccessibleEvent button_name_changed(analyze_button, QAccessible::NameChanged);
+        QAccessible::updateAccessibility(&button_name_changed);
     }
     update_settings_action_states();
 }

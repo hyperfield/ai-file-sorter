@@ -192,6 +192,10 @@ private:
     void sync_settings_to_ui();
     void sync_ui_to_settings();
     void retranslate_ui();
+    /**
+     * @brief Applies accessible names, descriptions, and label associations to the main window UI.
+     */
+    void apply_accessibility_metadata();
     void on_language_selected(Language language);
     void on_category_language_selected(CategoryLanguage language);
     void initialize_whitelists();
