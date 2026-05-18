@@ -188,6 +188,20 @@ Procedure: Inspect the image and document option toggle buttons through the test
 Expected outcome: Both toggles are checkable and use `Qt::NoArrow`, leaving the visible indicator to the styled label.
 Run: `./build-tests/ai_file_sorter_tests "Analysis toggles use disclosure indicators instead of toolbutton arrows"`
 
+#### Test case: Main window controls expose accessibility metadata
+Purpose: Verify the primary controls expose accessible names and label associations needed by screen readers.
+Setup: Build `MainApp` with offscreen Qt and show the window so translated labels and buddies are applied.
+Procedure: Inspect the folder label, path entry, main action buttons, and disclosure toggles through the widget tree and test access layer.
+Expected outcome: The folder label is linked to the path entry as its buddy, the path entry inherits that accessible name, and the primary buttons and disclosure toggles expose non-empty accessible names.
+Run: `./build-tests/ai_file_sorter_tests "Main window controls expose accessibility metadata"`
+
+#### Test case: Progress dialog takes focus and exposes accessibility metadata
+Purpose: Ensure analysis startup moves focus into the progress dialog and exposes accessible metadata for its key controls.
+Setup: Build `MainApp` with offscreen Qt, construct a `CategorizationProgressDialog`, and configure it with a simple image-analysis stage.
+Procedure: Show the progress dialog, process Qt events, and inspect the stop button, dialog metadata, and activity log widget.
+Expected outcome: The dialog becomes the active window, the stop button receives focus, and the dialog and log view expose non-empty accessible names or descriptions.
+Run: `./build-tests/ai_file_sorter_tests "Progress dialog takes focus and exposes accessibility metadata"`
+
 #### Test case: Image rename-only does not disable categorization unless processing images only
 Purpose: Confirm that rename-only for images does not disable file categorization by itself.
 Setup: Initialize settings with image analysis off, build `MainApp` with offscreen Qt, and stub the visual-LLM availability probe.
