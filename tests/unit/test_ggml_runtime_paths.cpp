@@ -4,6 +4,7 @@
 #include "TestHelpers.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 
 TEST_CASE("macOS ggml runtime candidates stay relative to the app layout") {
@@ -100,6 +101,71 @@ TEST_CASE("Windows Vulkan payload resolution prefers the BLAS runtime layout") {
     REQUIRE(resolved.has_value());
     REQUIRE(*resolved == preferred);
 }
+
+TEST_CASE("Linux Vulkan payload validation rejects stale runtime directories") {
+    TempDir temp_dir;
+    const auto payload = temp_dir.path() / "vulkan";
+    std::filesystem::create_directories(payload);
+
+    std::ofstream(payload / "libggml-vulkan.so").put('x');
+    std::ofstream(payload / "libllama.so").put('x');
+    std::ofstream(payload / "libggml.so").put('x');
+    std::ofstream(payload / "libggml-base.so").put('x');
+    std::ofstream(payload / "libmtmd.so").put('x');
+
+    const auto validation =
+        GgmlRuntimePaths::validate_linux_accelerator_payload(payload, "vulkan");
+
+    REQUIRE_FALSE(validation.valid);
+    REQUIRE(validation.reason.find("missing Linux runtime dependencies") != std::string::npos);
+}
+
+TEST_CASE("Linux Vulkan payload validation accepts compatible runtime directories") {
+    TempDir temp_dir;
+    const auto payload = temp_dir.path() / "vulkan";
+    std::filesystem::create_directories(payload);
+
+    std::ofstream(payload / "libggml-vulkan.so").put('x');
+    std::ofstream(payload / "libllama.so.0").put('x');
+    std::ofstream(payload / "libggml.so.0").put('x');
+    std::ofstream(payload / "libggml-base.so.0").put('x');
+    std::ofstream(payload / "libmtmd.so.0").put('x');
+    std::ofstream(payload / "libggml-cpu.so").put('x');
+
+    const auto validation =
+        GgmlRuntimePaths::validate_linux_accelerator_payload(payload, "vulkan");
+
+    REQUIRE(validation.valid);
+    REQUIRE(validation.reason.empty());
+}
+
+#if defined(__linux__)
+TEST_CASE("Linux backend environment sanitization demotes stale Vulkan payloads to CPU") {
+    TempDir temp_dir;
+    const auto payload = temp_dir.path() / "vulkan";
+    std::filesystem::create_directories(payload);
+
+    std::ofstream(payload / "libggml-vulkan.so").put('x');
+    std::ofstream(payload / "libllama.so").put('x');
+    std::ofstream(payload / "libggml.so").put('x');
+    std::ofstream(payload / "libggml-base.so").put('x');
+    std::ofstream(payload / "libmtmd.so").put('x');
+
+    EnvVarGuard backend_guard("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+    EnvVarGuard device_guard("LLAMA_ARG_DEVICE", "vulkan");
+    EnvVarGuard ggml_dir_guard("AI_FILE_SORTER_GGML_DIR", payload.string());
+    EnvVarGuard disable_guard("GGML_DISABLE_CUDA", std::nullopt);
+
+    const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment();
+
+    REQUIRE(reason.has_value());
+    REQUIRE(reason->find("Rejected stale vulkan runtime payload") != std::string::npos);
+    REQUIRE(std::string(std::getenv("AI_FILE_SORTER_GPU_BACKEND")) == "cpu");
+    REQUIRE(std::string(std::getenv("GGML_DISABLE_CUDA")) == "1");
+    REQUIRE(std::getenv("AI_FILE_SORTER_GGML_DIR") == nullptr);
+    REQUIRE(std::getenv("LLAMA_ARG_DEVICE") == nullptr);
+}
+#endif
 
 TEST_CASE("macOS ggml runtime resolution prefers bundled directories over generic siblings") {
     TempDir temp_dir;

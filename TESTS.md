@@ -74,14 +74,14 @@ Run: `./build-tests/ai_file_sorter_tests "CPU backend is honored when forced"`
 
 #### Test case: CUDA backend can be forced off via GGML_DISABLE_CUDA
 Purpose: Confirm that the global CUDA disable flag overrides a CUDA backend preference.
-Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda` and `GGML_DISABLE_CUDA=1`. Inject a probe that reports CUDA available.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda` and `GGML_DISABLE_CUDA=1`. Inject a backend-availability probe that reports CUDA available.
 Procedure: Call `prepare_model_params_for_testing()`.
 Expected outcome: `n_gpu_layers` is `0`, indicating CPU fallback.
 Run: `./build-tests/ai_file_sorter_tests "CUDA backend can be forced off via GGML_DISABLE_CUDA"`
 
 #### Test case: CUDA override is applied when backend is available
-Purpose: Validate that an explicit layer override is used when CUDA is available.
-Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, and inject a CUDA-available probe.
+Purpose: Validate that an explicit layer override is used when the ggml CUDA backend is available, even if backend memory metrics are absent.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, inject a backend-availability probe for CUDA, and inject a backend-memory probe that returns no metrics.
 Procedure: Call `prepare_model_params_for_testing()`.
 Expected outcome: `n_gpu_layers` equals `7`.
 Run: `./build-tests/ai_file_sorter_tests "CUDA override is applied when backend is available"`
@@ -101,15 +101,22 @@ Expected outcome: The ladder starts at `15` once and then descends to `11, 8, 6,
 Run: `./build-tests/ai_file_sorter_tests "LocalLLMClient deduplicates matching retry estimates before reducing GPU layers"`
 
 #### Test case: CUDA backend reports low GPU memory before load
-Purpose: Ensure CUDA preflight checks fall back to CPU before model load when available VRAM is too low.
-Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave the layer override unset, inject a CUDA-available probe, and inject a CUDA memory probe with extremely low free memory.
+Purpose: Ensure CUDA preflight checks fall back to CPU before model load when the ggml CUDA backend reports too little available VRAM.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave the layer override unset, inject a backend-availability probe for CUDA, and inject backend memory with extremely low free memory.
 Procedure: Call `prepare_model_params_result_for_testing()` for a temporary model with enough layers to exceed the reported budget.
 Expected outcome: `n_gpu_layers` is `0` and the captured status is `GpuLowMemoryFallbackToCpu`.
 Run: `./build-tests/ai_file_sorter_tests "CUDA backend reports low GPU memory before load"`
 
+#### Test case: CUDA backend falls back to CPU when backend memory metrics are unavailable
+Purpose: Ensure CUDA preflight declines GPU offload instead of hanging or guessing when the ggml CUDA backend cannot report memory metrics and no explicit layer override is set.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave the layer override unset, inject a backend-availability probe for CUDA, and inject a backend-memory probe that returns no data.
+Procedure: Call `prepare_model_params_for_testing()`.
+Expected outcome: `n_gpu_layers` is `0`, indicating a safe CPU fallback.
+Run: `./build-tests/ai_file_sorter_tests "CUDA backend falls back to CPU when backend memory metrics are unavailable"`
+
 #### Test case: Auto backend prefers CUDA when both backends are possible
 Purpose: Verify that automatic backend selection uses CUDA before Vulkan.
-Setup: Leave `AI_FILE_SORTER_GPU_BACKEND` unset, clear `GGML_DISABLE_CUDA`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, inject a CUDA-available probe, and inject a Vulkan probe that reports unavailable.
+Setup: Leave `AI_FILE_SORTER_GPU_BACKEND` unset, clear `GGML_DISABLE_CUDA`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, inject a backend-availability probe that reports CUDA available, and inject a backend-memory probe that returns no metrics.
 Procedure: Call `prepare_model_params_for_testing()`.
 Expected outcome: `n_gpu_layers` equals `7`, proving the auto path chose CUDA without consulting Vulkan first.
 Run: `./build-tests/ai_file_sorter_tests "Auto backend prefers CUDA when both backends are possible"`
@@ -122,10 +129,10 @@ Expected outcome: `n_gpu_layers` equals `12`, proving the auto path fell through
 Run: `./build-tests/ai_file_sorter_tests "Auto backend falls back to Vulkan when CUDA is disabled"`
 
 #### Test case: CUDA fallback when no GPU is available
-Purpose: Ensure CUDA preference falls back when no GPU is detected.
-Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave layer override unset, and inject a CUDA-unavailable probe.
+Purpose: Ensure CUDA preference falls back when no ggml CUDA backend is detected.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave layer override unset, and inject a backend-availability probe that reports CUDA unavailable.
 Procedure: Call `prepare_model_params_for_testing()`.
-Expected outcome: `n_gpu_layers` is `0` or `-1` (CPU or auto fallback).
+Expected outcome: `n_gpu_layers` is `0`.
 Run: `./build-tests/ai_file_sorter_tests "CUDA fallback when no GPU is available"`
 
 #### Test case: Vulkan backend honors explicit override
@@ -590,6 +597,27 @@ Setup: Create temporary `vulkan-blas/bin` and `vulkan/bin` directories containin
 Procedure: Call `GgmlRuntimePaths::resolve_windows_vulkan_payload_dir()`.
 Expected outcome: The resolved path points to `lib/precompiled/vulkan-blas/bin`.
 Run: `./build-tests/ai_file_sorter_tests "Windows Vulkan payload resolution prefers the BLAS runtime layout"`
+
+#### Test case: Linux Vulkan payload validation rejects stale runtime directories
+Purpose: Ensure Linux launch/runtime checks refuse accelerator payloads that contain a backend plugin but omit the versioned core libraries and CPU backend module required by the ggml dynamic-backend layout.
+Setup: Create a temporary Vulkan runtime directory with `libggml-vulkan.so` plus only unversioned core library names.
+Procedure: Call `GgmlRuntimePaths::validate_linux_accelerator_payload()`.
+Expected outcome: Validation fails with a reason that mentions missing Linux runtime dependencies.
+Run: `./build-tests/ai_file_sorter_tests "Linux Vulkan payload validation rejects stale runtime directories"`
+
+#### Test case: Linux Vulkan payload validation accepts compatible runtime directories
+Purpose: Ensure Linux accelerator payloads remain usable when they contain both the Vulkan plugin and the mix of versioned core libraries and unversioned CPU backend module produced by `GGML_BACKEND_DL=ON`.
+Setup: Create a temporary Vulkan runtime directory with `libggml-vulkan.so`, versioned core files such as `libggml.so.0` and `libllama.so.0`, and the CPU backend module `libggml-cpu.so`.
+Procedure: Call `GgmlRuntimePaths::validate_linux_accelerator_payload()`.
+Expected outcome: Validation succeeds with no rejection reason.
+Run: `./build-tests/ai_file_sorter_tests "Linux Vulkan payload validation accepts compatible runtime directories"`
+
+#### Test case: Linux backend environment sanitization demotes stale Vulkan payloads to CPU
+Purpose: Ensure the runtime environment is rewritten to CPU when the configured Linux Vulkan payload is stale, preventing the app from advertising or attempting to use an incompatible GPU payload.
+Setup: Point `AI_FILE_SORTER_GPU_BACKEND`, `LLAMA_ARG_DEVICE`, and `AI_FILE_SORTER_GGML_DIR` at a temporary stale Vulkan runtime directory.
+Procedure: Call `GgmlRuntimePaths::sanitize_linux_backend_environment()`.
+Expected outcome: The helper returns a rejection reason, sets `AI_FILE_SORTER_GPU_BACKEND=cpu`, sets `GGML_DISABLE_CUDA=1`, and clears the custom ggml directory/device overrides.
+Run: `./build-tests/ai_file_sorter_tests "Linux backend environment sanitization demotes stale Vulkan payloads to CPU"`
 
 #### Test case: sanitize_path_label preserves valid Unicode emoji labels
 Purpose: Confirm valid Unicode labels are not stripped while sanitizing invalid path text.

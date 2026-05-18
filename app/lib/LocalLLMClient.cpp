@@ -1,5 +1,6 @@
 #include "LocalLLMClient.hpp"
 #include "FileCategoryPolicy.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "TestHooks.hpp"
@@ -1030,6 +1031,12 @@ void load_ggml_backends_once(const std::shared_ptr<spdlog::logger>& logger) {
         return;
     }
 
+    if (const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment()) {
+        if (logger) {
+            logger->warn("{}", *reason);
+        }
+    }
+
     const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
     if (ggml_dir && ggml_dir[0] != '\0') {
         if (logger) {
@@ -1942,6 +1949,7 @@ bool apply_cpu_backend(llama_model_params& params,
 }
 
 Utils::CudaMemoryInfo cap_integrated_gpu_memory(const BackendMemoryInfo& backend_memory,
+                                                std::string_view backend_label,
                                                 const std::shared_ptr<spdlog::logger>& logger)
 {
     Utils::CudaMemoryInfo adjusted = backend_memory.memory;
@@ -1953,8 +1961,10 @@ Utils::CudaMemoryInfo cap_integrated_gpu_memory(const BackendMemoryInfo& backend
     adjusted.total_bytes = std::min(adjusted.total_bytes, kIntegratedGpuMemoryCapBytes);
     if (logger) {
         const double to_mib = kBytesPerMiB;
-        logger->info("Vulkan device reported as integrated GPU; capping usable memory to {:.1f} MiB",
-                     kIntegratedGpuMemoryCapBytes / to_mib);
+        logger->info(
+            "{} device reported as integrated GPU; capping usable memory to {:.1f} MiB",
+            backend_label.empty() ? "GPU" : backend_label,
+            kIntegratedGpuMemoryCapBytes / to_mib);
     }
     return adjusted;
 }
@@ -1978,7 +1988,8 @@ bool apply_vulkan_override(const std::string& model_path,
         return true;
     }
 
-    Utils::CudaMemoryInfo adjusted_memory = cap_integrated_gpu_memory(backend_memory, logger);
+    Utils::CudaMemoryInfo adjusted_memory =
+        cap_integrated_gpu_memory(backend_memory, "Vulkan", logger);
     const AutoGpuLayerEstimation estimation =
         estimate_gpu_layers_for_cuda(model_path, adjusted_memory);
     if (override_exceeds_available_gpu_memory(override_layers, estimation)) {
@@ -2114,7 +2125,8 @@ bool apply_vulkan_backend(const std::string& model_path,
         return false;
     }
 
-    Utils::CudaMemoryInfo adjusted = cap_integrated_gpu_memory(*vk_memory, logger);
+    Utils::CudaMemoryInfo adjusted =
+        cap_integrated_gpu_memory(*vk_memory, "Vulkan", logger);
     const auto estimation = estimate_gpu_layers_for_cuda(model_path, adjusted);
     finalize_vulkan_layers(estimation, adjusted, params, *vk_memory, logger, preflight_status);
     return true;
@@ -2171,7 +2183,7 @@ void disable_cuda_backend(llama_model_params& params,
 bool ensure_cuda_available(llama_model_params& params,
                            const std::shared_ptr<spdlog::logger>& logger)
 {
-    if (Utils::is_cuda_available()) {
+    if (resolve_backend_available("CUDA")) {
         return true;
     }
     disable_cuda_backend(params, logger, "CUDA backend unavailable; using CPU backend");
@@ -2181,6 +2193,7 @@ bool ensure_cuda_available(llama_model_params& params,
 
 bool apply_ngl_override(int override_layers,
                         const std::string& model_path,
+                        const std::optional<BackendMemoryInfo>& backend_memory,
                         llama_model_params& params,
                         const std::shared_ptr<spdlog::logger>& logger,
                         std::optional<LocalLLMClient::Status>* preflight_status)
@@ -2197,9 +2210,11 @@ bool apply_ngl_override(int override_layers,
         return true;
     }
 
-    if (const auto cuda_info = Utils::query_cuda_memory()) {
+    if (backend_memory.has_value()) {
+        Utils::CudaMemoryInfo adjusted_memory =
+            cap_integrated_gpu_memory(*backend_memory, "CUDA", logger);
         const AutoGpuLayerEstimation estimation =
-            estimate_gpu_layers_for_cuda(model_path, *cuda_info);
+            estimate_gpu_layers_for_cuda(model_path, adjusted_memory);
         if (override_exceeds_available_gpu_memory(override_layers, estimation)) {
             disable_cuda_backend(
                 params,
@@ -2215,8 +2230,14 @@ bool apply_ngl_override(int override_layers,
 
     params.n_gpu_layers = override_layers;
     if (logger) {
-        logger->info("Using explicit CUDA n_gpu_layers override {}",
-                     gpu_layers_to_string(override_layers));
+        if (backend_memory.has_value()) {
+            logger->info("Using explicit CUDA n_gpu_layers override {}",
+                         gpu_layers_to_string(override_layers));
+        } else {
+            logger->info(
+                "Using explicit CUDA n_gpu_layers override {} without memory preflight (metrics unavailable).",
+                gpu_layers_to_string(override_layers));
+        }
     }
     std::cout << "ngl override: " << params.n_gpu_layers << std::endl;
     return true;
@@ -2284,23 +2305,25 @@ std::vector<int> build_gpu_layer_retry_candidates(int optimistic_layers,
     return candidates;
 }
 
-NglEstimationResult estimate_ngl_from_cuda_info(const std::string& model_path,
-                                               const std::shared_ptr<spdlog::logger>& logger)
+NglEstimationResult estimate_ngl_from_cuda_info(
+    const std::string& model_path,
+    const std::optional<BackendMemoryInfo>& backend_memory,
+    const std::shared_ptr<spdlog::logger>& logger)
 {
     NglEstimationResult result;
     AutoGpuLayerEstimation estimation{};
-    std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
-
-    if (!cuda_info.has_value()) {
+    if (!backend_memory.has_value()) {
         if (logger) {
-            logger->warn("Unable to query CUDA memory information, falling back to heuristic");
+            logger->warn("CUDA backend memory metrics unavailable; using CPU fallback.");
         }
         return result;
     }
 
-    estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
+    Utils::CudaMemoryInfo adjusted_memory =
+        cap_integrated_gpu_memory(*backend_memory, "CUDA", logger);
+    estimation = estimate_gpu_layers_for_cuda(model_path, adjusted_memory);
     result.estimator_layers = std::max(estimation.layers, 0);
-    result.heuristic_layers = Utils::compute_ngl_from_cuda_memory(*cuda_info);
+    result.heuristic_layers = Utils::compute_ngl_from_cuda_memory(adjusted_memory);
 
     int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
     if (estimation.insufficient_memory) {
@@ -2317,10 +2340,13 @@ NglEstimationResult estimate_ngl_from_cuda_info(const std::string& model_path,
                          estimation.layers, candidate_layers);
         }
         const double to_mib = kBytesPerMiB;
+        const char* device_label = backend_memory->name.empty() ? "CUDA device"
+                                                                : backend_memory->name.c_str();
         logger->info(
-            "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
-            cuda_info->total_bytes / to_mib,
-            cuda_info->free_bytes / to_mib,
+            "{} total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
+            device_label,
+            adjusted_memory.total_bytes / to_mib,
+            adjusted_memory.free_bytes / to_mib,
             gpu_layers_to_string(estimation.layers),
             gpu_layers_to_string(result.heuristic_layers),
             gpu_layers_to_string(candidate_layers),
@@ -2336,27 +2362,16 @@ std::vector<int> build_model_load_retry_candidates(const std::string& model_path
     int conservative_layers = optimistic_layers;
     const PreferredBackend backend = detect_preferred_backend();
     if (backend != PreferredBackend::Cpu && backend != PreferredBackend::Vulkan) {
-        const NglEstimationResult estimation = estimate_ngl_from_cuda_info(model_path, nullptr);
+        const NglEstimationResult estimation = estimate_ngl_from_cuda_info(
+            model_path,
+            resolve_backend_memory("cuda"),
+            nullptr);
         conservative_layers = conservative_retry_layers(estimation.estimator_layers,
                                                         estimation.heuristic_layers,
                                                         optimistic_layers);
     }
 
     return build_gpu_layer_retry_candidates(optimistic_layers, conservative_layers);
-}
-
-int fallback_ngl(int heuristic_layers, const std::shared_ptr<spdlog::logger>& logger)
-{
-    if (heuristic_layers > 0) {
-        return heuristic_layers;
-    }
-
-    const int fallback = Utils::determine_ngl_cuda();
-    if (fallback > 0 && logger) {
-        logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
-                     gpu_layers_to_string(fallback));
-    }
-    return fallback;
 }
 
 bool configure_cuda_backend(const std::string& model_path,
@@ -2367,17 +2382,28 @@ bool configure_cuda_backend(const std::string& model_path,
         return false;
     }
 
+    const auto cuda_memory = resolve_backend_memory("cuda");
     const int override_layers = resolve_gpu_layer_override();
-    if (apply_ngl_override(override_layers, model_path, params, logger, preflight_status)) {
+    if (apply_ngl_override(override_layers,
+                           model_path,
+                           cuda_memory,
+                           params,
+                           logger,
+                           preflight_status)) {
         return true;
     }
 
-    const NglEstimationResult estimation = estimate_ngl_from_cuda_info(model_path, logger);
-    int ngl = estimation.candidate_layers;
-    if (ngl <= 0 && !estimation.low_memory) {
-        ngl = fallback_ngl(estimation.heuristic_layers, logger);
+    if (!cuda_memory.has_value()) {
+        disable_cuda_backend(params,
+                             logger,
+                             "CUDA backend memory metrics unavailable; using CPU backend");
+        std::cout << "CUDA memory metrics unavailable, falling back to CPU.\n";
+        return true;
     }
 
+    const NglEstimationResult estimation =
+        estimate_ngl_from_cuda_info(model_path, cuda_memory, logger);
+    const int ngl = estimation.candidate_layers;
     if (ngl > 0) {
         params.n_gpu_layers = ngl;
         std::cout << "ngl: " << params.n_gpu_layers << std::endl;

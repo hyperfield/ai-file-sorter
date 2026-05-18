@@ -10,6 +10,7 @@
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "GeminiClient.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "LocalFsProvider.hpp"
 #include "LLMSelectionDialog.hpp"
 #include "Logger.hpp"
@@ -366,6 +367,12 @@ void load_status_ggml_backends_once()
         return;
     }
 
+    if (const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment()) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("{}", *reason);
+        }
+    }
+
     const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
     if (ggml_dir && *ggml_dir) {
         ggml_backend_load_all_from_path(ggml_dir);
@@ -441,6 +448,12 @@ std::optional<std::string> detect_status_blas_backend_label()
 
 std::string detect_loaded_backend_key()
 {
+    if (const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment()) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("{}", *reason);
+        }
+    }
+
     const auto read_env = [](const char* name) -> std::string {
         const char* value = std::getenv(name);
         if (!value || !*value) {

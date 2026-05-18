@@ -183,8 +183,8 @@ TEST_CASE("CUDA backend can be forced off via GGML_DISABLE_CUDA") {
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", "1");
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
-    CudaProbeGuard guard;
-    TestHooks::set_cuda_availability_probe([] { return true; });
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) { return true; });
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
@@ -210,8 +210,13 @@ TEST_CASE("CUDA override is applied when backend is available") {
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "7");
-    CudaProbeGuard guard;
-    TestHooks::set_cuda_availability_probe([] { return true; });
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view backend_name) {
+        return backend_name == "CUDA";
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        return std::nullopt;
+    });
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
@@ -223,12 +228,14 @@ TEST_CASE("CUDA backend reports low GPU memory before load") {
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
-    CudaProbeGuard guard;
-    TestHooks::set_cuda_availability_probe([] { return true; });
-    TestHooks::set_cuda_memory_probe([] {
-        Utils::CudaMemoryInfo info;
-        info.free_bytes = 1ULL * 1024ULL * 1024ULL;
-        info.total_bytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view backend_name) {
+        return backend_name == "CUDA";
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        TestHooks::BackendMemoryInfo info;
+        info.memory.free_bytes = 1ULL * 1024ULL * 1024ULL;
+        info.memory.total_bytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
         return info;
     });
 
@@ -238,16 +245,35 @@ TEST_CASE("CUDA backend reports low GPU memory before load") {
     REQUIRE(result.status == LocalLLMClient::Status::GpuLowMemoryFallbackToCpu);
 }
 
+TEST_CASE("CUDA backend falls back to CPU when backend memory metrics are unavailable") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
+    EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
+    EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view backend_name) {
+        return backend_name == "CUDA";
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        return std::nullopt;
+    });
+
+    auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
+        model.path().string());
+    REQUIRE(params.n_gpu_layers == 0);
+}
+
 TEST_CASE("Auto backend prefers CUDA when both backends are possible") {
     TempModelFile model;
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", std::nullopt);
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "7");
-    CudaProbeGuard cuda_guard;
     BackendProbeGuard backend_guard;
-    TestHooks::set_cuda_availability_probe([] { return true; });
-    TestHooks::set_backend_availability_probe([](std::string_view) {
-        return false;
+    TestHooks::set_backend_availability_probe([](std::string_view backend_name) {
+        return backend_name == "CUDA";
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        return std::nullopt;
     });
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
@@ -276,12 +302,12 @@ TEST_CASE("CUDA fallback when no GPU is available") {
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
-    CudaProbeGuard guard;
-    TestHooks::set_cuda_availability_probe([] { return false; });
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) { return false; });
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
-    REQUIRE((params.n_gpu_layers == 0 || params.n_gpu_layers == -1));
+    REQUIRE(params.n_gpu_layers == 0);
 }
 
 TEST_CASE("Vulkan backend honors explicit override") {

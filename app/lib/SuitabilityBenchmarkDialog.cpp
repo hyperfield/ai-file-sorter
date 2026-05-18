@@ -1,10 +1,12 @@
 #include "SuitabilityBenchmarkDialog.hpp"
 
 #include "DocumentTextAnalyzer.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "ILLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "LocalLLMClient.hpp"
+#include "Logger.hpp"
 #include "Settings.hpp"
 #include "Types.hpp"
 #include "Utils.hpp"
@@ -550,6 +552,12 @@ void load_ggml_backends_once()
     static bool loaded = false;
     if (loaded) {
         return;
+    }
+
+    if (const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment()) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("{}", *reason);
+        }
     }
 
     const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
