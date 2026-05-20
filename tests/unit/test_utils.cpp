@@ -11,6 +11,19 @@ TEST_CASE("get_file_name_from_url extracts filename") {
     REQUIRE(Utils::get_file_name_from_url(url) == "mistral-7b.gguf");
 }
 
+TEST_CASE("get_file_name_from_url strips query parameters") {
+    REQUIRE(Utils::get_file_name_from_url(
+        "https://example.com/models/mistral-7b.gguf?download=true")
+        == "mistral-7b.gguf");
+}
+
+TEST_CASE("get_file_name_from_url strips fragments") {
+    REQUIRE(Utils::get_file_name_from_url(
+        "https://example.com/models/mistral-7b.gguf#section")
+        == "mistral-7b.gguf");
+}
+
+
 TEST_CASE("get_file_name_from_url rejects malformed input") {
     REQUIRE_THROWS_AS(Utils::get_file_name_from_url("https://example.com/"), std::runtime_error);
 }

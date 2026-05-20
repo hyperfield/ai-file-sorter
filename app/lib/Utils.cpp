@@ -671,11 +671,25 @@ std::string Utils::get_default_llm_destination()
 
 std::string Utils::get_file_name_from_url(std::string url)
 {
+    // Strip fragment (#...) and query (?...) before extracting filename
+    auto fragment_pos = url.find('#');
+    if (fragment_pos != std::string::npos) {
+        url = url.substr(0, fragment_pos);
+    }
+    auto query_pos = url.find('?');
+    if (query_pos != std::string::npos) {
+        url = url.substr(0, query_pos);
+    }
+
     auto last_slash = url.find_last_of('/');
     if (last_slash == std::string::npos || last_slash == url.length() - 1) {
         throw std::runtime_error("Invalid download URL: can't extract filename");
     }
     std::string filename = url.substr(last_slash + 1);
+
+    if (filename.empty()) {
+        throw std::runtime_error("Invalid download URL: empty filename");
+    }
 
     return filename;
 }
