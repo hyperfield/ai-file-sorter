@@ -325,6 +325,36 @@ Procedure: Call `ImageAnalyzerFactory::create()` with GPU disabled.
 Expected outcome: Creation throws a clear invalid/incomplete GGUF artifact error.
 Run: `./build-tests/ai_file_sorter_tests "ImageAnalyzerFactory rejects invalid GGUF artifacts before analyzer startup"`
 
+### `tests/unit/test_media_rename_metadata_service.cpp`
+
+#### Test case: MediaRenameMetadataService composes year-artist-album-title filenames
+Purpose: Verify audio/video rename suggestions keep the intended metadata ordering.
+Setup: Prepare metadata containing year, artist, album, and title.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The result is `year_artist_album_title.ext`.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService composes year-artist-album-title filenames"`
+
+#### Test case: MediaRenameMetadataService falls back to source stem when title is missing
+Purpose: Ensure metadata-based suggestions stay useful even when the title field is absent.
+Setup: Prepare metadata with year and artist only.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The source stem is used in place of the missing title segment.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService falls back to source stem when title is missing"`
+
+#### Test case: MediaRenameMetadataService keeps original filename when metadata is absent
+Purpose: Confirm the service does not invent rename suggestions when there is no usable metadata.
+Setup: Use an empty metadata payload.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The original filename is returned unchanged.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService keeps original filename when metadata is absent"`
+
+#### Test case: MediaRenameMetadataService preserves UTF-8 metadata in composed filenames
+Purpose: Ensure non-Latin artist/title metadata survives filename normalization instead of collapsing to ASCII-only output.
+Setup: Prepare metadata containing Korean artist and title values plus a year.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The resulting filename preserves the UTF-8 metadata words and joins them with underscores.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService preserves UTF-8 metadata in composed filenames"`
+
 ### `tests/unit/test_main_app_cache_action.cpp` (non-Windows only)
 
 #### Test case: Settings maintenance actions stay separate and follow analysis state

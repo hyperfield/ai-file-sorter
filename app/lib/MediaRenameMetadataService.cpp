@@ -2,6 +2,8 @@
 
 #include "Utils.hpp"
 
+#include <QString>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -44,6 +46,13 @@ std::string trim_copy(std::string value)
     }
     const auto end = value.find_last_not_of(whitespace);
     return value.substr(start, end - start + 1);
+}
+
+QString sanitize_utf8_text(const std::string& value)
+{
+    QString cleaned = QString::fromUtf8(value.c_str());
+    cleaned.remove(QChar::ReplacementCharacter);
+    return cleaned.normalized(QString::NormalizationForm_C);
 }
 
 std::string to_lower_copy(std::string value)
@@ -1337,25 +1346,26 @@ std::optional<MediaRenameMetadataService::MetadataFields> MediaRenameMetadataSer
 
 std::string MediaRenameMetadataService::slugify(const std::string& value)
 {
-    std::string slug;
-    slug.reserve(value.size());
+    const QString input = sanitize_utf8_text(value);
+    QString slug;
+    slug.reserve(input.size());
     bool last_separator = false;
 
-    for (unsigned char ch : value) {
-        if (std::isalnum(ch)) {
-            slug.push_back(static_cast<char>(std::tolower(ch)));
+    for (const QChar ch : input) {
+        if (ch.isLetterOrNumber()) {
+            slug.append(ch.toLower());
             last_separator = false;
-        } else if (!last_separator && !slug.empty()) {
-            slug.push_back('_');
+        } else if (!last_separator && !slug.isEmpty()) {
+            slug.append('_');
             last_separator = true;
         }
     }
 
-    while (!slug.empty() && slug.back() == '_') {
-        slug.pop_back();
+    while (!slug.isEmpty() && slug.endsWith('_')) {
+        slug.chop(1);
     }
 
-    return slug;
+    return slug.toUtf8().toStdString();
 }
 
 std::optional<std::string> MediaRenameMetadataService::normalize_year(const std::string& value)
