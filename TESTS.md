@@ -325,6 +325,29 @@ Procedure: Call `ImageAnalyzerFactory::create()` with GPU disabled.
 Expected outcome: Creation throws a clear invalid/incomplete GGUF artifact error.
 Run: `./build-tests/ai_file_sorter_tests "ImageAnalyzerFactory rejects invalid GGUF artifacts before analyzer startup"`
 
+### `tests/unit/test_filename_localization_service.cpp`
+
+#### Test case: FilenameLocalizationService localizes filename stems and preserves extensions
+Purpose: Ensure localized rename suggestions keep the original extension and derive a sensible translated word budget from the source filename.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that returns a translated stem.
+Procedure: Localize a three-word English filename into French and inspect both the output filename and the captured prompt.
+Expected outcome: The translated stem is returned with the original extension, and the prompt references the target language, the original stem, and the derived three-word limit.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService localizes filename stems and preserves extensions"`
+
+#### Test case: FilenameLocalizationService keeps the original suggestion when localization is unusable
+Purpose: Avoid replacing a valid suggestion with an empty or malformed translation response.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that returns only punctuation.
+Procedure: Attempt to localize an English filename into German.
+Expected outcome: The original filename suggestion is returned unchanged.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService keeps the original suggestion when localization is unusable"`
+
+#### Test case: FilenameLocalizationService skips localization when English is selected
+Purpose: Ensure English stays the no-op path and does not spend an extra LLM call on filename localization.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that records any prompt it receives.
+Procedure: Attempt to localize an English filename while the selected language is English.
+Expected outcome: The original filename suggestion is returned unchanged and no prompt is sent to the LLM.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService skips localization when English is selected"`
+
 ### `tests/unit/test_media_rename_metadata_service.cpp`
 
 #### Test case: MediaRenameMetadataService composes year-artist-album-title filenames
