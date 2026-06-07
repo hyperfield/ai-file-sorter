@@ -1927,6 +1927,13 @@ Procedure: Run `categorize_entries` and capture callback counters.
 Expected outcome: Queue and completion callbacks are each invoked once per processed entry.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService invokes completion callback per entry"`
 
+#### Test case: DocumentTextAnalyzer handles UTF-8 filenames
+Purpose: Verify document-analysis prompts and rename suggestions preserve UTF-8 content.
+Setup: Create a text document whose source filename contains mixed Japanese and Korean text, and use a prompt-capturing LLM stub that returns a Korean filename suggestion.
+Procedure: Analyze the document and inspect both the captured prompt text and the suggested filename.
+Expected outcome: The prompt includes the UTF-8 source filename intact, and the suggested filename preserves the UTF-8 rename result with its original extension.
+Run: `./build-tests/ai_file_sorter_tests "DocumentTextAnalyzer handles UTF-8 filenames"`
+
 #### Test case: StoragePluginManager refreshes available plugins from a remote catalog
 Purpose: Confirm remote catalog refresh merges plugin metadata for the current runtime.
 Setup: Point the manager at a mock remote catalog URL with a runtime-matching plugin manifest.
