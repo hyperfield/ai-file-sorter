@@ -18,6 +18,10 @@ class Settings;
 class QCloseEvent;
 class QEvent;
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+class SuitabilityBenchmarkDialogTestAccess;
+#endif
+
 /**
  * @brief Dialog that runs a suitability benchmark for categorization and analysis features.
  */
@@ -50,6 +54,10 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend class SuitabilityBenchmarkDialogTestAccess;
+#endif
+
     /**
      * @brief Build and connect the dialog UI elements.
      */
@@ -107,6 +115,7 @@ private:
     std::thread worker_;
     bool recording_{false};
     bool showing_previous_results_{false};
+    bool last_report_stale_{false};
     QString last_run_stamp_;
     QString last_report_;
     QStringList current_report_;

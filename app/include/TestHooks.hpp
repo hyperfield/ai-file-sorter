@@ -44,6 +44,10 @@ void set_categorization_move_probe(CategorizationMoveProbe probe);
 void reset_categorization_move_probe();
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
+using BenchmarkProbeSignatureProbe = std::function<std::string()>;
+void set_benchmark_probe_signature_probe(BenchmarkProbeSignatureProbe probe);
+void reset_benchmark_probe_signature_probe();
+
 using LLMDownloadProbe = std::function<CURLcode(long resume_offset, const std::string& destination_path)>;
 void set_llm_download_probe(LLMDownloadProbe probe);
 void reset_llm_download_probe();

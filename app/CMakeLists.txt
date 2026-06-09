@@ -1148,6 +1148,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             if(EXISTS "${PRECOMPILED_CPU_BIN_DIR}")
                 file(GLOB _aifs_precompiled_cpu_runtime_dlls
                     "${PRECOMPILED_CPU_BIN_DIR}/*.dll")
+                list(FILTER _aifs_precompiled_cpu_runtime_dlls EXCLUDE REGEX "[/\\\\]libcurl\\.dll$")
                 list(APPEND _aifs_test_runtime_dlls ${_aifs_precompiled_cpu_runtime_dlls})
             endif()
 
@@ -1231,7 +1232,9 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/LocalFsProvider.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/OneDriveStorageProvider.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/GgmlRuntimePaths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Version.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
     )
     target_include_directories(aifs_onedrive_storage_plugin PRIVATE
@@ -1279,10 +1282,12 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_image_options.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_storage_support.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_visual_fallback.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_suitability_benchmark.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_settings_image_options.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_dialog.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_suitability_benchmark_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_cache_action.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
@@ -1379,6 +1384,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/UpdateFeed.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/UpdateInstaller.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Updater.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/GgmlRuntimePaths.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/VisualModelCatalog.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"

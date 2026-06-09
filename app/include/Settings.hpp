@@ -16,6 +16,8 @@
 class Settings
 {
 public:
+    static constexpr int kBenchmarkProbeSchemaVersion = 1;
+
     /**
      * @brief Constructs a settings object with platform-appropriate defaults.
      */
@@ -504,6 +506,32 @@ public:
      */
     void set_benchmark_last_run(const std::string& value);
     /**
+     * @brief Returns the probe signature saved with the last benchmark result.
+     * @return Probe signature string, or empty when no signature has been saved.
+     */
+    std::string get_benchmark_probe_signature() const;
+    /**
+     * @brief Sets the probe signature saved with the last benchmark result.
+     * @param value Current probe signature.
+     */
+    void set_benchmark_probe_signature(const std::string& value);
+    /**
+     * @brief Returns the schema version of the saved benchmark probe signature.
+     * @return Signature schema version, or zero for legacy settings.
+     */
+    int get_benchmark_probe_schema_version() const;
+    /**
+     * @brief Sets the schema version of the saved benchmark probe signature.
+     * @param value Signature schema version.
+     */
+    void set_benchmark_probe_schema_version(int value);
+    /**
+     * @brief Returns true when the saved benchmark result matches the current probe signature.
+     * @param current_signature Signature generated for the current runtime environment.
+     * @return True when completed, schema-current, and signature-matched.
+     */
+    bool is_suitability_benchmark_current(const std::string& current_signature) const;
+    /**
      * @brief Returns the selected UI language.
      * @return Current interface language.
      */
@@ -613,6 +641,8 @@ private:
     bool suitability_benchmark_suppressed{false};
     std::string benchmark_last_report;
     std::string benchmark_last_run;
+    std::string benchmark_probe_signature;
+    int benchmark_probe_schema_version{0};
     Language language{Language::English};
     CategoryLanguage category_language{CategoryLanguage::English};
     bool consistency_pass_enabled{false};

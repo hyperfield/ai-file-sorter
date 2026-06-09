@@ -264,6 +264,17 @@ public:
         MainApp& app,
         std::function<bool()> prompt);
     /**
+     * @brief Invoke the suitability benchmark startup decision path.
+     * @param app MainApp instance.
+     */
+    static void maybe_show_suitability_benchmark(MainApp& app);
+    /**
+     * @brief Return whether the suitability benchmark dialog is owned by MainApp.
+     * @param app MainApp instance.
+     * @return True when the benchmark dialog has been created.
+     */
+    static bool has_suitability_benchmark_dialog(const MainApp& app);
+    /**
      * @brief Invoke the visual CPU fallback prompt path.
      * @param app MainApp instance.
      * @param reason Failure reason to report.

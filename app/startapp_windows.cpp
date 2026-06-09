@@ -10,12 +10,11 @@
 #include <QUrl>
 #include <QByteArray>
 #include <QObject>
-#include <QProcessEnvironment>
-#include <QRegularExpression>
 #include <QStringList>
 
 #include "GgmlRuntimePaths.hpp"
 #include "UpdaterLaunchOptions.hpp"
+#include "WindowsCudaProbe.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -107,6 +106,16 @@ QStringList candidateGgmlDirectories(const QString& exeDir, const QString& varia
         return candidates;
     }
 
+    if (variant == QStringLiteral("wcuda")) {
+        QStringList candidates;
+        const auto cudaCandidates = GgmlRuntimePaths::windows_cuda_payload_candidate_dirs(
+            windows_executable_path(exeDir));
+        for (const auto& candidate : cudaCandidates) {
+            candidates << QString::fromStdWString(candidate.wstring());
+        }
+        return candidates;
+    }
+
     QStringList candidates;
     candidates << QDir(exeDir).filePath(QStringLiteral("lib/ggml/%1").arg(variant));
     candidates << QDir(exeDir).filePath(QStringLiteral("ggml/%1").arg(variant));
@@ -150,9 +159,44 @@ bool hasRequiredGgmlPayload(const QString& directory, BackendSelection selection
     return true;
 }
 
+bool hasCudaRuntimeDependencyPayload(const QString& directory)
+{
+    const QDir dir(directory);
+    if (!dir.exists()) {
+        return false;
+    }
+
+    const QStringList patterns = {
+        QStringLiteral("cudart64_*.dll"),
+        QStringLiteral("cublas64_*.dll"),
+        QStringLiteral("cublasLt64_*.dll"),
+    };
+    for (const QString& pattern : patterns) {
+        if (dir.entryList(QStringList{pattern}, QDir::Files).isEmpty()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool hasCompleteCudaPayload(const QString& directory)
+{
+    return hasRequiredGgmlPayload(directory, BackendSelection::Cuda) &&
+           hasCudaRuntimeDependencyPayload(directory);
+}
+
 QString pickCudaProbeDirectory(const QString& exeDir, bool* payloadPresent = nullptr)
 {
     const QStringList candidates = candidateGgmlDirectories(exeDir, QStringLiteral("wcuda"));
+    for (const QString& candidate : candidates) {
+        if (hasCompleteCudaPayload(candidate)) {
+            if (payloadPresent) {
+                *payloadPresent = true;
+            }
+            return candidate;
+        }
+    }
+
     for (const QString& candidate : candidates) {
         if (hasRequiredGgmlPayload(candidate, BackendSelection::Cuda)) {
             if (payloadPresent) {
@@ -177,151 +221,46 @@ QString pickCudaProbeDirectory(const QString& exeDir, bool* payloadPresent = nul
     return QString();
 }
 
-void appendUniqueDirectory(QStringList& directories, const QString& candidate)
-{
-    if (candidate.isEmpty()) {
-        return;
-    }
-
-    const QString normalized = QDir::cleanPath(QDir(candidate).absolutePath());
-    if (!QDir(normalized).exists()) {
-        return;
-    }
-
-    for (const QString& existing : directories) {
-        if (QString::compare(existing, normalized, Qt::CaseInsensitive) == 0) {
-            return;
-        }
-    }
-
-    directories.append(normalized);
-}
-
-void addCudaRootCandidates(QStringList& directories, const QString& root)
-{
-    if (root.isEmpty()) {
-        return;
-    }
-
-    appendUniqueDirectory(directories, QDir(root).filePath(QStringLiteral("bin/x64")));
-    appendUniqueDirectory(directories, QDir(root).filePath(QStringLiteral("bin")));
-    appendUniqueDirectory(directories, root);
-}
-
-QStringList candidateCudaRuntimeDirectories()
-{
-    QStringList directories;
-    const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-
-    addCudaRootCandidates(directories, env.value(QStringLiteral("CUDA_PATH")));
-
-    const QStringList keys = env.keys();
-    for (const QString& key : keys) {
-        if (key.startsWith(QStringLiteral("CUDA_PATH_V"), Qt::CaseInsensitive)) {
-            addCudaRootCandidates(directories, env.value(key));
-        }
-    }
-
-    const QDir toolkitRoot(QStringLiteral("C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA"));
-    if (toolkitRoot.exists()) {
-        const QFileInfoList entries = toolkitRoot.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot,
-                                                                QDir::Name | QDir::Reversed);
-        for (const QFileInfo& entry : entries) {
-            addCudaRootCandidates(directories, entry.absoluteFilePath());
-        }
-    }
-
-    return directories;
-}
-
-int parseCudaRuntimeVersionToken(const QString& fileName)
-{
-    static const QRegularExpression runtimePattern(
-        QStringLiteral("^cudart64_(\\d+)\\.dll$"),
-        QRegularExpression::CaseInsensitiveOption);
-    const auto match = runtimePattern.match(fileName);
-    if (!match.hasMatch()) {
-        return 0;
-    }
-    return match.captured(1).toInt();
-}
-
 struct CudaRuntimeDetection {
     bool driverPresent{false};
+    bool driverInitialized{false};
+    int deviceCount{0};
     bool runtimePresent{false};
+    bool runtimeUsable{false};
+    bool backendLoadable{false};
     QString runtimeLibraryPath;
     int runtimeVersionToken{0};
+    QString runtimeSource;
+    QString failureReason;
 };
 
-bool isNvidiaDriverPresent()
-{
-    const QString systemRoot = qEnvironmentVariable("SystemRoot", QStringLiteral("C:/Windows"));
-    return QFileInfo::exists(QDir(systemRoot).filePath(QStringLiteral("System32/nvcuda.dll")));
-}
-
-CudaRuntimeDetection detectCudaRuntime()
+CudaRuntimeDetection detectCudaRuntime(const QString& exeDir, const QString& ggmlDirectory)
 {
     CudaRuntimeDetection detection;
-    detection.driverPresent = isNvidiaDriverPresent();
-    const auto chooseBestRuntime = [](const QStringList& directories) -> std::pair<QString, int> {
-        QString bestPath;
-        int bestVersion = 0;
-        bool bestIsX64 = false;
 
-        for (const QString& directory : directories) {
-            const QDir dir(directory);
-            const QFileInfoList candidates = dir.entryInfoList({QStringLiteral("cudart64_*.dll")},
-                                                               QDir::Files,
-                                                               QDir::Name);
-            for (const QFileInfo& candidate : candidates) {
-                const int version = parseCudaRuntimeVersionToken(candidate.fileName());
-                if (version <= 0) {
-                    continue;
-                }
-
-                const QString absolutePath = QDir::cleanPath(candidate.absoluteFilePath());
-                const bool isX64 =
-                    absolutePath.contains(QStringLiteral("\\bin\\x64"), Qt::CaseInsensitive) ||
-                    absolutePath.contains(QStringLiteral("/bin/x64"), Qt::CaseInsensitive);
-                const bool isToolkitPath =
-                    absolutePath.contains(QStringLiteral("NVIDIA GPU Computing Toolkit\\CUDA"), Qt::CaseInsensitive) ||
-                    absolutePath.contains(QStringLiteral("NVIDIA GPU Computing Toolkit/CUDA"), Qt::CaseInsensitive);
-                const bool bestIsToolkitPath =
-                    bestPath.contains(QStringLiteral("NVIDIA GPU Computing Toolkit\\CUDA"), Qt::CaseInsensitive) ||
-                    bestPath.contains(QStringLiteral("NVIDIA GPU Computing Toolkit/CUDA"), Qt::CaseInsensitive);
-                if ((isToolkitPath && !bestIsToolkitPath) ||
-                    (isToolkitPath == bestIsToolkitPath && version > bestVersion) ||
-                    (version == bestVersion && isToolkitPath == bestIsToolkitPath && isX64 && !bestIsX64) ||
-                    (version == bestVersion && isX64 == bestIsX64 &&
-                     (bestPath.isEmpty() || QString::compare(absolutePath, bestPath, Qt::CaseInsensitive) < 0))) {
-                    bestPath = absolutePath;
-                    bestVersion = version;
-                    bestIsX64 = isX64;
-                }
-            }
-        }
-
-        return {bestPath, bestVersion};
-    };
-
-    const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    QStringList preferredDirectories;
-    addCudaRootCandidates(preferredDirectories, env.value(QStringLiteral("CUDA_PATH")));
-    auto preferredRuntime = chooseBestRuntime(preferredDirectories);
-    QString bestPath = preferredRuntime.first;
-    int bestVersion = preferredRuntime.second;
-    if (bestPath.isEmpty()) {
-        const auto fallbackRuntime = chooseBestRuntime(candidateCudaRuntimeDirectories());
-        bestPath = fallbackRuntime.first;
-        bestVersion = fallbackRuntime.second;
+    WindowsCudaProbe::ProbeOptions options;
+    const auto exePath = windows_executable_path(exeDir);
+    for (const auto& candidate : GgmlRuntimePaths::windows_cuda_payload_candidate_dirs(exePath)) {
+        options.preferred_runtime_directories.push_back(candidate);
+    }
+    if (!ggmlDirectory.isEmpty()) {
+        const std::filesystem::path ggmlPath(ggmlDirectory.toStdWString());
+        options.ggml_directory = ggmlPath;
+        options.preferred_runtime_directories.push_back(ggmlPath);
     }
 
-    if (!bestPath.isEmpty()) {
-        detection.runtimePresent = true;
-        detection.runtimeLibraryPath = bestPath;
-        detection.runtimeVersionToken = bestVersion;
-    }
-
+    const auto result = WindowsCudaProbe::probe(options);
+    detection.driverPresent = result.driver_present;
+    detection.driverInitialized = result.driver_initialized;
+    detection.deviceCount = result.device_count;
+    detection.runtimePresent = result.runtime_present;
+    detection.runtimeUsable = result.runtime_usable;
+    detection.backendLoadable = result.backend_loadable;
+    detection.runtimeLibraryPath = QString::fromStdWString(result.runtime_library_path.wstring());
+    detection.runtimeVersionToken = result.runtime_version_token;
+    detection.runtimeSource =
+        QString::fromStdString(WindowsCudaProbe::runtime_source_name(result.runtime_source));
+    detection.failureReason = QString::fromStdString(result.failure_reason);
     return detection;
 }
 
@@ -414,9 +353,9 @@ bool promptCudaDownload() {
     const auto response = QMessageBox::warning(
         nullptr,
         QObject::tr("CUDA Runtime Missing or Incompatible"),
-        QObject::tr("A compatible NVIDIA GPU was detected, but the required CUDA runtime for the bundled CUDA backend could not be found or initialized.\n\n"
-                    "CUDA is required for GPU acceleration in this application.\n\n"
-                    "Would you like to download and install it now?"),
+        QObject::tr("A compatible NVIDIA GPU was detected, but the packaged CUDA backend could not be initialized with the required CUDA runtime DLLs.\n\n"
+                    "Installed or portable builds need a repaired AI File Sorter runtime package or compatible CUDA redistributable DLLs beside the bundled backend. Source builds need the matching NVIDIA CUDA Toolkit used to build ggml-cuda.dll.\n\n"
+                    "Would you like to open NVIDIA's CUDA downloads page?"),
         QMessageBox::Ok | QMessageBox::Cancel,
         QMessageBox::Ok);
 
@@ -651,6 +590,9 @@ bool maybe_prompt_cuda_download(const BackendOverrides& overrides,
     if (!availability.cudaPayloadPresent) {
         return false;
     }
+    if (availability.cudaFailureReason == QStringLiteral("driver-no-device")) {
+        return false;
+    }
 
     const bool runtimeMissing = !availability.cudaRuntimeDetected;
     const bool runtimeIncompatible =
@@ -699,31 +641,46 @@ BackendAvailability detect_backend_availability(const QString& exeDir,
     availability.hasNvidiaDriver = cudaDetection.driverPresent;
     availability.cudaPayloadPresent = cudaPayloadPresent;
     availability.cudaRuntimeDetected = cudaDetection.runtimePresent;
-    availability.runtimeCompatible = cudaDetection.runtimePresent;
-    availability.cudaBackendLoadable = cudaPayloadPresent;
+    availability.runtimeCompatible =
+        cudaDetection.driverInitialized &&
+        cudaDetection.deviceCount > 0 &&
+        cudaDetection.runtimeUsable;
+    availability.cudaBackendLoadable = cudaPayloadPresent && cudaDetection.backendLoadable;
     availability.detectedCudaRuntime = cudaRuntimeName(cudaDetection);
     availability.detectedCudaRuntimeDirectory = cudaDetection.runtimeLibraryPath.isEmpty()
         ? QString()
         : QFileInfo(cudaDetection.runtimeLibraryPath).absolutePath();
     availability.cudaAvailable =
         availability.hasNvidiaDriver &&
+        cudaDetection.driverInitialized &&
+        cudaDetection.deviceCount > 0 &&
         availability.cudaRuntimeDetected &&
-        availability.cudaPayloadPresent;
+        availability.runtimeCompatible &&
+        availability.cudaPayloadPresent &&
+        availability.cudaBackendLoadable;
     availability.vulkanAvailable = isVulkanRuntimeAvailable(exeDir);
     availability.cudaInitiallyAvailable = availability.cudaAvailable;
     availability.vulkanInitiallyAvailable = availability.vulkanAvailable;
 
-    if (availability.hasNvidiaDriver && availability.cudaRuntimeDetected && !availability.runtimeCompatible) {
+    if (!availability.hasNvidiaDriver) {
+        availability.cudaFailureReason = QStringLiteral("driver-missing");
+    } else if (!cudaDetection.driverInitialized || cudaDetection.deviceCount <= 0) {
+        availability.cudaFailureReason = QStringLiteral("driver-no-device");
+    } else if (!availability.cudaRuntimeDetected) {
+        availability.cudaFailureReason = QStringLiteral("runtime-missing");
+    } else if (!availability.runtimeCompatible) {
         availability.cudaFailureReason = QStringLiteral("runtime-unusable");
     } else if (availability.hasNvidiaDriver && availability.runtimeCompatible && !availability.cudaBackendLoadable) {
         availability.cudaFailureReason = availability.cudaPayloadPresent
-            ? QStringLiteral("backend-mismatch")
+            ? QStringLiteral("backend-dependency-mismatch")
             : QStringLiteral("backend-missing");
         qWarning().noquote()
             << "Detected CUDA runtime"
             << (availability.detectedCudaRuntime.isEmpty() ? QStringLiteral("<unknown>") : availability.detectedCudaRuntime)
             << "but the bundled ggml-cuda backend could not be loaded."
             << "Falling back to alternate backend.";
+    } else {
+        availability.cudaFailureReason = cudaDetection.failureReason;
     }
     return availability;
 }
@@ -856,13 +813,30 @@ QString resolve_ggml_directory(const QString& exeDir,
                                bool showError = true)
 {
     const QStringList candidates = candidateGgmlDirectories(exeDir, variant);
+    const auto selectCandidate = [&](const QString& candidate) {
+        if (candidate != candidates.front()) {
+            qInfo().noquote() << "Primary GGML directory missing; using fallback"
+                              << QDir::toNativeSeparators(candidate);
+        }
+        return candidate;
+    };
+
+    if (selection == BackendSelection::Cuda) {
+        for (const QString& candidate : candidates) {
+            if (hasCompleteCudaPayload(candidate)) {
+                return selectCandidate(candidate);
+            }
+        }
+        for (const QString& candidate : candidates) {
+            if (hasRequiredGgmlPayload(candidate, selection)) {
+                return selectCandidate(candidate);
+            }
+        }
+    }
+
     for (const QString& candidate : candidates) {
         if (hasRequiredGgmlPayload(candidate, selection)) {
-            if (candidate != candidates.front()) {
-                qInfo().noquote() << "Primary GGML directory missing; using fallback"
-                                  << QDir::toNativeSeparators(candidate);
-            }
-            return candidate;
+            return selectCandidate(candidate);
         }
         if (QDir(candidate).exists()) {
             qWarning().noquote()
@@ -1023,7 +997,7 @@ int main(int argc, char* argv[]) {
                 << "Detected packaged CUDA runtime payload at"
                 << QDir::toNativeSeparators(cudaProbeDir);
         }
-        cudaDetection = detectCudaRuntime();
+        cudaDetection = detectCudaRuntime(exeDir, cudaProbeDir);
     }
 
     BackendAvailability availability = detect_backend_availability(exeDir,

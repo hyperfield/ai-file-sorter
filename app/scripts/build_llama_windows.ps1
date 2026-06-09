@@ -277,7 +277,8 @@ function Test-CudaToolkitRoot {
 
     $cudaHeader = Join-Path $Root "include\cuda.h"
     $cudartLib = Join-Path $Root "lib\x64\cudart.lib"
-    return (Test-Path $cudaHeader) -and (Test-Path $cudartLib)
+    $nvccExe = Join-Path $Root "bin\nvcc.exe"
+    return (Test-Path $cudaHeader) -and (Test-Path $cudartLib) -and (Test-Path $nvccExe)
 }
 
 function Get-CudaToolkitVersion {
@@ -420,7 +421,7 @@ function Resolve-CudaRoot {
         return $firstUsable.Root
     }
 
-    throw "Could not resolve a usable CUDA toolkit. Expected include\cuda.h and lib\x64\cudart.lib under CUDA_PATH or a standard install such as C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\vX.Y."
+    throw "Could not resolve a usable CUDA toolkit. Expected include\cuda.h, lib\x64\cudart.lib, and bin\nvcc.exe under CUDA_PATH or a standard install such as C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\vX.Y."
 }
 
 $vcpkgRoot = Resolve-VcpkgRoot -Explicit $vcpkgRootArg
@@ -523,6 +524,64 @@ function Confirm-VcpkgPackage {
     foreach ($candidate in $pathsToCheck) {
         if (-not (Test-Path $candidate)) {
             throw "Expected $candidate from package $PackageName but the path is still missing."
+        }
+    }
+}
+
+function Copy-CudaRedistributableDlls {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CudaRoot,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Destinations
+    )
+
+    $sourceDirs = @(
+        (Join-Path $CudaRoot "bin\x64"),
+        (Join-Path $CudaRoot "bin")
+    )
+    $patterns = @("cudart64_*.dll", "cublas64_*.dll", "cublasLt64_*.dll")
+
+    foreach ($pattern in $patterns) {
+        $matches = @()
+        foreach ($sourceDir in $sourceDirs) {
+            if (-not (Test-Path $sourceDir)) {
+                continue
+            }
+            $matches = @(Get-ChildItem -Path $sourceDir -Filter $pattern -File -ErrorAction SilentlyContinue)
+            if ($matches.Count -gt 0) {
+                break
+            }
+        }
+
+        if ($matches.Count -eq 0) {
+            throw "CUDA build requires $pattern under $CudaRoot\bin\x64 or $CudaRoot\bin for redistributable staging."
+        }
+
+        foreach ($destination in $Destinations) {
+            if (-not (Test-Path $destination)) {
+                New-Item -ItemType Directory -Force -Path $destination | Out-Null
+            }
+            foreach ($match in $matches) {
+                Copy-Item $match.FullName -Destination $destination -Force
+            }
+        }
+    }
+}
+
+function Assert-CudaRedistributableDlls {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Directory
+    )
+
+    foreach ($pattern in @("cudart64_*.dll", "cublas64_*.dll", "cublasLt64_*.dll")) {
+        $matches = @()
+        if (Test-Path $Directory) {
+            $matches = @(Get-ChildItem -Path $Directory -Filter $pattern -File -ErrorAction SilentlyContinue)
+        }
+        if ($matches.Count -eq 0) {
+            throw "CUDA runtime staging failed: missing $pattern in $Directory."
         }
     }
 }
@@ -768,6 +827,12 @@ if ($enableBlas -and $openBlasDll -and (Test-Path $openBlasDll)) {
 if (Test-Path $curlDll) {
     Copy-Item $curlDll -Destination $variantBin -Force
     Copy-Item $curlDll -Destination $runtimeDir -Force
+}
+
+if ($useCuda -eq "ON") {
+    Copy-CudaRedistributableDlls -CudaRoot $cudaRoot -Destinations @($variantBin, $runtimeDir)
+    Assert-CudaRedistributableDlls -Directory $variantBin
+    Assert-CudaRedistributableDlls -Directory $runtimeDir
 }
 
 if ($useVulkan -eq "ON" -and $vulkanDllPath -and (Test-Path $vulkanDllPath)) {

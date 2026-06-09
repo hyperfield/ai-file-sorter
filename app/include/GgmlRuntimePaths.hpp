@@ -65,6 +65,31 @@ std::vector<std::filesystem::path> windows_vulkan_payload_candidate_dirs(
 std::optional<std::filesystem::path> resolve_windows_vulkan_payload_dir(
     const std::filesystem::path& exe_path);
 
+/**
+ * @brief Returns candidate packaged CUDA payload directories for Windows.
+ *
+ * The returned list prefers the installed/portable runtime layout, then the
+ * legacy runtime layout, then the build-time precompiled CUDA payload. The
+ * application `bin` and executable directories are included last for installer
+ * layouts that place dependent DLLs beside the executable.
+ *
+ * @param exe_path Path to the currently running executable.
+ * @return Candidate Windows CUDA payload directories in priority order.
+ */
+std::vector<std::filesystem::path> windows_cuda_payload_candidate_dirs(
+    const std::filesystem::path& exe_path);
+
+/**
+ * @brief Resolves the best packaged CUDA payload directory for Windows.
+ *
+ * @param exe_path Path to the currently running executable.
+ * @return The first existing CUDA payload directory that contains ggml CUDA
+ * backend DLLs plus the staged CUDA runtime dependency DLL families, or
+ * `std::nullopt` when none are usable.
+ */
+std::optional<std::filesystem::path> resolve_windows_cuda_payload_dir(
+    const std::filesystem::path& exe_path);
+
 std::vector<std::filesystem::path> macos_candidate_dirs(
     const std::filesystem::path& exe_path,
     std::string_view ggml_subdir);

@@ -2681,10 +2681,11 @@ void MainApp::show_suitability_benchmark_dialog(bool /*auto_start*/)
 
 void MainApp::maybe_show_suitability_benchmark()
 {
-    if (settings.get_suitability_benchmark_completed()) {
+    if (settings.get_suitability_benchmark_suppressed()) {
         return;
     }
-    if (settings.get_suitability_benchmark_suppressed()) {
+    if (settings.get_suitability_benchmark_completed() &&
+        settings.is_suitability_benchmark_current(Utils::benchmark_probe_signature())) {
         return;
     }
     if (!VisualLlmRuntime::default_text_llm_files_available() && !visual_llm_files_available()) {

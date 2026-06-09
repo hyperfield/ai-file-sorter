@@ -13,6 +13,10 @@
 #include "VisualLlmRuntime.hpp"
 #include "ggml-backend.h"
 
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+#include "SuitabilityBenchmarkDialogTestAccess.hpp"
+#endif
+
 #include <QCloseEvent>
 #include <QColor>
 #include <QCheckBox>
@@ -1475,6 +1479,9 @@ void SuitabilityBenchmarkDialog::load_previous_results()
 {
     last_run_stamp_ = QString::fromStdString(settings_.get_benchmark_last_run());
     last_report_ = QString::fromStdString(settings_.get_benchmark_last_report());
+    last_report_stale_ =
+        settings_.get_suitability_benchmark_completed() &&
+        !settings_.is_suitability_benchmark_current(Utils::benchmark_probe_signature());
     render_previous_results();
 }
 
@@ -1497,6 +1504,9 @@ void SuitabilityBenchmarkDialog::render_previous_results()
 
     if (!last_run_stamp_.isEmpty()) {
         append_line(QObject::tr("Last run: %1").arg(last_run_stamp_), false);
+    }
+    if (last_report_stale_) {
+        append_line(QObject::tr("Previous result may be stale because the CUDA/backend probe changed."), false);
     }
     append_line(QObject::tr("Previous results:"), false);
 
@@ -1829,7 +1839,19 @@ void SuitabilityBenchmarkDialog::finish_benchmark()
     const std::string timestamp = format_timestamp(std::chrono::system_clock::now());
     settings_.set_benchmark_last_run(timestamp);
     settings_.set_benchmark_last_report(current_report_.join('\n').toStdString());
+    settings_.set_benchmark_probe_signature(Utils::benchmark_probe_signature());
+    settings_.set_benchmark_probe_schema_version(Settings::kBenchmarkProbeSchemaVersion);
     settings_.set_suitability_benchmark_completed(true);
     settings_.save();
     set_running_state(false);
 }
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+
+void SuitabilityBenchmarkDialogTestAccess::finish_benchmark(
+    SuitabilityBenchmarkDialog& dialog)
+{
+    dialog.finish_benchmark();
+}
+
+#endif // AI_FILE_SORTER_TEST_BUILD

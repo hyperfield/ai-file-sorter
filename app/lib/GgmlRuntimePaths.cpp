@@ -17,6 +17,8 @@ bool ends_with(const std::string& value, const std::string& suffix) {
     return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
 }
 
+std::string lower_copy(std::string_view value);
+
 bool has_windows_runtime_payload(const std::filesystem::path& dir,
                                  std::span<const char* const> required_files)
 {
@@ -32,6 +34,38 @@ bool has_windows_runtime_payload(const std::filesystem::path& dir,
     }
 
     return true;
+}
+
+bool has_windows_runtime_dll_matching(const std::filesystem::path& dir,
+                                      std::string_view prefix,
+                                      std::string_view suffix)
+{
+    std::error_code ec;
+    if (!std::filesystem::exists(dir, ec) || !std::filesystem::is_directory(dir, ec)) {
+        return false;
+    }
+
+    const std::string lowered_prefix = lower_copy(prefix);
+    const std::string lowered_suffix = lower_copy(suffix);
+    for (const auto& entry : std::filesystem::directory_iterator(
+             dir,
+             std::filesystem::directory_options::skip_permission_denied,
+             ec)) {
+        if (ec) {
+            break;
+        }
+        std::error_code entry_ec;
+        if (!entry.is_regular_file(entry_ec) || entry_ec) {
+            continue;
+        }
+
+        const std::string filename = lower_copy(entry.path().filename().string());
+        if (filename.rfind(lowered_prefix, 0) == 0 && ends_with(filename, lowered_suffix)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool has_regular_entry(const std::filesystem::path& path)
@@ -197,6 +231,44 @@ std::optional<std::filesystem::path> resolve_windows_vulkan_payload_dir(
 
     for (const auto& candidate : windows_vulkan_payload_candidate_dirs(exe_path)) {
         if (has_windows_runtime_payload(candidate, required_files)) {
+            return candidate.lexically_normal();
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::vector<std::filesystem::path> windows_cuda_payload_candidate_dirs(
+    const std::filesystem::path& exe_path)
+{
+    if (exe_path.empty()) {
+        return {};
+    }
+
+    const std::filesystem::path exe_dir = exe_path.parent_path();
+    return {
+        exe_dir / "lib" / "ggml" / "wcuda",
+        exe_dir / "ggml" / "wcuda",
+        exe_dir / "lib" / "precompiled" / "cuda" / "bin",
+        exe_dir / "bin",
+        exe_dir,
+    };
+}
+
+std::optional<std::filesystem::path> resolve_windows_cuda_payload_dir(
+    const std::filesystem::path& exe_path)
+{
+    constexpr std::array required_files = {
+        "llama.dll",
+        "ggml.dll",
+        "ggml-cuda.dll",
+    };
+
+    for (const auto& candidate : windows_cuda_payload_candidate_dirs(exe_path)) {
+        if (has_windows_runtime_payload(candidate, required_files) &&
+            has_windows_runtime_dll_matching(candidate, "cudart64_", ".dll") &&
+            has_windows_runtime_dll_matching(candidate, "cublas64_", ".dll") &&
+            has_windows_runtime_dll_matching(candidate, "cublasLt64_", ".dll")) {
             return candidate.lexically_normal();
         }
     }

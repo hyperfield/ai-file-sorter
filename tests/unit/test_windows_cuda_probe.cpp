@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <vector>
 
+#if defined(_WIN32)
+
 TEST_CASE("WindowsCudaProbe normalizes mixed-era runtime suffixes") {
     CHECK(WindowsCudaProbe::TestAccess::runtime_version_rank("cudart64_13.dll") >
           WindowsCudaProbe::TestAccess::runtime_version_rank("cudart64_65.dll"));
@@ -40,3 +42,37 @@ TEST_CASE("WindowsCudaProbe prefers x64 toolkit bin directories over generic too
     CHECK(ranked.front() == toolkit_x64_runtime);
     CHECK(ranked.back() == toolkit_root_copy);
 }
+
+TEST_CASE("WindowsCudaProbe ranks runtime sources as packaged toolkit hint then PATH") {
+    const std::filesystem::path packaged_runtime =
+        R"(C:\AIFileSorter\lib\ggml\wcuda\cudart64_13.dll)";
+    const std::filesystem::path toolkit_hint_runtime =
+        R"(C:\CustomCudaRoot\cudart64_13.dll)";
+    const std::filesystem::path path_runtime =
+        R"(C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.2\bin\x64\cudart64_13.dll)";
+
+    const std::vector<std::filesystem::path> ranked =
+        WindowsCudaProbe::TestAccess::rank_runtime_candidates_with_sources(
+            {packaged_runtime},
+            {toolkit_hint_runtime},
+            {path_runtime});
+
+    REQUIRE(ranked.size() == 3);
+    CHECK(ranked[0] == packaged_runtime);
+    CHECK(ranked[1] == toolkit_hint_runtime);
+    CHECK(ranked[2] == path_runtime);
+}
+
+TEST_CASE("WindowsCudaProbe no-system-dir option limits runtime candidates to packaged dirs") {
+    WindowsCudaProbe::ProbeOptions options;
+    options.preferred_runtime_directories.push_back(R"(C:\AIFileSorter\lib\ggml\wcuda)");
+    options.include_system_directories = false;
+
+    const std::vector<std::filesystem::path> candidates =
+        WindowsCudaProbe::TestAccess::candidate_runtime_directories(options);
+
+    REQUIRE(candidates.size() == 1);
+    CHECK(candidates.front() == std::filesystem::path(R"(C:\AIFileSorter\lib\ggml\wcuda)"));
+}
+
+#endif

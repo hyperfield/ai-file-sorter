@@ -79,6 +79,7 @@ std::wstring normalize_key(const std::filesystem::path& path)
 }
 
 enum class RuntimeDirectorySource {
+    Packaged,
     ToolkitHint,
     Path,
 };
@@ -132,12 +133,14 @@ int normalize_runtime_version_rank(int token_value, std::size_t digit_count)
 int runtime_directory_source_priority(RuntimeDirectorySource source)
 {
     switch (source) {
-    case RuntimeDirectorySource::ToolkitHint:
+    case RuntimeDirectorySource::Packaged:
         return 0;
-    case RuntimeDirectorySource::Path:
+    case RuntimeDirectorySource::ToolkitHint:
         return 1;
+    case RuntimeDirectorySource::Path:
+        return 2;
     }
-    return 2;
+    return 3;
 }
 
 int runtime_path_kind_priority(RuntimePathKind kind)
@@ -284,14 +287,15 @@ std::vector<RuntimeCandidate> sort_runtime_candidates(std::vector<RuntimeCandida
 
 void append_unique(std::vector<RuntimeDirectoryCandidate>& paths,
                    const std::filesystem::path& candidate,
-                   RuntimeDirectorySource source)
+                   RuntimeDirectorySource source,
+                   bool require_exists = true)
 {
     if (candidate.empty()) {
         return;
     }
 
     std::error_code ec;
-    if (!std::filesystem::exists(candidate, ec)) {
+    if (require_exists && !std::filesystem::exists(candidate, ec)) {
         return;
     }
 
@@ -412,24 +416,39 @@ void add_default_cuda_roots(std::vector<RuntimeDirectoryCandidate>& directories)
     }
 }
 
-std::vector<RuntimeDirectoryCandidate> candidate_runtime_directories()
+std::vector<RuntimeDirectoryCandidate> build_candidate_runtime_directories(const ProbeOptions& options)
 {
     std::vector<RuntimeDirectoryCandidate> directories;
-    add_cuda_env_roots(directories);
-    add_default_cuda_roots(directories);
+    if (options.ggml_directory.has_value()) {
+        append_unique(directories,
+                      *options.ggml_directory,
+                      RuntimeDirectorySource::Packaged,
+                      false);
+    }
+    for (const auto& directory : options.preferred_runtime_directories) {
+        append_unique(directories,
+                      directory,
+                      RuntimeDirectorySource::Packaged,
+                      false);
+    }
 
-    for (const auto& entry : path_entries()) {
-        append_unique(directories, entry.path, entry.source);
+    if (options.include_system_directories) {
+        add_cuda_env_roots(directories);
+        add_default_cuda_roots(directories);
+
+        for (const auto& entry : path_entries()) {
+            append_unique(directories, entry.path, entry.source);
+        }
     }
 
     return directories;
 }
 
-std::vector<RuntimeCandidate> candidate_runtime_libraries()
+std::vector<RuntimeCandidate> candidate_runtime_libraries(const ProbeOptions& options)
 {
     std::vector<RuntimeCandidate> candidates;
 
-    for (const auto& directory : candidate_runtime_directories()) {
+    for (const auto& directory : build_candidate_runtime_directories(options)) {
         std::error_code ec;
         for (const auto& entry : std::filesystem::directory_iterator(
                  directory.path,
@@ -575,7 +594,7 @@ std::vector<DllDirectoryCookie> add_user_directories(const std::vector<std::file
 }
 
 bool can_load_cuda_backend(const std::filesystem::path& ggml_directory,
-                           const std::filesystem::path& runtime_directory)
+                           const std::vector<std::filesystem::path>& dll_directories)
 {
     if (ggml_directory.empty()) {
         return false;
@@ -587,7 +606,16 @@ bool can_load_cuda_backend(const std::filesystem::path& ggml_directory,
         return false;
     }
 
-    const auto cookies = add_user_directories({ggml_directory, runtime_directory});
+    std::vector<std::filesystem::path> directories;
+    directories.reserve(dll_directories.size() + 1);
+    directories.push_back(ggml_directory);
+    for (const auto& directory : dll_directories) {
+        if (!directory.empty()) {
+            directories.push_back(directory);
+        }
+    }
+
+    const auto cookies = add_user_directories(directories);
     (void) cookies;
 
     LibraryHandle backend(LoadLibraryExW(
@@ -597,11 +625,27 @@ bool can_load_cuda_backend(const std::filesystem::path& ggml_directory,
     return backend.valid();
 }
 
-ProbeResult probe_impl(const std::optional<std::filesystem::path>& ggml_directory)
+RuntimeSource to_public_source(RuntimeDirectorySource source)
+{
+    switch (source) {
+    case RuntimeDirectorySource::Packaged:
+        return RuntimeSource::Packaged;
+    case RuntimeDirectorySource::ToolkitHint:
+        return RuntimeSource::ToolkitHint;
+    case RuntimeDirectorySource::Path:
+        return RuntimeSource::Path;
+    }
+    return RuntimeSource::None;
+}
+
+ProbeResult probe_impl(const ProbeOptions& options)
 {
     ProbeResult result;
 
-    LibraryHandle driver(LoadLibraryW(L"nvcuda.dll"));
+    LibraryHandle driver(LoadLibraryExW(
+        L"nvcuda.dll",
+        nullptr,
+        LOAD_LIBRARY_SEARCH_SYSTEM32));
     result.driver_present = driver.valid();
     if (driver.valid()) {
         auto driver_init = reinterpret_cast<DriverInitFunc>(GetProcAddress(driver.value, "cuInit"));
@@ -624,14 +668,11 @@ ProbeResult probe_impl(const std::optional<std::filesystem::path>& ggml_director
         }
     }
 
-    const auto candidates = candidate_runtime_libraries();
-    if (candidates.empty()) {
-        result.failure_reason = "no_cuda_runtime_found";
-        return result;
-    }
+    const auto candidates = candidate_runtime_libraries(options);
 
     for (const auto& candidate : candidates) {
         result.runtime_present = true;
+        result.runtime_source = to_public_source(candidate.source);
 
         int device_count = 0;
         if (!runtime_has_usable_device(candidate.path, &device_count)) {
@@ -645,21 +686,29 @@ ProbeResult probe_impl(const std::optional<std::filesystem::path>& ggml_director
             result.device_count = device_count;
         }
 
-        if (!ggml_directory.has_value() || ggml_directory->empty()) {
+        if (!options.ggml_directory.has_value() || options.ggml_directory->empty()) {
             result.backend_loadable = true;
             return result;
         }
 
-        if (can_load_cuda_backend(*ggml_directory, candidate.path.parent_path())) {
+        std::vector<std::filesystem::path> backend_directories = options.preferred_runtime_directories;
+        backend_directories.push_back(candidate.path.parent_path());
+        if (can_load_cuda_backend(*options.ggml_directory, backend_directories)) {
             result.backend_loadable = true;
             return result;
         }
     }
 
-    if (!result.runtime_usable) {
-        result.failure_reason = "no_usable_cuda_runtime";
-    } else if (ggml_directory.has_value() && !ggml_directory->empty()) {
-        result.failure_reason = "cuda_backend_dependency_mismatch";
+    if (!result.driver_present) {
+        result.failure_reason = "driver_missing";
+    } else if (!result.driver_initialized || result.device_count <= 0) {
+        result.failure_reason = "driver_no_device";
+    } else if (!result.runtime_present) {
+        result.failure_reason = "runtime_missing";
+    } else if (!result.runtime_usable) {
+        result.failure_reason = "runtime_unusable";
+    } else if (options.ggml_directory.has_value() && !options.ggml_directory->empty()) {
+        result.failure_reason = "backend_dependency_mismatch";
     }
     return result;
 }
@@ -670,9 +719,24 @@ ProbeResult probe_impl(const std::optional<std::filesystem::path>& ggml_director
 ProbeResult probe(const std::optional<std::filesystem::path>& ggml_directory)
 {
 #ifdef _WIN32
-    return probe_impl(ggml_directory);
+    ProbeOptions options;
+    options.ggml_directory = ggml_directory;
+    if (ggml_directory.has_value() && !ggml_directory->empty()) {
+        options.preferred_runtime_directories.push_back(*ggml_directory);
+    }
+    return probe_impl(options);
 #else
     (void) ggml_directory;
+    return ProbeResult{};
+#endif
+}
+
+ProbeResult probe(const ProbeOptions& options)
+{
+#ifdef _WIN32
+    return probe_impl(options);
+#else
+    (void) options;
     return ProbeResult{};
 #endif
 }
@@ -686,9 +750,24 @@ std::optional<std::filesystem::path> best_runtime_library_path()
     return result.runtime_library_path;
 }
 
+std::optional<std::filesystem::path> best_runtime_library_path(const ProbeOptions& options)
+{
+    const ProbeResult result = probe(options);
+    if (!result.runtime_usable || result.runtime_library_path.empty()) {
+        return std::nullopt;
+    }
+    return result.runtime_library_path;
+}
+
 int installed_runtime_version_token()
 {
     const ProbeResult result = probe(std::nullopt);
+    return result.runtime_version_token;
+}
+
+int installed_runtime_version_token(const ProbeOptions& options)
+{
+    const ProbeResult result = probe(options);
     return result.runtime_version_token;
 }
 
@@ -699,6 +778,30 @@ std::string best_runtime_library_name()
         return std::string();
     }
     return path->filename().string();
+}
+
+std::string best_runtime_library_name(const ProbeOptions& options)
+{
+    const auto path = best_runtime_library_path(options);
+    if (!path.has_value()) {
+        return std::string();
+    }
+    return path->filename().string();
+}
+
+std::string runtime_source_name(RuntimeSource source)
+{
+    switch (source) {
+    case RuntimeSource::None:
+        return "none";
+    case RuntimeSource::Packaged:
+        return "packaged";
+    case RuntimeSource::ToolkitHint:
+        return "toolkit";
+    case RuntimeSource::Path:
+        return "path";
+    }
+    return "unknown";
 }
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -752,6 +855,82 @@ std::vector<std::filesystem::path> rank_runtime_candidates(
     ranked_paths = runtime_paths;
 #endif
     return ranked_paths;
+}
+
+std::vector<std::filesystem::path> rank_runtime_candidates_with_sources(
+    const std::vector<std::filesystem::path>& packaged_runtime_paths,
+    const std::vector<std::filesystem::path>& toolkit_hint_runtime_paths,
+    const std::vector<std::filesystem::path>& path_runtime_paths)
+{
+    std::vector<std::filesystem::path> ranked_paths;
+#ifdef _WIN32
+    std::vector<RuntimeCandidate> candidates;
+    candidates.reserve(packaged_runtime_paths.size() +
+                       toolkit_hint_runtime_paths.size() +
+                       path_runtime_paths.size());
+
+    const auto add_candidate = [&](const std::filesystem::path& path,
+                                   RuntimeDirectorySource source) {
+        const auto version_info = parse_runtime_version_token_info(path);
+        if (!version_info.has_value()) {
+            return;
+        }
+
+        int version_rank = version_info->rank;
+        if (const auto toolkit_rank = parse_toolkit_version_rank(path)) {
+            version_rank = *toolkit_rank;
+        }
+
+        candidates.push_back(RuntimeCandidate{
+            path.lexically_normal(),
+            version_info->token,
+            version_rank,
+            source,
+            classify_runtime_path(path),
+        });
+    };
+
+    for (const auto& path : packaged_runtime_paths) {
+        add_candidate(path, RuntimeDirectorySource::Packaged);
+    }
+    for (const auto& path : toolkit_hint_runtime_paths) {
+        add_candidate(path, RuntimeDirectorySource::ToolkitHint);
+    }
+    for (const auto& path : path_runtime_paths) {
+        add_candidate(path, RuntimeDirectorySource::Path);
+    }
+
+    candidates = sort_runtime_candidates(std::move(candidates));
+    ranked_paths.reserve(candidates.size());
+    for (const auto& candidate : candidates) {
+        ranked_paths.push_back(candidate.path);
+    }
+#else
+    ranked_paths.reserve(packaged_runtime_paths.size() +
+                         toolkit_hint_runtime_paths.size() +
+                         path_runtime_paths.size());
+    ranked_paths.insert(ranked_paths.end(), packaged_runtime_paths.begin(), packaged_runtime_paths.end());
+    ranked_paths.insert(ranked_paths.end(), toolkit_hint_runtime_paths.begin(), toolkit_hint_runtime_paths.end());
+    ranked_paths.insert(ranked_paths.end(), path_runtime_paths.begin(), path_runtime_paths.end());
+#endif
+    return ranked_paths;
+}
+
+std::vector<std::filesystem::path> candidate_runtime_directories(const ProbeOptions& options)
+{
+    std::vector<std::filesystem::path> paths;
+#ifdef _WIN32
+    const auto candidates = build_candidate_runtime_directories(options);
+    paths.reserve(candidates.size());
+    for (const auto& candidate : candidates) {
+        paths.push_back(candidate.path);
+    }
+#else
+    for (const auto& directory : options.preferred_runtime_directories) {
+        paths.push_back(directory);
+    }
+#endif
+    return paths;
 }
 
 } // namespace TestAccess

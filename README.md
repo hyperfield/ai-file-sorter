@@ -268,7 +268,7 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled` on Linux/Windows or `app/lib/precompiled-*` for macOS variant builds. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
 - **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
 - **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. PDFium is required by default so packaged/source builds keep PDF extraction embedded on Windows, macOS, and Linux; set `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF` only if you intentionally want the `pdftotext` fallback.
-- **Optional GPU backends**: CUDA 12.x for NVIDIA cards or a Vulkan 1.2+ runtime. On Windows installer/standalone builds, `aifilesorter.exe` auto-detects the best available backend and now prefers CUDA over Vulkan when both are available, falling back to CPU/OpenBLAS automatically. On Linux, the same applies through `run_aifilesorter.sh`; when a dedicated CPU runtime bundle is absent, the launcher can also reuse the staged Vulkan payload for CPU/OpenBLAS fallback, so CUDA is never required to run the app.
+- **Optional GPU backends**: a CUDA runtime matching the bundled `ggml-cuda` build for NVIDIA cards, or a Vulkan 1.2+ runtime. On Windows installer/standalone builds, `aifilesorter.exe` auto-detects the best available backend and now prefers CUDA over Vulkan when both are available, falling back to CPU/OpenBLAS automatically. On Linux, the same applies through `run_aifilesorter.sh`; when a dedicated CPU runtime bundle is absent, the launcher can also reuse the staged Vulkan payload for CPU/OpenBLAS fallback, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **Remote model credentials** (optional): Required only when using ChatGPT, Gemini, or a custom OpenAI-compatible API endpoint.
 
@@ -653,7 +653,7 @@ Option A - CMake + vcpkg (recommended)
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=on
    ```
   
-  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
+  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). CUDA builds also stage the matching `cudart64_*.dll`, `cublas64_*.dll`, and `cublasLt64_*.dll` from the selected Toolkit's `bin\x64` or `bin` directory into both `app\lib\precompiled\cuda\bin` and `app\lib\ggml\wcuda`; the helper fails if any of those DLL families are missing. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
 
 6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt` and shares one dependency install tree across builds:
 
@@ -726,6 +726,7 @@ Notes
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, point `VCPKG_ROOT` to a writable clone or pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`. The script skips the bundled Visual Studio copy during auto-discovery because it is usually read-only.
 - If you plan to ship CUDA or Vulkan acceleration, run the `build_llama_*` helper for each backend you intend to include before configuring CMake so the libraries exist. The runtime can carry both and auto-select at launch, so CUDA remains optional.
+- Generated runtime DLL directories such as `app\lib\precompiled*` and `app\lib\ggml` are build artifacts covered by `.gitignore`; do not commit staged CUDA/Vulkan/CPU DLLs or release build folders.
 - `-BuildTests` and `-RunTests` are intended for the primary bundled Windows build configuration.
 
 ### Running tests

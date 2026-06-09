@@ -1,7 +1,9 @@
 #include "Utils.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "TestHooks.hpp"
 #include "WindowsCudaProbe.hpp"
+#include "app_version.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>  // for memset
@@ -13,6 +15,7 @@
 #include <system_error>
 #include <vector>
 #include <optional>
+#include <sstream>
 #include <mutex>
 #include <functional>
 #include <QCoreApplication>
@@ -102,6 +105,74 @@ std::function<std::optional<Utils::CudaMemoryInfo>()>& cuda_memory_probe() {
     static std::function<std::optional<Utils::CudaMemoryInfo>()> probe;
     return probe;
 }
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+TestHooks::BenchmarkProbeSignatureProbe& benchmark_probe_signature_probe()
+{
+    static TestHooks::BenchmarkProbeSignatureProbe probe;
+    return probe;
+}
+#endif
+
+#ifdef _WIN32
+std::optional<std::filesystem::path> first_existing_cuda_backend_dir(
+    const std::filesystem::path& exe_path)
+{
+    std::error_code ec;
+    for (const auto& candidate : GgmlRuntimePaths::windows_cuda_payload_candidate_dirs(exe_path)) {
+        if (std::filesystem::exists(candidate / "ggml-cuda.dll", ec)) {
+            return candidate.lexically_normal();
+        }
+        ec.clear();
+    }
+    return std::nullopt;
+}
+
+std::filesystem::path current_executable_path()
+{
+    if (auto* app = QCoreApplication::instance()) {
+        const QString application_path = QCoreApplication::applicationFilePath();
+        if (!application_path.isEmpty()) {
+            return std::filesystem::path(application_path.toStdWString());
+        }
+    }
+
+    const std::string executable_path = Utils::get_executable_path();
+    if (!executable_path.empty()) {
+        return std::filesystem::path(executable_path);
+    }
+    return {};
+}
+
+WindowsCudaProbe::ProbeOptions build_windows_cuda_probe_options()
+{
+    WindowsCudaProbe::ProbeOptions options;
+
+    if (const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+        ggml_dir && ggml_dir[0] != '\0') {
+        const std::filesystem::path explicit_dir{std::string(ggml_dir)};
+        options.ggml_directory = explicit_dir;
+        options.preferred_runtime_directories.push_back(explicit_dir);
+    }
+
+    const std::filesystem::path exe_path = current_executable_path();
+    if (!exe_path.empty()) {
+        for (const auto& candidate : GgmlRuntimePaths::windows_cuda_payload_candidate_dirs(exe_path)) {
+            options.preferred_runtime_directories.push_back(candidate);
+        }
+
+        if (!options.ggml_directory.has_value()) {
+            if (const auto resolved = GgmlRuntimePaths::resolve_windows_cuda_payload_dir(exe_path)) {
+                options.ggml_directory = *resolved;
+            } else if (const auto backend_dir = first_existing_cuda_backend_dir(exe_path)) {
+                options.ggml_directory = *backend_dir;
+            }
+        }
+    }
+
+    return options;
+}
+#endif
 
 std::optional<std::string> strip_prefix(const std::string& path,
                                         const std::vector<std::string>& prefixes) {
@@ -493,7 +564,8 @@ std::optional<Utils::CudaMemoryInfo> Utils::query_cuda_memory() {
         return probe();
     }
 #ifdef _WIN32
-    const auto runtime_path = WindowsCudaProbe::best_runtime_library_path();
+    const auto runtime_path =
+        WindowsCudaProbe::best_runtime_library_path(build_windows_cuda_probe_options());
     if (!runtime_path.has_value()) {
         log_core(spdlog::level::err, "Failed to locate a usable CUDA runtime library.");
         return std::nullopt;
@@ -732,13 +804,8 @@ bool Utils::is_cuda_available() {
     }
 
 #ifdef _WIN32
-    std::optional<std::filesystem::path> ggml_directory;
-    if (const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-        ggml_dir && ggml_dir[0] != '\0') {
-        ggml_directory = std::filesystem::path(std::string(ggml_dir));
-    }
-
-    const auto probe_result = WindowsCudaProbe::probe(ggml_directory);
+    const auto probe_options = build_windows_cuda_probe_options();
+    const auto probe_result = WindowsCudaProbe::probe(probe_options);
     if (!probe_result.driver_present) {
         log_core(spdlog::level::warn, "[CUDA] Failed to load the NVIDIA CUDA driver (nvcuda.dll).");
         return false;
@@ -757,16 +824,17 @@ bool Utils::is_cuda_available() {
                  "[CUDA] CUDA runtime libraries were found, but none could be initialized successfully.");
         return false;
     }
-    if (ggml_directory.has_value() && !probe_result.backend_loadable) {
+    if (probe_options.ggml_directory.has_value() && !probe_result.backend_loadable) {
         log_core(spdlog::level::warn,
                  "[CUDA] ggml-cuda.dll could not be loaded with the discovered CUDA runtime.");
         return false;
     }
 
     log_core(spdlog::level::info,
-             "[CUDA] CUDA is available and {} device(s) found using runtime '{}'.",
+             "[CUDA] CUDA is available and {} device(s) found using runtime '{}' from {}.",
              probe_result.device_count,
-             probe_result.runtime_library_path.filename().string());
+             probe_result.runtime_library_path.filename().string(),
+             WindowsCudaProbe::runtime_source_name(probe_result.runtime_source));
     return true;
 #else
 
@@ -834,12 +902,25 @@ void reset_cuda_memory_probe() {
     cuda_memory_probe() = CudaMemoryProbe{};
 }
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+void set_benchmark_probe_signature_probe(BenchmarkProbeSignatureProbe probe)
+{
+    benchmark_probe_signature_probe() = std::move(probe);
+}
+
+void reset_benchmark_probe_signature_probe()
+{
+    benchmark_probe_signature_probe() = BenchmarkProbeSignatureProbe{};
+}
+#endif
+
 } // namespace TestHooks
 
 #ifdef _WIN32
 int Utils::get_installed_cuda_runtime_version()
 {
-    const int version = WindowsCudaProbe::installed_runtime_version_token();
+    const int version =
+        WindowsCudaProbe::installed_runtime_version_token(build_windows_cuda_probe_options());
     if (version > 0) {
         log_core(spdlog::level::info, "[CUDA] Detected CUDA runtime token: {}", version);
     } else {
@@ -852,7 +933,8 @@ int Utils::get_installed_cuda_runtime_version()
 
 #ifdef _WIN32
 std::string Utils::get_cudart_dll_name() {
-    const std::string name = WindowsCudaProbe::best_runtime_library_name();
+    const std::string name =
+        WindowsCudaProbe::best_runtime_library_name(build_windows_cuda_probe_options());
     if (!name.empty()) {
         log_core(spdlog::level::info, "[CUDA] Selected runtime DLL: {}", name);
     } else {
@@ -861,6 +943,50 @@ std::string Utils::get_cudart_dll_name() {
     return name;
 }
 #endif
+
+std::string Utils::benchmark_probe_signature()
+{
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (auto& probe = benchmark_probe_signature_probe()) {
+        return probe();
+    }
+#endif
+
+    std::ostringstream signature;
+    signature << "schema=1";
+    signature << "|app=" << APP_VERSION.to_string();
+
+    const auto append_env = [&signature](const char* signature_key, const char* env_key) {
+        signature << "|" << signature_key << "=";
+        if (const char* value = std::getenv(env_key); value && value[0] != '\0') {
+            signature << value;
+        }
+    };
+    append_env("backend_env", "AI_FILE_SORTER_GPU_BACKEND");
+    append_env("llama_device_env", "LLAMA_ARG_DEVICE");
+    append_env("ggml_disable_cuda_env", "GGML_DISABLE_CUDA");
+
+#ifdef _WIN32
+    const auto probe_result = WindowsCudaProbe::probe(build_windows_cuda_probe_options());
+    signature << "|driver=" << probe_result.driver_version;
+    signature << "|driver_present=" << (probe_result.driver_present ? 1 : 0);
+    signature << "|driver_initialized=" << (probe_result.driver_initialized ? 1 : 0);
+    signature << "|devices=" << probe_result.device_count;
+    signature << "|runtime=" << probe_result.runtime_library_path.filename().string();
+    signature << "|runtime_token=" << probe_result.runtime_version_token;
+    signature << "|runtime_source="
+              << WindowsCudaProbe::runtime_source_name(probe_result.runtime_source);
+    signature << "|runtime_usable=" << (probe_result.runtime_usable ? 1 : 0);
+    signature << "|backend_loadable=" << (probe_result.backend_loadable ? 1 : 0);
+    signature << "|failure=" << probe_result.failure_reason;
+#else
+    signature << "|driver=non-windows";
+    signature << "|runtime=libcudart.so";
+    signature << "|backend_loadable=" << (Utils::is_cuda_available() ? 1 : 0);
+#endif
+
+    return signature.str();
+}
 
 
 std::string Utils::abbreviate_user_path(const std::string& path) {

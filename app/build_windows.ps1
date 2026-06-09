@@ -83,6 +83,33 @@ function Resolve-VcpkgRootFromPath {
     return $null
 }
 
+function Assert-WindowsCudaPayload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Directory,
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    if (-not (Test-Path $Directory)) {
+        throw "CUDA payload audit failed for ${Label}: directory '$Directory' does not exist."
+    }
+
+    foreach ($requiredFile in @("llama.dll", "ggml.dll", "ggml-cuda.dll")) {
+        $path = Join-Path $Directory $requiredFile
+        if (-not (Test-Path $path)) {
+            throw "CUDA payload audit failed for ${Label}: missing $requiredFile in $Directory."
+        }
+    }
+
+    foreach ($pattern in @("cudart64_*.dll", "cublas64_*.dll", "cublasLt64_*.dll")) {
+        $matches = @(Get-ChildItem -Path $Directory -Filter $pattern -File -ErrorAction SilentlyContinue)
+        if ($matches.Count -eq 0) {
+            throw "CUDA payload audit failed for ${Label}: missing $pattern in $Directory."
+        }
+    }
+}
+
 function Get-DefaultVcpkgRootCandidates {
     $candidates = New-Object System.Collections.Generic.List[string]
 
@@ -512,11 +539,13 @@ function Stage-BuildOutput {
     }
 
     if (Test-Path $precompiledCudaBin) {
+        Assert-WindowsCudaPayload -Directory $precompiledCudaBin -Label "source precompiled CUDA payload"
         Get-ChildItem -Path $precompiledCudaBin -Filter "*.dll" -File -ErrorAction SilentlyContinue |
             ForEach-Object {
                 if ($_.Name -ieq "libcurl.dll") { return }
                 Copy-Item $_.FullName -Destination $destWcuda -Force
             }
+        Assert-WindowsCudaPayload -Directory $destWcuda -Label "staged lib\ggml\wcuda payload"
     }
 
     if (Test-Path $precompiledVulkanBin) {

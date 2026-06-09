@@ -623,6 +623,8 @@ Procedure: Call `Utils::sanitize_path_label()`.
 Expected outcome: The invalid byte is removed and the returned label remains valid UTF-8 text.
 Run: `./build-tests/ai_file_sorter_tests "sanitize_path_label strips invalid UTF-8 bytes"`
 
+The Windows runtime layout cases below are compiled only on Windows.
+
 #### Test case: Windows Vulkan payload candidates prefer the BLAS runtime layout
 Purpose: Ensure Windows runtime lookup prefers the packaged `vulkan-blas` payload before the legacy Vulkan layout.
 Setup: Construct a Windows executable path under a representative install root.
@@ -637,6 +639,13 @@ Procedure: Call `GgmlRuntimePaths::windows_cpu_runtime_candidate_dirs()`.
 Expected outcome: The candidate order starts with `wocuda` and then falls back to `wvulkan`.
 Run: `./build-tests/ai_file_sorter_tests "Windows CPU runtime candidates fall back to the Vulkan runtime layout"`
 
+#### Test case: Windows CUDA payload candidates prefer packaged runtime layouts
+Purpose: Ensure Windows CUDA lookup checks the installed/portable `wcuda` runtime layout before build-time precompiled and executable-adjacent directories.
+Setup: Construct a Windows executable path under a representative install root.
+Procedure: Call `GgmlRuntimePaths::windows_cuda_payload_candidate_dirs()`.
+Expected outcome: Candidate order is `lib/ggml/wcuda`, `ggml/wcuda`, `lib/precompiled/cuda/bin`, `bin`, then the executable directory.
+Run: `./build-tests/ai_file_sorter_tests "Windows CUDA payload candidates prefer packaged runtime layouts"`
+
 #### Test case: Windows CPU runtime resolution falls back to the Vulkan runtime layout
 Purpose: Ensure CPU launcher startup can reuse the Vulkan runtime directory when it already contains `ggml-cpu.dll`.
 Setup: Create a temporary `lib/ggml/wvulkan` directory containing the required CPU runtime DLL names, without creating `wocuda`.
@@ -650,6 +659,20 @@ Setup: Create temporary `vulkan-blas/bin` and `vulkan/bin` directories containin
 Procedure: Call `GgmlRuntimePaths::resolve_windows_vulkan_payload_dir()`.
 Expected outcome: The resolved path points to `lib/precompiled/vulkan-blas/bin`.
 Run: `./build-tests/ai_file_sorter_tests "Windows Vulkan payload resolution prefers the BLAS runtime layout"`
+
+#### Test case: Windows CUDA payload resolution requires CUDA redistributable dependency families
+Purpose: Ensure a packaged CUDA backend is not accepted unless the expected CUDA runtime and cuBLAS dependency families are staged beside it.
+Setup: Create a temporary `lib/ggml/wcuda` directory with `llama.dll`, `ggml.dll`, and `ggml-cuda.dll`, then add `cudart64_13.dll`, `cublas64_13.dll`, and `cublasLt64_13.dll` one at a time.
+Procedure: Call `GgmlRuntimePaths::resolve_windows_cuda_payload_dir()` before and after adding the runtime DLL.
+Expected outcome: Resolution fails until all three CUDA redistributable dependency families exist and succeeds afterward.
+Run: `./build-tests/ai_file_sorter_tests "Windows CUDA payload resolution requires CUDA redistributable dependency families"`
+
+#### Test case: Windows CUDA payload resolution skips incomplete higher-priority payloads
+Purpose: Ensure a partial installed `wcuda` directory does not mask a complete lower-priority CUDA payload.
+Setup: Create an incomplete `lib/ggml/wcuda` payload missing cuBLAS dependency DLLs and a complete `lib/precompiled/cuda/bin` payload.
+Procedure: Call `GgmlRuntimePaths::resolve_windows_cuda_payload_dir()`.
+Expected outcome: The resolver skips the incomplete higher-priority directory and returns the complete fallback directory.
+Run: `./build-tests/ai_file_sorter_tests "Windows CUDA payload resolution skips incomplete higher-priority payloads"`
 
 #### Test case: Linux Vulkan payload validation rejects stale runtime directories
 Purpose: Ensure Linux launch/runtime checks refuse accelerator payloads that contain a backend plugin but omit the versioned core libraries and CPU backend module required by the ggml dynamic-backend layout.
@@ -685,6 +708,43 @@ Setup: Use one value below 1024 bytes and one value at the kilobyte boundary.
 Procedure: Call `Utils::format_size()` for both values.
 Expected outcome: `999` formats as `999.00 B` and `1024` formats as `1.00 KB`.
 Run: `./build-tests/ai_file_sorter_tests "format_size keeps byte values in bytes below one kilobyte"`
+
+### `tests/unit/test_windows_cuda_probe.cpp` (Windows only)
+
+#### Test case: WindowsCudaProbe normalizes mixed-era runtime suffixes
+Purpose: Ensure CUDA runtime DLL suffix ranking compares legacy two-digit and modern three-digit CUDA tokens consistently.
+Setup: Use representative `cudart64_13.dll`, `cudart64_65.dll`, `cudart64_121.dll`, and `cudart64_110.dll` names.
+Procedure: Call the test access runtime-version rank helper.
+Expected outcome: CUDA 13 ranks above CUDA 6.5, and CUDA 12.1 ranks above CUDA 11.0.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe normalizes mixed-era runtime suffixes"`
+
+#### Test case: WindowsCudaProbe prefers toolkit runtimes over legacy PhysX runtimes
+Purpose: Ensure legacy PhysX CUDA runtime copies do not outrank Toolkit runtime copies.
+Setup: Provide one PhysX `cudart64_65.dll` path and one Toolkit `cudart64_13.dll` path.
+Procedure: Rank the candidates through the probe test access helper.
+Expected outcome: The Toolkit runtime is ranked first and the PhysX runtime last.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe prefers toolkit runtimes over legacy PhysX runtimes"`
+
+#### Test case: WindowsCudaProbe prefers x64 toolkit bin directories over generic toolkit copies
+Purpose: Ensure Toolkit `bin/x64` runtime DLLs are preferred over copies in the Toolkit root.
+Setup: Provide one Toolkit root `cudart64_13.dll` path and one Toolkit `bin/x64` path.
+Procedure: Rank the candidates through the probe test access helper.
+Expected outcome: The `bin/x64` runtime is ranked first.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe prefers x64 toolkit bin directories over generic toolkit copies"`
+
+#### Test case: WindowsCudaProbe ranks runtime sources as packaged toolkit hint then PATH
+Purpose: Ensure source-aware CUDA runtime ranking prefers app-packaged DLLs, then Toolkit hints, then PATH-discovered runtimes.
+Setup: Provide one packaged `lib/ggml/wcuda` runtime path, one generic ToolkitHint path, and one PATH candidate that looks like a Toolkit `bin/x64` runtime.
+Procedure: Rank the candidates through the source-aware probe test access helper.
+Expected outcome: Packaged runtime ranks first, the ToolkitHint runtime ranks second, and the PATH runtime ranks last even though its path shape is otherwise preferred.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe ranks runtime sources as packaged toolkit hint then PATH"`
+
+#### Test case: WindowsCudaProbe no-system-dir option limits runtime candidates to packaged dirs
+Purpose: Ensure callers can disable Toolkit/PATH probing for deterministic packaged-runtime checks.
+Setup: Create `ProbeOptions` with one preferred packaged runtime directory and `include_system_directories=false`.
+Procedure: Read candidate runtime directories through the test access helper.
+Expected outcome: The only candidate is the preferred packaged runtime directory.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe no-system-dir option limits runtime candidates to packaged dirs"`
 
 ### `tests/unit/test_llm_selection_dialog_local.cpp`
 
@@ -847,6 +907,73 @@ Setup: Use a temporary config directory and set the visual backend id to `gemma-
 Procedure: Save settings, reload into a new `Settings` instance, and read the stored visual backend id.
 Expected outcome: The reloaded settings still report `gemma-3-4b-it`.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists selected visual model backend"`
+
+#### Test case: Settings persists benchmark probe signature metadata
+Purpose: Ensure benchmark probe signatures are saved with completed benchmark results.
+Setup: Use a temporary config directory, mark the benchmark complete, and set a representative probe signature/schema.
+Procedure: Save settings, reload them, and compare the saved signature/schema with the current signature.
+Expected outcome: The signature and schema persist and `is_suitability_benchmark_current()` returns true for a matching signature.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists benchmark probe signature metadata"`
+
+#### Test case: Settings invalidates completed benchmark when probe signature changes
+Purpose: Ensure legacy or mismatched benchmark results are treated as stale.
+Setup: Mark settings as benchmark-completed with an old signature, and create a second legacy completed settings object without a signature.
+Procedure: Call `is_suitability_benchmark_current()` with a different current signature.
+Expected outcome: Both the mismatched and legacy completed settings return false.
+Run: `./build-tests/ai_file_sorter_tests "Settings invalidates completed benchmark when probe signature changes"`
+
+#### Test case: Settings invalidates benchmark when probe schema or completion state is stale
+Purpose: Ensure a matching probe signature is insufficient unless the saved benchmark schema is current and the benchmark is marked complete.
+Setup: Create one completed settings object with an old schema version and one schema-current settings object without completion.
+Procedure: Call `is_suitability_benchmark_current()` with the matching current signature.
+Expected outcome: Both settings objects return false.
+Run: `./build-tests/ai_file_sorter_tests "Settings invalidates benchmark when probe schema or completion state is stale"`
+
+#### Test case: Benchmark probe signature includes backend environment controls
+Purpose: Ensure benchmark stale-state invalidation covers the backend environment variables that influence benchmark execution.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=vulkan`, `LLAMA_ARG_DEVICE=cpu`, and `GGML_DISABLE_CUDA=1`.
+Procedure: Call `Utils::benchmark_probe_signature()`.
+Expected outcome: The signature includes all three backend-control environment values.
+Run: `./build-tests/ai_file_sorter_tests "Benchmark probe signature includes backend environment controls"`
+
+### `tests/unit/test_suitability_benchmark_dialog.cpp`
+
+#### Test case: Suitability benchmark finish persists current probe metadata
+Purpose: Ensure benchmark completion persists the generated probe signature and schema version.
+Setup: Use a temporary config directory and a deterministic benchmark probe-signature test hook.
+Procedure: Construct `SuitabilityBenchmarkDialog`, invoke `finish_benchmark()` through its test-access seam, reload settings, and inspect the persisted benchmark metadata.
+Expected outcome: The benchmark is marked complete, the schema is current, the saved signature matches the generated signature, and `is_suitability_benchmark_current()` returns true.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark finish persists current probe metadata"`
+
+### `tests/unit/test_main_app_suitability_benchmark.cpp`
+
+#### Test case: Suppressed suitability benchmark startup skips probe signature computation
+Purpose: Ensure suppressed benchmark prompts return before computing the current CUDA/backend probe signature.
+Setup: Mark the benchmark complete and suppressed, then install a counting benchmark probe-signature test hook.
+Procedure: Invoke the MainApp benchmark startup decision path through `MainAppTestAccess`.
+Expected outcome: The signature hook is not called and no benchmark dialog is created.
+Run: `./build-tests/ai_file_sorter_tests "Suppressed suitability benchmark startup skips probe signature computation"`
+
+#### Test case: Current suitability benchmark startup checks probe signature and stays hidden
+Purpose: Ensure non-suppressed completed benchmarks still compare the saved signature before deciding whether to prompt.
+Setup: Save a completed benchmark with a current signature and install a counting benchmark probe-signature test hook.
+Procedure: Invoke the MainApp benchmark startup decision path.
+Expected outcome: The signature hook is called once and no benchmark dialog is created.
+Run: `./build-tests/ai_file_sorter_tests "Current suitability benchmark startup checks probe signature and stays hidden"`
+
+#### Test case: Stale suitability benchmark auto-shows when unsuppressed
+Purpose: Ensure stale completed benchmark results do not suppress the compatibility benchmark prompt.
+Setup: Save an unsuppressed completed benchmark with an old signature, saved report text, and a current signature hook.
+Procedure: Invoke the MainApp benchmark startup decision path and process queued Qt events.
+Expected outcome: MainApp creates the suitability benchmark dialog.
+Run: `./build-tests/ai_file_sorter_tests "Stale suitability benchmark auto-shows when unsuppressed"`
+
+#### Test case: Stale suitability benchmark previous results include stale warning
+Purpose: Ensure stale previous benchmark results clearly warn the user before the saved report.
+Setup: Save a completed benchmark with an old signature, previous run timestamp, and report text.
+Procedure: Construct `SuitabilityBenchmarkDialog` with a current signature hook and read the output view text.
+Expected outcome: The previous results include the last-run line, stale warning, previous-results heading, and saved report lines.
+Run: `./build-tests/ai_file_sorter_tests "Stale suitability benchmark previous results include stale warning"`
 
 ### `tests/unit/test_llava_image_analyzer.cpp`
 

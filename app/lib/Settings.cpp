@@ -365,6 +365,8 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     suitability_benchmark_suppressed = load_bool("SuitabilityBenchmarkSuppressed", false);
     benchmark_last_report = decode_multiline(config.getValue("Settings", "BenchmarkLastReport", ""));
     benchmark_last_run = config.getValue("Settings", "BenchmarkLastRun", "");
+    benchmark_probe_signature = config.getValue("Settings", "BenchmarkProbeSignature", "");
+    benchmark_probe_schema_version = load_int("BenchmarkProbeSchemaVersion", 0, 0);
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
@@ -492,6 +494,8 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "SuitabilityBenchmarkSuppressed", suitability_benchmark_suppressed);
     set_optional_setting(config, settings_section, "BenchmarkLastReport", encode_multiline(benchmark_last_report));
     set_optional_setting(config, settings_section, "BenchmarkLastRun", benchmark_last_run);
+    set_optional_setting(config, settings_section, "BenchmarkProbeSignature", benchmark_probe_signature);
+    config.setValue(settings_section, "BenchmarkProbeSchemaVersion", std::to_string(benchmark_probe_schema_version));
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
     set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
     config.setValue(settings_section, "Language", languageToString(language).toStdString());
@@ -1144,6 +1148,34 @@ std::string Settings::get_benchmark_last_run() const
 void Settings::set_benchmark_last_run(const std::string& value)
 {
     benchmark_last_run = value;
+}
+
+std::string Settings::get_benchmark_probe_signature() const
+{
+    return benchmark_probe_signature;
+}
+
+void Settings::set_benchmark_probe_signature(const std::string& value)
+{
+    benchmark_probe_signature = value;
+}
+
+int Settings::get_benchmark_probe_schema_version() const
+{
+    return benchmark_probe_schema_version;
+}
+
+void Settings::set_benchmark_probe_schema_version(int value)
+{
+    benchmark_probe_schema_version = value;
+}
+
+bool Settings::is_suitability_benchmark_current(const std::string& current_signature) const
+{
+    return suitability_benchmark_completed &&
+           benchmark_probe_schema_version == kBenchmarkProbeSchemaVersion &&
+           !benchmark_probe_signature.empty() &&
+           benchmark_probe_signature == current_signature;
 }
 
 

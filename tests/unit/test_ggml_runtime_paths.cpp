@@ -31,6 +31,8 @@ TEST_CASE("macOS ggml runtime candidates stay relative to the app layout") {
                       std::filesystem::path("/opt/homebrew/lib")) == candidates.end());
 }
 
+#if defined(_WIN32)
+
 TEST_CASE("Windows Vulkan payload candidates prefer the BLAS runtime layout") {
     const std::filesystem::path exe = R"(C:\AIFileSorter\aifilesorter.exe)";
 
@@ -57,6 +59,22 @@ TEST_CASE("Windows CPU runtime candidates fall back to the Vulkan runtime layout
             std::filesystem::path(R"(C:\AIFileSorter\lib\ggml\wvulkan)"));
     REQUIRE(candidates[3] ==
             std::filesystem::path(R"(C:\AIFileSorter\ggml\wvulkan)"));
+}
+
+TEST_CASE("Windows CUDA payload candidates prefer packaged runtime layouts") {
+    const std::filesystem::path exe = R"(C:\AIFileSorter\aifilesorter.exe)";
+
+    const auto candidates = GgmlRuntimePaths::windows_cuda_payload_candidate_dirs(exe);
+
+    REQUIRE(candidates.size() == 5);
+    REQUIRE(candidates[0] ==
+            std::filesystem::path(R"(C:\AIFileSorter\lib\ggml\wcuda)"));
+    REQUIRE(candidates[1] ==
+            std::filesystem::path(R"(C:\AIFileSorter\ggml\wcuda)"));
+    REQUIRE(candidates[2] ==
+            std::filesystem::path(R"(C:\AIFileSorter\lib\precompiled\cuda\bin)"));
+    REQUIRE(candidates[3] == std::filesystem::path(R"(C:\AIFileSorter\bin)"));
+    REQUIRE(candidates[4] == std::filesystem::path(R"(C:\AIFileSorter)"));
 }
 
 TEST_CASE("Windows CPU runtime resolution falls back to the Vulkan runtime layout") {
@@ -101,6 +119,60 @@ TEST_CASE("Windows Vulkan payload resolution prefers the BLAS runtime layout") {
     REQUIRE(resolved.has_value());
     REQUIRE(*resolved == preferred);
 }
+
+TEST_CASE("Windows CUDA payload resolution requires CUDA redistributable dependency families") {
+    TempDir temp_dir;
+    const auto root = temp_dir.path();
+    const auto exe = root / "aifilesorter.exe";
+    const auto packaged = root / "lib" / "ggml" / "wcuda";
+
+    std::ofstream(exe).put('x');
+    std::filesystem::create_directories(packaged);
+    std::ofstream(packaged / "llama.dll").put('x');
+    std::ofstream(packaged / "ggml.dll").put('x');
+    std::ofstream(packaged / "ggml-cuda.dll").put('x');
+
+    REQUIRE_FALSE(GgmlRuntimePaths::resolve_windows_cuda_payload_dir(exe).has_value());
+
+    std::ofstream(packaged / "cudart64_13.dll").put('x');
+    REQUIRE_FALSE(GgmlRuntimePaths::resolve_windows_cuda_payload_dir(exe).has_value());
+
+    std::ofstream(packaged / "cublas64_13.dll").put('x');
+    REQUIRE_FALSE(GgmlRuntimePaths::resolve_windows_cuda_payload_dir(exe).has_value());
+
+    std::ofstream(packaged / "cublasLt64_13.dll").put('x');
+
+    const auto resolved = GgmlRuntimePaths::resolve_windows_cuda_payload_dir(exe);
+
+    REQUIRE(resolved.has_value());
+    REQUIRE(*resolved == packaged);
+}
+
+TEST_CASE("Windows CUDA payload resolution skips incomplete higher-priority payloads") {
+    TempDir temp_dir;
+    const auto root = temp_dir.path();
+    const auto exe = root / "aifilesorter.exe";
+    const auto incomplete = root / "lib" / "ggml" / "wcuda";
+    const auto fallback = root / "lib" / "precompiled" / "cuda" / "bin";
+
+    std::ofstream(exe).put('x');
+    for (const auto& dir : {incomplete, fallback}) {
+        std::filesystem::create_directories(dir);
+        std::ofstream(dir / "llama.dll").put('x');
+        std::ofstream(dir / "ggml.dll").put('x');
+        std::ofstream(dir / "ggml-cuda.dll").put('x');
+        std::ofstream(dir / "cudart64_13.dll").put('x');
+    }
+    std::ofstream(fallback / "cublas64_13.dll").put('x');
+    std::ofstream(fallback / "cublasLt64_13.dll").put('x');
+
+    const auto resolved = GgmlRuntimePaths::resolve_windows_cuda_payload_dir(exe);
+
+    REQUIRE(resolved.has_value());
+    REQUIRE(*resolved == fallback);
+}
+
+#endif
 
 TEST_CASE("Linux Vulkan payload validation rejects stale runtime directories") {
     TempDir temp_dir;

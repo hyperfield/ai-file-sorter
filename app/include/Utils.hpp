@@ -43,6 +43,7 @@ public:
     static bool is_cuda_available();
     static int get_installed_cuda_runtime_version();
     static std::string get_cudart_dll_name();
+    static std::string benchmark_probe_signature();
     static std::string abbreviate_user_path(const std::string& path);
     static std::filesystem::path ensure_ca_bundle();
     static std::string path_to_utf8(const std::filesystem::path& path);

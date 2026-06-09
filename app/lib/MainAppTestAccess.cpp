@@ -187,6 +187,16 @@ void MainAppTestAccess::set_continue_without_visual_analysis_prompt_override(
     app.continue_without_visual_analysis_prompt_override_ = std::move(prompt);
 }
 
+void MainAppTestAccess::maybe_show_suitability_benchmark(MainApp& app)
+{
+    app.maybe_show_suitability_benchmark();
+}
+
+bool MainAppTestAccess::has_suitability_benchmark_dialog(const MainApp& app)
+{
+    return static_cast<bool>(app.benchmark_dialog);
+}
+
 bool MainAppTestAccess::prompt_visual_cpu_fallback(MainApp& app, const std::string& reason)
 {
     return app.prompt_visual_cpu_fallback(reason);

@@ -215,3 +215,76 @@ TEST_CASE("Settings persists selected visual model backend") {
     REQUIRE(reloaded.load());
     REQUIRE(reloaded.get_visual_model_id() == "gemma-3-4b-it");
 }
+
+TEST_CASE("Settings persists benchmark probe signature metadata") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_suitability_benchmark_completed(true);
+    settings.set_benchmark_probe_signature("driver=610.47|runtime=cudart64_13.dll");
+    settings.set_benchmark_probe_schema_version(Settings::kBenchmarkProbeSchemaVersion);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_benchmark_probe_signature() ==
+            "driver=610.47|runtime=cudart64_13.dll");
+    REQUIRE(reloaded.get_benchmark_probe_schema_version() ==
+            Settings::kBenchmarkProbeSchemaVersion);
+    REQUIRE(reloaded.is_suitability_benchmark_current(
+        "driver=610.47|runtime=cudart64_13.dll"));
+}
+
+TEST_CASE("Settings invalidates completed benchmark when probe signature changes") {
+    Settings settings;
+    settings.set_suitability_benchmark_completed(true);
+    settings.set_benchmark_probe_signature("driver=old|runtime=missing");
+    settings.set_benchmark_probe_schema_version(Settings::kBenchmarkProbeSchemaVersion);
+
+    REQUIRE_FALSE(settings.is_suitability_benchmark_current(
+        "driver=610.47|runtime=cudart64_13.dll"));
+
+    Settings legacy_settings;
+    legacy_settings.set_suitability_benchmark_completed(true);
+
+    REQUIRE_FALSE(legacy_settings.is_suitability_benchmark_current(
+        "driver=610.47|runtime=cudart64_13.dll"));
+}
+
+TEST_CASE("Settings invalidates benchmark when probe schema or completion state is stale") {
+    const std::string current_signature = "driver=610.47|runtime=cudart64_13.dll";
+
+    Settings old_schema_settings;
+    old_schema_settings.set_suitability_benchmark_completed(true);
+    old_schema_settings.set_benchmark_probe_signature(current_signature);
+    old_schema_settings.set_benchmark_probe_schema_version(
+        Settings::kBenchmarkProbeSchemaVersion - 1);
+
+    REQUIRE_FALSE(old_schema_settings.is_suitability_benchmark_current(
+        current_signature));
+
+    Settings incomplete_settings;
+    incomplete_settings.set_benchmark_probe_signature(current_signature);
+    incomplete_settings.set_benchmark_probe_schema_version(
+        Settings::kBenchmarkProbeSchemaVersion);
+
+    REQUIRE_FALSE(incomplete_settings.is_suitability_benchmark_current(
+        current_signature));
+}
+
+TEST_CASE("Benchmark probe signature includes backend environment controls") {
+    EnvVarGuard backend_guard("AI_FILE_SORTER_GPU_BACKEND", "vulkan");
+    EnvVarGuard device_guard("LLAMA_ARG_DEVICE", "cpu");
+    EnvVarGuard disable_cuda_guard("GGML_DISABLE_CUDA", "1");
+
+    const std::string signature = Utils::benchmark_probe_signature();
+
+    REQUIRE(signature.find("|backend_env=vulkan") != std::string::npos);
+    REQUIRE(signature.find("|llama_device_env=cpu") != std::string::npos);
+    REQUIRE(signature.find("|ggml_disable_cuda_env=1") != std::string::npos);
+}
