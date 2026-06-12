@@ -7,10 +7,8 @@ usage() {
 Usage: build_llama_macos.sh [options]
 
 Options:
-  --arch <arm64|x86_64>   Target macOS architecture
+  --arch <arm64>          Target macOS architecture
   --arm64                 Alias for --arch arm64 (Apple Silicon)
-  --x86_64                Alias for --arch x86_64 (Intel)
-  --intel                 Alias for --arch x86_64
   --m1 | --m2 | --m3      Alias for --arch arm64
   -h | --help             Show this help
 
@@ -121,7 +119,7 @@ if [ "$ARCH" != "$TARGET_ARCH" ]; then
     CROSS_COMPILE=1
 fi
 
-MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
+MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-15.0}
 export MACOSX_DEPLOYMENT_TARGET
 echo "Targeting macOS ${MACOSX_DEPLOYMENT_TARGET} for build outputs"
 

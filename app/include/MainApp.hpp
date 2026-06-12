@@ -198,6 +198,10 @@ private:
     void apply_accessibility_metadata();
     void on_language_selected(Language language);
     void on_category_language_selected(CategoryLanguage language);
+    /**
+     * @brief Defers category-language menu rebuilding until the current UI event completes.
+     */
+    void schedule_category_language_menu_refresh();
     void initialize_whitelists();
     /**
      * @brief Imports current whitelist labels into the separate user-learning database.
@@ -488,6 +492,7 @@ private:
     bool status_is_ready_{true};
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
+    bool category_language_refresh_pending_{false};
     bool donation_prompt_active_{false};
     std::string last_storage_support_warning_key_;
     std::string last_storage_provider_notice_key_;

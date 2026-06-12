@@ -325,6 +325,59 @@ Procedure: Call `ImageAnalyzerFactory::create()` with GPU disabled.
 Expected outcome: Creation throws a clear invalid/incomplete GGUF artifact error.
 Run: `./build-tests/ai_file_sorter_tests "ImageAnalyzerFactory rejects invalid GGUF artifacts before analyzer startup"`
 
+### `tests/unit/test_filename_localization_service.cpp`
+
+#### Test case: FilenameLocalizationService localizes filename stems and preserves extensions
+Purpose: Ensure localized rename suggestions keep the original extension and derive a sensible translated word budget from the source filename.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that returns a translated stem.
+Procedure: Localize a three-word English filename into French and inspect both the output filename and the captured prompt.
+Expected outcome: The translated stem is returned with the original extension, and the prompt references the target language, the original stem, and the derived three-word limit.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService localizes filename stems and preserves extensions"`
+
+#### Test case: FilenameLocalizationService keeps the original suggestion when localization is unusable
+Purpose: Avoid replacing a valid suggestion with an empty or malformed translation response.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that returns only punctuation.
+Procedure: Attempt to localize an English filename into German.
+Expected outcome: The original filename suggestion is returned unchanged.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService keeps the original suggestion when localization is unusable"`
+
+#### Test case: FilenameLocalizationService skips localization when English is selected
+Purpose: Ensure English stays the no-op path and does not spend an extra LLM call on filename localization.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that records any prompt it receives.
+Procedure: Attempt to localize an English filename while the selected language is English.
+Expected outcome: The original filename suggestion is returned unchanged and no prompt is sent to the LLM.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService skips localization when English is selected"`
+
+### `tests/unit/test_media_rename_metadata_service.cpp`
+
+#### Test case: MediaRenameMetadataService composes year-artist-album-title filenames
+Purpose: Verify audio/video rename suggestions keep the intended metadata ordering.
+Setup: Prepare metadata containing year, artist, album, and title.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The result is `year_artist_album_title.ext`.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService composes year-artist-album-title filenames"`
+
+#### Test case: MediaRenameMetadataService falls back to source stem when title is missing
+Purpose: Ensure metadata-based suggestions stay useful even when the title field is absent.
+Setup: Prepare metadata with year and artist only.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The source stem is used in place of the missing title segment.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService falls back to source stem when title is missing"`
+
+#### Test case: MediaRenameMetadataService keeps original filename when metadata is absent
+Purpose: Confirm the service does not invent rename suggestions when there is no usable metadata.
+Setup: Use an empty metadata payload.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The original filename is returned unchanged.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService keeps original filename when metadata is absent"`
+
+#### Test case: MediaRenameMetadataService preserves UTF-8 metadata in composed filenames
+Purpose: Ensure non-Latin artist/title metadata survives filename normalization instead of collapsing to ASCII-only output.
+Setup: Prepare metadata containing Korean artist and title values plus a year.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The resulting filename preserves the UTF-8 metadata words and joins them with underscores.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService preserves UTF-8 metadata in composed filenames"`
+
 ### `tests/unit/test_main_app_cache_action.cpp` (non-Windows only)
 
 #### Test case: Settings maintenance actions stay separate and follow analysis state
@@ -398,6 +451,13 @@ Setup: Build `MainApp` with offscreen Qt in a temporary config directory and swi
 Procedure: Refresh the category-language menu through the test access layer and inspect the top-level menu actions.
 Expected outcome: At least one top-level category-language menu entry is a submenu, confirming the expanded list is compartmentalized.
 Run: `./build-tests/ai_file_sorter_tests "Full Gemma 3 category language menus are compartmentalized into submenus"`
+
+#### Test case: Selecting a submenu-backed category language does not rebuild menus synchronously
+Purpose: Prevent submenu-backed category-language selections from destroying the active Qt menu tree during the `triggered` signal, which previously caused Windows crashes inside `Qt6Widgets.dll`.
+Setup: Build `MainApp` with offscreen Qt in a temporary config directory and switch settings to `Local_4b_Gemma` so the category-language menu is grouped into submenus.
+Procedure: Refresh the category-language menu, locate the submenu that contains `French`, trigger that action directly, and process the queued Qt events.
+Expected outcome: The selected category language changes to French, the original parent submenu remains alive for the duration of the trigger handler, and the rebuilt menu still exposes `French` as the checked choice after queued events run.
+Run: `./build-tests/ai_file_sorter_tests "Selecting a submenu-backed category language does not rebuild menus synchronously"`
 
 ### `tests/unit/test_ui_translator.cpp` (non-Windows only)
 
@@ -1873,6 +1933,13 @@ Setup: Prepare multiple file entries and callbacks that count queued/completed e
 Procedure: Run `categorize_entries` and capture callback counters.
 Expected outcome: Queue and completion callbacks are each invoked once per processed entry.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService invokes completion callback per entry"`
+
+#### Test case: DocumentTextAnalyzer handles UTF-8 filenames
+Purpose: Verify document-analysis prompts and rename suggestions preserve UTF-8 content.
+Setup: Create a text document whose source filename contains mixed Japanese and Korean text, and use a prompt-capturing LLM stub that returns a Korean filename suggestion.
+Procedure: Analyze the document and inspect both the captured prompt text and the suggested filename.
+Expected outcome: The prompt includes the UTF-8 source filename intact, and the suggested filename preserves the UTF-8 rename result with its original extension.
+Run: `./build-tests/ai_file_sorter_tests "DocumentTextAnalyzer handles UTF-8 filenames"`
 
 #### Test case: StoragePluginManager refreshes available plugins from a remote catalog
 Purpose: Confirm remote catalog refresh merges plugin metadata for the current runtime.

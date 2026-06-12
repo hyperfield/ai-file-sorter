@@ -9,12 +9,11 @@ usage() {
 Usage: create_macos_bundle.sh [options]
 
 Options:
-  -v, --variant <m1|m2|intel|default>  Build only the specified bundle (can repeat or comma-separate)
+  -v, --variant <m1|m2|default>        Build only the specified bundle (can repeat or comma-separate)
       --m1                            Shortcut for --variant m1
       --m2                            Shortcut for --variant m2
-      --intel                         Shortcut for --variant intel
       --default                       Shortcut for --variant default
-      --all                           Build all variant bundles (m1, m2, intel)
+      --all                           Build all Apple Silicon variant bundles (m1, m2)
   -h, --help                          Show this help
 USAGE
 }
@@ -59,7 +58,6 @@ while [[ $# -gt 0 ]]; do
         if [[ "$norm" == "all" ]]; then
           add_variant "m1"
           add_variant "m2"
-          add_variant "intel"
         else
           add_variant "$norm"
         fi
@@ -73,7 +71,6 @@ while [[ $# -gt 0 ]]; do
     --all)
       add_variant "m1"
       add_variant "m2"
-      add_variant "intel"
       shift
       ;;
     -h|--help)
@@ -665,7 +662,7 @@ build_bundle() {
     <key>CFBundleExecutable</key>
     <string>${APP_NAME}</string>
     <key>LSMinimumSystemVersion</key>
-    <string>11.0</string>
+    <string>15.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>CFBundleIconFile</key>

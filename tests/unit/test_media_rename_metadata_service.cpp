@@ -11,6 +11,15 @@
 #include <string>
 #include <vector>
 
+namespace {
+
+std::string utf8_string(const char8_t* value)
+{
+    return std::string(reinterpret_cast<const char*>(value));
+}
+
+} // namespace
+
 TEST_CASE("MediaRenameMetadataService composes year-artist-album-title filenames") {
     MediaRenameMetadataService::MetadataFields metadata;
     metadata.year = "2014";
@@ -42,6 +51,18 @@ TEST_CASE("MediaRenameMetadataService keeps original filename when metadata is a
     const std::string output = MediaRenameMetadataService::compose_filename(input, metadata);
 
     REQUIRE(output == "video_clip.mp4");
+}
+
+TEST_CASE("MediaRenameMetadataService preserves UTF-8 metadata in composed filenames") {
+    MediaRenameMetadataService::MetadataFields metadata;
+    metadata.year = "2024";
+    metadata.artist = utf8_string(u8"서울 재즈");
+    metadata.title = utf8_string(u8"여름 밤");
+
+    const std::filesystem::path input{"/tmp/track01.mp3"};
+    const std::string output = MediaRenameMetadataService::compose_filename(input, metadata);
+
+    REQUIRE(output == utf8_string(u8"2024_서울_재즈_여름_밤.mp3"));
 }
 
 #ifndef AI_FILE_SORTER_USE_MEDIAINFOLIB

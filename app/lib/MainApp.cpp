@@ -1141,7 +1141,23 @@ void MainApp::on_language_selected(Language language)
 void MainApp::on_category_language_selected(CategoryLanguage language)
 {
     settings.set_category_language(language);
-    refresh_category_language_menu();
+    schedule_category_language_menu_refresh();
+}
+
+void MainApp::schedule_category_language_menu_refresh()
+{
+    if (category_language_refresh_pending_) {
+        return;
+    }
+
+    category_language_refresh_pending_ = true;
+    QTimer::singleShot(0, this, [this]() {
+        if (!category_language_refresh_pending_) {
+            return;
+        }
+
+        refresh_category_language_menu();
+    });
 }
 
 QAction* MainApp::category_language_action(CategoryLanguage language) const
@@ -1155,6 +1171,8 @@ QAction* MainApp::category_language_action(CategoryLanguage language) const
 
 void MainApp::refresh_category_language_menu()
 {
+    category_language_refresh_pending_ = false;
+
     const LLMChoice choice = settings.get_llm_choice();
     const auto& supported_languages = supported_category_languages_for_llm_choice(choice);
     std::vector<CategoryLanguage> ordered_languages = supported_languages;
@@ -1184,9 +1202,6 @@ void MainApp::refresh_category_language_menu()
               });
 
     if (category_language_menu) {
-        for (QMenu* const submenu : category_language_submenus_) {
-            delete submenu;
-        }
         category_language_submenus_.clear();
         category_language_menu->clear();
 
@@ -1221,7 +1236,7 @@ void MainApp::refresh_category_language_menu()
 
     const CategoryLanguage current = settings.get_category_language();
     if (!is_category_language_supported_for_llm_choice(choice, current)) {
-        if (current != CategoryLanguage::English) {
+        if (current != CategoryLanguage::English && core_logger) {
             core_logger->info("Resetting unsupported category language '{}' for LLM choice #{}.",
                               categoryLanguageDisplay(current),
                               static_cast<int>(choice));

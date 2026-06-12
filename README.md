@@ -122,7 +122,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Configurable categorization controls**: Use whitelists, taxonomy normalization, consistency modes, and review-time edits to steer categories and subcategories.
 - **Two categorization modes**: Pick **More Refined** for detailed labels or **More Consistent** to bias toward uniform categories within a folder.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
-- **Model-aware category languages**: Categorization stays canonical in English first and then translates labels into the selected category language. The available languages depend on the selected local model; Gemma 3 4B and custom local models expose the full app-supported list, while smaller built-in models expose only their supported subset.
+- **Model-aware category and rename languages**: Categorization stays canonical in English first and then translates labels into the selected category language. Suggested filenames for images, documents, and supported audio/video metadata flows are also localized into that same selected language before review. The available languages depend on the selected local model; Gemma 3 4B and custom local models expose the full app-supported list, while smaller built-in models expose only their supported subset.
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends such as the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
 - **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
@@ -156,6 +156,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 ### Category language selection
 
 - Category labels are generated canonically in English first and then translated into the selected **Settings → Category language** target.
+- Suggested filenames for image, document, and supported audio/video rename flows are also localized into the selected **Settings → Category language** target before review/apply.
 - The list is model-dependent for built-in local models. **Gemma 3 4B IT** and **Custom** local models expose the full app-supported category-language list, **Mistral 7B** exposes a smaller supported subset, and **Gemma 1.1 7B** stays English-only.
 - When the supported list is long, the menu is grouped into alphabetical submenus to keep it usable on smaller screens.
 
@@ -495,6 +496,8 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 ### macOS
 
+Apple Silicon Macs running macOS 15 or later are supported for macOS source builds and release bundles.
+
 1. **Install Xcode command-line tools** (`xcode-select --install`).
 2. **Install Homebrew** (if required).
 3. **Install dependencies**
@@ -511,7 +514,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```
 
 4. **Clone the repository and submodules** (same commands as Linux).
-   > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=11.0` so the Mach-O `LC_BUILD_VERSION` covers Apple Silicon and newer releases (including Sequoia). Raise or lower it (e.g., `export MACOSX_DEPLOYMENT_TARGET=15.0`) if you need a different floor.
+   > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=15.0` so the Mach-O `LC_BUILD_VERSION` matches the supported Apple Silicon floor. Raise it if you intentionally want a newer floor.
 
 5. **Build vendored libzip** (generates `zipconf.h` and `libzip.a`)
 
@@ -539,7 +542,6 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
    ```bash
    ./app/scripts/build_llama_macos.sh --arm64   # Apple Silicon
-   ./app/scripts/build_llama_macos.sh --intel   # Intel Mac
    ```
    The macOS app and `.app` bundles use the runtime staged under `app/lib/precompiled*`; they do not need Homebrew `ggml` or `llama.cpp` libraries.
    If you have older `ggml` / `llama.cpp` copies installed in generic library locations, prefer unlinking or removing them instead of relying on them implicitly.
@@ -558,25 +560,15 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ```bash
    make -j8 MACOS_LLAMA_M1    # outputs app/bin/m1/aifilesorter
    make -j8 MACOS_LLAMA_M2    # outputs app/bin/m2/aifilesorter
-   make -j8 MACOS_LLAMA_INTEL # outputs app/bin/intel/aifilesorter
    ```
 
    These targets rebuild the llama.cpp runtime before compiling the app.
-   On a native Intel Mac, the most direct path is:
-
-   ```bash
-   cd app
-   make -j8 MACOS_LLAMA_INTEL
-   ```
-
-   That target assumes the normal Intel Homebrew prefix (`/usr/local`) and produces `app/bin/intel/aifilesorter`.
-   When cross-compiling Intel on Apple Silicon, use x86_64 Homebrew (under `/usr/local`) or set `BREW_PREFIX=/usr/local` so Qt/pkg-config resolve correctly.
    `sudo make install` places the macOS runtime libraries under `/usr/local/lib/aifilesorter` to avoid collisions with unrelated system or Homebrew ggml libraries.
    The commands above build the raw executable only; they do **not** currently create a distributable `.app` bundle or `.dmg`.
    This repository does not yet ship a documented or automated macOS bundle/DMG packaging target in `README.md`, so any `.app` / `.dmg` release packaging must be handled as a separate macOS-hosted release step.
    Each variant uses distinct build directories to avoid cross-arch collisions:
-   - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`, `app/lib/precompiled-intel`
-   - object files: `app/obj/arm64` or `app/obj/x86_64`
+   - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`
+   - object files: `app/obj/arm64`
 
 ### Windows
 
