@@ -8,7 +8,9 @@
 #include "TranslationManager.hpp"
 
 #include <QAction>
+#include <QApplication>
 #include <QMenu>
+#include <QPointer>
 #include <QStringList>
 
 #include <algorithm>
@@ -68,6 +70,27 @@ QAction* find_category_language_action(QMenu* menu, CategoryLanguage language)
         }
         if (action && action->data().toInt() == static_cast<int>(language)) {
             return action;
+        }
+    }
+    return nullptr;
+}
+
+QMenu* find_parent_menu_for_language(QMenu* menu, CategoryLanguage language)
+{
+    REQUIRE(menu != nullptr);
+    const QList<QAction*> actions = menu->actions();
+    for (QAction* const action : actions) {
+        if (!action) {
+            continue;
+        }
+        if (QMenu* const submenu = action->menu()) {
+            if (find_category_language_action(submenu, language)) {
+                return submenu;
+            }
+            continue;
+        }
+        if (action->data().toInt() == static_cast<int>(language)) {
+            return menu;
         }
     }
     return nullptr;
@@ -257,5 +280,47 @@ TEST_CASE("Full Gemma 3 category language menus are compartmentalized into subme
     }
 
     CHECK(has_submenu);
+}
+
+TEST_CASE("Selecting a submenu-backed category language does not rebuild menus synchronously")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+    settings.set_llm_choice(LLMChoice::Local_4b_Gemma);
+
+    MainAppTestAccess::refresh_category_language_menu(window);
+
+    QMenu* const menu = MainAppTestAccess::category_language_menu(window);
+    REQUIRE(menu != nullptr);
+
+    QAction* const french_action = find_category_language_action(menu, CategoryLanguage::French);
+    REQUIRE(french_action != nullptr);
+
+    QMenu* const french_parent_menu = find_parent_menu_for_language(menu, CategoryLanguage::French);
+    REQUIRE(french_parent_menu != nullptr);
+    REQUIRE(french_parent_menu != menu);
+
+    QPointer<QMenu> parent_guard(french_parent_menu);
+    french_action->trigger();
+
+    CHECK(settings.get_category_language() == CategoryLanguage::French);
+    CHECK(parent_guard != nullptr);
+
+    QApplication::processEvents();
+
+    QAction* const refreshed_french_action =
+        find_category_language_action(MainAppTestAccess::category_language_menu(window),
+                                      CategoryLanguage::French);
+    REQUIRE(refreshed_french_action != nullptr);
+    CHECK(refreshed_french_action->isChecked());
 }
 #endif

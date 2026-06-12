@@ -452,6 +452,13 @@ Procedure: Refresh the category-language menu through the test access layer and 
 Expected outcome: At least one top-level category-language menu entry is a submenu, confirming the expanded list is compartmentalized.
 Run: `./build-tests/ai_file_sorter_tests "Full Gemma 3 category language menus are compartmentalized into submenus"`
 
+#### Test case: Selecting a submenu-backed category language does not rebuild menus synchronously
+Purpose: Prevent submenu-backed category-language selections from destroying the active Qt menu tree during the `triggered` signal, which previously caused Windows crashes inside `Qt6Widgets.dll`.
+Setup: Build `MainApp` with offscreen Qt in a temporary config directory and switch settings to `Local_4b_Gemma` so the category-language menu is grouped into submenus.
+Procedure: Refresh the category-language menu, locate the submenu that contains `French`, trigger that action directly, and process the queued Qt events.
+Expected outcome: The selected category language changes to French, the original parent submenu remains alive for the duration of the trigger handler, and the rebuilt menu still exposes `French` as the checked choice after queued events run.
+Run: `./build-tests/ai_file_sorter_tests "Selecting a submenu-backed category language does not rebuild menus synchronously"`
+
 ### `tests/unit/test_ui_translator.cpp` (non-Windows only)
 
 #### Test case: UiTranslator updates menus, actions, and controls
