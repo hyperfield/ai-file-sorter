@@ -17,6 +17,7 @@ BUNDLE_PATH=""
 DMG_PATH=""
 APP_DISPLAY_NAME="AI File Sorter"
 MOUNT_POINT=""
+SUPPORTED_MIN_MACOS_VERSION="${SUPPORTED_MIN_MACOS_VERSION:-${MACOSX_DEPLOYMENT_TARGET:-15.0}}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -70,6 +71,84 @@ plist_value() {
   /usr/libexec/PlistBuddy -c "Print :$key" "$plist"
 }
 
+version_gt() {
+  local lhs="$1"
+  local rhs="$2"
+  awk -v lhs="$lhs" -v rhs="$rhs" '
+    BEGIN {
+      split(lhs, a, ".");
+      split(rhs, b, ".");
+      for (i = 1; i <= 3; ++i) {
+        av = (i in a && a[i] != "") ? a[i] + 0 : 0;
+        bv = (i in b && b[i] != "") ? b[i] + 0 : 0;
+        if (av > bv) {
+          exit 0;
+        }
+        if (av < bv) {
+          exit 1;
+        }
+      }
+      exit 1;
+    }'
+}
+
+extract_macos_min_version() {
+  local mach_o="$1"
+  otool -l "$mach_o" 2>/dev/null | awk '
+    $1 == "cmd" && $2 == "LC_BUILD_VERSION" {
+      mode = "build";
+      next;
+    }
+    $1 == "cmd" && $2 == "LC_VERSION_MIN_MACOSX" {
+      mode = "legacy";
+      next;
+    }
+    mode == "build" && $1 == "minos" {
+      print $2;
+      exit;
+    }
+    mode == "legacy" && $1 == "version" {
+      print $2;
+      exit;
+    }
+    $1 == "cmd" {
+      mode = "";
+    }'
+}
+
+verify_bundle_minimum_macos_version() {
+  local bundle="$1"
+  local location="$2"
+  local issues=()
+  local mach_o info min_version relative
+
+  while IFS= read -r -d '' mach_o; do
+    info="$(file -b "$mach_o" 2>/dev/null || true)"
+    if [[ "$info" != *"Mach-O"* ]]; then
+      continue
+    fi
+
+    min_version="$(extract_macos_min_version "$mach_o")"
+    if [[ -z "$min_version" ]]; then
+      relative="${mach_o#"$bundle"/}"
+      issues+=("${relative}: missing macOS deployment metadata")
+      continue
+    fi
+
+    if version_gt "$min_version" "$SUPPORTED_MIN_MACOS_VERSION"; then
+      relative="${mach_o#"$bundle"/}"
+      issues+=("${relative}: built for macOS ${min_version}")
+    fi
+  done < <(find "$bundle/Contents" -type f -print0)
+
+  if (( ${#issues[@]} > 0 )); then
+    printf '%s bundle requires a newer macOS release than the supported floor %s:\n' \
+      "$location" "$SUPPORTED_MIN_MACOS_VERSION" >&2
+    printf '  %s\n' "${issues[@]}" >&2
+    exit 1
+  fi
+}
+
 verify_bundle() {
   local bundle="$1"
   local location="$2"
@@ -111,6 +190,8 @@ verify_bundle() {
     echo "$location CFBundleShortVersionString mismatch: expected $EXPECTED_VERSION, found $short_version" >&2
     exit 1
   fi
+
+  verify_bundle_minimum_macos_version "$bundle" "$location"
 }
 
 cleanup_mount() {
@@ -133,4 +214,4 @@ MOUNT_POINT="$(mktemp -d)"
 hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT_POINT" "$DMG_PATH" >/dev/null
 verify_bundle "$MOUNT_POINT/${APP_DISPLAY_NAME}.app" "DMG" "${APP_DISPLAY_NAME}.app"
 
-echo "Verified macOS release bundle and DMG against version $EXPECTED_VERSION."
+echo "Verified macOS release bundle and DMG against version $EXPECTED_VERSION and macOS floor $SUPPORTED_MIN_MACOS_VERSION."

@@ -80,7 +80,7 @@ endif
     LIBFFI_PREFIX := $(BREW_PREFIX)/opt/libffi
     EXPAT_PREFIX := $(BREW_PREFIX)/opt/expat
     SDKROOT := $(shell xcrun --sdk macosx --show-sdk-path 2>/dev/null)
-    MACOSX_DEPLOYMENT_TARGET ?= 11.0
+    MACOSX_DEPLOYMENT_TARGET ?= 15.0
     HOMEBREW_OS_PKG_CONFIG_DIRS := $(shell if [ -d "$(BREW_PREFIX)/Library/Homebrew/os/mac/pkgconfig" ]; then find "$(BREW_PREFIX)/Library/Homebrew/os/mac/pkgconfig" -mindepth 1 -maxdepth 1 -type d | tr '\n' ':' | sed 's/:$$//'; fi)
     # Homebrew exposes system pkg-config metadata like libcurl.pc here; libmediainfo depends on it.
     MACOS_PKG_CONFIG_DIRS := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig$(if $(strip $(HOMEBREW_OS_PKG_CONFIG_DIRS)),:$(HOMEBREW_OS_PKG_CONFIG_DIRS))
@@ -551,7 +551,7 @@ $(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_M1,MACOS_LLAMA_M1,./bin/m1,./
 $(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_M2,MACOS_LLAMA_M2,./bin/m2,./dist/AIFileSorter-M2-M3.dmg,m2,./obj/arm64/m2))
 $(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_INTEL,MACOS_LLAMA_INTEL,./bin/intel,./dist/AIFileSorter-Intel.dmg,intel,./obj/x86_64/intel))
 
-MACOS_RELEASE_ALL: MACOS_RELEASE_M1 MACOS_RELEASE_M2 MACOS_RELEASE_INTEL
+MACOS_RELEASE_ALL: MACOS_RELEASE_M1 MACOS_RELEASE_M2
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"
 
 $(TARGET): $(OBJS) $(QRC_OBJ) $(TRANSLATIONS_QRC_OBJ) $(DOC_LIBS) | doc_runtime_libs $(DOC_RUNTIME_DEPS)

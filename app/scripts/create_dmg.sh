@@ -9,12 +9,11 @@ usage() {
 Usage: create_dmg.sh [options]
 
 Options:
-  -v, --variant <m1|m2|intel|default>  Package only the specified bundle (can repeat or comma-separate)
+  -v, --variant <m1|m2|default>        Package only the specified bundle (can repeat or comma-separate)
       --m1                            Shortcut for --variant m1
       --m2                            Shortcut for --variant m2
-      --intel                         Shortcut for --variant intel
       --default                       Shortcut for --variant default
-      --all                           Package all variant bundles (m1, m2, intel)
+      --all                           Package all Apple Silicon variant bundles (m1, m2)
   -h, --help                          Show this help
 USAGE
 }
@@ -59,7 +58,6 @@ while [[ $# -gt 0 ]]; do
         if [[ "$norm" == "all" ]]; then
           add_variant "m1"
           add_variant "m2"
-          add_variant "intel"
         else
           add_variant "$norm"
         fi
@@ -73,7 +71,6 @@ while [[ $# -gt 0 ]]; do
     --all)
       add_variant "m1"
       add_variant "m2"
-      add_variant "intel"
       shift
       ;;
     -h|--help)
@@ -170,9 +167,6 @@ else
   fi
   if [[ -f "$APP_DIR/bin/m2/aifilesorter" ]]; then
     variants+=("m2")
-  fi
-  if [[ -f "$APP_DIR/bin/intel/aifilesorter" ]]; then
-    variants+=("intel")
   fi
   if (( ${#variants[@]} == 0 )); then
     if [[ ! -d "$BUNDLE_PATH" ]]; then
