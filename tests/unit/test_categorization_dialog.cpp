@@ -2,6 +2,7 @@
 #include "CategorizationDialog.hpp"
 #include "CloudCompatibilityProvider.hpp"
 #include "DatabaseManager.hpp"
+#include "IFilePreviewService.hpp"
 #include "Logger.hpp"
 #include "LocalFsProvider.hpp"
 #include "StorageProviderRegistry.hpp"
@@ -17,6 +18,50 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+
+namespace {
+
+class RecordingPreviewService final : public IFilePreviewService {
+public:
+    bool preview_file(const std::filesystem::path& file_path,
+                      QWidget* parent) override {
+        ++calls;
+        last_path = file_path;
+        last_parent = parent;
+        return should_succeed;
+    }
+
+    int calls{0};
+    bool should_succeed{true};
+    std::filesystem::path last_path;
+    QWidget* last_parent{nullptr};
+};
+
+} // namespace
+
+TEST_CASE("CategorizationDialog delegates preview requests to the preview service") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    TempDir undo_dir;
+    CategorizedFile file;
+    file.file_path = "/tmp";
+    file.file_name = "preview.txt";
+    file.type = FileType::File;
+    file.category = "Docs";
+    file.subcategory = "Reports";
+
+    CategorizationDialog dialog(nullptr, true, undo_dir.path().string());
+    auto preview_service = std::make_unique<RecordingPreviewService>();
+    auto* preview_service_ptr = preview_service.get();
+    dialog.set_file_preview_service(std::move(preview_service));
+    dialog.test_set_entries({file});
+
+    REQUIRE(dialog.test_trigger_preview(0));
+    REQUIRE(preview_service_ptr->calls == 1);
+    CHECK(preview_service_ptr->last_path == std::filesystem::path("/tmp") / "preview.txt");
+    CHECK(preview_service_ptr->last_parent == &dialog);
+}
 
 #ifndef _WIN32
 

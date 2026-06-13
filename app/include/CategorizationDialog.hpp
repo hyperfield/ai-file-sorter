@@ -15,10 +15,12 @@
 #include <spdlog/logger.h>
 
 class DatabaseManager;
+class IFilePreviewService;
 class IStorageProvider;
 class UserLearningStore;
 class QCloseEvent;
 class QEvent;
+class QModelIndex;
 class QPushButton;
 class QTableView;
 class QCheckBox;
@@ -60,13 +62,20 @@ public:
                          CategoryLanguage category_language = CategoryLanguage::English,
                          QWidget* parent = nullptr,
                          UserLearningStore* learning_store = nullptr);
+    ~CategorizationDialog() override;
 
     void set_show_subcategory_column(bool enabled);
     bool show_subcategory_column_enabled() const { return show_subcategory_column; }
+    /**
+     * @brief Replace the file preview service used by the review dialog.
+     * @param preview_service Service to use. Passing nullptr restores the default implementation.
+     */
+    void set_file_preview_service(std::unique_ptr<IFilePreviewService> preview_service);
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
     void test_set_entries(const std::vector<CategorizedFile>& files);
     void test_trigger_confirm();
+    bool test_trigger_preview(int row);
     void test_trigger_undo();
     bool test_undo_enabled() const;
 #endif
@@ -167,6 +176,8 @@ private:
                               bool renamed = false,
                               bool moved = false);
     void on_select_all_toggled(bool checked);
+    void on_preview_button_clicked();
+    void on_table_double_clicked(const QModelIndex& index);
     /**
      * @brief Selects all highlighted rows for processing.
      */
@@ -260,6 +271,21 @@ private:
      */
     std::vector<int> selected_row_indices() const;
     /**
+     * @brief Returns the row that should be previewed from the current selection context.
+     * @return Row index to preview, or std::nullopt when no row is available.
+     */
+    std::optional<int> current_preview_row() const;
+    /**
+     * @brief Open a preview for the given model row.
+     * @param row Row index in the model.
+     * @return True when preview launch succeeded.
+     */
+    bool preview_row(int row);
+    /**
+     * @brief Updates preview action availability based on the current model content.
+     */
+    void update_preview_button_state();
+    /**
      * @brief Opens a dialog to bulk edit categories for highlighted rows.
      */
     void on_bulk_edit_clicked();
@@ -284,6 +310,7 @@ private:
     QPushButton* confirm_button{nullptr};
     QPushButton* continue_button{nullptr};
     QPushButton* close_button{nullptr};
+    QPushButton* preview_button{nullptr};
     QCheckBox* select_all_checkbox{nullptr};
     QPushButton* select_highlighted_button{nullptr};
     QPushButton* bulk_edit_button{nullptr};
@@ -300,6 +327,7 @@ private:
     bool suppress_item_changed_{false};
     std::string undo_dir_;
     std::string base_dir_;
+    std::unique_ptr<IFilePreviewService> preview_service_;
 };
 
 #endif // CATEGORIZATIONDIALOG_HPP

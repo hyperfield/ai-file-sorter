@@ -1327,7 +1327,14 @@ Procedure: Reload settings and retrieve the endpoint by ID.
 Expected outcome: All fields match the original, and the active endpoint ID is preserved.
 Run: `./build-tests/ai_file_sorter_tests "Custom API endpoints persist across Settings load/save"`
 
-### `tests/unit/test_categorization_dialog.cpp` (non-Windows only)
+### `tests/unit/test_categorization_dialog.cpp` (mixed platform coverage; most cases non-Windows)
+
+#### Test case: CategorizationDialog delegates preview requests to the preview service
+Purpose: Verify that preview actions flow through the injected preview service abstraction.
+Setup: Load a single categorized file into the dialog and replace the preview service with a recording test double.
+Procedure: Trigger preview for the first row through the dialog test hook.
+Expected outcome: The preview service is called once with the resolved file path and the dialog as parent.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog delegates preview requests to the preview service"`
 
 #### Test case: CategorizationDialog uses subcategory toggle when moving files
 Purpose: Ensure the dialog respects the subcategory visibility toggle during file moves.

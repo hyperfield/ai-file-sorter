@@ -10,6 +10,7 @@
 #include "UserLearningStore.hpp"
 #include "DryRunPreviewDialog.hpp"
 #include "DocumentTextAnalyzer.hpp"
+#include "IFilePreviewService.hpp"
 #include "LlavaImageAnalyzer.hpp"
 
 #include <QAbstractItemView>
@@ -27,6 +28,7 @@
 #include <QPushButton>
 #include <QIcon>
 #include <QImage>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -301,7 +303,8 @@ CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
       core_logger(Logger::get_logger("core_logger")),
       db_logger(Logger::get_logger("db_logger")),
       ui_logger(Logger::get_logger("ui_logger")),
-      undo_dir_(undo_dir)
+      undo_dir_(undo_dir),
+      preview_service_(create_file_preview_service())
 {
     resize(1100, 720);
     setSizeGripEnabled(true);
@@ -314,6 +317,14 @@ CategorizationDialog::CategorizationDialog(DatabaseManager* db_manager,
     setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
     setup_ui();
     retranslate_ui();
+}
+
+CategorizationDialog::~CategorizationDialog() = default;
+
+void CategorizationDialog::set_file_preview_service(std::unique_ptr<IFilePreviewService> preview_service)
+{
+    preview_service_ = preview_service ? std::move(preview_service)
+                                       : create_file_preview_service();
 }
 
 
@@ -448,6 +459,8 @@ void CategorizationDialog::setup_ui()
     undo_button->setVisible(false);
     close_button = new QPushButton(this);
     close_button->setVisible(false);
+    preview_button = new QPushButton(this);
+    preview_button->setEnabled(false);
 
     scroll_area->setWidget(scroll_widget);
     layout->addWidget(scroll_area, 1);
@@ -456,6 +469,7 @@ void CategorizationDialog::setup_ui()
     bottom_layout->setContentsMargins(0, 0, 0, 0);
     bottom_layout->setSpacing(8);
     bottom_layout->addStretch(1);
+    bottom_layout->addWidget(preview_button);
     bottom_layout->addWidget(confirm_button);
     bottom_layout->addWidget(continue_button);
     bottom_layout->addWidget(undo_button);
@@ -473,10 +487,12 @@ void CategorizationDialog::setup_ui()
     connect(continue_button, &QPushButton::clicked, this, &CategorizationDialog::on_continue_later_button_clicked);
     connect(close_button, &QPushButton::clicked, this, &CategorizationDialog::accept);
     connect(undo_button, &QPushButton::clicked, this, &CategorizationDialog::on_undo_button_clicked);
+    connect(preview_button, &QPushButton::clicked, this, &CategorizationDialog::on_preview_button_clicked);
     connect(select_all_checkbox, &QCheckBox::toggled, this, &CategorizationDialog::on_select_all_toggled);
     connect(select_highlighted_button, &QPushButton::clicked, this, &CategorizationDialog::on_select_highlighted_clicked);
     connect(bulk_edit_button, &QPushButton::clicked, this, &CategorizationDialog::on_bulk_edit_clicked);
     connect(model, &QStandardItemModel::itemChanged, this, &CategorizationDialog::on_item_changed);
+    connect(table_view, &QTableView::doubleClicked, this, &CategorizationDialog::on_table_double_clicked);
     connect(show_subcategories_checkbox, &QCheckBox::toggled,
             this, &CategorizationDialog::on_show_subcategories_toggled);
     connect(rename_images_only_checkbox, &QCheckBox::toggled,
@@ -487,6 +503,13 @@ void CategorizationDialog::setup_ui()
     auto* select_highlighted_shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space), this);
     connect(select_highlighted_shortcut, &QShortcut::activated,
             this, &CategorizationDialog::on_select_highlighted_clicked);
+
+    if (table_view && table_view->selectionModel()) {
+        connect(table_view->selectionModel(),
+                &QItemSelectionModel::selectionChanged,
+                this,
+                [this]() { update_preview_button_state(); });
+    }
 }
 
 
@@ -1160,6 +1183,7 @@ void CategorizationDialog::populate_model()
     apply_rename_visibility();
     table_view->resizeColumnsToContents();
     update_select_all_state();
+    update_preview_button_state();
 }
 
 void CategorizationDialog::update_type_icon(QStandardItem* item)
@@ -2039,6 +2063,88 @@ std::vector<int> CategorizationDialog::selected_row_indices() const
     return rows;
 }
 
+std::optional<int> CategorizationDialog::current_preview_row() const
+{
+    if (!model || model->rowCount() == 0) {
+        return std::nullopt;
+    }
+
+    const auto rows = selected_row_indices();
+    if (!rows.empty()) {
+        return rows.front();
+    }
+
+    if (table_view) {
+        const QModelIndex current = table_view->currentIndex();
+        if (current.isValid()) {
+            return current.row();
+        }
+    }
+
+    return 0;
+}
+
+bool CategorizationDialog::preview_row(int row)
+{
+    if (!model || row < 0 || row >= model->rowCount()) {
+        return false;
+    }
+
+    auto* file_item = model->item(row, ColumnFile);
+    if (!file_item) {
+        return false;
+    }
+
+    std::string source_dir = file_item->data(kFilePathRole).toString().toStdString();
+    if (source_dir.empty()) {
+        source_dir = base_dir_;
+    }
+    const std::string file_name = file_item->text().toStdString();
+    if (source_dir.empty() || file_name.empty()) {
+        return false;
+    }
+
+    if (!preview_service_) {
+        preview_service_ = create_file_preview_service();
+    }
+
+    const std::filesystem::path full_path =
+        Utils::utf8_to_path(source_dir) / Utils::utf8_to_path(file_name);
+    const bool launched = preview_service_->preview_file(full_path, this);
+    if (!launched && ui_logger) {
+        ui_logger->warn("Preview launch failed for '{}'", Utils::path_to_utf8(full_path));
+    }
+    return launched;
+}
+
+void CategorizationDialog::update_preview_button_state()
+{
+    if (!preview_button) {
+        return;
+    }
+    preview_button->setEnabled(model && model->rowCount() > 0);
+}
+
+void CategorizationDialog::on_preview_button_clicked()
+{
+    const auto row = current_preview_row();
+    if (!row.has_value()) {
+        return;
+    }
+    preview_row(*row);
+}
+
+void CategorizationDialog::on_table_double_clicked(const QModelIndex& index)
+{
+    if (!index.isValid()) {
+        return;
+    }
+    if (index.column() != ColumnFile && index.column() != ColumnType) {
+        return;
+    }
+    preview_row(index.row());
+}
+
 void CategorizationDialog::on_select_highlighted_clicked()
 {
     const auto rows = selected_row_indices();
@@ -2906,6 +3012,7 @@ void CategorizationDialog::retranslate_ui()
     set_text_if(dry_run_checkbox, tr("Dry run (preview only, do not move files)"));
     set_text_if(rename_images_only_checkbox, tr("Do not categorize picture files (only rename)"));
     set_text_if(rename_documents_only_checkbox, tr("Do not categorize document files (only rename)"));
+    set_text_if(preview_button, tr("Preview"));
     set_text_if(confirm_button, tr("Confirm and Process"));
     set_text_if(continue_button, tr("Continue Later"));
     set_text_if(undo_button, tr("Undo this change"));
@@ -3120,6 +3227,10 @@ void CategorizationDialog::test_set_entries(const std::vector<CategorizedFile>& 
 
 void CategorizationDialog::test_trigger_confirm() {
     on_confirm_and_sort_button_clicked();
+}
+
+bool CategorizationDialog::test_trigger_preview(int row) {
+    return preview_row(row);
 }
 
 void CategorizationDialog::test_trigger_undo() {
