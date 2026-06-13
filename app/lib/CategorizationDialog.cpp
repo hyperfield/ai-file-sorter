@@ -114,6 +114,24 @@ bool is_missing_category_label(const std::string& value) {
     return to_lower_copy_str(trimmed) == "uncategorized";
 }
 
+std::string read_item_or_hidden_text(const QStandardItem* item, int hidden_role)
+{
+    if (!item) {
+        return std::string();
+    }
+
+    const std::string text = item->text().toStdString();
+    if (!text.empty()) {
+        return text;
+    }
+
+    if (hidden_role >= 0 && item->data(hidden_role).isValid()) {
+        return item->data(hidden_role).toString().toStdString();
+    }
+
+    return std::string();
+}
+
 // Dialog for bulk editing category and subcategory values.
 class BulkEditDialog final : public QDialog {
 public:
@@ -1288,10 +1306,8 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
         bool rename_only = file_item->data(kRenameOnlyRole).toBool();
         auto* category_item = model->item(row, ColumnCategory);
         auto* subcategory_item = model->item(row, ColumnSubcategory);
-        std::string category = category_item ? category_item->text().toStdString() : std::string();
-        std::string subcategory = show_subcategory_column && subcategory_item
-                                      ? subcategory_item->text().toStdString()
-                                      : std::string();
+        std::string category = read_item_or_hidden_text(category_item, kHiddenCategoryRole);
+        std::string subcategory = read_item_or_hidden_text(subcategory_item, kHiddenSubcategoryRole);
         const bool is_image = row_is_supported_image(row);
         const bool is_document = row_is_supported_document(row);
         if (is_image || is_document) {
@@ -1475,13 +1491,11 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
                 continue;
             }
 
-            std::string category = category_item->text().toStdString();
+            std::string category = read_item_or_hidden_text(category_item, kHiddenCategoryRole);
             if (is_missing_category_label(category)) {
                 continue;
             }
-            std::string subcategory = show_subcategory_column && subcategory_item
-                ? subcategory_item->text().toStdString()
-                : std::string();
+            std::string subcategory = read_item_or_hidden_text(subcategory_item, kHiddenSubcategoryRole);
             if (is_missing_category_label(subcategory)) {
                 subcategory.clear();
             }
@@ -1546,10 +1560,8 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
         }
 
         const std::string file_name = file_item->text().toStdString();
-        const std::string category = category_item->text().toStdString();
-        const std::string subcategory = show_subcategory_column && subcategory_item
-                                            ? subcategory_item->text().toStdString()
-                                            : std::string();
+        const std::string category = read_item_or_hidden_text(category_item, kHiddenCategoryRole);
+        const std::string subcategory = read_item_or_hidden_text(subcategory_item, kHiddenSubcategoryRole);
         const std::string rename_candidate = rename_item
                                                  ? rename_item->text().toStdString()
                                                  : std::string();
@@ -2796,10 +2808,8 @@ CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_r
             true};
     }
 
-    const std::string category = category_item->text().toStdString();
-    const std::string subcategory = show_subcategory_column && subcategory_item
-        ? subcategory_item->text().toStdString()
-        : std::string();
+    const std::string category = read_item_or_hidden_text(category_item, kHiddenCategoryRole);
+    const std::string subcategory = read_item_or_hidden_text(subcategory_item, kHiddenSubcategoryRole);
     const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
 
     std::string validation_error;

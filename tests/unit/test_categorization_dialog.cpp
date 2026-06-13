@@ -738,6 +738,46 @@ TEST_CASE("CategorizationDialog rename-only preserves cached categories without 
     CHECK(cached->rename_only);
 }
 
+TEST_CASE("CategorizationDialog preserves cached subcategories when the subcategory column is hidden") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    QtAppContext qt_context;
+
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    DatabaseManager db(config_dir.path().string());
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "photo.jpg";
+    std::ofstream(base / file_name).put('x');
+
+    auto resolved = db.resolve_category("Images", "Screens");
+    REQUIRE(db.insert_or_update_file_with_categorization(
+        file_name, "F", base.string(), resolved, false, std::string(), false));
+
+    CategorizedFile file;
+    file.file_path = base.string();
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "Images";
+    file.subcategory = "Screens";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(&db, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+    dialog.set_show_subcategory_column(false);
+
+    dialog.show();
+    QApplication::processEvents();
+    dialog.close();
+    QApplication::processEvents();
+
+    const auto cached = db.get_categorized_file(base.string(), file_name, FileType::File);
+    REQUIRE(cached.has_value());
+    CHECK(cached->category == resolved.category);
+    CHECK(cached->subcategory == resolved.subcategory);
+}
+
 TEST_CASE("CategorizationDialog rename-only preserves cached categories when renaming") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
     QtAppContext qt_context;

@@ -1371,6 +1371,13 @@ Procedure: Confirm the dialog, auto-close the preview popup, and inspect `core.l
 Expected outcome: The source file stays in place, no destination file is created, and the log contains the dry-run completion message without the real-move success message.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog dry run logs preview completion without moved success"`
 
+#### Test case: CategorizationDialog preserves cached subcategories when the subcategory column is hidden
+Purpose: Prevent review-only folder-layout toggles from overwriting cached taxonomy subcategories.
+Setup: Seed the cache with a categorized file that has a non-General subcategory, then load the same file into the review dialog.
+Procedure: Hide the subcategory column, close the dialog, and reload the cached categorization entry.
+Expected outcome: The cached category and subcategory remain unchanged instead of being normalized to `General`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog preserves cached subcategories when the subcategory column is hidden"`
+
 #### Test case: UndoManager restores saved plans through the active storage provider
 Purpose: Verify persisted undo plans can be replayed through the storage provider abstraction.
 Setup: Create a saved move plan and attach a storage provider that records undo calls.
