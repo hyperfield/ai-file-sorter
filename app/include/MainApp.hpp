@@ -293,6 +293,10 @@ private:
     bool perform_undo_from_plan(const QString& plan_path);
     void show_suitability_benchmark_dialog(bool auto_start);
     void maybe_show_suitability_benchmark();
+    /**
+     * @brief Starts a background local-backend probe after the window is shown.
+     */
+    void schedule_backend_status_probe();
     void refresh_backend_status_label();
     void schedule_backend_status_label_refresh();
     QString current_backend_status_text() const;
@@ -487,15 +491,20 @@ private:
 
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;
+    std::jthread backend_status_probe_thread_;
     std::atomic<bool> stop_analysis{false};
     bool analysis_in_progress_{false};
     bool status_is_ready_{true};
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
+    bool backend_status_probe_started_{false};
+    bool backend_status_probe_completed_{false};
     bool category_language_refresh_pending_{false};
     bool donation_prompt_active_{false};
     std::string last_storage_support_warning_key_;
     std::string last_storage_provider_notice_key_;
+    std::optional<std::string> backend_status_probe_backend_key_;
+    std::optional<std::string> backend_status_probe_cpu_backend_label_;
     std::optional<bool> text_cpu_fallback_choice_;
     std::optional<bool> visual_cpu_fallback_choice_;
     std::optional<bool> continue_without_visual_analysis_choice_;

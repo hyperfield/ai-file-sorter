@@ -1026,28 +1026,7 @@ bool is_probably_integrated_gpu(ggml_backend_dev_t device,
 }
 
 void load_ggml_backends_once(const std::shared_ptr<spdlog::logger>& logger) {
-    static bool loaded = false;
-    if (loaded) {
-        return;
-    }
-
-    if (const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment()) {
-        if (logger) {
-            logger->warn("{}", *reason);
-        }
-    }
-
-    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-    if (ggml_dir && ggml_dir[0] != '\0') {
-        if (logger) {
-            logger->info("Loading ggml backends from '{}'", ggml_dir);
-        }
-        ggml_backend_load_all_from_path(ggml_dir);
-    } else {
-        ggml_backend_load_all();
-    }
-
-    loaded = true;
+    GgmlRuntimePaths::ensure_ggml_backends_loaded(logger);
 }
 
 using BackendMemoryInfo = TestHooks::BackendMemoryInfo;

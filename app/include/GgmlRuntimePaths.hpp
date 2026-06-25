@@ -1,10 +1,13 @@
 #pragma once
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+
+namespace spdlog { class logger; }
 
 namespace GgmlRuntimePaths {
 
@@ -102,5 +105,17 @@ LinuxAcceleratorPayloadCheck validate_linux_accelerator_payload(
  * otherwise `std::nullopt`.
  */
 std::optional<std::string> sanitize_linux_backend_environment();
+
+/**
+ * @brief Loads ggml backend plugins once for the current process.
+ *
+ * The loader is shared across the app so UI-side capability checks, local LLM
+ * startup, and benchmark dialogs cannot race each other into duplicate backend
+ * initialization. Logging is optional and only used during the first load.
+ *
+ * @param logger Optional logger used to report path-based backend loading and
+ * Linux accelerator payload sanitization decisions.
+ */
+void ensure_ggml_backends_loaded(const std::shared_ptr<spdlog::logger>& logger = {});
 
 } // namespace GgmlRuntimePaths

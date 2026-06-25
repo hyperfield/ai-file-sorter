@@ -549,24 +549,7 @@ struct BackendMemorySnapshot {
 
 void load_ggml_backends_once()
 {
-    static bool loaded = false;
-    if (loaded) {
-        return;
-    }
-
-    if (const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment()) {
-        if (auto logger = Logger::get_logger("core_logger")) {
-            logger->warn("{}", *reason);
-        }
-    }
-
-    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-    if (ggml_dir && *ggml_dir) {
-        ggml_backend_load_all_from_path(ggml_dir);
-    } else {
-        ggml_backend_load_all();
-    }
-    loaded = true;
+    GgmlRuntimePaths::ensure_ggml_backends_loaded(Logger::get_logger("core_logger"));
 }
 
 std::optional<BackendMemorySnapshot> query_backend_memory(std::string_view backend_name)

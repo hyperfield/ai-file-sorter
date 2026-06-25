@@ -362,24 +362,7 @@ bool case_insensitive_contains(std::string_view haystack, std::string_view needl
 
 void load_status_ggml_backends_once()
 {
-    static bool loaded = false;
-    if (loaded) {
-        return;
-    }
-
-    if (const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment()) {
-        if (auto logger = Logger::get_logger("core_logger")) {
-            logger->warn("{}", *reason);
-        }
-    }
-
-    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-    if (ggml_dir && *ggml_dir) {
-        ggml_backend_load_all_from_path(ggml_dir);
-    } else {
-        ggml_backend_load_all();
-    }
-    loaded = true;
+    GgmlRuntimePaths::ensure_ggml_backends_loaded(Logger::get_logger("core_logger"));
 }
 
 bool status_backend_available(std::string_view backend_name)
@@ -616,6 +599,9 @@ MainApp::~MainApp() = default;
 void MainApp::run()
 {
     show();
+    QTimer::singleShot(0, this, [this]() {
+        schedule_backend_status_probe();
+    });
 #if !defined(AI_FILE_SORTER_TEST_BUILD)
     maybe_show_suitability_benchmark();
 #endif
@@ -624,6 +610,7 @@ void MainApp::run()
 
 void MainApp::shutdown()
 {
+    backend_status_probe_thread_.request_stop();
     stop_running_analysis();
     save_settings();
 }
@@ -1082,9 +1069,13 @@ QString MainApp::current_backend_status_text() const
         return tr("Loaded backend: Remote API");
     }
 
+    if (!backend_status_probe_completed_) {
+        return tr("Checking local backend...");
+    }
+
     const QString cpu_backend = QString::fromStdString(
-        detect_status_blas_backend_label().value_or(std::string("CPU")));
-    const std::string backend_key = detect_loaded_backend_key();
+        backend_status_probe_cpu_backend_label_.value_or(std::string("CPU")));
+    const std::string backend_key = backend_status_probe_backend_key_.value_or(std::string("cpu"));
     const QString backend_name = backend_display_name(backend_key);
 
     if (backend_key == "cuda" || backend_key == "vulkan" ||
@@ -1096,6 +1087,38 @@ QString MainApp::current_backend_status_text() const
         return tr("Loaded CPU backend: CPU");
     }
     return tr("Loaded CPU backend: CPU with %1").arg(cpu_backend);
+}
+
+void MainApp::schedule_backend_status_probe()
+{
+    if (!using_local_llm || backend_status_probe_started_) {
+        return;
+    }
+
+    backend_status_probe_started_ = true;
+    backend_status_probe_thread_ = std::jthread([this](std::stop_token stop_token) {
+        const std::string backend_key = detect_loaded_backend_key();
+
+        if (stop_token.stop_requested()) {
+            return;
+        }
+
+        const std::optional<std::string> cpu_backend_label = detect_status_blas_backend_label();
+
+        if (stop_token.stop_requested()) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, backend_key, cpu_backend_label]() {
+                backend_status_probe_backend_key_ = backend_key;
+                backend_status_probe_cpu_backend_label_ = cpu_backend_label;
+                backend_status_probe_completed_ = true;
+                refresh_backend_status_label();
+            },
+            Qt::QueuedConnection);
+    });
 }
 
 void MainApp::refresh_backend_status_label()
@@ -2618,6 +2641,7 @@ void MainApp::show_llm_selection_dialog()
             refresh_category_language_menu();
             settings.save();
             refresh_backend_status_label();
+            schedule_backend_status_probe();
         }
     } catch (const std::exception& ex) {
         show_error_dialog(fmt::format("LLM selection error: {}", ex.what()));

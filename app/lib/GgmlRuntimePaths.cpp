@@ -1,9 +1,14 @@
 #include "GgmlRuntimePaths.hpp"
 
+#include "ggml-backend.h"
+
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdlib>
+#include <mutex>
 #include <span>
 
 namespace GgmlRuntimePaths {
@@ -325,6 +330,29 @@ std::optional<std::string> sanitize_linux_backend_environment()
     return "Rejected stale " + *backend_key + " runtime payload '" + ggml_dir.string() +
            "': " + validation.reason + ". Falling back to CPU.";
 #endif
+}
+
+void ensure_ggml_backends_loaded(const std::shared_ptr<spdlog::logger>& logger)
+{
+    static std::once_flag load_once;
+
+    std::call_once(load_once, [&logger]() {
+        if (const auto reason = sanitize_linux_backend_environment()) {
+            if (logger) {
+                logger->warn("{}", *reason);
+            }
+        }
+
+        const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+        if (ggml_dir && ggml_dir[0] != '\0') {
+            if (logger) {
+                logger->info("Loading ggml backends from '{}'", ggml_dir);
+            }
+            ggml_backend_load_all_from_path(ggml_dir);
+        } else {
+            ggml_backend_load_all();
+        }
+    });
 }
 
 } // namespace GgmlRuntimePaths
