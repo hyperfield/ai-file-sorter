@@ -9,9 +9,10 @@ usage() {
 Usage: create_macos_bundle.sh [options]
 
 Options:
-  -v, --variant <m1|m2|default>        Build only the specified bundle (can repeat or comma-separate)
+  -v, --variant <m1|m2|intel|default>  Build only the specified bundle (can repeat or comma-separate)
       --m1                            Shortcut for --variant m1
       --m2                            Shortcut for --variant m2
+      --intel                         Shortcut for --variant intel
       --default                       Shortcut for --variant default
       --all                           Build all Apple Silicon variant bundles (m1, m2)
   -h, --help                          Show this help
@@ -87,6 +88,7 @@ done
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_NAME="${APP_NAME:-AIFileSorter}"
+USER_APP_DISPLAY_NAME="${APP_DISPLAY_NAME-}"
 APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AI File Sorter}"
 APP_DIR="$ROOT_DIR/app"
 BIN_DIR="${BIN_DIR:-$APP_DIR/bin}"
@@ -760,18 +762,27 @@ if (( ${#variants[@]} > 0 )); then
         EXECUTABLE_SRC="$BIN_DIR/aifilesorter"
         PRECOMPILED_SUBDIR="precompiled-m1"
         BUNDLE_ARCH="arm64"
+        if [[ -z "$USER_APP_DISPLAY_NAME" ]]; then
+          APP_DISPLAY_NAME="AI File Sorter for Mac M1"
+        fi
         ;;
       m2)
         BIN_DIR="$APP_DIR/bin/m2"
         EXECUTABLE_SRC="$BIN_DIR/aifilesorter"
         PRECOMPILED_SUBDIR="precompiled-m2"
         BUNDLE_ARCH="arm64"
+        if [[ -z "$USER_APP_DISPLAY_NAME" ]]; then
+          APP_DISPLAY_NAME="AI File Sorter for Mac M2-M5"
+        fi
         ;;
       intel)
         BIN_DIR="$APP_DIR/bin/intel"
         EXECUTABLE_SRC="$BIN_DIR/aifilesorter"
         PRECOMPILED_SUBDIR="precompiled-intel"
         BUNDLE_ARCH="x86_64"
+        if [[ -z "$USER_APP_DISPLAY_NAME" ]]; then
+          APP_DISPLAY_NAME="AI File Sorter for Mac Intel"
+        fi
         ;;
       default)
         # Use current env/default settings

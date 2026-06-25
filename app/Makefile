@@ -14,7 +14,7 @@ AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL ?= https://filesorter.app/download/plu
 MACOS_ADHOC_CODESIGN_SCRIPT := ./scripts/adhoc_codesign_macos.sh
 MACOS_CANONICAL_APP_NAME := AIFileSorter
 MACOS_CANONICAL_APP_BUNDLE := ./$(MACOS_CANONICAL_APP_NAME).app
-MACOS_LEGACY_APP_BUNDLES := ./AIFileSorter-M1.app ./AIFileSorter-M2-M3.app ./AIFileSorter-Intel.app
+MACOS_LEGACY_APP_BUNDLES := ./AIFileSorter-M1.app ./AIFileSorter-M2-M3.app ./AIFileSorter-M2-M5.app ./AIFileSorter-Intel.app
 MACOS_RELEASE_VERIFY_SCRIPT := ./scripts/verify_macos_release.sh
 
 # Goals that should not require toolchain/dependency discovery.
@@ -541,15 +541,15 @@ ifeq ($(UNAME), Darwin)
 	$(MAKE) $2
 	bash ./scripts/create_macos_bundle.sh --$5
 	REBUILD_BUNDLE_BEFORE_PACKAGE=0 bash ./scripts/create_dmg.sh --$5
-	bash $(MACOS_RELEASE_VERIFY_SCRIPT) --bundle "$(CURDIR)/AIFileSorter.app" --dmg "$(CURDIR)/$4"
+	bash $(MACOS_RELEASE_VERIFY_SCRIPT) --bundle "$(CURDIR)/AIFileSorter.app" --dmg "$(CURDIR)/$4" --app-display-name "$7"
 else
 	@echo "$1 is only supported on macOS."
 endif
 endef
 
-$(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_M1,MACOS_LLAMA_M1,./bin/m1,./dist/AIFileSorter-M1.dmg,m1,./obj/arm64/m1))
-$(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_M2,MACOS_LLAMA_M2,./bin/m2,./dist/AIFileSorter-M2-M3.dmg,m2,./obj/arm64/m2))
-$(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_INTEL,MACOS_LLAMA_INTEL,./bin/intel,./dist/AIFileSorter-Intel.dmg,intel,./obj/x86_64/intel))
+$(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_M1,MACOS_LLAMA_M1,./bin/m1,./dist/AIFileSorter-M1.dmg,m1,./obj/arm64/m1,AI File Sorter for Mac M1))
+$(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_M2,MACOS_LLAMA_M2,./bin/m2,./dist/AIFileSorter-M2-M5.dmg,m2,./obj/arm64/m2,AI File Sorter for Mac M2-M5))
+$(eval $(call MACOS_RELEASE_TEMPLATE,MACOS_RELEASE_INTEL,MACOS_LLAMA_INTEL,./bin/intel,./dist/AIFileSorter-Intel.dmg,intel,./obj/x86_64/intel,AI File Sorter for Mac Intel))
 
 MACOS_RELEASE_ALL: MACOS_RELEASE_M1 MACOS_RELEASE_M2
 	@printf "\nFinished building AI File Sorter for %s\n" "$(PLATFORM)"

@@ -55,7 +55,7 @@
 - Improved subcategory consistency by merging labels that only differ by generic suffixes (e.g., “files”).
 - Added a system compatibility check (benchmarking) to determine the most suitable LLM for your system.
 - Added Korean as an interface language.
-- macOS builds now include variant `make` targets for Apple Silicon (M1 / M2-M3) and Intel outputs, plus improved arch-aware llama.cpp builds.
+- macOS builds now include variant `make` targets for Apple Silicon (M1 / M2-M5) and Intel outputs, plus improved arch-aware llama.cpp builds.
 - UI, stability, persistence, and usability improvements.
 
 ## [1.5.0] - 2026-01-11

@@ -50,6 +50,7 @@ Default output:
 Variant mapping:
 - `m1` uses `app/bin/m1/aifilesorter`
 - `m2` uses `app/bin/m2/aifilesorter`
+- `intel` uses `app/bin/intel/aifilesorter`
 - `default` uses `app/bin/aifilesorter`
 
 Usage:
@@ -59,9 +60,14 @@ Usage:
 ```
 
 CLI flags (optional):
-- `-v, --variant <m1|m2|default>`: Build only the specified bundle (repeat or comma-separate).
-- `--m1`, `--m2`, `--default`: Shortcuts for `--variant`.
+- `-v, --variant <m1|m2|intel|default>`: Build only the specified bundle (repeat or comma-separate).
+- `--m1`, `--m2`, `--intel`, `--default`: Shortcuts for `--variant`.
 - `--all`: Build all Apple Silicon variant bundles.
+
+Variant display names:
+- `m1` defaults to `AI File Sorter for Mac M1`.
+- `m2` defaults to `AI File Sorter for Mac M2-M5`.
+- `intel` defaults to `AI File Sorter for Mac Intel`.
 
 Environment overrides (optional):
 - `APP_NAME`: Bundle name (default: `AIFileSorter`).
@@ -81,6 +87,7 @@ Packages macOS `.app` bundles into `.dmg` files.
 Behavior:
 - Variant runs rebuild `AIFileSorter.app` for the requested variant first, unless `REBUILD_BUNDLE_BEFORE_PACKAGE=0` is set.
 - Variant DMGs are written with distinct filenames under `app/dist/`.
+- Variant DMGs stage a variant-specific `.app` name by default so the mounted bundle matches the release variant.
 - If no variant is requested, the script packages the existing `app/AIFileSorter.app` bundle when present.
 
 Usage:
@@ -90,8 +97,8 @@ Usage:
 ```
 
 CLI flags (optional):
-- `-v, --variant <m1|m2|default>`: Package only the specified bundle (repeat or comma-separate).
-- `--m1`, `--m2`, `--default`: Shortcuts for `--variant`.
+- `-v, --variant <m1|m2|intel|default>`: Package only the specified bundle (repeat or comma-separate).
+- `--m1`, `--m2`, `--intel`, `--default`: Shortcuts for `--variant`.
 - `--all`: Package all Apple Silicon variant bundles.
 
 Output:
