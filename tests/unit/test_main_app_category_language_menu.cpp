@@ -10,13 +10,13 @@
 #include <QAction>
 #include <QApplication>
 #include <QMenu>
+#include <QPoint>
 #include <QPointer>
 #include <QStringList>
 
 #include <algorithm>
 #include <vector>
 
-#ifndef _WIN32
 namespace {
 
 void collect_menu_languages(QMenu* menu, std::vector<CategoryLanguage>& languages)
@@ -126,7 +126,7 @@ std::vector<CategoryLanguage> sorted_by_enum(std::vector<CategoryLanguage> langu
 
 TEST_CASE("Gemma 3 category language menu exposes the full supported list")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp;
@@ -148,7 +148,7 @@ TEST_CASE("Gemma 3 category language menu exposes the full supported list")
 
 TEST_CASE("Category language menu follows Mistral 7B support")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp;
@@ -170,7 +170,7 @@ TEST_CASE("Category language menu follows Mistral 7B support")
 
 TEST_CASE("English-only local models force the category language menu back to English")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp;
@@ -200,7 +200,7 @@ TEST_CASE("English-only local models force the category language menu back to En
 
 TEST_CASE("Custom local models expose the full category language menu")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp;
@@ -222,7 +222,7 @@ TEST_CASE("Custom local models expose the full category language menu")
 
 TEST_CASE("Category language menu keeps visible entries alphabetized")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp;
@@ -253,7 +253,7 @@ TEST_CASE("Category language menu keeps visible entries alphabetized")
 
 TEST_CASE("Full Gemma 3 category language menus are compartmentalized into submenus")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp;
@@ -284,7 +284,7 @@ TEST_CASE("Full Gemma 3 category language menus are compartmentalized into subme
 
 TEST_CASE("Selecting a submenu-backed category language does not rebuild menus synchronously")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp;
@@ -323,4 +323,55 @@ TEST_CASE("Selecting a submenu-backed category language does not rebuild menus s
     REQUIRE(refreshed_french_action != nullptr);
     CHECK(refreshed_french_action->isChecked());
 }
-#endif
+
+TEST_CASE("Repeated category language switching keeps submenu-backed menus stable")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+    settings.set_llm_choice(LLMChoice::Local_4b_Gemma);
+    MainAppTestAccess::refresh_category_language_menu(window);
+
+    const std::vector<CategoryLanguage> cycle = {
+        CategoryLanguage::English,
+        CategoryLanguage::French,
+        CategoryLanguage::German
+    };
+
+    for (int i = 0; i < 20; ++i) {
+        QMenu* const menu = MainAppTestAccess::category_language_menu(window);
+        REQUIRE(menu != nullptr);
+
+        menu->popup(QPoint(0, 0));
+        QApplication::processEvents();
+        menu->hide();
+        QApplication::processEvents();
+
+        const CategoryLanguage language = cycle[static_cast<std::size_t>(i) % cycle.size()];
+        QAction* const action = find_category_language_action(menu, language);
+        REQUIRE(action != nullptr);
+
+        QMenu* const parent_menu = find_parent_menu_for_language(menu, language);
+        REQUIRE(parent_menu != nullptr);
+        QPointer<QMenu> parent_guard(parent_menu);
+
+        action->trigger();
+        CHECK(settings.get_category_language() == language);
+        CHECK(parent_guard != nullptr);
+
+        QApplication::processEvents();
+
+        QAction* const refreshed_action =
+            find_category_language_action(MainAppTestAccess::category_language_menu(window), language);
+        REQUIRE(refreshed_action != nullptr);
+        CHECK(refreshed_action->isChecked());
+    }
+}

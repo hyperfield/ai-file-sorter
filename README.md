@@ -725,7 +725,7 @@ Catch2-based unit tests are optional. Enable them via CMake:
 
 ```bash
 cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON
-cmake --build build-tests --target ai_file_sorter_tests --parallel $(nproc)
+cmake --build build-tests --parallel $(nproc)
 ctest --test-dir build-tests --output-on-failure -j $(nproc)
 ```
 
@@ -734,13 +734,25 @@ On macOS, replace `$(nproc)` with `$(sysctl -n hw.ncpu)`.
 On Windows (PowerShell), use:
 
 ```powershell
-cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON
-cmake --build build-tests --target ai_file_sorter_tests --parallel $env:NUMBER_OF_PROCESSORS
-ctest --test-dir build-tests --output-on-failure -j $env:NUMBER_OF_PROCESSORS
+$env:VCPKG_ROOT = "D:\path\to\vcpkg"
+$qt = "C:\Qt\6.6.3\msvc2019_64"  # example
+$toolchain = Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"
+cmake -S app -B build-tests -G "Ninja" `
+  -DCMAKE_PREFIX_PATH=$qt `
+  "-DCMAKE_TOOLCHAIN_FILE=$toolchain" `
+  -DVCPKG_MANIFEST_DIR=app `
+  -DVCPKG_TARGET_TRIPLET=x64-windows `
+  -DAI_FILE_SORTER_BUILD_TESTS=ON `
+  -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON
+cmake --build build-tests --config Release `
+  --target ai_file_sorter_tests ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests `
+  --parallel $env:NUMBER_OF_PROCESSORS
+ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS
 ```
 
 Notes
 
+- The easiest Windows path is still `app\build_windows.ps1 -Configuration Release -BuildTests -RunTests`, which wires up the same vcpkg manifest/toolchain expectations for the main bundled build.
 - List individual Catch2 cases: `./build-tests/ai_file_sorter_tests --list-tests`
 - Print each case name (including successes): `./build-tests/ai_file_sorter_tests --verbosity high --success`
 

@@ -10,9 +10,8 @@
 
 #include <vector>
 
-#ifndef _WIN32
 TEST_CASE("MainApp retranslate reflects language changes") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     Settings settings;
@@ -59,7 +58,7 @@ TEST_CASE("MainApp retranslate reflects language changes") {
 
 TEST_CASE("Top-level menu titles are translated for all supported UI languages")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     struct ExpectedTranslation {
@@ -268,7 +267,7 @@ TEST_CASE("Top-level menu titles are translated for all supported UI languages")
 
 TEST_CASE("Settings menu actions are translated for all supported UI languages")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     struct ExpectedTranslation {
@@ -442,7 +441,7 @@ TEST_CASE("Settings menu actions are translated for all supported UI languages")
 }
 
 TEST_CASE("Updater strings are translated for all supported UI languages") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     struct ExpectedTranslation {
@@ -687,7 +686,7 @@ TEST_CASE("Updater strings are translated for all supported UI languages") {
 
 TEST_CASE("Quick Start guide content follows the selected app language")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TranslationManager::instance().set_language(Language::English);
@@ -753,7 +752,7 @@ TEST_CASE("Quick Start guide content follows the selected app language")
 
 TEST_CASE("Interface language action labels are translated for the newly added Nordic UI languages")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     struct ExpectedTranslation {
@@ -879,7 +878,7 @@ TEST_CASE("Interface language action labels are translated for the newly added N
 
 TEST_CASE("Simplified Chinese interface language action label is translated for all supported UI languages")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     struct ExpectedTranslation {
@@ -918,7 +917,7 @@ TEST_CASE("Simplified Chinese interface language action label is translated for 
 
 TEST_CASE("Interface language labels keep localized capitalization style")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     struct ExpectedTranslation {
@@ -967,7 +966,7 @@ TEST_CASE("Interface language labels keep localized capitalization style")
 
 TEST_CASE("Quick Start and FAQ help labels are translated for all supported UI languages")
 {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     struct ExpectedTranslation {
@@ -1059,4 +1058,3 @@ TEST_CASE("Quick Start and FAQ help labels are translated for all supported UI l
         REQUIRE(quick_start_title == entry.quick_start_title);
     }
 }
-#endif

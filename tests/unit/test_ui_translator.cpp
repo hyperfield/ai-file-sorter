@@ -26,11 +26,10 @@
 #include <algorithm>
 #include <cstddef>
 
-#ifndef _WIN32
 namespace {
 
 struct UiTranslatorTestHarness {
-    EnvVarGuard platform_guard{"QT_QPA_PLATFORM", "offscreen"};
+    EnvVarGuard platform_guard{"QT_QPA_PLATFORM", preferred_qt_test_platform()};
     QtAppContext qt_context{};
     Settings settings{};
     QMainWindow window{};
@@ -450,4 +449,3 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     verify_menus_and_actions(h);
     verify_tree_and_status(h);
 }
-#endif

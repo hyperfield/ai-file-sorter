@@ -1,10 +1,12 @@
 # Test Suite Guide
 
-This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. Some UI-centric tests are compiled only on non-Windows platforms and use the Qt offscreen platform plugin so they can run without a visible display.
+This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. UI-centric tests use a headless Qt platform plugin so they can run without a visible display: `minimal` on Windows and `offscreen` on other platforms.
 
 ## How to run tests
-- Configure tests (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
-- Build and run all tests: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
+- Configure tests on Linux/macOS (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
+- Build and run all tests on Linux/macOS: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
+- On Windows, configure from a Visual Studio Developer PowerShell with the vcpkg toolchain and a Qt 6 MSVC kit, for example: `$env:VCPKG_ROOT="D:\path\to\vcpkg"; $qt="C:\Qt\6.6.3\msvc2019_64"; $toolchain=Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"; cmake -S app -B build-tests -G "Ninja" -DCMAKE_PREFIX_PATH=$qt "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_MANIFEST_DIR=app -DVCPKG_TARGET_TRIPLET=x64-windows -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
+- On Windows, build and run all tests with: `cmake --build build-tests --config Release --target ai_file_sorter_tests ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests --parallel $env:NUMBER_OF_PROCESSORS` then `ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS`
 - Run a single test case by name: `./build-tests/ai_file_sorter_tests "<test case name or pattern>"`
 - Run GUI test mode: `./build-tests/aifilesorter --test`
 - Run production-binary self-tests: `./build-tests/aifilesorter --self-test` or `./build-tests/aifilesorter --self-test=whitelist`
@@ -459,7 +461,14 @@ Procedure: Refresh the category-language menu, locate the submenu that contains 
 Expected outcome: The selected category language changes to French, the original parent submenu remains alive for the duration of the trigger handler, and the rebuilt menu still exposes `French` as the checked choice after queued events run.
 Run: `./build-tests/ai_file_sorter_tests "Selecting a submenu-backed category language does not rebuild menus synchronously"`
 
-### `tests/unit/test_ui_translator.cpp` (non-Windows only)
+#### Test case: Repeated category language switching keeps submenu-backed menus stable
+Purpose: Exercise the crash-prone Windows menu lifetime path by repeatedly opening/closing the grouped category-language menu and switching between English, French, and German.
+Setup: Build `MainApp` with headless Qt in a temporary config directory and switch settings to `Local_4b_Gemma` so the category-language menu is grouped into submenus.
+Procedure: Loop 20 times, show and hide the category-language menu, trigger the next language action, process queued menu refresh events, and locate the rebuilt checked action.
+Expected outcome: No submenu pointer is destroyed during the trigger handler, settings track the selected language, and the rebuilt menu keeps the selected action checked after every iteration.
+Run: `./build-tests/ai_file_sorter_tests "Repeated category language switching keeps submenu-backed menus stable"`
+
+### `tests/unit/test_ui_translator.cpp`
 
 #### Test case: UiTranslator updates menus, actions, and controls
 Purpose: Validate that the UI translator updates all primary controls, menus, and stateful labels in a consistent pass, including category-language actions now generated from the expanded catalog.
@@ -1327,7 +1336,7 @@ Procedure: Reload settings and retrieve the endpoint by ID.
 Expected outcome: All fields match the original, and the active endpoint ID is preserved.
 Run: `./build-tests/ai_file_sorter_tests "Custom API endpoints persist across Settings load/save"`
 
-### `tests/unit/test_categorization_dialog.cpp` (mixed platform coverage; most cases non-Windows)
+### `tests/unit/test_categorization_dialog.cpp`
 
 #### Test case: CategorizationDialog delegates preview requests to the preview service
 Purpose: Verify that preview actions flow through the injected preview service abstraction.
@@ -1356,6 +1365,13 @@ Setup: Create a file on disk with a category and subcategory.
 Procedure: Confirm the dialog to move the file, then trigger undo.
 Expected outcome: The file moves to the category path, then returns to the original location; undo is enabled only when a move exists.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog undo restores moved files"`
+
+#### Test case: CategorizationDialog moves Unicode files into French nested subcategory folders
+Purpose: Cover the issue #95 Windows regression path: non-CP1252 filenames, French category labels, review-dialog retranslation while open, subcategory toggling, nested folder creation, and undo.
+Setup: Create a temporary Unicode-named file and load it into the review dialog as `Logiciels` / `Navigateur` with French category-language context.
+Procedure: Verify the preview path, send a language-change event while the dialog is open, sort by file name, hide/show subcategories, confirm the move, inspect created paths for literal `subcategory`, and trigger undo.
+Expected outcome: The file moves to `Logiciels/Navigateur/<unicode filename>`, no preview or created path contains the literal `subcategory`, and undo restores the original Unicode path.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog moves Unicode files into French nested subcategory folders"`
 
 #### Test case: CategorizationDialog undo allows renaming again
 Purpose: Ensure undo resets rename-only operations and allows reapplication.

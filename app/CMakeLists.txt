@@ -82,6 +82,59 @@ endif()
 include(CheckSymbolExists)
 include(CheckCXXSourceCompiles)
 
+if(WIN32)
+    set(_aifs_windows_powershell_candidates
+        "$ENV{ProgramW6432}/PowerShell/7/pwsh.exe"
+        "$ENV{ProgramFiles}/PowerShell/7/pwsh.exe"
+        "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0/powershell.exe")
+    set(_aifs_windows_powershell "")
+    foreach(_aifs_windows_powershell_candidate IN LISTS _aifs_windows_powershell_candidates)
+        if(EXISTS "${_aifs_windows_powershell_candidate}")
+            set(_aifs_windows_powershell "${_aifs_windows_powershell_candidate}")
+            break()
+        endif()
+    endforeach()
+    if(NOT _aifs_windows_powershell)
+        find_program(_aifs_windows_powershell NAMES powershell.exe powershell pwsh.exe pwsh)
+    endif()
+    if(_aifs_windows_powershell MATCHES "([/\\\\])WindowsApps([/\\\\])")
+        set(_aifs_windows_powershell "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0/powershell.exe")
+    endif()
+    if(_aifs_windows_powershell AND EXISTS "${_aifs_windows_powershell}")
+        set(POWERSHELL_EXECUTABLE "${_aifs_windows_powershell}" CACHE FILEPATH
+            "PowerShell executable used for Windows resource generation" FORCE)
+        set(Z_VCPKG_POWERSHELL_PATH "${_aifs_windows_powershell}" CACHE INTERNAL
+            "The path to the PowerShell implementation to use." FORCE)
+    endif()
+endif()
+
+function(aifs_find_required_package package_name)
+    find_package(${package_name} ${ARGN} QUIET)
+    if(${package_name}_FOUND)
+        return()
+    endif()
+
+    if(WIN32)
+        message(FATAL_ERROR
+            "Could not find package '${package_name}'. On Windows, AI File Sorter source/test builds "
+            "expect third-party dependencies from the vcpkg manifest in app/vcpkg.json. "
+            "Re-run CMake from a Visual Studio Developer PowerShell with a writable vcpkg clone and your Qt 6 MSVC kit, for example:\n"
+            "  $env:VCPKG_ROOT = \"D:/path/to/vcpkg\"\n"
+            "  $qt = \"C:/Qt/6.6.3/msvc2019_64\"\n"
+            "  $toolchain = Join-Path $env:VCPKG_ROOT \"scripts/buildsystems/vcpkg.cmake\"\n"
+            "  cmake -S app -B build-tests -G \"Ninja\" "
+            "-DCMAKE_PREFIX_PATH=$qt "
+            "\"-DCMAKE_TOOLCHAIN_FILE=$toolchain\" "
+            "-DVCPKG_MANIFEST_DIR=app "
+            "-DVCPKG_TARGET_TRIPLET=x64-windows "
+            "-DAI_FILE_SORTER_BUILD_TESTS=ON "
+            "-DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON\n"
+            "The README Windows build and testing sections include the matching PowerShell example.")
+    endif()
+
+    find_package(${package_name} ${ARGN} REQUIRED)
+endfunction()
+
 function(aifs_apply_update_mode target_name)
     target_compile_definitions(${target_name} PRIVATE ${AI_FILE_SORTER_UPDATE_MODE_DEFINE})
 endfunction()
@@ -136,6 +189,7 @@ endif()
 
 # Qt6
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+set(_aifs_enable_translation_generation TRUE)
 find_package(Qt6LinguistTools CONFIG QUIET)
 if(NOT Qt6LinguistTools_FOUND)
     set(_aifs_qttools_hints "")
@@ -154,13 +208,22 @@ if(NOT Qt6LinguistTools_FOUND)
         endif()
     endforeach()
     list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
-    find_package(Qt6LinguistTools CONFIG REQUIRED)
+    if(AI_FILE_SORTER_BUILD_TESTS)
+        find_package(Qt6LinguistTools CONFIG QUIET)
+        if(NOT Qt6LinguistTools_FOUND)
+            set(_aifs_enable_translation_generation FALSE)
+            message(STATUS
+                "Qt6LinguistTools not found; skipping translation generation for test build.")
+        endif()
+    else()
+        find_package(Qt6LinguistTools CONFIG REQUIRED)
+    endif()
 endif()
 
 # Third-party deps (resolved best via vcpkg on Windows)
-find_package(CURL REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(SQLite3 REQUIRED)
+aifs_find_required_package(CURL)
+aifs_find_required_package(OpenSSL)
+aifs_find_required_package(SQLite3)
 if(TARGET SQLite::SQLite3)
     set(AIFS_SQLITE_TARGET SQLite::SQLite3)
 elseif(TARGET SQLite3::SQLite3)
@@ -194,9 +257,9 @@ else()
         add_library(JsonCpp::JsonCpp INTERFACE IMPORTED)
     endif()
 endif()
-find_package(fmt REQUIRED CONFIG)
-find_package(spdlog REQUIRED CONFIG)
-find_package(Intl REQUIRED) # libintl/gettext
+aifs_find_required_package(fmt CONFIG)
+aifs_find_required_package(spdlog CONFIG)
+aifs_find_required_package(Intl) # libintl/gettext
 # MediaInfoLib from vcpkg depends on the separate ZenLib package and refers to
 # its imported target as plain "zen".
 find_package(ZenLib CONFIG QUIET)
@@ -371,6 +434,9 @@ endif()
 if(EXISTS "${LIBZIP_DIR}/CMakeLists.txt")
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     set(BUILD_REGRESS OFF CACHE BOOL "" FORCE)
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    set(BUILD_OSSFUZZ OFF CACHE BOOL "" FORCE)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(ENABLE_BZIP2 OFF CACHE BOOL "" FORCE)
     set(ENABLE_LZMA OFF CACHE BOOL "" FORCE)
     set(ENABLE_ZSTD OFF CACHE BOOL "" FORCE)
@@ -506,6 +572,7 @@ set(AIFS_TRANSLATION_TS_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_ko.ts"
 )
 set(AIFS_TRANSLATION_QM_DIR "${CMAKE_CURRENT_BINARY_DIR}/i18n")
+set(AIFS_TRANSLATION_QM_FILES)
 
 # Executable (GUI subsystem on Windows)
 if(WIN32)
@@ -526,26 +593,31 @@ target_include_directories(aifilesorter PRIVATE
     ${DOC_DEPS_INCLUDE_DIRS}
 )
 
-qt_add_lupdate(
-    aifilesorter
-    NO_GLOBAL_TARGET
-    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
-    OPTIONS -no-obsolete
-)
+if(_aifs_enable_translation_generation)
+    qt_add_lupdate(
+        aifilesorter
+        NO_GLOBAL_TARGET
+        TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+        SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
+        OPTIONS -no-obsolete
+    )
 
-set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
-    PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
+    set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
+        PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
 
-qt_add_lrelease(
-    aifilesorter
-    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-    QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
-)
+    qt_add_lrelease(
+        aifilesorter
+        TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+        QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
+    )
 
-set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
+    set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
+endif()
 
 function(aifs_add_translation_resources target_name)
+    if(NOT AIFS_TRANSLATION_QM_FILES)
+        return()
+    endif()
     qt_add_resources(${target_name} "${target_name}_translations"
         PREFIX "/i18n"
         BASE "${AIFS_TRANSLATION_QM_DIR}"
@@ -974,8 +1046,26 @@ if(WIN32)
 endif()
 
 if(WIN32)
-    find_program(POWERSHELL_EXECUTABLE NAMES pwsh pwsh.exe powershell powershell.exe)
-    if(NOT POWERSHELL_EXECUTABLE)
+    set(_aifs_windows_powershell_candidates
+        "$ENV{ProgramW6432}/PowerShell/7/pwsh.exe"
+        "$ENV{ProgramFiles}/PowerShell/7/pwsh.exe"
+        "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0/powershell.exe")
+    set(_aifs_windows_powershell "")
+    foreach(_aifs_windows_powershell_candidate IN LISTS _aifs_windows_powershell_candidates)
+        if(EXISTS "${_aifs_windows_powershell_candidate}")
+            set(_aifs_windows_powershell "${_aifs_windows_powershell_candidate}")
+            break()
+        endif()
+    endforeach()
+    if(NOT _aifs_windows_powershell)
+        find_program(_aifs_windows_powershell NAMES powershell.exe powershell pwsh.exe pwsh)
+    endif()
+    if(_aifs_windows_powershell MATCHES "([/\\\\])WindowsApps([/\\\\])")
+        set(_aifs_windows_powershell "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0/powershell.exe")
+    endif()
+    set(POWERSHELL_EXECUTABLE "${_aifs_windows_powershell}" CACHE FILEPATH
+        "PowerShell executable used for Windows resource generation" FORCE)
+    if(NOT POWERSHELL_EXECUTABLE OR NOT EXISTS "${POWERSHELL_EXECUTABLE}")
         message(FATAL_ERROR "PowerShell is required to generate Windows resources")
     endif()
 
@@ -1146,9 +1236,22 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             endif()
 
             if(EXISTS "${PRECOMPILED_CPU_BIN_DIR}")
-                file(GLOB _aifs_precompiled_cpu_runtime_dlls
-                    "${PRECOMPILED_CPU_BIN_DIR}/*.dll")
-                list(APPEND _aifs_test_runtime_dlls ${_aifs_precompiled_cpu_runtime_dlls})
+                foreach(_aifs_precompiled_runtime_name IN ITEMS
+                    llama.dll
+                    llama-common.dll
+                    mtmd.dll
+                    ggml.dll
+                    ggml-base.dll
+                    ggml-cpu.dll
+                    ggml-blas.dll
+                    libopenblas.dll)
+                    set(_aifs_precompiled_runtime_path
+                        "${PRECOMPILED_CPU_BIN_DIR}/${_aifs_precompiled_runtime_name}")
+                    if(EXISTS "${_aifs_precompiled_runtime_path}")
+                        list(APPEND _aifs_test_runtime_dlls
+                            "${_aifs_precompiled_runtime_path}")
+                    endif()
+                endforeach()
             endif()
 
             set(_aifs_mingw_runtime_search_paths "")
@@ -1224,7 +1327,14 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         endif()
     endfunction()
 
-    add_executable(aifs_onedrive_storage_plugin
+    function(aifs_add_windows_test_executable target_name)
+        if(WIN32)
+            set(VCPKG_APPLOCAL_DEPS OFF)
+        endif()
+        add_executable(${target_name} ${ARGN})
+    endfunction()
+
+    aifs_add_windows_test_executable(aifs_onedrive_storage_plugin
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/onedrive_storage_plugin_main.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/CloudPathSupport.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/FileScanner.cpp"
@@ -1257,7 +1367,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     )
     add_dependencies(aifilesorter aifs_onedrive_storage_plugin)
 
-    add_executable(ai_file_sorter_tests
+    aifs_add_windows_test_executable(ai_file_sorter_tests
         ${APP_LIB_SOURCES}
         ${AIFS_TEST_ONLY_APP_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
@@ -1304,7 +1414,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_cuda_probe.cpp"
     )
 
-    add_executable(aifs_storage_plugin_stub
+    aifs_add_windows_test_executable(aifs_storage_plugin_stub
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/storage_plugin_stub.cpp"
     )
     target_link_libraries(aifs_storage_plugin_stub PRIVATE Qt6::Core)
@@ -1386,7 +1496,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         )
 
         function(aifs_add_updater_mode_test target_name update_mode)
-            add_executable(${target_name}
+            aifs_add_windows_test_executable(${target_name}
                 ${AIFS_UPDATER_MODE_TEST_APP_SOURCES}
                 "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_updater_build_modes.cpp"
             )

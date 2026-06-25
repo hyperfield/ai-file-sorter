@@ -124,6 +124,18 @@ private:
 };
 
 /**
+ * @brief Return the preferred headless Qt platform plugin for tests.
+ * @return `minimal` on Windows and `offscreen` on other platforms.
+ */
+inline std::string preferred_qt_test_platform() {
+#ifdef _WIN32
+    return "minimal";
+#else
+    return "offscreen";
+#endif
+}
+
+/**
  * @brief Creates a temporary GGUF-like file for model-related tests.
  */
 class TempModelFile {
@@ -199,9 +211,9 @@ public:
             const char* platform = std::getenv("QT_QPA_PLATFORM");
             if (!platform || *platform == '\0') {
 #ifdef _WIN32
-                _putenv_s("QT_QPA_PLATFORM", "offscreen");
+                _putenv_s("QT_QPA_PLATFORM", preferred_qt_test_platform().c_str());
 #else
-                setenv("QT_QPA_PLATFORM", "offscreen", 1);
+                setenv("QT_QPA_PLATFORM", preferred_qt_test_platform().c_str(), 1);
 #endif
             }
             static int argc = 1;
