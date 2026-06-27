@@ -96,7 +96,7 @@ AI File Sorter can run entirely on your device, using local text and visual mode
 
 ## Changelog
 
-## [1.8.0] - 2026-05-09
+## [1.8.0] - 2026-05-10
 
 - Added backend status indicator to the status bar.
 - The app now runs as a single instance - opening it again brings the existing window to the front instead of starting a second copy.

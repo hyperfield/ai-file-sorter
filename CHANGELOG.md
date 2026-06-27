@@ -1,6 +1,6 @@
 ﻿# Changelog
 
-## [1.8.0] - 2026-04-23
+## [1.8.0] - 2026-05-10
 
 - Added backend status indicator to the status bar.
 - The app now runs as a single instance - opening it again brings the existing window to the front instead of starting a second copy.
