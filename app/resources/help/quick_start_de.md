@@ -30,8 +30,7 @@ Wenn Sie nur Umbenennungsvorschlaege moechten, aktivieren Sie den entsprechenden
 
 Waehlen Sie den Stil, der am besten zu Ihrem Ziel passt:
 
-- **Default** fuer den allgemeinen Einsatz
-- **More categories**, wenn Sie feinere Gruppierungen moechten
+- **More refined** fuer den allgemeinen Einsatz und feinere Gruppierungen
 - **More consistent**, wenn Sie eine staerkere Konsistenz bei aehnlichen Dateien wollen
 
 Sie koennen auch Kategorie-Whitelists aktivieren, wenn die App nur innerhalb einer engeren Menge von Kategorienamen bleiben soll.

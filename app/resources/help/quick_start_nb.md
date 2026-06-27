@@ -30,8 +30,7 @@ Hvis du bare vil ha forslag til a endre navn, aktiverer du den relevante modusen
 
 Velg stilen som passer best til malet ditt:
 
-- **Default** for generell bruk
-- **More categories** hvis du onsker finere gruppering
+- **More refined** for generell bruk og finere gruppering
 - **More consistent** hvis du vil ha sterkere etikettkonsistens pa tvers av lignende filer
 
 Du kan ogsa aktivere kategorihvitelister hvis du vil at appen skal holde seg innenfor et smalere sett med kategorinavn.

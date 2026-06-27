@@ -30,8 +30,7 @@ Jos haluat vain uudelleennimeamisehdotuksia, ota kayttoon asianmukainen vain uud
 
 Valitse tyyli, joka vastaa parhaiten tavoitettasi:
 
-- **Default** yleiseen kayttoon
-- **More categories**, jos haluat hienomman ryhmittelyn
+- **More refined** yleiseen kayttoon ja hienompaan ryhmittelyyn
 - **More consistent**, jos haluat vahvemman tarran johdonmukaisuuden samanlaisissa tiedostoissa
 
 Voit myos ottaa kayttoon luokkien sallittujen luettelot, jos haluat, etta sovellus pysyy kapeamman luokan nimien sisalla.

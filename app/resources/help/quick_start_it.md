@@ -30,8 +30,7 @@ Se vuoi solo suggerimenti di rinomina, abilita la relativa modalita solo-rinomin
 
 Scegli lo stile piu adatto al tuo obiettivo:
 
-- **Default** per l'uso generale
-- **More categories** se vuoi un raggruppamento piu dettagliato
+- **More refined** per l'uso generale e un raggruppamento piu dettagliato
 - **More consistent** se vuoi maggiore coerenza tra file simili
 
 Puoi anche abilitare whitelist di categorie se vuoi che l'app resti entro un insieme piu ristretto di nomi di categoria.

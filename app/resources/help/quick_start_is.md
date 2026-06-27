@@ -30,8 +30,7 @@ Ef thu vilt adeins endurnefna tillogur skaltu virkja videigandi endurnefnastilli
 
 Veldu thann stil sem passar best vid markmid thitt:
 
-- **Default** til almennrar notkunar
-- **More categories** ef thu vilt finni flokkun
+- **More refined** til almennrar notkunar og finni flokkunar
 - **More consistent** ef thu vilt sterkari merkisamkvaemni yfir svipadar skrar
 
 Thu getur lika virkjad hvitlista fyrir flokka ef thu vilt ad appid haldist innan threngra flokka nafna.

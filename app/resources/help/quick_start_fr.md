@@ -30,8 +30,7 @@ Si vous voulez seulement des suggestions de renommage, activez le mode correspon
 
 Choisissez le style qui correspond le mieux a votre objectif :
 
-- **Default** pour un usage general
-- **More categories** si vous voulez un classement plus detaille
+- **More refined** pour un usage general et un classement plus detaille
 - **More consistent** si vous voulez une meilleure coherence entre fichiers similaires
 
 Vous pouvez aussi activer les listes blanches de categories pour limiter les noms de categories autorises.

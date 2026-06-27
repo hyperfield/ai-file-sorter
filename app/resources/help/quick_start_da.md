@@ -30,8 +30,7 @@ Hvis du kun onsker omdobningsforslag, skal du aktivere den relevante omdobningst
 
 Vaelg den stil, der passer bedst til dit mal:
 
-- **Default** til generel brug
-- **More categories** hvis du onsker en finere gruppering
+- **More refined** til generel brug og finere gruppering
 - **More consistent**, hvis du onsker staerkere etiketkonsistens pa tvaers af lignende filer
 
 Du kan ogsa aktivere kategorihvidlister, hvis du onsker, at appen skal forblive inden for et snaevrere saet kategorinavne.

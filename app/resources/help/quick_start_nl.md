@@ -30,8 +30,7 @@ Als u alleen hernoemsuggesties wilt, schakelt u de relevante alleen-hernoemen-mo
 
 Kies de stijl die het beste bij uw doel past:
 
-- **Default** voor algemeen gebruik
-- **More categories** als u fijnere groepering wilt
+- **More refined** voor algemeen gebruik en fijnere groepering
 - **More consistent** als u sterkere consistentie wilt tussen vergelijkbare bestanden
 
 U kunt ook categoriewhitelists inschakelen als de app binnen een beperktere set categorienamen moet blijven.

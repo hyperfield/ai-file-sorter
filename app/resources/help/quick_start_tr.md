@@ -30,8 +30,7 @@ Yalnizca yeniden adlandirma onerileri istiyorsaniz ilgili sadece-yeniden-adlandi
 
 Hedefinize en uygun stili secin:
 
-- **Default** genel kullanim icin
-- **More categories** daha ayrintili gruplama icin
+- **More refined** genel kullanim ve daha ayrintili gruplama icin
 - **More consistent** benzer dosyalarda daha guclu tutarlilik icin
 
 Uygulamanin daha dar bir kategori adlari kumesinde kalmasini istiyorsaniz kategori beyaz listelerini de etkinlestirebilirsiniz.

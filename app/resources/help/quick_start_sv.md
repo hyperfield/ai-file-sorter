@@ -30,8 +30,7 @@ Om du bara vill ha forslag pa byte av namn, aktivera det relevanta laget for end
 
 Valj den stil som bast matchar ditt mal:
 
-- **Default** for allmant bruk
-- **More categories** om du vill ha finare gruppering
+- **More refined** for allmant bruk och finare gruppering
 - **More consistent** om du vill ha starkare etikettkonsistens over liknande filer
 
 Du kan ocksa aktivera kategorivitlistor om du vill att appen ska halla sig inom en smalare uppsattning kategorinamn.

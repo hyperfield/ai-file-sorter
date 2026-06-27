@@ -30,8 +30,7 @@ Si solo quieres sugerencias de cambio de nombre, activa el modo correspondiente 
 
 Elige el estilo que mejor se adapte a tu objetivo:
 
-- **Default** para uso general
-- **More categories** si quieres una agrupacion mas detallada
+- **More refined** para uso general y una agrupacion mas detallada
 - **More consistent** si quieres una mayor coherencia entre archivos similares
 
 Tambien puedes activar listas blancas de categorias si quieres que la aplicacion se limite a un conjunto mas reducido de nombres de categoria.

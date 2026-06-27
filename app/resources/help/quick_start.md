@@ -30,8 +30,7 @@ If you only want rename suggestions, enable the relevant rename-only mode.
 
 Choose the style that best matches your goal:
 
-- **Default** for general use
-- **More categories** if you want finer grouping
+- **More refined** for general use and finer grouping
 - **More consistent** if you want stronger label consistency across similar files
 
 You can also enable category whitelists if you want the app to stay within a narrower set of category names.
