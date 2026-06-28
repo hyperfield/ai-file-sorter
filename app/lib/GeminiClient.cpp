@@ -1,7 +1,7 @@
 #include "GeminiClient.hpp"
 
 #include "Logger.hpp"
-#include "LLMErrors.hpp"
+#include "RemoteApiError.hpp"
 #include "Utils.hpp"
 
 #include <curl/curl.h>
@@ -16,10 +16,10 @@
 
 #include <spdlog/spdlog.h>
 
-#include <cmath>
+#include <algorithm>
+#include <cctype>
 #include <iostream>
 #include <sstream>
-#include <regex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -96,6 +96,33 @@ private:
     }
 };
 
+struct HttpResponseInfo {
+    long status_code{0};
+    std::string retry_after;
+};
+
+std::string trim_ws(std::string value)
+{
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
+    value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
+    return value;
+}
+
+size_t HeaderCallback(char* buffer, size_t size, size_t nitems, std::string* retry_after)
+{
+    const size_t total_size = size * nitems;
+    std::string line(buffer, total_size);
+    const std::string prefix = "retry-after:";
+    std::string lower = line;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    if (lower.rfind(prefix, 0) == 0) {
+        *retry_after = trim_ws(line.substr(prefix.size()));
+    }
+    return total_size;
+}
+
 CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
 {
     CurlRequest request;
@@ -121,7 +148,8 @@ CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
 void configure_request_payload(CurlRequest& request,
                                const std::string& api_url,
                                const std::string& payload,
-                               std::string& response_buffer)
+                               std::string& response_buffer,
+                               std::string& retry_after_header)
 {
     curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
     curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
@@ -133,9 +161,13 @@ void configure_request_payload(CurlRequest& request,
     curl_easy_setopt(request.handle, CURLOPT_POSTFIELDS, payload.c_str());
     curl_easy_setopt(request.handle, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(request.handle, CURLOPT_WRITEDATA, &response_buffer);
+    curl_easy_setopt(request.handle, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(request.handle, CURLOPT_HEADERDATA, &retry_after_header);
 }
 
-long perform_request(CurlRequest& request, const std::shared_ptr<spdlog::logger>& logger)
+HttpResponseInfo perform_request(CurlRequest& request,
+                                 std::string retry_after_header,
+                                 const std::shared_ptr<spdlog::logger>& logger)
 {
     const CURLcode res = curl_easy_perform(request.handle);
     if (res != CURLE_OK) {
@@ -147,11 +179,10 @@ long perform_request(CurlRequest& request, const std::shared_ptr<spdlog::logger>
 
     long http_code = 0;
     curl_easy_getinfo(request.handle, CURLINFO_RESPONSE_CODE, &http_code);
-    return http_code;
+    return HttpResponseInfo{http_code, std::move(retry_after_header)};
 }
 
 std::string parse_text_response(const std::string& payload,
-                                long http_code,
                                 const std::shared_ptr<spdlog::logger>& logger)
 {
     Json::CharReaderBuilder reader_builder;
@@ -164,49 +195,6 @@ std::string parse_text_response(const std::string& payload,
             logger->error("Failed to parse JSON response: {}", errors);
         }
         throw std::runtime_error("Response Error: Failed to parse JSON response. " + errors);
-    }
-
-    if (http_code == 401) {
-        throw std::runtime_error("Authentication Error: Invalid or missing Gemini API key.");
-    }
-    if (http_code == 403) {
-        throw std::runtime_error("Authorization Error: Gemini API key does not have sufficient permissions.");
-    }
-    if (http_code >= 400) {
-        const auto& error_obj = root["error"];
-        const std::string message = error_obj.isObject() ? error_obj["message"].asString()
-                                                         : std::string();
-        const std::string status = error_obj.isObject() ? error_obj["status"].asString()
-                                                        : std::string();
-        if (status == "RESOURCE_EXHAUSTED") {
-            int retry_secs = 0;
-            if (!message.empty()) {
-                std::regex retry_regex(R"(retry in ([0-9]+(?:\.[0-9]+)?)s)", std::regex::icase);
-                std::smatch match;
-                if (std::regex_search(message, match, retry_regex) && match.size() > 1) {
-                    try {
-                        retry_secs = static_cast<int>(std::ceil(std::stod(match[1].str())));
-                    } catch (...) {
-                        retry_secs = 0;
-                    }
-                }
-            }
-            throw BackoffError(message.empty()
-                ? "Gemini quota reached"
-                : "Gemini quota reached: " + message, retry_secs);
-        }
-
-        std::ostringstream oss;
-        oss << "Gemini API error";
-        if (!status.empty()) {
-            oss << " (" << status << ")";
-        }
-        if (!message.empty()) {
-            oss << ": " << message;
-        } else {
-            oss << " (HTTP " << http_code << ")";
-        }
-        throw std::runtime_error(oss.str());
     }
 
     const auto& candidates = root["candidates"];
@@ -262,14 +250,22 @@ std::string GeminiClient::send_api_request(const std::string& json_payload)
 
         try {
             CurlRequest request = create_curl_request(logger);
-            configure_request_payload(request, api_url, json_payload, response_string);
-            const long http_code = perform_request(request, logger);
-            if (http_code == 404 && i + 1 < api_versions.size()) {
+            std::string retry_after_header;
+            configure_request_payload(request, api_url, json_payload, response_string, retry_after_header);
+            const HttpResponseInfo response = perform_request(request, std::move(retry_after_header), logger);
+            if (response.status_code == 404 && i + 1 < api_versions.size()) {
                 // Fallback to next version (e.g., v1beta) on 404.
                 last_error = "HTTP 404 on " + api_versions[i];
                 continue;
             }
-            return parse_text_response(response_string, http_code, logger);
+            if (response.status_code >= 400) {
+                RemoteApiError::throw_for_http_error("Gemini",
+                                                     response.status_code,
+                                                     response_string,
+                                                     response.retry_after,
+                                                     logger);
+            }
+            return parse_text_response(response_string, logger);
         } catch (const std::exception& ex) {
             last_error = ex.what();
             if (i + 1 < api_versions.size()) {

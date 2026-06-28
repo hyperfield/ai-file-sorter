@@ -1359,6 +1359,36 @@ Procedure: Reload settings and retrieve the endpoint by ID.
 Expected outcome: All fields match the original, and the active endpoint ID is preserved.
 Run: `./build-tests/ai_file_sorter_tests "Custom API endpoints persist across Settings load/save"`
 
+### `tests/unit/test_remote_api_error.cpp`
+
+#### Test case: RemoteApiError parses numeric Retry-After headers
+Purpose: Verify retry-after parsing for provider rate-limit headers.
+Setup: Provide integer, fractional, and unsupported HTTP-date header values.
+Procedure: Parse each value through `RemoteApiError::parse_retry_after_seconds`.
+Expected outcome: Numeric values are accepted and rounded up when fractional; unsupported HTTP-date values are ignored.
+Run: `./build-tests/ai_file_sorter_tests "RemoteApiError parses numeric Retry-After headers"`
+
+#### Test case: RemoteApiError turns non-JSON 429 responses into BackoffError
+Purpose: Cover the issue #88 failure mode where a rate-limit response body is not JSON.
+Setup: Provide a plain-text HTTP 429 body and a `Retry-After` header.
+Procedure: Classify the HTTP error through `RemoteApiError::throw_for_http_error`.
+Expected outcome: A retryable `BackoffError` is thrown with the provider message and retry delay instead of a JSON parse error.
+Run: `./build-tests/ai_file_sorter_tests "RemoteApiError turns non-JSON 429 responses into BackoffError"`
+
+#### Test case: RemoteApiError extracts Gemini quota retry delays from JSON
+Purpose: Ensure Gemini quota responses remain retryable after moving HTTP error handling before success parsing.
+Setup: Provide a Gemini `RESOURCE_EXHAUSTED` JSON error containing a textual retry delay.
+Procedure: Classify the HTTP error through `RemoteApiError::throw_for_http_error`.
+Expected outcome: A `BackoffError` is thrown and the retry delay is rounded up from the provider message.
+Run: `./build-tests/ai_file_sorter_tests "RemoteApiError extracts Gemini quota retry delays from JSON"`
+
+#### Test case: RemoteApiError reports non-JSON server errors without JSON parse failures
+Purpose: Ensure non-retryable remote HTTP errors remain actionable when the body is HTML or plain text.
+Setup: Provide an HTTP 503 response body that is not JSON.
+Procedure: Classify the HTTP error through `RemoteApiError::throw_for_http_error`.
+Expected outcome: A `runtime_error` mentions the provider HTTP error and body excerpt without mentioning JSON parsing.
+Run: `./build-tests/ai_file_sorter_tests "RemoteApiError reports non-JSON server errors without JSON parse failures"`
+
 ### `tests/unit/test_categorization_dialog.cpp`
 
 #### Test case: CategorizationDialog delegates preview requests to the preview service

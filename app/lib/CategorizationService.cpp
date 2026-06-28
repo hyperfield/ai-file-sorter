@@ -36,6 +36,7 @@ namespace {
 constexpr const char* kLocalTimeoutEnv = "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT";
 constexpr const char* kRemoteTimeoutEnv = "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT";
 constexpr const char* kCustomTimeoutEnv = "AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT";
+constexpr const char* kRemoteRequestsPerMinuteEnv = "AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE";
 constexpr size_t kMaxConsistencyHints = 5;
 constexpr size_t kLargeWhitelistPromptThreshold = 30;
 constexpr size_t kMaxLargeWhitelistPromptCandidates = 8;
@@ -1175,6 +1176,37 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
 
     categorized.reserve(files.size());
     SessionHistoryMap session_history;
+    const int remote_requests_per_minute = is_local_llm ? 0 : resolve_remote_requests_per_minute();
+    std::chrono::steady_clock::time_point next_remote_request = std::chrono::steady_clock::now();
+    RemoteThrottleCallback remote_throttle_callback;
+    if (remote_requests_per_minute > 0) {
+        const auto interval_ms = std::chrono::milliseconds(
+            std::max(1, (60000 + remote_requests_per_minute - 1) / remote_requests_per_minute));
+        remote_throttle_callback = [&](const std::string& item_name) {
+            auto now = std::chrono::steady_clock::now();
+            if (now < next_remote_request) {
+                const auto wait_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    next_remote_request - now).count();
+                if (progress_callback && wait_ms >= 1000) {
+                    progress_callback(fmt::format(
+                        "[REMOTE] Waiting {:.1f}s to respect the configured request limit before {}...",
+                        static_cast<double>(wait_ms) / 1000.0,
+                        item_name));
+                }
+                while (now < next_remote_request) {
+                    if (stop_flag.load()) {
+                        return false;
+                    }
+                    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        next_remote_request - now);
+                    std::this_thread::sleep_for(std::min(remaining, std::chrono::milliseconds(250)));
+                    now = std::chrono::steady_clock::now();
+                }
+            }
+            next_remote_request = std::chrono::steady_clock::now() + interval_ms;
+            return true;
+        };
+    }
 
     for (const auto& entry : files) {
         if (stop_flag.load()) {
@@ -1195,9 +1227,10 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
                                                              override_value,
                                                              suggested_name,
                                                              stop_flag,
-                                                             progress_callback,
-                                                             recategorization_callback,
-                                                             session_history)) {
+                                                              progress_callback,
+                                                              recategorization_callback,
+                                                              session_history,
+                                                              remote_throttle_callback)) {
             categorized.push_back(*categorized_entry);
         }
 
@@ -1768,7 +1801,8 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     const std::string& prompt_path,
     FileType file_type,
     const ProgressCallback& progress_callback,
-    const std::string& consistency_context) const
+    const std::string& consistency_context,
+    const RemoteThrottleCallback& remote_throttle_callback) const
 {
     if (auto cached = try_cached_categorization(display_name,
                                                 display_path,
@@ -1782,6 +1816,10 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     }
 
     if (!is_local_llm && !ensure_remote_credentials_for_request(display_name, progress_callback)) {
+        return DatabaseManager::ResolvedCategory{-1, "", ""};
+    }
+
+    if (!is_local_llm && remote_throttle_callback && !remote_throttle_callback(display_name)) {
         return DatabaseManager::ResolvedCategory{-1, "", ""};
     }
 
@@ -1805,10 +1843,9 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     std::atomic<bool>& stop_flag,
     const ProgressCallback& progress_callback,
     const RecategorizationCallback& recategorization_callback,
-    SessionHistoryMap& session_history) const
+    SessionHistoryMap& session_history,
+    const RemoteThrottleCallback& remote_throttle_callback) const
 {
-    (void)stop_flag;
-
     const std::filesystem::path entry_path = Utils::utf8_to_path(entry.full_path);
     const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
     const std::string display_path = Utils::abbreviate_user_path(entry.full_path);
@@ -1839,9 +1876,10 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
                                                      display_path,
                                                      dir_path,
                                                      prompt_name,
-                                                     prompt_path_display,
-                                                     progress_callback,
-                                                     combined_context);
+                                                      prompt_path_display,
+                                                      progress_callback,
+                                                      combined_context,
+                                                      remote_throttle_callback);
             break;
         } catch (const BackoffError& backoff) {
             const int wait_seconds = backoff.retry_after_seconds() > 0 ? backoff.retry_after_seconds() : 60;
@@ -2150,7 +2188,8 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
     const std::string& prompt_name,
     const std::string& prompt_path,
     const ProgressCallback& progress_callback,
-    const std::string& combined_context) const
+    const std::string& combined_context,
+    const RemoteThrottleCallback& remote_throttle_callback) const
 {
     return categorize_with_cache(llm,
                                  is_local_llm,
@@ -2161,7 +2200,8 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
                                  prompt_path,
                                  entry.type,
                                  progress_callback,
-                                 combined_context);
+                                 combined_context,
+                                 remote_throttle_callback);
 }
 
 std::optional<CategorizedFile> CategorizationService::handle_empty_result(
@@ -2279,6 +2319,27 @@ int CategorizationService::resolve_llm_timeout(bool is_local_llm) const
     }
 
     return timeout_seconds;
+}
+
+int CategorizationService::resolve_remote_requests_per_minute() const
+{
+    int requests_per_minute = settings.get_remote_requests_per_minute();
+    const char* limit_env = std::getenv(kRemoteRequestsPerMinuteEnv);
+    if (limit_env && *limit_env != '\0') {
+        try {
+            requests_per_minute = std::max(0, std::stoi(limit_env));
+        } catch (const std::exception& ex) {
+            if (core_logger) {
+                core_logger->warn("Failed to parse remote request limit '{}': {}", limit_env, ex.what());
+            }
+        }
+    }
+
+    if (requests_per_minute > 0 && core_logger) {
+        core_logger->debug("Using remote LLM request limit of {} request(s) per minute",
+                           requests_per_minute);
+    }
+    return requests_per_minute;
 }
 
 std::future<std::string> CategorizationService::start_llm_future(

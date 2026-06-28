@@ -311,6 +311,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     set_openai_model(config.getValue("Settings", "RemoteModel", "gpt-4o-mini"));
     set_gemini_api_key(config.getValue("Settings", "GeminiApiKey", ""));
     set_gemini_model(config.getValue("Settings", "GeminiModel", "gemini-2.5-flash-lite"));
+    set_remote_requests_per_minute(load_int("RemoteRequestsPerMinute", 0, 0));
     llm_downloads_expanded = load_bool("LLMDownloadsExpanded", true);
     visual_model_id = normalize_visual_model_id(
         config.getValue("Settings", "VisualModelId", default_visual_model_descriptor().id));
@@ -456,6 +457,7 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "RemoteModel", openai_model.empty() ? "gpt-4o-mini" : openai_model);
     config.setValue(settings_section, "GeminiApiKey", gemini_api_key);
     config.setValue(settings_section, "GeminiModel", gemini_model.empty() ? "gemini-2.5-flash-lite" : gemini_model);
+    config.setValue(settings_section, "RemoteRequestsPerMinute", std::to_string(remote_requests_per_minute));
     set_bool_setting(config, settings_section, "LLMDownloadsExpanded", llm_downloads_expanded);
     config.setValue(settings_section, "VisualModelId", normalize_visual_model_id(visual_model_id));
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
@@ -689,6 +691,16 @@ void Settings::set_gemini_model(const std::string& model)
         trimmed = "gemini-2.5-flash-lite";
     }
     gemini_model = trimmed;
+}
+
+int Settings::get_remote_requests_per_minute() const
+{
+    return remote_requests_per_minute;
+}
+
+void Settings::set_remote_requests_per_minute(int value)
+{
+    remote_requests_per_minute = std::max(0, value);
 }
 
 bool Settings::get_llm_downloads_expanded() const

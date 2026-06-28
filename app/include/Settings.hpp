@@ -83,6 +83,16 @@ public:
      */
     void set_gemini_model(const std::string& model);
     /**
+     * @brief Returns the configured remote LLM request limit.
+     * @return Maximum remote requests per minute, or 0 when throttling is disabled.
+     */
+    int get_remote_requests_per_minute() const;
+    /**
+     * @brief Sets the remote LLM request limit.
+     * @param value Maximum remote requests per minute; non-positive values disable throttling.
+     */
+    void set_remote_requests_per_minute(int value);
+    /**
      * @brief Returns whether the LLM download UI section should remain expanded.
      * @return True when the downloads section is expanded.
      */
@@ -583,6 +593,7 @@ private:
     std::string openai_model{ "gpt-4o-mini" };
     std::string gemini_api_key;
     std::string gemini_model{ "gemini-2.5-flash-lite" };
+    int remote_requests_per_minute{0};
     bool llm_downloads_expanded{true};
     std::string visual_model_id;
     bool use_subcategories;

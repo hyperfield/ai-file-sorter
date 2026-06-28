@@ -803,6 +803,7 @@ Timeouts and logging:
 - `AI_FILE_SORTER_LOCAL_LLM_TIMEOUT` - seconds to wait for local LLM responses (default 60).
 - `AI_FILE_SORTER_REMOTE_LLM_TIMEOUT` - seconds to wait for OpenAI/Gemini responses (default 10).
 - `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT` - seconds to wait for custom OpenAI-compatible API responses (default 60).
+- `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE` - optional pacing limit for remote LLM calls. Use this for rate-limited providers such as OpenRouter; for example, `20` keeps requests within a 20 requests/minute quota. `0` or unset disables pacing. The same value can also be set in `config.ini` as `RemoteRequestsPerMinute` under `[Settings]`.
 - `AI_FILE_SORTER_LLAMA_LOGS` - enable verbose llama.cpp logs (`1`/`true`); also honors `LLAMA_CPP_DEBUG_LOGS`.
 
 Storage and updates:
@@ -1016,7 +1017,7 @@ Prefer an OpenAI-compatible endpoint such as **LM Studio**, **Ollama**, or your 
 4. Save the endpoint, select it from the list, and click **OK**.
 5. The endpoint configuration is stored locally in your AI File Sorter config and can be edited or removed later from the same dialog.
 
-Use this option for local servers or remote providers that follow the OpenAI-style API shape. Response time can be tuned with `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT` (see [Environment variables](#environment-variables)).
+Use this option for local servers or remote providers that follow the OpenAI-style API shape. Response time can be tuned with `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`; rate-limited providers can be paced with `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE` or `[Settings] RemoteRequestsPerMinute` (see [Environment variables](#environment-variables)).
 
 ---
 

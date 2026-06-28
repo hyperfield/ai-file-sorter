@@ -2,6 +2,7 @@
 #include "Types.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
+#include "RemoteApiError.hpp"
 #include <curl/curl.h>
 #include <cstdlib>
 #include <filesystem>
@@ -16,6 +17,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <cctype>
 #include <string>
 #include <utility>
 
@@ -141,6 +143,25 @@ private:
     }
 };
 
+struct HttpResponseInfo {
+    long status_code{0};
+    std::string retry_after;
+};
+
+size_t HeaderCallback(char* buffer, size_t size, size_t nitems, std::string* retry_after)
+{
+    const size_t total_size = size * nitems;
+    std::string line(buffer, total_size);
+    const std::string prefix = "retry-after:";
+    std::string lower = line;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    if (lower.rfind(prefix, 0) == 0) {
+        *retry_after = trim_ws(line.substr(prefix.size()));
+    }
+    return total_size;
+}
+
 CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
 {
     CurlRequest request;
@@ -168,7 +189,8 @@ void configure_request_payload(CurlRequest& request,
                                const std::string& payload,
                                const std::string& api_key,
                                long timeout_seconds,
-                               std::string& response_buffer)
+                               std::string& response_buffer,
+                               std::string& retry_after_header)
 {
     curl_easy_setopt(request.handle, CURLOPT_URL, api_url.c_str());
     curl_easy_setopt(request.handle, CURLOPT_POST, 1L);
@@ -184,9 +206,13 @@ void configure_request_payload(CurlRequest& request,
     curl_easy_setopt(request.handle, CURLOPT_POSTFIELDS, payload.c_str());
     curl_easy_setopt(request.handle, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(request.handle, CURLOPT_WRITEDATA, &response_buffer);
+    curl_easy_setopt(request.handle, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(request.handle, CURLOPT_HEADERDATA, &retry_after_header);
 }
 
-long perform_request(CurlRequest& request, const std::shared_ptr<spdlog::logger>& logger)
+HttpResponseInfo perform_request(CurlRequest& request,
+                                 std::string retry_after_header,
+                                 const std::shared_ptr<spdlog::logger>& logger)
 {
     const CURLcode res = curl_easy_perform(request.handle);
     if (res != CURLE_OK) {
@@ -198,11 +224,10 @@ long perform_request(CurlRequest& request, const std::shared_ptr<spdlog::logger>
 
     long http_code = 0;
     curl_easy_getinfo(request.handle, CURLINFO_RESPONSE_CODE, &http_code);
-    return http_code;
+    return HttpResponseInfo{http_code, std::move(retry_after_header)};
 }
 
 std::string parse_category_response(const std::string& payload,
-                                    long http_code,
                                     const std::shared_ptr<spdlog::logger>& logger)
 {
     Json::CharReaderBuilder reader_builder;
@@ -215,20 +240,6 @@ std::string parse_category_response(const std::string& payload,
             logger->error("Failed to parse JSON response: {}", errors);
         }
         throw std::runtime_error("Response Error: Failed to parse JSON response. " + errors);
-    }
-
-    if (http_code == 401) {
-        throw std::runtime_error("Authentication Error: Invalid or missing API key.");
-    }
-    if (http_code == 403) {
-        throw std::runtime_error("Authorization Error: API key does not have sufficient permissions.");
-    }
-    if (http_code >= 500) {
-        throw std::runtime_error("Server Error: Remote LLM server returned an error. Status code: " + std::to_string(http_code));
-    }
-    if (http_code >= 400) {
-        const std::string error_message = root["error"]["message"].asString();
-        throw std::runtime_error("Client Error: " + error_message);
     }
 
     return root["choices"][0]["message"]["content"].asString();
@@ -252,6 +263,7 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 
 std::string LLMClient::send_api_request(std::string json_payload) {
     std::string response_string;
+    std::string retry_after_header;
     const std::string api_url = resolve_api_url();
     auto logger = Logger::get_logger("core_logger");
 
@@ -260,10 +272,23 @@ std::string LLMClient::send_api_request(std::string json_payload) {
     }
 
     CurlRequest request = create_curl_request(logger);
-    configure_request_payload(request, api_url, json_payload, api_key, resolve_timeout_seconds(base_url), response_string);
+    configure_request_payload(request,
+                              api_url,
+                              json_payload,
+                              api_key,
+                              resolve_timeout_seconds(base_url),
+                              response_string,
+                              retry_after_header);
 
-    const long http_code = perform_request(request, logger);
-    return parse_category_response(response_string, http_code, logger);
+    const HttpResponseInfo response = perform_request(request, std::move(retry_after_header), logger);
+    if (response.status_code >= 400) {
+        RemoteApiError::throw_for_http_error("Remote LLM",
+                                             response.status_code,
+                                             response_string,
+                                             response.retry_after,
+                                             logger);
+    }
+    return parse_category_response(response_string, logger);
 }
 
 std::string LLMClient::effective_model() const
