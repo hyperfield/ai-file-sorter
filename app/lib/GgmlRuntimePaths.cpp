@@ -1,8 +1,12 @@
 #include "GgmlRuntimePaths.hpp"
 
+#ifndef AI_FILE_SORTER_GGML_RUNTIME_PATHS_NO_BACKEND_LOADING
 #include "ggml-backend.h"
+#endif
 
+#ifndef AI_FILE_SORTER_GGML_RUNTIME_PATHS_NO_BACKEND_LOADING
 #include <spdlog/spdlog.h>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -334,6 +338,9 @@ std::optional<std::string> sanitize_linux_backend_environment()
 
 void ensure_ggml_backends_loaded(const std::shared_ptr<spdlog::logger>& logger)
 {
+#ifdef AI_FILE_SORTER_GGML_RUNTIME_PATHS_NO_BACKEND_LOADING
+    (void)logger;
+#else
     static std::once_flag load_once;
 
     std::call_once(load_once, [&logger]() {
@@ -353,6 +360,7 @@ void ensure_ggml_backends_loaded(const std::shared_ptr<spdlog::logger>& logger)
             ggml_backend_load_all();
         }
     });
+#endif
 }
 
 } // namespace GgmlRuntimePaths

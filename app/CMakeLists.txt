@@ -941,6 +941,7 @@ if(WIN32 AND _aifs_windows_enable_starter)
         AIFS_MAIN_EXECUTABLE_NAME="${_aifs_windows_main_output_name}.exe"
     )
     target_compile_definitions(${STARTER_TARGET} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_compile_definitions(${STARTER_TARGET} PRIVATE AI_FILE_SORTER_GGML_RUNTIME_PATHS_NO_BACKEND_LOADING)
     add_custom_command(TARGET ${STARTER_TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E rm -f "$<TARGET_FILE_DIR:${STARTER_TARGET}>/StartAiFileSorter.exe"
     )
