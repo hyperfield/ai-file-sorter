@@ -1341,12 +1341,63 @@ Procedure: Scan with `Files | Recursive`.
 Expected outcome: Both files appear in the results.
 Run: `./build-tests/ai_file_sorter_tests "recursive scans include nested files"`
 
+#### Test case: recursive scans skip protected project directories
+Purpose: Ensure recursive scans do not traverse project roots whose layout can be broken by moving files independently.
+Setup: Create a normal root file and a nested Unity project containing `Assets` and `ProjectSettings/ProjectVersion.txt`.
+Procedure: Scan the parent directory with `Files | Recursive`.
+Expected outcome: Only the normal root file is returned; files inside the Unity project are skipped.
+Run: `./build-tests/ai_file_sorter_tests "recursive scans skip protected project directories"`
+
+#### Test case: protected selected roots produce no scan entries
+Purpose: Protect users who select a project root directly rather than selecting its parent directory.
+Setup: Create a Godot project root with `project.godot` and a nested scene file.
+Procedure: Scan the project root with `Files | Recursive`.
+Expected outcome: No entries are returned because the selected root itself is protected.
+Run: `./build-tests/ai_file_sorter_tests "protected selected roots produce no scan entries"`
+
+#### Test case: project protection can be disabled for raw scanner traversal
+Purpose: Keep the scanner behavior configurable for tests or specialized providers that need raw filesystem traversal.
+Setup: Create a Rust project with `Cargo.toml` and `src/main.rs`, then disable `protect_project_directories` in `FileScannerBehavior`.
+Procedure: Scan with `Files | Recursive`.
+Expected outcome: Both project files are returned because protection was explicitly disabled.
+Run: `./build-tests/ai_file_sorter_tests "project protection can be disabled for raw scanner traversal"`
+
 #### Test case: recursive scans skip unreadable directories and continue
 Purpose: Ensure one inaccessible subdirectory does not abort an otherwise valid recursive scan.
 Setup: Create a readable subtree and a second subtree whose directory permissions are removed (non-Windows only).
 Procedure: Scan with `Files | Recursive`.
 Expected outcome: The readable file is returned, the scan does not throw, and the unreadable subtree is skipped.
 Run: `./build-tests/ai_file_sorter_tests "recursive scans skip unreadable directories and continue"`
+
+### `tests/unit/test_protected_project_detector.cpp`
+
+#### Test case: ProtectedProjectDetector detects strong Unity roots
+Purpose: Verify the built-in protected-project registry recognizes a high-confidence Unity project root.
+Setup: Create `Assets` and `ProjectSettings/ProjectVersion.txt` under a temporary directory.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: The match reports the `unity` rule with strong protection and scanner-skip behavior.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector detects strong Unity roots"`
+
+#### Test case: ProtectedProjectDetector detects conservative Blender project folders
+Purpose: Protect Blender folders only when a `.blend` file appears with companion asset/cache-style folders.
+Setup: Create a `.blend` file and a `textures` directory in the same root.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: The match reports the strong `blender` rule.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector detects conservative Blender project folders"`
+
+#### Test case: ProtectedProjectDetector treats lone Blender files as weak signals
+Purpose: Avoid skipping arbitrary folders just because they contain one loose `.blend` file.
+Setup: Create a temporary directory containing only a `.blend` file.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: The match reports the weak `blender-file` rule and is not eligible for automatic scan skipping.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector treats lone Blender files as weak signals"`
+
+#### Test case: ProtectedProjectDetector detects common source project roots
+Purpose: Verify the registry handles non-game project roots through declarative marker rules.
+Setup: Create a Node.js-style root with `package.json` and a lockfile.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: The match reports the strong `node` rule.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector detects common source project roots"`
 
 ### `tests/unit/test_support_prompt.cpp`
 

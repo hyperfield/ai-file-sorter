@@ -6,11 +6,13 @@
 #include <vector>
 #include <optional>
 #include "Types.hpp"
+#include "ProtectedProjectDetector.hpp"
 
 namespace fs = std::filesystem;
 
 struct FileScannerBehavior {
     bool skip_reparse_points{false};
+    bool protect_project_directories{true};
     std::vector<std::string> additional_junk_names;
     std::vector<std::string> junk_name_prefixes;
 };
@@ -35,6 +37,13 @@ private:
                           const fs::path& path,
                           const std::error_code& error,
                           const char* action) const;
+    /**
+     * @brief Logs a protected project that was skipped during traversal.
+     * @param context Active scan context.
+     * @param match Protected project match.
+     */
+    void log_protected_project_skip(const ScanContext& context,
+                                    const ProtectedProjectMatch& match) const;
     std::optional<FileEntry> build_entry(const fs::directory_entry& entry,
                                          const ScanContext& context) const;
     bool should_skip_entry(const fs::directory_entry& entry,
@@ -51,6 +60,15 @@ private:
     bool is_junk_file(const std::string& name) const;
     bool is_additional_junk_file(const std::string& name, const ScanContext& context) const;
     bool is_file_bundle(const fs::path& path, bool is_directory) const;
+    /**
+     * @brief Returns a strong protected-project match for a directory.
+     * @param path Directory path to evaluate.
+     * @param context Active scan context.
+     * @return Protected project match when traversal should skip it.
+     */
+    std::optional<ProtectedProjectMatch> strong_protected_project_match(
+        const fs::path& path,
+        const ScanContext& context) const;
 };
 
 #endif
