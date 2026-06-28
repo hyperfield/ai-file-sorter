@@ -1,5 +1,7 @@
 #include "ProtectedProjectDetector.hpp"
 
+#include "Utils.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <system_error>
@@ -64,7 +66,7 @@ bool has_root_entry_with_suffix(const std::filesystem::path& root,
             return false;
         }
 
-        const std::string name = lower_copy(it->path().filename().string());
+        const std::string name = lower_copy(Utils::path_to_utf8(it->path().filename()));
         for (const auto& suffix : suffixes) {
             const std::string lowered_suffix = lower_copy(suffix);
             if (!lowered_suffix.empty() && name.ends_with(lowered_suffix)) {

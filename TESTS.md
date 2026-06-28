@@ -1399,6 +1399,20 @@ Procedure: Run `ProtectedProjectDetector::detect`.
 Expected outcome: The match reports the strong `node` rule.
 Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector detects common source project roots"`
 
+#### Test case: ProtectedProjectDetector covers every built-in project rule
+Purpose: Ensure every built-in protected-project rule has a working positive fixture.
+Setup: Create minimal roots for Unity, Unreal, Godot, Git, Node.js, Python, Rust, Go, Gradle, .NET, Xcode, strong Blender, and weak Blender-file detection.
+Procedure: Run `ProtectedProjectDetector::detect` for each fixture.
+Expected outcome: Each fixture matches its expected rule id and strength; only strong matches are eligible for scanner skipping.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector covers every built-in project rule"`
+
+#### Test case: ProtectedProjectDetector ignores Unicode loose files while checking suffix rules
+Purpose: Ensure suffix-based protected-project checks do not convert filenames through the Windows ANSI code page.
+Setup: Create a temporary directory containing a loose Unicode-named file such as `旅行.txt`.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: Detection returns no match and does not throw a path-conversion exception.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector ignores Unicode loose files while checking suffix rules"`
+
 ### `tests/unit/test_support_prompt.cpp`
 
 #### Test case: Support prompt thresholds advance based on response
