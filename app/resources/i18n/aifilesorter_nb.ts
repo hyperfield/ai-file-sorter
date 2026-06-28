@@ -474,7 +474,19 @@
             <source>GGUF models (*.gguf);;All files (*.*)</source>
             <translation>GGUF-modeller (*.gguf);;Alle filer (*.*)</translation>
         </message>
-    </context>
+        <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>Valgfritt, gjør denne modellen tilgjengelig for bildeanalyse</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj-fil (.gguf, valgfri)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>Velg .gguf-MMProj-fil</translation>
+    </message>
+</context>
     <context>
         <name>DryRunPreviewDialog</name>
         <message>
@@ -893,7 +905,35 @@ Støtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <source>Download error: %1</source>
             <translation>Nedlastingsfeil: %1</translation>
         </message>
-    </context>
+        <message>
+        <source>Model storage</source>
+        <translation>Modellagring</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>Velg hvor nedlastede lokale LLM-filer lagres. La stå tomt for å bruke plattformens standard.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Standard: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Bla gjennom…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Bruk standard</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Velg mappe for modellagring</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Egendefinert: %1</translation>
+    </message>
+</context>
     <context>
         <name>MainApp</name>
         <message>

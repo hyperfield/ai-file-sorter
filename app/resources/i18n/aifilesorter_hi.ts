@@ -474,6 +474,18 @@
         <source>GGUF models (*.gguf);;All files (*.*)</source>
         <translation>GGUF models (*.gguf);;All files (*.*)</translation>
     </message>
+    <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>वैकल्पिक, छवि विश्लेषण के लिए इस मॉडल को सक्षम करता है</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj फ़ाइल (.gguf, वैकल्पिक)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>.gguf MMProj फ़ाइल चुनें</translation>
+    </message>
 </context>
 <context>
     <name>DryRunPreviewDialog</name>
@@ -887,6 +899,34 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <location filename="../../lib/LLMSelectionDialog.cpp" line="2061"/>
         <source>Download error: %1</source>
         <translation>डाउनलोड त्रुटि: %1</translation>
+    </message>
+    <message>
+        <source>Model storage</source>
+        <translation>मॉडल संग्रहण</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>डाउनलोड की गई स्थानीय LLM फ़ाइलें कहाँ संग्रहीत होंगी, चुनें। प्लेटफ़ॉर्म डिफ़ॉल्ट उपयोग करने के लिए खाली छोड़ें।</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>डिफ़ॉल्ट: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>ब्राउज़…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>डिफ़ॉल्ट उपयोग करें</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>मॉडल संग्रहण फ़ोल्डर चुनें</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>कस्टम: %1</translation>
     </message>
 </context>
 <context>

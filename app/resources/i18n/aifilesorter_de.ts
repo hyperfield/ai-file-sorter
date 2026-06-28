@@ -474,6 +474,18 @@
         <source>GGUF models (*.gguf);;All files (*.*)</source>
         <translation>GGUF-Modelle (*.gguf);;Alle Dateien (*.*)</translation>
     </message>
+    <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>Optional, aktiviert dieses Modell für die Bildanalyse.</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj-Datei (.gguf, optional)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>.gguf-MMProj-Datei auswählen</translation>
+    </message>
 </context>
 <context>
     <name>DryRunPreviewDialog</name>
@@ -892,6 +904,34 @@ Unterstützt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <location filename="../../lib/LLMSelectionDialog.cpp" line="2061"/>
         <source>Download error: %1</source>
         <translation>Download-Fehler: %1</translation>
+    </message>
+    <message>
+        <source>Model storage</source>
+        <translation>Modellspeicher</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>Wählen Sie, wo heruntergeladene lokale LLM-Dateien gespeichert werden. Leer lassen, um den Plattformstandard zu verwenden.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Standard: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Durchsuchen…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Standard verwenden</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Ordner für Modellspeicher auswählen</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Benutzerdefiniert: %1</translation>
     </message>
 </context>
 <context>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Types.hpp"
 #include "VisualModelCatalog.hpp"
 
 #include <filesystem>
@@ -50,7 +51,28 @@ public:
     static bool default_text_llm_files_available();
     static std::optional<Backend> resolve_active_backend(std::string_view backend_id = {},
                                                          std::string* error = nullptr);
+    /**
+     * @brief Resolve a built-in or custom visual backend by id.
+     * @param backend_id Built-in descriptor id, custom visual id, or empty for default.
+     * @param custom_llms Custom local LLM entries available for `custom:<id>` resolution.
+     * @param error Optional error output.
+     * @return Resolved backend when required artifacts are available.
+     */
+    static std::optional<Backend> resolve_active_backend(
+        std::string_view backend_id,
+        const std::vector<CustomLLM>& custom_llms,
+        std::string* error = nullptr);
     static std::optional<Paths> resolve_paths(std::string_view backend_id = {},
+                                              std::string* error = nullptr);
+    /**
+     * @brief Resolve the model and MMProj paths for a built-in or custom backend.
+     * @param backend_id Built-in descriptor id, custom visual id, or empty for default.
+     * @param custom_llms Custom local LLM entries available for `custom:<id>` resolution.
+     * @param error Optional error output.
+     * @return Model and MMProj paths when both are available.
+     */
+    static std::optional<Paths> resolve_paths(std::string_view backend_id,
+                                              const std::vector<CustomLLM>& custom_llms,
                                               std::string* error = nullptr);
     static bool should_use_gpu();
     static bool should_offer_cpu_fallback(const std::string& reason);

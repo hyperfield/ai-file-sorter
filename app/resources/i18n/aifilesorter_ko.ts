@@ -474,6 +474,18 @@
         <source>GGUF models (*.gguf);;All files (*.*)</source>
         <translation>GGUF 모델 (*.gguf);;모든 파일 (*.*)</translation>
     </message>
+    <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>선택 사항, 이 모델을 이미지 분석에 사용할 수 있게 합니다</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj 파일(.gguf, 선택 사항)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>.gguf MMProj 파일 선택</translation>
+    </message>
 </context>
 <context>
     <name>DryRunPreviewDialog</name>
@@ -892,6 +904,34 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <location filename="../../lib/LLMSelectionDialog.cpp" line="2061"/>
         <source>Download error: %1</source>
         <translation>다운로드 오류: %1</translation>
+    </message>
+    <message>
+        <source>Model storage</source>
+        <translation>모델 저장 위치</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>다운로드한 로컬 LLM 파일을 저장할 위치를 선택하세요. 비워 두면 플랫폼 기본값을 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>기본값: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>찾아보기…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>기본값 사용</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>모델 저장 폴더 선택</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>사용자 지정: %1</translation>
     </message>
 </context>
 <context>

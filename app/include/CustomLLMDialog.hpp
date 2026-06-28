@@ -56,11 +56,17 @@ private:
      * @brief Open a file picker to select a local model file.
      */
     void browse_for_file();
+    /**
+     * @brief Open a file picker to select an optional MMProj file for visual analysis.
+     */
+    void browse_for_mmproj_file();
 
     QLineEdit* name_edit{nullptr};
     QTextEdit* description_edit{nullptr};
     QLineEdit* path_edit{nullptr};
+    QLineEdit* mmproj_path_edit{nullptr};
     QPushButton* browse_button{nullptr};
+    QPushButton* browse_mmproj_button{nullptr};
     QPushButton* ok_button{nullptr};
 };
 

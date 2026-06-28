@@ -925,7 +925,9 @@ void AnalysisCoordinator::execute()
 
             std::string error;
             auto visual_backend =
-                VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(), &error);
+                VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
+                                                         app_.settings.get_custom_llms(),
+                                                         &error);
             if (!visual_backend) {
                 throw std::runtime_error(error);
             }

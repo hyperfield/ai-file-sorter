@@ -474,6 +474,18 @@
         <source>GGUF models (*.gguf);;All files (*.*)</source>
         <translation>GGUF modelleri (*.gguf);;Tüm dosyalar (*.*)</translation>
     </message>
+    <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>İsteğe bağlı, bu modeli görüntü analizi için etkinleştirir</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj dosyası (.gguf, isteğe bağlı)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>.gguf MMProj dosyası seç</translation>
+    </message>
 </context>
 <context>
     <name>DryRunPreviewDialog</name>
@@ -892,6 +904,34 @@ Destekler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <location filename="../../lib/LLMSelectionDialog.cpp" line="2061"/>
         <source>Download error: %1</source>
         <translation>İndirme hatası: %1</translation>
+    </message>
+    <message>
+        <source>Model storage</source>
+        <translation>Model depolama</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>İndirilen yerel LLM dosyalarının nerede saklanacağını seçin. Platform varsayılanını kullanmak için boş bırakın.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Varsayılan: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Gözat…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Varsayılanı kullan</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Model depolama klasörünü seç</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Özel: %1</translation>
     </message>
 </context>
 <context>

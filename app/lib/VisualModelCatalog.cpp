@@ -9,6 +9,7 @@
 namespace {
 
 constexpr std::string_view kLegacyDefaultLlavaBackendId = "llava-v1.6-mistral-7b";
+constexpr std::string_view kCustomVisualModelIdPrefix = "custom:";
 
 std::optional<std::string> read_cached_download_url(const std::filesystem::path& candidate)
 {
@@ -148,6 +149,56 @@ const VisualModelDescriptor& default_visual_model_descriptor()
         return *gemma;
     }
     return visual_model_descriptors().front();
+}
+
+const VisualModelDescriptor& custom_visual_model_descriptor()
+{
+    static const VisualModelDescriptor descriptor = {
+        "custom",
+        "Custom visual LLM",
+        VisualModelArchitecture::MtmdProjector,
+        VisualPromptPolicy::StructuredVisionInstruct,
+        {
+            {VisualModelArtifactKind::Model,
+             "Custom visual text model",
+             "",
+             "",
+             {}},
+            {VisualModelArtifactKind::Mmproj,
+             "Custom mmproj",
+             "",
+             "",
+             {}},
+        },
+    };
+    return descriptor;
+}
+
+std::string custom_visual_model_id_for_llm(std::string_view custom_llm_id)
+{
+    if (custom_llm_id.empty()) {
+        return {};
+    }
+    std::string id(kCustomVisualModelIdPrefix);
+    id.append(custom_llm_id);
+    return id;
+}
+
+std::optional<std::string> custom_llm_id_from_visual_model_id(std::string_view visual_model_id)
+{
+    if (visual_model_id.rfind(kCustomVisualModelIdPrefix, 0) != 0) {
+        return std::nullopt;
+    }
+    const auto id = visual_model_id.substr(kCustomVisualModelIdPrefix.size());
+    if (id.empty()) {
+        return std::nullopt;
+    }
+    return std::string(id);
+}
+
+bool is_custom_visual_model_id(std::string_view visual_model_id)
+{
+    return custom_llm_id_from_visual_model_id(visual_model_id).has_value();
 }
 
 std::filesystem::path visual_artifact_storage_path(const VisualModelDescriptor& backend,

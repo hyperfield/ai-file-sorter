@@ -6,6 +6,19 @@
 #include <filesystem>
 #include <fstream>
 
+namespace {
+
+struct LlmStorageOverrideGuard {
+    std::string previous = Utils::get_llm_storage_directory_override();
+
+    ~LlmStorageOverrideGuard()
+    {
+        Utils::set_llm_storage_directory_override(previous);
+    }
+};
+
+} // namespace
+
 TEST_CASE("get_file_name_from_url extracts filename") {
     const std::string url = "https://example.com/models/mistral-7b.gguf";
     REQUIRE(Utils::get_file_name_from_url(url) == "mistral-7b.gguf");
@@ -13,6 +26,17 @@ TEST_CASE("get_file_name_from_url extracts filename") {
 
 TEST_CASE("get_file_name_from_url rejects malformed input") {
     REQUIRE_THROWS_AS(Utils::get_file_name_from_url("https://example.com/"), std::runtime_error);
+}
+
+TEST_CASE("LLM storage override changes default download destination") {
+    LlmStorageOverrideGuard storage_guard;
+    TempDir temp_dir;
+
+    Utils::set_llm_storage_directory_override(temp_dir.path().string());
+
+    const std::filesystem::path resolved =
+        Utils::make_default_path_to_file_from_download_url("https://example.com/models/custom.gguf");
+    CHECK(resolved == temp_dir.path() / "custom.gguf");
 }
 
 TEST_CASE("is_cuda_available honors probe overrides") {

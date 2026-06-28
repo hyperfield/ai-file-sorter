@@ -123,7 +123,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Two categorization modes**: Pick **More Refined** for detailed labels or **More Consistent** to bias toward uniform categories within a folder.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
 - **Model-aware category and rename languages**: Categorization stays canonical in English first and then translates labels into the selected category language. Suggested filenames for images, documents, and supported audio/video metadata flows are also localized into that same selected language before review. The available languages depend on the selected local model; Gemma 3 4B and custom local models expose the full app-supported list, while smaller built-in models expose only their supported subset.
-- **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog.
+- **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog. Add a matching MMProj file to make a custom model available for image analysis as well.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends such as the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
 - **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
 - **Document content analysis (Text LLM)**: Analyze supported document files to summarize content and suggest filenames; uses the same selected LLM (local or remote).
@@ -180,6 +180,8 @@ The app currently exposes two built-in visual backends: the default Gemma 3 4B I
 
 The Gemma 3 4B IT GGUF is also available as a built-in local text/categorization model. When used only for categorization or document analysis, it runs as a normal text model and does not need `mmproj`. If you already downloaded the Gemma 3 text GGUF for image analysis, the local text-model entry reuses that same file automatically. The extra `mmproj` file is only required for visual image analysis.
 
+Custom local GGUF models can also be used for image analysis when their custom LLM entry includes a matching MMProj file. Those entries appear in the **Visual model** selector as custom visual backends and use the files you selected instead of the built-in download controls.
+
 ### Required visual LLM files
 
 The **Select LLM** dialog includes an "Image analysis models" section with backend-specific downloads:
@@ -188,6 +190,8 @@ The **Select LLM** dialog includes an "Image analysis models" section with backe
 - **Matching `mmproj` file (GGUF)**: The multimodal projector that maps image embeddings into the model token space so the backend can accept images.
 
 Both files are required for the selected backend. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL` or `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+
+The same dialog also includes **Model storage**, which changes where built-in local text and visual model downloads are stored. Leave it empty to use the platform default.
 
 ### Main window options
 
@@ -810,6 +814,8 @@ Timeouts and logging:
 Storage and updates:
 
 - `AI_FILE_SORTER_CONFIG_DIR` - override the base config directory (where `config.ini` lives).
+- `AI_FILE_SORTER_LLM_STORAGE_DIR` - override where downloaded local LLM files are stored. This can also be set from **Settings → Select LLM… → Model storage**.
+- `AI_FILE_SORTER_LLM_DIR` - legacy alias for `AI_FILE_SORTER_LLM_STORAGE_DIR`.
 - `CATEGORIZATION_CACHE_FILE` - override the SQLite cache filename inside the config dir.
 - `UPDATE_SPEC_FILE_URL` - primary update feed spec URL used for normal runs. The updater now reads per-platform streams from `update.windows`, `update.macos`, and `update.linux`, with legacy single-stream feeds still accepted. Each stream may also include its own `changelog` list for the update dialog.
 - `UPDATE_SPEC_FILE_URL_DEVELOPMENT` - alternate update feed spec URL used when the app starts with `--development`. If this value is unset, development mode falls back to `UPDATE_SPEC_FILE_URL`.

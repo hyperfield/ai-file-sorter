@@ -474,7 +474,19 @@
             <source>GGUF models (*.gguf);;All files (*.*)</source>
             <translation>GGUF módel (*.gguf);;Allar skrár (*.*)</translation>
         </message>
-    </context>
+        <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>Valfrjálst, gerir þetta líkan tiltækt fyrir myndgreiningu</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj-skrá (.gguf, valfrjálst)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>Veldu .gguf MMProj-skrá</translation>
+    </message>
+</context>
     <context>
         <name>DryRunPreviewDialog</name>
         <message>
@@ -893,7 +905,35 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <source>Download error: %1</source>
             <translation>Niðurhalsvilla: %1</translation>
         </message>
-    </context>
+        <message>
+        <source>Model storage</source>
+        <translation>Geymsla líkana</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>Veldu hvar sóttar staðbundnar LLM-skrár eru geymdar. Skildu eftir autt til að nota sjálfgefna staðsetningu kerfisins.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Sjálfgefið: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Vafra…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Nota sjálfgefið</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Veldu möppu fyrir líkanageymslu</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Sérsniðið: %1</translation>
+    </message>
+</context>
     <context>
         <name>MainApp</name>
         <message>

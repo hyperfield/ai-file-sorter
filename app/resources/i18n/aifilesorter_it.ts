@@ -474,6 +474,18 @@
         <source>GGUF models (*.gguf);;All files (*.*)</source>
         <translation>Modelli GGUF (*.gguf);;Tutti i file (*.*)</translation>
     </message>
+    <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>Facoltativo, abilita questo modello per analizzare le immagini</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>File MMProj (.gguf, facoltativo)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>Seleziona file MMProj .gguf</translation>
+    </message>
 </context>
 <context>
     <name>DryRunPreviewDialog</name>
@@ -892,6 +904,34 @@ Supporta: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <location filename="../../lib/LLMSelectionDialog.cpp" line="2061"/>
         <source>Download error: %1</source>
         <translation>Errore di download: %1</translation>
+    </message>
+    <message>
+        <source>Model storage</source>
+        <translation>Archiviazione modelli</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>Scegli dove archiviare i file LLM locali scaricati. Lascia vuoto per usare il percorso predefinito della piattaforma.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Predefinito: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Sfoglia…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Usa predefinito</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Seleziona cartella di archiviazione modelli</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Personalizzato: %1</translation>
     </message>
 </context>
 <context>

@@ -474,6 +474,18 @@
         <source>GGUF models (*.gguf);;All files (*.*)</source>
         <translation>Modelos GGUF (*.gguf);;Todos los archivos (*.*)</translation>
     </message>
+    <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>Opcional; habilita este modelo para el análisis de imágenes</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>Archivo MMProj (.gguf, opcional)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>Seleccionar archivo MMProj .gguf</translation>
+    </message>
 </context>
 <context>
     <name>DryRunPreviewDialog</name>
@@ -892,6 +904,34 @@ Compatible con: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <location filename="../../lib/LLMSelectionDialog.cpp" line="2061"/>
         <source>Download error: %1</source>
         <translation>Error de descarga: %1</translation>
+    </message>
+    <message>
+        <source>Model storage</source>
+        <translation>Almacenamiento de modelos</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>Elige dónde se guardan los archivos LLM locales descargados. Déjalo vacío para usar el valor predeterminado de la plataforma.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Predeterminado: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Examinar…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Usar predeterminado</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Seleccionar carpeta de almacenamiento de modelos</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Personalizado: %1</translation>
     </message>
 </context>
 <context>

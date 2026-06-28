@@ -474,7 +474,19 @@
             <source>GGUF models (*.gguf);;All files (*.*)</source>
             <translation>GGUF-modeller (*.gguf);;Alla filer (*.*)</translation>
         </message>
-    </context>
+        <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>Valfritt, gör den här modellen tillgänglig för bildanalys</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj-fil (.gguf, valfri)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>Välj .gguf-MMProj-fil</translation>
+    </message>
+</context>
     <context>
         <name>DryRunPreviewDialog</name>
         <message>
@@ -893,7 +905,35 @@ Stöder: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <source>Download error: %1</source>
             <translation>Nedladdningsfel: %1</translation>
         </message>
-    </context>
+        <message>
+        <source>Model storage</source>
+        <translation>Modellagring</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>Välj var nedladdade lokala LLM-filer lagras. Lämna tomt för att använda plattformens standard.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Standard: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Bläddra…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Använd standard</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Välj mapp för modellagring</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Anpassad: %1</translation>
+    </message>
+</context>
     <context>
         <name>MainApp</name>
         <message>

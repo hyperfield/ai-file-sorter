@@ -3,6 +3,7 @@
 #include "TestHooks.hpp"
 #include "WindowsCudaProbe.hpp"
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstring>  // for memset
 #include <filesystem>
@@ -33,6 +34,26 @@ constexpr int kCudaVramStepMb = 512;
 constexpr int kCudaBaseGpuLayers = 14;
 constexpr int kCudaLayersPerStep = 2;
 constexpr int kCudaMaxGpuLayers = 32;
+
+std::mutex& llm_storage_override_mutex()
+{
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::string& llm_storage_directory_override()
+{
+    static std::string path;
+    return path;
+}
+
+std::string trim_copy(std::string value)
+{
+    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
+    value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
+    return value;
+}
 
 template <typename... Args>
 void log_core(spdlog::level::level_enum level, const char* fmt, Args&&... args) {
@@ -637,9 +658,34 @@ void Utils::run_on_main_thread(Func&& func)
     }
 }
 
+void Utils::set_llm_storage_directory_override(const std::string& path)
+{
+    std::lock_guard<std::mutex> lock(llm_storage_override_mutex());
+    llm_storage_directory_override() = trim_copy(path);
+}
+
+std::string Utils::get_llm_storage_directory_override()
+{
+    std::lock_guard<std::mutex> lock(llm_storage_override_mutex());
+    return llm_storage_directory_override();
+}
 
 std::string Utils::get_default_llm_destination()
 {
+    const std::string configured = get_llm_storage_directory_override();
+    if (!configured.empty()) {
+        return configured;
+    }
+
+    if (const char* env_override = std::getenv("AI_FILE_SORTER_LLM_STORAGE_DIR");
+        env_override && *env_override) {
+        return trim_copy(env_override);
+    }
+    if (const char* env_override = std::getenv("AI_FILE_SORTER_LLM_DIR");
+        env_override && *env_override) {
+        return trim_copy(env_override);
+    }
+
     const char* home = std::getenv("HOME");
 
     if (Utils::is_os_windows()) {

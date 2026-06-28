@@ -541,6 +541,7 @@ bool MainWindowStateBinder::visual_llm_files_available() const
     }
 #endif
     return VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
+                                                    app_.settings.get_custom_llms(),
                                                     nullptr)
         .has_value();
 }

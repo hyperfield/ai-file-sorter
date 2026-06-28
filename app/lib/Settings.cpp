@@ -169,6 +169,9 @@ std::string normalize_visual_model_id(const std::string& value)
     if (trimmed.empty()) {
         return default_visual_model_descriptor().id;
     }
+    if (is_custom_visual_model_id(trimmed)) {
+        return trimmed;
+    }
     if (find_visual_model_descriptor(trimmed)) {
         return trimmed;
     }
@@ -313,6 +316,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     set_gemini_model(config.getValue("Settings", "GeminiModel", "gemini-2.5-flash-lite"));
     set_remote_requests_per_minute(load_int("RemoteRequestsPerMinute", 0, 0));
     llm_downloads_expanded = load_bool("LLMDownloadsExpanded", true);
+    set_llm_storage_dir(config.getValue("Settings", "LlmStorageDir", ""));
     visual_model_id = normalize_visual_model_id(
         config.getValue("Settings", "VisualModelId", default_visual_model_descriptor().id));
     use_subcategories = load_bool("UseSubcategories", true);
@@ -400,6 +404,7 @@ void Settings::load_custom_llm_settings()
         entry.name = config.getValue(section, "Name", "");
         entry.description = config.getValue(section, "Description", "");
         entry.path = config.getValue(section, "Path", "");
+        entry.mmproj_path = config.getValue(section, "MmprojPath", "");
         if (!entry.name.empty() && !entry.path.empty()) {
             custom_llms.push_back(entry);
         }
@@ -459,6 +464,7 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "GeminiModel", gemini_model.empty() ? "gemini-2.5-flash-lite" : gemini_model);
     config.setValue(settings_section, "RemoteRequestsPerMinute", std::to_string(remote_requests_per_minute));
     set_bool_setting(config, settings_section, "LLMDownloadsExpanded", llm_downloads_expanded);
+    config.setValue(settings_section, "LlmStorageDir", llm_storage_dir);
     config.setValue(settings_section, "VisualModelId", normalize_visual_model_id(visual_model_id));
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
@@ -529,6 +535,7 @@ void Settings::save_custom_llms()
         config.setValue(section, "Name", entry.name);
         config.setValue(section, "Description", entry.description);
         config.setValue(section, "Path", entry.path);
+        config.setValue(section, "MmprojPath", entry.mmproj_path);
     }
     config.setValue(llm_section, "CustomIds", join_list(ids));
 }
@@ -587,6 +594,7 @@ bool Settings::load()
 {
     if (!config.load(config_path)) {
         sort_folder = default_sort_folder.empty() ? std::string("/") : default_sort_folder;
+        set_llm_storage_dir("");
         // Keep language defaults derived from system locale when no config is found.
         return false;
     }
@@ -713,6 +721,17 @@ void Settings::set_llm_downloads_expanded(bool value)
     llm_downloads_expanded = value;
 }
 
+std::string Settings::get_llm_storage_dir() const
+{
+    return llm_storage_dir;
+}
+
+void Settings::set_llm_storage_dir(const std::string& path)
+{
+    llm_storage_dir = trim_copy(path);
+    Utils::set_llm_storage_directory_override(llm_storage_dir);
+}
+
 std::string Settings::get_visual_model_id() const
 {
     return visual_model_id;
@@ -751,6 +770,10 @@ CustomLLM Settings::find_custom_llm(const std::string& id) const
 std::string Settings::upsert_custom_llm(const CustomLLM& llm)
 {
     CustomLLM copy = llm;
+    copy.name = trim_copy(copy.name);
+    copy.description = trim_copy(copy.description);
+    copy.path = trim_copy(copy.path);
+    copy.mmproj_path = trim_copy(copy.mmproj_path);
     if (copy.id.empty()) {
         copy.id = generate_custom_llm_id();
     }

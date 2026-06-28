@@ -474,7 +474,19 @@
             <source>GGUF models (*.gguf);;All files (*.*)</source>
             <translation>GGUF 型号 (*.gguf);;所有文件 (*.*)</translation>
         </message>
-    </context>
+        <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>可选，用于让此模型支持图像分析</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj 文件（.gguf，可选）</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>选择 .gguf MMProj 文件</translation>
+    </message>
+</context>
     <context>
         <name>DryRunPreviewDialog</name>
         <message>
@@ -893,7 +905,35 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <source>Download error: %1</source>
             <translation>下载错误：%1</translation>
         </message>
-    </context>
+        <message>
+        <source>Model storage</source>
+        <translation>模型存储</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>选择下载的本地 LLM 文件的存储位置。留空则使用平台默认位置。</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>默认：%1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>浏览…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>使用默认</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>选择模型存储文件夹</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>自定义：%1</translation>
+    </message>
+</context>
     <context>
         <name>MainApp</name>
         <message>

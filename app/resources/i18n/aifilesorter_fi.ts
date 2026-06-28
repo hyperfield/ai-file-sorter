@@ -474,7 +474,19 @@
             <source>GGUF models (*.gguf);;All files (*.*)</source>
             <translation>GGUF-mallit (*.gguf);;Kaikki tiedostot (*.*)</translation>
         </message>
-    </context>
+        <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>Valinnainen, ottaa tämän mallin käyttöön kuvien analysointiin</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj-tiedosto (.gguf, valinnainen)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>Valitse .gguf-MMProj-tiedosto</translation>
+    </message>
+</context>
     <context>
         <name>DryRunPreviewDialog</name>
         <message>
@@ -893,7 +905,35 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <source>Download error: %1</source>
             <translation>Latausvirhe: %1</translation>
         </message>
-    </context>
+        <message>
+        <source>Model storage</source>
+        <translation>Mallien tallennus</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>Valitse, mihin ladatut paikalliset LLM-tiedostot tallennetaan. Jätä tyhjäksi käyttääksesi alustan oletusta.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Oletus: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Selaa…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Käytä oletusta</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Valitse mallien tallennuskansio</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Mukautettu: %1</translation>
+    </message>
+</context>
     <context>
         <name>MainApp</name>
         <message>

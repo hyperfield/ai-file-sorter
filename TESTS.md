@@ -643,6 +643,13 @@ Procedure: Call `Utils::get_file_name_from_url()` and expect an exception.
 Expected outcome: A `std::runtime_error` is thrown.
 Run: `./build-tests/ai_file_sorter_tests "get_file_name_from_url rejects malformed input"`
 
+#### Test case: LLM storage override changes default download destination
+Purpose: Ensure the configurable local LLM storage directory is used by URL-derived download paths.
+Setup: Set a process-local LLM storage override to a temporary directory.
+Procedure: Call `Utils::make_default_path_to_file_from_download_url()` for a GGUF URL.
+Expected outcome: The resolved path points inside the override directory with the URL filename appended.
+Run: `./build-tests/ai_file_sorter_tests "LLM storage override changes default download destination"`
+
 #### Test case: is_cuda_available honors probe overrides
 Purpose: Verify that CUDA availability probes are honored.
 Setup: Install a test hook that returns `true`, then one that returns `false`.
@@ -830,6 +837,20 @@ Setup: Set `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`, create the main model file 
 Procedure: Call `resolve_active_backend()` and `resolve_paths()`.
 Expected outcome: The backend resolves successfully, returns the LLaVA descriptor, maps the model artifact to the primary file, and maps the mmproj artifact to the fallback file.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the active backend through descriptor artifacts"`
+
+#### Test case: VisualLlmRuntime resolves custom visual LLM artifacts
+Purpose: Ensure a user-provided local GGUF plus MMProj pair can be used as the visual model backend.
+Setup: Create valid GGUF files for a custom model and matching MMProj, then build a custom LLM entry with both paths.
+Procedure: Resolve `custom:<id>` through `VisualLlmRuntime::resolve_active_backend()`.
+Expected outcome: The runtime returns the generic custom visual descriptor and resolves both configured paths.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves custom visual LLM artifacts"`
+
+#### Test case: VisualLlmRuntime rejects custom visual LLMs without MMProj
+Purpose: Ensure a custom text-only local LLM is not treated as usable for image analysis.
+Setup: Create a valid custom model GGUF entry without an MMProj path.
+Procedure: Resolve `custom:<id>` through `VisualLlmRuntime::resolve_active_backend()`.
+Expected outcome: Resolution fails with guidance to edit the custom LLM and add an MMProj file.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime rejects custom visual LLMs without MMProj"`
 
 #### Test case: VisualLlmRuntime reports missing backend URLs before resolving artifacts
 Purpose: Confirm runtime resolution fails early when the configured visual backend is missing its required URL environment variables.
@@ -1135,10 +1156,10 @@ Run: `./build-tests/ai_file_sorter_tests "Review dialog rename-only toggles disa
 ### `tests/unit/test_custom_llm.cpp`
 
 #### Test case: Custom LLM entries persist across Settings load/save
-Purpose: Ensure custom LLM definitions persist correctly.
-Setup: Insert a custom LLM entry and set it as active, then save settings.
+Purpose: Ensure custom LLM definitions persist correctly, including optional visual MMProj metadata and the selected model storage directory.
+Setup: Insert a custom LLM entry with a model path and MMProj path, set it as active and selected for visual analysis, set a custom model storage directory, then save settings.
 Procedure: Reload settings and retrieve the custom LLM by ID.
-Expected outcome: The reloaded entry matches the original fields and the active ID is preserved.
+Expected outcome: The reloaded entry matches the original fields, the active ID is preserved, the `custom:<id>` visual selection round-trips, and the model storage directory is restored.
 Run: `./build-tests/ai_file_sorter_tests "Custom LLM entries persist across Settings load/save"`
 
 #### Test case: Settings maps legacy Local_3b choices to Gemma 4B

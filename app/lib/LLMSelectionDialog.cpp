@@ -28,6 +28,7 @@
 #include <QSizePolicy>
 #include <QComboBox>
 #include <QFileDialog>
+#include <QGroupBox>
 #include <QIcon>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -117,7 +118,11 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     , settings(settings)
     , selected_visual_model_id_(settings.get_visual_model_id())
     , downloads_expanded_(settings.get_llm_downloads_expanded())
+    , model_storage_dir_(settings.get_llm_storage_dir())
+    , original_model_storage_dir_(settings.get_llm_storage_dir())
 {
+    apply_model_storage_dir_override();
+
     QIcon icon = QApplication::windowIcon();
     if (icon.isNull()) {
         icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/app_icon_128.png"));
@@ -222,6 +227,9 @@ LLMSelectionDialog::~LLMSelectionDialog()
             continue;
         }
         entry->downloader->cancel_download();
+    }
+    if (!accepted_) {
+        Utils::set_llm_storage_directory_override(original_model_storage_dir_);
     }
 }
 
@@ -466,6 +474,30 @@ void LLMSelectionDialog::setup_ui()
     downloads_layout->setContentsMargins(0, 0, 0, 0);
     downloads_layout->setSpacing(10);
 
+    auto* storage_group = new QGroupBox(tr("Model storage"), downloads_container);
+    auto* storage_layout = new QVBoxLayout(storage_group);
+    auto* storage_hint = new QLabel(
+        tr("Choose where downloaded local LLM files are stored. Leave empty to use the platform default."),
+        storage_group);
+    storage_hint->setWordWrap(true);
+    storage_layout->addWidget(storage_hint);
+
+    auto* storage_row = new QWidget(storage_group);
+    auto* storage_row_layout = new QHBoxLayout(storage_row);
+    storage_row_layout->setContentsMargins(0, 0, 0, 0);
+    storage_row_layout->setSpacing(8);
+    model_storage_dir_edit = new QLineEdit(storage_row);
+    model_storage_dir_edit->setText(QString::fromStdString(model_storage_dir_));
+    model_storage_dir_edit->setPlaceholderText(
+        tr("Default: %1").arg(QString::fromStdString(Utils::get_default_llm_destination())));
+    browse_model_storage_dir_button = new QPushButton(tr("Browse…"), storage_row);
+    reset_model_storage_dir_button = new QPushButton(tr("Use default"), storage_row);
+    storage_row_layout->addWidget(model_storage_dir_edit, 1);
+    storage_row_layout->addWidget(browse_model_storage_dir_button);
+    storage_row_layout->addWidget(reset_model_storage_dir_button);
+    storage_layout->addWidget(storage_row);
+    downloads_layout->addWidget(storage_group);
+
     download_section = new QWidget(downloads_container);
     auto* download_layout = new QVBoxLayout(download_section);
     download_layout->setSpacing(6);
@@ -533,8 +565,6 @@ void LLMSelectionDialog::setup_ui()
     visual_layout->addWidget(visual_backend_row);
 
     for (const auto& backend : visual_model_descriptors()) {
-        visual_backend_combo->addItem(visual_backend_combo_label(backend),
-                                      QString::fromUtf8(backend.id));
         for (const auto& artifact : backend.artifacts) {
             auto entry = std::make_unique<VisualLlmDownloadEntry>();
             setup_visual_llm_download_entry(*entry,
@@ -546,6 +576,7 @@ void LLMSelectionDialog::setup_ui()
         }
     }
 
+    refresh_visual_backend_combo();
     update_visual_backend_selection();
 
     downloads_layout->addWidget(visual_llm_download_section);
@@ -582,6 +613,33 @@ void LLMSelectionDialog::connect_signals()
     connect(add_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_add_custom);
     connect(edit_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_edit_custom);
     connect(delete_custom_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_custom);
+    if (model_storage_dir_edit) {
+        connect(model_storage_dir_edit, &QLineEdit::textChanged, this, [this](const QString& value) {
+            model_storage_dir_ = value.trimmed().toStdString();
+            apply_model_storage_dir_override();
+            if (!is_downloading.load()) {
+                downloader.reset();
+            }
+            for (const auto& entry : visual_download_entries_) {
+                if (entry && !entry->is_downloading.load()) {
+                    entry->downloader.reset();
+                }
+            }
+            update_ui_for_choice();
+        });
+    }
+    if (browse_model_storage_dir_button) {
+        connect(browse_model_storage_dir_button,
+                &QPushButton::clicked,
+                this,
+                &LLMSelectionDialog::browse_model_storage_dir);
+    }
+    if (reset_model_storage_dir_button) {
+        connect(reset_model_storage_dir_button,
+                &QPushButton::clicked,
+                this,
+                &LLMSelectionDialog::reset_model_storage_dir);
+    }
     connect(add_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_add_custom_api);
     connect(edit_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_edit_custom_api);
     connect(delete_custom_api_button, &QPushButton::clicked, this, &LLMSelectionDialog::handle_delete_custom_api);
@@ -648,6 +706,11 @@ void LLMSelectionDialog::showEvent(QShowEvent* event)
     });
 }
 
+void LLMSelectionDialog::accept()
+{
+    accepted_ = true;
+    QDialog::accept();
+}
 
 LLMChoice LLMSelectionDialog::get_selected_llm_choice() const
 {
@@ -689,8 +752,16 @@ bool LLMSelectionDialog::get_llm_downloads_expanded() const
     return downloads_expanded_;
 }
 
+std::string LLMSelectionDialog::get_llm_storage_dir() const
+{
+    return model_storage_dir_;
+}
+
 std::string LLMSelectionDialog::get_selected_visual_model_id() const
 {
+    if (is_custom_visual_model_id(selected_visual_model_id_)) {
+        return selected_visual_model_id_;
+    }
     if (const auto* descriptor = selected_visual_model_descriptor()) {
         return std::string(descriptor->id);
     }
@@ -778,15 +849,19 @@ void LLMSelectionDialog::update_custom_choice_ui()
     const bool is_remote_gemini = selected_choice == LLMChoice::Remote_Gemini;
     const bool is_remote_custom = selected_choice == LLMChoice::Remote_Custom;
     const bool is_custom = selected_choice == LLMChoice::Custom;
+    const bool show_model_sections = is_local_builtin || is_custom;
     if (download_toggle_button) {
-        download_toggle_button->setVisible(is_local_builtin);
+        download_toggle_button->setVisible(show_model_sections);
     }
     if (downloads_container) {
-        const bool show_downloads = is_local_builtin && download_toggle_button
+        const bool show_downloads = show_model_sections && download_toggle_button
             && download_toggle_button->isChecked();
         downloads_container->setVisible(show_downloads);
     }
     download_section->setVisible(is_local_builtin);
+    if (visual_llm_download_section) {
+        visual_llm_download_section->setVisible(show_model_sections);
+    }
     adjust_dialog_size();
     if (openai_inputs) {
         openai_inputs->setVisible(is_remote_openai);
@@ -1265,6 +1340,7 @@ void LLMSelectionDialog::handle_add_custom()
     CustomLLM entry = editor.result();
     selected_custom_id = settings.upsert_custom_llm(entry);
     refresh_custom_lists();
+    refresh_visual_backend_combo();
     select_custom_by_id(selected_custom_id);
     custom_radio->setChecked(true);
     update_ui_for_choice();
@@ -1303,6 +1379,7 @@ void LLMSelectionDialog::handle_edit_custom()
     updated.id = entry.id;
     selected_custom_id = settings.upsert_custom_llm(updated);
     refresh_custom_lists();
+    refresh_visual_backend_combo();
     select_custom_by_id(selected_custom_id);
     custom_radio->setChecked(true);
     update_ui_for_choice();
@@ -1351,6 +1428,7 @@ void LLMSelectionDialog::handle_delete_custom()
         selected_custom_id.clear();
     }
     refresh_custom_lists();
+    refresh_visual_backend_combo();
     custom_radio->setChecked(custom_combo->count() > 0);
     update_ui_for_choice();
 }
@@ -1376,6 +1454,85 @@ void LLMSelectionDialog::handle_delete_custom_api()
     refresh_custom_api_lists();
     custom_api_radio->setChecked(custom_api_combo->count() > 0);
     update_ui_for_choice();
+}
+
+void LLMSelectionDialog::apply_model_storage_dir_override()
+{
+    Utils::set_llm_storage_directory_override(model_storage_dir_);
+}
+
+void LLMSelectionDialog::browse_model_storage_dir()
+{
+    const QString start_dir = model_storage_dir_.empty()
+        ? QString::fromStdString(Utils::get_default_llm_destination())
+        : QString::fromStdString(model_storage_dir_);
+    const QString dir = QFileDialog::getExistingDirectory(this,
+                                                          tr("Select model storage folder"),
+                                                          start_dir);
+    if (!dir.isEmpty() && model_storage_dir_edit) {
+        model_storage_dir_edit->setText(dir);
+    }
+}
+
+void LLMSelectionDialog::reset_model_storage_dir()
+{
+    if (model_storage_dir_edit) {
+        model_storage_dir_edit->clear();
+    }
+}
+
+void LLMSelectionDialog::refresh_visual_backend_combo()
+{
+    if (!visual_backend_combo) {
+        return;
+    }
+
+    const std::string previous_id = selected_visual_model_id_;
+    visual_backend_combo->blockSignals(true);
+    visual_backend_combo->clear();
+
+    for (const auto& backend : visual_model_descriptors()) {
+        visual_backend_combo->addItem(visual_backend_combo_label(backend),
+                                      QString::fromUtf8(backend.id));
+    }
+
+    for (const auto& custom : settings.get_custom_llms()) {
+        if (!is_visual_custom_llm(custom)) {
+            continue;
+        }
+        const QString label = tr("Custom: %1").arg(QString::fromStdString(custom.name));
+        visual_backend_combo->addItem(label,
+                                      QString::fromStdString(custom_visual_model_id_for_llm(custom.id)));
+    }
+
+    int target_index = -1;
+    for (int i = 0; i < visual_backend_combo->count(); ++i) {
+        if (visual_backend_combo->itemData(i).toString().toStdString() == previous_id) {
+            target_index = i;
+            break;
+        }
+    }
+
+    const std::string default_id = default_visual_model_descriptor().id;
+    if (target_index < 0) {
+        for (int i = 0; i < visual_backend_combo->count(); ++i) {
+            if (visual_backend_combo->itemData(i).toString().toStdString() == default_id) {
+                target_index = i;
+                break;
+            }
+        }
+    }
+    if (target_index < 0 && visual_backend_combo->count() > 0) {
+        target_index = 0;
+    }
+
+    if (target_index >= 0) {
+        visual_backend_combo->setCurrentIndex(target_index);
+        selected_visual_model_id_ = visual_backend_combo->itemData(target_index).toString().toStdString();
+    } else {
+        selected_visual_model_id_.clear();
+    }
+    visual_backend_combo->blockSignals(false);
 }
 
 void LLMSelectionDialog::update_custom_buttons()
@@ -1846,14 +2003,17 @@ void LLMSelectionDialog::update_visual_backend_selection()
         return;
     }
 
-    selected_visual_model_id_ = descriptor->id;
+    const std::string target_id = is_custom_visual_model_id(selected_visual_model_id_)
+        ? selected_visual_model_id_
+        : std::string(descriptor->id);
+    selected_visual_model_id_ = target_id;
     if (!visual_backend_combo) {
         return;
     }
 
     int target_index = -1;
     for (int i = 0; i < visual_backend_combo->count(); ++i) {
-        if (visual_backend_combo->itemData(i).toString().toStdString() == selected_visual_model_id_) {
+        if (visual_backend_combo->itemData(i).toString().toStdString() == target_id) {
             target_index = i;
             break;
         }
@@ -1867,6 +2027,9 @@ void LLMSelectionDialog::update_visual_backend_selection()
 
 const VisualModelDescriptor* LLMSelectionDialog::selected_visual_model_descriptor() const
 {
+    if (is_custom_visual_model_id(selected_visual_model_id_)) {
+        return &custom_visual_model_descriptor();
+    }
     if (const auto* descriptor = find_visual_model_descriptor(selected_visual_model_id_)) {
         return descriptor;
     }

@@ -683,14 +683,16 @@ double median_seconds(std::vector<double> seconds)
     return (seconds[mid - 1] + seconds[mid]) / 2.0;
 }
 
-bool has_visual_llm_files()
+bool has_visual_llm_files(std::string_view visual_backend_id,
+                          const std::vector<CustomLLM>& custom_llms)
 {
-    return VisualLlmRuntime::resolve_paths().has_value();
+    return VisualLlmRuntime::resolve_paths(visual_backend_id, custom_llms).has_value();
 }
 
-bool has_any_llm_available()
+bool has_any_llm_available(std::string_view visual_backend_id,
+                           const std::vector<CustomLLM>& custom_llms)
 {
-    return !collect_default_models().empty() || has_visual_llm_files();
+    return !collect_default_models().empty() || has_visual_llm_files(visual_backend_id, custom_llms);
 }
 
 std::filesystem::path create_temp_dir()
@@ -923,7 +925,8 @@ StepResult run_document_test(ILLMClient& llm, const std::filesystem::path& temp_
 }
 
 StepResult run_image_test(const std::filesystem::path& temp_dir,
-                          std::string_view visual_backend_id)
+                          std::string_view visual_backend_id,
+                          const std::vector<CustomLLM>& custom_llms)
 {
     StepResult result;
 #if defined(AI_FILE_SORTER_HAS_MTMD)
@@ -934,6 +937,7 @@ StepResult run_image_test(const std::filesystem::path& temp_dir,
 
     std::string visual_error;
     auto visual_backend = VisualLlmRuntime::resolve_active_backend(visual_backend_id,
+                                                                  custom_llms,
                                                                   &visual_error);
     if (!visual_backend) {
         result.skipped = true;
@@ -1514,7 +1518,7 @@ void SuitabilityBenchmarkDialog::start_benchmark()
         worker_.join();
     }
 
-    if (!has_any_llm_available()) {
+    if (!has_any_llm_available(settings_.get_visual_model_id(), settings_.get_custom_llms())) {
         if (output_view_) {
             output_view_->clear();
         }
@@ -1685,7 +1689,9 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
             finish();
             return;
         }
-        StepResult image_result = run_image_test(temp_dir, settings_.get_visual_model_id());
+        StepResult image_result = run_image_test(temp_dir,
+                                                 settings_.get_visual_model_id(),
+                                                 settings_.get_custom_llms());
 
         if (image_result.skipped) {
             const QString detail = image_result.detail.empty()

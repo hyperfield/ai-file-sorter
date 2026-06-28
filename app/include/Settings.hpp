@@ -103,6 +103,16 @@ public:
      */
     void set_llm_downloads_expanded(bool value);
     /**
+     * @brief Returns the configured local LLM storage directory override.
+     * @return Directory path, or empty when platform defaults are used.
+     */
+    std::string get_llm_storage_dir() const;
+    /**
+     * @brief Sets the local LLM storage directory override.
+     * @param path Directory path; empty restores platform defaults.
+     */
+    void set_llm_storage_dir(const std::string& path);
+    /**
      * @brief Returns the selected visual model backend identifier.
      * @return Stable visual model id.
      */
@@ -595,6 +605,7 @@ private:
     std::string gemini_model{ "gemini-2.5-flash-lite" };
     int remote_requests_per_minute{0};
     bool llm_downloads_expanded{true};
+    std::string llm_storage_dir;
     std::string visual_model_id;
     bool use_subcategories;
     bool categorize_files;

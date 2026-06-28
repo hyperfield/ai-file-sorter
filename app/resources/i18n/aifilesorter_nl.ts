@@ -474,6 +474,18 @@
         <source>GGUF models (*.gguf);;All files (*.*)</source>
         <translation>GGUF-modellen (*.gguf);;Alle bestanden (*.*)</translation>
     </message>
+    <message>
+        <source>Optional, enables this model for image analysis</source>
+        <translation>Optioneel, maakt dit model beschikbaar voor beeldanalyse</translation>
+    </message>
+    <message>
+        <source>MMProj file (.gguf, optional)</source>
+        <translation>MMProj-bestand (.gguf, optioneel)</translation>
+    </message>
+    <message>
+        <source>Select .gguf MMProj file</source>
+        <translation>.gguf-MMProj-bestand selecteren</translation>
+    </message>
 </context>
 <context>
     <name>DryRunPreviewDialog</name>
@@ -892,6 +904,34 @@ Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <location filename="../../lib/LLMSelectionDialog.cpp" line="2061"/>
         <source>Download error: %1</source>
         <translation>Downloadfout: %1</translation>
+    </message>
+    <message>
+        <source>Model storage</source>
+        <translation>Modelopslag</translation>
+    </message>
+    <message>
+        <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
+        <translation>Kies waar gedownloade lokale LLM-bestanden worden opgeslagen. Laat leeg om de platformstandaard te gebruiken.</translation>
+    </message>
+    <message>
+        <source>Default: %1</source>
+        <translation>Standaard: %1</translation>
+    </message>
+    <message>
+        <source>Browse…</source>
+        <translation>Bladeren…</translation>
+    </message>
+    <message>
+        <source>Use default</source>
+        <translation>Standaard gebruiken</translation>
+    </message>
+    <message>
+        <source>Select model storage folder</source>
+        <translation>Map voor modelopslag selecteren</translation>
+    </message>
+    <message>
+        <source>Custom: %1</source>
+        <translation>Aangepast: %1</translation>
     </message>
 </context>
 <context>
