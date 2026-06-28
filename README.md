@@ -138,6 +138,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Sorting Preview**: See how files will be organized before confirming changes.
 - **Dry run** / preview-only mode to inspect planned moves without touching files.
 - **Persistent Undo** ("Undo last run") even after closing the sort dialog.
+- **Project-folder protection**: Recursive scans skip recognized structured project roots such as Unity, Unreal, Godot, Blender project folders, Git repositories, and common source-code projects so files that depend on project-relative paths are not moved independently.
 - **Bring your own remote credentials**: Store your OpenAI key, Gemini key, or custom OpenAI-compatible endpoint details locally for reuse in later runs.
 - **Update Notifications**: Get notified about updates - with optional or required update flows.
 - **Storage plugin support**: Install provider-specific compatibility modes from the **Plugins** menu when the app detects supported cloud-backed folders.
@@ -1074,6 +1075,9 @@ If you want a guided walkthrough first, open **Help → Quick Start Guide**. For
 
 3. Tick off the checkboxes on the main window according to your preferences.
 4. Click the **"Analyze"** button. The app will scan each file and/or directory based on your selected options.
+
+Recursive scans intentionally skip recognized structured project roots, including Unity, Unreal, Godot, conservative Blender project folders, Git repositories, and common source-code project layouts. This protects folders where moving individual files can break project-relative links, imports, metadata, or build files.
+
 5. A review dialog will appear. Verify the assigned categories (and subcategories, if enabled in step 3).
 6. Click **"Confirm & Sort!"** to move the files, or **"Continue Later"** to postpone. You can always resume where you left off since categorization results are saved.
 
