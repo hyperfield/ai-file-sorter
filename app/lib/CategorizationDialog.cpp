@@ -1275,19 +1275,25 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
         item->setData(QString::fromStdString(display_value), original_role);
         item->setData(QString::fromStdString(canonical_value), canonical_role);
     };
-    auto resolve_for_storage = [this, &read_role_text](QStandardItem* category_item,
-                                                       QStandardItem* subcategory_item,
-                                                       const std::string& category,
-                                                       const std::string& subcategory) {
+    auto display_uses_canonical_storage = [&read_role_text](QStandardItem* category_item,
+                                                            QStandardItem* subcategory_item,
+                                                            const std::string& category,
+                                                            const std::string& subcategory) {
         const std::string original_category = read_role_text(category_item, kOriginalCategoryRole);
         const std::string original_subcategory = read_role_text(subcategory_item, kOriginalSubcategoryRole);
         const std::string canonical_category = read_role_text(category_item, kCanonicalCategoryRole);
-        const std::string canonical_subcategory = read_role_text(subcategory_item, kCanonicalSubcategoryRole);
-        const bool unchanged_display =
-            category == original_category &&
-            subcategory == original_subcategory &&
-            !canonical_category.empty();
-        if (unchanged_display) {
+        return category == original_category &&
+               subcategory == original_subcategory &&
+               !canonical_category.empty();
+    };
+    auto resolve_for_storage = [this, &read_role_text, &display_uses_canonical_storage](
+                                   QStandardItem* category_item,
+                                   QStandardItem* subcategory_item,
+                                   const std::string& category,
+                                   const std::string& subcategory) {
+        if (display_uses_canonical_storage(category_item, subcategory_item, category, subcategory)) {
+            const std::string canonical_category = read_role_text(category_item, kCanonicalCategoryRole);
+            const std::string canonical_subcategory = read_role_text(subcategory_item, kCanonicalSubcategoryRole);
             return db_manager->resolve_category(canonical_category, canonical_subcategory);
         }
         return db_manager->resolve_category_for_language(category,
@@ -1386,6 +1392,8 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
             continue;
         }
 
+        const bool preserve_display_labels =
+            display_uses_canonical_storage(category_item, subcategory_item, category, subcategory);
         auto resolved = resolve_for_storage(category_item, subcategory_item, category, subcategory);
         if (learn_approved_mappings && selected_for_processing && learning_store_ &&
             !resolved.category.empty()) {
@@ -1414,18 +1422,33 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
         db_manager->insert_or_update_file_with_categorization(
             file_name, file_type_label, file_path, resolved, used_consistency, suggested_name);
 
-        const auto display_resolved = db_manager->localize_category(resolved, category_language_);
-        update_category_roles(category_item,
-                              display_resolved.category,
-                              resolved.category,
-                              kOriginalCategoryRole,
-                              kCanonicalCategoryRole);
-        if (show_subcategory_column) {
-            update_category_roles(subcategory_item,
-                                  display_resolved.subcategory,
-                                  resolved.subcategory,
-                                  kOriginalSubcategoryRole,
-                                  kCanonicalSubcategoryRole);
+        if (preserve_display_labels) {
+            update_category_roles(category_item,
+                                  category,
+                                  resolved.category,
+                                  kOriginalCategoryRole,
+                                  kCanonicalCategoryRole);
+            if (show_subcategory_column) {
+                update_category_roles(subcategory_item,
+                                      subcategory,
+                                      resolved.subcategory,
+                                      kOriginalSubcategoryRole,
+                                      kCanonicalSubcategoryRole);
+            }
+        } else {
+            const auto display_resolved = db_manager->localize_category(resolved, category_language_);
+            update_category_roles(category_item,
+                                  display_resolved.category,
+                                  resolved.category,
+                                  kOriginalCategoryRole,
+                                  kCanonicalCategoryRole);
+            if (show_subcategory_column) {
+                update_category_roles(subcategory_item,
+                                      display_resolved.subcategory,
+                                      resolved.subcategory,
+                                      kOriginalSubcategoryRole,
+                                      kCanonicalSubcategoryRole);
+            }
         }
     }
 }

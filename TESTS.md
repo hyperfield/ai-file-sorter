@@ -37,6 +37,29 @@ Procedure: Run the suite and inspect the aggregate result.
 Expected outcome: The runner returns an error, no cases are executed, and the aggregate result fails.
 Run: `./build-tests/ai_file_sorter_tests "AppTestRunner rejects unknown self-test suite"`
 
+### `tests/unit/test_category_date_suffix.cpp`
+
+#### Test case: CategoryDateSuffix appends generated date suffixes once
+Purpose: Ensure generated category date suffixes remain deterministic display overlays.
+Setup: Provide base categories and existing suffixed categories for document and image date formats.
+Procedure: Append generated date suffixes.
+Expected outcome: Base categories receive one suffix, already suffixed categories are unchanged, and empty dates leave the category unchanged.
+Run: `./build-tests/ai_file_sorter_tests "CategoryDateSuffix appends generated date suffixes once"`
+
+#### Test case: CategoryDateSuffix strips exact generated date suffixes
+Purpose: Verify exact generated date suffixes can be removed before canonical storage.
+Setup: Provide category labels with document and image date suffixes.
+Procedure: Strip matching and non-matching generated suffixes.
+Expected outcome: Matching suffixes are removed and non-matching suffixes are preserved.
+Run: `./build-tests/ai_file_sorter_tests "CategoryDateSuffix strips exact generated date suffixes"`
+
+#### Test case: CategoryDateSuffix strips generated suffixes by kind
+Purpose: Support legacy cache cleanup without needing to re-extract metadata first.
+Setup: Provide document-style, image-style, and malformed suffixed category labels.
+Procedure: Strip suffixes by expected file kind.
+Expected outcome: Only valid suffixes for the requested kind are removed.
+Run: `./build-tests/ai_file_sorter_tests "CategoryDateSuffix strips generated suffixes by kind"`
+
 ### `tests/unit/test_local_llm_backend.cpp` (skipped when `GGML_USE_METAL` is defined)
 
 #### Test case: detect_preferred_backend reads environment
@@ -1365,6 +1388,13 @@ Setup: Create a file on disk with a category and subcategory.
 Procedure: Confirm the dialog to move the file, then trigger undo.
 Expected outcome: The file moves to the category path, then returns to the original location; undo is enabled only when a move exists.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog undo restores moved files"`
+
+#### Test case: CategorizationDialog keeps date category suffixes out of stored canonical categories
+Purpose: Ensure generated date category folders remain reversible display/move-path overlays.
+Setup: Create a temporary document with visible category `Records_2026-06` and canonical category `Records`.
+Procedure: Confirm the review dialog move and inspect the categorization cache.
+Expected outcome: The file moves into the dated visible folder, but the cache stores `Records / Monthly Statements` without the date suffix.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog keeps date category suffixes out of stored canonical categories"`
 
 #### Test case: CategorizationDialog moves Unicode files into French nested subcategory folders
 Purpose: Cover the issue #95 Windows regression path: non-CP1252 filenames, French category labels, review-dialog retranslation while open, subcategory toggling, nested folder creation, and undo.

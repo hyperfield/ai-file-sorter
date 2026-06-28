@@ -1376,6 +1376,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ggml_runtime_paths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_custom_llm.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_category_date_suffix.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_category_language_support.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_local.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_update_feed.cpp"

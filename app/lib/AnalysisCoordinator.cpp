@@ -1,6 +1,7 @@
 #include "AnalysisCoordinator.hpp"
 
 #include "AnalysisEntryRouter.hpp"
+#include "CategoryDateSuffix.hpp"
 #include "CategorizationProgressDialog.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "FilenameLocalizationService.hpp"
@@ -474,11 +475,55 @@ void AnalysisCoordinator::execute()
                                                                               entry.rename_applied);
                 }
             };
+        auto normalize_cached_date_category = [](CategorizedFile& entry,
+                                                 bool is_image_entry,
+                                                 bool is_document_entry) {
+            auto strip_kind = [](std::string& value, CategoryDateSuffix::Kind kind) {
+                if (auto stripped = CategoryDateSuffix::strip_generated_suffix(value, kind)) {
+                    value = *stripped;
+                    return true;
+                }
+                return false;
+            };
+
+            bool changed = false;
+            if (is_image_entry) {
+                changed = strip_kind(entry.category, CategoryDateSuffix::Kind::Image) || changed;
+                changed = strip_kind(entry.canonical_category, CategoryDateSuffix::Kind::Image) || changed;
+            }
+            if (is_document_entry) {
+                changed = strip_kind(entry.category, CategoryDateSuffix::Kind::Document) || changed;
+                changed = strip_kind(entry.canonical_category, CategoryDateSuffix::Kind::Document) || changed;
+            }
+            if (changed && entry.canonical_category.empty()) {
+                entry.canonical_category = entry.category;
+            }
+            return changed;
+        };
+        auto persist_cached_date_category_cleanup =
+            [this, &resolve_entry_for_storage](const CategorizedFile& entry) {
+                if (entry.category.empty()) {
+                    return;
+                }
+                DatabaseManager::ResolvedCategory resolved = resolve_entry_for_storage(entry);
+                const std::string file_type_label = (entry.type == FileType::Directory) ? "D" : "F";
+                app_.db_manager.insert_or_update_file_with_categorization(entry.file_name,
+                                                                          file_type_label,
+                                                                          entry.file_path,
+                                                                          resolved,
+                                                                          entry.used_consistency_hints,
+                                                                          entry.suggested_name,
+                                                                          entry.rename_only,
+                                                                          entry.rename_applied);
+            };
 
         for (const auto& cached_entry : cached_entries) {
             auto entry = cached_entry;
             const bool is_image_entry = is_supported_image_entry(entry);
             const bool is_document_entry = is_supported_document_entry(entry);
+            if (normalize_cached_date_category(entry, is_image_entry, is_document_entry)) {
+                persist_cached_date_category_cleanup(entry);
+            }
             const bool allow_entry_renames =
                 (is_image_entry && allow_image_renames) ||
                 (is_document_entry && allow_document_renames);
@@ -1572,7 +1617,7 @@ void AnalysisCoordinator::execute()
         };
 
         auto apply_image_dates =
-            [this, add_image_date_to_category, &image_dates, &file_key, &resolve_entry_for_storage, &image_metadata_service](
+            [add_image_date_to_category, &image_dates, &file_key, &image_metadata_service](
                 std::vector<CategorizedFile>& results) {
                 if (!add_image_date_to_category) {
                     return;
@@ -1599,38 +1644,30 @@ void AnalysisCoordinator::execute()
                     if (entry.category.empty()) {
                         continue;
                     }
-                    const std::string suffix = "_" + it->second;
-                    if (entry.category.size() >= suffix.size() &&
-                        entry.category.compare(entry.category.size() - suffix.size(),
-                                               suffix.size(),
-                                               suffix) == 0) {
-                        continue;
+                    std::string base_category =
+                        CategoryDateSuffix::strip_date_suffix(entry.category, it->second);
+                    if (auto stripped = CategoryDateSuffix::strip_generated_suffix(
+                            base_category, CategoryDateSuffix::Kind::Image)) {
+                        base_category = *stripped;
                     }
-                    entry.category += suffix;
-                    if (entry.canonical_category.empty()) {
-                        entry.canonical_category =
-                            entry.category.substr(0, entry.category.size() - suffix.size());
+                    std::string canonical_category =
+                        entry.canonical_category.empty() ? base_category : entry.canonical_category;
+                    canonical_category =
+                        CategoryDateSuffix::strip_date_suffix(canonical_category, it->second);
+                    if (auto stripped = CategoryDateSuffix::strip_generated_suffix(
+                            canonical_category, CategoryDateSuffix::Kind::Image)) {
+                        canonical_category = *stripped;
                     }
-                    entry.canonical_category += suffix;
 
-                    DatabaseManager::ResolvedCategory resolved = resolve_entry_for_storage(entry);
-                    const std::string file_type_label =
-                        (entry.type == FileType::Directory) ? "D" : "F";
-                    app_.db_manager.insert_or_update_file_with_categorization(entry.file_name,
-                                                                              file_type_label,
-                                                                              entry.file_path,
-                                                                              resolved,
-                                                                              entry.used_consistency_hints,
-                                                                              entry.suggested_name,
-                                                                              entry.rename_only,
-                                                                              entry.rename_applied);
+                    entry.category = CategoryDateSuffix::append_date_suffix(base_category, it->second);
+                    entry.canonical_category = canonical_category.empty() ? base_category : canonical_category;
                 }
             };
 
         auto apply_document_dates =
-            [this, add_document_date, &document_dates, &file_key, &resolve_entry_for_storage](
+            [add_document_date, &document_dates, &file_key](
                 std::vector<CategorizedFile>& results) {
-                if (!add_document_date || document_dates.empty()) {
+                if (!add_document_date) {
                     return;
                 }
                 for (auto& entry : results) {
@@ -1655,33 +1692,27 @@ void AnalysisCoordinator::execute()
                     if (entry.category.empty()) {
                         continue;
                     }
-                    const std::string suffix = "_" + it->second;
-                    if (entry.category.size() >= suffix.size() &&
-                        entry.category.compare(entry.category.size() - suffix.size(),
-                                               suffix.size(),
-                                               suffix) == 0) {
-                        continue;
+                    std::string base_category =
+                        CategoryDateSuffix::strip_date_suffix(entry.category, it->second);
+                    if (auto stripped = CategoryDateSuffix::strip_generated_suffix(
+                            base_category, CategoryDateSuffix::Kind::Document)) {
+                        base_category = *stripped;
                     }
-                    entry.category += suffix;
-                    if (entry.canonical_category.empty()) {
-                        entry.canonical_category =
-                            entry.category.substr(0, entry.category.size() - suffix.size());
+                    std::string canonical_category =
+                        entry.canonical_category.empty() ? base_category : entry.canonical_category;
+                    canonical_category =
+                        CategoryDateSuffix::strip_date_suffix(canonical_category, it->second);
+                    if (auto stripped = CategoryDateSuffix::strip_generated_suffix(
+                            canonical_category, CategoryDateSuffix::Kind::Document)) {
+                        canonical_category = *stripped;
                     }
-                    entry.canonical_category += suffix;
 
-                    DatabaseManager::ResolvedCategory resolved = resolve_entry_for_storage(entry);
-                    const std::string file_type_label =
-                        (entry.type == FileType::Directory) ? "D" : "F";
-                    app_.db_manager.insert_or_update_file_with_categorization(entry.file_name,
-                                                                              file_type_label,
-                                                                              entry.file_path,
-                                                                              resolved,
-                                                                              entry.used_consistency_hints,
-                                                                              entry.suggested_name,
-                                                                              entry.rename_only,
-                                                                              entry.rename_applied);
+                    entry.category = CategoryDateSuffix::append_date_suffix(base_category, it->second);
+                    entry.canonical_category = canonical_category.empty() ? base_category : canonical_category;
                 }
             };
+        apply_image_dates(app_.already_categorized_files);
+        apply_document_dates(app_.already_categorized_files);
 
         std::vector<CategorizedFile> other_results;
         if (!stop_requested && !other_entries.empty()) {

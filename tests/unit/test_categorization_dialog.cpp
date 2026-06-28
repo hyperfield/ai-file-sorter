@@ -233,6 +233,46 @@ TEST_CASE("CategorizationDialog undo restores moved files") {
     REQUIRE_FALSE(dialog.test_undo_enabled());
 }
 
+TEST_CASE("CategorizationDialog keeps date category suffixes out of stored canonical categories")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    DatabaseManager db(config_dir.path().string());
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "manual.pdf";
+    const std::filesystem::path source = base / file_name;
+    std::ofstream(source).put('x');
+
+    CategorizedFile file;
+    file.file_path = base.string();
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "Records_2026-06";
+    file.subcategory = "Monthly Statements";
+    file.canonical_category = "Records";
+    file.canonical_subcategory = "Monthly Statements";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(&db, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+
+    const std::filesystem::path destination = base / file.category / file.subcategory / file_name;
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    const auto cached = db.get_categorized_file(base.string(), file_name, FileType::File);
+    REQUIRE(cached.has_value());
+    CHECK(cached->category == "Records");
+    CHECK(cached->subcategory == "Monthly Statements");
+}
+
 TEST_CASE("CategorizationDialog moves Unicode files into French nested subcategory folders")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
