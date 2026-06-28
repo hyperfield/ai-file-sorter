@@ -705,6 +705,12 @@ TEST_CASE("LocalLLM sanitizer strips inline subcategory label artifacts from cat
     REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Images : Funny seals");
 }
 
+TEST_CASE("LocalLLM sanitizer strips spaced inline subcategory artifacts from category values") {
+    const std::string output = "Category: Documents , subcategory Fichiers en Francais";
+
+    REQUIRE(LocalLLMTestAccess::sanitize_output_for_testing(output) == "Documents");
+}
+
 TEST_CASE("CategorizationService parses category output without spaced colon delimiters") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());

@@ -1327,6 +1327,13 @@ Procedure: Call `clear_all_categorizations(true)` and inspect the SQLite tables 
 Expected outcome: `file_categorization`, `category_taxonomy`, `category_alias`, and `category_translation` are all empty afterward.
 Run: `./build-tests/ai_file_sorter_tests "DatabaseManager can clear cached categorizations together with taxonomy state"`
 
+#### Test case: DatabaseManager strips inline subcategory artifacts from stored translations
+Purpose: Ensure malformed translated category labels cannot persist inline `subcategory` artifacts into the review dialog.
+Setup: Resolve an English taxonomy entry and upsert a French translation whose category contains `, subcategory ...`.
+Procedure: Read the translation back directly and through localized category lookup.
+Expected outcome: The stored/displayed translated category is clean and the translated subcategory remains specific.
+Run: `./build-tests/ai_file_sorter_tests "DatabaseManager strips inline subcategory artifacts from stored translations"`
+
 #### Test case: DatabaseManager migrates legacy audio and installer-builder taxonomy labels on reopen
 Purpose: Ensure old cached DB rows using `Music` or `Installer Builders` are upgraded automatically when the app reopens.
 Setup: Seed a temporary SQLite cache with legacy taxonomy rows and cached file rows that still use those labels.
@@ -1885,6 +1892,13 @@ Setup: Provide a response where `Subcategory:` appears inline after the category
 Procedure: Run the sanitizer.
 Expected outcome: The category value excludes the inline subcategory label artifact.
 Run: `./build-tests/ai_file_sorter_tests "LocalLLM sanitizer strips inline subcategory label artifacts from category values"`
+
+#### Test case: LocalLLM sanitizer strips spaced inline subcategory artifacts from category values
+Purpose: Prevent whitespace variants such as `Documents , subcategory ...` from contaminating category values.
+Setup: Provide a local-model response with a space before the comma and an inline `subcategory` label.
+Procedure: Run the sanitizer.
+Expected outcome: The category value is trimmed back to the clean main category.
+Run: `./build-tests/ai_file_sorter_tests "LocalLLM sanitizer strips spaced inline subcategory artifacts from category values"`
 
 #### Test case: CategorizationService parses category output without spaced colon delimiters
 Purpose: Ensure category parsing accepts compact `Category:Subcategory` output.
