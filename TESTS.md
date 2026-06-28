@@ -19,6 +19,8 @@ The production executable supports two developer-oriented test modes:
 - `--test` launches the normal GUI, implies development mode, and adds a Tests menu. The current GUI preset creates a larger sample whitelist and sample files, then runs the normal analysis flow with the selected real LLM for manual review in the Review dialog. It reuses the user's selected LLM settings, but test-mode whitelists, categorization cache, learned behavior, undo data, and sample files are stored under an isolated `test_mode_profile` directory inside the normal config directory.
 - `--self-test` runs deterministic headless checks and exits with a pass/fail status. The current suite is `whitelist`, which builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite.
 
+Manual Windows GUI smoke validation for issue #95: launch a normal visible build, switch the UI/category language to French, scan a folder containing non-CP1252 filenames, open the Review dialog, sort columns, toggle subcategory visibility, change UI language while the dialog is open, apply `Logiciels / Navigateur`, and undo. Expected outcome: no `Qt6Widgets.dll` crash, no Windows code-page path exception, no literal `subcategory` folder, and the file is restored by undo.
+
 ## Unit test catalog
 
 ### `tests/unit/test_app_test_runner.cpp`
