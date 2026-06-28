@@ -7,6 +7,7 @@
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
 #include "LLMErrors.hpp"
+#include "TestHooks.hpp"
 #include "UserLearningStore.hpp"
 #include "Utils.hpp"
 
@@ -30,6 +31,7 @@
 #include <sstream>
 #include <thread>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -48,6 +50,26 @@ constexpr int kCategoryTranslationCompletionTokens = 128;
 std::string to_lower_copy_str(std::string value);
 std::pair<std::string, std::string> split_category_subcategory(const std::string& input);
 std::string strip_code_fence(std::string output);
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+TestHooks::CategorizationSleepProbe& categorization_sleep_probe()
+{
+    static TestHooks::CategorizationSleepProbe probe;
+    return probe;
+}
+#endif
+
+void sleep_for_categorization(std::chrono::milliseconds duration)
+{
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (auto& probe = categorization_sleep_probe()) {
+        probe(duration);
+        return;
+    }
+#endif
+
+    std::this_thread::sleep_for(duration);
+}
 bool starts_with_case_insensitive(std::string_view value, std::string_view prefix);
 std::optional<std::string> extract_relaxed_labeled_value_from_response(
     const std::string& response,
@@ -1199,7 +1221,7 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
                     }
                     const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
                         next_remote_request - now);
-                    std::this_thread::sleep_for(std::min(remaining, std::chrono::milliseconds(250)));
+                    sleep_for_categorization(std::min(remaining, std::chrono::milliseconds(250)));
                     now = std::chrono::steady_clock::now();
                 }
             }
@@ -1899,7 +1921,7 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
                 if (progress_callback && (remaining % 10 == 0 || remaining <= 3)) {
                     progress_callback(fmt::format("[REMOTE] Retrying {} in {}s...", entry.file_name, remaining));
                 }
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                sleep_for_categorization(std::chrono::seconds(1));
             }
             if (retried_after_backoff) {
                 throw;
@@ -2469,3 +2491,19 @@ std::string CategorizationService::format_hint_block(const std::vector<CategoryP
     oss << "Prefer one of the above when it fits; otherwise, choose the closest consistent alternative.";
     return oss.str();
 }
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+namespace TestHooks {
+
+void set_categorization_sleep_probe(CategorizationSleepProbe probe)
+{
+    categorization_sleep_probe() = std::move(probe);
+}
+
+void reset_categorization_sleep_probe()
+{
+    categorization_sleep_probe() = CategorizationSleepProbe{};
+}
+
+} // namespace TestHooks
+#endif

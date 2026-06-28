@@ -1807,6 +1807,20 @@ Procedure: Build the category language context string.
 Expected outcome: The context is non-empty and references "Spanish".
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService builds category language context for Spanish"`
 
+#### Test case: CategorizationService retries remote categorization once after BackoffError
+Purpose: Verify the higher-level remote categorization flow handles provider backoff without surfacing a transient rate-limit failure.
+Setup: Use a remote-mode settings profile, a test LLM that throws `BackoffError` once and then returns `Documents : Reports`, and a test sleep hook that records requested retry delays.
+Procedure: Categorize one file through `CategorizationService::categorize_entries`.
+Expected outcome: The LLM is called twice, retry progress is emitted, two one-second retry waits are requested, and the final categorization succeeds.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService retries remote categorization once after BackoffError"`
+
+#### Test case: CategorizationService resolves remote request pacing from settings and environment
+Purpose: Ensure the configured remote request-per-minute pacing value is resolved consistently.
+Setup: Configure `RemoteRequestsPerMinute` in settings and override it with `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE`.
+Procedure: Query the service's resolved remote request limit through test access.
+Expected outcome: The settings value is used by default, the environment variable overrides it, and `0` disables pacing.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService resolves remote request pacing from settings and environment"`
+
 #### Test case: LocalLLM sanitizer keeps labeled multi-line replies intact
 Purpose: Preserve valid labeled category/subcategory responses while removing unrelated text.
 Setup: Provide a multi-line response with category and subcategory labels.

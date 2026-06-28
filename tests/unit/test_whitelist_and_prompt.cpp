@@ -4,10 +4,12 @@
 #include "CategorizationServiceTestAccess.hpp"
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
+#include "LLMErrors.hpp"
 #include "MainAppTestAccess.hpp"
 #include "CategoryLanguage.hpp"
 #include "LocalLLMTestAccess.hpp"
 #include "Settings.hpp"
+#include "TestHooks.hpp"
 #include "UserLearningStore.hpp"
 #include "WhitelistStore.hpp"
 #include "TestHelpers.hpp"
@@ -15,9 +17,13 @@
 
 #include <QSettings>
 
+#include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <deque>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -131,6 +137,41 @@ private:
     std::shared_ptr<int> translation_calls_;
     std::string categorize_response_;
     std::deque<std::string> translation_responses_;
+};
+
+class BackoffThenResponseLLM : public ILLMClient {
+public:
+    explicit BackoffThenResponseLLM(std::shared_ptr<int> calls)
+        : calls_(std::move(calls)) {}
+
+    std::string categorize_file(const std::string&,
+                                const std::string&,
+                                FileType,
+                                const std::string&) override {
+        ++(*calls_);
+        if (*calls_ == 1) {
+            throw BackoffError("rate limit", 2);
+        }
+        return "Documents : Reports";
+    }
+
+    std::string complete_prompt(const std::string&, int) override {
+        return "Documents : Reports";
+    }
+
+    void set_prompt_logging_enabled(bool) override {
+    }
+
+private:
+    std::shared_ptr<int> calls_;
+};
+
+class CategorizationSleepProbeGuard {
+public:
+    ~CategorizationSleepProbeGuard()
+    {
+        TestHooks::reset_categorization_sleep_probe();
+    }
 };
 
 } // namespace
@@ -544,6 +585,78 @@ TEST_CASE("CategorizationService builds category language context for Spanish") 
     REQUIRE_FALSE(context.empty());
     REQUIRE(context.find("English only") != std::string::npos);
     REQUIRE(context.find("Spanish") != std::string::npos);
+}
+
+TEST_CASE("CategorizationService retries remote categorization once after BackoffError") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    settings.set_llm_choice(LLMChoice::Remote_OpenAI);
+    settings.set_openai_api_key("test-key");
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    CategorizationSleepProbeGuard sleep_guard;
+    std::vector<std::chrono::milliseconds> sleep_durations;
+    TestHooks::set_categorization_sleep_probe(
+        [&sleep_durations](std::chrono::milliseconds duration) {
+            sleep_durations.push_back(duration);
+        });
+
+    TempDir data_dir;
+    const std::string file_name = "remote_retry.txt";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+    std::vector<std::string> progress_messages;
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<BackoffThenResponseLLM>(calls);
+    };
+
+    const auto categorized = service.categorize_entries(
+        files,
+        false,
+        stop_flag,
+        [&progress_messages](const std::string& message) {
+            progress_messages.push_back(message);
+        },
+        {},
+        {},
+        {},
+        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 2);
+    CHECK(categorized.front().canonical_category == "Documents");
+    CHECK(categorized.front().canonical_subcategory == "Reports");
+    REQUIRE(sleep_durations.size() == 2);
+    CHECK(sleep_durations[0] == std::chrono::seconds(1));
+    CHECK(sleep_durations[1] == std::chrono::seconds(1));
+    CHECK(std::any_of(progress_messages.begin(), progress_messages.end(), [](const std::string& message) {
+        return message.find("Rate limit hit") != std::string::npos;
+    }));
+    CHECK(std::any_of(progress_messages.begin(), progress_messages.end(), [](const std::string& message) {
+        return message.find("Retrying remote_retry.txt in 2s") != std::string::npos;
+    }));
+}
+
+TEST_CASE("CategorizationService resolves remote request pacing from settings and environment") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    EnvVarGuard limit_guard("AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE", std::nullopt);
+    Settings settings;
+    settings.set_remote_requests_per_minute(20);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    CHECK(CategorizationServiceTestAccess::resolve_remote_requests_per_minute(service) == 20);
+
+    EnvVarGuard override_guard("AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE", std::string("7"));
+    CHECK(CategorizationServiceTestAccess::resolve_remote_requests_per_minute(service) == 7);
+
+    EnvVarGuard disabled_guard("AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE", std::string("0"));
+    CHECK(CategorizationServiceTestAccess::resolve_remote_requests_per_minute(service) == 0);
 }
 
 TEST_CASE("LocalLLM sanitizer keeps labeled multi-line replies intact") {

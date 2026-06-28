@@ -43,6 +43,15 @@ public:
                                               FileType file_type = FileType::File) {
         return service.build_combined_context(hint_block, prompt_name, prompt_path, file_type);
     }
+
+    /**
+     * @brief Returns the resolved remote request limit used for pacing.
+     * @param service CategorizationService instance under test.
+     * @return Requests per minute, or 0 when pacing is disabled.
+     */
+    static int resolve_remote_requests_per_minute(const CategorizationService& service) {
+        return service.resolve_remote_requests_per_minute();
+    }
 };
 
 #endif // AI_FILE_SORTER_TEST_BUILD

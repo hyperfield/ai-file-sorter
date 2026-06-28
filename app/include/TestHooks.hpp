@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <chrono>
 #include <curl/curl.h>
 
 #include "Utils.hpp"
@@ -47,6 +48,22 @@ void reset_categorization_move_probe();
 using LLMDownloadProbe = std::function<CURLcode(long resume_offset, const std::string& destination_path)>;
 void set_llm_download_probe(LLMDownloadProbe probe);
 void reset_llm_download_probe();
+
+/**
+ * @brief Test hook used to observe or bypass categorization sleeps.
+ */
+using CategorizationSleepProbe = std::function<void(std::chrono::milliseconds duration)>;
+
+/**
+ * @brief Sets a test hook for sleeps requested by categorization retry/throttle logic.
+ * @param probe Callback invoked with the requested sleep duration.
+ */
+void set_categorization_sleep_probe(CategorizationSleepProbe probe);
+
+/**
+ * @brief Clears the categorization sleep test hook.
+ */
+void reset_categorization_sleep_probe();
 #endif
 
 } // namespace TestHooks
