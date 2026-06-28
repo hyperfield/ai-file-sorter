@@ -2096,6 +2096,13 @@ Procedure: Store and reload the categorization result.
 Expected outcome: Canonical English labels are stored, and translated taxonomy labels are persisted for display.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService stores canonical English labels and persists translated taxonomy labels"`
 
+#### Test case: CategorizationService strips inline subcategory artifacts from translated category labels
+Purpose: Ensure translated category labels do not keep malformed inline `subcategory` artifacts returned by the LLM.
+Setup: Categorize canonically in English, then return a French translation JSON object whose category value contains `, subcategory ...`.
+Procedure: Categorize and inspect the persisted category translation.
+Expected outcome: The displayed and persisted translated category is clean, while the translated subcategory remains specific.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService strips inline subcategory artifacts from translated category labels"`
+
 #### Test case: CategorizationService strips inline subcategory label artifacts when parsing service output
 Purpose: Ensure service-level parsing removes inline `Subcategory:` artifacts from category text.
 Setup: Provide categorization output with inline label artifacts.

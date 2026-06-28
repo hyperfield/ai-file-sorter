@@ -1905,6 +1905,56 @@ TEST_CASE("CategorizationService stores canonical English labels and persists tr
     CHECK(cached_entries.front().canonical_subcategory == "Version Control");
 }
 
+TEST_CASE("CategorizationService strips inline subcategory artifacts from translated category labels") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    settings.set_category_language(CategoryLanguage::French);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "francais_notes.txt";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto categorize_calls = std::make_shared<int>(0);
+    auto translation_calls = std::make_shared<int>(0);
+    auto factory = [categorize_calls, translation_calls]() {
+        return std::make_unique<TranslationAwareLLM>(
+            categorize_calls,
+            translation_calls,
+            "Documents : French Language Notes",
+            std::deque<std::string>{
+                "{\"category\":\"Documents , subcategory Notes en Francais\","
+                "\"subcategory\":\"Notes en Francais\"}"
+            });
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().category == "Documents");
+    CHECK(categorized.front().subcategory == "Notes en Francais");
+    CHECK(categorized.front().canonical_category == "Documents");
+    CHECK(categorized.front().canonical_subcategory == "French Language Notes");
+    CHECK(*categorize_calls == 1);
+    CHECK(*translation_calls == 1);
+
+    const auto translated = db.get_category_translation(categorized.front().taxonomy_id, CategoryLanguage::French);
+    REQUIRE(translated.has_value());
+    CHECK(translated->category == "Documents");
+    CHECK(translated->subcategory == "Notes en Francais");
+}
+
 TEST_CASE("CategorizationService strips inline subcategory label artifacts when parsing service output") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());

@@ -252,6 +252,42 @@ std::string extract_category_phrase(std::string value) {
 }
 
 std::string strip_inline_label_artifacts(std::string value, bool category_label) {
+    const auto find_delimited_label = [](const std::string& text,
+                                         const std::vector<std::string_view>& labels) {
+        const std::string lower = to_lower_copy_str(text);
+        for (std::size_t idx = 0; idx < lower.size(); ++idx) {
+            const char delimiter = lower[idx];
+            if (delimiter != ',' && delimiter != ';' && delimiter != '-') {
+                continue;
+            }
+
+            std::size_t label_start = idx + 1;
+            while (label_start < lower.size() &&
+                   std::isspace(static_cast<unsigned char>(lower[label_start]))) {
+                ++label_start;
+            }
+
+            for (const std::string_view label : labels) {
+                if (label_start + label.size() > lower.size()) {
+                    continue;
+                }
+                if (lower.compare(label_start, label.size(), label) != 0) {
+                    continue;
+                }
+
+                const std::size_t after_label = label_start + label.size();
+                if (after_label == lower.size() ||
+                    std::isspace(static_cast<unsigned char>(lower[after_label])) ||
+                    lower[after_label] == ':' ||
+                    lower[after_label] == '=') {
+                    return idx;
+                }
+            }
+        }
+
+        return std::string::npos;
+    };
+
     const std::vector<std::string_view> markers = category_label
         ? std::vector<std::string_view>{
               ", subcategory",
@@ -283,6 +319,14 @@ std::string strip_inline_label_artifacts(std::string value, bool category_label)
     }
     if (cut != std::string::npos) {
         value.resize(cut);
+    }
+
+    const std::vector<std::string_view> delimited_labels = category_label
+        ? std::vector<std::string_view>{"subcategory", "sub category", "sub_category"}
+        : std::vector<std::string_view>{"category", "main category", "main_category"};
+    if (const auto delimited_cut = find_delimited_label(value, delimited_labels);
+        delimited_cut != std::string::npos) {
+        value.resize(delimited_cut);
     }
 
     return trim_copy(std::move(value));
