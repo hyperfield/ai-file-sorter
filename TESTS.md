@@ -748,6 +748,13 @@ Procedure: Construct the dialog and read back the selected choice.
 Expected outcome: The dialog keeps `Local_3b_legacy` selected instead of silently falling back to Gemma 4B.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog keeps the legacy LLaMa choice when the previous Q4 artifact exists"`
 
+#### Test case: LLM selection dialog downloads Gemma 4B to the shared visual-model path
+Purpose: Prevent duplicate Gemma 3 4B downloads when the categorization and visual Gemma model URLs point to the same GGUF artifact.
+Setup: Configure matching Gemma 4B local/visual download URLs in a temporary runtime directory and select the Gemma 4B local categorization model.
+Procedure: Construct the dialog and inspect the local downloader destination.
+Expected outcome: The downloader targets the visual backend storage path (`gemma-3-4b-it/model.gguf`) instead of the legacy flat URL-derived filename.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog downloads Gemma 4B to the shared visual-model path"`
+
 ### `tests/unit/test_llm_selection_dialog_visual.cpp` (non-Windows only)
 
 #### Test case: Visual model entry shows missing env var state
@@ -1159,6 +1166,13 @@ Setup: Configure matching Gemma 4B local/visual download URLs and place only the
 Procedure: Resolve the downloaded path for `Local_4b_Gemma` and query built-in availability.
 Expected outcome: The built-in Gemma choice resolves to the visual backend artifact path and reports available.
 Run: `./build-tests/ai_file_sorter_tests "Built-in Gemma 4B resolves the shared visual-model artifact path"`
+
+#### Test case: Built-in Gemma 4B prefers the shared visual-model artifact path for new downloads
+Purpose: Ensure fresh Gemma 4B local-categorization downloads use the same backend-specific text-model artifact path as visual Gemma.
+Setup: Configure matching Gemma 4B local/visual download URLs without creating either artifact.
+Procedure: Query the preferred built-in Gemma path and downloaded-artifact resolver.
+Expected outcome: The preferred path is the visual backend storage path, and no downloaded artifact is reported before the file exists.
+Run: `./build-tests/ai_file_sorter_tests "Built-in Gemma 4B prefers the shared visual-model artifact path for new downloads"`
 
 ### `tests/unit/test_category_language_support.cpp`
 

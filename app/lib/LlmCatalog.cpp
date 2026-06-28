@@ -14,6 +14,12 @@ constexpr char kLegacyLlama3BQ4Url[] =
     "https://huggingface.co/Mungert/Llama-3.2-3B-Instruct-GGUF/resolve/main/"
     "Llama-3.2-3B-Instruct-bf16-q4_k.gguf";
 
+struct SharedVisualArtifact {
+    const VisualModelDescriptor* backend;
+    const VisualModelArtifactDescriptor* artifact;
+    std::string download_url;
+};
+
 QString resolved_llm_name(const DefaultLlmEntry& entry)
 {
     const char* env_value = std::getenv(entry.name_env);
@@ -87,44 +93,68 @@ bool urls_reference_same_artifact(std::string_view left, std::string_view right)
     }
 }
 
-void append_shared_visual_model_path(std::vector<std::filesystem::path>& paths, LLMChoice choice)
+const VisualModelArtifactDescriptor* find_visual_model_artifact(
+    const VisualModelDescriptor& backend,
+    VisualModelArtifactKind kind)
+{
+    const auto artifact_it = std::find_if(
+        backend.artifacts.begin(),
+        backend.artifacts.end(),
+        [kind](const VisualModelArtifactDescriptor& artifact) {
+            return artifact.kind == kind;
+        });
+    if (artifact_it == backend.artifacts.end()) {
+        return nullptr;
+    }
+    return &(*artifact_it);
+}
+
+std::optional<SharedVisualArtifact> shared_visual_artifact_for_builtin(LLMChoice choice)
 {
     if (choice != LLMChoice::Local_4b_Gemma) {
-        return;
+        return std::nullopt;
     }
 
     const auto local_url = string_from_env_var(default_llm_download_env_var_for_choice(choice));
     const auto visual_url = string_from_env_var("GEMMA3_4B_MODEL_URL");
     if (!local_url || !visual_url || !urls_reference_same_artifact(*local_url, *visual_url)) {
-        return;
+        return std::nullopt;
     }
 
     const auto* backend = find_visual_model_descriptor("gemma-3-4b-it");
     if (!backend) {
+        return std::nullopt;
+    }
+
+    const auto* artifact = find_visual_model_artifact(*backend, VisualModelArtifactKind::Model);
+    if (!artifact) {
+        return std::nullopt;
+    }
+
+    return SharedVisualArtifact{backend, artifact, *visual_url};
+}
+
+void append_shared_visual_model_path(std::vector<std::filesystem::path>& paths, LLMChoice choice)
+{
+    const auto shared_artifact = shared_visual_artifact_for_builtin(choice);
+    if (!shared_artifact) {
         return;
     }
 
-    const auto artifact_it = std::find_if(
-        backend->artifacts.begin(),
-        backend->artifacts.end(),
-        [](const VisualModelArtifactDescriptor& artifact) {
-            return artifact.kind == VisualModelArtifactKind::Model;
-        });
-    if (artifact_it == backend->artifacts.end()) {
-        return;
-    }
-
-    append_unique_path(paths, resolve_visual_artifact_path(*backend, *artifact_it, *visual_url));
+    append_unique_path(paths,
+                       resolve_visual_artifact_path(*shared_artifact->backend,
+                                                    *shared_artifact->artifact,
+                                                    shared_artifact->download_url));
 }
 
 std::vector<std::filesystem::path> candidate_builtin_llm_paths(LLMChoice choice)
 {
     std::vector<std::filesystem::path> paths;
+    append_shared_visual_model_path(paths, choice);
     append_unique_path(paths, path_from_env_var(default_llm_download_env_var_for_choice(choice)));
     if (choice == LLMChoice::Local_3b_legacy) {
         append_unique_path(paths, path_from_url(kLegacyLlama3BQ4Url));
     }
-    append_shared_visual_model_path(paths, choice);
     return paths;
 }
 
@@ -190,6 +220,11 @@ std::string default_llm_download_env_var_for_choice(LLMChoice choice)
 
 std::filesystem::path preferred_builtin_llm_path(LLMChoice choice)
 {
+    const auto shared_artifact = shared_visual_artifact_for_builtin(choice);
+    if (shared_artifact) {
+        return visual_artifact_storage_path(*shared_artifact->backend, *shared_artifact->artifact);
+    }
+
     const auto path = path_from_env_var(default_llm_download_env_var_for_choice(choice));
     if (!path) {
         return {};

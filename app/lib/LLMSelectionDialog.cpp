@@ -1075,16 +1075,15 @@ void LLMSelectionDialog::refresh_downloader()
     const std::filesystem::path preferred_path = preferred_builtin_llm_path(selected_choice);
     const std::optional<std::filesystem::path> downloaded_path =
         resolve_downloaded_builtin_llm_path(selected_choice);
-    const std::string explicit_path =
-        (downloaded_path && !preferred_path.empty() && *downloaded_path != preferred_path)
-            ? Utils::path_to_utf8(*downloaded_path)
-            : std::string();
+    const std::filesystem::path download_target =
+        downloaded_path.value_or(preferred_path);
+    const std::string explicit_path = download_target.empty()
+        ? std::string()
+        : Utils::path_to_utf8(download_target);
 
     const bool needs_rebuild = !downloader
         || downloader->get_download_url() != env_url
-        || (!explicit_path.empty() && downloader->get_download_destination() != explicit_path)
-        || (explicit_path.empty() && !preferred_path.empty()
-            && downloader->get_download_destination() != Utils::path_to_utf8(preferred_path));
+        || (!explicit_path.empty() && downloader->get_download_destination() != explicit_path);
 
     if (needs_rebuild) {
         if (is_downloading.load()) {
@@ -2146,6 +2145,11 @@ std::string LLMSelectionDialogTestAccess::selected_visual_model_label(const LLMS
         return {};
     }
     return dialog.visual_backend_combo->currentText().toStdString();
+}
+
+LLMDownloader* LLMSelectionDialogTestAccess::local_downloader(LLMSelectionDialog& dialog)
+{
+    return dialog.downloader.get();
 }
 
 std::vector<std::string> LLMSelectionDialogTestAccess::local_builtin_labels(
