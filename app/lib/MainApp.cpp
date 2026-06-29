@@ -1390,6 +1390,7 @@ void MainApp::apply_whitelist_to_selector()
         if (auto entry = whitelist_store.get(chosen.toStdString())) {
             settings.set_allowed_categories(entry->categories);
             settings.set_allowed_subcategories(entry->subcategories);
+            settings.set_allowed_subcategories_by_category(entry->subcategories_by_category);
         }
     }
     whitelist_selector->blockSignals(false);
@@ -1437,7 +1438,11 @@ void MainApp::sync_whitelists_to_learning_store()
         if (!entry) {
             continue;
         }
-        candidates.reserve(candidates.size() + entry->categories.size());
+        std::size_t mapped_pair_count = 0;
+        for (const auto& [category, subcategories] : entry->subcategories_by_category) {
+            mapped_pair_count += subcategories.size();
+        }
+        candidates.reserve(candidates.size() + entry->categories.size() + mapped_pair_count);
         const std::string source = "whitelist:" + name;
         for (const auto& category : entry->categories) {
             candidates.push_back(UserLearningStore::TaxonomyCandidate{
@@ -1445,6 +1450,15 @@ void MainApp::sync_whitelists_to_learning_store()
                 std::string(),
                 source
             });
+        }
+        for (const auto& [category, subcategories] : entry->subcategories_by_category) {
+            for (const auto& subcategory : subcategories) {
+                candidates.push_back(UserLearningStore::TaxonomyCandidate{
+                    category,
+                    subcategory,
+                    source
+                });
+            }
         }
     }
 
@@ -2414,10 +2428,15 @@ void MainApp::run_large_whitelist_llm_test()
     }
 
     whitelist_store.set(preset.whitelist_name,
-                        WhitelistEntry{preset.categories, preset.subcategories});
+                        WhitelistEntry{
+                            preset.categories,
+                            preset.subcategories,
+                            preset.subcategories_by_category
+                        });
     settings.set_active_whitelist(preset.whitelist_name);
     settings.set_allowed_categories(preset.categories);
     settings.set_allowed_subcategories(preset.subcategories);
+    settings.set_allowed_subcategories_by_category(preset.subcategories_by_category);
     settings.set_use_whitelist(true);
     settings.set_use_subcategories(true);
     settings.set_use_consistency_hints(false);

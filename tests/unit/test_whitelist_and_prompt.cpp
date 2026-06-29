@@ -22,7 +22,9 @@
 #include <chrono>
 #include <deque>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -174,6 +176,27 @@ public:
     }
 };
 
+std::vector<std::string> document_topic_subcategories()
+{
+    return {
+        "Invoices", "Receipts", "Taxes", "Contracts", "Reports", "Statements",
+        "Letters", "Forms", "Certificates", "Policies", "Manuals", "Notes",
+        "Presentations", "Spreadsheets", "Legal", "Insurance", "Banking"
+    };
+}
+
+std::string join_for_settings(const std::vector<std::string>& values)
+{
+    std::ostringstream out;
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        if (i > 0) {
+            out << ", ";
+        }
+        out << values[i];
+    }
+    return out.str();
+}
+
 } // namespace
 
 TEST_CASE("WhitelistStore seeds built-in presets when empty") {
@@ -195,12 +218,9 @@ TEST_CASE("WhitelistStore seeds built-in presets when empty") {
 
     const auto documents = store.get("Documents");
     REQUIRE(documents.has_value());
-    REQUIRE(documents->categories == std::vector<std::string>{
-                                        "Invoices", "Receipts", "Taxes", "Contracts", "Reports",
-                                        "Statements", "Letters", "Forms", "Certificates", "Policies",
-                                        "Manuals", "Notes", "Presentations", "Spreadsheets", "Legal",
-                                        "Insurance", "Banking"});
+    REQUIRE(documents->categories == std::vector<std::string>{"Documents"});
     REQUIRE(documents->subcategories.empty());
+    REQUIRE(documents->subcategories_by_category.at("Documents") == document_topic_subcategories());
 }
 
 TEST_CASE("WhitelistStore migrates the Documents preset once for legacy stores") {
@@ -290,6 +310,37 @@ TEST_CASE("WhitelistStore migrates legacy Music categories to Audio") {
     CHECK(persisted->categories == std::vector<std::string>{"Audio", "Videos"});
 }
 
+TEST_CASE("WhitelistStore migrates legacy Documents preset to branching form") {
+    TempDir base_dir;
+    const auto legacy_path = base_dir.path() / "whitelists.ini";
+
+    QSettings legacy_settings(QString::fromStdString(legacy_path.string()), QSettings::IniFormat);
+    legacy_settings.beginGroup("__meta__");
+    legacy_settings.setValue("BuiltInSeedVersion", 3);
+    legacy_settings.endGroup();
+    legacy_settings.beginGroup("Documents");
+    legacy_settings.setValue("Categories", QString::fromStdString(join_for_settings(document_topic_subcategories())));
+    legacy_settings.setValue("Subcategories", "");
+    legacy_settings.endGroup();
+    legacy_settings.sync();
+
+    WhitelistStore store(base_dir.path().string());
+    REQUIRE(store.load());
+
+    const auto entry = store.get("Documents");
+    REQUIRE(entry.has_value());
+    CHECK(entry->categories == std::vector<std::string>{"Documents"});
+    CHECK(entry->subcategories.empty());
+    REQUIRE(entry->subcategories_by_category.at("Documents") == document_topic_subcategories());
+
+    WhitelistStore reloaded(base_dir.path().string());
+    REQUIRE(reloaded.load());
+    const auto persisted = reloaded.get("Documents");
+    REQUIRE(persisted.has_value());
+    CHECK(persisted->categories == std::vector<std::string>{"Documents"});
+    REQUIRE(persisted->subcategories_by_category.at("Documents") == document_topic_subcategories());
+}
+
 TEST_CASE("WhitelistStore preserves Unicode labels through save and load") {
     TempDir base_dir;
     const WhitelistEntry entry{
@@ -313,6 +364,39 @@ TEST_CASE("WhitelistStore preserves Unicode labels through save and load") {
     CHECK(std::find(names.begin(), names.end(), "Cloud ☁️") != names.end());
 }
 
+TEST_CASE("WhitelistStore preserves branching subcategories through save and settings initialization") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    settings.set_active_whitelist("Smart");
+
+    const WhitelistEntry entry{
+        {"Documents", "Images"},
+        {},
+        {
+            {"Documents", {"Invoices", "Receipts"}},
+            {"Images", {"Screenshots", "Photos"}}
+        }
+    };
+
+    WhitelistStore store(settings.get_config_dir());
+    store.set("Smart", entry);
+    REQUIRE(store.save());
+
+    WhitelistStore reloaded(settings.get_config_dir());
+    REQUIRE(reloaded.load());
+    const auto persisted = reloaded.get("Smart");
+    REQUIRE(persisted.has_value());
+    CHECK(persisted->categories == entry.categories);
+    CHECK(persisted->subcategories.empty());
+    CHECK(persisted->subcategories_by_category == entry.subcategories_by_category);
+
+    reloaded.initialize_from_settings(settings);
+    CHECK(settings.get_allowed_categories() == entry.categories);
+    CHECK(settings.get_allowed_subcategories().empty());
+    CHECK(settings.get_allowed_subcategories_by_category() == entry.subcategories_by_category);
+}
+
 TEST_CASE("CategorizationService builds numbered whitelist context") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
@@ -328,6 +412,28 @@ TEST_CASE("CategorizationService builds numbered whitelist context") {
     REQUIRE(context.find("1) CatA") != std::string::npos);
     REQUIRE(context.find("2) CatB") != std::string::npos);
     REQUIRE(context.find("Allowed subcategories: any") != std::string::npos);
+}
+
+TEST_CASE("CategorizationService builds branching whitelist context") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    settings.set_allowed_categories({"Documents", "Images"});
+    settings.set_allowed_subcategories({});
+    settings.set_allowed_subcategories_by_category({
+        {"Documents", {"Invoices", "Receipts"}},
+        {"Images", {"Screenshots", "Photos"}}
+    });
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string context = CategorizationServiceTestAccess::build_whitelist_context(service);
+
+    CHECK(context.find("Allowed main categories") != std::string::npos);
+    CHECK(context.find("Allowed subcategories by main category") != std::string::npos);
+    CHECK(context.find("Documents : Invoices, Receipts") != std::string::npos);
+    CHECK(context.find("Images : Screenshots, Photos") != std::string::npos);
+    CHECK(context.find("Allowed subcategories (pick exactly one label") == std::string::npos);
 }
 
 TEST_CASE("CategorizationService preserves Unicode whitelist labels in combined context") {
@@ -352,6 +458,46 @@ TEST_CASE("CategorizationService preserves Unicode whitelist labels in combined 
     CHECK(context.find("2) Abroad ☁️") != std::string::npos);
 }
 
+TEST_CASE("CategorizationService corrects invalid branching whitelist subcategory pairs") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    settings.set_use_whitelist(true);
+    settings.set_allowed_categories({"Documents", "Images"});
+    settings.set_allowed_subcategories({});
+    settings.set_allowed_subcategories_by_category({
+        {"Documents", {"Invoices", "Receipts"}},
+        {"Images", {"Screenshots", "Photos"}}
+    });
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "invoice.pdf";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(calls, "Documents : Screenshots");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().canonical_category == "Documents");
+    CHECK(categorized.front().canonical_subcategory == "Invoices");
+    CHECK(categorized.front().category == "Documents");
+    CHECK(categorized.front().subcategory == "Invoices");
+}
+
 TEST_CASE("CategorizationService keeps small whitelists fully injected") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
@@ -373,6 +519,46 @@ TEST_CASE("CategorizationService keeps small whitelists fully injected") {
     CHECK(context.find("1) Manuals") != std::string::npos);
     CHECK(context.find("2) Spreadsheets") != std::string::npos);
     CHECK(context.find("Selected whitelist is large") == std::string::npos);
+}
+
+TEST_CASE("CategorizationService retrieves large branching whitelist candidates") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    settings.set_use_whitelist(true);
+
+    std::vector<std::string> categories;
+    std::unordered_map<std::string, std::vector<std::string>> mapped_subcategories;
+    for (int i = 0; i < 18; ++i) {
+        const auto category = "Project Bucket " + std::to_string(i);
+        categories.push_back(category);
+        mapped_subcategories[category] = {"Alpha", "Beta"};
+    }
+    categories.push_back("Documents");
+    mapped_subcategories["Documents"] = {"Invoices", "Receipts"};
+    settings.set_allowed_categories(categories);
+    settings.set_allowed_subcategories({});
+    settings.set_allowed_subcategories_by_category(mapped_subcategories);
+
+    DatabaseManager db(settings.get_config_dir());
+    UserLearningStore learning_store(settings.get_config_dir());
+    REQUIRE(learning_store.is_open());
+    std::string error;
+    REQUIRE(learning_store.import_taxonomy_candidates({{"Documents", "Receipts", "whitelist:Smart"}}, &error));
+
+    CategorizationService service(settings, db, nullptr, &learning_store);
+    const std::string context = CategorizationServiceTestAccess::build_combined_context(
+        service,
+        {},
+        "invoice_receipt.pdf",
+        (base_dir.path() / "invoice_receipt.pdf").string(),
+        FileType::File);
+
+    CHECK(context.find("Selected whitelist is large") != std::string::npos);
+    CHECK(context.find("Documents : Receipts") != std::string::npos);
+    CHECK(context.find("Allowed subcategories for shown category candidates") != std::string::npos);
+    CHECK(context.find("Documents: Invoices, Receipts") != std::string::npos);
+    CHECK(context.find("Project Bucket 17") == std::string::npos);
 }
 
 TEST_CASE("CategorizationService retrieves candidates instead of injecting large whitelists") {

@@ -1736,7 +1736,7 @@ Run: `./tests/run_translation_tests.sh`
 Purpose: Ensure a new whitelist store starts with the built-in presets.
 Setup: Create a temporary settings store without saved whitelists.
 Procedure: Initialize `WhitelistStore` and read the available entries.
-Expected outcome: Built-in presets are present and selectable, and the default categories include `Audio` rather than the legacy `Music` label.
+Expected outcome: Built-in presets are present and selectable, the default categories include `Audio` rather than the legacy `Music` label, and the Documents preset uses a branching `Documents -> document topics` layout.
 Run: `./build-tests/ai_file_sorter_tests "WhitelistStore seeds built-in presets when empty"`
 
 #### Test case: WhitelistStore migrates the Documents preset once for legacy stores
@@ -1760,12 +1760,26 @@ Procedure: Load the whitelist store, then reload it from disk.
 Expected outcome: The stored default categories become `Audio` and `Videos` without duplicate audio-family entries.
 Run: `./build-tests/ai_file_sorter_tests "WhitelistStore migrates legacy Music categories to Audio"`
 
+#### Test case: WhitelistStore migrates legacy Documents preset to branching form
+Purpose: Upgrade the built-in Documents preset from old topic-as-main-category behavior to smart branching.
+Setup: Seed a version-3 Documents preset whose main categories are document topics such as invoices and receipts.
+Procedure: Load the whitelist store, then reload it from disk.
+Expected outcome: The Documents preset becomes `Documents` as the only main category with those topics mapped as category-specific subcategories.
+Run: `./build-tests/ai_file_sorter_tests "WhitelistStore migrates legacy Documents preset to branching form"`
+
 #### Test case: WhitelistStore preserves Unicode labels through save and load
 Purpose: Ensure valid Unicode whitelist labels, including emoji, survive persistence.
 Setup: Save a whitelist entry containing Unicode category/subcategory labels.
 Procedure: Reload the whitelist store from settings.
 Expected outcome: The Unicode labels are unchanged after the round trip.
 Run: `./build-tests/ai_file_sorter_tests "WhitelistStore preserves Unicode labels through save and load"`
+
+#### Test case: WhitelistStore preserves branching subcategories through save and settings initialization
+Purpose: Ensure smart branching whitelist mappings survive persistence and become the active settings constraints.
+Setup: Save a whitelist entry with category-specific subcategories for `Documents` and `Images`.
+Procedure: Reload the store, then initialize settings from the active whitelist.
+Expected outcome: Categories, flat subcategories, and category-specific subcategory mappings round-trip correctly.
+Run: `./build-tests/ai_file_sorter_tests "WhitelistStore preserves branching subcategories through save and settings initialization"`
 
 #### Test case: CategorizationService builds numbered whitelist context
 Purpose: Confirm the whitelist context includes numbered categories and an "any" subcategory fallback.
@@ -1774,6 +1788,13 @@ Procedure: Call the test access method to build the whitelist context string.
 Expected outcome: The context includes numbered category lines and indicates that subcategories are unrestricted.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService builds numbered whitelist context"`
 
+#### Test case: CategorizationService builds branching whitelist context
+Purpose: Confirm category-specific subcategory mappings are included in the prompt instead of a flat subcategory list.
+Setup: Configure a whitelist with `Documents -> Invoices, Receipts` and `Images -> Screenshots, Photos`.
+Procedure: Build the whitelist context string.
+Expected outcome: The prompt contains allowed main categories plus a category-specific subcategory block.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService builds branching whitelist context"`
+
 #### Test case: CategorizationService preserves Unicode whitelist labels in combined context
 Purpose: Ensure Unicode whitelist labels are forwarded into model prompt context.
 Setup: Configure a whitelist containing Unicode labels and build a categorization service.
@@ -1781,12 +1802,26 @@ Procedure: Build the combined whitelist/category-language context.
 Expected outcome: The generated context preserves the Unicode labels exactly.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves Unicode whitelist labels in combined context"`
 
+#### Test case: CategorizationService corrects invalid branching whitelist subcategory pairs
+Purpose: Enforce smart branching whitelist constraints after model output parsing.
+Setup: Configure `Documents -> Invoices, Receipts` and `Images -> Screenshots, Photos`, then return `Documents : Screenshots` from a stub LLM.
+Procedure: Categorize a single file with whitelist mode enabled.
+Expected outcome: The result keeps `Documents` but falls back to the first valid `Documents` subcategory, `Invoices`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService corrects invalid branching whitelist subcategory pairs"`
+
 #### Test case: CategorizationService keeps small whitelists fully injected
 Purpose: Preserve existing predictable prompt behavior for small whitelists.
 Setup: Configure a small whitelist with two categories and build a categorization service.
 Procedure: Build the combined prompt context for a matching file.
 Expected outcome: The full numbered whitelist is included and no large-whitelist candidate block is used.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService keeps small whitelists fully injected"`
+
+#### Test case: CategorizationService retrieves large branching whitelist candidates
+Purpose: Ensure large smart branching whitelists use compact prompt candidates with valid category/subcategory pair guidance.
+Setup: Configure many categories with mapped subcategories and seed a relevant whitelist taxonomy candidate.
+Procedure: Build combined prompt context for a receipt-like filename.
+Expected outcome: The compact large-whitelist block includes the relevant pair and mapped subcategories for shown candidates without dumping unrelated categories.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService retrieves large branching whitelist candidates"`
 
 #### Test case: CategorizationService retrieves candidates instead of injecting large whitelists
 Purpose: Prevent large whitelists from being dumped into the LLM prompt.

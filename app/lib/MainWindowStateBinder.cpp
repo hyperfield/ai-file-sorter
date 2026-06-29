@@ -251,6 +251,7 @@ void MainWindowStateBinder::connect_whitelist_signals()
         if (auto entry = app_.whitelist_store.get(name.toStdString())) {
             app_.settings.set_allowed_categories(entry->categories);
             app_.settings.set_allowed_subcategories(entry->subcategories);
+            app_.settings.set_allowed_subcategories_by_category(entry->subcategories_by_category);
         }
     });
 }

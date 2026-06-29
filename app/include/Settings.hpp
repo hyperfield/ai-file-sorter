@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <vector>
 #include <functional>
+#include <unordered_map>
 
 /**
  * @brief Stores and persists application configuration for UI and runtime behavior.
@@ -573,6 +574,17 @@ public:
      * @param values Allowed subcategory names to store.
      */
     void set_allowed_subcategories(std::vector<std::string> values);
+    /**
+     * @brief Returns category-specific subcategory constraints for the active whitelist.
+     * @return Copy of the category-to-subcategories map.
+     */
+    std::unordered_map<std::string, std::vector<std::string>> get_allowed_subcategories_by_category() const;
+    /**
+     * @brief Replaces category-specific subcategory constraints for the active whitelist.
+     * @param values Category-to-subcategories map to store.
+     */
+    void set_allowed_subcategories_by_category(
+        std::unordered_map<std::string, std::vector<std::string>> values);
 
 private:
     LLMChoice parse_llm_choice() const;
@@ -643,6 +655,7 @@ private:
     int next_support_prompt_threshold{50};
     std::vector<std::string> allowed_categories;
     std::vector<std::string> allowed_subcategories;
+    std::unordered_map<std::string, std::vector<std::string>> allowed_subcategories_by_category;
     std::string active_whitelist;
     std::vector<CustomLLM> custom_llms;
     std::string active_custom_llm_id;

@@ -77,6 +77,156 @@ std::string join_list(const std::vector<std::string>& items) {
     return oss.str();
 }
 
+std::string escape_map_token(const std::string& value)
+{
+    std::string escaped;
+    escaped.reserve(value.size());
+    for (char ch : value) {
+        if (ch == '\\' || ch == ';' || ch == '=' || ch == '|') {
+            escaped.push_back('\\');
+        }
+        escaped.push_back(ch);
+    }
+    return escaped;
+}
+
+std::string unescape_map_token(const std::string& value)
+{
+    std::string unescaped;
+    unescaped.reserve(value.size());
+    bool escaped = false;
+    for (char ch : value) {
+        if (escaped) {
+            unescaped.push_back(ch);
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        unescaped.push_back(ch);
+    }
+    if (escaped) {
+        unescaped.push_back('\\');
+    }
+    return unescaped;
+}
+
+std::vector<std::string> split_escaped(const std::string& value, char delimiter)
+{
+    std::vector<std::string> segments;
+    std::string current;
+    current.reserve(value.size());
+    bool escaped = false;
+    for (char ch : value) {
+        if (escaped) {
+            current.push_back('\\');
+            current.push_back(ch);
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (ch == delimiter) {
+            segments.push_back(current);
+            current.clear();
+            continue;
+        }
+        current.push_back(ch);
+    }
+    if (escaped) {
+        current.push_back('\\');
+    }
+    segments.push_back(current);
+    return segments;
+}
+
+std::size_t find_unescaped(const std::string& value, char target)
+{
+    bool escaped = false;
+    for (std::size_t i = 0; i < value.size(); ++i) {
+        const char ch = value[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (ch == target) {
+            return i;
+        }
+    }
+    return std::string::npos;
+}
+
+std::unordered_map<std::string, std::vector<std::string>> parse_subcategory_map(
+    const std::string& value)
+{
+    std::unordered_map<std::string, std::vector<std::string>> result;
+    for (const auto& entry : split_escaped(value, ';')) {
+        const auto delimiter = find_unescaped(entry, '=');
+        if (delimiter == std::string::npos) {
+            continue;
+        }
+        const std::string category = trim_copy(unescape_map_token(entry.substr(0, delimiter)));
+        if (category.empty()) {
+            continue;
+        }
+
+        std::vector<std::string> subcategories;
+        for (const auto& raw_subcategory : split_escaped(entry.substr(delimiter + 1), '|')) {
+            const std::string subcategory = trim_copy(unescape_map_token(raw_subcategory));
+            if (!subcategory.empty() &&
+                std::find(subcategories.begin(), subcategories.end(), subcategory) == subcategories.end()) {
+                subcategories.push_back(subcategory);
+            }
+        }
+        if (!subcategories.empty()) {
+            result[category] = std::move(subcategories);
+        }
+    }
+    return result;
+}
+
+std::string join_subcategory_map(
+    const std::unordered_map<std::string, std::vector<std::string>>& values)
+{
+    std::vector<std::string> categories;
+    categories.reserve(values.size());
+    for (const auto& [category, subcategories] : values) {
+        if (!category.empty() && !subcategories.empty()) {
+            categories.push_back(category);
+        }
+    }
+    std::sort(categories.begin(), categories.end());
+
+    std::ostringstream oss;
+    bool first_entry = true;
+    for (const auto& category : categories) {
+        const auto it = values.find(category);
+        if (it == values.end() || it->second.empty()) {
+            continue;
+        }
+        if (!first_entry) {
+            oss << ";";
+        }
+        first_entry = false;
+        oss << escape_map_token(category) << "=";
+        for (std::size_t i = 0; i < it->second.size(); ++i) {
+            if (i > 0) {
+                oss << "|";
+            }
+            oss << escape_map_token(it->second[i]);
+        }
+    }
+    return oss.str();
+}
+
 std::string to_bool_string(bool value) {
     return value ? "true" : "false";
 }
@@ -387,6 +537,8 @@ void Settings::load_whitelist_settings(const std::function<bool(const char*, boo
 {
     allowed_categories = parse_list(config.getValue("Settings", "AllowedCategories", ""));
     allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
+    allowed_subcategories_by_category =
+        parse_subcategory_map(config.getValue("Settings", "AllowedSubcategoriesByCategory", ""));
     use_whitelist = load_bool("UseWhitelist", false);
     active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
 }
@@ -514,6 +666,9 @@ void Settings::save_whitelist_settings()
 
     config.setValue(settings_section, "AllowedCategories", join_list(allowed_categories));
     config.setValue(settings_section, "AllowedSubcategories", join_list(allowed_subcategories));
+    config.setValue(settings_section,
+                    "AllowedSubcategoriesByCategory",
+                    join_subcategory_map(allowed_subcategories_by_category));
     set_bool_setting(config, settings_section, "UseWhitelist", use_whitelist);
     set_optional_setting(config, settings_section, "ActiveWhitelist", active_whitelist);
 }
@@ -1237,4 +1392,16 @@ std::vector<std::string> Settings::get_allowed_subcategories() const
 void Settings::set_allowed_subcategories(std::vector<std::string> values)
 {
     allowed_subcategories = std::move(values);
+}
+
+std::unordered_map<std::string, std::vector<std::string>>
+Settings::get_allowed_subcategories_by_category() const
+{
+    return allowed_subcategories_by_category;
+}
+
+void Settings::set_allowed_subcategories_by_category(
+    std::unordered_map<std::string, std::vector<std::string>> values)
+{
+    allowed_subcategories_by_category = std::move(values);
 }
