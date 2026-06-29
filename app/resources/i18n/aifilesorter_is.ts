@@ -2053,13 +2053,18 @@ Ef þú velur að hætta mun forritinu lokast.</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="56" />
-            <source>Categories (comma separated):</source>
-            <translation>Flokkar (aðskilin með kommum):</translation>
+            <source>Main categories / top-level folders (comma separated):</source>
+            <translation>Aðalflokkar / efstu möppur (aðskilin með kommum):</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="61" />
-            <source>Subcategories (comma separated):</source>
-            <translation>Undirflokkar (aðskilin með kommum):</translation>
+            <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+            <translation>Almennir undirflokkar (valfrjálst; virkt þegar flokkasértækar línur eru tómar):</translation>
+        </message>
+        <message>
+            <location filename="../../lib/WhitelistManagerDialog.cpp" line="66" />
+            <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+            <translation>Flokkasértækir undirflokkar (valfrjálst; virkt þegar almennir undirflokkar eru tómir):</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="385" />

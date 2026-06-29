@@ -2053,13 +2053,18 @@ Om du väljer att avsluta stängs applikationen.</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="56" />
-            <source>Categories (comma separated):</source>
-            <translation>Kategorier (kommaseparerade):</translation>
+            <source>Main categories / top-level folders (comma separated):</source>
+            <translation>Huvudkategorier / mappar på översta nivån (kommaseparerade):</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="61" />
-            <source>Subcategories (comma separated):</source>
-            <translation>Underkategorier (kommaseparerade):</translation>
+            <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+            <translation>Globala underkategorier (valfritt; aktiva när kategorispecifika rader är tomma):</translation>
+        </message>
+        <message>
+            <location filename="../../lib/WhitelistManagerDialog.cpp" line="66" />
+            <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+            <translation>Kategorispecifika underkategorier (valfritt; aktiva när globala underkategorier är tomma):</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="385" />

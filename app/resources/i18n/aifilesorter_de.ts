@@ -2055,13 +2055,18 @@ Wenn Sie Beenden wählen, wird die Anwendung geschlossen.</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="56"/>
-        <source>Categories (comma separated):</source>
-        <translation>Kategorien (durch Kommas getrennt):</translation>
+        <source>Main categories / top-level folders (comma separated):</source>
+        <translation>Hauptkategorien / Ordner der obersten Ebene (durch Kommas getrennt):</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="61"/>
-        <source>Subcategories (comma separated):</source>
-        <translation>Unterkategorien (durch Kommas getrennt):</translation>
+        <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+        <translation>Globale Unterkategorien (optional; aktiv, wenn kategoriespezifische Zeilen leer sind):</translation>
+    </message>
+    <message>
+        <location filename="../../lib/WhitelistManagerDialog.cpp" line="66"/>
+        <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+        <translation>Kategoriespezifische Unterkategorien (optional; aktiv, wenn globale Unterkategorien leer sind):</translation>
     </message>
     <message>
         <location filename="../../startapp_windows.cpp" line="385"/>

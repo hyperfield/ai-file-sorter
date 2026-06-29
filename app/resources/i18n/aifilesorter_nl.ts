@@ -2055,13 +2055,18 @@ Als u afsluiten kiest, wordt de toepassing gesloten.</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="56"/>
-        <source>Categories (comma separated):</source>
-        <translation>Categorieën (door komma&apos;s gescheiden):</translation>
+        <source>Main categories / top-level folders (comma separated):</source>
+        <translation>Hoofdcategorieën / mappen op hoogste niveau (door komma&apos;s gescheiden):</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="61"/>
-        <source>Subcategories (comma separated):</source>
-        <translation>Subcategorieën (door komma&apos;s gescheiden):</translation>
+        <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+        <translation>Globale subcategorieën (optioneel; actief wanneer categorie-specifieke rijen leeg zijn):</translation>
+    </message>
+    <message>
+        <location filename="../../lib/WhitelistManagerDialog.cpp" line="66"/>
+        <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+        <translation>Categorie-specifieke subcategorieën (optioneel; actief wanneer globale subcategorieën leeg zijn):</translation>
     </message>
     <message>
         <location filename="../../startapp_windows.cpp" line="385"/>

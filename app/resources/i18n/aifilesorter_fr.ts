@@ -2055,13 +2055,18 @@ Si vous choisissez de quitter, l&apos;application se fermera.</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="56"/>
-        <source>Categories (comma separated):</source>
-        <translation>Catégories (séparées par des virgules) :</translation>
+        <source>Main categories / top-level folders (comma separated):</source>
+        <translation>Catégories principales / dossiers de premier niveau (séparés par des virgules) :</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="61"/>
-        <source>Subcategories (comma separated):</source>
-        <translation>Sous-catégories (séparées par des virgules) :</translation>
+        <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+        <translation>Sous-catégories globales (facultatif ; actives lorsque les lignes propres à une catégorie sont vides) :</translation>
+    </message>
+    <message>
+        <location filename="../../lib/WhitelistManagerDialog.cpp" line="66"/>
+        <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+        <translation>Sous-catégories propres à une catégorie (facultatif ; actives lorsque les sous-catégories globales sont vides) :</translation>
     </message>
     <message>
         <location filename="../../startapp_windows.cpp" line="385"/>

@@ -2053,13 +2053,18 @@ Jos päätät lopettaa, sovellus sulkeutuu.</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="56" />
-            <source>Categories (comma separated):</source>
-            <translation>Luokat (pilkuilla erotettuna):</translation>
+            <source>Main categories / top-level folders (comma separated):</source>
+            <translation>Pääkategoriat / ylimmän tason kansiot (pilkuilla erotettuna):</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="61" />
-            <source>Subcategories (comma separated):</source>
-            <translation>Alaluokat (pilkuilla erotettuna):</translation>
+            <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+            <translation>Yleiset alaluokat (valinnainen; aktiivinen, kun kategoriakohtaiset rivit ovat tyhjiä):</translation>
+        </message>
+        <message>
+            <location filename="../../lib/WhitelistManagerDialog.cpp" line="66" />
+            <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+            <translation>Kategoriakohtaiset alaluokat (valinnainen; aktiivinen, kun yleiset alaluokat ovat tyhjiä):</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="385" />

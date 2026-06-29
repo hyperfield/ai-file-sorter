@@ -2135,13 +2135,18 @@ Please update to continue. If you choose to quit, the application will close.</s
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="56"/>
-        <source>Categories (comma separated):</source>
-        <translation>Categories (comma separated):</translation>
+        <source>Main categories / top-level folders (comma separated):</source>
+        <translation>मुख्य श्रेणियाँ / शीर्ष-स्तरीय फ़ोल्डर (कॉमा से अलग करें):</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="61"/>
-        <source>Subcategories (comma separated):</source>
-        <translation>Subcategories (comma separated):</translation>
+        <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+        <translation>वैश्विक उपश्रेणियाँ (वैकल्पिक; श्रेणी-विशिष्ट पंक्तियाँ खाली होने पर सक्रिय):</translation>
+    </message>
+    <message>
+        <location filename="../../lib/WhitelistManagerDialog.cpp" line="66"/>
+        <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+        <translation>श्रेणी-विशिष्ट उपश्रेणियाँ (वैकल्पिक; वैश्विक उपश्रेणियाँ खाली होने पर सक्रिय):</translation>
     </message>
 </context>
 <context>

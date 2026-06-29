@@ -2055,13 +2055,18 @@ If you choose to quit, the application will close.</source>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="56"/>
-        <source>Categories (comma separated):</source>
-        <translation>Kategoriler (virgülle ayrılmış):</translation>
+        <source>Main categories / top-level folders (comma separated):</source>
+        <translation>Ana kategoriler / üst düzey klasörler (virgülle ayrılmış):</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="61"/>
-        <source>Subcategories (comma separated):</source>
-        <translation>Alt kategoriler (virgülle ayrılmış):</translation>
+        <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+        <translation>Genel alt kategoriler (isteğe bağlı; kategoriye özel satırlar boşken etkin):</translation>
+    </message>
+    <message>
+        <location filename="../../lib/WhitelistManagerDialog.cpp" line="66"/>
+        <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+        <translation>Kategoriye özel alt kategoriler (isteğe bağlı; genel alt kategoriler boşken etkin):</translation>
     </message>
     <message>
         <location filename="../../startapp_windows.cpp" line="385"/>

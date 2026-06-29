@@ -2053,13 +2053,18 @@ If you choose to quit, the application will close.</source>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="56" />
-            <source>Categories (comma separated):</source>
-            <translation>类别（逗号分隔）：</translation>
+            <source>Main categories / top-level folders (comma separated):</source>
+            <translation>主类别 / 顶层文件夹（逗号分隔）：</translation>
         </message>
         <message>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="61" />
-            <source>Subcategories (comma separated):</source>
-            <translation>子类别（逗号分隔）：</translation>
+            <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+            <translation>全局子类别（可选；类别专属行为空时启用）：</translation>
+        </message>
+        <message>
+            <location filename="../../lib/WhitelistManagerDialog.cpp" line="66" />
+            <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+            <translation>按类别指定的子类别（可选；全局子类别为空时启用）：</translation>
         </message>
         <message>
             <location filename="../../startapp_windows.cpp" line="385" />

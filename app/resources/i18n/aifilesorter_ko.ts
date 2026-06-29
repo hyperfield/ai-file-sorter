@@ -2055,13 +2055,18 @@ If you choose to quit, the application will close.</source>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="56"/>
-        <source>Categories (comma separated):</source>
-        <translation>카테고리(쉼표로 구분):</translation>
+        <source>Main categories / top-level folders (comma separated):</source>
+        <translation>기본 범주 / 최상위 폴더(쉼표로 구분):</translation>
     </message>
     <message>
         <location filename="../../lib/WhitelistManagerDialog.cpp" line="61"/>
-        <source>Subcategories (comma separated):</source>
-        <translation>하위 카테고리(쉼표로 구분):</translation>
+        <source>Global subcategories (optional; active when category-specific rows are empty):</source>
+        <translation>전역 하위 범주(선택 사항; 범주별 행이 비어 있을 때 활성):</translation>
+    </message>
+    <message>
+        <location filename="../../lib/WhitelistManagerDialog.cpp" line="66"/>
+        <source>Category-specific subcategories (optional; active when global subcategories are empty):</source>
+        <translation>범주별 하위 범주(선택 사항; 전역 하위 범주가 비어 있을 때 활성):</translation>
     </message>
     <message>
         <location filename="../../startapp_windows.cpp" line="385"/>
