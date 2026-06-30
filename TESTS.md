@@ -1687,10 +1687,10 @@ This now explicitly includes Hindi, Swedish, Icelandic, Norwegian, Finnish, Dani
 Run: `./build-tests/ai_file_sorter_tests "Updater strings are translated for all supported UI languages"`
 
 #### Test case: Quick Start guide content follows the selected app language
-Purpose: Ensure the local Quick Start guide body follows the active app language.
+Purpose: Ensure the local Quick Start guide body follows the active app language and the English guide keeps the safe-first-run onboarding guidance.
 Setup: Set the translation manager to English, French, Korean, Hindi, Swedish, Icelandic, Norwegian, Finnish, Danish, and Simplified Chinese.
 Procedure: Resolve the Quick Start markdown for each selected language.
-Expected outcome: Each language loads the matching localized markdown content instead of the English fallback when a translation exists.
+Expected outcome: Each language loads the matching localized markdown content instead of the English fallback when a translation exists, and the English guide includes the safe-first-run section.
 Run: `./build-tests/ai_file_sorter_tests "Quick Start guide content follows the selected app language"`
 
 #### Test case: Interface language action labels are translated for the newly added Nordic UI languages

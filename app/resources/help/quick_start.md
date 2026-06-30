@@ -4,6 +4,18 @@ AI File Sorter helps you organize files after your review and approval.
 
 The AI drives the analysis and suggests categories, subcategories, and names. It does not directly touch your files. The app performs any moves or renames only after you confirm the reviewed changes.
 
+## Safe First Run
+
+If this is your first time using AI File Sorter, start with a small test folder before pointing it at a large archive or drive.
+
+Good first-run folders include:
+
+- a copy of 20-50 files from `Downloads`
+- a small screenshot or photo cleanup folder
+- a temporary folder with a few PDFs or documents
+
+This keeps the first run easy to review. Your files stay on your computer when you use local models, the AI only suggests categories and names, and nothing is moved or renamed until you approve the review list.
+
 ## 1. Choose a Folder
 
 Use **Browse** to pick the folder you want to sort.

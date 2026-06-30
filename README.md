@@ -49,6 +49,14 @@ AI File Sorter can run entirely on your device, using local text and visual mode
 
 ---
 
+## Safe First Run
+
+If you are trying AI File Sorter for the first time, start with a small test folder instead of a full archive or drive. Copy 20-50 files from `Downloads`, screenshots, photos, or documents into a temporary folder, run the analysis, and inspect the review table before applying anything.
+
+This keeps the first run low risk: your files stay on your computer when you use local models, the AI only suggests categories and filenames, and no move or rename happens until you approve it. If you do apply changes and then want to reverse them, use **Edit -> Undo last run**.
+
+---
+
 [![Download ai-file-sorter](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 
 [![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9npk4dzd6r6s)
@@ -58,6 +66,7 @@ AI File Sorter can run entirely on your device, using local text and visual mode
 ---
 
 - [AI File Sorter](#ai-file-sorter)
+  - [Safe First Run](#safe-first-run)
   - [Changelog](#changelog)
   - [Features](#features)
   - [Categorization](#categorization)
@@ -1059,7 +1068,7 @@ For log locations, rotation details, and common troubleshooting notes, see [TROU
 
 ## Help and onboarding
 
-If you want an in-app walkthrough before your first run, open **Help → Quick Start Guide**. The Quick Start guide is localized and covers the review flow, undo, local learning, and the most common settings you may want to change.
+If you want an in-app walkthrough before your first run, open **Help → Quick Start Guide**. The Quick Start guide is localized and covers a safe small-folder trial, the review flow, undo, local learning, and the most common settings you may want to change.
 
 If something looks wrong or you want troubleshooting tips, open **Help → FAQ**.
 

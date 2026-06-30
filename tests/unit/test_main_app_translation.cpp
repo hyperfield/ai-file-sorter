@@ -693,6 +693,8 @@ TEST_CASE("Quick Start guide content follows the selected app language")
     const QString english = MainAppHelpActions::quick_start_markdown_for_language(
         TranslationManager::instance().current_language());
     REQUIRE(english.contains(QStringLiteral("# Quick Start Guide")));
+    REQUIRE(english.contains(QStringLiteral("Safe First Run")));
+    REQUIRE(english.contains(QStringLiteral("small test folder")));
     REQUIRE(english.contains(QStringLiteral("Choose a Folder")));
 
     TranslationManager::instance().set_language(Language::French);
