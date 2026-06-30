@@ -1151,7 +1151,16 @@ This project is licensed under the GNU AFFERO GENERAL PUBLIC LICENSE (GNU AGPL).
 
 ## Donation
 
-Support the development of **AI File Sorter** and its future features. Every contribution counts!
+Support the development of **AI File Sorter** and its future features. Every contribution counts, and the app remains usable without removing privacy, preview, undo, or local-processing features.
+
+Suggested support levels:
+
+- **$5**: Say thanks and help keep the project going.
+- **$15**: Support ongoing fixes, packaging work, and compatibility testing.
+- **$30**: Help fund release maintenance, signing/listing costs, and user support.
+- **$100+**: Sponsor heavier development work or commercial/organizational use.
+
+You can still choose any amount from **$1 and up**. Donation codes are supporter markers that hide the periodic support reminder; they are not used to take away the free local core.
 
 - **[Donate](https://filesorter.app/donate/)**
 
