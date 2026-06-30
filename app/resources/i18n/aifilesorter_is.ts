@@ -958,6 +958,11 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <translation>Mappa valin: %1</translation>
         </message>
         <message>
+            <location filename="../../lib/MainApp.cpp" line="1073" />
+            <source>Checking local backend...</source>
+            <translation>Athuga staðbundið backend...</translation>
+        </message>
+        <message>
             <location filename="../../lib/MainApp.cpp" line="1070" />
             <source>More consistent</source>
             <translation>Samkvæmari</translation>

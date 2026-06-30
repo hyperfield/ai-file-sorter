@@ -958,6 +958,11 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <translation>所选文件夹：%1</translation>
         </message>
         <message>
+            <location filename="../../lib/MainApp.cpp" line="1073" />
+            <source>Checking local backend...</source>
+            <translation>正在检查本地后端...</translation>
+        </message>
+        <message>
             <location filename="../../lib/MainApp.cpp" line="1070" />
             <source>More consistent</source>
             <translation>更一致</translation>

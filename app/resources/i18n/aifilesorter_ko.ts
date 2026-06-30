@@ -958,6 +958,11 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <translation>선택한 폴더: %1</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="1073"/>
+        <source>Checking local backend...</source>
+        <translation>로컬 백엔드를 확인하는 중...</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1070"/>
         <source>More consistent</source>
         <translation>더 일관적</translation>

@@ -958,6 +958,11 @@ Prend en charge : Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <translation>Dossier sélectionné : %1</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="1073"/>
+        <source>Checking local backend...</source>
+        <translation>Vérification du backend local...</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1070"/>
         <source>More consistent</source>
         <translation>Plus cohérent</translation>

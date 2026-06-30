@@ -958,6 +958,11 @@ Compatible con: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <translation>Carpeta seleccionada: %1</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="1073"/>
+        <source>Checking local backend...</source>
+        <translation>Comprobando backend local...</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1070"/>
         <source>More consistent</source>
         <translation>Más coherente</translation>

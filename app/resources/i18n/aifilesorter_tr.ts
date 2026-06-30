@@ -958,6 +958,11 @@ Destekler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <translation>Seçilen klasör: %1</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="1073"/>
+        <source>Checking local backend...</source>
+        <translation>Yerel arka uç kontrol ediliyor...</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1070"/>
         <source>More consistent</source>
         <translation>Daha tutarlı</translation>

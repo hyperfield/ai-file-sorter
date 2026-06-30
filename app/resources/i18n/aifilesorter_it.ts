@@ -958,6 +958,11 @@ Supporta: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <translation>Cartella selezionata: %1</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="1073"/>
+        <source>Checking local backend...</source>
+        <translation>Controllo del backend locale...</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1070"/>
         <source>More consistent</source>
         <translation>Più coerente</translation>

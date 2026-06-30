@@ -958,6 +958,11 @@ Stöder: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <translation>Vald mapp: %1</translation>
         </message>
         <message>
+            <location filename="../../lib/MainApp.cpp" line="1073" />
+            <source>Checking local backend...</source>
+            <translation>Kontrollerar lokal backend...</translation>
+        </message>
+        <message>
             <location filename="../../lib/MainApp.cpp" line="1070" />
             <source>More consistent</source>
             <translation>Mer konsekvent</translation>

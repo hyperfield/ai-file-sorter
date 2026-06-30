@@ -958,6 +958,11 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <translation>Valittu kansio: %1</translation>
         </message>
         <message>
+            <location filename="../../lib/MainApp.cpp" line="1073" />
+            <source>Checking local backend...</source>
+            <translation>Tarkistetaan paikallista backendia...</translation>
+        </message>
+        <message>
             <location filename="../../lib/MainApp.cpp" line="1070" />
             <source>More consistent</source>
             <translation>Johdonmukaisempaa</translation>

@@ -958,6 +958,11 @@ Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <translation>Map geselecteerd: %1</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="1073"/>
+        <source>Checking local backend...</source>
+        <translation>Lokale backend controleren...</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1070"/>
         <source>More consistent</source>
         <translation>Meer consistent</translation>

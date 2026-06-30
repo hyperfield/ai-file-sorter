@@ -988,6 +988,11 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <translation>Folder selected: %1</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="1073"/>
+        <source>Checking local backend...</source>
+        <translation>स्थानीय बैकएंड जांचा जा रहा है...</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1070"/>
         <source>More consistent</source>
         <translation>अधिक एकरूप</translation>
