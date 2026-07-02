@@ -631,7 +631,7 @@ aifs_add_translation_resources(aifilesorter)
 set(APP_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/qn_logo.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/hf_logo.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_512x512.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
@@ -661,8 +661,8 @@ set_source_files_properties(
     PROPERTIES QT_RESOURCE_ALIAS "images/logo.png"
 )
 set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/qn_logo.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/qn_logo.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/hf_logo.png"
+    PROPERTIES QT_RESOURCE_ALIAS "images/hf_logo.png"
 )
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"

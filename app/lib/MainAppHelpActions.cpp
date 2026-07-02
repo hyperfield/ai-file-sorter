@@ -146,7 +146,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
     about_layout->addWidget(version_label);
 
     auto* copyright_label =
-        new QLabel(QStringLiteral("© 2024-2026 QuickNode. All rights reserved."), about_tab);
+        new QLabel(QStringLiteral("© 2024-2026 HF Studio. All rights reserved."), about_tab);
     copyright_label->setAlignment(Qt::AlignHCenter);
     about_layout->addWidget(copyright_label);
 
@@ -164,11 +164,13 @@ void MainAppHelpActions::show_about(QWidget* parent)
     auto* credits_layout = new QVBoxLayout(credits_tab);
     credits_layout->setSpacing(8);
 
-    if (QPixmap qn_logo_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/qn_logo.png")); !qn_logo_pix.isNull()) {
-        auto* qn_logo = new QLabel(credits_tab);
-        qn_logo->setAlignment(Qt::AlignHCenter);
-        qn_logo->setPixmap(qn_logo_pix.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        credits_layout->addWidget(qn_logo);
+    if (QPixmap brand_logo_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/hf_logo.png"));
+        !brand_logo_pix.isNull()) {
+        auto* brand_logo = new QLabel(credits_tab);
+        brand_logo->setAlignment(Qt::AlignHCenter);
+        brand_logo->setPixmap(
+            brand_logo_pix.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        credits_layout->addWidget(brand_logo);
     }
 
     auto* author_label = new QLabel(QStringLiteral("Author: hyperfield"), credits_tab);
@@ -176,7 +178,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
     credits_layout->addWidget(author_label);
 
     auto* author_details = new QLabel(QStringLiteral(
-        "Author's brand name is <a href=\"https://quicknode.net\">QN (QuickNode)</a>.<br>"
+        "Author's brand name is <a href=\"https://hfstudio.dev\">HF Studio</a>.<br>"
         "Source code on GitHub is <a href=\"https://github.com/hyperfield/ai-file-sorter\">here</a>."), credits_tab);
     author_details->setOpenExternalLinks(true);
     author_details->setAlignment(Qt::AlignHCenter);
