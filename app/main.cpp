@@ -2,6 +2,7 @@
 #include "AppTestRunner.hpp"
 #include "EmbeddedEnv.hpp"
 #include "GgmlRuntimePaths.hpp"
+#include "HeadlessAnalysisCommand.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "ImageAnalyzer.hpp"
 #include "Logger.hpp"
@@ -76,6 +77,7 @@ struct ParsedArguments {
     bool force_direct_run{false};
     std::optional<std::string> self_test_suite;
     std::optional<std::string> visual_gpu_probe_backend;
+    HeadlessAnalysisCommand::ParseResult headless;
     UpdaterLiveTestConfig updater_live_test;
     std::vector<char*> qt_args;
 };
@@ -144,9 +146,15 @@ void apply_updater_live_test_environment(const UpdaterLiveTestConfig& args)
 ParsedArguments parse_command_line(int argc, char** argv)
 {
     ParsedArguments parsed;
+    parsed.headless = HeadlessAnalysisCommand::parse(argc, argv);
     parsed.qt_args.reserve(static_cast<size_t>(argc) + 1);
 
     for (int i = 0; i < argc; ++i) {
+        if (i > 0 &&
+            static_cast<std::size_t>(i) < parsed.headless.consumed_arguments.size() &&
+            parsed.headless.consumed_arguments[static_cast<std::size_t>(i)]) {
+            continue;
+        }
         const bool is_flag = (i > 0);
         if (is_flag && std::strcmp(argv[i], "--development") == 0) {
             parsed.development_mode = true;
@@ -605,6 +613,31 @@ int run_visual_gpu_probe_mode(const ParsedArguments& parsed_args)
     }
 }
 
+int run_headless_mode(const ParsedArguments& parsed_args)
+{
+    int qt_argc = static_cast<int>(parsed_args.qt_args.size()) - 1;
+    char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());
+    QCoreApplication app(qt_argc, qt_argv);
+
+    if (parsed_args.headless.help_requested) {
+        std::cout << HeadlessAnalysisCommand::usage_text();
+        return EXIT_SUCCESS;
+    }
+    if (!parsed_args.headless.error.empty()) {
+        std::cerr << parsed_args.headless.error << "\n"
+                  << HeadlessAnalysisCommand::usage_text();
+        return HeadlessAnalysisCommand::Usage;
+    }
+
+    Settings settings;
+    settings.load();
+    const auto runtime_dir = Utils::utf8_to_path(settings.get_config_dir()) / "runtime";
+    return HeadlessAnalysisCommand::run(parsed_args.headless.options,
+                                        runtime_dir,
+                                        std::cout,
+                                        std::cerr);
+}
+
 int run_application(const ParsedArguments& parsed_args)
 {
     EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
@@ -627,6 +660,9 @@ int run_application(const ParsedArguments& parsed_args)
     }
     if (parsed_args.visual_gpu_probe_backend.has_value()) {
         return run_visual_gpu_probe_mode(parsed_args);
+    }
+    if (parsed_args.headless.requested) {
+        return run_headless_mode(parsed_args);
     }
 
     auto updater_live_test = parsed_args.updater_live_test;

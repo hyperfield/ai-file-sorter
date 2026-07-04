@@ -199,6 +199,36 @@ Procedure: Convert owners to strings and parse strings back to owners.
 Expected outcome: `gui`, `explorerWorker`, and `headless` round-trip to the expected owners, while unknown strings parse as `Unknown`.
 Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock owner strings are stable"`
 
+### `tests/unit/test_headless_analysis_command.cpp`
+
+#### Test case: HeadlessAnalysisCommand parses operation paths and status file
+Purpose: Verify the Explorer-facing command contract accepts operation, path, status-file, and job-id options.
+Setup: Create a temporary input file and build an argv vector for `--headless`.
+Procedure: Parse the arguments.
+Expected outcome: The command is marked requested, consumes the headless arguments, resolves the operation, and preserves the supplied path, status file, and job id.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses operation paths and status file"`
+
+#### Test case: HeadlessAnalysisCommand reports busy runtime lock
+Purpose: Ensure the headless command reports an existing Explorer/GUI analysis lock instead of running concurrently.
+Setup: Hold an `AnalysisRuntimeLock` as an Explorer worker and prepare a headless command with a status file.
+Procedure: Run the command.
+Expected outcome: The command exits with the busy code, writes `blocked` status JSON, and includes the lock owner metadata.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand reports busy runtime lock"`
+
+#### Test case: HeadlessAnalysisCommand runs categorization for an empty folder
+Purpose: Verify the headless command can execute the real analysis workflow for a folder target without invoking an LLM when no entries are pending.
+Setup: Create a temporary empty target folder, isolate app settings under a temporary config root, and prepare a headless categorize command with a status file.
+Procedure: Run the command and inspect the final status JSON and runtime lock.
+Expected outcome: The command exits successfully, writes `completed` status JSON with zero review entries, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand runs categorization for an empty folder"`
+
+#### Test case: HeadlessAnalysisCommand releases runtime lock after unsupported execution
+Purpose: Ensure unsupported headless operations release the runtime lock.
+Setup: Prepare a headless rename command with an existing target file and a writable runtime directory.
+Procedure: Run the command and then inspect the runtime lock.
+Expected outcome: The command exits with the unsupported code, writes `failed` status JSON, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand releases runtime lock after unsupported execution"`
+
 ### `tests/unit/test_single_instance_coordinator.cpp`
 
 #### Test case: SingleInstanceCoordinator notifies the primary instance on relaunch
