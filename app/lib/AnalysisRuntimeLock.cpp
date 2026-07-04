@@ -270,6 +270,11 @@ AnalysisRuntimeLock::try_acquire(Metadata metadata, std::string* error) const
 
 bool AnalysisRuntimeLock::is_locked(Metadata* metadata) const
 {
+    std::error_code ec;
+    if (!std::filesystem::exists(runtime_dir_, ec)) {
+        return false;
+    }
+
     QLockFile lock_file(to_qstring(lock_path_));
     lock_file.setStaleLockTime(0);
     if (lock_file.tryLock(0)) {
