@@ -59,7 +59,7 @@ class MainAppUiBuilder;
 class MainWindowStateBinder;
 class WhitelistManagerDialog;
 class SuitabilityBenchmarkDialog;
-class AnalysisCoordinator;
+struct AnalysisWorkflowContext;
 class StoragePluginManager;
 
 struct CategorizedFile;
@@ -277,6 +277,11 @@ private:
     void populate_tree_view(const std::vector<CategorizedFile>& files);
 
     void perform_analysis();
+    /**
+     * @brief Builds the host context used by the analysis workflow.
+     * @return Context containing workflow services, state, and callbacks.
+     */
+    AnalysisWorkflowContext make_analysis_workflow_context();
     void stop_running_analysis();
     void show_llm_selection_dialog();
     void on_about_activate();
@@ -377,7 +382,6 @@ private:
     StorageSupportResolution resolve_storage_support(const StorageProviderDetection& detection) const;
 
     friend class MainAppUiBuilder;
-    friend class AnalysisCoordinator;
     friend class MainWindowStateBinder;
 #ifdef AI_FILE_SORTER_TEST_BUILD
     friend class MainAppTestAccess;

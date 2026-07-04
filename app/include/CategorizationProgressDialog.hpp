@@ -1,7 +1,7 @@
 #ifndef CATEGORIZATIONPROGRESSDIALOG_HPP
 #define CATEGORIZATIONPROGRESSDIALOG_HPP
 
-#include "Types.hpp"
+#include "AnalysisProgress.hpp"
 
 #include <QAccessible>
 #include <QCoreApplication>
@@ -26,16 +26,8 @@ class CategorizationProgressDialog : public QDialog
 {
     Q_DECLARE_TR_FUNCTIONS(CategorizationProgressDialog)
 public:
-    enum class StageId {
-        ImageAnalysis,
-        DocumentAnalysis,
-        Categorization
-    };
-
-    struct StagePlan {
-        StageId id;
-        std::vector<FileEntry> items;
-    };
+    using StageId = AnalysisProgressStageId;
+    using StagePlan = AnalysisProgressStagePlan;
 
     CategorizationProgressDialog(QWidget* parent, MainApp* main_app, bool show_subcategory_col);
 

@@ -2460,9 +2460,80 @@ void MainApp::log_pending_queue()
     }
 }
 
+AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
+{
+    return AnalysisWorkflowContext{
+        settings,
+        db_manager,
+        categorization_service,
+        results_coordinator,
+        core_logger,
+        using_local_llm,
+        already_categorized_files,
+        new_files_with_categories,
+        files_to_categorize,
+        new_files_to_sort,
+        stop_analysis,
+        text_cpu_fallback_choice_,
+        [this]() { return get_folder_path(); },
+        [this](const char* text) { return tr(text); },
+        [this]() { return should_abort_analysis(); },
+        [this](const std::string& message) { append_progress(message); },
+        [this](const std::string& directory_path) { prune_empty_cached_entries_for(directory_path); },
+        [this]() { log_cached_highlights(); },
+        [this]() { log_pending_queue(); },
+        [this]() { return effective_scan_options(); },
+        [this](const std::vector<AnalysisWorkflowContext::StagePlan>& stages) {
+            configure_progress_stages(stages);
+        },
+        [this](AnalysisWorkflowContext::StageId stage_id, const std::vector<FileEntry>& items) {
+            set_progress_stage_items(stage_id, items);
+        },
+        [this](AnalysisWorkflowContext::StageId stage_id) { set_progress_active_stage(stage_id); },
+        [this](AnalysisWorkflowContext::StageId stage_id, const FileEntry& entry) {
+            mark_progress_stage_item_in_progress(stage_id, entry);
+        },
+        [this](AnalysisWorkflowContext::StageId stage_id, const FileEntry& entry) {
+            mark_progress_stage_item_completed(stage_id, entry);
+        },
+        [this](AnalysisWorkflowContext::StageId stage_id, const FileEntry& entry) {
+            mark_progress_stage_item_skipped(stage_id, entry);
+        },
+        [this]() { return make_llm_client(); },
+        [this]() { return should_log_prompts(); },
+        [this](const std::string& reason) { return prompt_visual_cpu_fallback(reason); },
+        [this](const std::string& reason) { return prompt_continue_without_visual_analysis(reason); },
+        [this](const CategorizedFile& entry, const std::string& reason) {
+            notify_recategorization_reset(entry, reason);
+        }};
+}
+
 void MainApp::perform_analysis()
 {
-    AnalysisCoordinator(*this).execute();
+    const AnalysisRunResult result =
+        AnalysisCoordinator(make_analysis_workflow_context()).execute();
+    const QPointer<MainApp> app(this);
+
+    QMetaObject::invokeMethod(
+        this,
+        [app, result]() {
+            if (!app) {
+                return;
+            }
+
+            switch (result.status) {
+            case AnalysisRunStatus::Completed:
+                app->handle_analysis_finished();
+                break;
+            case AnalysisRunStatus::Cancelled:
+                app->handle_analysis_cancelled();
+                break;
+            case AnalysisRunStatus::Failed:
+                app->handle_analysis_failure(result.error_message);
+                break;
+            }
+        },
+        Qt::QueuedConnection);
 }
 
 
