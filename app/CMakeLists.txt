@@ -1415,6 +1415,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llava_image_analyzer.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_image_analyzer_factory.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_media_rename_metadata_service.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_analysis_runtime_lock.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_single_instance_coordinator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_cuda_probe.cpp"
     )

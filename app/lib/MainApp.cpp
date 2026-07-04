@@ -546,6 +546,7 @@ MainApp::MainApp(Settings& settings,
     : QMainWindow(parent),
       settings(settings),
       runtime_data_dir_(resolve_runtime_data_dir(settings, std::move(app_data_dir))),
+      analysis_runtime_lock_(Utils::utf8_to_path(runtime_data_dir_) / "runtime"),
       db_manager(runtime_data_dir_),
       user_learning_store_(runtime_data_dir_),
       core_logger(Logger::get_logger("core_logger")),
@@ -590,6 +591,7 @@ MainApp::MainApp(Settings& settings,
     load_settings();
     refresh_backend_status_label();
     set_app_icon();
+    start_analysis_runtime_lock_polling();
 }
 
 
@@ -611,6 +613,9 @@ void MainApp::run()
 void MainApp::shutdown()
 {
     backend_status_probe_thread_.request_stop();
+    if (analysis_runtime_lock_timer_) {
+        analysis_runtime_lock_timer_->stop();
+    }
     stop_running_analysis();
     save_settings();
 }
@@ -1309,24 +1314,39 @@ void MainApp::on_analyze_clicked()
         return;
     }
 
+    if (!acquire_analysis_runtime_lock(folder_path)) {
+        return;
+    }
+
     stop_analysis = false;
     text_cpu_fallback_choice_.reset();
     visual_cpu_fallback_choice_.reset();
     continue_without_visual_analysis_choice_.reset();
     update_analyze_button_state(true);
 
-    const bool show_subcategory = use_subcategories_checkbox->isChecked();
-    progress_dialog = std::make_unique<CategorizationProgressDialog>(this, this, show_subcategory);
-    progress_dialog->show();
+    try {
+        const bool show_subcategory = use_subcategories_checkbox->isChecked();
+        progress_dialog = std::make_unique<CategorizationProgressDialog>(this, this, show_subcategory);
+        progress_dialog->show();
 
-    analyze_thread = std::thread([this]() {
-        try {
-            perform_analysis();
-        } catch (const std::exception& ex) {
-            core_logger->error("Exception during analysis: {}", ex.what());
-            post_analysis_failure(std::string("Analysis error: ") + ex.what());
+        analyze_thread = std::thread([this]() {
+            try {
+                perform_analysis();
+            } catch (const std::exception& ex) {
+                core_logger->error("Exception during analysis: {}", ex.what());
+                post_analysis_failure(std::string("Analysis error: ") + ex.what());
+            }
+        });
+    } catch (const std::exception& ex) {
+        release_analysis_runtime_lock();
+        update_analyze_button_state(false);
+        if (progress_dialog) {
+            progress_dialog->hide();
+            progress_dialog.reset();
         }
-    });
+        core_logger->error("Could not start analysis: {}", ex.what());
+        show_error_dialog(std::string("Could not start analysis: ") + ex.what());
+    }
 }
 
 
@@ -1569,12 +1589,116 @@ void MainApp::update_analyze_button_state(bool analyzing)
         statusBar()->showMessage(tr("Ready"));
         status_is_ready_ = true;
     }
+    if (analyze_button) {
+        const bool blocked_by_external_lock = !analyzing && external_analysis_lock_active_;
+        analyze_button->setEnabled(!blocked_by_external_lock);
+        if (blocked_by_external_lock) {
+            statusBar()->showMessage(tr("Analyzing…"));
+            status_is_ready_ = false;
+        }
+    }
     apply_accessibility_metadata();
     if (analyze_button) {
         QAccessibleEvent button_name_changed(analyze_button, QAccessible::NameChanged);
         QAccessible::updateAccessibility(&button_name_changed);
     }
     update_settings_action_states();
+}
+
+void MainApp::start_analysis_runtime_lock_polling()
+{
+    if (analysis_runtime_lock_timer_) {
+        return;
+    }
+    analysis_runtime_lock_timer_ = new QTimer(this);
+    analysis_runtime_lock_timer_->setInterval(2000);
+    connect(analysis_runtime_lock_timer_,
+            &QTimer::timeout,
+            this,
+            &MainApp::refresh_analysis_runtime_lock_state);
+    analysis_runtime_lock_timer_->start();
+    refresh_analysis_runtime_lock_state();
+}
+
+void MainApp::refresh_analysis_runtime_lock_state()
+{
+    if (!analyze_button) {
+        return;
+    }
+    if (analysis_runtime_lease_ || analysis_in_progress_) {
+        if (external_analysis_lock_active_) {
+            external_analysis_lock_active_ = false;
+            update_analyze_button_state(analysis_in_progress_);
+        }
+        analyze_button->setEnabled(true);
+        return;
+    }
+
+    AnalysisRuntimeLock::Metadata metadata;
+    const bool locked = analysis_runtime_lock_.is_locked(&metadata);
+    if (locked == external_analysis_lock_active_) {
+        if (locked) {
+            analyze_button->setEnabled(false);
+            statusBar()->showMessage(tr("Analyzing…"));
+            status_is_ready_ = false;
+        }
+        return;
+    }
+
+    external_analysis_lock_active_ = locked;
+    if (ui_logger) {
+        if (locked) {
+            ui_logger->info("Analyze button disabled by shared analysis runtime lock from owner '{}' pid {}.",
+                            AnalysisRuntimeLock::owner_to_string(metadata.owner),
+                            metadata.pid);
+        } else {
+            ui_logger->info("Analyze button re-enabled after shared analysis runtime lock was released.");
+        }
+    }
+    update_analyze_button_state(false);
+}
+
+bool MainApp::acquire_analysis_runtime_lock(const std::string& folder_path)
+{
+    refresh_analysis_runtime_lock_state();
+    if (external_analysis_lock_active_) {
+        return false;
+    }
+
+    AnalysisRuntimeLock::Metadata metadata;
+    metadata.owner = AnalysisRuntimeLock::Owner::Gui;
+    metadata.description = "GUI analysis";
+
+    std::string error;
+    auto lease = analysis_runtime_lock_.try_acquire(metadata, &error);
+    if (!lease) {
+        if (core_logger) {
+            core_logger->warn("Could not acquire shared analysis runtime lock for '{}': {}",
+                              folder_path,
+                              error.empty() ? "unknown error" : error);
+        }
+        refresh_analysis_runtime_lock_state();
+        return false;
+    }
+
+    analysis_runtime_lease_.emplace(std::move(*lease));
+    external_analysis_lock_active_ = false;
+    if (core_logger) {
+        core_logger->info("Acquired shared analysis runtime lock for GUI analysis of '{}'.", folder_path);
+    }
+    return true;
+}
+
+void MainApp::release_analysis_runtime_lock()
+{
+    if (!analysis_runtime_lease_) {
+        return;
+    }
+    analysis_runtime_lease_->release();
+    analysis_runtime_lease_.reset();
+    if (core_logger) {
+        core_logger->info("Released shared analysis runtime lock.");
+    }
 }
 
 void MainApp::update_results_view_mode()
@@ -2111,6 +2235,7 @@ void MainApp::handle_analysis_finished()
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
+    release_analysis_runtime_lock();
 
     if (progress_dialog) {
         progress_dialog->hide();
@@ -2135,6 +2260,7 @@ void MainApp::handle_analysis_cancelled()
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
+    release_analysis_runtime_lock();
 
     if (progress_dialog) {
         progress_dialog->hide();
@@ -2152,6 +2278,7 @@ void MainApp::handle_analysis_failure(const std::string& message)
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
+    release_analysis_runtime_lock();
     if (progress_dialog) {
         progress_dialog->hide();
         progress_dialog.reset();
@@ -2631,6 +2758,7 @@ void MainApp::stop_running_analysis()
         progress_dialog->hide();
         progress_dialog.reset();
     }
+    release_analysis_runtime_lock();
 }
 
 

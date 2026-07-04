@@ -183,6 +183,22 @@ Procedure: Call `prepare_model_params_result_for_testing()` for a temporary mode
 Expected outcome: `n_gpu_layers` is `0` and the captured status is `GpuLowMemoryFallbackToCpu`.
 Run: `./build-tests/ai_file_sorter_tests "Vulkan backend reports low GPU memory before load"`
 
+### `tests/unit/test_analysis_runtime_lock.cpp`
+
+#### Test case: AnalysisRuntimeLock serializes active jobs and persists metadata
+Purpose: Ensure the shared runtime lock allows only one analysis owner and writes status metadata for other entry points.
+Setup: Create a writable temporary runtime directory and acquire the lock as the GUI owner.
+Procedure: Read the persisted metadata, attempt a competing Explorer-worker lock, release the GUI lease, and retry the Explorer-worker acquisition.
+Expected outcome: The competing acquisition is rejected while the GUI lease is active, metadata reflects the GUI job, and the Explorer-worker lease succeeds after release.
+Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock serializes active jobs and persists metadata"`
+
+#### Test case: AnalysisRuntimeLock owner strings are stable
+Purpose: Keep persisted lock owner values compatible across GUI, Explorer worker, and headless entry points.
+Setup: Use each supported runtime-lock owner enum.
+Procedure: Convert owners to strings and parse strings back to owners.
+Expected outcome: `gui`, `explorerWorker`, and `headless` round-trip to the expected owners, while unknown strings parse as `Unknown`.
+Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock owner strings are stable"`
+
 ### `tests/unit/test_single_instance_coordinator.cpp`
 
 #### Test case: SingleInstanceCoordinator notifies the primary instance on relaunch
