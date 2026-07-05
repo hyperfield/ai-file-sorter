@@ -84,6 +84,47 @@ const std::vector<CategorizedFile>& HeadlessAnalysisWorkflowHost::review_entries
     return new_files_to_sort_;
 }
 
+std::string HeadlessAnalysisWorkflowHost::folder_path() const
+{
+    return normalize_folder_path(options_.folder_path);
+}
+
+bool HeadlessAnalysisWorkflowHost::use_subcategories() const
+{
+    return settings_.get_use_subcategories();
+}
+
+bool HeadlessAnalysisWorkflowHost::include_subdirectories() const
+{
+    return settings_.get_include_subdirectories();
+}
+
+CategoryLanguage HeadlessAnalysisWorkflowHost::category_language() const
+{
+    return settings_.get_category_language();
+}
+
+std::string HeadlessAnalysisWorkflowHost::undo_dir() const
+{
+    const auto undo_path = Utils::utf8_to_path(runtime_data_dir_) / "undo";
+    return Utils::path_to_utf8(undo_path);
+}
+
+DatabaseManager& HeadlessAnalysisWorkflowHost::db_manager()
+{
+    return *db_manager_;
+}
+
+IStorageProvider& HeadlessAnalysisWorkflowHost::storage_provider()
+{
+    return storage_provider_;
+}
+
+std::shared_ptr<spdlog::logger> HeadlessAnalysisWorkflowHost::core_logger() const
+{
+    return core_logger_;
+}
+
 AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
 {
     return AnalysisWorkflowContext{

@@ -2,6 +2,7 @@
 
 #include "AnalysisRunResult.hpp"
 #include "HeadlessAnalysisWorkflowHost.hpp"
+#include "HeadlessReviewApplyService.hpp"
 #include "Utils.hpp"
 
 #include <QCoreApplication>
@@ -128,7 +129,8 @@ QJsonObject status_to_json(const HeadlessAnalysisCommand::Options& options,
                            const std::string& status,
                            const std::string& message,
                            const std::string& error,
-                           const std::optional<AnalysisRuntimeLock::Metadata>& lock_metadata)
+                           const std::optional<AnalysisRuntimeLock::Metadata>& lock_metadata,
+                           const QJsonObject* extra_payload = nullptr)
 {
     QJsonObject object;
     object.insert(QStringLiteral("schemaVersion"), kStatusSchemaVersion);
@@ -148,6 +150,11 @@ QJsonObject status_to_json(const HeadlessAnalysisCommand::Options& options,
 
     if (lock_metadata) {
         object.insert(QStringLiteral("lock"), metadata_to_json(*lock_metadata));
+    }
+    if (extra_payload) {
+        for (auto it = extra_payload->begin(); it != extra_payload->end(); ++it) {
+            object.insert(it.key(), it.value());
+        }
     }
     return object;
 }
@@ -198,10 +205,11 @@ bool emit_status(const HeadlessAnalysisCommand::Options& options,
                  const std::string& error,
                  const std::optional<AnalysisRuntimeLock::Metadata>& lock_metadata,
                  std::ostream& out,
-                 std::ostream& err)
+                 std::ostream& err,
+                 const QJsonObject* extra_payload = nullptr)
 {
     const QJsonDocument document(
-        status_to_json(options, status, message, error, lock_metadata));
+        status_to_json(options, status, message, error, lock_metadata, extra_payload));
     out << document.toJson(QJsonDocument::Compact).constData() << '\n';
 
     if (!options.status_file) {
@@ -214,6 +222,41 @@ bool emit_status(const HeadlessAnalysisCommand::Options& options,
         return false;
     }
     return true;
+}
+
+QJsonObject apply_result_to_json(const HeadlessReviewApplyService::Result& result)
+{
+    QJsonArray entries;
+    for (const auto& entry : result.entries) {
+        QJsonObject object;
+        object.insert(QStringLiteral("source"), QString::fromStdString(entry.source));
+        object.insert(QStringLiteral("destination"), QString::fromStdString(entry.destination));
+        object.insert(QStringLiteral("fileName"), QString::fromStdString(entry.file_name));
+        object.insert(QStringLiteral("destinationName"), QString::fromStdString(entry.destination_name));
+        object.insert(QStringLiteral("category"), QString::fromStdString(entry.category));
+        object.insert(QStringLiteral("subcategory"), QString::fromStdString(entry.subcategory));
+        object.insert(QStringLiteral("message"), QString::fromStdString(entry.message));
+        object.insert(QStringLiteral("renameOnly"), entry.rename_only);
+        object.insert(QStringLiteral("moved"), entry.moved);
+        object.insert(QStringLiteral("renamed"), entry.renamed);
+        object.insert(QStringLiteral("skipped"), entry.skipped);
+        entries.append(object);
+    }
+
+    QJsonObject review;
+    review.insert(QStringLiteral("entryCount"), static_cast<qint64>(result.planned_count));
+    review.insert(QStringLiteral("entries"), entries);
+
+    QJsonObject apply;
+    apply.insert(QStringLiteral("movedCount"), static_cast<qint64>(result.moved_count));
+    apply.insert(QStringLiteral("renamedCount"), static_cast<qint64>(result.renamed_count));
+    apply.insert(QStringLiteral("skippedCount"), static_cast<qint64>(result.skipped_count));
+    apply.insert(QStringLiteral("undoPlanSaved"), result.undo_plan_saved);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("review"), review);
+    payload.insert(QStringLiteral("apply"), apply);
+    return payload;
 }
 
 bool path_exists(const std::filesystem::path& path)
@@ -276,16 +319,25 @@ resolve_single_folder_target(const HeadlessAnalysisCommand::Options& options,
 
 int finish_analysis_run(const HeadlessAnalysisCommand::Options& options,
                         const AnalysisRunResult& result,
-                        std::size_t review_entry_count,
+                        const std::optional<HeadlessReviewApplyService::Result>& apply_result,
                         const AnalysisRuntimeLock::Metadata& metadata,
                         std::ostream& out,
                         std::ostream& err)
 {
     switch (result.status) {
     case AnalysisRunStatus::Completed: {
+        const std::size_t review_entry_count =
+            apply_result ? apply_result->planned_count : std::size_t{0};
         std::ostringstream message;
         message << "Headless categorization completed. Review entries: " << review_entry_count << ".";
-        emit_status(options, "completed", message.str(), {}, metadata, out, err);
+        if (apply_result) {
+            message << " Moved: " << apply_result->moved_count
+                    << ". Skipped: " << apply_result->skipped_count << ".";
+            const QJsonObject payload = apply_result_to_json(*apply_result);
+            emit_status(options, "completed", message.str(), {}, metadata, out, err, &payload);
+        } else {
+            emit_status(options, "completed", message.str(), {}, metadata, out, err);
+        }
         return HeadlessAnalysisCommand::Success;
     }
     case AnalysisRunStatus::Cancelled:
@@ -504,7 +556,7 @@ int HeadlessAnalysisCommand::run(const Options& options,
                     "failed",
                     "Headless execution is not implemented for this operation yet.",
                     "This build can run folder categorization. Rename and categorize-and-rename still need "
-                    "the headless review/apply workflow.",
+                    "rename-specific headless apply rules.",
                     lease->metadata(),
                     out,
                     err);
@@ -532,9 +584,24 @@ int HeadlessAnalysisCommand::run(const Options& options,
 
     HeadlessAnalysisWorkflowHost host(std::move(host_options));
     const AnalysisRunResult result = host.execute();
+    std::optional<HeadlessReviewApplyService::Result> apply_result;
+    if (result.status == AnalysisRunStatus::Completed) {
+        HeadlessReviewApplyService::Options apply_options;
+        apply_options.base_dir = host.folder_path();
+        apply_options.undo_dir = host.undo_dir();
+        apply_options.use_subcategories = host.use_subcategories();
+        apply_options.include_subdirectories = host.include_subdirectories();
+        apply_options.apply_suggested_names = false;
+        apply_options.category_language = host.category_language();
+
+        HeadlessReviewApplyService apply_service(&host.db_manager(),
+                                                 host.storage_provider(),
+                                                 host.core_logger());
+        apply_result = apply_service.apply(host.review_entries(), apply_options);
+    }
     return finish_analysis_run(options,
                                result,
-                               host.review_entry_count(),
+                               apply_result,
                                lease->metadata(),
                                out,
                                err);

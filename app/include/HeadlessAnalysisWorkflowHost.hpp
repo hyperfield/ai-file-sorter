@@ -2,6 +2,7 @@
 
 #include "AnalysisRunResult.hpp"
 #include "AnalysisWorkflowContext.hpp"
+#include "CategoryLanguage.hpp"
 #include "LocalFsProvider.hpp"
 #include "Settings.hpp"
 #include "Types.hpp"
@@ -17,6 +18,7 @@
 class CategorizationService;
 class DatabaseManager;
 class ILLMClient;
+class IStorageProvider;
 class ResultsCoordinator;
 class UserLearningStore;
 class WhitelistStore;
@@ -65,6 +67,54 @@ public:
      * @return Immutable review entry list.
      */
     const std::vector<CategorizedFile>& review_entries() const;
+
+    /**
+     * @brief Return the normalized selected folder path.
+     * @return UTF-8 folder path used by the workflow.
+     */
+    std::string folder_path() const;
+
+    /**
+     * @brief Return whether subcategory folders should be created.
+     * @return True when subcategory folders are enabled.
+     */
+    bool use_subcategories() const;
+
+    /**
+     * @brief Return whether the workflow scanned subdirectories.
+     * @return True when recursive scanning is enabled.
+     */
+    bool include_subdirectories() const;
+
+    /**
+     * @brief Return the category language configured for the run.
+     * @return Category language.
+     */
+    CategoryLanguage category_language() const;
+
+    /**
+     * @brief Return the undo-plan directory for headless moves.
+     * @return UTF-8 undo directory path.
+     */
+    std::string undo_dir() const;
+
+    /**
+     * @brief Return the database manager used by the workflow.
+     * @return Database manager reference.
+     */
+    DatabaseManager& db_manager();
+
+    /**
+     * @brief Return the storage provider used for local filesystem moves.
+     * @return Storage provider reference.
+     */
+    IStorageProvider& storage_provider();
+
+    /**
+     * @brief Return the core logger used by the workflow.
+     * @return Shared logger.
+     */
+    std::shared_ptr<spdlog::logger> core_logger() const;
 
 private:
     /**
