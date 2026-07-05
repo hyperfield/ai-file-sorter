@@ -14,6 +14,16 @@ namespace spdlog { class logger; }
 class LocalLLMClient : public ILLMClient {
 public:
     /**
+     * @brief Per-client local runtime options.
+     */
+    struct Options {
+        /**
+         * @brief Force this local client to load and run on CPU regardless of process GPU settings.
+         */
+        bool force_cpu_backend{false};
+    };
+
+    /**
      * @brief Status events emitted by the local LLM client.
      */
     enum class Status {
@@ -39,7 +49,8 @@ public:
     using FallbackDecisionCallback = std::function<bool(const std::string& reason)>;
 
     explicit LocalLLMClient(const std::string& model_path,
-                            FallbackDecisionCallback fallback_decision_callback = {});
+                            FallbackDecisionCallback fallback_decision_callback = {},
+                            Options options = {});
     ~LocalLLMClient();
 
     std::string make_prompt(const std::string& file_name,
@@ -89,6 +100,7 @@ private:
     std::string sanitize_output(const std::string& output);
     llama_context_params ctx_params;
     bool prompt_logging_enabled{false};
+    Options options_;
     StatusCallback status_callback_;
     FallbackDecisionCallback fallback_decision_callback_;
     std::vector<Status> pending_statuses_;

@@ -2479,8 +2479,10 @@ bool llama_logs_enabled_from_env()
 }
 
 LocalLLMClient::LocalLLMClient(const std::string& model_path,
-                               FallbackDecisionCallback fallback_decision_callback)
+                               FallbackDecisionCallback fallback_decision_callback,
+                               Options options)
     : model_path(model_path),
+      options_(options),
       fallback_decision_callback_(std::move(fallback_decision_callback)),
       original_gpu_backend_env_(read_env_value("AI_FILE_SORTER_GPU_BACKEND")),
       original_llama_arg_device_env_(read_env_value("LLAMA_ARG_DEVICE")),
@@ -2491,6 +2493,15 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path,
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
         logger->info("Initializing local LLM client with model '{}'", model_path);
+    }
+
+    if (options_.force_cpu_backend) {
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+        set_env_var("LLAMA_ARG_DEVICE", "cpu");
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        if (logger) {
+            logger->info("Forcing this local LLM client to use CPU backend.");
+        }
     }
 
     configure_llama_logging(logger);
