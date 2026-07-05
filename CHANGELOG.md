@@ -4,8 +4,8 @@
 
 - Added smart branching category whitelists: each main category can now define its own allowed subcategories, large/smart whitelists are reduced to relevant prompt candidates when needed, and invalid category/subcategory pairs are corrected after parsing.
 - Improved the whitelist editor with clearer top-level category, global subcategory, and category-specific subcategory sections. Global and category-specific subcategory modes are mutually exclusive so a whitelist has one clear constraint style.
-- Added structured project-folder protection for recursive scans. The scanner now skips recognized Unity, Unreal, Godot, Blender, Git, and common source-code project roots to avoid moving files that depend on project-relative paths or metadata.
 - Added file preview support to the Categorization Review dialog.
+- Added structured project-folder protection for recursive scans. The scanner now skips recognized Unity, Unreal, Godot, Blender, Git, and common source-code project roots to avoid moving files that depend on project-relative paths or metadata.
 - Improved accessibility by adding screen-reader labels for main-window controls and progress announcements during analysis.
 - Added custom visual model support and configurable model storage in the LLM selection flow. Custom local GGUF entries can now supply a matching MMProj file for image analysis, and built-in local/visual downloads can share the configured model storage location.
 - Improved local backend/runtime handling.
