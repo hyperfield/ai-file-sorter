@@ -222,6 +222,20 @@ Procedure: Run the command and inspect the final status JSON and runtime lock.
 Expected outcome: The command exits successfully, writes `completed` status JSON with zero review entries, and leaves no held runtime lock behind.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand runs categorization for an empty folder"`
 
+#### Test case: HeadlessAnalysisCommand applies cached categorization for a folder
+Purpose: Verify the headless review/apply layer moves categorized files and emits machine-readable review/apply details.
+Setup: Create a temporary target folder containing one file, insert a cached `Documents / Reports` categorization for that file, and prepare a headless categorize command with isolated settings.
+Procedure: Run the command, inspect the moved file, and read the final status JSON.
+Expected outcome: The command exits successfully, moves the file into the category/subcategory folder, saves an undo plan, and writes review/apply counts with one moved entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorization for a folder"`
+
+#### Test case: HeadlessReviewApplyService uses display folders and canonical storage
+Purpose: Verify headless apply mirrors the review dialog by moving into display-label folders while storing canonical taxonomy labels.
+Setup: Create a temporary file with a date-suffixed display category and canonical category metadata.
+Procedure: Apply the headless review plan with recursive cache updates enabled, inspect the moved file, and read the updated cache row.
+Expected outcome: The file is moved into the display category/subcategory path, an undo plan is saved, and the cache row stores the canonical category.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService uses display folders and canonical storage"`
+
 #### Test case: HeadlessAnalysisCommand releases runtime lock after unsupported execution
 Purpose: Ensure unsupported headless operations release the runtime lock.
 Setup: Prepare a headless rename command with an existing target file and a writable runtime directory.

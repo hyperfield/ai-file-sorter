@@ -1,12 +1,18 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "AnalysisRuntimeLock.hpp"
+#include "DatabaseManager.hpp"
 #include "HeadlessAnalysisCommand.hpp"
+#include "HeadlessReviewApplyService.hpp"
+#include "LocalFsProvider.hpp"
+#include "Settings.hpp"
+#include "Utils.hpp"
 
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
 #include <QIODevice>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -60,6 +66,15 @@ QJsonObject read_status(const std::filesystem::path& path)
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     REQUIRE(doc.isObject());
     return doc.object();
+}
+
+std::filesystem::path make_file_at(const std::filesystem::path& path)
+{
+    QFile file(QString::fromStdString(Utils::path_to_utf8(path)));
+    REQUIRE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    REQUIRE(file.write("sample") == 6);
+    file.close();
+    return path;
 }
 
 } // namespace
@@ -162,6 +177,117 @@ TEST_CASE("HeadlessAnalysisCommand runs categorization for an empty folder")
 
     AnalysisRuntimeLock lock(runtime_dir);
     CHECK_FALSE(lock.is_locked());
+}
+
+TEST_CASE("HeadlessAnalysisCommand applies cached categorization for a folder")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "input.txt");
+    const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    const std::string target_key =
+        Utils::path_to_utf8(std::filesystem::absolute(target).lexically_normal());
+    const auto resolved = db.resolve_category("Documents", "Reports");
+    REQUIRE(db.insert_or_update_file_with_categorization("input.txt",
+                                                         "F",
+                                                         target_key,
+                                                         resolved,
+                                                         false));
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths.push_back(target);
+    options.status_file = status;
+    options.job_id = "headless-cached-folder";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("completed"));
+    const QJsonObject review = object.value(QStringLiteral("review")).toObject();
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(review.value(QStringLiteral("entryCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("undoPlanSaved")).toBool());
+    const QJsonArray entries = review.value(QStringLiteral("entries")).toArray();
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.at(0).toObject().value(QStringLiteral("destination")).toString()
+              .contains(QStringLiteral("Documents")));
+}
+
+TEST_CASE("HeadlessReviewApplyService uses display folders and canonical storage")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "statement.txt");
+    const std::filesystem::path destination =
+        target / "Records_2026-06" / "Monthly Statements" / "statement.txt";
+
+    CategorizedFile entry;
+    entry.file_path = Utils::path_to_utf8(target);
+    entry.file_name = "statement.txt";
+    entry.type = FileType::File;
+    entry.category = "Records_2026-06";
+    entry.subcategory = "Monthly Statements";
+    entry.canonical_category = "Records";
+    entry.canonical_subcategory = "Monthly Statements";
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService service(&db, storage_provider, nullptr);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = Utils::path_to_utf8(std::filesystem::absolute(target).lexically_normal());
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+    options.use_subcategories = true;
+    options.include_subdirectories = true;
+
+    const auto result = service.apply({entry}, options);
+
+    CHECK(result.planned_count == 1);
+    CHECK(result.moved_count == 1);
+    CHECK(result.skipped_count == 0);
+    CHECK(result.undo_plan_saved);
+    REQUIRE(result.entries.size() == 1);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+
+    const std::string destination_dir =
+        Utils::path_to_utf8(Utils::utf8_to_path(result.entries.at(0).destination).parent_path());
+    const auto cached = db.get_categorized_file(destination_dir, entry.file_name, FileType::File);
+    REQUIRE(cached.has_value());
+    CHECK(cached->category == "Records");
+    CHECK(cached->subcategory == "Monthly Statements");
 }
 
 TEST_CASE("HeadlessAnalysisCommand releases runtime lock after unsupported execution")
