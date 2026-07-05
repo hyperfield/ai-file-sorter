@@ -106,6 +106,12 @@ public:
     CategoryLanguage category_language() const;
 
     /**
+     * @brief Return whether headless runs should stop for review before applying changes.
+     * @return True when headless review is required before filesystem changes.
+     */
+    bool headless_review_before_apply() const;
+
+    /**
      * @brief Return the undo-plan directory for headless moves.
      * @return UTF-8 undo directory path.
      */

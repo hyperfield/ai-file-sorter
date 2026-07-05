@@ -304,6 +304,11 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
             append_skipped(result, std::move(entry_result));
             return;
         }
+        if (!options.apply_changes) {
+            entry_result.message = "Waiting for review approval.";
+            result.entries.push_back(std::move(entry_result));
+            return;
+        }
         const auto move_result = storage_provider_.move_entry(entry_result.source,
                                                               entry_result.destination);
         if (!move_result.success) {
@@ -378,6 +383,12 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                        destination_name);
         const auto preview = movable.preview_move_paths(options.use_subcategories);
         entry_result.destination = preview.destination;
+
+        if (!options.apply_changes) {
+            entry_result.message = "Waiting for review approval.";
+            result.entries.push_back(std::move(entry_result));
+            return;
+        }
 
         movable.create_cat_dirs(options.use_subcategories);
         const auto move_result = movable.move_file(options.use_subcategories);

@@ -259,6 +259,17 @@ QJsonObject apply_result_to_json(const HeadlessReviewApplyService::Result& resul
     return payload;
 }
 
+QJsonObject apply_result_to_json(const HeadlessReviewApplyService::Result& result,
+                                 bool review_required)
+{
+    QJsonObject payload = apply_result_to_json(result);
+    payload.insert(QStringLiteral("reviewRequired"), review_required);
+    QJsonObject review = payload.value(QStringLiteral("review")).toObject();
+    review.insert(QStringLiteral("requiresApproval"), review_required);
+    payload.insert(QStringLiteral("review"), review);
+    return payload;
+}
+
 bool path_exists(const std::filesystem::path& path)
 {
     std::error_code ec;
@@ -328,6 +339,27 @@ host_operation_mode(HeadlessAnalysisCommand::Operation operation)
     default:
         return HeadlessAnalysisWorkflowHost::OperationMode::Categorize;
     }
+}
+
+bool should_apply_changes(HeadlessAnalysisCommand::ApplyMode mode,
+                          const HeadlessAnalysisWorkflowHost& host)
+{
+    switch (mode) {
+    case HeadlessAnalysisCommand::ApplyMode::AutoApply:
+        return true;
+    case HeadlessAnalysisCommand::ApplyMode::ReviewOnly:
+        return false;
+    case HeadlessAnalysisCommand::ApplyMode::UseSettings:
+    default:
+        return !host.headless_review_before_apply();
+    }
+}
+
+bool has_actionable_review_entries(const HeadlessReviewApplyService::Result& result)
+{
+    return std::any_of(result.entries.cbegin(), result.entries.cend(), [](const auto& entry) {
+        return !entry.skipped;
+    });
 }
 
 std::filesystem::path normalized_absolute_path(const std::filesystem::path& path)
@@ -417,7 +449,7 @@ int finish_analysis_run(const HeadlessAnalysisCommand::Options& options,
             message << " Moved: " << apply_result->moved_count
                     << ". Renamed: " << apply_result->renamed_count
                     << ". Skipped: " << apply_result->skipped_count << ".";
-            const QJsonObject payload = apply_result_to_json(*apply_result);
+            const QJsonObject payload = apply_result_to_json(*apply_result, false);
             emit_status(options, "completed", message.str(), {}, metadata, out, err, &payload);
         } else {
             emit_status(options, "completed", message.str(), {}, metadata, out, err);
@@ -452,6 +484,21 @@ int finish_analysis_run(const HeadlessAnalysisCommand::Options& options,
                 out,
                 err);
     return HeadlessAnalysisCommand::Failure;
+}
+
+int finish_review_required_run(const HeadlessAnalysisCommand::Options& options,
+                               const HeadlessReviewApplyService::Result& apply_result,
+                               const AnalysisRuntimeLock::Metadata& metadata,
+                               std::ostream& out,
+                               std::ostream& err)
+{
+    std::ostringstream message;
+    message << "Headless " << HeadlessAnalysisCommand::operation_to_string(options.operation)
+            << " prepared review. Review entries: " << apply_result.planned_count
+            << ". No files were moved or renamed.";
+    const QJsonObject payload = apply_result_to_json(apply_result, true);
+    emit_status(options, "review_required", message.str(), {}, metadata, out, err, &payload);
+    return HeadlessAnalysisCommand::Success;
 }
 
 } // namespace
@@ -490,6 +537,18 @@ HeadlessAnalysisCommand::ParseResult HeadlessAnalysisCommand::parse(int argc, ch
         }
         if (argument == "--headless-help") {
             result.help_requested = true;
+            result.consumed_arguments[static_cast<std::size_t>(i)] = true;
+            continue;
+        }
+        if (argument == "--review-only" || argument == "--headless-review-only" ||
+            argument == "--require-review" || argument == "--headless-require-review") {
+            result.options.apply_mode = ApplyMode::ReviewOnly;
+            result.consumed_arguments[static_cast<std::size_t>(i)] = true;
+            continue;
+        }
+        if (argument == "--auto-apply" || argument == "--headless-auto-apply" ||
+            argument == "--apply-without-review" || argument == "--headless-apply-without-review") {
+            result.options.apply_mode = ApplyMode::AutoApply;
             result.consumed_arguments[static_cast<std::size_t>(i)] = true;
             continue;
         }
@@ -551,7 +610,8 @@ std::string HeadlessAnalysisCommand::usage_text()
 {
     return "Usage: aifilesorter --headless --operation <categorize|rename|categorize-and-rename> "
            "--path <file-or-folder> [--path <file-or-folder> ...] "
-           "[--status-file <json-file>] [--job-id <id>]\n";
+           "[--status-file <json-file>] [--job-id <id>] "
+           "[--review-only|--auto-apply]\n";
 }
 
 std::string HeadlessAnalysisCommand::operation_to_string(Operation operation)
@@ -668,11 +728,19 @@ int HeadlessAnalysisCommand::run(const Options& options,
         apply_options.apply_suggested_names = operation_applies_suggested_names(options.operation);
         apply_options.move_categorized_entries = operation_moves_categorized_entries(options.operation);
         apply_options.category_language = host.category_language();
+        apply_options.apply_changes = should_apply_changes(options.apply_mode, host);
 
         HeadlessReviewApplyService apply_service(&host.db_manager(),
                                                  host.storage_provider(),
                                                  host.core_logger());
         apply_result = apply_service.apply(host.review_entries(), apply_options);
+        if (!apply_options.apply_changes && has_actionable_review_entries(*apply_result)) {
+            return finish_review_required_run(options,
+                                              *apply_result,
+                                              lease->metadata(),
+                                              out,
+                                              err);
+        }
     }
     return finish_analysis_run(options,
                                result,

@@ -111,6 +111,11 @@ CategoryLanguage HeadlessAnalysisWorkflowHost::category_language() const
     return settings_.get_category_language();
 }
 
+bool HeadlessAnalysisWorkflowHost::headless_review_before_apply() const
+{
+    return settings_.get_headless_review_before_apply();
+}
+
 std::string HeadlessAnalysisWorkflowHost::undo_dir() const
 {
     const auto undo_path = Utils::utf8_to_path(runtime_data_dir_) / "undo";

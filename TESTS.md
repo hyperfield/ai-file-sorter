@@ -208,6 +208,13 @@ Procedure: Parse the arguments.
 Expected outcome: The command is marked requested, consumes the headless arguments, resolves the operation, and preserves the supplied path, status file, and job id.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses operation paths and status file"`
 
+#### Test case: HeadlessAnalysisCommand parses apply mode flags
+Purpose: Verify headless callers can explicitly request review-only or auto-apply behavior.
+Setup: Create a temporary input file and build argv vectors with `--review-only` and `--headless-auto-apply`.
+Procedure: Parse both argument sets.
+Expected outcome: The parsed options select `ReviewOnly` and `AutoApply` respectively without validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses apply mode flags"`
+
 #### Test case: HeadlessAnalysisCommand reports busy runtime lock
 Purpose: Ensure the headless command reports an existing Explorer/GUI analysis lock instead of running concurrently.
 Setup: Hold an `AnalysisRuntimeLock` as an Explorer worker and prepare a headless command with a status file.
@@ -224,10 +231,17 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand runs categoriz
 
 #### Test case: HeadlessAnalysisCommand applies cached categorization for a folder
 Purpose: Verify the headless review/apply layer moves categorized files and emits machine-readable review/apply details.
-Setup: Create a temporary target folder containing one file, insert a cached `Documents / Reports` categorization for that file, and prepare a headless categorize command with isolated settings.
+Setup: Create a temporary target folder containing one file, disable headless review-before-apply in isolated settings, insert a cached `Documents / Reports` categorization for that file, and prepare a headless categorize command.
 Procedure: Run the command, inspect the moved file, and read the final status JSON.
 Expected outcome: The command exits successfully, moves the file into the category/subcategory folder, saves an undo plan, and writes review/apply counts with one moved entry.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorization for a folder"`
+
+#### Test case: HeadlessAnalysisCommand prepares review before applying by default
+Purpose: Ensure Explorer/headless jobs honor the review-before-apply default and do not move files silently.
+Setup: Create a temporary target folder containing one cached `Documents / Reports` file with isolated settings.
+Procedure: Run the headless categorize command without an auto-apply override, inspect the file locations, and read the final status JSON.
+Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload, and reports zero moved/renamed/skipped apply counts.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand prepares review before applying by default"`
 
 #### Test case: HeadlessAnalysisCommand categorizes only a selected file target
 Purpose: Verify a single file target runs the parent-folder workflow but applies only the selected file.

@@ -98,6 +98,11 @@ void cache_categorization(DatabaseManager& db,
                                                          suggested_name));
 }
 
+void enable_auto_apply(HeadlessAnalysisCommand::Options& options)
+{
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::AutoApply;
+}
+
 } // namespace
 
 TEST_CASE("HeadlessAnalysisCommand parses operation paths and status file")
@@ -123,11 +128,39 @@ TEST_CASE("HeadlessAnalysisCommand parses operation paths and status file")
     CHECK_FALSE(parsed.help_requested);
     CHECK(parsed.error.empty());
     CHECK(parsed.options.operation == HeadlessAnalysisCommand::Operation::CategorizeAndRename);
+    CHECK(parsed.options.apply_mode == HeadlessAnalysisCommand::ApplyMode::UseSettings);
     REQUIRE(parsed.options.paths.size() == 1);
     CHECK(parsed.options.paths.front() == target);
     REQUIRE(parsed.options.status_file.has_value());
     CHECK(*parsed.options.status_file == status);
     CHECK(parsed.options.job_id == "test-job");
+}
+
+TEST_CASE("HeadlessAnalysisCommand parses apply mode flags")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const std::filesystem::path target = make_file(dir, QStringLiteral("input.txt"));
+
+    std::string target_arg = target.string();
+    char arg0[] = "aifilesorter";
+    char arg1[] = "--headless";
+    char arg2[] = "--operation=rename";
+    char arg3[] = "--path";
+    char arg5[] = "--review-only";
+    char* review_argv[] = {arg0, arg1, arg2, arg3, target_arg.data(), arg5};
+
+    const auto review_parsed = HeadlessAnalysisCommand::parse(6, review_argv);
+    REQUIRE(review_parsed.requested);
+    CHECK(review_parsed.error.empty());
+    CHECK(review_parsed.options.apply_mode == HeadlessAnalysisCommand::ApplyMode::ReviewOnly);
+
+    char arg6[] = "--headless-auto-apply";
+    char* apply_argv[] = {arg0, arg1, arg2, arg3, target_arg.data(), arg6};
+    const auto apply_parsed = HeadlessAnalysisCommand::parse(6, apply_argv);
+    REQUIRE(apply_parsed.requested);
+    CHECK(apply_parsed.error.empty());
+    CHECK(apply_parsed.options.apply_mode == HeadlessAnalysisCommand::ApplyMode::AutoApply);
 }
 
 TEST_CASE("HeadlessAnalysisCommand reports busy runtime lock")
@@ -257,6 +290,8 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorization for a folder")
     const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
 
     Settings settings;
+    settings.set_headless_review_before_apply(false);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     const std::string target_key = normalized_path_key(target);
     const auto resolved = db.resolve_category("Documents", "Reports");
@@ -297,6 +332,61 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorization for a folder")
               .contains(QStringLiteral("Documents")));
 }
 
+TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "input.txt");
+    const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, target, "input.txt", "Documents", "Reports");
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths.push_back(target);
+    options.status_file = status;
+    options.job_id = "headless-review-required";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+    CHECK(out.str().find("\"review_required\"") != std::string::npos);
+
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("review_required"));
+    CHECK(object.value(QStringLiteral("reviewRequired")).toBool());
+    const QJsonObject review = object.value(QStringLiteral("review")).toObject();
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(review.value(QStringLiteral("requiresApproval")).toBool());
+    CHECK(review.value(QStringLiteral("entryCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
+    CHECK_FALSE(apply.value(QStringLiteral("undoPlanSaved")).toBool());
+    const QJsonArray entries = review.value(QStringLiteral("entries")).toArray();
+    REQUIRE(entries.size() == 1);
+    const QJsonObject entry = entries.at(0).toObject();
+    CHECK(entry.value(QStringLiteral("destination")).toString().contains(QStringLiteral("Documents")));
+    CHECK(entry.value(QStringLiteral("message")).toString() == QStringLiteral("Waiting for review approval."));
+}
+
 TEST_CASE("HeadlessAnalysisCommand categorizes only a selected file target")
 {
     QTemporaryDir dir;
@@ -328,6 +418,7 @@ TEST_CASE("HeadlessAnalysisCommand categorizes only a selected file target")
     options.paths.push_back(selected_source);
     options.status_file = status;
     options.job_id = "headless-selected-file";
+    enable_auto_apply(options);
 
     std::ostringstream out;
     std::ostringstream err;
@@ -382,6 +473,7 @@ TEST_CASE("HeadlessAnalysisCommand applies cached rename for a folder")
     options.paths.push_back(target);
     options.status_file = status;
     options.job_id = "headless-cached-rename";
+    enable_auto_apply(options);
 
     std::ostringstream out;
     std::ostringstream err;
@@ -434,6 +526,7 @@ TEST_CASE("HeadlessAnalysisCommand renames only a selected file target")
     options.paths.push_back(selected_source);
     options.status_file = status;
     options.job_id = "headless-selected-rename";
+    enable_auto_apply(options);
 
     std::ostringstream out;
     std::ostringstream err;
@@ -534,6 +627,7 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
     options.paths.push_back(target);
     options.status_file = status;
     options.job_id = "headless-cached-categorize-rename";
+    enable_auto_apply(options);
 
     std::ostringstream out;
     std::ostringstream err;
@@ -589,6 +683,7 @@ TEST_CASE("HeadlessAnalysisCommand applies same-folder multi-select only")
     options.paths.push_back(second_source);
     options.status_file = status;
     options.job_id = "headless-multi-select";
+    enable_auto_apply(options);
 
     std::ostringstream out;
     std::ostringstream err;

@@ -37,6 +37,8 @@ public:
         bool move_categorized_entries{true};
         /** @brief Language used by display labels when canonical labels are absent. */
         CategoryLanguage category_language{CategoryLanguage::English};
+        /** @brief Whether planned changes should be committed to storage and cache. */
+        bool apply_changes{true};
     };
 
     /**
@@ -79,7 +81,7 @@ public:
                                std::shared_ptr<spdlog::logger> logger);
 
     /**
-     * @brief Build review records and apply their moves.
+     * @brief Build review records and optionally apply their moves.
      * @param entries Categorized review entries.
      * @param options Apply options.
      * @return Review/apply result.

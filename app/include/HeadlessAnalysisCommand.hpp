@@ -28,6 +28,15 @@ public:
     };
 
     /**
+     * @brief Review/apply policy requested by the caller.
+     */
+    enum class ApplyMode {
+        UseSettings,
+        ReviewOnly,
+        AutoApply
+    };
+
+    /**
      * @brief Process exit codes returned by the headless command.
      */
     enum ExitCode {
@@ -43,6 +52,7 @@ public:
      */
     struct Options {
         Operation operation{Operation::Unknown};
+        ApplyMode apply_mode{ApplyMode::UseSettings};
         std::vector<std::filesystem::path> paths;
         std::optional<std::filesystem::path> status_file;
         std::string job_id;
