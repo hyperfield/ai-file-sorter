@@ -229,6 +229,48 @@ Procedure: Run the command, inspect the moved file, and read the final status JS
 Expected outcome: The command exits successfully, moves the file into the category/subcategory folder, saves an undo plan, and writes review/apply counts with one moved entry.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorization for a folder"`
 
+#### Test case: HeadlessAnalysisCommand categorizes only a selected file target
+Purpose: Verify a single file target runs the parent-folder workflow but applies only the selected file.
+Setup: Create a temporary target folder with one cached selected file and one uncached sibling, then pass the selected file path to the headless categorize command.
+Procedure: Run the command, inspect the selected and sibling files, and read the final status JSON.
+Expected outcome: Only the selected file is moved, the sibling remains in place, and the review/apply counts report one moved entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand categorizes only a selected file target"`
+
+#### Test case: HeadlessAnalysisCommand applies cached rename for a folder
+Purpose: Verify the headless rename operation applies cached suggested names without moving files into category folders.
+Setup: Create a temporary target folder containing a document, enable document rename suggestions in isolated settings, and insert a cached category row with a suggested filename.
+Procedure: Run the headless rename command, inspect the renamed file, and read the final status JSON.
+Expected outcome: The command exits successfully, renames the file in place, saves an undo plan, and reports one renamed entry with zero moved entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached rename for a folder"`
+
+#### Test case: HeadlessAnalysisCommand renames only a selected file target
+Purpose: Verify a single file rename target applies only that file's cached suggested name.
+Setup: Create a temporary target folder with one cached selected rename suggestion and one uncached sibling, then pass the selected file path to the headless rename command.
+Procedure: Run the command and inspect both source/destination pairs and final status JSON.
+Expected outcome: Only the selected file is renamed, the sibling remains in place, and the apply counts report one renamed entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand renames only a selected file target"`
+
+#### Test case: HeadlessAnalysisCommand skips rename when no cached suggestion exists
+Purpose: Verify rename-only headless apply skips files that have no suggested filename.
+Setup: Create a temporary target folder containing a cached categorized file without a suggested name.
+Procedure: Run the headless rename command and inspect the source file and final status JSON.
+Expected outcome: The command exits successfully, leaves the source file in place, and reports one skipped entry with zero moved or renamed entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand skips rename when no cached suggestion exists"`
+
+#### Test case: HeadlessAnalysisCommand applies cached categorize and rename for a folder
+Purpose: Verify the combined headless operation moves categorized files while applying cached suggested names.
+Setup: Create a temporary target folder containing a document, enable document rename suggestions, and insert a cached `Documents / Reports` categorization with a suggested filename.
+Procedure: Run the headless categorize-and-rename command, inspect the destination file, and read the final status JSON.
+Expected outcome: The command exits successfully, moves the file into the category/subcategory folder using the suggested filename, saves an undo plan, and reports one moved and renamed entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorize and rename for a folder"`
+
+#### Test case: HeadlessAnalysisCommand applies same-folder multi-select only
+Purpose: Verify same-folder multi-select file targets are applied without touching unselected siblings.
+Setup: Create a temporary target folder with two cached selected files and one uncached sibling, then pass two file paths to the headless categorize command.
+Procedure: Run the command, inspect selected and unselected files, and read the final status JSON.
+Expected outcome: Only the two selected files are moved, the unselected file remains in place, and the review/apply counts report two moved entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies same-folder multi-select only"`
+
 #### Test case: HeadlessReviewApplyService uses display folders and canonical storage
 Purpose: Verify headless apply mirrors the review dialog by moving into display-label folders while storing canonical taxonomy labels.
 Setup: Create a temporary file with a date-suffixed display category and canonical category metadata.
@@ -236,12 +278,12 @@ Procedure: Apply the headless review plan with recursive cache updates enabled, 
 Expected outcome: The file is moved into the display category/subcategory path, an undo plan is saved, and the cache row stores the canonical category.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService uses display folders and canonical storage"`
 
-#### Test case: HeadlessAnalysisCommand releases runtime lock after unsupported execution
-Purpose: Ensure unsupported headless operations release the runtime lock.
-Setup: Prepare a headless rename command with an existing target file and a writable runtime directory.
+#### Test case: HeadlessAnalysisCommand rejects cross-folder file selections
+Purpose: Ensure unsupported cross-folder file selections release the runtime lock.
+Setup: Prepare a headless rename command with two file targets in different parent folders and a writable runtime directory.
 Procedure: Run the command and then inspect the runtime lock.
-Expected outcome: The command exits with the unsupported code, writes `failed` status JSON, and leaves no held runtime lock behind.
-Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand releases runtime lock after unsupported execution"`
+Expected outcome: The command exits with the unsupported code, writes `failed` status JSON mentioning same-folder selections, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-folder file selections"`
 
 ### `tests/unit/test_single_instance_coordinator.cpp`
 

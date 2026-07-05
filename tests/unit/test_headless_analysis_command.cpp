@@ -77,6 +77,27 @@ std::filesystem::path make_file_at(const std::filesystem::path& path)
     return path;
 }
 
+std::string normalized_path_key(const std::filesystem::path& path)
+{
+    return Utils::path_to_utf8(std::filesystem::absolute(path).lexically_normal());
+}
+
+void cache_categorization(DatabaseManager& db,
+                          const std::filesystem::path& directory,
+                          const std::string& file_name,
+                          const std::string& category,
+                          const std::string& subcategory,
+                          const std::string& suggested_name = {})
+{
+    const auto resolved = db.resolve_category(category, subcategory);
+    REQUIRE(db.insert_or_update_file_with_categorization(file_name,
+                                                         "F",
+                                                         normalized_path_key(directory),
+                                                         resolved,
+                                                         false,
+                                                         suggested_name));
+}
+
 } // namespace
 
 TEST_CASE("HeadlessAnalysisCommand parses operation paths and status file")
@@ -179,6 +200,47 @@ TEST_CASE("HeadlessAnalysisCommand runs categorization for an empty folder")
     CHECK_FALSE(lock.is_locked());
 }
 
+TEST_CASE("HeadlessAnalysisCommand rename does not require an LLM for uncached ordinary files")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "archive.bin");
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Rename;
+    options.paths.push_back(source);
+    options.status_file = status;
+    options.job_id = "headless-rename-no-llm";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(out.str().find("LLM is not selected") == std::string::npos);
+
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("completed"));
+    const QJsonObject review = object.value(QStringLiteral("review")).toObject();
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(review.value(QStringLiteral("entryCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
+}
+
 TEST_CASE("HeadlessAnalysisCommand applies cached categorization for a folder")
 {
     QTemporaryDir dir;
@@ -196,8 +258,7 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorization for a folder")
 
     Settings settings;
     DatabaseManager db(settings.get_config_dir());
-    const std::string target_key =
-        Utils::path_to_utf8(std::filesystem::absolute(target).lexically_normal());
+    const std::string target_key = normalized_path_key(target);
     const auto resolved = db.resolve_category("Documents", "Reports");
     REQUIRE(db.insert_or_update_file_with_categorization("input.txt",
                                                          "F",
@@ -234,6 +295,319 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorization for a folder")
     REQUIRE(entries.size() == 1);
     CHECK(entries.at(0).toObject().value(QStringLiteral("destination")).toString()
               .contains(QStringLiteral("Documents")));
+}
+
+TEST_CASE("HeadlessAnalysisCommand categorizes only a selected file target")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path selected_source = make_file_at(target / "selected.txt");
+    const std::filesystem::path sibling_source = make_file_at(target / "sibling.txt");
+    const std::filesystem::path selected_destination =
+        target / "Documents" / "Reports" / "selected.txt";
+    const std::filesystem::path sibling_destination =
+        target / "Documents" / "Reports" / "sibling.txt";
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, target, "selected.txt", "Documents", "Reports");
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths.push_back(selected_source);
+    options.status_file = status;
+    options.job_id = "headless-selected-file";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(selected_source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(selected_destination))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(sibling_source))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(sibling_destination))));
+
+    const QJsonObject object = read_status(status);
+    const QJsonObject review = object.value(QStringLiteral("review")).toObject();
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(review.value(QStringLiteral("entryCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
+}
+
+TEST_CASE("HeadlessAnalysisCommand applies cached rename for a folder")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "report.txt");
+    const std::filesystem::path destination = target / "renamed_report.txt";
+
+    Settings settings;
+    settings.set_offer_rename_documents(true);
+    REQUIRE(settings.save());
+    DatabaseManager db(settings.get_config_dir());
+    const auto resolved = db.resolve_category("Documents", "Reports");
+    REQUIRE(db.insert_or_update_file_with_categorization("report.txt",
+                                                         "F",
+                                                         normalized_path_key(target),
+                                                         resolved,
+                                                         false,
+                                                         "renamed_report.txt"));
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Rename;
+    options.paths.push_back(target);
+    options.status_file = status;
+    options.job_id = "headless-cached-rename";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(
+        Utils::path_to_utf8(target / "Documents" / "Reports" / "renamed_report.txt"))));
+
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("completed"));
+    CHECK(object.value(QStringLiteral("operation")).toString() == QStringLiteral("rename"));
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("undoPlanSaved")).toBool());
+}
+
+TEST_CASE("HeadlessAnalysisCommand renames only a selected file target")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path selected_source = make_file_at(target / "report.txt");
+    const std::filesystem::path sibling_source = make_file_at(target / "notes.txt");
+    const std::filesystem::path selected_destination = target / "renamed_report.txt";
+    const std::filesystem::path sibling_destination = target / "renamed_notes.txt";
+
+    Settings settings;
+    settings.set_offer_rename_documents(true);
+    REQUIRE(settings.save());
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, target, "report.txt", "Documents", "Reports", "renamed_report.txt");
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Rename;
+    options.paths.push_back(selected_source);
+    options.status_file = status;
+    options.job_id = "headless-selected-rename";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(selected_source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(selected_destination))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(sibling_source))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(sibling_destination))));
+
+    const QJsonObject object = read_status(status);
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
+}
+
+TEST_CASE("HeadlessAnalysisCommand skips rename when no cached suggestion exists")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "archive.bin");
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    const auto resolved = db.resolve_category("Archives", "Binary");
+    REQUIRE(db.insert_or_update_file_with_categorization("archive.bin",
+                                                         "F",
+                                                         normalized_path_key(target),
+                                                         resolved,
+                                                         false));
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Rename;
+    options.paths.push_back(target);
+    options.status_file = status;
+    options.job_id = "headless-rename-skip";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+
+    const QJsonObject object = read_status(status);
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 1);
+}
+
+TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a folder")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "summary.txt");
+    const std::filesystem::path destination =
+        target / "Documents" / "Reports" / "renamed_summary.txt";
+
+    Settings settings;
+    settings.set_offer_rename_documents(true);
+    REQUIRE(settings.save());
+    DatabaseManager db(settings.get_config_dir());
+    const auto resolved = db.resolve_category("Documents", "Reports");
+    REQUIRE(db.insert_or_update_file_with_categorization("summary.txt",
+                                                         "F",
+                                                         normalized_path_key(target),
+                                                         resolved,
+                                                         false,
+                                                         "renamed_summary.txt"));
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+    options.paths.push_back(target);
+    options.status_file = status;
+    options.job_id = "headless-cached-categorize-rename";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("completed"));
+    CHECK(object.value(QStringLiteral("operation")).toString() == QStringLiteral("categorize-and-rename"));
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("undoPlanSaved")).toBool());
+}
+
+TEST_CASE("HeadlessAnalysisCommand applies same-folder multi-select only")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path first_source = make_file_at(target / "first.txt");
+    const std::filesystem::path second_source = make_file_at(target / "second.txt");
+    const std::filesystem::path third_source = make_file_at(target / "third.txt");
+    const std::filesystem::path first_destination =
+        target / "Documents" / "Reports" / "first.txt";
+    const std::filesystem::path second_destination =
+        target / "Documents" / "Reports" / "second.txt";
+    const std::filesystem::path third_destination =
+        target / "Documents" / "Reports" / "third.txt";
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, target, "first.txt", "Documents", "Reports");
+    cache_categorization(db, target, "second.txt", "Documents", "Reports");
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths.push_back(first_source);
+    options.paths.push_back(second_source);
+    options.status_file = status;
+    options.job_id = "headless-multi-select";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(first_source))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(second_source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(first_destination))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(second_destination))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(third_source))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(third_destination))));
+
+    const QJsonObject object = read_status(status);
+    const QJsonObject review = object.value(QStringLiteral("review")).toObject();
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(review.value(QStringLiteral("entryCount")).toInt() == 2);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 2);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
 }
 
 TEST_CASE("HeadlessReviewApplyService uses display folders and canonical storage")
@@ -290,17 +664,25 @@ TEST_CASE("HeadlessReviewApplyService uses display folders and canonical storage
     CHECK(cached->subcategory == "Monthly Statements");
 }
 
-TEST_CASE("HeadlessAnalysisCommand releases runtime lock after unsupported execution")
+TEST_CASE("HeadlessAnalysisCommand rejects cross-folder file selections")
 {
     QTemporaryDir dir;
     REQUIRE(dir.isValid());
-    const std::filesystem::path target = make_file(dir, QStringLiteral("input.txt"));
+    const QString first_dir = dir.filePath(QStringLiteral("first"));
+    const QString second_dir = dir.filePath(QStringLiteral("second"));
+    REQUIRE(QDir().mkpath(first_dir));
+    REQUIRE(QDir().mkpath(second_dir));
+    const std::filesystem::path first = make_file_at(
+        std::filesystem::path(first_dir.toStdString()) / "first.txt");
+    const std::filesystem::path second = make_file_at(
+        std::filesystem::path(second_dir.toStdString()) / "second.txt");
     const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
     const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
 
     HeadlessAnalysisCommand::Options options;
     options.operation = HeadlessAnalysisCommand::Operation::Rename;
-    options.paths.push_back(target);
+    options.paths.push_back(first);
+    options.paths.push_back(second);
     options.status_file = status;
     options.job_id = "headless-job";
 
@@ -312,6 +694,7 @@ TEST_CASE("HeadlessAnalysisCommand releases runtime lock after unsupported execu
     const QJsonObject object = read_status(status);
     CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("failed"));
     CHECK(object.value(QStringLiteral("operation")).toString() == QStringLiteral("rename"));
+    CHECK(object.value(QStringLiteral("error")).toString().contains(QStringLiteral("same-folder")));
 
     AnalysisRuntimeLock lock(runtime_dir);
     CHECK_FALSE(lock.is_locked());

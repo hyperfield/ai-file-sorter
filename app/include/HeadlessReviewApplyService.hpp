@@ -33,6 +33,8 @@ public:
         bool include_subdirectories{false};
         /** @brief Whether suggested filenames should be applied. */
         bool apply_suggested_names{false};
+        /** @brief Whether categorized entries should be moved into category folders. */
+        bool move_categorized_entries{true};
         /** @brief Language used by display labels when canonical labels are absent. */
         CategoryLanguage category_language{CategoryLanguage::English};
     };

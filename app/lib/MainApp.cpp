@@ -2483,6 +2483,7 @@ AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
         [this]() { log_cached_highlights(); },
         [this]() { log_pending_queue(); },
         [this]() { return effective_scan_options(); },
+        [](std::vector<FileEntry>&) {},
         [this](const std::vector<AnalysisWorkflowContext::StagePlan>& stages) {
             configure_progress_stages(stages);
         },
@@ -2501,6 +2502,7 @@ AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
         },
         [this]() { return make_llm_client(); },
         [this]() { return should_log_prompts(); },
+        true,
         [this](const std::string& reason) { return prompt_visual_cpu_fallback(reason); },
         [this](const std::string& reason) { return prompt_continue_without_visual_analysis(reason); },
         [this](const CategorizedFile& entry, const std::string& reason) {

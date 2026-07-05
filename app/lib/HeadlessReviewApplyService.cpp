@@ -192,16 +192,6 @@ std::string resolve_destination_name(const CategorizedFile& entry, bool apply_su
     return trimmed;
 }
 
-std::string canonical_category(const CategorizedFile& entry)
-{
-    return entry.canonical_category.empty() ? entry.category : entry.canonical_category;
-}
-
-std::string canonical_subcategory(const CategorizedFile& entry)
-{
-    return entry.canonical_subcategory.empty() ? entry.subcategory : entry.canonical_subcategory;
-}
-
 std::string display_category(const CategorizedFile& entry)
 {
     return entry.category.empty() ? entry.canonical_category : entry.category;
@@ -303,12 +293,14 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
         }
     }
 
-    if (entry.rename_only) {
+    if (entry.rename_only || !options.move_categorized_entries) {
         const auto destination_path =
             Utils::utf8_to_path(entry.file_path) / Utils::utf8_to_path(destination_name);
         entry_result.destination = Utils::path_to_utf8(destination_path);
         if (!rename_active) {
-            entry_result.message = "No rename needed.";
+            entry_result.message = entry.suggested_name.empty()
+                                       ? "No rename suggested."
+                                       : "No rename needed.";
             append_skipped(result, std::move(entry_result));
             return;
         }
@@ -349,7 +341,7 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                                                    resolved,
                                                                    entry.used_consistency_hints,
                                                                    destination_name,
-                                                                   true,
+                                                                   entry.rename_only || resolved.category.empty(),
                                                                    true);
         }
         result.entries.push_back(std::move(entry_result));

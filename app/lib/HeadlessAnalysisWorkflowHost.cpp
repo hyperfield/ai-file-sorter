@@ -21,8 +21,10 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <stdexcept>
+#include <unordered_set>
 #include <utility>
 
 namespace {
@@ -52,6 +54,7 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
     : options_(std::move(options))
 {
     settings_.load();
+    apply_operation_settings_overlay();
     runtime_data_dir_ = settings_.get_config_dir();
     core_logger_ = resolve_core_logger();
     db_manager_ = std::make_unique<DatabaseManager>(runtime_data_dir_);
@@ -71,7 +74,11 @@ HeadlessAnalysisWorkflowHost::~HeadlessAnalysisWorkflowHost() = default;
 
 AnalysisRunResult HeadlessAnalysisWorkflowHost::execute()
 {
-    return AnalysisCoordinator(make_context()).execute();
+    AnalysisRunResult result = AnalysisCoordinator(make_context()).execute();
+    if (result.status == AnalysisRunStatus::Completed) {
+        filter_review_entries_to_selected_paths();
+    }
+    return result;
 }
 
 std::size_t HeadlessAnalysisWorkflowHost::review_entry_count() const
@@ -150,6 +157,9 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
         [this]() { log_cached_highlights(); },
         [this]() { log_pending_queue(); },
         [this]() { return effective_scan_options(); },
+        [this](std::vector<FileEntry>& entries) {
+            filter_file_entries_to_selected_paths(entries);
+        },
         [](const std::vector<AnalysisWorkflowContext::StagePlan>&) {},
         [](AnalysisWorkflowContext::StageId, const std::vector<FileEntry>&) {},
         [](AnalysisWorkflowContext::StageId) {},
@@ -158,6 +168,7 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
         [](AnalysisWorkflowContext::StageId, const FileEntry&) {},
         [this]() { return make_llm_client(); },
         []() { return false; },
+        options_.operation_mode != OperationMode::Rename,
         [this](const std::string& reason) { return prompt_visual_cpu_fallback(reason); },
         [this](const std::string& reason) {
             return prompt_continue_without_visual_analysis(reason);
@@ -169,6 +180,14 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
 
 FileScanOptions HeadlessAnalysisWorkflowHost::effective_scan_options() const
 {
+    if (options_.operation_mode == OperationMode::Rename) {
+        FileScanOptions options = FileScanOptions::Files;
+        if (settings_.get_include_subdirectories()) {
+            options = options | FileScanOptions::Recursive;
+        }
+        return options;
+    }
+
     const bool analyze_images = settings_.get_analyze_images_by_content();
     const bool analyze_documents = settings_.get_analyze_documents_by_content();
     const bool images_only = analyze_images && settings_.get_process_images_only();
@@ -252,9 +271,12 @@ std::unique_ptr<ILLMClient> HeadlessAnalysisWorkflowHost::make_llm_client()
         if (custom.id.empty() || custom.path.empty()) {
             throw std::runtime_error("Selected custom LLM is missing or invalid. Please re-select it.");
         }
+        LocalLLMClient::Options local_options;
+        local_options.force_cpu_backend = true;
         auto client = std::make_unique<LocalLLMClient>(
             custom.path,
-            [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); });
+            [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); },
+            local_options);
         client->set_status_callback(handle_local_llm_status);
         return client;
     }
@@ -265,9 +287,12 @@ std::unique_ptr<ILLMClient> HeadlessAnalysisWorkflowHost::make_llm_client()
         throw std::runtime_error("Required local LLM model path is not configured.");
     }
 
+    LocalLLMClient::Options local_options;
+    local_options.force_cpu_backend = true;
     auto client = std::make_unique<LocalLLMClient>(
         Utils::path_to_utf8(model_path),
-        [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); });
+        [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); },
+        local_options);
     client->set_status_callback(handle_local_llm_status);
     return client;
 }
@@ -323,6 +348,38 @@ void HeadlessAnalysisWorkflowHost::sync_whitelists_to_learning_store()
     }
 }
 
+void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
+{
+    settings_.set_process_images_only(false);
+    settings_.set_process_documents_only(false);
+
+    switch (options_.operation_mode) {
+    case OperationMode::Rename:
+        settings_.set_categorize_files(false);
+        settings_.set_categorize_directories(false);
+        settings_.set_offer_rename_images(true);
+        settings_.set_offer_rename_documents(true);
+        settings_.set_rename_images_only(true);
+        settings_.set_rename_documents_only(true);
+        settings_.set_add_image_date_to_category(false);
+        settings_.set_add_document_date_to_category(false);
+        return;
+    case OperationMode::CategorizeAndRename:
+        settings_.set_offer_rename_images(true);
+        settings_.set_offer_rename_documents(true);
+        settings_.set_rename_images_only(false);
+        settings_.set_rename_documents_only(false);
+        return;
+    case OperationMode::Categorize:
+    default:
+        settings_.set_offer_rename_images(false);
+        settings_.set_offer_rename_documents(false);
+        settings_.set_rename_images_only(false);
+        settings_.set_rename_documents_only(false);
+        return;
+    }
+}
+
 void HeadlessAnalysisWorkflowHost::prune_empty_cached_entries_for(const std::string& directory_path)
 {
     const std::vector<CategorizedFile> cleared =
@@ -372,6 +429,29 @@ void HeadlessAnalysisWorkflowHost::log_pending_queue()
                                     .arg(type_label,
                                          QString::fromStdString(entry.file_name))));
     }
+}
+
+void HeadlessAnalysisWorkflowHost::filter_file_entries_to_selected_paths(
+    std::vector<FileEntry>& entries) const
+{
+    if (options_.selected_paths.empty()) {
+        return;
+    }
+
+    std::unordered_set<std::string> selected;
+    selected.reserve(options_.selected_paths.size());
+    for (const auto& path : options_.selected_paths) {
+        selected.insert(selected_path_key(path));
+    }
+
+    entries.erase(
+        std::remove_if(entries.begin(),
+                       entries.end(),
+                       [&selected](const FileEntry& entry) {
+                           return !selected.contains(selected_path_key(
+                               Utils::utf8_to_path(entry.full_path)));
+                       }),
+        entries.end());
 }
 
 void HeadlessAnalysisWorkflowHost::append_progress(const std::string& message)
@@ -429,6 +509,29 @@ void HeadlessAnalysisWorkflowHost::notify_recategorization_reset(const Categoriz
     append_progress("[WARN] " + entry.file_name + " will be re-categorized: " + reason);
 }
 
+void HeadlessAnalysisWorkflowHost::filter_review_entries_to_selected_paths()
+{
+    if (options_.selected_paths.empty()) {
+        return;
+    }
+
+    std::unordered_set<std::string> selected;
+    selected.reserve(options_.selected_paths.size());
+    for (const auto& path : options_.selected_paths) {
+        selected.insert(selected_path_key(path));
+    }
+
+    new_files_to_sort_.erase(
+        std::remove_if(new_files_to_sort_.begin(),
+                       new_files_to_sort_.end(),
+                       [&selected](const CategorizedFile& entry) {
+                           const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                                  Utils::utf8_to_path(entry.file_name);
+                           return !selected.contains(HeadlessAnalysisWorkflowHost::selected_path_key(full_path));
+                       }),
+        new_files_to_sort_.end());
+}
+
 std::string HeadlessAnalysisWorkflowHost::normalize_folder_path(const std::filesystem::path& path)
 {
     std::error_code ec;
@@ -437,4 +540,15 @@ std::string HeadlessAnalysisWorkflowHost::normalize_folder_path(const std::files
         normalized = path;
     }
     return Utils::path_to_utf8(normalized.lexically_normal());
+}
+
+std::string HeadlessAnalysisWorkflowHost::selected_path_key(const std::filesystem::path& path)
+{
+    std::string key = normalize_folder_path(path);
+#ifdef _WIN32
+    std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+#endif
+    return key;
 }

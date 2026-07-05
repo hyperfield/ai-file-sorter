@@ -30,11 +30,24 @@ namespace spdlog { class logger; }
 class HeadlessAnalysisWorkflowHost {
 public:
     /**
+     * @brief Headless operation semantics applied as an in-memory settings overlay.
+     */
+    enum class OperationMode {
+        Categorize,
+        Rename,
+        CategorizeAndRename
+    };
+
+    /**
      * @brief Options for a headless analysis workflow run.
      */
     struct Options {
         /** @brief Folder to analyze. */
         std::filesystem::path folder_path;
+        /** @brief Optional same-folder file paths to keep in the review/apply result. */
+        std::vector<std::filesystem::path> selected_paths;
+        /** @brief Requested operation mode for this run. */
+        OperationMode operation_mode{OperationMode::Categorize};
         /** @brief Optional progress callback receiving translated progress text. */
         std::function<void(const std::string&)> progress_callback;
     };
@@ -146,6 +159,11 @@ private:
     void sync_whitelists_to_learning_store();
 
     /**
+     * @brief Apply command-specific behavior without persisting user settings.
+     */
+    void apply_operation_settings_overlay();
+
+    /**
      * @brief Remove empty cached categorizations for a directory and report resets.
      * @param directory_path Directory cache key to prune.
      */
@@ -160,6 +178,12 @@ private:
      * @brief Emit pending categorization queue details to progress output.
      */
     void log_pending_queue();
+
+    /**
+     * @brief Filter scanned entries to the optional selected file set.
+     * @param entries Entries from a folder scan.
+     */
+    void filter_file_entries_to_selected_paths(std::vector<FileEntry>& entries) const;
 
     /**
      * @brief Forward a progress message to the caller.
@@ -196,11 +220,23 @@ private:
     void notify_recategorization_reset(const CategorizedFile& entry, const std::string& reason);
 
     /**
+     * @brief Filter review entries to explicitly selected file paths.
+     */
+    void filter_review_entries_to_selected_paths();
+
+    /**
      * @brief Normalize a folder path for database/cache keys and prompts.
      * @param path Folder path.
      * @return UTF-8 absolute normalized path when possible.
      */
     static std::string normalize_folder_path(const std::filesystem::path& path);
+
+    /**
+     * @brief Normalize a path for exact selected-file matching.
+     * @param path Path to normalize.
+     * @return Case-normalized UTF-8 comparison key.
+     */
+    static std::string selected_path_key(const std::filesystem::path& path);
 
     Options options_;
     Settings settings_;

@@ -297,24 +297,106 @@ bool is_directory_target(const std::filesystem::path& path)
     return std::filesystem::is_directory(path, ec) && !ec;
 }
 
-std::optional<std::filesystem::path>
-resolve_single_folder_target(const HeadlessAnalysisCommand::Options& options,
-                             std::string* error)
+bool is_regular_file_target(const std::filesystem::path& path)
 {
-    if (options.paths.size() != 1) {
+    std::error_code ec;
+    return std::filesystem::is_regular_file(path, ec) && !ec;
+}
+
+bool operation_applies_suggested_names(HeadlessAnalysisCommand::Operation operation)
+{
+    return operation == HeadlessAnalysisCommand::Operation::Rename ||
+           operation == HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+}
+
+bool operation_moves_categorized_entries(HeadlessAnalysisCommand::Operation operation)
+{
+    return operation == HeadlessAnalysisCommand::Operation::Categorize ||
+           operation == HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+}
+
+HeadlessAnalysisWorkflowHost::OperationMode
+host_operation_mode(HeadlessAnalysisCommand::Operation operation)
+{
+    switch (operation) {
+    case HeadlessAnalysisCommand::Operation::Rename:
+        return HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+    case HeadlessAnalysisCommand::Operation::CategorizeAndRename:
+        return HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename;
+    case HeadlessAnalysisCommand::Operation::Categorize:
+    case HeadlessAnalysisCommand::Operation::Unknown:
+    default:
+        return HeadlessAnalysisWorkflowHost::OperationMode::Categorize;
+    }
+}
+
+std::filesystem::path normalized_absolute_path(const std::filesystem::path& path)
+{
+    std::error_code ec;
+    std::filesystem::path normalized = std::filesystem::absolute(path, ec);
+    if (ec) {
+        normalized = path;
+    }
+    return normalized.lexically_normal();
+}
+
+std::string normalized_path_key(const std::filesystem::path& path)
+{
+    std::string key = Utils::path_to_utf8(normalized_absolute_path(path));
+#ifdef _WIN32
+    std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+#endif
+    return key;
+}
+
+struct ResolvedHeadlessTarget {
+    std::filesystem::path folder_path;
+    std::vector<std::filesystem::path> selected_paths;
+};
+
+std::optional<ResolvedHeadlessTarget>
+resolve_headless_target(const HeadlessAnalysisCommand::Options& options,
+                        std::string* error)
+{
+    if (options.paths.size() == 1 && is_directory_target(options.paths.front())) {
+        return ResolvedHeadlessTarget{options.paths.front(), {}};
+    }
+
+    ResolvedHeadlessTarget target;
+    std::string parent_key;
+    for (const auto& path : options.paths) {
+        if (!is_regular_file_target(path)) {
+            if (error) {
+                *error = "This build supports either one folder target or same-folder file selections.";
+            }
+            return std::nullopt;
+        }
+
+        const std::filesystem::path selected_path = normalized_absolute_path(path);
+        const std::filesystem::path parent_path = selected_path.parent_path();
+        const std::string current_parent_key = normalized_path_key(parent_path);
+        if (parent_key.empty()) {
+            parent_key = current_parent_key;
+            target.folder_path = parent_path;
+        } else if (current_parent_key != parent_key) {
+            if (error) {
+                *error = "This build supports same-folder file selections. "
+                         "Search-results or cross-folder aggregation will be added in a later plugin slice.";
+            }
+            return std::nullopt;
+        }
+        target.selected_paths.push_back(selected_path);
+    }
+
+    if (target.folder_path.empty()) {
         if (error) {
-            *error = "This build supports one folder target per headless categorization job.";
+            *error = "This build supports one folder target or same-folder file selections.";
         }
         return std::nullopt;
     }
-    if (!is_directory_target(options.paths.front())) {
-        if (error) {
-            *error = "This build supports folder targets for headless categorization. "
-                     "File and multi-select jobs will be added in a later plugin slice.";
-        }
-        return std::nullopt;
-    }
-    return options.paths.front();
+    return target;
 }
 
 int finish_analysis_run(const HeadlessAnalysisCommand::Options& options,
@@ -329,9 +411,11 @@ int finish_analysis_run(const HeadlessAnalysisCommand::Options& options,
         const std::size_t review_entry_count =
             apply_result ? apply_result->planned_count : std::size_t{0};
         std::ostringstream message;
-        message << "Headless categorization completed. Review entries: " << review_entry_count << ".";
+        message << "Headless " << HeadlessAnalysisCommand::operation_to_string(options.operation)
+                << " completed. Review entries: " << review_entry_count << ".";
         if (apply_result) {
             message << " Moved: " << apply_result->moved_count
+                    << ". Renamed: " << apply_result->renamed_count
                     << ". Skipped: " << apply_result->skipped_count << ".";
             const QJsonObject payload = apply_result_to_json(*apply_result);
             emit_status(options, "completed", message.str(), {}, metadata, out, err, &payload);
@@ -551,21 +635,9 @@ int HeadlessAnalysisCommand::run(const Options& options,
                 out,
                 err);
 
-    if (options.operation != Operation::Categorize) {
-        emit_status(options,
-                    "failed",
-                    "Headless execution is not implemented for this operation yet.",
-                    "This build can run folder categorization. Rename and categorize-and-rename still need "
-                    "rename-specific headless apply rules.",
-                    lease->metadata(),
-                    out,
-                    err);
-        return ExitCode::Unsupported;
-    }
-
     std::string target_error;
-    const auto folder_target = resolve_single_folder_target(options, &target_error);
-    if (!folder_target) {
+    const auto target = resolve_headless_target(options, &target_error);
+    if (!target) {
         emit_status(options,
                     "failed",
                     "Unsupported headless target.",
@@ -577,7 +649,9 @@ int HeadlessAnalysisCommand::run(const Options& options,
     }
 
     HeadlessAnalysisWorkflowHost::Options host_options;
-    host_options.folder_path = *folder_target;
+    host_options.folder_path = target->folder_path;
+    host_options.selected_paths = target->selected_paths;
+    host_options.operation_mode = host_operation_mode(options.operation);
     host_options.progress_callback = [&](const std::string& message) {
         emit_status(options, "running", message, {}, lease->metadata(), out, err);
     };
@@ -591,7 +665,8 @@ int HeadlessAnalysisCommand::run(const Options& options,
         apply_options.undo_dir = host.undo_dir();
         apply_options.use_subcategories = host.use_subcategories();
         apply_options.include_subdirectories = host.include_subdirectories();
-        apply_options.apply_suggested_names = false;
+        apply_options.apply_suggested_names = operation_applies_suggested_names(options.operation);
+        apply_options.move_categorized_entries = operation_moves_categorized_entries(options.operation);
         apply_options.category_language = host.category_language();
 
         HeadlessReviewApplyService apply_service(&host.db_manager(),

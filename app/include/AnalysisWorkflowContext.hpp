@@ -52,6 +52,8 @@ struct AnalysisWorkflowContext {
     std::function<void()> log_cached_highlights;
     std::function<void()> log_pending_queue;
     std::function<FileScanOptions()> effective_scan_options;
+    /** @brief Optional host filter for scan entries before analysis and review. */
+    std::function<void(std::vector<FileEntry>&)> filter_file_entries;
     std::function<void(const std::vector<StagePlan>&)> configure_progress_stages;
     std::function<void(StageId, const std::vector<FileEntry>&)> set_progress_stage_items;
     std::function<void(StageId)> set_progress_active_stage;
@@ -60,6 +62,8 @@ struct AnalysisWorkflowContext {
     std::function<void(StageId, const FileEntry&)> mark_progress_stage_item_skipped;
     std::function<std::unique_ptr<ILLMClient>()> make_llm_client;
     std::function<bool()> should_log_prompts;
+    /** @brief True when suggested filenames may be localized through the text LLM. */
+    bool localize_suggested_names{true};
     std::function<bool(const std::string&)> prompt_visual_cpu_fallback;
     std::function<bool(const std::string&)> prompt_continue_without_visual_analysis;
     std::function<void(const CategorizedFile&, const std::string&)> notify_recategorization_reset;

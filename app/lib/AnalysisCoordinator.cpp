@@ -705,6 +705,9 @@ AnalysisRunResult AnalysisCoordinator::execute()
                                }),
                 app_.files_to_categorize.end());
         }
+        if (app_.filter_file_entries) {
+            app_.filter_file_entries(app_.files_to_categorize);
+        }
         app_.core_logger->debug("Found {} item(s) pending categorization in '{}'.",
                                 app_.files_to_categorize.size(),
                                 directory_path);
@@ -877,7 +880,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 const std::string& file_name,
                 const std::string& suggested_name,
                 bool should_localize) -> std::string {
-                if (!should_localize ||
+                if (!app_.localize_suggested_names ||
+                    !should_localize ||
                     suggested_name.empty() ||
                     rename_language == CategoryLanguage::English ||
                     to_lower(suggested_name) == to_lower(file_name)) {
@@ -1948,7 +1952,10 @@ AnalysisRunResult AnalysisCoordinator::execute()
             review_entries.insert(review_entries.end(), pending_renames.begin(), pending_renames.end());
         }
 
-        const auto actual_files = app_.results_coordinator.list_directory(app_.get_folder_path(), scan_options);
+        auto actual_files = app_.results_coordinator.list_directory(app_.get_folder_path(), scan_options);
+        if (app_.filter_file_entries) {
+            app_.filter_file_entries(actual_files);
+        }
         app_.new_files_to_sort = app_.results_coordinator.compute_files_to_sort(
             app_.get_folder_path(),
             scan_options,
