@@ -17,7 +17,7 @@ QString normalized_instance_id(QString instance_id)
 {
     instance_id = instance_id.trimmed();
     if (instance_id.isEmpty()) {
-        instance_id = QStringLiteral("net.quicknode.AIFileSorter");
+        instance_id = QStringLiteral("dev.hfstudio.AIFileSorter");
     }
     return instance_id;
 }
@@ -117,7 +117,7 @@ QString SingleInstanceCoordinator::build_server_name(const QString& instance_id)
     const QByteArray digest = QCryptographicHash::hash(
         normalized_instance_id(instance_id).toUtf8(),
         QCryptographicHash::Sha256).toHex();
-    return QStringLiteral("net.quicknode.AIFileSorter.instance.%1")
+    return QStringLiteral("dev.hfstudio.AIFileSorter.instance.%1")
         .arg(QString::fromLatin1(digest.left(32)));
 }
 

@@ -125,10 +125,10 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
 
     QIcon icon = QApplication::windowIcon();
     if (icon.isNull()) {
-        icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/app_icon_128.png"));
+        icon = QIcon(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/app_icon_128.png"));
     }
     if (icon.isNull()) {
-        icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png"));
+        icon = QIcon(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/logo.png"));
     }
     if (!icon.isNull()) {
         setWindowIcon(icon);

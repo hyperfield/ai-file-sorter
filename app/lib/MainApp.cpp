@@ -809,10 +809,10 @@ void MainApp::start_updater()
 
 void MainApp::set_app_icon()
 {
-    const QString icon_path = QStringLiteral(":/net/quicknode/AIFileSorter/images/app_icon_128.png");
+    const QString icon_path = QStringLiteral(":/dev/hfstudio/AIFileSorter/images/app_icon_128.png");
     QIcon icon(icon_path);
     if (icon.isNull()) {
-        icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png"));
+        icon = QIcon(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/logo.png"));
     }
     if (!icon.isNull()) {
         QApplication::setWindowIcon(icon);

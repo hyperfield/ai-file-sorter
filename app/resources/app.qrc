@@ -1,5 +1,5 @@
 <!DOCTYPE RCC><RCC version="1.0">
-  <qresource prefix="/net/quicknode/AIFileSorter">
+  <qresource prefix="/dev/hfstudio/AIFileSorter">
     <file>images/logo.png</file>
     <file>images/hf_logo.png</file>
     <file>images/app_icon_128.png</file>

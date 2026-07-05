@@ -738,7 +738,7 @@ set_source_files_properties(
 )
 
 qt_add_resources(aifilesorter "app_resources"
-    PREFIX "/net/quicknode/AIFileSorter"
+    PREFIX "/dev/hfstudio/AIFileSorter"
     FILES ${APP_RESOURCE_FILES}
 )
 
@@ -1454,7 +1454,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     )
 
     qt_add_resources(ai_file_sorter_tests "ai_file_sorter_test_app_resources"
-        PREFIX "/net/quicknode/AIFileSorter"
+        PREFIX "/dev/hfstudio/AIFileSorter"
         FILES ${APP_RESOURCE_FILES}
     )
 

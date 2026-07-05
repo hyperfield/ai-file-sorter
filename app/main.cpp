@@ -372,7 +372,7 @@ void attach_console_if_requested(bool enable)
 
 [[maybe_unused]] QPixmap build_splash_pixmap()
 {
-    QPixmap splash_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/icon_512x512.png"));
+    QPixmap splash_pix(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/icon_512x512.png"));
     if (splash_pix.isNull()) {
         splash_pix = QPixmap(256, 256);
         splash_pix.fill(Qt::black);
@@ -640,7 +640,7 @@ int run_headless_mode(const ParsedArguments& parsed_args)
 
 int run_application(const ParsedArguments& parsed_args)
 {
-    EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
+    EmbeddedEnv env_loader(":/dev/hfstudio/AIFileSorter/.env");
     env_loader.load_env();
 #if defined(__APPLE__)
     ensure_ggml_backend_dir();
@@ -649,7 +649,7 @@ int run_application(const ParsedArguments& parsed_args)
 #endif
     setlocale(LC_ALL, "");
     const std::string locale_path = Utils::get_executable_path() + "/locale";
-    bindtextdomain("net.quicknode.AIFileSorter", locale_path.c_str());
+    bindtextdomain("dev.hfstudio.AIFileSorter", locale_path.c_str());
 
     const QString display_name = app_display_name();
     QCoreApplication::setApplicationName(display_name);
@@ -677,8 +677,8 @@ int run_application(const ParsedArguments& parsed_args)
     char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());
     QApplication app(qt_argc, qt_argv);
     const QString instance_id = parsed_args.test_mode
-        ? QStringLiteral("net.quicknode.AIFileSorter.Test")
-        : QStringLiteral("net.quicknode.AIFileSorter");
+        ? QStringLiteral("dev.hfstudio.AIFileSorter.Test")
+        : QStringLiteral("dev.hfstudio.AIFileSorter");
     SingleInstanceCoordinator instance_guard(instance_id);
     instance_guard.set_activation_callback([]() {
         activate_widget(preferred_activation_target());
