@@ -127,6 +127,7 @@ TEST_CASE("HeadlessAnalysisCommand parses operation paths and status file")
     REQUIRE(parsed.requested);
     CHECK_FALSE(parsed.help_requested);
     CHECK(parsed.error.empty());
+    CHECK(parsed.options.request_mode == HeadlessAnalysisCommand::RequestMode::Analyze);
     CHECK(parsed.options.operation == HeadlessAnalysisCommand::Operation::CategorizeAndRename);
     CHECK(parsed.options.apply_mode == HeadlessAnalysisCommand::ApplyMode::UseSettings);
     REQUIRE(parsed.options.paths.size() == 1);
@@ -161,6 +162,33 @@ TEST_CASE("HeadlessAnalysisCommand parses apply mode flags")
     REQUIRE(apply_parsed.requested);
     CHECK(apply_parsed.error.empty());
     CHECK(apply_parsed.options.apply_mode == HeadlessAnalysisCommand::ApplyMode::AutoApply);
+}
+
+TEST_CASE("HeadlessAnalysisCommand parses saved review apply requests")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const std::filesystem::path review_file = make_file(dir, QStringLiteral("review.json"));
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    std::string review_arg = review_file.string();
+    std::string status_arg = status.string();
+    char arg0[] = "aifilesorter";
+    char arg1[] = "--headless-apply";
+    char arg2[] = "--review-file";
+    char arg4[] = "--status-file";
+    char arg6[] = "--job-id=apply-job";
+    char* argv[] = {arg0, arg1, arg2, review_arg.data(), arg4, status_arg.data(), arg6};
+
+    const auto parsed = HeadlessAnalysisCommand::parse(7, argv);
+    REQUIRE(parsed.requested);
+    CHECK(parsed.error.empty());
+    CHECK(parsed.options.request_mode == HeadlessAnalysisCommand::RequestMode::ApplyReview);
+    REQUIRE(parsed.options.review_file.has_value());
+    CHECK(*parsed.options.review_file == review_file);
+    REQUIRE(parsed.options.status_file.has_value());
+    CHECK(*parsed.options.status_file == status);
+    CHECK(parsed.options.job_id == "apply-job");
 }
 
 TEST_CASE("HeadlessAnalysisCommand reports busy runtime lock")
@@ -372,6 +400,9 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     const QJsonObject object = read_status(status);
     CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("review_required"));
     CHECK(object.value(QStringLiteral("reviewRequired")).toBool());
+    const QString review_file = object.value(QStringLiteral("reviewFile")).toString();
+    REQUIRE_FALSE(review_file.isEmpty());
+    CHECK(QFile::exists(review_file));
     const QJsonObject review = object.value(QStringLiteral("review")).toObject();
     const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
     CHECK(review.value(QStringLiteral("requiresApproval")).toBool());
@@ -385,6 +416,76 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     const QJsonObject entry = entries.at(0).toObject();
     CHECK(entry.value(QStringLiteral("destination")).toString().contains(QStringLiteral("Documents")));
     CHECK(entry.value(QStringLiteral("message")).toString() == QStringLiteral("Waiting for review approval."));
+
+    const QJsonObject plan = read_status(Utils::utf8_to_path(review_file.toStdString()));
+    CHECK(plan.value(QStringLiteral("kind")).toString() == QStringLiteral("aifs.headlessReviewPlan"));
+    CHECK(plan.value(QStringLiteral("operation")).toString() == QStringLiteral("categorize"));
+    CHECK(plan.value(QStringLiteral("entries")).toArray().size() == 1);
+}
+
+TEST_CASE("HeadlessAnalysisCommand applies saved review plan")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "input.txt");
+    const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, target, "input.txt", "Documents", "Reports");
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths.push_back(target);
+    options.status_file = status;
+    options.job_id = "headless-review-plan";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    REQUIRE(HeadlessAnalysisCommand::run(options, runtime_dir, out, err) ==
+            HeadlessAnalysisCommand::Success);
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+
+    const QJsonObject review_status = read_status(status);
+    const QString review_file_text = review_status.value(QStringLiteral("reviewFile")).toString();
+    REQUIRE_FALSE(review_file_text.isEmpty());
+    const std::filesystem::path review_file = Utils::utf8_to_path(review_file_text.toStdString());
+
+    HeadlessAnalysisCommand::Options apply_options;
+    apply_options.request_mode = HeadlessAnalysisCommand::RequestMode::ApplyReview;
+    apply_options.review_file = review_file;
+    apply_options.status_file = status;
+    apply_options.job_id = "headless-review-plan-apply";
+
+    std::ostringstream apply_out;
+    std::ostringstream apply_err;
+    const int apply_exit =
+        HeadlessAnalysisCommand::run(apply_options, runtime_dir, apply_out, apply_err);
+
+    CHECK(apply_exit == HeadlessAnalysisCommand::Success);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("completed"));
+    CHECK(object.value(QStringLiteral("operation")).toString() == QStringLiteral("categorize"));
+    CHECK(object.value(QStringLiteral("reviewFile")).toString() == review_file_text);
+    const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
+    CHECK(apply.value(QStringLiteral("undoPlanSaved")).toBool());
 }
 
 TEST_CASE("HeadlessAnalysisCommand categorizes only a selected file target")

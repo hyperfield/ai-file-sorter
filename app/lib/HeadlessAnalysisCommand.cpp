@@ -1,12 +1,17 @@
 #include "HeadlessAnalysisCommand.hpp"
 
 #include "AnalysisRunResult.hpp"
+#include "DatabaseManager.hpp"
 #include "HeadlessAnalysisWorkflowHost.hpp"
 #include "HeadlessReviewApplyService.hpp"
+#include "LocalFsProvider.hpp"
+#include "Logger.hpp"
+#include "Settings.hpp"
 #include "Utils.hpp"
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QFile>
 #include <QIODevice>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -23,6 +28,8 @@
 namespace {
 
 constexpr int kStatusSchemaVersion = 1;
+constexpr int kReviewPlanSchemaVersion = 1;
+constexpr char kReviewPlanKind[] = "aifs.headlessReviewPlan";
 
 QString to_qstring(const std::filesystem::path& path)
 {
@@ -54,7 +61,8 @@ std::string generate_job_id()
 
 bool is_headless_request_flag(const std::string& argument)
 {
-    return argument == "--headless" || argument == "--headless-help";
+    return argument == "--headless" || argument == "--headless-apply" ||
+           argument == "--headless-help";
 }
 
 bool argument_has_prefix(const std::string& argument, const std::string& prefix)
@@ -76,7 +84,8 @@ bool is_value_argument(const std::string& argument)
     return argument == "--operation" || argument == "--headless-operation" ||
            argument == "--path" || argument == "--headless-path" ||
            argument == "--status-file" || argument == "--headless-status-file" ||
-           argument == "--job-id" || argument == "--headless-job-id";
+           argument == "--job-id" || argument == "--headless-job-id" ||
+           argument == "--review-file" || argument == "--headless-review-file";
 }
 
 bool parse_value(int argc,
@@ -270,6 +279,216 @@ QJsonObject apply_result_to_json(const HeadlessReviewApplyService::Result& resul
     return payload;
 }
 
+QString file_type_to_json(FileType type)
+{
+    return type == FileType::Directory ? QStringLiteral("directory") : QStringLiteral("file");
+}
+
+FileType file_type_from_json(const QString& value)
+{
+    return value.compare(QStringLiteral("directory"), Qt::CaseInsensitive) == 0
+        ? FileType::Directory
+        : FileType::File;
+}
+
+QJsonObject categorized_file_to_json(const CategorizedFile& entry)
+{
+    QJsonObject object;
+    object.insert(QStringLiteral("filePath"), QString::fromStdString(entry.file_path));
+    object.insert(QStringLiteral("fileName"), QString::fromStdString(entry.file_name));
+    object.insert(QStringLiteral("type"), file_type_to_json(entry.type));
+    object.insert(QStringLiteral("category"), QString::fromStdString(entry.category));
+    object.insert(QStringLiteral("subcategory"), QString::fromStdString(entry.subcategory));
+    object.insert(QStringLiteral("taxonomyId"), entry.taxonomy_id);
+    object.insert(QStringLiteral("fromCache"), entry.from_cache);
+    object.insert(QStringLiteral("usedConsistencyHints"), entry.used_consistency_hints);
+    object.insert(QStringLiteral("suggestedName"), QString::fromStdString(entry.suggested_name));
+    object.insert(QStringLiteral("renameOnly"), entry.rename_only);
+    object.insert(QStringLiteral("renameApplied"), entry.rename_applied);
+    object.insert(QStringLiteral("canonicalCategory"), QString::fromStdString(entry.canonical_category));
+    object.insert(QStringLiteral("canonicalSubcategory"), QString::fromStdString(entry.canonical_subcategory));
+    object.insert(QStringLiteral("learningContext"), QString::fromStdString(entry.learning_context));
+    return object;
+}
+
+CategorizedFile categorized_file_from_json(const QJsonObject& object)
+{
+    CategorizedFile entry;
+    entry.file_path = object.value(QStringLiteral("filePath")).toString().toStdString();
+    entry.file_name = object.value(QStringLiteral("fileName")).toString().toStdString();
+    entry.type = file_type_from_json(object.value(QStringLiteral("type")).toString());
+    entry.category = object.value(QStringLiteral("category")).toString().toStdString();
+    entry.subcategory = object.value(QStringLiteral("subcategory")).toString().toStdString();
+    entry.taxonomy_id = object.value(QStringLiteral("taxonomyId")).toInt();
+    entry.from_cache = object.value(QStringLiteral("fromCache")).toBool();
+    entry.used_consistency_hints = object.value(QStringLiteral("usedConsistencyHints")).toBool();
+    entry.suggested_name = object.value(QStringLiteral("suggestedName")).toString().toStdString();
+    entry.rename_only = object.value(QStringLiteral("renameOnly")).toBool();
+    entry.rename_applied = object.value(QStringLiteral("renameApplied")).toBool();
+    entry.canonical_category = object.value(QStringLiteral("canonicalCategory")).toString().toStdString();
+    entry.canonical_subcategory = object.value(QStringLiteral("canonicalSubcategory")).toString().toStdString();
+    entry.learning_context = object.value(QStringLiteral("learningContext")).toString().toStdString();
+    return entry;
+}
+
+QJsonObject apply_options_to_json(const HeadlessReviewApplyService::Options& options)
+{
+    QJsonObject object;
+    object.insert(QStringLiteral("baseDir"), QString::fromStdString(options.base_dir));
+    object.insert(QStringLiteral("undoDir"), QString::fromStdString(options.undo_dir));
+    object.insert(QStringLiteral("useSubcategories"), options.use_subcategories);
+    object.insert(QStringLiteral("includeSubdirectories"), options.include_subdirectories);
+    object.insert(QStringLiteral("applySuggestedNames"), options.apply_suggested_names);
+    object.insert(QStringLiteral("moveCategorizedEntries"), options.move_categorized_entries);
+    object.insert(QStringLiteral("categoryLanguage"), categoryLanguageToString(options.category_language));
+    return object;
+}
+
+HeadlessReviewApplyService::Options apply_options_from_json(const QJsonObject& object)
+{
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = object.value(QStringLiteral("baseDir")).toString().toStdString();
+    options.undo_dir = object.value(QStringLiteral("undoDir")).toString().toStdString();
+    options.use_subcategories = object.value(QStringLiteral("useSubcategories")).toBool(true);
+    options.include_subdirectories = object.value(QStringLiteral("includeSubdirectories")).toBool(false);
+    options.apply_suggested_names = object.value(QStringLiteral("applySuggestedNames")).toBool(false);
+    options.move_categorized_entries = object.value(QStringLiteral("moveCategorizedEntries")).toBool(true);
+    options.category_language =
+        categoryLanguageFromString(object.value(QStringLiteral("categoryLanguage")).toString());
+    options.apply_changes = true;
+    return options;
+}
+
+struct HeadlessReviewPlan {
+    HeadlessAnalysisCommand::Operation operation{HeadlessAnalysisCommand::Operation::Unknown};
+    std::vector<std::filesystem::path> paths;
+    HeadlessReviewApplyService::Options apply_options;
+    std::vector<CategorizedFile> entries;
+};
+
+QJsonObject review_plan_to_json(const HeadlessAnalysisCommand::Options& options,
+                                const std::vector<CategorizedFile>& entries,
+                                const HeadlessReviewApplyService::Options& apply_options)
+{
+    QJsonArray paths;
+    for (const auto& path : options.paths) {
+        paths.append(QString::fromStdString(Utils::path_to_utf8(path)));
+    }
+
+    QJsonArray serialized_entries;
+    for (const auto& entry : entries) {
+        serialized_entries.append(categorized_file_to_json(entry));
+    }
+
+    QJsonObject object;
+    object.insert(QStringLiteral("schemaVersion"), kReviewPlanSchemaVersion);
+    object.insert(QStringLiteral("kind"), QString::fromLatin1(kReviewPlanKind));
+    object.insert(QStringLiteral("createdAtUtc"), QString::fromStdString(utc_now_iso()));
+    object.insert(QStringLiteral("jobId"), QString::fromStdString(options.job_id));
+    object.insert(QStringLiteral("operation"),
+                  QString::fromStdString(HeadlessAnalysisCommand::operation_to_string(options.operation)));
+    object.insert(QStringLiteral("paths"), paths);
+    object.insert(QStringLiteral("applyOptions"), apply_options_to_json(apply_options));
+    object.insert(QStringLiteral("entries"), serialized_entries);
+    return object;
+}
+
+std::optional<std::filesystem::path>
+review_file_path_for(const HeadlessAnalysisCommand::Options& options,
+                     const std::filesystem::path& runtime_dir)
+{
+    if (options.review_file) {
+        return options.review_file;
+    }
+    if (options.status_file) {
+        const auto& status = *options.status_file;
+        return status.parent_path() / (status.stem().wstring() + L".review.json");
+    }
+    if (!options.job_id.empty()) {
+        return runtime_dir / "review-plans" / (options.job_id + ".review.json");
+    }
+    return std::nullopt;
+}
+
+bool write_review_plan_file(const std::filesystem::path& path,
+                            const HeadlessAnalysisCommand::Options& options,
+                            const std::vector<CategorizedFile>& entries,
+                            const HeadlessReviewApplyService::Options& apply_options,
+                            std::string* error)
+{
+    const QJsonDocument document(review_plan_to_json(options, entries, apply_options));
+    return write_status_file(path, document, error);
+}
+
+bool read_review_plan_file(const std::filesystem::path& path,
+                           HeadlessReviewPlan* plan,
+                           std::string* error)
+{
+    if (!plan) {
+        if (error) {
+            *error = "Review plan output is unavailable.";
+        }
+        return false;
+    }
+
+    QFile file(to_qstring(path));
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (error) {
+            *error = "Could not open review plan: " + file.errorString().toStdString();
+        }
+        return false;
+    }
+
+    QJsonParseError parse_error;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError || !document.isObject()) {
+        if (error) {
+            *error = "Review plan is not valid JSON: " + parse_error.errorString().toStdString();
+        }
+        return false;
+    }
+
+    const QJsonObject object = document.object();
+    if (object.value(QStringLiteral("schemaVersion")).toInt() != kReviewPlanSchemaVersion ||
+        object.value(QStringLiteral("kind")).toString() != QString::fromLatin1(kReviewPlanKind)) {
+        if (error) {
+            *error = "Review plan has an unsupported schema.";
+        }
+        return false;
+    }
+
+    HeadlessReviewPlan parsed;
+    parsed.operation =
+        HeadlessAnalysisCommand::operation_from_string(
+            object.value(QStringLiteral("operation")).toString().toStdString());
+    if (parsed.operation == HeadlessAnalysisCommand::Operation::Unknown) {
+        if (error) {
+            *error = "Review plan operation is missing or unsupported.";
+        }
+        return false;
+    }
+
+    for (const auto& value : object.value(QStringLiteral("paths")).toArray()) {
+        parsed.paths.push_back(Utils::utf8_to_path(value.toString().toStdString()));
+    }
+    parsed.apply_options =
+        apply_options_from_json(object.value(QStringLiteral("applyOptions")).toObject());
+    for (const auto& value : object.value(QStringLiteral("entries")).toArray()) {
+        if (value.isObject()) {
+            parsed.entries.push_back(categorized_file_from_json(value.toObject()));
+        }
+    }
+    if (parsed.entries.empty()) {
+        if (error) {
+            *error = "Review plan contains no entries to apply.";
+        }
+        return false;
+    }
+
+    *plan = std::move(parsed);
+    return true;
+}
+
 bool path_exists(const std::filesystem::path& path)
 {
     std::error_code ec;
@@ -283,7 +502,7 @@ bool path_is_supported_target(const std::filesystem::path& path)
            (std::filesystem::is_directory(path, ec) && !ec);
 }
 
-std::optional<std::string> validate_options(const HeadlessAnalysisCommand::Options& options)
+std::optional<std::string> validate_analysis_options(const HeadlessAnalysisCommand::Options& options)
 {
     if (options.operation == HeadlessAnalysisCommand::Operation::Unknown) {
         return "Missing or invalid headless operation.";
@@ -300,6 +519,29 @@ std::optional<std::string> validate_options(const HeadlessAnalysisCommand::Optio
         }
     }
     return std::nullopt;
+}
+
+std::optional<std::string> validate_review_apply_options(const HeadlessAnalysisCommand::Options& options)
+{
+    if (!options.review_file) {
+        return "A --review-file value is required for --headless-apply.";
+    }
+    if (!path_exists(*options.review_file)) {
+        return "Review file does not exist: " + Utils::path_to_utf8(*options.review_file);
+    }
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(*options.review_file, ec) || ec) {
+        return "Review file is not a regular file: " + Utils::path_to_utf8(*options.review_file);
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> validate_options(const HeadlessAnalysisCommand::Options& options)
+{
+    if (options.request_mode == HeadlessAnalysisCommand::RequestMode::ApplyReview) {
+        return validate_review_apply_options(options);
+    }
+    return validate_analysis_options(options);
 }
 
 bool is_directory_target(const std::filesystem::path& path)
@@ -488,6 +730,7 @@ int finish_analysis_run(const HeadlessAnalysisCommand::Options& options,
 
 int finish_review_required_run(const HeadlessAnalysisCommand::Options& options,
                                const HeadlessReviewApplyService::Result& apply_result,
+                               const std::filesystem::path& review_file,
                                const AnalysisRuntimeLock::Metadata& metadata,
                                std::ostream& out,
                                std::ostream& err)
@@ -496,9 +739,91 @@ int finish_review_required_run(const HeadlessAnalysisCommand::Options& options,
     message << "Headless " << HeadlessAnalysisCommand::operation_to_string(options.operation)
             << " prepared review. Review entries: " << apply_result.planned_count
             << ". No files were moved or renamed.";
-    const QJsonObject payload = apply_result_to_json(apply_result, true);
+    QJsonObject payload = apply_result_to_json(apply_result, true);
+    payload.insert(QStringLiteral("reviewFile"),
+                   QString::fromStdString(Utils::path_to_utf8(review_file)));
     emit_status(options, "review_required", message.str(), {}, metadata, out, err, &payload);
     return HeadlessAnalysisCommand::Success;
+}
+
+HeadlessAnalysisCommand::Options status_options_for_plan(
+    const HeadlessAnalysisCommand::Options& options,
+    const HeadlessReviewPlan& plan)
+{
+    HeadlessAnalysisCommand::Options status_options = options;
+    if (status_options.operation == HeadlessAnalysisCommand::Operation::Unknown) {
+        status_options.operation = plan.operation;
+    }
+    if (status_options.paths.empty()) {
+        status_options.paths = plan.paths;
+    }
+    return status_options;
+}
+
+int finish_review_apply_run(const HeadlessAnalysisCommand::Options& status_options,
+                            const HeadlessReviewApplyService::Result& apply_result,
+                            const std::filesystem::path& review_file,
+                            const AnalysisRuntimeLock::Metadata& metadata,
+                            std::ostream& out,
+                            std::ostream& err)
+{
+    std::ostringstream message;
+    message << "Headless " << HeadlessAnalysisCommand::operation_to_string(status_options.operation)
+            << " applied approved review. Review entries: " << apply_result.planned_count
+            << ". Moved: " << apply_result.moved_count
+            << ". Renamed: " << apply_result.renamed_count
+            << ". Skipped: " << apply_result.skipped_count << ".";
+    QJsonObject payload = apply_result_to_json(apply_result, false);
+    payload.insert(QStringLiteral("reviewFile"),
+                   QString::fromStdString(Utils::path_to_utf8(review_file)));
+    emit_status(status_options, "completed", message.str(), {}, metadata, out, err, &payload);
+    return HeadlessAnalysisCommand::Success;
+}
+
+int run_review_apply_plan(const HeadlessAnalysisCommand::Options& options,
+                          const AnalysisRuntimeLock::Metadata& metadata,
+                          std::ostream& out,
+                          std::ostream& err)
+{
+    HeadlessReviewPlan plan;
+    std::string read_error;
+    if (!read_review_plan_file(*options.review_file, &plan, &read_error)) {
+        emit_status(options,
+                    "failed",
+                    "Could not load approved headless review plan.",
+                    read_error,
+                    metadata,
+                    out,
+                    err);
+        return HeadlessAnalysisCommand::Failure;
+    }
+
+    const HeadlessAnalysisCommand::Options status_options =
+        status_options_for_plan(options, plan);
+    emit_status(status_options,
+                "running",
+                "Applying approved headless review plan.",
+                {},
+                metadata,
+                out,
+                err);
+
+    Settings settings;
+    settings.load();
+    DatabaseManager db_manager(settings.get_config_dir());
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService apply_service(&db_manager,
+                                             storage_provider,
+                                             Logger::get_logger("core_logger"));
+    HeadlessReviewApplyService::Options apply_options = plan.apply_options;
+    apply_options.apply_changes = true;
+    const auto apply_result = apply_service.apply(plan.entries, apply_options);
+    return finish_review_apply_run(status_options,
+                                   apply_result,
+                                   *options.review_file,
+                                   metadata,
+                                   out,
+                                   err);
 }
 
 } // namespace
@@ -532,6 +857,11 @@ HeadlessAnalysisCommand::ParseResult HeadlessAnalysisCommand::parse(int argc, ch
 
         const std::string argument = argv[i];
         if (argument == "--headless") {
+            result.consumed_arguments[static_cast<std::size_t>(i)] = true;
+            continue;
+        }
+        if (argument == "--headless-apply") {
+            result.options.request_mode = RequestMode::ApplyReview;
             result.consumed_arguments[static_cast<std::size_t>(i)] = true;
             continue;
         }
@@ -575,6 +905,12 @@ HeadlessAnalysisCommand::ParseResult HeadlessAnalysisCommand::parse(int argc, ch
             }
             continue;
         }
+        if (parse_value(argc, argv, i, argument, "--review-file", "--headless-review-file", &value, &result)) {
+            if (result.error.empty()) {
+                result.options.review_file = Utils::utf8_to_path(value);
+            }
+            continue;
+        }
         if (parse_value(argc, argv, i, argument, "--job-id", "--headless-job-id", &value, &result)) {
             if (result.error.empty()) {
                 result.options.job_id = value;
@@ -586,6 +922,7 @@ HeadlessAnalysisCommand::ParseResult HeadlessAnalysisCommand::parse(int argc, ch
             argument_has_prefix(argument, "--operation=") ||
             argument_has_prefix(argument, "--path=") ||
             argument_has_prefix(argument, "--status-file=") ||
+            argument_has_prefix(argument, "--review-file=") ||
             argument_has_prefix(argument, "--job-id=") ||
             is_value_argument(argument)) {
             result.consumed_arguments[static_cast<std::size_t>(i)] = true;
@@ -611,7 +948,9 @@ std::string HeadlessAnalysisCommand::usage_text()
     return "Usage: aifilesorter --headless --operation <categorize|rename|categorize-and-rename> "
            "--path <file-or-folder> [--path <file-or-folder> ...] "
            "[--status-file <json-file>] [--job-id <id>] "
-           "[--review-only|--auto-apply]\n";
+           "[--review-file <json-file>] [--review-only|--auto-apply]\n"
+           "       aifilesorter --headless-apply --review-file <json-file> "
+           "[--status-file <json-file>] [--job-id <id>]\n";
 }
 
 std::string HeadlessAnalysisCommand::operation_to_string(Operation operation)
@@ -695,6 +1034,10 @@ int HeadlessAnalysisCommand::run(const Options& options,
                 out,
                 err);
 
+    if (options.request_mode == RequestMode::ApplyReview) {
+        return run_review_apply_plan(options, lease->metadata(), out, err);
+    }
+
     std::string target_error;
     const auto target = resolve_headless_target(options, &target_error);
     if (!target) {
@@ -735,8 +1078,35 @@ int HeadlessAnalysisCommand::run(const Options& options,
                                                  host.core_logger());
         apply_result = apply_service.apply(host.review_entries(), apply_options);
         if (!apply_options.apply_changes && has_actionable_review_entries(*apply_result)) {
+            const auto review_file = review_file_path_for(options, runtime_dir);
+            if (!review_file) {
+                emit_status(options,
+                            "failed",
+                            "Could not prepare headless review.",
+                            "A review plan path could not be resolved.",
+                            lease->metadata(),
+                            out,
+                            err);
+                return ExitCode::Failure;
+            }
+            std::string review_plan_error;
+            if (!write_review_plan_file(*review_file,
+                                        options,
+                                        host.review_entries(),
+                                        apply_options,
+                                        &review_plan_error)) {
+                emit_status(options,
+                            "failed",
+                            "Could not write headless review plan.",
+                            review_plan_error,
+                            lease->metadata(),
+                            out,
+                            err);
+                return ExitCode::Failure;
+            }
             return finish_review_required_run(options,
                                               *apply_result,
+                                              *review_file,
                                               lease->metadata(),
                                               out,
                                               err);

@@ -37,6 +37,14 @@ public:
     };
 
     /**
+     * @brief High-level headless command mode.
+     */
+    enum class RequestMode {
+        Analyze,
+        ApplyReview
+    };
+
+    /**
      * @brief Process exit codes returned by the headless command.
      */
     enum ExitCode {
@@ -51,10 +59,12 @@ public:
      * @brief Parsed headless command options.
      */
     struct Options {
+        RequestMode request_mode{RequestMode::Analyze};
         Operation operation{Operation::Unknown};
         ApplyMode apply_mode{ApplyMode::UseSettings};
         std::vector<std::filesystem::path> paths;
         std::optional<std::filesystem::path> status_file;
+        std::optional<std::filesystem::path> review_file;
         std::string job_id;
     };
 

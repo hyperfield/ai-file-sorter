@@ -215,6 +215,13 @@ Procedure: Parse both argument sets.
 Expected outcome: The parsed options select `ReviewOnly` and `AutoApply` respectively without validation errors.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses apply mode flags"`
 
+#### Test case: HeadlessAnalysisCommand parses saved review apply requests
+Purpose: Verify the headless CLI accepts applying a previously saved review plan.
+Setup: Create temporary review/status paths and build an argv vector with `--headless-apply`.
+Procedure: Parse the arguments.
+Expected outcome: The parsed options select `ApplyReview`, preserve the review file, status file, and job id, and produce no validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses saved review apply requests"`
+
 #### Test case: HeadlessAnalysisCommand reports busy runtime lock
 Purpose: Ensure the headless command reports an existing Explorer/GUI analysis lock instead of running concurrently.
 Setup: Hold an `AnalysisRuntimeLock` as an Explorer worker and prepare a headless command with a status file.
@@ -240,8 +247,15 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached
 Purpose: Ensure Explorer/headless jobs honor the review-before-apply default and do not move files silently.
 Setup: Create a temporary target folder containing one cached `Documents / Reports` file with isolated settings.
 Procedure: Run the headless categorize command without an auto-apply override, inspect the file locations, and read the final status JSON.
-Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload, and reports zero moved/renamed/skipped apply counts.
+Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload and review plan file, and reports zero moved/renamed/skipped apply counts.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand prepares review before applying by default"`
+
+#### Test case: HeadlessAnalysisCommand applies saved review plan
+Purpose: Verify approval can apply the exact saved headless review plan without rerunning analysis.
+Setup: Create a cached categorization, run the default review-required command, and read the generated review plan path.
+Procedure: Run `HeadlessAnalysisCommand` in `ApplyReview` mode against the saved review plan.
+Expected outcome: The command moves the file according to the saved plan, writes `completed` status JSON, preserves the review plan path in status, and records moved/undo counts.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies saved review plan"`
 
 #### Test case: HeadlessAnalysisCommand categorizes only a selected file target
 Purpose: Verify a single file target runs the parent-folder workflow but applies only the selected file.
