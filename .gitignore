@@ -130,7 +130,8 @@ app/include/llama/*.h
 /reports/
 /logo-workdir-temp/
 /Testing/
-/changelog/
+/changelog/*
+!/changelog/*.md
 /models/
 /rd/
 /prototypes/
@@ -176,4 +177,3 @@ api-key-encryption/
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
-/changelog/
