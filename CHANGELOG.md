@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+## [1.9.0] - 2026-07-03
+
+- Added smart branching category whitelists: each main category can now define its own allowed subcategories, large/smart whitelists are reduced to relevant prompt candidates when needed, and invalid category/subcategory pairs are corrected after parsing.
+- Improved the whitelist editor with clearer top-level category, global subcategory, and category-specific subcategory sections. Global and category-specific subcategory modes are mutually exclusive so a whitelist has one clear constraint style.
+- Added file preview support to the Categorization Review dialog.
+- Added headless Explorer review gating so context-menu jobs can prepare saved review plans without moving or renaming files until explicitly approved.
+- Added structured project-folder protection for recursive scans. The scanner now skips recognized Unity, Unreal, Godot, Blender, Git, and common source-code project roots to avoid moving files that depend on project-relative paths or metadata.
+- Improved accessibility by adding screen-reader labels for main-window controls and progress announcements during analysis.
+- Added custom visual model support and configurable model storage in the LLM selection flow. Custom local GGUF entries can now supply a matching MMProj file for image analysis, and built-in local/visual downloads can share the configured model storage location.
+- Improved local backend/runtime handling.
+- Improved source-build and release packaging flows.
+- Miscellaneous bug fixes and improvements.
+
 ## [1.8.0] - 2026-05-10
 
 - Added backend status indicator to the status bar.
@@ -8,7 +21,7 @@
 - Improved local GPU startup and local visual model handling for better reliability and compatibility.
 - Added Gemma 3 4B IT and set it as the default visual model.
 - Added Gemma 3 4B IT and Gemma 1.1 7B as built-in local categorization model choices, replacing LLaMa 3B.
-- Improved image categorization quality and consistency by preserving image descriptions, using richer prompt context, adding special handling for screenshots and UI captures, and reducing drift equivalent between  category labels.
+- Improved image categorization quality and consistency by preserving image descriptions, using richer prompt context, adding special handling for screenshots and UI captures, and reducing drift between category labels.
 - Improved image analysis stability, fallback behavior, and model-download validation.
 - Added options to clear categorization and app caches, including a deeper reset of stored categorization state.
 - Added local learning from your review decisions to improve future suggestions.

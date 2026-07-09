@@ -516,7 +516,7 @@ SRCS := $(filter-out $(SRC_DIR)/MainAppTestAccess.cpp,$(SRCS))
 OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
 ONEDRIVE_PLUGIN_MAIN_SRC := $(PLUGIN_SRC_DIR)/onedrive_storage_plugin_main.cpp
 ONEDRIVE_PLUGIN_MAIN_OBJ := $(OBJ_DIR)/onedrive_storage_plugin_main.o
-ONEDRIVE_PLUGIN_SHARED_OBJ_NAMES := CloudPathSupport.o FileScanner.o LocalFsProvider.o Logger.o OneDriveStorageProvider.o Utils.o
+ONEDRIVE_PLUGIN_SHARED_OBJ_NAMES := CloudPathSupport.o FileScanner.o LocalFsProvider.o Logger.o OneDriveStorageProvider.o ProtectedProjectDetector.o Utils.o
 ONEDRIVE_PLUGIN_OBJS := $(ONEDRIVE_PLUGIN_MAIN_OBJ) $(addprefix $(OBJ_DIR)/,$(ONEDRIVE_PLUGIN_SHARED_OBJ_NAMES))
 DEPS = $(OBJS:.o=.d) $(ONEDRIVE_PLUGIN_OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
 BUILD_CONFIG_STAMP := $(OBJ_DIR)/.build-config

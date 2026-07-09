@@ -454,6 +454,17 @@ public:
     void set_development_prompt_logging(bool value);
 
     /**
+     * @brief Returns whether headless integrations should stop for review before applying.
+     * @return True when headless jobs must produce a review payload without filesystem changes.
+     */
+    bool get_headless_review_before_apply() const;
+    /**
+     * @brief Enables or disables review-before-apply behavior for headless integrations.
+     * @param value True to require explicit review approval before applying headless jobs.
+     */
+    void set_headless_review_before_apply(bool value);
+
+    /**
      * @brief Resolves the full path to the active `config.ini` file.
      * @return Platform-appropriate config file path.
      */
@@ -651,6 +662,7 @@ private:
     CategoryLanguage category_language{CategoryLanguage::English};
     bool consistency_pass_enabled{false};
     bool development_prompt_logging{false};
+    bool headless_review_before_apply{true};
     int categorized_file_count{0};
     int next_support_prompt_threshold{50};
     std::vector<std::string> allowed_categories;

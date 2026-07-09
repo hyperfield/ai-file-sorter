@@ -1581,7 +1581,9 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
     const auto analysis_started = std::chrono::steady_clock::now();
     const std::string image_path_utf8 = Utils::path_to_utf8(image_path);
     const auto bitmap_started = std::chrono::steady_clock::now();
-    BitmapPtr bitmap(mtmd_helper_bitmap_init_from_file(vision_ctx_, image_path_utf8.c_str()));
+    const auto loaded_bitmap =
+        mtmd_helper_bitmap_init_from_file(vision_ctx_, image_path_utf8.c_str(), false);
+    BitmapPtr bitmap(loaded_bitmap.bitmap);
     if (!bitmap) {
         throw std::runtime_error("Failed to load image for visual analysis: " + image_path_utf8);
     }

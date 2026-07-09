@@ -183,6 +183,136 @@ Procedure: Call `prepare_model_params_result_for_testing()` for a temporary mode
 Expected outcome: `n_gpu_layers` is `0` and the captured status is `GpuLowMemoryFallbackToCpu`.
 Run: `./build-tests/ai_file_sorter_tests "Vulkan backend reports low GPU memory before load"`
 
+### `tests/unit/test_analysis_runtime_lock.cpp`
+
+#### Test case: AnalysisRuntimeLock serializes active jobs and persists metadata
+Purpose: Ensure the shared runtime lock allows only one analysis owner and writes status metadata for other entry points.
+Setup: Create a writable temporary runtime directory and acquire the lock as the GUI owner.
+Procedure: Read the persisted metadata, attempt a competing Explorer-worker lock, release the GUI lease, and retry the Explorer-worker acquisition.
+Expected outcome: The competing acquisition is rejected while the GUI lease is active, metadata reflects the GUI job, and the Explorer-worker lease succeeds after release.
+Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock serializes active jobs and persists metadata"`
+
+#### Test case: AnalysisRuntimeLock owner strings are stable
+Purpose: Keep persisted lock owner values compatible across GUI, Explorer worker, and headless entry points.
+Setup: Use each supported runtime-lock owner enum.
+Procedure: Convert owners to strings and parse strings back to owners.
+Expected outcome: `gui`, `explorerWorker`, and `headless` round-trip to the expected owners, while unknown strings parse as `Unknown`.
+Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock owner strings are stable"`
+
+### `tests/unit/test_headless_analysis_command.cpp`
+
+#### Test case: HeadlessAnalysisCommand parses operation paths and status file
+Purpose: Verify the Explorer-facing command contract accepts operation, path, status-file, and job-id options.
+Setup: Create a temporary input file and build an argv vector for `--headless`.
+Procedure: Parse the arguments.
+Expected outcome: The command is marked requested, consumes the headless arguments, resolves the operation, and preserves the supplied path, status file, and job id.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses operation paths and status file"`
+
+#### Test case: HeadlessAnalysisCommand parses apply mode flags
+Purpose: Verify headless callers can explicitly request review-only or auto-apply behavior.
+Setup: Create a temporary input file and build argv vectors with `--review-only` and `--headless-auto-apply`.
+Procedure: Parse both argument sets.
+Expected outcome: The parsed options select `ReviewOnly` and `AutoApply` respectively without validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses apply mode flags"`
+
+#### Test case: HeadlessAnalysisCommand parses saved review apply requests
+Purpose: Verify the headless CLI accepts applying a previously saved review plan.
+Setup: Create temporary review/status paths and build an argv vector with `--headless-apply`.
+Procedure: Parse the arguments.
+Expected outcome: The parsed options select `ApplyReview`, preserve the review file, status file, and job id, and produce no validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses saved review apply requests"`
+
+#### Test case: HeadlessAnalysisCommand reports busy runtime lock
+Purpose: Ensure the headless command reports an existing Explorer/GUI analysis lock instead of running concurrently.
+Setup: Hold an `AnalysisRuntimeLock` as an Explorer worker and prepare a headless command with a status file.
+Procedure: Run the command.
+Expected outcome: The command exits with the busy code, writes `blocked` status JSON, and includes the lock owner metadata.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand reports busy runtime lock"`
+
+#### Test case: HeadlessAnalysisCommand runs categorization for an empty folder
+Purpose: Verify the headless command can execute the real analysis workflow for a folder target without invoking an LLM when no entries are pending.
+Setup: Create a temporary empty target folder, isolate app settings under a temporary config root, and prepare a headless categorize command with a status file.
+Procedure: Run the command and inspect the final status JSON and runtime lock.
+Expected outcome: The command exits successfully, writes `completed` status JSON with zero review entries, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand runs categorization for an empty folder"`
+
+#### Test case: HeadlessAnalysisCommand applies cached categorization for a folder
+Purpose: Verify the headless review/apply layer moves categorized files and emits machine-readable review/apply details.
+Setup: Create a temporary target folder containing one file, disable headless review-before-apply in isolated settings, insert a cached `Documents / Reports` categorization for that file, and prepare a headless categorize command.
+Procedure: Run the command, inspect the moved file, and read the final status JSON.
+Expected outcome: The command exits successfully, moves the file into the category/subcategory folder, saves an undo plan, and writes review/apply counts with one moved entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorization for a folder"`
+
+#### Test case: HeadlessAnalysisCommand prepares review before applying by default
+Purpose: Ensure Explorer/headless jobs honor the review-before-apply default and do not move files silently.
+Setup: Create a temporary target folder containing one cached `Documents / Reports` file with isolated settings.
+Procedure: Run the headless categorize command without an auto-apply override, inspect the file locations, and read the final status JSON.
+Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload and review plan file, and reports zero moved/renamed/skipped apply counts.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand prepares review before applying by default"`
+
+#### Test case: HeadlessAnalysisCommand applies saved review plan
+Purpose: Verify approval can apply the exact saved headless review plan without rerunning analysis.
+Setup: Create a cached categorization, run the default review-required command, and read the generated review plan path.
+Procedure: Run `HeadlessAnalysisCommand` in `ApplyReview` mode against the saved review plan.
+Expected outcome: The command moves the file according to the saved plan, writes `completed` status JSON, preserves the review plan path in status, and records moved/undo counts.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies saved review plan"`
+
+#### Test case: HeadlessAnalysisCommand categorizes only a selected file target
+Purpose: Verify a single file target runs the parent-folder workflow but applies only the selected file.
+Setup: Create a temporary target folder with one cached selected file and one uncached sibling, then pass the selected file path to the headless categorize command.
+Procedure: Run the command, inspect the selected and sibling files, and read the final status JSON.
+Expected outcome: Only the selected file is moved, the sibling remains in place, and the review/apply counts report one moved entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand categorizes only a selected file target"`
+
+#### Test case: HeadlessAnalysisCommand applies cached rename for a folder
+Purpose: Verify the headless rename operation applies cached suggested names without moving files into category folders.
+Setup: Create a temporary target folder containing a document, enable document rename suggestions in isolated settings, and insert a cached category row with a suggested filename.
+Procedure: Run the headless rename command, inspect the renamed file, and read the final status JSON.
+Expected outcome: The command exits successfully, renames the file in place, saves an undo plan, and reports one renamed entry with zero moved entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached rename for a folder"`
+
+#### Test case: HeadlessAnalysisCommand renames only a selected file target
+Purpose: Verify a single file rename target applies only that file's cached suggested name.
+Setup: Create a temporary target folder with one cached selected rename suggestion and one uncached sibling, then pass the selected file path to the headless rename command.
+Procedure: Run the command and inspect both source/destination pairs and final status JSON.
+Expected outcome: Only the selected file is renamed, the sibling remains in place, and the apply counts report one renamed entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand renames only a selected file target"`
+
+#### Test case: HeadlessAnalysisCommand skips rename when no cached suggestion exists
+Purpose: Verify rename-only headless apply skips files that have no suggested filename.
+Setup: Create a temporary target folder containing a cached categorized file without a suggested name.
+Procedure: Run the headless rename command and inspect the source file and final status JSON.
+Expected outcome: The command exits successfully, leaves the source file in place, and reports one skipped entry with zero moved or renamed entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand skips rename when no cached suggestion exists"`
+
+#### Test case: HeadlessAnalysisCommand applies cached categorize and rename for a folder
+Purpose: Verify the combined headless operation moves categorized files while applying cached suggested names.
+Setup: Create a temporary target folder containing a document, enable document rename suggestions, and insert a cached `Documents / Reports` categorization with a suggested filename.
+Procedure: Run the headless categorize-and-rename command, inspect the destination file, and read the final status JSON.
+Expected outcome: The command exits successfully, moves the file into the category/subcategory folder using the suggested filename, saves an undo plan, and reports one moved and renamed entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorize and rename for a folder"`
+
+#### Test case: HeadlessAnalysisCommand applies same-folder multi-select only
+Purpose: Verify same-folder multi-select file targets are applied without touching unselected siblings.
+Setup: Create a temporary target folder with two cached selected files and one uncached sibling, then pass two file paths to the headless categorize command.
+Procedure: Run the command, inspect selected and unselected files, and read the final status JSON.
+Expected outcome: Only the two selected files are moved, the unselected file remains in place, and the review/apply counts report two moved entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies same-folder multi-select only"`
+
+#### Test case: HeadlessReviewApplyService uses display folders and canonical storage
+Purpose: Verify headless apply mirrors the review dialog by moving into display-label folders while storing canonical taxonomy labels.
+Setup: Create a temporary file with a date-suffixed display category and canonical category metadata.
+Procedure: Apply the headless review plan with recursive cache updates enabled, inspect the moved file, and read the updated cache row.
+Expected outcome: The file is moved into the display category/subcategory path, an undo plan is saved, and the cache row stores the canonical category.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService uses display folders and canonical storage"`
+
+#### Test case: HeadlessAnalysisCommand rejects cross-folder file selections
+Purpose: Ensure unsupported cross-folder file selections release the runtime lock.
+Setup: Prepare a headless rename command with two file targets in different parent folders and a writable runtime directory.
+Procedure: Run the command and then inspect the runtime lock.
+Expected outcome: The command exits with the unsupported code, writes `failed` status JSON mentioning same-folder selections, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-folder file selections"`
+
 ### `tests/unit/test_single_instance_coordinator.cpp`
 
 #### Test case: SingleInstanceCoordinator notifies the primary instance on relaunch

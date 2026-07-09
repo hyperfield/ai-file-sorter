@@ -1,17 +1,26 @@
 #pragma once
 
-#include <string>
+#include "AnalysisRunResult.hpp"
+#include "AnalysisWorkflowContext.hpp"
 
-class MainApp;
+#include <string>
 
 /**
  * @brief Owns the end-to-end folder analysis workflow previously hosted in MainApp.
  */
 class AnalysisCoordinator {
 public:
-    explicit AnalysisCoordinator(MainApp& app);
+    /**
+     * @brief Create a workflow coordinator.
+     * @param context Host services, callbacks, and mutable analysis state.
+     */
+    explicit AnalysisCoordinator(AnalysisWorkflowContext context);
 
-    void execute();
+    /**
+     * @brief Execute the analysis workflow.
+     * @return Terminal status and error details for the run.
+     */
+    AnalysisRunResult execute();
 
     /**
      * @brief Resolve the prompt filename used for document categorization.
@@ -43,5 +52,5 @@ public:
                                                   const std::string& summary);
 
 private:
-    MainApp& app_;
+    AnalysisWorkflowContext app_;
 };

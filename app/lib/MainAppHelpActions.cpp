@@ -41,36 +41,36 @@ QString quick_start_resource_path(Language language)
 {
     switch (language) {
     case Language::Dutch:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_nl.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_nl.md");
     case Language::Swedish:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_sv.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_sv.md");
     case Language::Icelandic:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_is.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_is.md");
     case Language::Norwegian:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_nb.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_nb.md");
     case Language::Finnish:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_fi.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_fi.md");
     case Language::Danish:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_da.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_da.md");
     case Language::French:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_fr.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_fr.md");
     case Language::German:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_de.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_de.md");
     case Language::Hindi:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_hi.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_hi.md");
     case Language::Italian:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_it.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_it.md");
     case Language::Spanish:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_es.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_es.md");
     case Language::Turkish:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_tr.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_tr.md");
     case Language::Korean:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_ko.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_ko.md");
     case Language::SimplifiedChinese:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start_zh_cn.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_zh_cn.md");
     case Language::English:
     default:
-        return QStringLiteral(":/net/quicknode/AIFileSorter/help/quick_start.md");
+        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start.md");
     }
 }
 
@@ -128,7 +128,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
     auto* about_layout = new QVBoxLayout(about_tab);
     about_layout->setSpacing(8);
 
-    if (QPixmap logo_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png")); !logo_pix.isNull()) {
+    if (QPixmap logo_pix(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/logo.png")); !logo_pix.isNull()) {
         auto* logo_label = new QLabel(about_tab);
         logo_label->setAlignment(Qt::AlignHCenter);
         logo_label->setPixmap(logo_pix.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation));
@@ -146,7 +146,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
     about_layout->addWidget(version_label);
 
     auto* copyright_label =
-        new QLabel(QStringLiteral("© 2024-2026 QuickNode. All rights reserved."), about_tab);
+        new QLabel(QStringLiteral("© 2024-2026 HF Studio. All rights reserved."), about_tab);
     copyright_label->setAlignment(Qt::AlignHCenter);
     about_layout->addWidget(copyright_label);
 
@@ -164,11 +164,13 @@ void MainAppHelpActions::show_about(QWidget* parent)
     auto* credits_layout = new QVBoxLayout(credits_tab);
     credits_layout->setSpacing(8);
 
-    if (QPixmap qn_logo_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/qn_logo.png")); !qn_logo_pix.isNull()) {
-        auto* qn_logo = new QLabel(credits_tab);
-        qn_logo->setAlignment(Qt::AlignHCenter);
-        qn_logo->setPixmap(qn_logo_pix.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        credits_layout->addWidget(qn_logo);
+    if (QPixmap brand_logo_pix(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/hf_logo.png"));
+        !brand_logo_pix.isNull()) {
+        auto* brand_logo = new QLabel(credits_tab);
+        brand_logo->setAlignment(Qt::AlignHCenter);
+        brand_logo->setPixmap(
+            brand_logo_pix.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        credits_layout->addWidget(brand_logo);
     }
 
     auto* author_label = new QLabel(QStringLiteral("Author: hyperfield"), credits_tab);
@@ -176,7 +178,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
     credits_layout->addWidget(author_label);
 
     auto* author_details = new QLabel(QStringLiteral(
-        "Author's brand name is <a href=\"https://quicknode.net\">QN (QuickNode)</a>.<br>"
+        "Author's brand name is <a href=\"https://hfstudio.dev\">HF Studio</a>.<br>"
         "Source code on GitHub is <a href=\"https://github.com/hyperfield/ai-file-sorter\">here</a>."), credits_tab);
     author_details->setOpenExternalLinks(true);
     author_details->setAlignment(Qt::AlignHCenter);

@@ -1,19 +1,26 @@
 #include "AnalysisCoordinator.hpp"
 
 #include "AnalysisEntryRouter.hpp"
+#include "AnalysisProgress.hpp"
 #include "CategoryDateSuffix.hpp"
-#include "CategorizationProgressDialog.hpp"
+#include "CategorizationService.hpp"
+#include "DatabaseManager.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "FilenameLocalizationService.hpp"
+#include "ILLMClient.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "ImageRenameMetadataService.hpp"
 #include "LlavaImageAnalyzer.hpp"
-#include "MainApp.hpp"
 #include "MediaRenameMetadataService.hpp"
+#include "ResultsCoordinator.hpp"
+#include "Settings.hpp"
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
 
 #include <QByteArray>
+#include <QObject>
+
+#include <spdlog/logger.h>
 
 #include <algorithm>
 #include <atomic>
@@ -25,6 +32,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -181,8 +189,8 @@ size_t resolve_document_char_budget(bool using_local_llm, int max_output_tokens)
 
 } // namespace
 
-AnalysisCoordinator::AnalysisCoordinator(MainApp& app)
-    : app_(app)
+AnalysisCoordinator::AnalysisCoordinator(AnalysisWorkflowContext context)
+    : app_(std::move(context))
 {
 }
 
@@ -223,7 +231,7 @@ std::string AnalysisCoordinator::build_document_prompt_path(const std::string& f
     return prompt_path;
 }
 
-void AnalysisCoordinator::execute()
+AnalysisRunResult AnalysisCoordinator::execute()
 {
     const std::string directory_path = app_.get_folder_path();
     app_.core_logger->info("Starting analysis for directory '{}'", directory_path);
@@ -697,6 +705,9 @@ void AnalysisCoordinator::execute()
                                }),
                 app_.files_to_categorize.end());
         }
+        if (app_.filter_file_entries) {
+            app_.filter_file_entries(app_.files_to_categorize);
+        }
         app_.core_logger->debug("Found {} item(s) pending categorization in '{}'.",
                                 app_.files_to_categorize.size(),
                                 directory_path);
@@ -733,7 +744,7 @@ void AnalysisCoordinator::execute()
                                     cached_document_entries_for_analysis.end());
         }
 
-        using ProgressStageId = CategorizationProgressDialog::StageId;
+        using ProgressStageId = AnalysisProgressStageId;
 
         std::vector<FileEntry> image_stage_entries;
         image_stage_entries.reserve(image_entries.size());
@@ -789,7 +800,7 @@ void AnalysisCoordinator::execute()
             }
         }
 
-        std::vector<CategorizationProgressDialog::StagePlan> progress_stages;
+        std::vector<AnalysisProgressStagePlan> progress_stages;
         if (!image_stage_entries.empty()) {
             progress_stages.push_back({ProgressStageId::ImageAnalysis, image_stage_entries});
         }
@@ -869,7 +880,8 @@ void AnalysisCoordinator::execute()
                 const std::string& file_name,
                 const std::string& suggested_name,
                 bool should_localize) -> std::string {
-                if (!should_localize ||
+                if (!app_.localize_suggested_names ||
+                    !should_localize ||
                     suggested_name.empty() ||
                     rename_language == CategoryLanguage::English ||
                     to_lower(suggested_name) == to_lower(file_name)) {
@@ -1940,7 +1952,10 @@ void AnalysisCoordinator::execute()
             review_entries.insert(review_entries.end(), pending_renames.begin(), pending_renames.end());
         }
 
-        const auto actual_files = app_.results_coordinator.list_directory(app_.get_folder_path(), scan_options);
+        auto actual_files = app_.results_coordinator.list_directory(app_.get_folder_path(), scan_options);
+        if (app_.filter_file_entries) {
+            app_.filter_file_entries(actual_files);
+        }
         app_.new_files_to_sort = app_.results_coordinator.compute_files_to_sort(
             app_.get_folder_path(),
             scan_options,
@@ -1950,31 +1965,23 @@ void AnalysisCoordinator::execute()
         app_.core_logger->debug("{} file(s) queued for sorting after analysis.",
                                 app_.new_files_to_sort.size());
 
-        const bool cancelled = stop_requested;
-        MainApp* const app = &app_;
-        app_.run_on_ui([app, cancelled]() {
-            if (cancelled && app->new_files_to_sort.empty()) {
-                app->handle_analysis_cancelled();
-            } else {
-                app->handle_analysis_finished();
-            }
-        });
+        if (stop_requested && app_.new_files_to_sort.empty()) {
+            return {AnalysisRunStatus::Cancelled, {}};
+        }
+        return {AnalysisRunStatus::Completed, {}};
     } catch (const AnalysisCancelled& ex) {
         if (app_.core_logger) {
             app_.core_logger->info("Analysis cancelled: {}", ex.what());
         }
-        MainApp* const app = &app_;
-        app_.run_on_ui([app]() { app->handle_analysis_cancelled(); });
+        return {AnalysisRunStatus::Cancelled, {}};
     } catch (const std::exception& ex) {
         app_.core_logger->error("Exception during analysis: {}", ex.what());
         const bool cancelled =
             app_.stop_analysis.load() ||
             (app_.text_cpu_fallback_choice_.has_value() && !app_.text_cpu_fallback_choice_.value());
-        MainApp* const app = &app_;
         if (cancelled) {
-            app_.run_on_ui([app]() { app->handle_analysis_cancelled(); });
-        } else {
-            app_.post_analysis_failure(std::string("Analysis error: ") + ex.what());
+            return {AnalysisRunStatus::Cancelled, {}};
         }
+        return {AnalysisRunStatus::Failed, std::string("Analysis error: ") + ex.what()};
     }
 }

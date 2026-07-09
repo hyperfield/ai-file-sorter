@@ -278,7 +278,7 @@ std::filesystem::path Utils::ensure_ca_bundle() {
             if (needs_write) {
                 ensure_directory_exists(cert_dir.string());
 
-                QFile resource(QStringLiteral(":/net/quicknode/AIFileSorter/certs/cacert.pem"));
+                QFile resource(QStringLiteral(":/dev/hfstudio/AIFileSorter/certs/cacert.pem"));
                 if (!resource.open(QIODevice::ReadOnly)) {
                     throw std::runtime_error("Failed to open embedded CA bundle resource");
                 }

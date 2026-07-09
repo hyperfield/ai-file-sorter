@@ -631,7 +631,7 @@ aifs_add_translation_resources(aifilesorter)
 set(APP_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/qn_logo.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/hf_logo.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_512x512.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
@@ -661,8 +661,8 @@ set_source_files_properties(
     PROPERTIES QT_RESOURCE_ALIAS "images/logo.png"
 )
 set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/qn_logo.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/qn_logo.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/hf_logo.png"
+    PROPERTIES QT_RESOURCE_ALIAS "images/hf_logo.png"
 )
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"
@@ -738,7 +738,7 @@ set_source_files_properties(
 )
 
 qt_add_resources(aifilesorter "app_resources"
-    PREFIX "/net/quicknode/AIFileSorter"
+    PREFIX "/dev/hfstudio/AIFileSorter"
     FILES ${APP_RESOURCE_FILES}
 )
 
@@ -1415,6 +1415,8 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llava_image_analyzer.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_image_analyzer_factory.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_media_rename_metadata_service.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_analysis_runtime_lock.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_headless_analysis_command.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_single_instance_coordinator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_cuda_probe.cpp"
     )
@@ -1452,7 +1454,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     )
 
     qt_add_resources(ai_file_sorter_tests "ai_file_sorter_test_app_resources"
-        PREFIX "/net/quicknode/AIFileSorter"
+        PREFIX "/dev/hfstudio/AIFileSorter"
         FILES ${APP_RESOURCE_FILES}
     )
 

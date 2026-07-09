@@ -71,6 +71,7 @@ This keeps the first run low risk: your files stay on your computer when you use
   - [Features](#features)
   - [Categorization](#categorization)
     - [Categorization modes](#categorization-modes)
+    - [Category language selection](#category-language-selection)
     - [Category whitelists](#category-whitelists)
   - [Image analysis (Visual LLM)](#image-analysis-visual-llm)
     - [Required visual LLM files](#required-visual-llm-files)
@@ -105,6 +106,16 @@ This keeps the first run low risk: your files stay on your computer when you use
 
 ## Changelog
 
+## [1.9.0] - 2026-07-03
+
+- Added smart branching whitelists so categories can have their own allowed subcategories, with an improved whitelist editor that keeps global and category-specific subcategory modes mutually exclusive.
+- Added structured project-folder protection for recursive scans, covering Unity, Unreal, Godot, Blender, Git repositories, and common source-code project layouts.
+- Added file preview support in the Categorization Review dialog and improved accessibility labels/progress announcements for screen readers.
+- Added custom visual model support, configurable local model storage, and improved reuse of already-downloaded Gemma 3 4B model files.
+- Improved category and filename consistency by localizing suggested filenames, preserving UTF-8 metadata, stripping inline subcategory artifacts, and keeping date suffixes out of canonical cache labels.
+- Improved remote LLM handling with rate-limit/backoff parsing and optional request pacing.
+- Improved local runtime and release packaging reliability across Windows, Linux, and macOS, including safer backend probing, CUDA/Vulkan fallback handling, RPM packaging, and verified macOS release helpers.
+
 ## [1.8.0] - 2026-05-10
 
 - Added backend status indicator to the status bar.
@@ -113,7 +124,7 @@ This keeps the first run low risk: your files stay on your computer when you use
 - Improved local GPU startup and local visual model handling for better reliability and compatibility.
 - Added Gemma 3 4B IT and set it as the default visual model.
 - Added Gemma 3 4B IT and Gemma 1.1 7B as built-in local categorization model choices, replacing LLaMa 3B.
-- Improved image categorization quality and consistency by preserving image descriptions, using richer prompt context, adding special handling for screenshots and UI captures, and reducing drift equivalent between  category labels.
+- Improved image categorization quality and consistency by preserving image descriptions, using richer prompt context, adding special handling for screenshots and UI captures, and reducing drift between category labels.
 - Improved image analysis stability, fallback behavior, and model-download validation.
 - Added options to clear categorization and app caches, including a deeper reset of stored categorization state.
 - Added local learning from your review decisions to improve future suggestions.
@@ -130,7 +141,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Robust categorization**: Taxonomy and heuristics help keep labels more consistent across runs.
 - **Configurable categorization controls**: Use whitelists, taxonomy normalization, consistency modes, and review-time edits to steer categories and subcategories.
 - **Two categorization modes**: Pick **More Refined** for detailed labels or **More Consistent** to bias toward uniform categories within a folder.
-- **Category whitelists**: Define named whitelists of allowed categories/subcategories, manage them under **Settings → Manage category whitelists…**, and toggle/select them in the main window when you want to constrain model output for a session.
+- **Category whitelists**: Define named whitelists of allowed categories/subcategories, including smart branching lists where each main category has its own allowed subcategories. Manage them under **Settings → Manage category whitelists…**, then toggle/select them in the main window when you want to constrain model output for a session.
 - **Model-aware category and rename languages**: Categorization stays canonical in English first and then translates labels into the selected category language. Suggested filenames for images, documents, and supported audio/video metadata flows are also localized into that same selected language before review. The available languages depend on the selected local model; Gemma 3 4B and custom local models expose the full app-supported list, while smaller built-in models expose only their supported subset.
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog. Add a matching MMProj file to make a custom model available for image analysis as well.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends such as the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
@@ -174,7 +185,11 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 - Enable **Use a whitelist** to inject the selected whitelist into the LLM prompt; disable it to let the model choose freely.
 - Manage lists (add, edit, remove) under **Settings → Manage category whitelists…**. Built-in `Default` and `Documents` lists are auto-created only when no lists exist, and multiple named lists can be kept for different projects.
-- Keep each whitelist to roughly **15–20 categories/subcategories** to avoid overlong prompts on smaller local models. Use several narrower lists instead of a single very long one.
+- The whitelist editor has three sections. **Main categories / top-level folders** defines the destination category folders. **Global subcategories** defines subcategories that may be used under any main category. **Category-specific subcategories** defines smart branching rows where each main category has its own allowed subcategories.
+- **Global subcategories** and **Category-specific subcategories** are alternatives. If you enter values in one section, the other section is disabled/ignored for that whitelist so the app does not mix two incompatible constraint styles.
+- Smart branching is useful when the same broad top-level folders should contain different allowed subfolders. For example, `Documents -> Invoices, Receipts, Taxes` and `Images -> Screenshots, Photos` tells the app that `Screenshots` is valid under `Images`, but not under `Documents`.
+- The built-in `Documents` whitelist uses smart branching: the only top-level category is `Documents`, while topics such as invoices, receipts, taxes, contracts, reports, and notes are stored as `Documents` subcategories.
+- Narrow whitelists are still easiest for smaller local models, but large whitelists no longer need to dump every label into every prompt. When needed, the app reduces large and smart branching whitelists to relevant candidates plus valid category/subcategory pair guidance.
 - Whitelists apply in either categorization mode; pair them with **More consistent** when you want the strongest adherence to a constrained vocabulary.
 
 ---
@@ -908,6 +923,7 @@ Headless self-test mode:
 - `--self-test` runs deterministic self-tests from the production executable and exits with a pass/fail status instead of opening the main window.
 - `--self-test=whitelist` runs the deterministic large-whitelist suite explicitly. `--self-test=whitelists` is accepted as an alias.
 - The headless whitelist suite uses temporary app data, a large synthetic category list, learned-behavior fixtures, and a deterministic LLM stub. It verifies that large whitelists are reduced to relevant candidates, learned categories can outrank generic model output, and Unicode labels such as emoji survive the flow.
+- The full Catch2 unit suite extends this coverage with smart branching whitelist persistence, prompt construction, and valid category/subcategory pair enforcement.
 - On Windows GUI builds, add `--console-log` if you want to see the self-test output in the launching console.
 
 Windows updater live-test mode:

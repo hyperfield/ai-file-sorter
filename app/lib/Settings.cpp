@@ -522,6 +522,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     benchmark_last_run = config.getValue("Settings", "BenchmarkLastRun", "");
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
+    headless_review_before_apply = load_bool("HeadlessReviewBeforeApply", true);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
     if (config.hasValue("Settings", "Language")) {
         language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
@@ -654,6 +655,7 @@ void Settings::save_core_settings()
     set_optional_setting(config, settings_section, "BenchmarkLastRun", benchmark_last_run);
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
     set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
+    set_bool_setting(config, settings_section, "HeadlessReviewBeforeApply", headless_review_before_apply);
     config.setValue(settings_section, "Language", languageToString(language).toStdString());
     config.setValue(settings_section, "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
     config.setValue(settings_section, "CategorizedFileCount", std::to_string(categorized_file_count));
@@ -1251,6 +1253,16 @@ bool Settings::get_development_prompt_logging() const
 void Settings::set_development_prompt_logging(bool value)
 {
     development_prompt_logging = value;
+}
+
+bool Settings::get_headless_review_before_apply() const
+{
+    return headless_review_before_apply;
+}
+
+void Settings::set_headless_review_before_apply(bool value)
+{
+    headless_review_before_apply = value;
 }
 
 bool Settings::get_use_whitelist() const

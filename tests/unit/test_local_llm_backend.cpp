@@ -23,6 +23,12 @@ struct BackendProbeGuard {
     }
 };
 
+std::string env_value_or_empty(const char* key)
+{
+    const char* value = std::getenv(key);
+    return value ? std::string(value) : std::string();
+}
+
 } // namespace
 
 TEST_CASE("detect_preferred_backend reads environment") {
@@ -406,6 +412,31 @@ TEST_CASE("Vulkan backend falls back to CPU when unavailable") {
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
     REQUIRE(params.n_gpu_layers == 0);
+}
+
+TEST_CASE("LocalLLMClient force CPU option preserves caller backend environment") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", "cuda");
+    EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return true;
+    });
+
+    LocalLLMClient::Options options;
+    options.force_cpu_backend = true;
+
+    try {
+        LocalLLMClient client(model.path().string(), {}, options);
+        FAIL("Expected LocalLLMClient to throw due to invalid model");
+    } catch (const std::runtime_error& ex) {
+        REQUIRE(std::string(ex.what()).find("Failed to load model") != std::string::npos);
+    }
+
+    REQUIRE(env_value_or_empty("AI_FILE_SORTER_GPU_BACKEND") == "cuda");
+    REQUIRE(env_value_or_empty("LLAMA_ARG_DEVICE") == "cuda");
+    REQUIRE(env_value_or_empty("GGML_DISABLE_CUDA").empty());
 }
 
 TEST_CASE("LocalLLMClient declines GPU fallback when callback returns false") {

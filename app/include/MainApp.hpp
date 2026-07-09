@@ -3,6 +3,7 @@
 
 #include "CategorizationDialog.hpp"
 #include "CategorizationProgressDialog.hpp"
+#include "AnalysisRuntimeLock.hpp"
 #include "DatabaseManager.hpp"
 #include "CategorizationService.hpp"
 #include "ConsistencyPassService.hpp"
@@ -47,6 +48,7 @@ class QFileSystemModel;
 class QLineEdit;
 class QString;
 class QPushButton;
+class QTimer;
 class QToolButton;
 class QTreeView;
 class QStackedWidget;
@@ -57,7 +59,7 @@ class MainAppUiBuilder;
 class MainWindowStateBinder;
 class WhitelistManagerDialog;
 class SuitabilityBenchmarkDialog;
-class AnalysisCoordinator;
+struct AnalysisWorkflowContext;
 class StoragePluginManager;
 
 struct CategorizedFile;
@@ -236,6 +238,24 @@ private:
      */
     void run_llm_selection_dialog_for_visual();
     void update_analyze_button_state(bool analyzing);
+    /**
+     * @brief Starts polling for analysis jobs owned by other app entry points.
+     */
+    void start_analysis_runtime_lock_polling();
+    /**
+     * @brief Refreshes the Analyze button state from the shared runtime lock.
+     */
+    void refresh_analysis_runtime_lock_state();
+    /**
+     * @brief Attempts to acquire the shared analysis runtime lock for the GUI.
+     * @param folder_path Folder path about to be analyzed.
+     * @return True when the GUI owns the lock and analysis may begin.
+     */
+    bool acquire_analysis_runtime_lock(const std::string& folder_path);
+    /**
+     * @brief Releases any shared analysis runtime lock owned by the GUI.
+     */
+    void release_analysis_runtime_lock();
     void update_results_view_mode();
     void update_folder_contents(const QString& directory);
     void focus_file_explorer_on_path(const QString& path);
@@ -257,6 +277,11 @@ private:
     void populate_tree_view(const std::vector<CategorizedFile>& files);
 
     void perform_analysis();
+    /**
+     * @brief Builds the host context used by the analysis workflow.
+     * @return Context containing workflow services, state, and callbacks.
+     */
+    AnalysisWorkflowContext make_analysis_workflow_context();
     void stop_running_analysis();
     void show_llm_selection_dialog();
     void on_about_activate();
@@ -357,7 +382,6 @@ private:
     StorageSupportResolution resolve_storage_support(const StorageProviderDetection& detection) const;
 
     friend class MainAppUiBuilder;
-    friend class AnalysisCoordinator;
     friend class MainWindowStateBinder;
 #ifdef AI_FILE_SORTER_TEST_BUILD
     friend class MainAppTestAccess;
@@ -365,6 +389,7 @@ private:
 
     Settings& settings;
     std::string runtime_data_dir_;
+    AnalysisRuntimeLock analysis_runtime_lock_;
     DatabaseManager db_manager;
     UserLearningStore user_learning_store_;
     bool using_local_llm{false};
@@ -493,7 +518,10 @@ private:
     std::thread analyze_thread;
     std::jthread backend_status_probe_thread_;
     std::atomic<bool> stop_analysis{false};
+    std::optional<AnalysisRuntimeLock::Lease> analysis_runtime_lease_;
+    QTimer* analysis_runtime_lock_timer_{nullptr};
     bool analysis_in_progress_{false};
+    bool external_analysis_lock_active_{false};
     bool status_is_ready_{true};
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
