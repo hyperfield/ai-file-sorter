@@ -79,6 +79,7 @@ struct UiTranslatorTestHarness {
     QAction* copy_action = new QAction(&window);
     QAction* cut_action = new QAction(&window);
     QAction* undo_last_run_action = new QAction(&window);
+    QAction* review_history_action = new QAction(&window);
     QAction* paste_action = new QAction(&window);
     QAction* delete_action = new QAction(&window);
     QAction* toggle_explorer_action = new QAction(&window);
@@ -275,6 +276,7 @@ struct UiTranslatorTestHarness {
                 copy_action,
                 cut_action,
                 undo_last_run_action,
+                review_history_action,
                 paste_action,
                 delete_action,
                 toggle_explorer_action,
@@ -396,6 +398,8 @@ void verify_menus_and_actions(const UiTranslatorTestHarness& h)
     REQUIRE(h.language_menu->title() == QStringLiteral("Interface &language"));
     REQUIRE(h.category_language_menu->title() == QStringLiteral("Category &language"));
     REQUIRE(h.run_benchmark_action->text() == QStringLiteral("System compatibility check…"));
+    REQUIRE(h.review_history_action->text() ==
+            QStringLiteral("Rename and categorization history…"));
     REQUIRE(h.toggle_llm_action->text() == QStringLiteral("Select &LLM…"));
     REQUIRE(h.manage_storage_plugins_action->text() == QStringLiteral("Manage storage plugins…"));
     REQUIRE(h.manage_whitelists_action->text() == QStringLiteral("Manage category whitelists…"));

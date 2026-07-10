@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CategoryLanguage.hpp"
+#include "ReviewHistoryStore.hpp"
 #include "Types.hpp"
 
 #include <cstddef>
@@ -12,6 +13,7 @@
 
 class DatabaseManager;
 class IStorageProvider;
+struct StorageEntryMetadata;
 namespace spdlog { class logger; }
 
 /**
@@ -75,10 +77,12 @@ public:
      * @param db_manager Cache database to update after moves. May be null.
      * @param storage_provider Storage provider used for move operations.
      * @param logger Logger for diagnostics.
+     * @param history_store Optional persistent history store for successful moves.
      */
     HeadlessReviewApplyService(DatabaseManager* db_manager,
                                IStorageProvider& storage_provider,
-                               std::shared_ptr<spdlog::logger> logger);
+                               std::shared_ptr<spdlog::logger> logger,
+                               ReviewHistoryStore* history_store = nullptr);
 
     /**
      * @brief Build review records and optionally apply their moves.
@@ -119,7 +123,28 @@ private:
     bool persist_undo_plan(const Options& options,
                            const std::vector<MoveRecord>& move_history) const;
 
+    /**
+     * @brief Records a successful headless apply mutation in review history.
+     * @param entry Original categorized entry.
+     * @param operation Operation type stored in history.
+     * @param source Original path before the move.
+     * @param destination Final path after the move.
+     * @param destination_name Final file name.
+     * @param category Category label.
+     * @param subcategory Subcategory label.
+     * @param metadata Provider metadata captured after the move.
+     */
+    void record_history_entry(const CategorizedFile& entry,
+                              ReviewHistoryStore::Operation operation,
+                              const std::string& source,
+                              const std::string& destination,
+                              const std::string& destination_name,
+                              const std::string& category,
+                              const std::string& subcategory,
+                              const StorageEntryMetadata& metadata) const;
+
     DatabaseManager* db_manager_{nullptr};
     IStorageProvider& storage_provider_;
     std::shared_ptr<spdlog::logger> logger_;
+    ReviewHistoryStore* history_store_{nullptr};
 };

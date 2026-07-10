@@ -45,6 +45,8 @@ constexpr auto kActionSystemCompatibilityCheck =
 constexpr auto kActionCopy = QT_TRANSLATE_NOOP("UiTranslator", "&Copy");
 constexpr auto kActionCut = QT_TRANSLATE_NOOP("UiTranslator", "Cu&t");
 constexpr auto kActionUndoLastRun = QT_TRANSLATE_NOOP("UiTranslator", "Undo last run");
+constexpr auto kActionReviewHistory =
+    QT_TRANSLATE_NOOP("UiTranslator", "Rename and categorization history…");
 constexpr auto kActionPaste = QT_TRANSLATE_NOOP("UiTranslator", "&Paste");
 constexpr auto kActionDelete = QT_TRANSLATE_NOOP("UiTranslator", "&Delete");
 constexpr auto kActionFileExplorer = QT_TRANSLATE_NOOP("UiTranslator", "File &Explorer");
@@ -366,6 +368,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.copy_action, kActionCopy},
         {deps_.actions.cut_action, kActionCut},
         {deps_.actions.undo_last_run_action, kActionUndoLastRun},
+        {deps_.actions.review_history_action, kActionReviewHistory},
         {deps_.actions.paste_action, kActionPaste},
         {deps_.actions.delete_action, kActionDelete},
         {deps_.actions.toggle_explorer_action, kActionFileExplorer},

@@ -3,6 +3,7 @@
 #include "AnalysisRunResult.hpp"
 #include "AnalysisWorkflowContext.hpp"
 #include "CategoryLanguage.hpp"
+#include "HeadlessSettingsOverrides.hpp"
 #include "LocalFsProvider.hpp"
 #include "Settings.hpp"
 #include "Types.hpp"
@@ -48,6 +49,10 @@ public:
         std::vector<std::filesystem::path> selected_paths;
         /** @brief Requested operation mode for this run. */
         OperationMode operation_mode{OperationMode::Categorize};
+        /** @brief Optional override for recursive scanning in headless integrations. */
+        std::optional<bool> include_subdirectories;
+        /** @brief Optional non-persistent settings overlay for headless integrations. */
+        HeadlessSettingsOverrides settings_overrides;
         /** @brief Optional progress callback receiving translated progress text. */
         std::function<void(const std::string&)> progress_callback;
     };
@@ -163,6 +168,11 @@ private:
      * @brief Import whitelist taxonomy candidates into the user learning store.
      */
     void sync_whitelists_to_learning_store();
+
+    /**
+     * @brief Apply integration-provided settings without persisting them.
+     */
+    void apply_settings_overrides();
 
     /**
      * @brief Apply command-specific behavior without persisting user settings.

@@ -54,6 +54,10 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
     : options_(std::move(options))
 {
     settings_.load();
+    if (options_.include_subdirectories) {
+        settings_.set_include_subdirectories(*options_.include_subdirectories);
+    }
+    apply_settings_overrides();
     apply_operation_settings_overlay();
     runtime_data_dir_ = settings_.get_config_dir();
     core_logger_ = resolve_core_logger();
@@ -382,6 +386,74 @@ void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
         settings_.set_rename_images_only(false);
         settings_.set_rename_documents_only(false);
         return;
+    }
+}
+
+void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
+{
+    const HeadlessSettingsOverrides& overrides = options_.settings_overrides;
+    if (overrides.use_subcategories) {
+        settings_.set_use_subcategories(*overrides.use_subcategories);
+    }
+    if (overrides.use_consistency_hints) {
+        settings_.set_use_consistency_hints(*overrides.use_consistency_hints);
+    }
+    if (overrides.use_whitelist) {
+        settings_.set_use_whitelist(*overrides.use_whitelist);
+    }
+    if (overrides.active_whitelist) {
+        settings_.set_active_whitelist(*overrides.active_whitelist);
+    }
+    if (overrides.categorize_files) {
+        settings_.set_categorize_files(*overrides.categorize_files);
+    }
+    if (overrides.categorize_directories) {
+        settings_.set_categorize_directories(*overrides.categorize_directories);
+    }
+    if (overrides.include_subdirectories) {
+        settings_.set_include_subdirectories(*overrides.include_subdirectories);
+    }
+    if (overrides.analyze_images_by_content) {
+        settings_.set_analyze_images_by_content(*overrides.analyze_images_by_content);
+    }
+    if (overrides.process_images_only) {
+        settings_.set_process_images_only(*overrides.process_images_only);
+    }
+    if (overrides.add_image_date_to_category) {
+        settings_.set_add_image_date_to_category(*overrides.add_image_date_to_category);
+    }
+    if (overrides.add_image_date_place_to_filename) {
+        settings_.set_add_image_date_place_to_filename(*overrides.add_image_date_place_to_filename);
+    }
+    if (overrides.offer_rename_images) {
+        settings_.set_offer_rename_images(*overrides.offer_rename_images);
+    }
+    if (overrides.rename_images_only) {
+        settings_.set_rename_images_only(*overrides.rename_images_only);
+    }
+    if (overrides.add_audio_video_metadata_to_filename) {
+        settings_.set_add_audio_video_metadata_to_filename(*overrides.add_audio_video_metadata_to_filename);
+    }
+    if (overrides.analyze_documents_by_content) {
+        settings_.set_analyze_documents_by_content(*overrides.analyze_documents_by_content);
+    }
+    if (overrides.process_documents_only) {
+        settings_.set_process_documents_only(*overrides.process_documents_only);
+    }
+    if (overrides.offer_rename_documents) {
+        settings_.set_offer_rename_documents(*overrides.offer_rename_documents);
+    }
+    if (overrides.rename_documents_only) {
+        settings_.set_rename_documents_only(*overrides.rename_documents_only);
+    }
+    if (overrides.add_document_date_to_category) {
+        settings_.set_add_document_date_to_category(*overrides.add_document_date_to_category);
+    }
+    if (overrides.language) {
+        settings_.set_language(*overrides.language);
+    }
+    if (overrides.category_language) {
+        settings_.set_category_language(*overrides.category_language);
     }
 }
 

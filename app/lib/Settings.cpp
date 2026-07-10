@@ -523,6 +523,10 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
     headless_review_before_apply = load_bool("HeadlessReviewBeforeApply", true);
+    review_auto_approve_filename_changes =
+        load_bool("ReviewAutoApproveFilenameChanges", false);
+    review_auto_approve_categorization =
+        load_bool("ReviewAutoApproveCategorization", false);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
     if (config.hasValue("Settings", "Language")) {
         language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
@@ -656,6 +660,14 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
     set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
     set_bool_setting(config, settings_section, "HeadlessReviewBeforeApply", headless_review_before_apply);
+    set_bool_setting(config,
+                     settings_section,
+                     "ReviewAutoApproveFilenameChanges",
+                     review_auto_approve_filename_changes);
+    set_bool_setting(config,
+                     settings_section,
+                     "ReviewAutoApproveCategorization",
+                     review_auto_approve_categorization);
     config.setValue(settings_section, "Language", languageToString(language).toStdString());
     config.setValue(settings_section, "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
     config.setValue(settings_section, "CategorizedFileCount", std::to_string(categorized_file_count));
@@ -1263,6 +1275,26 @@ bool Settings::get_headless_review_before_apply() const
 void Settings::set_headless_review_before_apply(bool value)
 {
     headless_review_before_apply = value;
+}
+
+bool Settings::get_review_auto_approve_filename_changes() const
+{
+    return review_auto_approve_filename_changes;
+}
+
+void Settings::set_review_auto_approve_filename_changes(bool value)
+{
+    review_auto_approve_filename_changes = value;
+}
+
+bool Settings::get_review_auto_approve_categorization() const
+{
+    return review_auto_approve_categorization;
+}
+
+void Settings::set_review_auto_approve_categorization(bool value)
+{
+    review_auto_approve_categorization = value;
 }
 
 bool Settings::get_use_whitelist() const

@@ -25,6 +25,7 @@
 #include "CategoryLanguage.hpp"
 #include "CategoryLanguageSupport.hpp"
 #include "MainAppUiBuilder.hpp"
+#include "ReviewHistoryDialog.hpp"
 #include "SuitabilityBenchmarkDialog.hpp"
 #include "UiTranslator.hpp"
 #include "UpdaterBuildConfig.hpp"
@@ -559,6 +560,7 @@ MainApp::MainApp(Settings& settings,
       storage_provider_registry_(),
       active_storage_provider_(std::make_shared<LocalFsProvider>()),
       results_coordinator(*active_storage_provider_),
+      review_history_store_(runtime_data_dir_),
       undo_manager_(runtime_data_dir_ + "/undo", &storage_provider_registry_),
       development_mode_(development_mode),
       test_mode_(test_mode),
@@ -2068,6 +2070,21 @@ void MainApp::undo_last_run()
     }
 }
 
+void MainApp::show_review_history_dialog()
+{
+    if (!active_storage_provider_) {
+        show_error_dialog("No storage provider is available for history undo.");
+        return;
+    }
+    if (!review_history_store_.is_open()) {
+        show_error_dialog("The review history database is not available.");
+        return;
+    }
+
+    ReviewHistoryDialog dialog(review_history_store_, *active_storage_provider_, this);
+    dialog.exec();
+}
+
 bool MainApp::perform_undo_from_plan(const QString& plan_path)
 {
     const auto res = undo_manager_.undo_plan(plan_path);
@@ -3104,12 +3121,19 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
                                                                        undo_dir,
                                                                        settings.get_category_language(),
                                                                        this,
-                                                                       &user_learning_store_);
+                                                                       &user_learning_store_,
+                                                                       &review_history_store_);
         categorization_dialog->show_results(results,
                                             get_folder_path(),
                                             settings.get_include_subdirectories(),
                                             settings.get_offer_rename_images(),
-                                            settings.get_offer_rename_documents());
+                                            settings.get_offer_rename_documents(),
+                                            settings.get_review_auto_approve_filename_changes(),
+                                            settings.get_review_auto_approve_categorization());
+        settings.set_review_auto_approve_filename_changes(
+            categorization_dialog->review_auto_approve_filename_changes_enabled());
+        settings.set_review_auto_approve_categorization(
+            categorization_dialog->review_auto_approve_categorization_enabled());
 
         const int newly_analyzed = static_cast<int>(std::count_if(
             results.begin(),

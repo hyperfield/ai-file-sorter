@@ -463,6 +463,26 @@ public:
      * @param value True to require explicit review approval before applying headless jobs.
      */
     void set_headless_review_before_apply(bool value);
+    /**
+     * @brief Returns whether the review dialog should preselect actionable filename changes.
+     * @return True when filename auto-approval is enabled.
+     */
+    bool get_review_auto_approve_filename_changes() const;
+    /**
+     * @brief Enables or disables automatic approval of filename changes.
+     * @param value True to preselect actionable filename changes.
+     */
+    void set_review_auto_approve_filename_changes(bool value);
+    /**
+     * @brief Returns whether the review dialog should preselect actionable categorization rows.
+     * @return True when categorization auto-approval is enabled.
+     */
+    bool get_review_auto_approve_categorization() const;
+    /**
+     * @brief Enables or disables automatic approval of categorization rows.
+     * @param value True to preselect actionable categorization rows.
+     */
+    void set_review_auto_approve_categorization(bool value);
 
     /**
      * @brief Resolves the full path to the active `config.ini` file.
@@ -663,6 +683,8 @@ private:
     bool consistency_pass_enabled{false};
     bool development_prompt_logging{false};
     bool headless_review_before_apply{true};
+    bool review_auto_approve_filename_changes{false};
+    bool review_auto_approve_categorization{false};
     int categorized_file_count{0};
     int next_support_prompt_threshold{50};
     std::vector<std::string> allowed_categories;

@@ -164,6 +164,59 @@ TEST_CASE("HeadlessAnalysisCommand parses apply mode flags")
     CHECK(apply_parsed.options.apply_mode == HeadlessAnalysisCommand::ApplyMode::AutoApply);
 }
 
+TEST_CASE("HeadlessAnalysisCommand parses include subdirectories override")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const std::filesystem::path target = make_file(dir, QStringLiteral("input.txt"));
+
+    std::string target_arg = target.string();
+    char arg0[] = "aifilesorter";
+    char arg1[] = "--headless";
+    char arg2[] = "--operation=rename";
+    char arg3[] = "--path";
+    char arg5[] = "--include-subdirectories";
+    char* include_argv[] = {arg0, arg1, arg2, arg3, target_arg.data(), arg5};
+
+    const auto include_parsed = HeadlessAnalysisCommand::parse(6, include_argv);
+    REQUIRE(include_parsed.requested);
+    CHECK(include_parsed.error.empty());
+    REQUIRE(include_parsed.options.include_subdirectories.has_value());
+    CHECK(*include_parsed.options.include_subdirectories);
+
+    char arg6[] = "--headless-no-include-subdirectories";
+    char* exclude_argv[] = {arg0, arg1, arg2, arg3, target_arg.data(), arg6};
+    const auto exclude_parsed = HeadlessAnalysisCommand::parse(6, exclude_argv);
+    REQUIRE(exclude_parsed.requested);
+    CHECK(exclude_parsed.error.empty());
+    REQUIRE(exclude_parsed.options.include_subdirectories.has_value());
+    CHECK_FALSE(*exclude_parsed.options.include_subdirectories);
+}
+
+TEST_CASE("HeadlessAnalysisCommand parses settings overrides file")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const std::filesystem::path target = make_file(dir, QStringLiteral("input.txt"));
+    const std::filesystem::path overrides =
+        std::filesystem::path(dir.path().toStdString()) / "settings-overrides.json";
+
+    std::string target_arg = target.string();
+    std::string overrides_arg = overrides.string();
+    char arg0[] = "aifilesorter";
+    char arg1[] = "--headless";
+    char arg2[] = "--operation=categorize";
+    char arg3[] = "--path";
+    char arg5[] = "--settings-overrides-file";
+    char* argv[] = {arg0, arg1, arg2, arg3, target_arg.data(), arg5, overrides_arg.data()};
+
+    const auto parsed = HeadlessAnalysisCommand::parse(7, argv);
+    REQUIRE(parsed.requested);
+    CHECK(parsed.error.empty());
+    REQUIRE(parsed.options.settings_overrides_file.has_value());
+    CHECK(*parsed.options.settings_overrides_file == overrides);
+}
+
 TEST_CASE("HeadlessAnalysisCommand parses saved review apply requests")
 {
     QTemporaryDir dir;

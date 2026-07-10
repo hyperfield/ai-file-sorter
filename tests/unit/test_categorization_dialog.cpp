@@ -6,6 +6,7 @@
 #include "Language.hpp"
 #include "Logger.hpp"
 #include "LocalFsProvider.hpp"
+#include "ReviewHistoryStore.hpp"
 #include "StorageProviderRegistry.hpp"
 #include "TestHooks.hpp"
 #include "TestHelpers.hpp"
@@ -196,6 +197,58 @@ TEST_CASE("CategorizationDialog supports sorting by columns") {
     }
 }
 
+TEST_CASE("CategorizationDialog auto-approves rows by enabled operation") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    CategorizedFile rename_only = sample_file();
+    rename_only.file_name = "rename-only.txt";
+    rename_only.category.clear();
+    rename_only.subcategory.clear();
+    rename_only.rename_only = true;
+    rename_only.suggested_name = "renamed.txt";
+
+    CategorizedFile categorized = sample_file();
+    categorized.file_name = "categorized.txt";
+
+    CategorizedFile combined = sample_file();
+    combined.file_name = "combined.txt";
+    combined.suggested_name = "combined-renamed.txt";
+
+    CategorizedFile incomplete = sample_file();
+    incomplete.file_name = "incomplete.txt";
+    incomplete.category.clear();
+    incomplete.subcategory.clear();
+
+    TempDir undo_dir;
+    CategorizationDialog dialog(nullptr, true, undo_dir.path().string());
+    dialog.set_review_auto_approve_filename_changes_enabled(true);
+    dialog.test_set_entries({rename_only, categorized, combined, incomplete});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+    REQUIRE(model->rowCount() == 4);
+
+    CHECK(model->item(0, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(1, 0)->checkState() == Qt::Unchecked);
+    CHECK(model->item(2, 0)->checkState() == Qt::Unchecked);
+    CHECK(model->item(3, 0)->checkState() == Qt::Unchecked);
+
+    dialog.set_review_auto_approve_categorization_enabled(true);
+    CHECK(model->item(0, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(1, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(2, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(3, 0)->checkState() == Qt::Unchecked);
+
+    dialog.set_review_auto_approve_filename_changes_enabled(false);
+    CHECK(model->item(0, 0)->checkState() == Qt::Unchecked);
+    CHECK(model->item(1, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(2, 0)->checkState() == Qt::Unchecked);
+    CHECK(model->item(3, 0)->checkState() == Qt::Unchecked);
+}
+
 TEST_CASE("CategorizationDialog undo restores moved files") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
@@ -231,6 +284,61 @@ TEST_CASE("CategorizationDialog undo restores moved files") {
     REQUIRE(std::filesystem::exists(source));
     REQUIRE_FALSE(std::filesystem::exists(destination));
     REQUIRE_FALSE(dialog.test_undo_enabled());
+}
+
+TEST_CASE("CategorizationDialog records applied review history with descriptions")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir history_dir;
+    ReviewHistoryStore history_store(history_dir.path().string());
+    REQUIRE(history_store.is_open());
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "picnic.jpg";
+    const std::filesystem::path source = base / file_name;
+    std::ofstream(source).put('x');
+
+    CategorizedFile file;
+    file.file_path = base.string();
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "Photos";
+    file.subcategory = "Family";
+    file.learning_context = "Image description: Sunny picnic near the lake.";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr,
+                                true,
+                                undo_dir_for_dialog.path().string(),
+                                CategoryLanguage::English,
+                                nullptr,
+                                nullptr,
+                                &history_store);
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+
+    const std::filesystem::path destination = base / file.category / file.subcategory / file_name;
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    auto entries = history_store.entries();
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().operation == ReviewHistoryStore::Operation::Categorize);
+    CHECK(entries.front().original_file_name == file_name);
+    CHECK(entries.front().final_file_name == file_name);
+    CHECK(entries.front().category == "Photos");
+    CHECK(entries.front().subcategory == "Family");
+    CHECK(entries.front().file_description == "Sunny picnic near the lake.");
+    CHECK_FALSE(entries.front().undone);
+
+    dialog.test_trigger_undo();
+    entries = history_store.entries();
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().undone);
 }
 
 TEST_CASE("CategorizationDialog keeps date category suffixes out of stored canonical categories")

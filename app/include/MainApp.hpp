@@ -8,6 +8,7 @@
 #include "CategorizationService.hpp"
 #include "ConsistencyPassService.hpp"
 #include "ResultsCoordinator.hpp"
+#include "ReviewHistoryStore.hpp"
 #include "ILLMClient.hpp"
 #include "Settings.hpp"
 #include "StoragePluginLoader.hpp"
@@ -315,6 +316,10 @@ private:
     void record_categorized_metrics(int count);
     SupportPromptResult show_support_prompt_dialog(int categorized_files);
     void undo_last_run();
+    /**
+     * @brief Opens the searchable rename/categorization history dialog.
+     */
+    void show_review_history_dialog();
     bool perform_undo_from_plan(const QString& plan_path);
     void show_suitability_benchmark_dialog(bool auto_start);
     void maybe_show_suitability_benchmark();
@@ -459,6 +464,7 @@ private:
     QAction* paste_action{nullptr};
     QAction* delete_action{nullptr};
     QAction* undo_last_run_action{nullptr};
+    QAction* review_history_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
     QAction* manage_storage_plugins_action{nullptr};
@@ -509,6 +515,7 @@ private:
     StorageProviderRegistry storage_provider_registry_;
     std::shared_ptr<IStorageProvider> active_storage_provider_;
     ResultsCoordinator results_coordinator;
+    ReviewHistoryStore review_history_store_;
     UndoManager undo_manager_;
     bool development_mode_{false};
     bool test_mode_{false};

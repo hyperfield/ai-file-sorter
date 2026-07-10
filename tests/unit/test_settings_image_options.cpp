@@ -130,6 +130,25 @@ TEST_CASE("Settings persists options group expansion state") {
     REQUIRE_FALSE(reloaded.get_document_options_expanded());
 }
 
+TEST_CASE("Settings persists review auto-approve operation options") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_review_auto_approve_filename_changes(true);
+    settings.set_review_auto_approve_categorization(true);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_review_auto_approve_filename_changes());
+    REQUIRE(reloaded.get_review_auto_approve_categorization());
+}
+
 TEST_CASE("Settings persists image EXIF date/place rename toggle") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());

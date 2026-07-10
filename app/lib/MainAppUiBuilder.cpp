@@ -571,6 +571,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.copy_action,
             app.cut_action,
             app.undo_last_run_action,
+            app.review_history_action,
             app.paste_action,
             app.delete_action,
             app.toggle_explorer_action,
@@ -663,6 +664,16 @@ void MainAppUiBuilder::build_edit_menu(MainApp& app) {
 
     app.undo_last_run_action = app.edit_menu->addAction(icon_for(app, "edit-undo", QStyle::SP_ArrowBack), QString());
     QObject::connect(app.undo_last_run_action, &QAction::triggered, &app, &MainApp::undo_last_run);
+
+    app.review_history_action = app.edit_menu->addAction(
+        icon_for(app, "view-history", QStyle::SP_FileDialogDetailedView),
+        QString());
+    QObject::connect(app.review_history_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::show_review_history_dialog);
+
+    app.edit_menu->addSeparator();
 
     app.copy_action = app.edit_menu->addAction(icon_for(app, "edit-copy", QStyle::SP_FileDialogContentsView), QString());
     QObject::connect(app.copy_action, &QAction::triggered, &app, [&app]() {

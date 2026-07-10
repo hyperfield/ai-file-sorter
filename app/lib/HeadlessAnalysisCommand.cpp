@@ -6,6 +6,7 @@
 #include "HeadlessReviewApplyService.hpp"
 #include "LocalFsProvider.hpp"
 #include "Logger.hpp"
+#include "ReviewHistoryStore.hpp"
 #include "Settings.hpp"
 #include "Utils.hpp"
 
@@ -85,7 +86,9 @@ bool is_value_argument(const std::string& argument)
            argument == "--path" || argument == "--headless-path" ||
            argument == "--status-file" || argument == "--headless-status-file" ||
            argument == "--job-id" || argument == "--headless-job-id" ||
-           argument == "--review-file" || argument == "--headless-review-file";
+           argument == "--review-file" || argument == "--headless-review-file" ||
+           argument == "--settings-overrides-file" ||
+           argument == "--headless-settings-overrides-file";
 }
 
 bool parse_value(int argc,
@@ -357,6 +360,124 @@ HeadlessReviewApplyService::Options apply_options_from_json(const QJsonObject& o
         categoryLanguageFromString(object.value(QStringLiteral("categoryLanguage")).toString());
     options.apply_changes = true;
     return options;
+}
+
+std::optional<bool> optional_bool_from_json(const QJsonObject& object, QStringView key)
+{
+    const QJsonValue value = object.value(key);
+    if (!value.isBool()) {
+        return std::nullopt;
+    }
+    return value.toBool();
+}
+
+template <typename Setter>
+void set_optional_bool(const QJsonObject& object, QStringView key, Setter setter)
+{
+    if (const auto value = optional_bool_from_json(object, key)) {
+        setter(*value);
+    }
+}
+
+HeadlessSettingsOverrides settings_overrides_from_json(const QJsonObject& object)
+{
+    HeadlessSettingsOverrides overrides;
+    set_optional_bool(object, QStringLiteral("useSubcategories"), [&](bool value) {
+        overrides.use_subcategories = value;
+    });
+    set_optional_bool(object, QStringLiteral("useConsistencyHints"), [&](bool value) {
+        overrides.use_consistency_hints = value;
+    });
+    set_optional_bool(object, QStringLiteral("useWhitelist"), [&](bool value) {
+        overrides.use_whitelist = value;
+    });
+    const QJsonValue active_whitelist = object.value(QStringLiteral("activeWhitelist"));
+    if (active_whitelist.isString()) {
+        overrides.active_whitelist = active_whitelist.toString().toStdString();
+    }
+    set_optional_bool(object, QStringLiteral("categorizeFiles"), [&](bool value) {
+        overrides.categorize_files = value;
+    });
+    set_optional_bool(object, QStringLiteral("categorizeDirectories"), [&](bool value) {
+        overrides.categorize_directories = value;
+    });
+    set_optional_bool(object, QStringLiteral("includeSubdirectories"), [&](bool value) {
+        overrides.include_subdirectories = value;
+    });
+    set_optional_bool(object, QStringLiteral("analyzeImagesByContent"), [&](bool value) {
+        overrides.analyze_images_by_content = value;
+    });
+    set_optional_bool(object, QStringLiteral("processImagesOnly"), [&](bool value) {
+        overrides.process_images_only = value;
+    });
+    set_optional_bool(object, QStringLiteral("addImageDateToCategory"), [&](bool value) {
+        overrides.add_image_date_to_category = value;
+    });
+    set_optional_bool(object, QStringLiteral("addImageDatePlaceToFilename"), [&](bool value) {
+        overrides.add_image_date_place_to_filename = value;
+    });
+    set_optional_bool(object, QStringLiteral("offerRenameImages"), [&](bool value) {
+        overrides.offer_rename_images = value;
+    });
+    set_optional_bool(object, QStringLiteral("renameImagesOnly"), [&](bool value) {
+        overrides.rename_images_only = value;
+    });
+    set_optional_bool(object, QStringLiteral("addAudioVideoMetadataToFilename"), [&](bool value) {
+        overrides.add_audio_video_metadata_to_filename = value;
+    });
+    set_optional_bool(object, QStringLiteral("analyzeDocumentsByContent"), [&](bool value) {
+        overrides.analyze_documents_by_content = value;
+    });
+    set_optional_bool(object, QStringLiteral("processDocumentsOnly"), [&](bool value) {
+        overrides.process_documents_only = value;
+    });
+    set_optional_bool(object, QStringLiteral("offerRenameDocuments"), [&](bool value) {
+        overrides.offer_rename_documents = value;
+    });
+    set_optional_bool(object, QStringLiteral("renameDocumentsOnly"), [&](bool value) {
+        overrides.rename_documents_only = value;
+    });
+    set_optional_bool(object, QStringLiteral("addDocumentDateToCategory"), [&](bool value) {
+        overrides.add_document_date_to_category = value;
+    });
+
+    const QJsonValue language = object.value(QStringLiteral("language"));
+    if (language.isString()) {
+        overrides.language = languageFromString(language.toString());
+    }
+    const QJsonValue category_language = object.value(QStringLiteral("categoryLanguage"));
+    if (category_language.isString()) {
+        overrides.category_language = categoryLanguageFromString(category_language.toString());
+    }
+    return overrides;
+}
+
+bool read_settings_overrides_file(const std::filesystem::path& path,
+                                  HeadlessSettingsOverrides* overrides,
+                                  std::string* error)
+{
+    if (!overrides) {
+        return false;
+    }
+    QFile file(to_qstring(path));
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (error) {
+            *error = "Could not open the headless settings overrides file.";
+        }
+        return false;
+    }
+
+    QJsonParseError parse_error;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError || !document.isObject()) {
+        if (error) {
+            *error = "The headless settings overrides file is not valid JSON.";
+        }
+        return false;
+    }
+
+    *overrides = settings_overrides_from_json(document.object());
+    return true;
 }
 
 struct HeadlessReviewPlan {
@@ -811,10 +932,12 @@ int run_review_apply_plan(const HeadlessAnalysisCommand::Options& options,
     Settings settings;
     settings.load();
     DatabaseManager db_manager(settings.get_config_dir());
+    ReviewHistoryStore history_store(settings.get_config_dir());
     LocalFsProvider storage_provider;
     HeadlessReviewApplyService apply_service(&db_manager,
                                              storage_provider,
-                                             Logger::get_logger("core_logger"));
+                                             Logger::get_logger("core_logger"),
+                                             &history_store);
     HeadlessReviewApplyService::Options apply_options = plan.apply_options;
     apply_options.apply_changes = true;
     const auto apply_result = apply_service.apply(plan.entries, apply_options);
@@ -882,6 +1005,18 @@ HeadlessAnalysisCommand::ParseResult HeadlessAnalysisCommand::parse(int argc, ch
             result.consumed_arguments[static_cast<std::size_t>(i)] = true;
             continue;
         }
+        if (argument == "--include-subdirectories" ||
+            argument == "--headless-include-subdirectories") {
+            result.options.include_subdirectories = true;
+            result.consumed_arguments[static_cast<std::size_t>(i)] = true;
+            continue;
+        }
+        if (argument == "--no-include-subdirectories" ||
+            argument == "--headless-no-include-subdirectories") {
+            result.options.include_subdirectories = false;
+            result.consumed_arguments[static_cast<std::size_t>(i)] = true;
+            continue;
+        }
 
         std::string value;
         if (parse_value(argc, argv, i, argument, "--operation", "--headless-operation", &value, &result)) {
@@ -911,6 +1046,19 @@ HeadlessAnalysisCommand::ParseResult HeadlessAnalysisCommand::parse(int argc, ch
             }
             continue;
         }
+        if (parse_value(argc,
+                        argv,
+                        i,
+                        argument,
+                        "--settings-overrides-file",
+                        "--headless-settings-overrides-file",
+                        &value,
+                        &result)) {
+            if (result.error.empty()) {
+                result.options.settings_overrides_file = Utils::utf8_to_path(value);
+            }
+            continue;
+        }
         if (parse_value(argc, argv, i, argument, "--job-id", "--headless-job-id", &value, &result)) {
             if (result.error.empty()) {
                 result.options.job_id = value;
@@ -923,7 +1071,10 @@ HeadlessAnalysisCommand::ParseResult HeadlessAnalysisCommand::parse(int argc, ch
             argument_has_prefix(argument, "--path=") ||
             argument_has_prefix(argument, "--status-file=") ||
             argument_has_prefix(argument, "--review-file=") ||
+            argument_has_prefix(argument, "--settings-overrides-file=") ||
             argument_has_prefix(argument, "--job-id=") ||
+            argument_has_prefix(argument, "--include-subdirectories=") ||
+            argument_has_prefix(argument, "--no-include-subdirectories=") ||
             is_value_argument(argument)) {
             result.consumed_arguments[static_cast<std::size_t>(i)] = true;
             if (result.error.empty()) {
@@ -948,7 +1099,9 @@ std::string HeadlessAnalysisCommand::usage_text()
     return "Usage: aifilesorter --headless --operation <categorize|rename|categorize-and-rename> "
            "--path <file-or-folder> [--path <file-or-folder> ...] "
            "[--status-file <json-file>] [--job-id <id>] "
-           "[--review-file <json-file>] [--review-only|--auto-apply]\n"
+           "[--review-file <json-file>] [--review-only|--auto-apply] "
+           "[--include-subdirectories|--no-include-subdirectories] "
+           "[--settings-overrides-file <json-file>]\n"
            "       aifilesorter --headless-apply --review-file <json-file> "
            "[--status-file <json-file>] [--job-id <id>]\n";
 }
@@ -1051,10 +1204,29 @@ int HeadlessAnalysisCommand::run(const Options& options,
         return ExitCode::Unsupported;
     }
 
+    HeadlessSettingsOverrides settings_overrides = options.settings_overrides;
+    if (options.settings_overrides_file) {
+        std::string overrides_error;
+        if (!read_settings_overrides_file(*options.settings_overrides_file,
+                                          &settings_overrides,
+                                          &overrides_error)) {
+            emit_status(options,
+                        "failed",
+                        "Could not load headless settings.",
+                        overrides_error,
+                        lease->metadata(),
+                        out,
+                        err);
+            return ExitCode::Failure;
+        }
+    }
+
     HeadlessAnalysisWorkflowHost::Options host_options;
     host_options.folder_path = target->folder_path;
     host_options.selected_paths = target->selected_paths;
     host_options.operation_mode = host_operation_mode(options.operation);
+    host_options.include_subdirectories = options.include_subdirectories;
+    host_options.settings_overrides = settings_overrides;
     host_options.progress_callback = [&](const std::string& message) {
         emit_status(options, "running", message, {}, lease->metadata(), out, err);
     };
@@ -1063,6 +1235,9 @@ int HeadlessAnalysisCommand::run(const Options& options,
     const AnalysisRunResult result = host.execute();
     std::optional<HeadlessReviewApplyService::Result> apply_result;
     if (result.status == AnalysisRunStatus::Completed) {
+        Settings history_settings;
+        history_settings.load();
+        ReviewHistoryStore history_store(history_settings.get_config_dir());
         HeadlessReviewApplyService::Options apply_options;
         apply_options.base_dir = host.folder_path();
         apply_options.undo_dir = host.undo_dir();
@@ -1075,7 +1250,8 @@ int HeadlessAnalysisCommand::run(const Options& options,
 
         HeadlessReviewApplyService apply_service(&host.db_manager(),
                                                  host.storage_provider(),
-                                                 host.core_logger());
+                                                 host.core_logger(),
+                                                 &history_store);
         apply_result = apply_service.apply(host.review_entries(), apply_options);
         if (!apply_options.apply_changes && has_actionable_review_entries(*apply_result)) {
             const auto review_file = review_file_path_for(options, runtime_dir);

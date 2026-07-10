@@ -161,6 +161,11 @@
     </message>
     <message>
         <location filename="../../lib/CategorizationDialog.cpp" line="2903"/>
+        <source>Auto-approve filename changes</source>
+        <translation>Dosya adı değişikliklerini otomatik onayla</translation>
+    </message>
+    <message>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2903"/>
         <source>Select highlighted</source>
         <translation>Vurgulananları seç</translation>
     </message>
@@ -213,6 +218,21 @@
         <location filename="../../lib/CategorizationDialog.cpp" line="2915"/>
         <source>Mark highlighted rows for processing (Ctrl+Space).</source>
         <translation>Vurgulanan satırları işleme için işaretleyin (Ctrl+Boşluk).</translation>
+    </message>
+    <message>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2919"/>
+        <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
+        <translation>Dosya adı değişikliği olan satırları önceden seç. Ayrıca kategorize eden satırlar için kategori otomatik onayı da gerekir.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/CategorizationDialog.cpp" line="3282"/>
+        <source>Auto-approve categorization</source>
+        <translation>Kategorizasyonu otomatik onayla</translation>
+    </message>
+    <message>
+        <location filename="../../lib/CategorizationDialog.cpp" line="3224"/>
+        <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
+        <translation>Geçerli kategorizasyonu olan satırları önceden seç. Ayrıca yeniden adlandıran satırlar için dosya adı otomatik onayı da gerekir.</translation>
     </message>
     <message>
         <location filename="../../lib/CategorizationDialog.cpp" line="2918"/>
@@ -2169,6 +2189,189 @@ Please update to continue. If you choose to quit, the application will close.</s
 Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanacaktır.</translation>
     </message>
 </context>
+    <context>
+        <name>ReviewHistoryDialog</name>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="151" />
+            <source>Rename and Categorization History</source>
+            <translation>Rename and Categorization History</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="154" />
+            <source>Search:</source>
+            <translation>Search:</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="158" />
+            <source>Search filenames, categories, descriptions, or paths</source>
+            <translation>Search filenames, categories, descriptions, or paths</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="160" />
+            <source>Search review history</source>
+            <translation>Search review history</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="164" />
+            <source>Date</source>
+            <translation>Date</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="165" />
+            <source>Operation</source>
+            <translation>Operation</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="166" />
+            <source>Original filename</source>
+            <translation>Original filename</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="167" />
+            <source>New filename</source>
+            <translation>New filename</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="168" />
+            <source>Category</source>
+            <translation>Category</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="169" />
+            <source>Description</source>
+            <translation>Description</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="170" />
+            <source>Status</source>
+            <translation>Status</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="171" />
+            <source>Original path</source>
+            <translation>Original path</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="172" />
+            <source>New path</source>
+            <translation>New path</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="176" />
+            <source>Undo selected</source>
+            <translation>Undo selected</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="179" />
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="215" />
+            <source>Undone</source>
+            <translation>Undone</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="215" />
+            <source>Applied</source>
+            <translation>Applied</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="229" />
+            <source>No history items selected</source>
+            <translation>No history items selected</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="230" />
+            <source>Select one or more history rows to undo.</source>
+            <translation>Select one or more history rows to undo.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="236" />
+            <source>Undo the selected history item?</source>
+            <translation>Undo the selected history item?</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="237" />
+            <source>Undo %1 selected history items?</source>
+            <translation>Undo %1 selected history items?</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="240" />
+            <source>Undo selected history</source>
+            <translation>Undo selected history</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="258" />
+            <source>Missing history row: %1</source>
+            <translation>Missing history row: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="263" />
+            <source>Already undone: %1</source>
+            <translation>Already undone: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="291" />
+            <source>Restored but could not update history row %1: %2</source>
+            <translation>Restored but could not update history row %1: %2</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="300" />
+            <source>Restored %1 item(s). Skipped %2.</source>
+            <translation>Restored %1 item(s). Skipped %2.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="305" />
+            <source>Undo complete</source>
+            <translation>Undo complete</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="379" />
+            <source>Rename</source>
+            <translation>Rename</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="381" />
+            <source>Rename and categorize</source>
+            <translation>Rename and categorize</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="384" />
+            <source>Categorize</source>
+            <translation>Categorize</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="416" />
+            <source>Missing destination: %1</source>
+            <translation>Missing destination: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="422" />
+            <source>Original path already exists: %1</source>
+            <translation>Original path already exists: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="429" />
+            <source>Size mismatch: %1</source>
+            <translation>Size mismatch: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="438" />
+            <source>Timestamp mismatch: %1</source>
+            <translation>Timestamp mismatch: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="449" />
+            <source>Identity mismatch: %1</source>
+            <translation>Identity mismatch: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/ReviewHistoryDialog.cpp" line="456" />
+            <source>Revision mismatch: %1</source>
+            <translation>Revision mismatch: %1</translation>
+        </message>
+    </context>
 <context>
     <name>UiTranslator</name>
     <message>
@@ -2241,6 +2444,11 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
         <source>Undo last run</source>
         <translation>Son çalıştırmayı geri al</translation>
     </message>
+        <message>
+            <location filename="../../lib/UiTranslator.cpp" line="47" />
+            <source>Rename and categorization history…</source>
+            <translation>Rename and categorization history…</translation>
+        </message>
     <message>
         <location filename="../../lib/UiTranslator.cpp" line="46"/>
         <source>&amp;Paste</source>

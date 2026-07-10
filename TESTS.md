@@ -215,6 +215,20 @@ Procedure: Parse both argument sets.
 Expected outcome: The parsed options select `ReviewOnly` and `AutoApply` respectively without validation errors.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses apply mode flags"`
 
+#### Test case: HeadlessAnalysisCommand parses include subdirectories override
+Purpose: Verify headless callers can override recursive scanning for integration-specific settings.
+Setup: Create a temporary input file and build argv vectors with `--include-subdirectories` and `--headless-no-include-subdirectories`.
+Procedure: Parse both argument sets.
+Expected outcome: The parsed options preserve the requested include-subdirectories override values without validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses include subdirectories override"`
+
+#### Test case: HeadlessAnalysisCommand parses settings overrides file
+Purpose: Verify Explorer and other integrations can provide a JSON settings overlay for a headless run.
+Setup: Create a temporary input file and settings-overrides path, then build an argv vector with `--settings-overrides-file`.
+Procedure: Parse the arguments.
+Expected outcome: The parsed options preserve the supplied overrides file path without validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses settings overrides file"`
+
 #### Test case: HeadlessAnalysisCommand parses saved review apply requests
 Purpose: Verify the headless CLI accepts applying a previously saved review plan.
 Setup: Create temporary review/status paths and build an argv vector with `--headless-apply`.
@@ -662,6 +676,15 @@ Procedure: Query the categorization target through `target_info()`.
 Expected outcome: The target still exists on disk, but the reported reclaimable size is `0`, reflecting that no cached categorization rows remain.
 Run: `./build-tests/ai_file_sorter_tests "CacheMaintenanceService reports zero size for an empty categorization database"`
 
+### `tests/unit/test_review_history_store.cpp`
+
+#### Test case: ReviewHistoryStore persists, searches, and marks history entries undone
+Purpose: Verify the user-visible review history database persists applied rename/categorization records.
+Setup: Create an isolated config directory and record a combined rename/categorization history row with filename, category, and description data.
+Procedure: Search the store by filename, category, and description, mark the row undone, then reopen the store.
+Expected outcome: The row is found by each searchable field, undo state persists, and the history survives reopening the database.
+Run: `./build-tests/ai_file_sorter_tests "ReviewHistoryStore persists, searches, and marks history entries undone"`
+
 ### `tests/unit/test_user_learning_store.cpp`
 
 #### Test case: UserLearningStore records approved mappings in a separate database
@@ -1039,6 +1062,13 @@ Setup: Use a temporary config directory and set expanded flags for image and doc
 Procedure: Save settings, reload into a new `Settings` instance, and read the flags.
 Expected outcome: The expansion flags match the saved values.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists options group expansion state"`
+
+#### Test case: Settings persists review auto-approve operation options
+Purpose: Ensure the review-dialog filename and categorization auto-approve options survive a save/load round-trip.
+Setup: Use a temporary config directory and enable both review auto-approval options.
+Procedure: Save settings, reload into a new `Settings` instance, and read both flags.
+Expected outcome: The reloaded settings keep filename and categorization auto-approval enabled.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists review auto-approve operation options"`
 
 #### Test case: Settings persists selected visual model backend
 Purpose: Ensure the chosen visual backend survives a save/load round-trip so the dialog and runtime stay aligned.
@@ -1651,12 +1681,26 @@ Procedure: Sort by the file name column ascending, then by category descending.
 Expected outcome: The first sort yields alphabetical file names; the second yields categories in reverse alphabetical order.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog supports sorting by columns"`
 
+#### Test case: CategorizationDialog auto-approves rows by enabled operation
+Purpose: Verify the review dialog preselects rows only when each row action is covered by enabled auto-approval options.
+Setup: Load rename-only, categorization-only, combined rename+categorization, and incomplete rows into the dialog.
+Procedure: Enable filename auto-approval, then categorization auto-approval, then disable filename auto-approval.
+Expected outcome: Rename-only rows require filename auto-approval, categorization-only rows require categorization auto-approval, combined rows require both, and incomplete rows remain unchecked.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog auto-approves rows by enabled operation"`
+
 #### Test case: CategorizationDialog undo restores moved files
 Purpose: Confirm that undo reverses category moves.
 Setup: Create a file on disk with a category and subcategory.
 Procedure: Confirm the dialog to move the file, then trigger undo.
 Expected outcome: The file moves to the category path, then returns to the original location; undo is enabled only when a move exists.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog undo restores moved files"`
+
+#### Test case: CategorizationDialog records applied review history with descriptions
+Purpose: Confirm that applied review decisions are persisted into the user-visible history log.
+Setup: Create a categorized image entry with learning-context description text and attach an isolated review history store.
+Procedure: Confirm the dialog, inspect the persisted history row, then trigger undo.
+Expected outcome: The history row records the category operation, source/destination filenames, category, stripped file description, and is marked undone after undo.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog records applied review history with descriptions"`
 
 #### Test case: CategorizationDialog keeps date category suffixes out of stored canonical categories
 Purpose: Ensure generated date category folders remain reversible display/move-path overlays.

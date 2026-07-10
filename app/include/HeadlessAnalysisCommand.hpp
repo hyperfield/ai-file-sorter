@@ -2,6 +2,7 @@
 #define HEADLESS_ANALYSIS_COMMAND_HPP
 
 #include "AnalysisRuntimeLock.hpp"
+#include "HeadlessSettingsOverrides.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -65,6 +66,9 @@ public:
         std::vector<std::filesystem::path> paths;
         std::optional<std::filesystem::path> status_file;
         std::optional<std::filesystem::path> review_file;
+        std::optional<bool> include_subdirectories;
+        std::optional<std::filesystem::path> settings_overrides_file;
+        HeadlessSettingsOverrides settings_overrides;
         std::string job_id;
     };
 

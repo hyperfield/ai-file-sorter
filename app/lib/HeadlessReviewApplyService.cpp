@@ -2,6 +2,7 @@
 
 #include "DatabaseManager.hpp"
 #include "MovableCategorizedFile.hpp"
+#include "ReviewHistoryStore.hpp"
 #include "StorageProvider.hpp"
 #include "UndoManager.hpp"
 #include "Utils.hpp"
@@ -12,6 +13,7 @@
 #include <cctype>
 #include <filesystem>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 
 namespace {
@@ -36,6 +38,20 @@ bool is_missing_category_label(const std::string& value)
 {
     const std::string trimmed = trim_copy(value);
     return trimmed.empty() || to_lower_copy(trimmed) == "uncategorized";
+}
+
+std::string strip_history_description_label(std::string value)
+{
+    value = trim_copy(value);
+    constexpr std::string_view image_prefix = "Image description: ";
+    constexpr std::string_view document_prefix = "Document summary: ";
+    if (value.starts_with(image_prefix)) {
+        return trim_copy(value.substr(image_prefix.size()));
+    }
+    if (value.starts_with(document_prefix)) {
+        return trim_copy(value.substr(document_prefix.size()));
+    }
+    return value;
 }
 
 bool contains_only_allowed_chars(const std::string& value)
@@ -234,10 +250,12 @@ void append_skipped(HeadlessReviewApplyService::Result& result,
 
 HeadlessReviewApplyService::HeadlessReviewApplyService(DatabaseManager* db_manager,
                                                        IStorageProvider& storage_provider,
-                                                       std::shared_ptr<spdlog::logger> logger)
+                                                       std::shared_ptr<spdlog::logger> logger,
+                                                       ReviewHistoryStore* history_store)
     : db_manager_(db_manager),
       storage_provider_(storage_provider),
-      logger_(std::move(logger))
+      logger_(std::move(logger)),
+      history_store_(history_store)
 {
 }
 
@@ -325,6 +343,14 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                           move_result.metadata.mtime,
                                           move_result.metadata.stable_identity,
                                           move_result.metadata.revision_token});
+        record_history_entry(entry,
+                             ReviewHistoryStore::Operation::Rename,
+                             entry_result.source,
+                             entry_result.destination,
+                             destination_name,
+                             std::string(),
+                             std::string(),
+                             move_result.metadata);
         if (db_manager_) {
             DatabaseManager::ResolvedCategory resolved{0, "", ""};
             const std::string category = display_category(entry);
@@ -410,6 +436,15 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                           move_result.metadata.mtime,
                                           move_result.metadata.stable_identity,
                                           move_result.metadata.revision_token});
+        record_history_entry(entry,
+                             rename_active ? ReviewHistoryStore::Operation::RenameAndCategorize
+                                           : ReviewHistoryStore::Operation::Categorize,
+                             preview.source,
+                             preview.destination,
+                             destination_name,
+                             category,
+                             effective_subcategory,
+                             move_result.metadata);
 
         if (db_manager_ && (rename_active || options.include_subdirectories)) {
             auto resolved = resolve_category_for_storage(*db_manager_,
@@ -469,4 +504,40 @@ bool HeadlessReviewApplyService::persist_undo_plan(const Options& options,
                              storage_provider_.id(),
                              entries,
                              logger_);
+}
+
+void HeadlessReviewApplyService::record_history_entry(const CategorizedFile& entry,
+                                                      ReviewHistoryStore::Operation operation,
+                                                      const std::string& source,
+                                                      const std::string& destination,
+                                                      const std::string& destination_name,
+                                                      const std::string& category,
+                                                      const std::string& subcategory,
+                                                      const StorageEntryMetadata& metadata) const
+{
+    if (!history_store_ || !history_store_->is_open()) {
+        return;
+    }
+
+    ReviewHistoryStore::Entry history_entry;
+    history_entry.provider_id = storage_provider_.id();
+    history_entry.operation = operation;
+    history_entry.source_path = source;
+    history_entry.destination_path = destination;
+    history_entry.original_file_name = entry.file_name;
+    history_entry.final_file_name = destination_name;
+    history_entry.category = category;
+    history_entry.subcategory = subcategory;
+    history_entry.file_description = strip_history_description_label(entry.learning_context);
+    history_entry.size_bytes = metadata.size_bytes;
+    history_entry.mtime = metadata.mtime;
+    history_entry.stable_identity = metadata.stable_identity;
+    history_entry.revision_token = metadata.revision_token;
+
+    std::string error;
+    if (!history_store_->record_entry(history_entry, &error) && logger_) {
+        logger_->warn("Failed to record review history for '{}': {}",
+                      entry.file_name,
+                      error);
+    }
 }

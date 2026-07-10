@@ -17,6 +17,7 @@
 class DatabaseManager;
 class IFilePreviewService;
 class IStorageProvider;
+class ReviewHistoryStore;
 class UserLearningStore;
 class QCloseEvent;
 class QEvent;
@@ -38,13 +39,15 @@ public:
      * @param category_language Language used for displayed category labels.
      * @param parent Parent widget.
      * @param learning_store Optional store for user-approved learning examples.
+     * @param history_store Optional store for applied rename/categorization history.
      */
     CategorizationDialog(DatabaseManager* db_manager,
                          bool show_subcategory_col,
                          const std::string& undo_dir,
                          CategoryLanguage category_language = CategoryLanguage::English,
                          QWidget* parent = nullptr,
-                         UserLearningStore* learning_store = nullptr);
+                         UserLearningStore* learning_store = nullptr,
+                         ReviewHistoryStore* history_store = nullptr);
     /**
      * @brief Create the review dialog using an explicit storage provider.
      * @param db_manager Categorization cache/taxonomy database manager.
@@ -54,6 +57,7 @@ public:
      * @param category_language Language used for displayed category labels.
      * @param parent Parent widget.
      * @param learning_store Optional store for user-approved learning examples.
+     * @param history_store Optional store for applied rename/categorization history.
      */
     CategorizationDialog(DatabaseManager* db_manager,
                          IStorageProvider& storage_provider,
@@ -61,11 +65,32 @@ public:
                          const std::string& undo_dir,
                          CategoryLanguage category_language = CategoryLanguage::English,
                          QWidget* parent = nullptr,
-                         UserLearningStore* learning_store = nullptr);
+                         UserLearningStore* learning_store = nullptr,
+                         ReviewHistoryStore* history_store = nullptr);
     ~CategorizationDialog() override;
 
     void set_show_subcategory_column(bool enabled);
     bool show_subcategory_column_enabled() const { return show_subcategory_column; }
+    /**
+     * @brief Enables or disables automatic approval of filename changes.
+     * @param enabled True to preselect actionable rows that rename files.
+     */
+    void set_review_auto_approve_filename_changes_enabled(bool enabled);
+    /**
+     * @brief Returns whether filename changes are automatically approved.
+     * @return True when actionable filename changes are preselected for processing.
+     */
+    bool review_auto_approve_filename_changes_enabled() const;
+    /**
+     * @brief Enables or disables automatic approval of categorization moves.
+     * @param enabled True to preselect actionable rows that categorize files.
+     */
+    void set_review_auto_approve_categorization_enabled(bool enabled);
+    /**
+     * @brief Returns whether categorization moves are automatically approved.
+     * @return True when actionable categorization rows are preselected for processing.
+     */
+    bool review_auto_approve_categorization_enabled() const;
     /**
      * @brief Replace the file preview service used by the review dialog.
      * @param preview_service Service to use. Passing nullptr restores the default implementation.
@@ -88,12 +113,16 @@ public:
      * @param include_subdirectories Whether results came from a recursive scan.
      * @param allow_image_renames Whether image rename-only controls are allowed.
      * @param allow_document_renames Whether document rename-only controls are allowed.
+     * @param auto_approve_filename_changes Whether actionable filename changes should be preselected.
+     * @param auto_approve_categorization Whether actionable categorization rows should be preselected.
      */
     void show_results(const std::vector<CategorizedFile>& categorized_files,
                       const std::string& base_dir_override = std::string(),
                       bool include_subdirectories = false,
                       bool allow_image_renames = true,
-                      bool allow_document_renames = true);
+                      bool allow_document_renames = true,
+                      bool auto_approve_filename_changes = false,
+                      bool auto_approve_categorization = false);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -145,6 +174,7 @@ private:
         std::time_t mtime{0};
         std::string stable_identity;
         std::string revision_token;
+        long long history_id{0};
     };
     struct PreviewRecord {
         std::string source;
@@ -176,6 +206,16 @@ private:
                               bool renamed = false,
                               bool moved = false);
     void on_select_all_toggled(bool checked);
+    /**
+     * @brief Applies the filename auto-approval policy when toggled.
+     * @param checked True when filename changes should be preselected.
+     */
+    void on_auto_approve_filename_changes_toggled(bool checked);
+    /**
+     * @brief Applies the categorization auto-approval policy when toggled.
+     * @param checked True when categorization rows should be preselected.
+     */
+    void on_auto_approve_categorization_toggled(bool checked);
     void on_preview_button_clicked();
     void on_table_double_clicked(const QModelIndex& index);
     /**
@@ -187,6 +227,21 @@ private:
      * @brief Applies a check state to the given rows in the Process column.
      */
     void apply_check_state_to_rows(const std::vector<int>& rows, Qt::CheckState state);
+    /**
+     * @brief Applies automatic approval to every row in the model.
+     */
+    void apply_auto_approval_to_rows();
+    /**
+     * @brief Updates automatic approval for one row after the row changes.
+     * @param row Row index in the model.
+     */
+    void update_auto_approval_for_row(int row);
+    /**
+     * @brief Returns whether a row is safe to preselect for processing.
+     * @param row Row index in the model.
+     * @return True when every action in the row is covered by the enabled auto-approval options.
+     */
+    bool row_is_auto_approval_candidate(int row) const;
     void on_item_changed(QStandardItem* item);
     void update_select_all_state();
     void update_type_icon(QStandardItem* item);
@@ -202,7 +257,8 @@ private:
                               std::uintmax_t size_bytes,
                               std::time_t mtime,
                               const std::string& stable_identity,
-                              const std::string& revision_token);
+                              const std::string& revision_token,
+                              long long history_id = 0);
     void handle_selected_row(int row_index,
                              const std::string& file_name,
                              const std::string& rename_candidate,
@@ -219,6 +275,40 @@ private:
     bool undo_move_history();
     void update_status_after_undo();
     bool move_file_back(const std::string& source, const std::string& destination);
+    /**
+     * @brief Records a successful row mutation in the persistent review history store.
+     * @param row Row index in the model.
+     * @param operation Operation type to store.
+     * @param source Original path before the move.
+     * @param destination Final path after the move.
+     * @param original_file_name Original file name.
+     * @param final_file_name Final file name.
+     * @param category Category label for categorization operations.
+     * @param subcategory Subcategory label for categorization operations.
+     * @param size_bytes File size captured after moving.
+     * @param mtime Modification timestamp captured after moving.
+     * @param stable_identity Provider identity captured after moving.
+     * @param revision_token Provider revision token captured after moving.
+     * @return Persisted history row id, or 0 when history was not recorded.
+     */
+    long long record_review_history(int row,
+                                    const std::string& operation,
+                                    const std::string& source,
+                                    const std::string& destination,
+                                    const std::string& original_file_name,
+                                    const std::string& final_file_name,
+                                    const std::string& category,
+                                    const std::string& subcategory,
+                                    std::uintmax_t size_bytes,
+                                    std::time_t mtime,
+                                    const std::string& stable_identity,
+                                    const std::string& revision_token);
+    /**
+     * @brief Returns user-facing image/document description text for a row.
+     * @param row Row index in the model.
+     * @return Description or summary text captured during analysis.
+     */
+    std::string history_description_for_row(int row) const;
     void remove_empty_parent_directories(const std::string& destination);
     void set_preview_status(int row, const std::string& destination);
     void update_preview_column(int row);
@@ -292,6 +382,7 @@ private:
 
     DatabaseManager* db_manager;
     UserLearningStore* learning_store_{nullptr};
+    ReviewHistoryStore* history_store_{nullptr};
     IStorageProvider* storage_provider_{nullptr};
     CategoryLanguage category_language_{CategoryLanguage::English};
     bool show_subcategory_column;
@@ -312,6 +403,8 @@ private:
     QPushButton* close_button{nullptr};
     QPushButton* preview_button{nullptr};
     QCheckBox* select_all_checkbox{nullptr};
+    QCheckBox* auto_approve_filenames_checkbox{nullptr};
+    QCheckBox* auto_approve_categories_checkbox{nullptr};
     QPushButton* select_highlighted_button{nullptr};
     QPushButton* bulk_edit_button{nullptr};
     QCheckBox* show_subcategories_checkbox{nullptr};
@@ -325,6 +418,8 @@ private:
 
     bool updating_select_all{false};
     bool suppress_item_changed_{false};
+    bool auto_approve_filename_changes_{false};
+    bool auto_approve_categorization_{false};
     std::string undo_dir_;
     std::string base_dir_;
     std::unique_ptr<IFilePreviewService> preview_service_;
