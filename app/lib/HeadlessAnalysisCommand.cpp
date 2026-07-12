@@ -54,6 +54,33 @@ std::string lower_copy(std::string value)
     return value;
 }
 
+bool message_indicates_llm_setup_required(const std::string& message)
+{
+    const std::string lower = lower_copy(message);
+    const auto contains = [&](const char* needle) {
+        return lower.find(needle) != std::string::npos;
+    };
+
+    return contains("llm is not selected") ||
+           contains("api key is missing") ||
+           (contains("missing") && contains("api key")) ||
+           contains("credentials are missing") ||
+           contains("selected custom api endpoint is missing") ||
+           contains("selected custom llm is missing") ||
+           contains("custom visual llm") ||
+           contains("visual backend is missing required model") ||
+           contains("required local llm model path is not configured") ||
+           contains("failed to load model");
+}
+
+QJsonObject llm_setup_required_payload()
+{
+    QJsonObject payload;
+    payload.insert(QStringLiteral("actionRequired"), QStringLiteral("select_llm"));
+    payload.insert(QStringLiteral("actionLabel"), QStringLiteral("Select LLM"));
+    return payload;
+}
+
 std::string generate_job_id()
 {
     return "headless-" + std::to_string(QCoreApplication::applicationPid()) + "-" +
@@ -829,6 +856,19 @@ int finish_analysis_run(const HeadlessAnalysisCommand::Options& options,
                     err);
         return HeadlessAnalysisCommand::Failure;
     case AnalysisRunStatus::Failed:
+        if (message_indicates_llm_setup_required(result.error_message)) {
+            const QJsonObject payload = llm_setup_required_payload();
+            emit_status(options,
+                        "blocked",
+                        "AI File Sorter needs an LLM selection before this Explorer job can run. "
+                        "Choose or download an LLM, then run the Explorer action again.",
+                        result.error_message,
+                        metadata,
+                        out,
+                        err,
+                        &payload);
+            return HeadlessAnalysisCommand::Failure;
+        }
         emit_status(options,
                     "failed",
                     "Headless categorization failed.",

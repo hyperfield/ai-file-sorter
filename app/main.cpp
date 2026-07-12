@@ -76,6 +76,7 @@ struct ParsedArguments {
     bool console_log{false};
     bool force_direct_run{false};
     bool show_review_history{false};
+    bool show_llm_selection{false};
     std::optional<std::string> self_test_suite;
     std::optional<std::string> visual_gpu_probe_backend;
     HeadlessAnalysisCommand::ParseResult headless;
@@ -181,6 +182,13 @@ ParsedArguments parse_command_line(int argc, char** argv)
              std::strcmp(argv[i], "--review-history") == 0 ||
              std::strcmp(argv[i], "--action-history") == 0)) {
             parsed.show_review_history = true;
+            continue;
+        }
+        if (is_flag &&
+            (std::strcmp(argv[i], "--show-llm-selection") == 0 ||
+             std::strcmp(argv[i], "--select-llm") == 0 ||
+             std::strcmp(argv[i], "--llm-selection") == 0)) {
+            parsed.show_llm_selection = true;
             continue;
         }
         if (is_flag && std::strcmp(argv[i], "--self-test") == 0) {
@@ -501,6 +509,8 @@ bool ensure_llm_choice(Settings& settings, const std::function<void()>& finish_s
     settings.set_gemini_model(llm_dialog.get_gemini_model());
     settings.set_llm_choice(llm_dialog.get_selected_llm_choice());
     settings.set_llm_downloads_expanded(llm_dialog.get_llm_downloads_expanded());
+    settings.set_llm_storage_dir(llm_dialog.get_llm_storage_dir());
+    settings.set_visual_model_id(llm_dialog.get_selected_visual_model_id());
     if (llm_dialog.get_selected_llm_choice() == LLMChoice::Custom) {
         settings.set_active_custom_llm_id(llm_dialog.get_selected_custom_llm_id());
     } else {
@@ -561,9 +571,20 @@ bool startup_command_opens_review_history(const QString& command)
     return command == QStringLiteral("show-review-history");
 }
 
+bool startup_command_opens_llm_selection(const QString& command)
+{
+    return command == QStringLiteral("show-llm-selection");
+}
+
 QString startup_command_from_arguments(const ParsedArguments& parsed_args)
 {
-    return parsed_args.show_review_history ? QStringLiteral("show-review-history") : QString();
+    if (parsed_args.show_llm_selection) {
+        return QStringLiteral("show-llm-selection");
+    }
+    if (parsed_args.show_review_history) {
+        return QStringLiteral("show-review-history");
+    }
+    return {};
 }
 
 void open_review_history_later(MainApp& main_app)
@@ -571,6 +592,14 @@ void open_review_history_later(MainApp& main_app)
     QTimer::singleShot(0, &main_app, [&main_app]() {
         activate_widget(&main_app);
         main_app.open_review_history_dialog();
+    });
+}
+
+void open_llm_selection_later(MainApp& main_app)
+{
+    QTimer::singleShot(0, &main_app, [&main_app]() {
+        activate_widget(&main_app);
+        main_app.show_llm_selection_dialog();
     });
 }
 
@@ -726,9 +755,12 @@ int run_application(const ParsedArguments& parsed_args)
 
     const auto finish_splash = [&]() {};
 
+    const bool llm_selection_needed_at_startup = !llm_choice_is_ready(settings);
     if (!ensure_llm_choice(settings, finish_splash)) {
         return EXIT_SUCCESS;
     }
+    const bool open_llm_selection_after_startup =
+        startup_command_opens_llm_selection(startup_command) && !llm_selection_needed_at_startup;
 
     MainApp main_app(settings,
                      parsed_args.development_mode || parsed_args.test_mode,
@@ -736,11 +768,18 @@ int run_application(const ParsedArguments& parsed_args)
                      app_data_dir);
     instance_guard.set_activation_callback([&main_app](const QString& command) {
         activate_widget(preferred_activation_target());
+        if (startup_command_opens_llm_selection(command)) {
+            open_llm_selection_later(main_app);
+            return;
+        }
         if (startup_command_opens_review_history(command)) {
             open_review_history_later(main_app);
         }
     });
     main_app.run();
+    if (open_llm_selection_after_startup) {
+        open_llm_selection_later(main_app);
+    }
     if (startup_command_opens_review_history(startup_command)) {
         open_review_history_later(main_app);
     }

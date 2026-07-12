@@ -136,6 +136,10 @@ public:
      */
     void open_review_history_dialog();
     /**
+     * @brief Opens the LLM selection dialog and persists accepted model settings.
+     */
+    void show_llm_selection_dialog();
+    /**
      * @brief Appends a progress message to the active progress UI.
      * @param message Progress text to report.
      */
@@ -288,7 +292,6 @@ private:
      */
     AnalysisWorkflowContext make_analysis_workflow_context();
     void stop_running_analysis();
-    void show_llm_selection_dialog();
     void on_about_activate();
     void append_progress(const std::string& message);
     /**

@@ -250,6 +250,13 @@ Procedure: Run the command and inspect the final status JSON and runtime lock.
 Expected outcome: The command exits successfully, writes `completed` status JSON with zero review entries, and leaves no held runtime lock behind.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand runs categorization for an empty folder"`
 
+#### Test case: HeadlessAnalysisCommand reports LLM setup action when categorization has no LLM
+Purpose: Ensure Explorer/headless categorization reports a machine-readable setup action when first-run settings have no usable LLM.
+Setup: Create a temporary target folder with one uncached file, isolate app settings under a temporary config root, and prepare a headless categorize command with a status file.
+Procedure: Run the command and inspect the final status JSON and runtime lock.
+Expected outcome: The command exits with failure, writes `blocked` status JSON with `actionRequired: select_llm`, includes the setup error, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand reports LLM setup action when categorization has no LLM"`
+
 #### Test case: HeadlessAnalysisCommand applies cached categorization for a folder
 Purpose: Verify the headless review/apply layer moves categorized files and emits machine-readable review/apply details.
 Setup: Create a temporary target folder containing one file, disable headless review-before-apply in isolated settings, insert a cached `Documents / Reports` categorization for that file, and prepare a headless categorize command.

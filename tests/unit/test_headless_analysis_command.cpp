@@ -314,6 +314,46 @@ TEST_CASE("HeadlessAnalysisCommand runs categorization for an empty folder")
     CHECK_FALSE(lock.is_locked());
 }
 
+TEST_CASE("HeadlessAnalysisCommand reports LLM setup action when categorization has no LLM")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "input.txt");
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths.push_back(source);
+    options.status_file = status;
+    options.job_id = "headless-llm-setup-required";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Failure);
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("blocked"));
+    CHECK(object.value(QStringLiteral("actionRequired")).toString() == QStringLiteral("select_llm"));
+    CHECK(object.value(QStringLiteral("actionLabel")).toString() == QStringLiteral("Select LLM"));
+    CHECK(object.value(QStringLiteral("message")).toString().contains(QStringLiteral("LLM selection")));
+    CHECK(object.value(QStringLiteral("error")).toString().contains(QStringLiteral("LLM is not selected")));
+    CHECK(out.str().find("\"select_llm\"") != std::string::npos);
+
+    AnalysisRuntimeLock lock(runtime_dir);
+    CHECK_FALSE(lock.is_locked());
+}
+
 TEST_CASE("HeadlessAnalysisCommand rename does not require an LLM for uncached ordinary files")
 {
     QTemporaryDir dir;
