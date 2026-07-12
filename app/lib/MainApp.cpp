@@ -1,5 +1,6 @@
 #include "MainApp.hpp"
 #include "AnalysisCoordinator.hpp"
+#include "AppIconResources.hpp"
 #include "AppInfo.hpp"
 
 #include "CategorizationSession.hpp"
@@ -811,8 +812,7 @@ void MainApp::start_updater()
 
 void MainApp::set_app_icon()
 {
-    const QString icon_path = QStringLiteral(":/dev/hfstudio/AIFileSorter/images/app_icon_128.png");
-    QIcon icon(icon_path);
+    QIcon icon = AppIconResources::build_window_icon();
     if (icon.isNull()) {
         icon = QIcon(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/logo.png"));
     }

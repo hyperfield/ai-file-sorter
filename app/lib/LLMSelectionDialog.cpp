@@ -1,5 +1,6 @@
 #include "LLMSelectionDialog.hpp"
 
+#include "AppIconResources.hpp"
 #include "DialogUtils.hpp"
 #include "LlmCatalog.hpp"
 #include "ErrorMessages.hpp"
@@ -125,7 +126,7 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
 
     QIcon icon = QApplication::windowIcon();
     if (icon.isNull()) {
-        icon = QIcon(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/app_icon_128.png"));
+        icon = AppIconResources::build_window_icon();
     }
     if (icon.isNull()) {
         icon = QIcon(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/logo.png"));

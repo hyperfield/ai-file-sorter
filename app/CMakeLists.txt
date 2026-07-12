@@ -689,12 +689,27 @@ endfunction()
 aifs_add_translation_resources(aifilesorter)
 
 # Resources (equivalent to rcc generation in Makefile)
-set(APP_RESOURCE_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
+set(AIFS_IMAGE_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/hf_logo.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_64.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_256.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_256_arrows.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_256.svg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_arrows.svg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_16x16.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_32x32.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_64x64.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_128x128.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_256x256.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_512x512.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_1080x1080.png"
+)
+
+set(APP_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
+    ${AIFS_IMAGE_RESOURCE_FILES}
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nl.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_zh_cn.md"
@@ -717,22 +732,13 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
     PROPERTIES QT_RESOURCE_ALIAS ".env"
 )
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/logo.png"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/hf_logo.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/hf_logo.png"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/app_icon_128.png"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_512x512.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/icon_512x512.png"
-)
+foreach(_aifs_image_resource IN LISTS AIFS_IMAGE_RESOURCE_FILES)
+    get_filename_component(_aifs_image_name "${_aifs_image_resource}" NAME)
+    set_source_files_properties(
+        "${_aifs_image_resource}"
+        PROPERTIES QT_RESOURCE_ALIAS "images/${_aifs_image_name}"
+    )
+endforeach()
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
     PROPERTIES QT_RESOURCE_ALIAS "help/quick_start.md"
