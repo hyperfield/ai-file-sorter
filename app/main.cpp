@@ -75,6 +75,7 @@ struct ParsedArguments {
     bool test_mode{false};
     bool console_log{false};
     bool force_direct_run{false};
+    bool show_review_history{false};
     std::optional<std::string> self_test_suite;
     std::optional<std::string> visual_gpu_probe_backend;
     HeadlessAnalysisCommand::ParseResult headless;
@@ -173,6 +174,13 @@ ParsedArguments parse_command_line(int argc, char** argv)
         }
         if (is_flag && std::strcmp(argv[i], "--force-direct-run") == 0) {
             parsed.force_direct_run = true;
+            continue;
+        }
+        if (is_flag &&
+            (std::strcmp(argv[i], "--show-review-history") == 0 ||
+             std::strcmp(argv[i], "--review-history") == 0 ||
+             std::strcmp(argv[i], "--action-history") == 0)) {
+            parsed.show_review_history = true;
             continue;
         }
         if (is_flag && std::strcmp(argv[i], "--self-test") == 0) {
@@ -548,6 +556,24 @@ void activate_widget(QWidget* widget)
 #endif
 }
 
+bool startup_command_opens_review_history(const QString& command)
+{
+    return command == QStringLiteral("show-review-history");
+}
+
+QString startup_command_from_arguments(const ParsedArguments& parsed_args)
+{
+    return parsed_args.show_review_history ? QStringLiteral("show-review-history") : QString();
+}
+
+void open_review_history_later(MainApp& main_app)
+{
+    QTimer::singleShot(0, &main_app, [&main_app]() {
+        activate_widget(&main_app);
+        main_app.open_review_history_dialog();
+    });
+}
+
 void print_app_test_result(const AppTestRunner::Result& result)
 {
     std::cout << "AI File Sorter self-test suite: " << result.suite << "\n";
@@ -680,6 +706,8 @@ int run_application(const ParsedArguments& parsed_args)
         ? QStringLiteral("dev.hfstudio.AIFileSorter.Test")
         : QStringLiteral("dev.hfstudio.AIFileSorter");
     SingleInstanceCoordinator instance_guard(instance_id);
+    const QString startup_command = startup_command_from_arguments(parsed_args);
+    instance_guard.set_activation_message(startup_command);
     instance_guard.set_activation_callback([]() {
         activate_widget(preferred_activation_target());
     });
@@ -706,7 +734,16 @@ int run_application(const ParsedArguments& parsed_args)
                      parsed_args.development_mode || parsed_args.test_mode,
                      parsed_args.test_mode,
                      app_data_dir);
+    instance_guard.set_activation_callback([&main_app](const QString& command) {
+        activate_widget(preferred_activation_target());
+        if (startup_command_opens_review_history(command)) {
+            open_review_history_later(main_app);
+        }
+    });
     main_app.run();
+    if (startup_command_opens_review_history(startup_command)) {
+        open_review_history_later(main_app);
+    }
 
     const int result = app.exec();
     main_app.shutdown();

@@ -132,6 +132,10 @@ public:
      */
     void show_error_dialog(const std::string& message);
     /**
+     * @brief Opens the searchable rename/categorization history dialog.
+     */
+    void open_review_history_dialog();
+    /**
      * @brief Appends a progress message to the active progress UI.
      * @param message Progress text to report.
      */

@@ -2085,6 +2085,11 @@ void MainApp::show_review_history_dialog()
     dialog.exec();
 }
 
+void MainApp::open_review_history_dialog()
+{
+    show_review_history_dialog();
+}
+
 bool MainApp::perform_undo_from_plan(const QString& plan_path)
 {
     const auto res = undo_manager_.undo_plan(plan_path);

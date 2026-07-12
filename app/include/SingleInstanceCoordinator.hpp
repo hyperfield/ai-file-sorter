@@ -52,6 +52,16 @@ public:
      * @param callback Function called on the primary instance after a secondary launch connects.
      */
     void set_activation_callback(std::function<void()> callback);
+    /**
+     * @brief Set the callback invoked with a secondary-launch command payload.
+     * @param callback Function called with the command text supplied by a secondary launch.
+     */
+    void set_activation_callback(std::function<void(QString)> callback);
+    /**
+     * @brief Sets the command payload sent when this process becomes a secondary launch.
+     * @param message Message to send to the already-running primary instance.
+     */
+    void set_activation_message(QString message);
 
     /**
      * @brief Build a stable local server name for a logical instance id.
@@ -88,8 +98,10 @@ private:
     QString instance_id_;
     QString server_name_;
     QString lock_file_path_;
+    QString activation_message_path_;
     std::unique_ptr<QLockFile> lock_file_;
     std::unique_ptr<QLocalServer> server_;
-    std::function<void()> activation_callback_;
+    std::function<void(QString)> activation_callback_;
+    QString activation_message_;
     bool primary_instance_{false};
 };

@@ -336,6 +336,13 @@ Procedure: Verify local socket binding is available, then start a second coordin
 Expected outcome: When local sockets are available, the second coordinator reports that it is not primary and the first coordinator receives exactly the relaunch activation request. If the sandbox cannot bind local sockets, the test records that the activation handoff is skipped.
 Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator notifies the primary instance on relaunch"`
 
+#### Test case: SingleInstanceCoordinator forwards secondary launch command payload
+Purpose: Verify that a second launch can send a startup command to the already running primary process.
+Setup: Create a writable temporary runtime directory, point `AI_FILE_SORTER_SINGLE_INSTANCE_RUNTIME_DIR` at it, start one coordinator as the primary instance, and install an activation callback that records the received message.
+Procedure: Start a second coordinator with the same instance id, set its activation message to `show-review-history`, and wait for the primary callback to receive it.
+Expected outcome: When local sockets are available, the second coordinator exits as non-primary and the first coordinator receives the `show-review-history` payload. If the sandbox cannot bind local sockets, the test records that the payload handoff is skipped.
+Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator forwards secondary launch command payload"`
+
 #### Test case: SingleInstanceCoordinator allows different instance ids to coexist
 Purpose: Ensure the coordinator only deduplicates launches that share the same logical app id.
 Setup: Create a writable temporary runtime directory, point `AI_FILE_SORTER_SINGLE_INSTANCE_RUNTIME_DIR` at it, and create two coordinators with different unique instance ids.
