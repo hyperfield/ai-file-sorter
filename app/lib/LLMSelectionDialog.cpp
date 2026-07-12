@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QColor>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -33,6 +34,7 @@
 #include <QIcon>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPalette>
 #include <QScrollArea>
 #include <QTimer>
 #include <QStyle>
@@ -99,6 +101,43 @@ void apply_progress_style(QProgressBar* bar)
         " border-radius: 3px;"
         " }"));
 #endif
+}
+
+void apply_download_toggle_style(QToolButton* button)
+{
+    if (!button) {
+        return;
+    }
+
+    const QColor link_color = button->palette().color(QPalette::Link);
+    const QString normal = link_color.name(QColor::HexRgb);
+    const QString hover = link_color.darker(110).name(QColor::HexRgb);
+    const QString pressed = link_color.darker(125).name(QColor::HexRgb);
+    button->setStyleSheet(QStringLiteral(
+        "QToolButton {"
+        " color: %1;"
+        " font-weight: 600;"
+        " background: transparent;"
+        " border: none;"
+        " padding: 0px;"
+        " }"
+        "QToolButton:hover {"
+        " color: %2;"
+        " }"
+        "QToolButton:pressed {"
+        " color: %3;"
+        " }"
+        "QToolButton:checked {"
+        " color: %1;"
+        " background: transparent;"
+        " }"
+        "QToolButton:checked:hover {"
+        " color: %2;"
+        " }"
+        "QToolButton:checked:pressed {"
+        " color: %3;"
+        " }")
+        .arg(normal, hover, pressed));
 }
 
 QString visual_backend_combo_label(const VisualModelDescriptor& backend)
@@ -462,7 +501,7 @@ void LLMSelectionDialog::setup_ui()
     download_toggle_button->setCheckable(true);
     download_toggle_button->setChecked(downloads_expanded_);
     download_toggle_button->setArrowType(downloads_expanded_ ? Qt::DownArrow : Qt::RightArrow);
-    download_toggle_button->setStyleSheet(QStringLiteral("color: #1f6feb; font-weight: 600;"));
+    apply_download_toggle_style(download_toggle_button);
     auto* downloads_toggle_row = new QWidget(this);
     auto* downloads_toggle_layout = new QHBoxLayout(downloads_toggle_row);
     downloads_toggle_layout->setContentsMargins(0, 0, 0, 0);
