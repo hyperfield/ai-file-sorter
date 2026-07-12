@@ -647,7 +647,12 @@ void MainApp::setup_file_system_model()
     }
 
     file_system_model = new QFileSystemModel(file_explorer_dock);
+#if defined(Q_OS_WIN)
+    // Start from the model's top level so the dock can expose every drive.
+    file_system_model->setRootPath(QString());
+#else
     file_system_model->setRootPath(QDir::rootPath());
+#endif
     file_system_model->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Drives | QDir::AllDirs);
 }
 
@@ -659,8 +664,11 @@ void MainApp::setup_file_explorer_view()
 
     file_explorer_view = new QTreeView(file_explorer_dock);
     file_explorer_view->setModel(file_system_model);
-    const QString root_path = file_system_model->rootPath();
-    file_explorer_view->setRootIndex(file_system_model->index(root_path));
+#if defined(Q_OS_WIN)
+    file_explorer_view->setRootIndex(QModelIndex());
+#else
+    file_explorer_view->setRootIndex(file_system_model->index(file_system_model->rootPath()));
+#endif
 
     const QModelIndex home_index = file_system_model->index(QDir::homePath());
     if (home_index.isValid()) {
