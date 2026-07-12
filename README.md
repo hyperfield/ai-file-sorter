@@ -606,12 +606,12 @@ Build now targets native MSVC + Qt6 without MSYS2. Two options are supported; th
 Option A - CMake + vcpkg (recommended)
 
 1. Install prerequisites:
-   - Visual Studio 2022 with Desktop C++ workload
+   - Visual Studio 2022 or newer with Desktop C++ workload
    - CMake 3.21+ (Visual Studio ships a recent version)
    - vcpkg: <https://github.com/microsoft/vcpkg> (clone and bootstrap)
    - package-managed `libmediainfo` via vcpkg manifest (no vendored MediaInfo submodule/binaries)
-   - **MSYS2 MinGW64 + OpenBLAS**: install MSYS2 from <https://www.msys2.org>, open an *MSYS2 MINGW64* shell, and run `pacman -S --needed mingw-w64-x86_64-openblas`. The `build_llama_windows.ps1` script uses this OpenBLAS copy by default for CPU-only builds and also supports forcing it with `blas=on` for other variants if needed. It defaults to `C:\msys64\mingw64` unless you pass `openblasroot=<path>` or set `OPENBLAS_ROOT`.
-   - **If you plan to build the CUDA runtime on Windows**: install the current NVIDIA driver and the full NVIDIA CUDA Toolkit from <https://developer.nvidia.com/cuda-downloads>. After installation, open a fresh **x64 Native Tools / VS 2022 Developer PowerShell** and verify the toolkit/driver before running the helper:
+   - **MSYS2 UCRT64 or MINGW64 + OpenBLAS**: install MSYS2 from <https://www.msys2.org>, open either an *MSYS2 UCRT64* or *MSYS2 MINGW64* shell, and run `pacman -S --needed mingw-w64-ucrt-x86_64-openblas` or `pacman -S --needed mingw-w64-x86_64-openblas`. The `build_llama_windows.ps1` script probes `C:\msys64\ucrt64` and `C:\msys64\mingw64` automatically, and also supports overriding the location with `openblasroot=<path>` or `OPENBLAS_ROOT`.
+   - **If you plan to build the CUDA runtime on Windows**: install the current NVIDIA driver and the full NVIDIA CUDA Toolkit from <https://developer.nvidia.com/cuda-downloads>. After installation, open a fresh **x64 Native Tools / Visual Studio Developer PowerShell** and verify the toolkit/driver before running the helper:
 
      ```powershell
      $env:CUDA_PATH
@@ -633,7 +633,7 @@ Option A - CMake + vcpkg (recommended)
 
 3. **Build vendored libzip** (generates `zipconf.h` and `libzip.lib`)
 
-   Run from the same x64 Native Tools / VS Developer PowerShell you will use to build the app:
+   Run from the same x64 Native Tools / Visual Studio Developer PowerShell you will use to build the app:
 
    ```powershell
    cmake -S external\libzip -B external\libzip\build -A x64 `
@@ -660,7 +660,7 @@ Option A - CMake + vcpkg (recommended)
     - Otherwise use the directory where you cloned vcpkg, or pass it explicitly to the helper scripts.
 
    MediaInfo note: you do **not** manually add `MediaInfoLib` include/lib paths on Windows. The project already declares `libmediainfo` in `app/vcpkg.json`, and `app\build_windows.ps1` configures CMake with the vcpkg toolchain + manifest so `find_package(MediaInfoLib ...)` resolves it automatically. If you want to preinstall or verify it explicitly, run `vcpkg install libmediainfo:x64-windows`.
-5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **VS 2022 Developer PowerShell** shell). Invoke the script once per backend you need. The script accepts `cuda=on|off`, `vulkan=on|off`, `blas=on|off`, `vcpkgroot=<path>`, and `openblasroot=<path>`. `vcpkgroot=<path>` is optional and only needed when auto-discovery misses your install. `blas` defaults to `AUTO`: it is enabled automatically for CPU-only builds and disabled automatically for CUDA/Vulkan builds unless you force it on. For CUDA builds, the helper prefers a valid `CUDA_PATH` and otherwise auto-selects the newest installed toolkit it can validate under `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA`. Make sure `nvcc --version` and `nvidia-smi` succeed in this same shell before running `cuda=on`. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
+5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **Visual Studio Developer PowerShell** shell). Invoke the script once per backend you need. The script accepts `cuda=on|off`, `vulkan=on|off`, `blas=on|off`, `vcpkgroot=<path>`, `openblasroot=<path>`, and `cudaarch=<value>`. `vcpkgroot=<path>` is optional and only needed when auto-discovery misses your install. `blas` defaults to `AUTO`: it is enabled automatically for CPU-only builds and disabled automatically for CUDA/Vulkan builds unless you force it on. For CUDA builds, the helper prefers a valid `CUDA_PATH` and otherwise auto-selects the newest installed toolkit it can validate under `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA`. Make sure `nvcc --version` and `nvidia-smi` succeed in this same shell before running `cuda=on`. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
 
    ```powershell
    # CPU / OpenBLAS only
@@ -673,7 +673,7 @@ Option A - CMake + vcpkg (recommended)
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=on
    ```
   
-  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
+  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). The helper also stages OpenSSL runtime DLLs and, for OpenBLAS-backed builds, the MinGW companion DLLs needed beside `libopenblas.dll`. If the vendored `llama.cpp` UI assets are missing, the helper downloads a prebuilt UI bundle before configuring and removes the temporary extracted assets after the build completes. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
 
 6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt` and shares one dependency install tree across builds:
 
@@ -685,6 +685,7 @@ Option A - CMake + vcpkg (recommended)
    ```
 
    - Pass `-VcpkgRoot <path>` only if auto-discovery misses your vcpkg install. The path must contain `scripts\buildsystems\vcpkg.cmake`.
+   - Pass `-Generator <name>` only if you need to override the auto-selected CMake generator. By default the helper picks the newest installed Visual Studio generator it can validate and can fall back to the Visual Studio-bundled `cmake.exe` when needed.
    - The main bundled output is staged under `app\build-windows\Release`.
    - `aifilesorter.exe` is the Windows entry point for the bundled build and launches `aifilesorter-bin.exe`.
    - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
@@ -694,13 +695,13 @@ Option A - CMake + vcpkg (recommended)
 Option B - CMake + Qt online installer
 
 1. Install prerequisites:
-   - Visual Studio 2022 with Desktop C++ workload
+   - Visual Studio 2022 or newer with Desktop C++ workload
    - Qt 6.x MSVC kit via Qt Online Installer (e.g., Qt 6.6+ with MSVC 2019/2022)
    - CMake 3.21+
    - vcpkg (for non-Qt libs): curl, jsoncpp, sqlite3, openssl, fmt, spdlog, gettext, libmediainfo
 2. **Build vendored libzip** (generates `zipconf.h` and `libzip.lib`)
 
-   Run from the same x64 Native Tools / VS Developer PowerShell you will use to build the app:
+   Run from the same x64 Native Tools / Visual Studio Developer PowerShell you will use to build the app:
 
    ```powershell
    cmake -S external\libzip -B external\libzip\build -A x64 `
@@ -717,13 +718,13 @@ Option B - CMake + Qt online installer
    cmake --build external\libzip\build --config Release
    ```
 
-3. Build the bundled `llama.cpp` runtime (same VS shell). Any missing OpenBLAS/cURL packages are installed automatically via vcpkg:
+3. Build the bundled `llama.cpp` runtime (same VS shell). The helper resolves cURL and OpenSSL from vcpkg, and OpenBLAS from an MSYS2 UCRT64 or MINGW64 install:
 
    ```powershell
-   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [blas=on|off] [vcpkgroot=<path>] [openblasroot=C:\msys64\mingw64]
+   pwsh .\app\scripts\build_llama_windows.ps1 [cuda=on|off] [vulkan=on|off] [blas=on|off] [vcpkgroot=<path>] [openblasroot=C:\msys64\ucrt64] [cudaarch=<value>]
    ```
 
-   `blas` defaults to `AUTO`, which means ON for CPU-only builds and OFF for CUDA/Vulkan builds unless you force it. This is required before configuring the GUI because the build links against the produced `llama` static libraries/DLLs.
+   `blas` defaults to `AUTO`, which means ON for CPU-only builds and OFF for CUDA/Vulkan builds unless you force it. This is required before configuring the GUI because the build links against the produced `llama` import libraries and runtime DLLs.
 4. Configure CMake from the repo root so CMake sees both the Qt install and the app's vcpkg manifest (adapt `CMAKE_PREFIX_PATH` to your Qt install):
 
     ```powershell
@@ -745,6 +746,7 @@ Notes
 - To rebuild from scratch, run `.\app\build_windows.ps1 -Clean`. The script removes the Windows build directories used by the helper and the shared `app\build-windows-vcpkg_installed` dependency tree before configuring.
 - Runtime DLLs are copied automatically via `windeployqt` after each successful build; skip this step with `-SkipDeploy` if you manage deployment yourself.
 - If Visual Studio sets `VCPKG_ROOT` to its bundled copy under `Program Files`, point `VCPKG_ROOT` to a writable clone or pass `vcpkgroot=<path>` when running `build_llama_windows.ps1`. The script skips the bundled Visual Studio copy during auto-discovery because it is usually read-only.
+- If a Windows build directory was previously configured with a different generator, platform, or Visual Studio instance, `app\build_windows.ps1` now detects the stale cache and recreates that build directory automatically before configuring.
 - If you plan to ship CUDA or Vulkan acceleration, run the `build_llama_*` helper for each backend you intend to include before configuring CMake so the libraries exist. The runtime can carry both and auto-select at launch, so CUDA remains optional.
 - `-BuildTests` and `-RunTests` are intended for the primary bundled Windows build configuration.
 
@@ -782,6 +784,7 @@ ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PR
 Notes
 
 - The easiest Windows path is still `app\build_windows.ps1 -Configuration Release -BuildTests -RunTests`, which wires up the same vcpkg manifest/toolchain expectations for the main bundled build.
+- If you use a Visual Studio multi-config build tree such as `build-tests-vs`, building only `--target aifilesorter` produces `Release\aifilesorter-bin.exe`. The launcher `Release\aifilesorter.exe` belongs to the `StartAiFileSorter` target, so build `StartAiFileSorter` explicitly or omit `--target` if you want the launcher too.
 - List individual Catch2 cases: `./build-tests/ai_file_sorter_tests --list-tests`
 - Print each case name (including successes): `./build-tests/ai_file_sorter_tests --verbosity high --success`
 

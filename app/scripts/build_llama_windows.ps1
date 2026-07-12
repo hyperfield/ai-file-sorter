@@ -47,13 +47,197 @@ $precompiledRootDir = Join-Path $scriptDir "..\lib\precompiled"
 $headersDir = Join-Path $scriptDir "..\include\llama"
 $ggmlRuntimeRoot = Join-Path $scriptDir "..\lib\ggml"
 
+function Get-VsWherePath {
+    $candidates = @(
+        "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe",
+        "C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-VisualStudioInstances {
+    $vswherePath = Get-VsWherePath
+    if (-not $vswherePath) {
+        return @()
+    }
+
+    $vswhereOutput = & $vswherePath -products * -format json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $vswhereOutput) {
+        return @()
+    }
+
+    try {
+        $instances = ($vswhereOutput -join [System.Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        Write-Warning "Unable to parse Visual Studio installation metadata from vswhere."
+        return @()
+    }
+
+    if ($null -eq $instances) {
+        return @()
+    }
+
+    if ($instances -is [System.Array]) {
+        return @($instances)
+    }
+
+    return @($instances)
+}
+
+function Get-LatestInstalledVisualStudioMajorVersion {
+    $instances = Get-VisualStudioInstances |
+        Where-Object {
+            $_.isComplete -and
+            $_.isLaunchable -and
+            $_.installationVersion -and
+            $_.catalog.productLineVersion -match '^\d+$'
+        } |
+        Sort-Object -Property @{ Expression = { [version]$_.installationVersion }; Descending = $true }
+
+    $latestInstance = $instances | Select-Object -First 1
+    if (-not $latestInstance) {
+        return $null
+    }
+
+    return [int]$latestInstance.catalog.productLineVersion
+}
+
+function Resolve-VisualStudioBundledCMake {
+    $instances = Get-VisualStudioInstances |
+        Where-Object {
+            $_.isComplete -and
+            $_.isLaunchable -and
+            $_.installationVersion -and
+            $_.installationPath
+        } |
+        Sort-Object -Property @{ Expression = { [version]$_.installationVersion }; Descending = $true }
+
+    foreach ($instance in $instances) {
+        $candidate = Join-Path $instance.installationPath "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-AvailableCMakeGenerators {
+    param([string]$CMakeExecutable)
+
+    if (-not $CMakeExecutable -or -not (Test-Path $CMakeExecutable)) {
+        return @()
+    }
+
+    $capabilitiesOutput = & $CMakeExecutable -E capabilities 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $capabilitiesOutput) {
+        return @()
+    }
+
+    try {
+        $capabilities = ($capabilitiesOutput -join [System.Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        Write-Warning "Unable to parse generator capabilities from '$CMakeExecutable'."
+        return @()
+    }
+
+    if (-not $capabilities.generators) {
+        return @()
+    }
+
+    return @(
+        $capabilities.generators |
+            Where-Object { $_.name } |
+            Select-Object -ExpandProperty name
+    )
+}
+
+function Test-GeneratorsContainVisualStudioMajor {
+    param(
+        [string[]]$GeneratorNames,
+        [Nullable[Int32]]$MajorVersion
+    )
+
+    if ($null -eq $MajorVersion) {
+        return $false
+    }
+
+    foreach ($generatorName in $GeneratorNames) {
+        if ($generatorName -match '^Visual Studio (?<major>\d+) \d{4}$' -and [int]$matches['major'] -eq $MajorVersion) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Resolve-DefaultVisualStudioGenerator {
+    param(
+        [string[]]$AvailableGenerators,
+        [Nullable[Int32]]$PreferredVisualStudioMajor
+    )
+
+    $visualStudioGenerators = @(
+        foreach ($generatorName in $AvailableGenerators) {
+            if ($generatorName -match '^Visual Studio (?<major>\d+) (?<year>\d{4})$') {
+                [pscustomobject]@{
+                    Name = $generatorName
+                    Major = [int]$matches['major']
+                    Year = [int]$matches['year']
+                }
+            }
+        }
+    )
+
+    if ($null -ne $PreferredVisualStudioMajor) {
+        $preferredGenerator = $visualStudioGenerators |
+            Where-Object { $_.Major -eq $PreferredVisualStudioMajor } |
+            Sort-Object -Property @{ Expression = { $_.Year }; Descending = $true } |
+            Select-Object -First 1
+        if ($preferredGenerator) {
+            return $preferredGenerator.Name
+        }
+    }
+
+    $latestGenerator = $visualStudioGenerators |
+        Sort-Object -Property @{ Expression = { $_.Major }; Descending = $true }, @{ Expression = { $_.Year }; Descending = $true } |
+        Select-Object -First 1
+    if ($latestGenerator) {
+        return $latestGenerator.Name
+    }
+
+    return "Visual Studio 17 2022"
+}
+
+function Test-NormalizedPathEqual {
+    param(
+        [string]$Left,
+        [string]$Right
+    )
+
+    if (-not $Left -or -not $Right) {
+        return $false
+    }
+
+    $normalizedLeft = [System.IO.Path]::GetFullPath($Left).TrimEnd('\')
+    $normalizedRight = [System.IO.Path]::GetFullPath($Right).TrimEnd('\')
+    return $normalizedLeft.Equals($normalizedRight, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 # --- Locate cmake executable ---
 function Resolve-CMake {
     $cmd = Get-Command cmake -ErrorAction SilentlyContinue
     if ($cmd) {
         return $cmd.Source
     }
-    $vsCMake = "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+    $vsCMake = Resolve-VisualStudioBundledCMake
     if (Test-Path $vsCMake) {
         return $vsCMake
     }
@@ -61,6 +245,20 @@ function Resolve-CMake {
 }
 
 $cmakeExe = Resolve-CMake
+$availableGenerators = Get-AvailableCMakeGenerators -CMakeExecutable $cmakeExe
+$latestVisualStudioMajor = Get-LatestInstalledVisualStudioMajorVersion
+if (-not (Test-GeneratorsContainVisualStudioMajor -GeneratorNames $availableGenerators -MajorVersion $latestVisualStudioMajor)) {
+    $bundledCMakeExe = Resolve-VisualStudioBundledCMake
+    if ($bundledCMakeExe -and -not (Test-NormalizedPathEqual -Left $cmakeExe -Right $bundledCMakeExe)) {
+        $bundledGenerators = Get-AvailableCMakeGenerators -CMakeExecutable $bundledCMakeExe
+        if (Test-GeneratorsContainVisualStudioMajor -GeneratorNames $bundledGenerators -MajorVersion $latestVisualStudioMajor) {
+            Write-Output "Switching to Visual Studio-bundled CMake because '$cmakeExe' does not support the installed Visual Studio $latestVisualStudioMajor generator."
+            $cmakeExe = $bundledCMakeExe
+            $availableGenerators = $bundledGenerators
+        }
+    }
+}
+$visualStudioGenerator = Resolve-DefaultVisualStudioGenerator -AvailableGenerators $availableGenerators -PreferredVisualStudioMajor $latestVisualStudioMajor
 
 function Resolve-MSVCCompiler {
     $cmd = Get-Command cl.exe -ErrorAction SilentlyContinue
@@ -252,17 +450,117 @@ function Resolve-VcpkgRoot {
 $cpuOnlyBuild = ($useCuda -eq "OFF" -and $useVulkan -eq "OFF")
 $enableBlas = ($useBlas -eq "ON") -or ($useBlas -eq "AUTO" -and $cpuOnlyBuild)
 
+function Get-OpenBlasHeaderCandidates {
+    param([string]$Root)
+
+    return @(
+        (Join-Path $Root "include\openblas\cblas.h"),
+        (Join-Path $Root "include\cblas.h")
+    )
+}
+
+function Get-OpenBlasLibraryCandidates {
+    param([string]$Root)
+
+    return @(
+        (Join-Path $Root "lib\openblas.lib"),
+        (Join-Path $Root "lib\libopenblas.lib"),
+        (Join-Path $Root "lib\libopenblas.dll.a"),
+        (Join-Path $Root "lib\libopenblas.a")
+    )
+}
+
+function Get-OpenBlasDllCandidates {
+    param([string]$Root)
+
+    return @(
+        (Join-Path $Root "bin\libopenblas.dll"),
+        (Join-Path $Root "bin\openblas.dll")
+    )
+}
+
+function Resolve-OpenBlasIncludeDirectory {
+    param([string]$Root)
+
+    $nestedIncludeDir = Join-Path $Root "include\openblas"
+    if (Test-Path (Join-Path $nestedIncludeDir "cblas.h")) {
+        return $nestedIncludeDir
+    }
+
+    $flatIncludeDir = Join-Path $Root "include"
+    if (Test-Path (Join-Path $flatIncludeDir "cblas.h")) {
+        return $flatIncludeDir
+    }
+
+    return $nestedIncludeDir
+}
+
+function Test-OpenBlasRootCandidate {
+    param([string]$Root)
+
+    if (-not $Root -or -not (Test-Path $Root)) {
+        return $false
+    }
+
+    $hasHeader = $false
+    foreach ($candidate in (Get-OpenBlasHeaderCandidates -Root $Root)) {
+        if (Test-Path $candidate) {
+            $hasHeader = $true
+            break
+        }
+    }
+
+    if (-not $hasHeader) {
+        return $false
+    }
+
+    $hasLibrary = $false
+    foreach ($candidate in (Get-OpenBlasLibraryCandidates -Root $Root)) {
+        if (Test-Path $candidate) {
+            $hasLibrary = $true
+            break
+        }
+    }
+
+    if (-not $hasLibrary) {
+        return $false
+    }
+
+    foreach ($candidate in (Get-OpenBlasDllCandidates -Root $Root)) {
+        if (Test-Path $candidate) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Resolve-OpenBlasRoot {
     param([string]$Explicit)
 
     $candidates = @()
     if ($Explicit) { $candidates += $Explicit }
     if ($env:OPENBLAS_ROOT) { $candidates += $env:OPENBLAS_ROOT }
+    $candidates += "C:\msys64\ucrt64"
     $candidates += "C:\msys64\mingw64"
 
-    foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path $candidate)) {
-            return (Resolve-Path $candidate).Path
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if (-not $candidate -or -not (Test-Path $candidate)) {
+            continue
+        }
+
+        $candidateVariants = @($candidate)
+        if ((Split-Path $candidate -Leaf) -ieq "msys64") {
+            $candidateVariants += @(
+                (Join-Path $candidate "ucrt64"),
+                (Join-Path $candidate "mingw64")
+            )
+        }
+
+        foreach ($variant in ($candidateVariants | Select-Object -Unique)) {
+            if (Test-OpenBlasRootCandidate -Root $variant) {
+                return (Resolve-Path $variant).Path
+            }
         }
     }
     return $null
@@ -461,6 +759,213 @@ function New-CMakeCacheArg {
     return "-D${Name}=$Value"
 }
 
+function Push-TransientGitSafeDirectory {
+    param([string]$Directory)
+
+    if (-not $Directory) {
+        throw "Push-TransientGitSafeDirectory requires a directory path."
+    }
+
+    $state = @{
+        OriginalCount = $env:GIT_CONFIG_COUNT
+        KeyName = $null
+        ValueName = $null
+        OriginalKey = $null
+        OriginalValue = $null
+    }
+
+    $configCount = 0
+    if ($env:GIT_CONFIG_COUNT) {
+        [void][int]::TryParse($env:GIT_CONFIG_COUNT, [ref]$configCount)
+    }
+
+    $keyName = "GIT_CONFIG_KEY_$configCount"
+    $valueName = "GIT_CONFIG_VALUE_$configCount"
+    $existingKey = Get-Item -Path "Env:$keyName" -ErrorAction SilentlyContinue
+    $existingValue = Get-Item -Path "Env:$valueName" -ErrorAction SilentlyContinue
+
+    $state.KeyName = $keyName
+    $state.ValueName = $valueName
+    $state.OriginalKey = if ($existingKey) { $existingKey.Value } else { $null }
+    $state.OriginalValue = if ($existingValue) { $existingValue.Value } else { $null }
+
+    Set-Item -Path "Env:$keyName" -Value "safe.directory"
+    Set-Item -Path "Env:$valueName" -Value ([System.IO.Path]::GetFullPath($Directory).Replace('\', '/'))
+    $env:GIT_CONFIG_COUNT = ($configCount + 1).ToString()
+
+    return $state
+}
+
+function Pop-TransientGitSafeDirectory {
+    param($State)
+
+    if (-not $State) {
+        return
+    }
+
+    if ($State.KeyName) {
+        if ($null -ne $State.OriginalKey) {
+            Set-Item -Path ("Env:" + $State.KeyName) -Value $State.OriginalKey
+        } else {
+            Remove-Item -Path ("Env:" + $State.KeyName) -ErrorAction SilentlyContinue
+        }
+    }
+
+    if ($State.ValueName) {
+        if ($null -ne $State.OriginalValue) {
+            Set-Item -Path ("Env:" + $State.ValueName) -Value $State.OriginalValue
+        } else {
+            Remove-Item -Path ("Env:" + $State.ValueName) -ErrorAction SilentlyContinue
+        }
+    }
+
+    if ($null -ne $State.OriginalCount -and $State.OriginalCount -ne "") {
+        $env:GIT_CONFIG_COUNT = $State.OriginalCount
+    } else {
+        Remove-Item -Path "Env:GIT_CONFIG_COUNT" -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-LlamaBuildVariantId {
+    if ($useCuda -eq "ON") {
+        return "cuda"
+    }
+
+    if ($useVulkan -eq "ON") {
+        if ($enableBlas) {
+            return "vulkan-blas"
+        }
+        return "vulkan"
+    }
+
+    if ($enableBlas) {
+        return "cpu-blas"
+    }
+
+    return "cpu"
+}
+
+function Get-LlamaBuildDirectory {
+    param([string]$LlamaRoot)
+
+    $driveRoot = [System.IO.Path]::GetPathRoot([System.IO.Path]::GetFullPath($LlamaRoot))
+    if (-not $driveRoot) {
+        throw "Could not resolve the build drive root for '$LlamaRoot'."
+    }
+
+    $variantId = Get-LlamaBuildVariantId
+    return Join-Path $driveRoot ("aifs-llama-" + $variantId)
+}
+
+function Invoke-DownloadFile {
+    param(
+        [string]$Uri,
+        [string]$Destination
+    )
+
+    Invoke-WebRequest -Uri $Uri -OutFile $Destination -UseBasicParsing
+}
+
+function Ensure-LlamaUiDist {
+    param(
+        [string]$LlamaRoot,
+        [string]$CMakeExecutable
+    )
+
+    $uiSourceDir = Join-Path $LlamaRoot "tools\ui"
+    $uiStaticDir = Join-Path $uiSourceDir "static"
+    $uiDistDir = Join-Path $uiSourceDir "dist"
+    $loadingSource = Join-Path $uiStaticDir "loading.html"
+    $indexPath = Join-Path $uiDistDir "index.html"
+    $loadingDest = Join-Path $uiDistDir "loading.html"
+    $hadUsableDist = (Test-Path $indexPath)
+
+    if ($hadUsableDist -and (Test-Path $loadingDest)) {
+        return @{
+            DistDir = $uiDistDir
+            CleanupAfterBuild = $false
+        }
+    }
+
+    if ($hadUsableDist) {
+        if (-not (Test-Path $loadingSource)) {
+            throw "UI assets exist in $uiDistDir, but $loadingSource is missing, so the loading page cannot be staged."
+        }
+
+        Copy-Item $loadingSource -Destination $loadingDest -Force
+        Write-Output "Added missing UI loading fallback to $uiDistDir"
+        return @{
+            DistDir = $uiDistDir
+            CleanupAfterBuild = $false
+        }
+    }
+
+    $cacheDir = Join-Path $uiSourceDir ".aifs-prebuilt-ui"
+    $archivePath = Join-Path $cacheDir "dist.tar.gz"
+    $checksumPath = Join-Path $cacheDir "dist.tar.gz.sha256"
+    $archiveUrl = "https://huggingface.co/buckets/ggml-org/llama-ui/resolve/latest/dist.tar.gz?download=true"
+    $checksumUrl = "https://huggingface.co/buckets/ggml-org/llama-ui/resolve/latest/dist.tar.gz.sha256?download=true"
+
+    New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+
+    Write-Output "Downloading prebuilt llama UI assets from latest HF bucket release"
+    Invoke-DownloadFile -Uri $archiveUrl -Destination $archivePath
+    Invoke-DownloadFile -Uri $checksumUrl -Destination $checksumPath
+
+    $expectedChecksumContent = Get-Content -LiteralPath $checksumPath -Raw
+    if ($expectedChecksumContent -notmatch '^[0-9a-fA-F]+') {
+        throw "The UI asset checksum file '$checksumPath' did not contain a valid SHA256 digest."
+    }
+
+    $expectedChecksum = $Matches[0].ToLowerInvariant()
+    $actualChecksum = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualChecksum -ne $expectedChecksum) {
+        throw "Checksum verification failed for '$archivePath'. Expected $expectedChecksum, got $actualChecksum."
+    }
+
+    if (Test-Path $uiDistDir) {
+        Remove-Item -Recurse -Force $uiDistDir
+    }
+    New-Item -ItemType Directory -Force -Path $uiDistDir | Out-Null
+
+    Push-Location $uiDistDir
+    try {
+        & $CMakeExecutable -E tar xzf $archivePath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to extract prebuilt UI assets from '$archivePath'."
+        }
+    } finally {
+        Pop-Location
+    }
+
+    if (-not (Test-Path $indexPath)) {
+        throw "The downloaded UI asset archive did not contain index.html after extraction to $uiDistDir."
+    }
+
+    if (-not (Test-Path $loadingSource)) {
+        throw "The vendored UI static asset '$loadingSource' is missing, so loading.html cannot be staged."
+    }
+
+    Copy-Item $loadingSource -Destination $loadingDest -Force
+
+    return @{
+        DistDir = $uiDistDir
+        CleanupAfterBuild = $true
+    }
+}
+
+function Get-FirstExistingPath {
+    param([string[]]$Candidates)
+
+    foreach ($candidate in $Candidates) {
+        if ($candidate -and (Test-Path $candidate)) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
 $triplet = "x64-windows"
 
 function Invoke-Vcpkg {
@@ -532,28 +1037,61 @@ $curlLib = Join-Path $vcpkgRoot "installed\$triplet\lib\libcurl.lib"
 $curlDll = Join-Path $vcpkgRoot "installed\$triplet\bin\libcurl.dll"
 Confirm-VcpkgPackage -HeaderCheckPath (Join-Path $curlInclude "curl\curl.h") -LibraryCheckPath $curlLib -PackageName "curl"
 
+$openSslRoot = Join-Path $vcpkgRoot "installed\$triplet"
+$openSslInclude = Join-Path $openSslRoot "include"
+$openSslSslLibCandidates = @(
+    (Join-Path $openSslRoot "lib\libssl.lib"),
+    (Join-Path $openSslRoot "lib\ssl.lib")
+)
+$openSslCryptoLibCandidates = @(
+    (Join-Path $openSslRoot "lib\libcrypto.lib"),
+    (Join-Path $openSslRoot "lib\crypto.lib")
+)
+Confirm-VcpkgPackage `
+    -HeaderCheckPath (Join-Path $openSslInclude "openssl\ssl.h") `
+    -LibraryCheckPath $null `
+    -PackageName "openssl" `
+    -AdditionalPaths @($openSslSslLibCandidates[0], $openSslCryptoLibCandidates[0])
+
+$openSslSslLib = Get-FirstExistingPath -Candidates $openSslSslLibCandidates
+$openSslCryptoLib = Get-FirstExistingPath -Candidates $openSslCryptoLibCandidates
+if (-not $openSslSslLib -or -not $openSslCryptoLib) {
+    throw "Could not locate OpenSSL import libraries under $openSslRoot\lib after installing openssl."
+}
+
+$openSslRuntimeDlls = @()
+$openSslBin = Join-Path $openSslRoot "bin"
+if (Test-Path $openSslBin) {
+    $openSslRuntimeDlls += @(Get-ChildItem -Path $openSslBin -Filter "libssl*.dll" -File -ErrorAction SilentlyContinue)
+    $openSslRuntimeDlls += @(Get-ChildItem -Path $openSslBin -Filter "libcrypto*.dll" -File -ErrorAction SilentlyContinue)
+}
+if ($openSslRuntimeDlls.Count -eq 0) {
+    Write-Warning "OpenSSL runtime DLLs were not found under $openSslBin. HTTPS-enabled llama components may fail at runtime unless those DLLs are otherwise available."
+}
+
 $openBlasInclude = $null
 $openBlasLib = $null
 $openBlasDll = $null
+$openBlasCompanionDllNames = @(
+    "libgomp-1.dll",
+    "libgcc_s_seh-1.dll",
+    "libgfortran-5.dll",
+    "libwinpthread-1.dll",
+    "libquadmath-0.dll"
+)
 if ($enableBlas) {
     $openBlasRoot = Resolve-OpenBlasRoot -Explicit $openBlasRootArg
     if (-not $openBlasRoot) {
-        throw "BLAS builds require OpenBLAS from MSYS2/MinGW64. Pass openblasroot=<path> or set OPENBLAS_ROOT."
+        throw "BLAS builds require an OpenBLAS runtime tree (for example C:\msys64\ucrt64 or C:\msys64\mingw64). Pass openblasroot=<path> or set OPENBLAS_ROOT."
     }
 
-    $openBlasIncludeRoot = Join-Path $openBlasRoot "include"
-    $openBlasInclude = Join-Path $openBlasIncludeRoot "openblas"
+    $openBlasInclude = Resolve-OpenBlasIncludeDirectory -Root $openBlasRoot
     $openBlasHeader = Join-Path $openBlasInclude "cblas.h"
     if (-not (Test-Path $openBlasHeader)) {
-        throw "Missing cblas.h under $openBlasInclude. Install OpenBLAS via MSYS2 (pacman -S mingw-w64-x86_64-openblas) or point openblasroot to a valid tree."
+        throw "Missing cblas.h under $openBlasInclude. Install OpenBLAS via MSYS2 (for example pacman -S mingw-w64-ucrt-x86_64-openblas or mingw-w64-x86_64-openblas) or point openblasroot to a valid tree."
     }
 
-    $openBlasLibCandidates = @(
-        (Join-Path $openBlasRoot "lib\openblas.lib")
-        (Join-Path $openBlasRoot "lib\libopenblas.lib")
-        (Join-Path $openBlasRoot "lib\libopenblas.dll.a")
-        (Join-Path $openBlasRoot "lib\libopenblas.a")
-    )
+    $openBlasLibCandidates = Get-OpenBlasLibraryCandidates -Root $openBlasRoot
     foreach ($candidate in $openBlasLibCandidates) {
         if (Test-Path $candidate) {
             $openBlasLib = $candidate
@@ -564,10 +1102,7 @@ if ($enableBlas) {
         throw "Could not find an OpenBLAS import library under $openBlasRoot\lib."
     }
 
-    $openBlasDllCandidates = @(
-        (Join-Path $openBlasRoot "bin\libopenblas.dll")
-        (Join-Path $openBlasRoot "bin\openblas.dll")
-    )
+    $openBlasDllCandidates = Get-OpenBlasDllCandidates -Root $openBlasRoot
     foreach ($candidate in $openBlasDllCandidates) {
         if (Test-Path $candidate) {
             $openBlasDll = $candidate
@@ -605,19 +1140,19 @@ if ($useVulkan -eq "ON") {
 # Write-Host "Using OpenBLAS include: $openBlasInclude"
 # Write-Host "Using OpenBLAS lib: $openBlasLib"
 
-# --- Build from llama.cpp ---
-Push-Location $llamaDir
-
-if (Test-Path "build") {
-    Remove-Item -Recurse -Force "build"
-}
-New-Item -ItemType Directory -Path "build" | Out-Null
+$llamaBuildDir = Get-LlamaBuildDirectory -LlamaRoot $llamaDir
+$uiDistState = Ensure-LlamaUiDist -LlamaRoot $llamaDir -CMakeExecutable $cmakeExe
+$gitSafeDirectoryState = $null
 
 $cmakeArgs = @(
     (New-CMakeCacheArg -Name "CMAKE_C_COMPILER" -Type "FILEPATH" -Value (Convert-ToCMakePath $msvcCompiler)),
     (New-CMakeCacheArg -Name "CMAKE_CXX_COMPILER" -Type "FILEPATH" -Value (Convert-ToCMakePath $msvcCompiler)),
-    (New-CMakeCacheArg -Name "CURL_LIBRARY" -Type "FILEPATH" -Value (Convert-ToCMakePath $curlLib)),
-    (New-CMakeCacheArg -Name "CURL_INCLUDE_DIR" -Type "PATH" -Value (Convert-ToCMakePath $curlInclude)),
+    "-DLLAMA_OPENSSL=ON",
+    "-DLLAMA_UI_GZIP=OFF",
+    (New-CMakeCacheArg -Name "OPENSSL_ROOT_DIR" -Type "PATH" -Value (Convert-ToCMakePath $openSslRoot)),
+    (New-CMakeCacheArg -Name "OPENSSL_INCLUDE_DIR" -Type "PATH" -Value (Convert-ToCMakePath $openSslInclude)),
+    (New-CMakeCacheArg -Name "OPENSSL_SSL_LIBRARY" -Type "FILEPATH" -Value (Convert-ToCMakePath $openSslSslLib)),
+    (New-CMakeCacheArg -Name "OPENSSL_CRYPTO_LIBRARY" -Type "FILEPATH" -Value (Convert-ToCMakePath $openSslCryptoLib)),
     "-DBUILD_SHARED_LIBS=ON",
     "-DGGML_OPENCL=OFF",
     "-DGGML_VULKAN=$useVulkan",
@@ -626,7 +1161,7 @@ $cmakeArgs = @(
     "-DGGML_KLEIDIAI=OFF",
     "-DGGML_NATIVE=OFF",
     "-DCMAKE_C_FLAGS=/arch:AVX2",
-    "-DCMAKE_CXX_FLAGS=/arch:AVX2"
+    "-DCMAKE_CXX_FLAGS=/arch:AVX2 /EHsc"
 )
 
 if ($enableBlas) {
@@ -646,7 +1181,6 @@ if ($enableBlas) {
 
 if ($useCuda -eq "ON") {
     $cudaRoot = Resolve-CudaRoot
-    $includeDir = "$cudaRoot/include"
     $libDir = "$cudaRoot/lib/x64/cudart.lib"
     $cudaBinDir = "$cudaRoot/bin"
     $nvccPath = Join-Path $cudaBinDir "nvcc.exe"
@@ -663,8 +1197,6 @@ if ($useCuda -eq "ON") {
         "-DGGML_CUDA=ON",
         (New-CMakeCacheArg -Name "CUDAToolkit_ROOT" -Type "PATH" -Value (Convert-ToCMakePath $cudaRoot)),
         (New-CMakeCacheArg -Name "CMAKE_CUDA_COMPILER" -Type "FILEPATH" -Value (Convert-ToCMakePath $nvccPath)),
-        (New-CMakeCacheArg -Name "CUDA_TOOLKIT_ROOT_DIR" -Type "PATH" -Value (Convert-ToCMakePath $cudaRoot)),
-        (New-CMakeCacheArg -Name "CUDA_INCLUDE_DIRS" -Type "PATH" -Value (Convert-ToCMakePath $includeDir)),
         (New-CMakeCacheArg -Name "CUDA_CUDART" -Type "FILEPATH" -Value (Convert-ToCMakePath $libDir))
     )
     if ($cudaArchArg) {
@@ -683,28 +1215,38 @@ if ($useVulkan -eq "ON") {
         (New-CMakeCacheArg -Name "Vulkan_LIBRARY" -Type "FILEPATH" -Value (Convert-ToCMakePath $vulkanLibPath)),
         (New-CMakeCacheArg -Name "Vulkan_GLSLC_EXECUTABLE" -Type "FILEPATH" -Value (Convert-ToCMakePath $vulkanGlslcPath))
     )
-    if ($vulkanSdkRoot) {
-        $cmakeArgs += New-CMakeCacheArg -Name "VULKAN_SDK" -Type "PATH" -Value (Convert-ToCMakePath $vulkanSdkRoot)
-    }
 }
 
-$cmakeConfigureArgs = @("-S", ".", "-B", "build")
+$cmakeConfigureArgs = @("-Wno-dev", "-S", $llamaDir, "-B", $llamaBuildDir)
 if ($useCuda -eq "ON") {
-    $cmakeConfigureArgs += @("-G", "Visual Studio 17 2022", "-A", "x64", "-T", "cuda=$cudaRoot,host=x64")
+    $cmakeConfigureArgs += @("-G", $visualStudioGenerator, "-A", "x64", "-T", "cuda=$cudaRoot,host=x64")
 }
 $cmakeConfigureArgs += $cmakeArgs
 
-& $cmakeExe @cmakeConfigureArgs
-if ($LASTEXITCODE -ne 0) {
-    throw "CMake configure failed with exit code $LASTEXITCODE"
-}
+try {
+    $gitSafeDirectoryState = Push-TransientGitSafeDirectory -Directory $llamaDir
 
-& $cmakeExe --build build --config Release -- /m
-if ($LASTEXITCODE -ne 0) {
-    throw "CMake build failed with exit code $LASTEXITCODE"
-}
+    if (Test-Path $llamaBuildDir) {
+        Remove-Item -Recurse -Force $llamaBuildDir
+    }
+    New-Item -ItemType Directory -Force -Path $llamaBuildDir | Out-Null
 
-Pop-Location
+    & $cmakeExe @cmakeConfigureArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "CMake configure failed with exit code $LASTEXITCODE"
+    }
+
+    & $cmakeExe --build $llamaBuildDir --config Release -- /m
+    if ($LASTEXITCODE -ne 0) {
+        throw "CMake build failed with exit code $LASTEXITCODE"
+    }
+} finally {
+    Pop-TransientGitSafeDirectory -State $gitSafeDirectoryState
+
+    if ($uiDistState -and $uiDistState.CleanupAfterBuild -and (Test-Path $uiDistState.DistDir)) {
+        Remove-Item -Recurse -Force $uiDistState.DistDir
+    }
+}
 
 # --- Clean and repopulate precompiled outputs ---
 $variant = "cpu"
@@ -738,7 +1280,7 @@ foreach ($dir in @($variantBin, $variantLib, $runtimeDir)) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
 }
 
-$releaseBin = Join-Path $llamaDir "build\bin\Release"
+$releaseBin = Join-Path $llamaBuildDir "bin\Release"
 $dllList = @()
 if (Test-Path $releaseBin) {
     $dllList = Get-ChildItem -Path $releaseBin -Filter "*.dll" -File | Select-Object -ExpandProperty Name
@@ -764,10 +1306,25 @@ if ($enableBlas -and $openBlasDll -and (Test-Path $openBlasDll)) {
             Remove-Item $legacy -Force
         }
     }
+
+    foreach ($runtimeName in $openBlasCompanionDllNames) {
+        $runtimeDllPath = Join-Path $openBlasRoot "bin\$runtimeName"
+        if (-not (Test-Path $runtimeDllPath)) {
+            continue
+        }
+
+        Copy-Item $runtimeDllPath -Destination (Join-Path $variantBin $runtimeName) -Force
+        Copy-Item $runtimeDllPath -Destination (Join-Path $runtimeDir $runtimeName) -Force
+    }
 }
 if (Test-Path $curlDll) {
     Copy-Item $curlDll -Destination $variantBin -Force
     Copy-Item $curlDll -Destination $runtimeDir -Force
+}
+
+foreach ($runtimeDll in $openSslRuntimeDlls) {
+    Copy-Item $runtimeDll.FullName -Destination $variantBin -Force
+    Copy-Item $runtimeDll.FullName -Destination $runtimeDir -Force
 }
 
 if ($useVulkan -eq "ON" -and $vulkanDllPath -and (Test-Path $vulkanDllPath)) {
@@ -782,14 +1339,14 @@ if ($useCuda -eq "ON") {
 }
 
 foreach ($libName in $importLibNames) {
-    $libSource = Get-ChildItem (Join-Path $llamaDir "build") -Filter $libName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    $libSource = Get-ChildItem $llamaBuildDir -Filter $libName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $libSource) {
         throw "Could not locate $libName within the llama.cpp build directory."
     }
     Copy-Item $libSource.FullName -Destination (Join-Path $variantLib $libName) -Force
 }
 foreach ($libName in $optionalLibs) {
-    $libSource = Get-ChildItem (Join-Path $llamaDir "build") -Filter $libName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    $libSource = Get-ChildItem $llamaBuildDir -Filter $libName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($libSource) {
         Copy-Item $libSource.FullName -Destination (Join-Path $variantLib $libName) -Force
     }

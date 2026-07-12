@@ -165,6 +165,67 @@ function(aifs_apply_expected_update_mode target_name update_mode)
     endif()
 endfunction()
 
+if(WIN32)
+    set(AIFS_COPY_QT_PLUGINS_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/cmake/aifs-copy-qt-plugins.cmake")
+    file(GENERATE OUTPUT "${AIFS_COPY_QT_PLUGINS_SCRIPT}" CONTENT [=[
+if(AIFS_QT_PLUGIN_CONFIG STREQUAL "Debug")
+    set(_aifs_qt_plugin_roots
+        "${AIFS_QT_PLUGIN_BASE}/debug/Qt6/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/Qt6/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/debug/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/plugins")
+else()
+    set(_aifs_qt_plugin_roots
+        "${AIFS_QT_PLUGIN_BASE}/Qt6/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/debug/Qt6/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/debug/plugins")
+endif()
+
+set(_aifs_qt_plugin_root "")
+foreach(_aifs_qt_plugin_candidate IN LISTS _aifs_qt_plugin_roots)
+    if(EXISTS "${_aifs_qt_plugin_candidate}")
+        set(_aifs_qt_plugin_root "${_aifs_qt_plugin_candidate}")
+        break()
+    endif()
+endforeach()
+
+if(NOT _aifs_qt_plugin_root)
+    message(WARNING
+        "Qt plugin root not found under '${AIFS_QT_PLUGIN_BASE}' for configuration "
+        "'${AIFS_QT_PLUGIN_CONFIG}'. The application may fail to start without "
+        "platform plugins.")
+    return()
+endif()
+
+foreach(_aifs_qt_plugin_subdir IN ITEMS platforms styles imageformats networkinformation tls)
+    set(_aifs_qt_plugin_src_dir "${_aifs_qt_plugin_root}/${_aifs_qt_plugin_subdir}")
+    if(EXISTS "${_aifs_qt_plugin_src_dir}")
+        file(GLOB _aifs_qt_plugin_dlls LIST_DIRECTORIES FALSE "${_aifs_qt_plugin_src_dir}/*.dll")
+        if(_aifs_qt_plugin_dlls)
+            file(MAKE_DIRECTORY "${AIFS_QT_PLUGIN_DEST}/${_aifs_qt_plugin_subdir}")
+            file(COPY ${_aifs_qt_plugin_dlls} DESTINATION "${AIFS_QT_PLUGIN_DEST}/${_aifs_qt_plugin_subdir}")
+        endif()
+    endif()
+endforeach()
+]=])
+endif()
+
+function(aifs_stage_windows_qt_plugins target_name)
+    if(NOT WIN32 OR NOT VCPKG_TARGET_TRIPLET OR NOT DEFINED AIFS_COPY_QT_PLUGINS_SCRIPT)
+        return()
+    endif()
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            "-DAIFS_QT_PLUGIN_BASE=${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}"
+            "-DAIFS_QT_PLUGIN_DEST=$<TARGET_FILE_DIR:${target_name}>"
+            "-DAIFS_QT_PLUGIN_CONFIG=$<CONFIG>"
+            -P "${AIFS_COPY_QT_PLUGINS_SCRIPT}"
+        VERBATIM
+    )
+endfunction()
+
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -224,10 +285,10 @@ endif()
 aifs_find_required_package(CURL)
 aifs_find_required_package(OpenSSL)
 aifs_find_required_package(SQLite3)
-if(TARGET SQLite::SQLite3)
-    set(AIFS_SQLITE_TARGET SQLite::SQLite3)
-elseif(TARGET SQLite3::SQLite3)
+if(TARGET SQLite3::SQLite3)
     set(AIFS_SQLITE_TARGET SQLite3::SQLite3)
+elseif(TARGET SQLite::SQLite3)
+    set(AIFS_SQLITE_TARGET SQLite::SQLite3)
 elseif(TARGET unofficial::sqlite3::sqlite3)
     set(AIFS_SQLITE_TARGET unofficial::sqlite3::sqlite3)
 elseif(SQLite3_LIBRARIES)
@@ -919,6 +980,8 @@ if(_aifs_pdfium_ready)
     endif()
 endif()
 
+aifs_stage_windows_qt_plugins(aifilesorter)
+
 set(STARTER_TARGET "")
 if(WIN32 AND _aifs_windows_enable_starter)
     set(STARTER_TARGET StartAiFileSorter)
@@ -945,6 +1008,7 @@ if(WIN32 AND _aifs_windows_enable_starter)
     add_custom_command(TARGET ${STARTER_TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E rm -f "$<TARGET_FILE_DIR:${STARTER_TARGET}>/StartAiFileSorter.exe"
     )
+    aifs_stage_windows_qt_plugins(${STARTER_TARGET})
 endif()
 
 # On Windows, ensure Unicode and lean Windows headers in deps that need it
@@ -1245,7 +1309,12 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                     ggml-base.dll
                     ggml-cpu.dll
                     ggml-blas.dll
-                    libopenblas.dll)
+                    libopenblas.dll
+                    libgomp-1.dll
+                    libgcc_s_seh-1.dll
+                    libgfortran-5.dll
+                    libwinpthread-1.dll
+                    libquadmath-0.dll)
                     set(_aifs_precompiled_runtime_path
                         "${PRECOMPILED_CPU_BIN_DIR}/${_aifs_precompiled_runtime_name}")
                     if(EXISTS "${_aifs_precompiled_runtime_path}")
@@ -1259,6 +1328,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             if(DEFINED ENV{OPENBLAS_ROOT} AND NOT "$ENV{OPENBLAS_ROOT}" STREQUAL "")
                 list(APPEND _aifs_mingw_runtime_search_paths "$ENV{OPENBLAS_ROOT}/bin")
             endif()
+            list(APPEND _aifs_mingw_runtime_search_paths "C:/msys64/ucrt64/bin")
             list(APPEND _aifs_mingw_runtime_search_paths "C:/msys64/mingw64/bin")
 
             foreach(_aifs_mingw_runtime_name IN ITEMS
@@ -1286,25 +1356,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 )
             endif()
 
-            if(VCPKG_TARGET_TRIPLET)
-                set(_aifs_qt_plugin_root "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/Qt6/plugins")
-                foreach(_aifs_qt_plugin_subdir IN ITEMS platforms styles imageformats)
-                    set(_aifs_qt_plugin_src_dir "${_aifs_qt_plugin_root}/${_aifs_qt_plugin_subdir}")
-                    if(EXISTS "${_aifs_qt_plugin_src_dir}")
-                        file(GLOB _aifs_qt_plugin_dlls "${_aifs_qt_plugin_src_dir}/*.dll")
-                        if(_aifs_qt_plugin_dlls)
-                            add_custom_command(TARGET ${target_name} POST_BUILD
-                                COMMAND ${CMAKE_COMMAND} -E make_directory
-                                    "$<TARGET_FILE_DIR:${target_name}>/${_aifs_qt_plugin_subdir}"
-                                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                                    ${_aifs_qt_plugin_dlls}
-                                    "$<TARGET_FILE_DIR:${target_name}>/${_aifs_qt_plugin_subdir}"
-                                COMMAND_EXPAND_LISTS
-                            )
-                        endif()
-                    endif()
-                endforeach()
-            endif()
+            aifs_stage_windows_qt_plugins(${target_name})
         endif()
 
         if(_aifs_pdfium_ready AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")

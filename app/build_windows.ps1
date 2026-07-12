@@ -114,6 +114,203 @@ function Get-DefaultVcpkgRootCandidates {
     return $candidates | Select-Object -Unique
 }
 
+function Get-VsWherePath {
+    $candidates = @(
+        "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe",
+        "C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-VisualStudioInstances {
+    $vswherePath = Get-VsWherePath
+    if (-not $vswherePath) {
+        return @()
+    }
+
+    $vswhereArgs = @("-products", "*", "-format", "json")
+    $vswhereOutput = & $vswherePath @vswhereArgs 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $vswhereOutput) {
+        return @()
+    }
+
+    try {
+        $instances = ($vswhereOutput -join [System.Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        Write-Warning "Unable to parse Visual Studio installation metadata from vswhere."
+        return @()
+    }
+
+    if ($null -eq $instances) {
+        return @()
+    }
+
+    if ($instances -is [System.Array]) {
+        return @($instances)
+    }
+
+    return @($instances)
+}
+
+function Get-LatestInstalledVisualStudioMajorVersion {
+    $instances = Get-VisualStudioInstances |
+        Where-Object {
+            $_.isComplete -and
+            $_.isLaunchable -and
+            $_.installationVersion -and
+            $_.catalog.productLineVersion -match '^\d+$'
+        } |
+        Sort-Object -Property @{ Expression = { [version]$_.installationVersion }; Descending = $true }
+
+    $latestInstance = $instances | Select-Object -First 1
+    if (-not $latestInstance) {
+        return $null
+    }
+
+    return [int]$latestInstance.catalog.productLineVersion
+}
+
+function Resolve-VisualStudioBundledCMake {
+    $instances = Get-VisualStudioInstances |
+        Where-Object {
+            $_.isComplete -and
+            $_.isLaunchable -and
+            $_.installationVersion -and
+            $_.installationPath
+        } |
+        Sort-Object -Property @{ Expression = { [version]$_.installationVersion }; Descending = $true }
+
+    foreach ($instance in $instances) {
+        $candidate = Join-Path $instance.installationPath "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-AvailableCMakeGenerators {
+    param([string]$CMakeExecutable)
+
+    if (-not $CMakeExecutable -or -not (Test-Path $CMakeExecutable)) {
+        return @()
+    }
+
+    $capabilitiesOutput = & $CMakeExecutable -E capabilities 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $capabilitiesOutput) {
+        return @()
+    }
+
+    try {
+        $capabilities = ($capabilitiesOutput -join [System.Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        Write-Warning "Unable to parse generator capabilities from '$CMakeExecutable'."
+        return @()
+    }
+
+    if (-not $capabilities.generators) {
+        return @()
+    }
+
+    return @(
+        $capabilities.generators |
+            Where-Object { $_.name } |
+            Select-Object -ExpandProperty name
+    )
+}
+
+function Test-GeneratorsContainVisualStudioMajor {
+    param(
+        [string[]]$GeneratorNames,
+        [Nullable[Int32]]$MajorVersion
+    )
+
+    if ($null -eq $MajorVersion) {
+        return $false
+    }
+
+    foreach ($generatorName in $GeneratorNames) {
+        if ($generatorName -match '^Visual Studio (?<major>\d+) \d{4}$' -and [int]$matches['major'] -eq $MajorVersion) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Resolve-DefaultGenerator {
+    param(
+        [string[]]$AvailableGenerators,
+        [Nullable[Int32]]$PreferredVisualStudioMajor
+    )
+
+    $visualStudioGenerators = @(
+        foreach ($generatorName in $AvailableGenerators) {
+            if ($generatorName -match '^Visual Studio (?<major>\d+) (?<year>\d{4})$') {
+                [pscustomobject]@{
+                    Name = $generatorName
+                    Major = [int]$matches['major']
+                    Year = [int]$matches['year']
+                }
+            }
+        }
+    )
+
+    if ($null -ne $PreferredVisualStudioMajor) {
+        $preferredGenerator = $visualStudioGenerators |
+            Where-Object { $_.Major -eq $PreferredVisualStudioMajor } |
+            Sort-Object -Property @{ Expression = { $_.Year }; Descending = $true } |
+            Select-Object -First 1
+        if ($preferredGenerator) {
+            return $preferredGenerator.Name
+        }
+    }
+
+    $latestGenerator = $visualStudioGenerators |
+        Sort-Object -Property @{ Expression = { $_.Major }; Descending = $true }, @{ Expression = { $_.Year }; Descending = $true } |
+        Select-Object -First 1
+    if ($latestGenerator) {
+        return $latestGenerator.Name
+    }
+
+    return "Visual Studio 17 2022"
+}
+
+function Resolve-VisualStudioInstallationPathForGenerator {
+    param([string]$GeneratorName)
+
+    if (-not $GeneratorName -or $GeneratorName -notmatch '^Visual Studio (?<major>\d+) \d{4}$') {
+        return $null
+    }
+
+    $generatorMajor = [int]$matches['major']
+    $matchingInstance = Get-VisualStudioInstances |
+        Where-Object {
+            $_.isComplete -and
+            $_.isLaunchable -and
+            $_.installationVersion -and
+            $_.installationPath -and
+            $_.catalog.productLineVersion -match '^\d+$' -and
+            [int]$_.catalog.productLineVersion -eq $generatorMajor
+        } |
+        Sort-Object -Property @{ Expression = { [version]$_.installationVersion }; Descending = $true } |
+        Select-Object -First 1
+
+    if (-not $matchingInstance) {
+        return $null
+    }
+
+    return $matchingInstance.installationPath
+}
+
 function Format-ByteCount {
     param([Nullable[Int64]]$Bytes)
 
@@ -248,7 +445,10 @@ function Reset-StaleVariantBuildDirectory {
     param(
         [pscustomobject]$Variant,
         [string]$ExpectedSourceDir,
-        [string]$ExpectedSharedInstalledDir
+        [string]$ExpectedSharedInstalledDir,
+        [string]$ExpectedGenerator,
+        [string]$ExpectedGeneratorPlatform,
+        [string]$ExpectedGeneratorInstance
     )
 
     $cachePath = Join-Path $Variant.BuildDir "CMakeCache.txt"
@@ -276,6 +476,21 @@ function Reset-StaleVariantBuildDirectory {
     $cachedInstalledDir = Get-CMakeCacheValue -CachePath $cachePath -Key "VCPKG_INSTALLED_DIR"
     if ($cachedInstalledDir -and -not (Test-NormalizedPathEqual -Left $cachedInstalledDir -Right $ExpectedSharedInstalledDir)) {
         $staleReasons.Add("cached vcpkg installed directory '$cachedInstalledDir' does not match '$ExpectedSharedInstalledDir'") | Out-Null
+    }
+
+    $cachedGenerator = Get-CMakeCacheValue -CachePath $cachePath -Key "CMAKE_GENERATOR"
+    if ($cachedGenerator -and $ExpectedGenerator -and $cachedGenerator -ne $ExpectedGenerator) {
+        $staleReasons.Add("cached generator '$cachedGenerator' does not match '$ExpectedGenerator'") | Out-Null
+    }
+
+    $cachedGeneratorPlatform = Get-CMakeCacheValue -CachePath $cachePath -Key "CMAKE_GENERATOR_PLATFORM"
+    if ($cachedGeneratorPlatform -and $ExpectedGeneratorPlatform -and $cachedGeneratorPlatform -ne $ExpectedGeneratorPlatform) {
+        $staleReasons.Add("cached generator platform '$cachedGeneratorPlatform' does not match '$ExpectedGeneratorPlatform'") | Out-Null
+    }
+
+    $cachedGeneratorInstance = Get-CMakeCacheValue -CachePath $cachePath -Key "CMAKE_GENERATOR_INSTANCE"
+    if ($cachedGeneratorInstance -and $ExpectedGeneratorInstance -and -not (Test-NormalizedPathEqual -Left $cachedGeneratorInstance -Right $ExpectedGeneratorInstance)) {
+        $staleReasons.Add("cached generator instance '$cachedGeneratorInstance' does not match '$ExpectedGeneratorInstance'") | Out-Null
     }
 
     if ($staleReasons.Count -eq 0) {
@@ -425,6 +640,26 @@ function Stage-BuildOutput {
         }
     }
 
+    function Get-MingwRuntimeSearchPaths {
+        param([string]$PrecompiledCpuRuntimeDir)
+
+        $paths = New-Object System.Collections.Generic.List[string]
+        if ($PrecompiledCpuRuntimeDir) {
+            $paths.Add($PrecompiledCpuRuntimeDir) | Out-Null
+        }
+        if ($env:OPENBLAS_ROOT) {
+            $paths.Add((Join-Path $env:OPENBLAS_ROOT "bin")) | Out-Null
+        }
+        $paths.Add("C:\msys64\ucrt64\bin") | Out-Null
+        $paths.Add("C:\msys64\mingw64\bin") | Out-Null
+
+        return @(
+            $paths |
+                Where-Object { $_ -and (Test-Path $_) } |
+                Select-Object -Unique
+        )
+    }
+
     $precompiledCpuBin = Join-Path $appDir "lib/precompiled/cpu/bin"
     $precompiledCudaBin = Join-Path $appDir "lib/precompiled/cuda/bin"
     $precompiledVulkanBin = Resolve-PrecompiledVulkanBinDirectory -ApplicationDir $appDir
@@ -488,16 +723,16 @@ function Stage-BuildOutput {
     }
 
     $mingwRuntimeNames = @("libgomp-1.dll", "libgcc_s_seh-1.dll", "libgfortran-5.dll", "libwinpthread-1.dll", "libquadmath-0.dll")
-    $runtimeSearchPaths = @()
-    if ($env:OPENBLAS_ROOT) {
-        $runtimeSearchPaths += (Join-Path $env:OPENBLAS_ROOT "bin")
+    $runtimeSearchPaths = Get-MingwRuntimeSearchPaths -PrecompiledCpuRuntimeDir $precompiledCpuBin
+    $runtimePathDescription = if ($runtimeSearchPaths.Count -gt 0) {
+        $runtimeSearchPaths -join ", "
+    } else {
+        "no known runtime paths"
     }
-    $runtimeSearchPaths += "C:\msys64\mingw64\bin"
 
     foreach ($dllName in $mingwRuntimeNames) {
         $found = $false
         foreach ($path in $runtimeSearchPaths) {
-            if (-not (Test-Path $path)) { continue }
             $candidate = Join-Path $path $dllName
             if (Test-Path $candidate) {
                 Copy-Item $candidate -Destination $destWocuda -Force
@@ -507,7 +742,7 @@ function Stage-BuildOutput {
             }
         }
         if (-not $found) {
-            Write-Warning "Could not locate $dllName in any runtime path. Add it manually to $destWocuda if needed."
+            Write-Warning "Could not locate $dllName in any OpenBLAS runtime path ($runtimePathDescription). Rebuild app/lib/precompiled/cpu with app/scripts/build_llama_windows.ps1 or copy the OpenBLAS companion DLLs beside libopenblas.dll if this runtime is required."
         }
     }
 
@@ -654,10 +889,16 @@ if (-not $VcpkgRoot) {
 }
 
 $cmakeCommand = Get-Command cmake -ErrorAction SilentlyContinue
-if (-not $cmakeCommand) {
-    throw "cmake executable not found in PATH. Install CMake (3.22+) or add it to PATH."
+if ($cmakeCommand) {
+    $cmakeExe = $cmakeCommand.Path
+} else {
+    $cmakeExe = Resolve-VisualStudioBundledCMake
+    if (-not $cmakeExe) {
+        throw "cmake executable not found in PATH, and no Visual Studio-bundled CMake installation was detected. Install CMake (3.22+) or run from a Visual Studio Developer PowerShell."
+    }
+
+    Write-Output "Using Visual Studio-bundled CMake: $cmakeExe"
 }
-$cmakeExe = $cmakeCommand.Path
 
 $cmakeVersionOutput = & $cmakeExe --version
 $cmakeVersionPattern = [regex]'cmake version (?<major>\d+)\.(?<minor>\d+)(\.(?<patch>\d+))?'
@@ -679,18 +920,55 @@ if (-not (Test-Path $toolchainFile)) {
     throw "The provided vcpkg root '$VcpkgRoot' does not contain scripts/buildsystems/vcpkg.cmake."
 }
 
+if (-not $availableGenerators) {
+    $availableGenerators = Get-AvailableCMakeGenerators -CMakeExecutable $cmakeExe
+}
+
+$latestVisualStudioMajor = Get-LatestInstalledVisualStudioMajorVersion
+if (-not (Test-GeneratorsContainVisualStudioMajor -GeneratorNames $availableGenerators -MajorVersion $latestVisualStudioMajor)) {
+    $bundledCMakeExe = Resolve-VisualStudioBundledCMake
+    if ($bundledCMakeExe -and -not (Test-NormalizedPathEqual -Left $cmakeExe -Right $bundledCMakeExe)) {
+        $bundledGenerators = Get-AvailableCMakeGenerators -CMakeExecutable $bundledCMakeExe
+        if (Test-GeneratorsContainVisualStudioMajor -GeneratorNames $bundledGenerators -MajorVersion $latestVisualStudioMajor) {
+            Write-Output "Switching to Visual Studio-bundled CMake because '$cmakeExe' does not support the installed Visual Studio $latestVisualStudioMajor generator."
+            $cmakeExe = $bundledCMakeExe
+            $availableGenerators = $bundledGenerators
+        }
+    }
+}
+
 if (-not $Generator) {
-    $Generator = "Visual Studio 17 2022"
+    $Generator = Resolve-DefaultGenerator -AvailableGenerators $availableGenerators -PreferredVisualStudioMajor $latestVisualStudioMajor
+    Write-Output "Auto-selected generator: $Generator"
+} elseif ($availableGenerators.Count -gt 0 -and ($availableGenerators -notcontains $Generator)) {
+    $availableVisualStudioGenerators = @(
+        $availableGenerators | Where-Object { $_ -match '^Visual Studio ' }
+    )
+
+    $message = "Requested CMake generator '$Generator' is not available from '$cmakeExe'."
+    if ($availableVisualStudioGenerators.Count -gt 0) {
+        $message += " Available Visual Studio generators: $($availableVisualStudioGenerators -join ', ')."
+    }
+
+    throw $message
 }
 
 if ($Generator -eq "Ninja" -or $Generator -eq "Ninja Multi-Config") {
     $ninjaEnvArch = $env:VSCMD_ARG_TGT_ARCH
     if ($ninjaEnvArch -and ($ninjaEnvArch -ne "x64")) {
-        Write-Warning "Ninja generator selected while MSVC environment targets '$ninjaEnvArch'. Qt packages are built for x64; run from an x64 Native Tools prompt or choose -Generator ""Visual Studio 17 2022""."
+        Write-Warning "Ninja generator selected while MSVC environment targets '$ninjaEnvArch'. Qt packages are built for x64; run from an x64 Native Tools prompt or choose a Visual Studio generator instead."
     } elseif (-not $ninjaEnvArch) {
         Write-Warning "Using Ninja generator without an initialized MSVC environment. Ensure you run from an x64 Native Tools command prompt so the 64-bit compiler is available."
     }
 }
+
+$expectedGeneratorPlatform = if ($Generator -eq "Ninja" -or $Generator -eq "Ninja Multi-Config") {
+    $null
+} else {
+    "x64"
+}
+
+$expectedGeneratorInstance = Resolve-VisualStudioInstallationPathForGenerator -GeneratorName $Generator
 
 if ($Parallel -lt 1) {
     $Parallel = [Math]::Max([System.Environment]::ProcessorCount, 1)
@@ -721,7 +999,10 @@ $builtOutputs = New-Object System.Collections.Generic.List[object]
 foreach ($variant in $selectedVariants) {
     Reset-StaleVariantBuildDirectory -Variant $variant `
                                      -ExpectedSourceDir $appDir `
-                                     -ExpectedSharedInstalledDir $sharedVcpkgInstalledDir
+                                     -ExpectedSharedInstalledDir $sharedVcpkgInstalledDir `
+                                     -ExpectedGenerator $Generator `
+                                     -ExpectedGeneratorPlatform $expectedGeneratorPlatform `
+                                     -ExpectedGeneratorInstance $expectedGeneratorInstance
 
     if (-not (Test-Path $variant.BuildDir)) {
         New-Item -ItemType Directory -Path $variant.BuildDir | Out-Null
