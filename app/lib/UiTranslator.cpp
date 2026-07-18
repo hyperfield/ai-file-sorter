@@ -32,6 +32,9 @@ constexpr auto kMenuTitleFile = QT_TRANSLATE_NOOP("UiTranslator", "&File");
 constexpr auto kMenuTitleEdit = QT_TRANSLATE_NOOP("UiTranslator", "&Edit");
 constexpr auto kMenuTitleView = QT_TRANSLATE_NOOP("UiTranslator", "&View");
 constexpr auto kMenuTitleSettings = QT_TRANSLATE_NOOP("UiTranslator", "&Settings");
+constexpr auto kMenuTitleExtensions = QT_TRANSLATE_NOOP("UiTranslator", "E&xtensions");
+constexpr auto kMenuTitleWindowsExplorerExtension =
+    QT_TRANSLATE_NOOP("UiTranslator", "Windows Explorer Extension");
 constexpr auto kMenuTitlePlugins = QT_TRANSLATE_NOOP("UiTranslator", "&Plugins");
 constexpr auto kMenuTitleDevelopment = QT_TRANSLATE_NOOP("UiTranslator", "&Development");
 constexpr auto kMenuTitleTests = QT_TRANSLATE_NOOP("UiTranslator", "&Tests");
@@ -55,6 +58,12 @@ constexpr auto kActionManageStoragePlugins =
     QT_TRANSLATE_NOOP("UiTranslator", "Manage storage plugins…");
 constexpr auto kActionManageCategoryWhitelists =
     QT_TRANSLATE_NOOP("UiTranslator", "Manage category whitelists…");
+constexpr auto kActionInstallWindowsExplorerExtension =
+    QT_TRANSLATE_NOOP("UiTranslator", "Install Windows Explorer Extension...");
+constexpr auto kActionWindowsExplorerExtensionSettings =
+    QT_TRANSLATE_NOOP("UiTranslator", "Settings...");
+constexpr auto kActionWindowsExplorerExtensionActivity =
+    QT_TRANSLATE_NOOP("UiTranslator", "Activity Window");
 constexpr auto kActionResetLearnedBehavior =
     QT_TRANSLATE_NOOP("UiTranslator", "Reset learned behavior…");
 constexpr auto kActionClearCache = QT_TRANSLATE_NOOP("UiTranslator", "Clear cache…");
@@ -343,6 +352,8 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.menus.edit_menu, kMenuTitleEdit},
         {deps_.menus.view_menu, kMenuTitleView},
         {deps_.menus.settings_menu, kMenuTitleSettings},
+        {deps_.menus.extensions_menu, kMenuTitleExtensions},
+        {deps_.menus.windows_explorer_extension_menu, kMenuTitleWindowsExplorerExtension},
         {deps_.menus.plugins_menu, kMenuTitlePlugins},
         {deps_.menus.development_menu, kMenuTitleDevelopment},
         {deps_.menus.development_settings_menu, kMenuTitleSettings},
@@ -374,6 +385,9 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.toggle_explorer_action, kActionFileExplorer},
         {deps_.actions.toggle_llm_action, kActionSelectLlm},
         {deps_.actions.manage_storage_plugins_action, kActionManageStoragePlugins},
+        {deps_.actions.windows_explorer_extension_install_action, kActionInstallWindowsExplorerExtension},
+        {deps_.actions.windows_explorer_extension_settings_action, kActionWindowsExplorerExtensionSettings},
+        {deps_.actions.windows_explorer_extension_activity_action, kActionWindowsExplorerExtensionActivity},
         {deps_.actions.manage_whitelists_action, kActionManageCategoryWhitelists},
         {deps_.actions.reset_learning_action, kActionResetLearnedBehavior},
         {deps_.actions.clear_cache_action, kActionClearCache},

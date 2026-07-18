@@ -7,6 +7,7 @@
 #include "DatabaseManager.hpp"
 #include "CategorizationService.hpp"
 #include "ConsistencyPassService.hpp"
+#include "ExplorerExtensionManager.hpp"
 #include "ResultsCoordinator.hpp"
 #include "ReviewHistoryStore.hpp"
 #include "ILLMClient.hpp"
@@ -282,6 +283,22 @@ private:
     void maybe_notify_storage_provider_switch(const StorageProviderDetection& detection,
                                               const std::string& directory_path);
     void show_storage_plugin_dialog();
+    /**
+     * @brief Opens the Windows Explorer extension install/download page.
+     */
+    void open_windows_explorer_extension_install_page();
+    /**
+     * @brief Opens the Windows Explorer extension settings window.
+     */
+    void open_windows_explorer_extension_settings();
+    /**
+     * @brief Opens the Windows Explorer extension activity window.
+     */
+    void open_windows_explorer_extension_activity_window();
+    /**
+     * @brief Refreshes Windows Explorer extension menu action visibility and enabled state.
+     */
+    void refresh_windows_explorer_extension_actions();
 
     void handle_analysis_finished();
     void handle_analysis_cancelled();
@@ -326,6 +343,10 @@ private:
     void run_large_whitelist_llm_test();
     void record_categorized_metrics(int count);
     SupportPromptResult show_support_prompt_dialog(int categorized_files);
+    /**
+     * @brief Shows the post-success Windows Explorer extension install prompt when eligible.
+     */
+    void maybe_show_windows_explorer_extension_install_prompt();
     void undo_last_run();
     /**
      * @brief Opens the searchable rename/categorization history dialog.
@@ -461,6 +482,8 @@ private:
     QMenu* edit_menu{nullptr};
     QMenu* view_menu{nullptr};
     QMenu* settings_menu{nullptr};
+    QMenu* extensions_menu{nullptr};
+    QMenu* windows_explorer_extension_menu{nullptr};
     QMenu* plugins_menu{nullptr};
     QMenu* development_menu{nullptr};
     QMenu* development_settings_menu{nullptr};
@@ -479,6 +502,9 @@ private:
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
     QAction* manage_storage_plugins_action{nullptr};
+    QAction* windows_explorer_extension_install_action{nullptr};
+    QAction* windows_explorer_extension_settings_action{nullptr};
+    QAction* windows_explorer_extension_activity_action{nullptr};
     QAction* manage_whitelists_action{nullptr};
     QAction* reset_learning_action{nullptr};
     QAction* clear_cache_action{nullptr};
@@ -521,6 +547,7 @@ private:
     std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
     std::shared_ptr<StoragePluginManager> storage_plugin_manager_;
     StoragePluginLoader storage_plugin_loader_;
+    ExplorerExtensionManager explorer_extension_manager_;
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
     StorageProviderRegistry storage_provider_registry_;
@@ -547,6 +574,7 @@ private:
     bool backend_status_probe_completed_{false};
     bool category_language_refresh_pending_{false};
     bool donation_prompt_active_{false};
+    bool windows_explorer_extension_prompt_active_{false};
     std::string last_storage_support_warning_key_;
     std::string last_storage_provider_notice_key_;
     std::optional<std::string> backend_status_probe_backend_key_;

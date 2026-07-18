@@ -558,6 +558,8 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.edit_menu,
             app.view_menu,
             app.settings_menu,
+            app.extensions_menu,
+            app.windows_explorer_extension_menu,
             app.plugins_menu,
             app.development_menu,
             app.development_settings_menu,
@@ -577,6 +579,9 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.toggle_explorer_action,
             app.toggle_llm_action,
             app.manage_storage_plugins_action,
+            app.windows_explorer_extension_install_action,
+            app.windows_explorer_extension_settings_action,
+            app.windows_explorer_extension_activity_action,
             app.manage_whitelists_action,
             app.reset_learning_action,
             app.clear_cache_action,
@@ -636,6 +641,9 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
     build_edit_menu(app);
     build_view_menu(app);
     build_settings_menu(app);
+#ifdef _WIN32
+    build_extensions_menu(app);
+#endif
     if (app.is_development_mode()) {
         build_plugins_menu(app);
         build_development_menu(app);
@@ -846,6 +854,46 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
                      &QAction::triggered,
                      &app,
                      &MainApp::show_cache_cleanup_dialog);
+}
+
+void MainAppUiBuilder::build_extensions_menu(MainApp& app) {
+    app.extensions_menu = app.menuBar()->addMenu(QString());
+    app.windows_explorer_extension_menu = app.extensions_menu->addMenu(
+        icon_for(app, "system-file-manager", QStyle::SP_DirOpenIcon),
+        QString());
+
+    app.windows_explorer_extension_install_action =
+        app.windows_explorer_extension_menu->addAction(
+            icon_for(app, "download", QStyle::SP_ArrowDown),
+            QString());
+    QObject::connect(app.windows_explorer_extension_install_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::open_windows_explorer_extension_install_page);
+
+    app.windows_explorer_extension_settings_action =
+        app.windows_explorer_extension_menu->addAction(
+            icon_for(app, "preferences-system", QStyle::SP_FileDialogDetailedView),
+            QString());
+    QObject::connect(app.windows_explorer_extension_settings_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::open_windows_explorer_extension_settings);
+
+    app.windows_explorer_extension_activity_action =
+        app.windows_explorer_extension_menu->addAction(
+            icon_for(app, "view-list-details", QStyle::SP_FileDialogListView),
+            QString());
+    QObject::connect(app.windows_explorer_extension_activity_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::open_windows_explorer_extension_activity_window);
+
+    QObject::connect(app.windows_explorer_extension_menu,
+                     &QMenu::aboutToShow,
+                     &app,
+                     &MainApp::refresh_windows_explorer_extension_actions);
+    app.refresh_windows_explorer_extension_actions();
 }
 
 void MainAppUiBuilder::build_plugins_menu(MainApp& app) {

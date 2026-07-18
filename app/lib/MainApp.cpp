@@ -57,6 +57,7 @@
 #include <QInputDialog>
 #include <QKeySequence>
 #include <QByteArray>
+#include <QDateTime>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -264,6 +265,28 @@ std::string normalize_directory_path(const std::string& value) {
 void schedule_next_support_prompt(Settings& settings, int total_files) {
     settings.set_next_support_prompt_threshold(total_files + 50);
     settings.save();
+}
+
+std::string current_utc_iso_timestamp()
+{
+    return QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs).toStdString();
+}
+
+bool explorer_extension_prompt_cooldown_elapsed(const Settings& settings)
+{
+    const std::string last_shown = settings.get_windows_explorer_extension_prompt_last_shown_utc();
+    if (last_shown.empty()) {
+        return true;
+    }
+
+    QDateTime parsed = QDateTime::fromString(QString::fromStdString(last_shown), Qt::ISODateWithMs);
+    if (!parsed.isValid()) {
+        parsed = QDateTime::fromString(QString::fromStdString(last_shown), Qt::ISODate);
+    }
+    if (!parsed.isValid()) {
+        return true;
+    }
+    return parsed.toUTC().daysTo(QDateTime::currentDateTimeUtc()) >= 14;
 }
 
 bool paid_explorer_extension_suppresses_support_prompt(Settings& settings) {
@@ -924,6 +947,7 @@ void MainApp::retranslate_ui()
     };
     ui_translator_->retranslate_all(state);
     refresh_category_language_menu();
+    refresh_windows_explorer_extension_actions();
     refresh_backend_status_label();
     apply_accessibility_metadata();
 }
@@ -2046,6 +2070,78 @@ void MainApp::show_storage_plugin_dialog()
     }
 }
 
+void MainApp::open_windows_explorer_extension_install_page()
+{
+    std::string error;
+    if (!explorer_extension_manager_.open_install_page(&error)) {
+        QMessageBox::warning(this,
+                             tr("Windows Explorer Extension"),
+                             error.empty()
+                                 ? tr("Could not open the Windows Explorer Extension download page.")
+                                 : QString::fromStdString(error));
+        return;
+    }
+    refresh_windows_explorer_extension_actions();
+}
+
+void MainApp::open_windows_explorer_extension_settings()
+{
+    std::string error;
+    if (!explorer_extension_manager_.open_settings(&error)) {
+        QMessageBox::warning(this,
+                             tr("Windows Explorer Extension"),
+                             error.empty()
+                                 ? tr("Could not open the Windows Explorer Extension settings.")
+                                 : QString::fromStdString(error));
+        return;
+    }
+    refresh_windows_explorer_extension_actions();
+}
+
+void MainApp::open_windows_explorer_extension_activity_window()
+{
+    std::string error;
+    if (!explorer_extension_manager_.open_activity_window(&error)) {
+        QMessageBox::warning(this,
+                             tr("Windows Explorer Extension"),
+                             error.empty()
+                                 ? tr("Could not open the Windows Explorer Extension activity window.")
+                                 : QString::fromStdString(error));
+        return;
+    }
+    refresh_windows_explorer_extension_actions();
+}
+
+void MainApp::refresh_windows_explorer_extension_actions()
+{
+    const ExplorerExtensionManager::Status status = explorer_extension_manager_.inspect();
+    const bool installed = status.state == ExplorerExtensionManager::State::Installed;
+    const bool repair_needed = status.state == ExplorerExtensionManager::State::InstalledNeedsRepair;
+    const bool show_install = status.state == ExplorerExtensionManager::State::NotInstalled ||
+                              repair_needed;
+
+    if (windows_explorer_extension_install_action) {
+        windows_explorer_extension_install_action->setVisible(show_install);
+        windows_explorer_extension_install_action->setEnabled(show_install);
+        windows_explorer_extension_install_action->setText(
+            repair_needed
+                ? tr("Install or Repair Windows Explorer Extension...")
+                : tr("Install Windows Explorer Extension..."));
+    }
+    if (windows_explorer_extension_settings_action) {
+        windows_explorer_extension_settings_action->setVisible(installed);
+        windows_explorer_extension_settings_action->setEnabled(installed);
+    }
+    if (windows_explorer_extension_activity_action) {
+        windows_explorer_extension_activity_action->setVisible(installed);
+        windows_explorer_extension_activity_action->setEnabled(installed);
+    }
+    if (windows_explorer_extension_menu && windows_explorer_extension_menu->menuAction()) {
+        windows_explorer_extension_menu->menuAction()->setEnabled(
+            status.state != ExplorerExtensionManager::State::UnsupportedPlatform);
+    }
+}
+
 void MainApp::record_categorized_metrics(int count)
 {
     if (test_mode_) {
@@ -2056,6 +2152,47 @@ void MainApp::record_categorized_metrics(int count)
         donation_prompt_active_,
         count,
         [this](int total) { return show_support_prompt_dialog(total); });
+}
+
+void MainApp::maybe_show_windows_explorer_extension_install_prompt()
+{
+    if (test_mode_ || windows_explorer_extension_prompt_active_) {
+        return;
+    }
+    if (settings.get_windows_explorer_extension_prompt_dismissed()) {
+        return;
+    }
+    if (!explorer_extension_prompt_cooldown_elapsed(settings)) {
+        return;
+    }
+    if (explorer_extension_manager_.state() != ExplorerExtensionManager::State::NotInstalled) {
+        return;
+    }
+
+    windows_explorer_extension_prompt_active_ = true;
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Information);
+    box.setWindowTitle(tr("Install Windows Explorer Extension?"));
+    box.setText(tr("Add AI File Sorter actions to the Windows Explorer right-click menu?"));
+    box.setInformativeText(tr("The Windows Explorer Extension lets you categorize and rename files directly from File Explorer."));
+    QPushButton* install_button = box.addButton(tr("Install Windows Explorer Extension"),
+                                                QMessageBox::AcceptRole);
+    QPushButton* later_button = box.addButton(tr("Maybe Later"), QMessageBox::RejectRole);
+    QPushButton* never_button = box.addButton(tr("Don't Show Again"), QMessageBox::DestructiveRole);
+    box.setDefaultButton(later_button);
+    box.setEscapeButton(later_button);
+    box.exec();
+
+    settings.set_windows_explorer_extension_prompt_last_shown_utc(current_utc_iso_timestamp());
+    if (box.clickedButton() == never_button) {
+        settings.set_windows_explorer_extension_prompt_dismissed(true);
+    }
+    settings.save();
+
+    if (box.clickedButton() == install_button) {
+        open_windows_explorer_extension_install_page();
+    }
+    windows_explorer_extension_prompt_active_ = false;
 }
 
 void MainApp::undo_last_run()
@@ -3173,6 +3310,7 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
             [](const CategorizedFile& file) { return !file.from_cache; }));
         if (newly_analyzed > 0) {
             record_categorized_metrics(newly_analyzed);
+            maybe_show_windows_explorer_extension_install_prompt();
         }
     } catch (const std::exception& ex) {
         if (ui_logger) {

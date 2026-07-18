@@ -536,6 +536,10 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
     categorized_file_count = load_int("CategorizedFileCount", 0, 0);
     next_support_prompt_threshold = load_int("SupportPromptThreshold", 50, 50);
+    windows_explorer_extension_prompt_dismissed =
+        load_bool("WindowsExplorerExtensionPromptDismissed", false);
+    windows_explorer_extension_prompt_last_shown_utc =
+        config.getValue("Settings", "WindowsExplorerExtensionPromptLastShownUtc", "");
 }
 
 void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)
@@ -672,6 +676,14 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
     config.setValue(settings_section, "CategorizedFileCount", std::to_string(categorized_file_count));
     config.setValue(settings_section, "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
+    set_bool_setting(config,
+                     settings_section,
+                     "WindowsExplorerExtensionPromptDismissed",
+                     windows_explorer_extension_prompt_dismissed);
+    set_optional_setting(config,
+                         settings_section,
+                         "WindowsExplorerExtensionPromptLastShownUtc",
+                         windows_explorer_extension_prompt_last_shown_utc);
 }
 
 void Settings::save_whitelist_settings()
@@ -1416,6 +1428,26 @@ void Settings::set_next_support_prompt_threshold(int threshold)
         threshold = 50;
     }
     next_support_prompt_threshold = threshold;
+}
+
+bool Settings::get_windows_explorer_extension_prompt_dismissed() const
+{
+    return windows_explorer_extension_prompt_dismissed;
+}
+
+void Settings::set_windows_explorer_extension_prompt_dismissed(bool value)
+{
+    windows_explorer_extension_prompt_dismissed = value;
+}
+
+std::string Settings::get_windows_explorer_extension_prompt_last_shown_utc() const
+{
+    return windows_explorer_extension_prompt_last_shown_utc;
+}
+
+void Settings::set_windows_explorer_extension_prompt_last_shown_utc(const std::string& value)
+{
+    windows_explorer_extension_prompt_last_shown_utc = value;
 }
 
 std::vector<std::string> Settings::get_allowed_categories() const
