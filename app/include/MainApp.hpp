@@ -140,6 +140,10 @@ public:
      */
     void show_llm_selection_dialog();
     /**
+     * @brief Opens the cache and log maintenance dialog.
+     */
+    void open_cache_cleanup_dialog();
+    /**
      * @brief Appends a progress message to the active progress UI.
      * @param message Progress text to report.
      */

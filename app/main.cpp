@@ -77,6 +77,7 @@ struct ParsedArguments {
     bool force_direct_run{false};
     bool show_review_history{false};
     bool show_llm_selection{false};
+    bool show_cache_maintenance{false};
     std::optional<std::string> self_test_suite;
     std::optional<std::string> visual_gpu_probe_backend;
     HeadlessAnalysisCommand::ParseResult headless;
@@ -189,6 +190,14 @@ ParsedArguments parse_command_line(int argc, char** argv)
              std::strcmp(argv[i], "--select-llm") == 0 ||
              std::strcmp(argv[i], "--llm-selection") == 0)) {
             parsed.show_llm_selection = true;
+            continue;
+        }
+        if (is_flag &&
+            (std::strcmp(argv[i], "--show-cache-maintenance") == 0 ||
+             std::strcmp(argv[i], "--cache-maintenance") == 0 ||
+             std::strcmp(argv[i], "--clear-cache") == 0 ||
+             std::strcmp(argv[i], "--clean-cache") == 0)) {
+            parsed.show_cache_maintenance = true;
             continue;
         }
         if (is_flag && std::strcmp(argv[i], "--self-test") == 0) {
@@ -576,10 +585,18 @@ bool startup_command_opens_llm_selection(const QString& command)
     return command == QStringLiteral("show-llm-selection");
 }
 
+bool startup_command_opens_cache_maintenance(const QString& command)
+{
+    return command == QStringLiteral("show-cache-maintenance");
+}
+
 QString startup_command_from_arguments(const ParsedArguments& parsed_args)
 {
     if (parsed_args.show_llm_selection) {
         return QStringLiteral("show-llm-selection");
+    }
+    if (parsed_args.show_cache_maintenance) {
+        return QStringLiteral("show-cache-maintenance");
     }
     if (parsed_args.show_review_history) {
         return QStringLiteral("show-review-history");
@@ -600,6 +617,14 @@ void open_llm_selection_later(MainApp& main_app)
     QTimer::singleShot(0, &main_app, [&main_app]() {
         activate_widget(&main_app);
         main_app.show_llm_selection_dialog();
+    });
+}
+
+void open_cache_maintenance_later(MainApp& main_app)
+{
+    QTimer::singleShot(0, &main_app, [&main_app]() {
+        activate_widget(&main_app);
+        main_app.open_cache_cleanup_dialog();
     });
 }
 
@@ -774,6 +799,10 @@ int run_application(const ParsedArguments& parsed_args)
         }
         if (startup_command_opens_review_history(command)) {
             open_review_history_later(main_app);
+            return;
+        }
+        if (startup_command_opens_cache_maintenance(command)) {
+            open_cache_maintenance_later(main_app);
         }
     });
     main_app.run();
@@ -782,6 +811,9 @@ int run_application(const ParsedArguments& parsed_args)
     }
     if (startup_command_opens_review_history(startup_command)) {
         open_review_history_later(main_app);
+    }
+    if (startup_command_opens_cache_maintenance(startup_command)) {
+        open_cache_maintenance_later(main_app);
     }
 
     const int result = app.exec();

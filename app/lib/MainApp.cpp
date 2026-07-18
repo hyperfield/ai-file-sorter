@@ -2112,6 +2112,11 @@ void MainApp::open_review_history_dialog()
     show_review_history_dialog();
 }
 
+void MainApp::open_cache_cleanup_dialog()
+{
+    show_cache_cleanup_dialog();
+}
+
 bool MainApp::perform_undo_from_plan(const QString& plan_path)
 {
     const auto res = undo_manager_.undo_plan(plan_path);
