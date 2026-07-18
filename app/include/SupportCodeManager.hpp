@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 
 /**
  * @brief Handles offline donation-code validation and binary prompt suppression state.
@@ -39,6 +40,13 @@ public:
      * @return True when the support prompt should remain hidden.
      */
     bool is_prompt_permanently_disabled() const;
+
+    /**
+     * @brief Permanently disables the prompt after a paid AIFS product entitlement is detected.
+     * @param product_id Stable product identifier used as opaque suppression payload data.
+     * @return True when the suppression blob was written successfully.
+     */
+    bool disable_prompt_for_paid_product(std::string_view product_id) const;
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
     /**

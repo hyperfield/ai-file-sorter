@@ -1020,7 +1020,7 @@ endif()
 # On Windows, ensure Unicode and lean Windows headers in deps that need it
 if(WIN32)
     target_compile_definitions(aifilesorter PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-    set(WIN_SYSTEM_LIBS wininet d3d11 dxgi dxguid d3d12 mpr userenv cldapi ole32 shell32 shlwapi)
+    set(WIN_SYSTEM_LIBS advapi32 wininet d3d11 dxgi dxguid d3d12 mpr userenv cldapi ole32 shell32 shlwapi)
 
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(_win_sdk_arch "x64")

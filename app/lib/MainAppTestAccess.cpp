@@ -4,6 +4,7 @@
 
 #include "AnalysisCoordinator.hpp"
 #include "AnalysisEntryRouter.hpp"
+#include "ExplorerExtensionEntitlement.hpp"
 #include "MainApp.hpp"
 #include "SupportCodeManager.hpp"
 #include "Utils.hpp"
@@ -291,6 +292,11 @@ void MainAppTestAccess::simulate_support_prompt(Settings& settings,
 
     if (SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
             .is_prompt_permanently_disabled()) {
+        return;
+    }
+    if (ExplorerExtensionEntitlement::has_paid_entitlement()) {
+        (void)SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
+            .disable_prompt_for_paid_product("explorer-extension");
         return;
     }
 

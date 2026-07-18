@@ -262,6 +262,14 @@ bool SupportCodeManager::is_prompt_permanently_disabled() const {
     return checksum == expected_checksum;
 }
 
+bool SupportCodeManager::disable_prompt_for_paid_product(std::string_view product_id) const {
+    const std::string normalized = trim_ascii(product_id);
+    if (normalized.empty()) {
+        return false;
+    }
+    return write_state(std::string(kPayloadPrefix) + "paid-product:" + normalized);
+}
+
 #ifdef AI_FILE_SORTER_TEST_BUILD
 bool SupportCodeManager::force_disable_prompt_for_testing() const {
     return write_state(kTestPayload);

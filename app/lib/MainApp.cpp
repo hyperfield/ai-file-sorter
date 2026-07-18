@@ -8,6 +8,7 @@
 #include "CacheMaintenanceService.hpp"
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
+#include "ExplorerExtensionEntitlement.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "GeminiClient.hpp"
@@ -265,6 +266,16 @@ void schedule_next_support_prompt(Settings& settings, int total_files) {
     settings.save();
 }
 
+bool paid_explorer_extension_suppresses_support_prompt(Settings& settings) {
+    if (!ExplorerExtensionEntitlement::has_paid_entitlement()) {
+        return false;
+    }
+
+    (void)SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
+        .disable_prompt_for_paid_product("explorer-extension");
+    return true;
+}
+
 void maybe_show_support_prompt(Settings& settings,
                                bool& prompt_active,
                                std::function<MainApp::SupportPromptResult(int)> show_prompt) {
@@ -273,6 +284,9 @@ void maybe_show_support_prompt(Settings& settings,
     }
 
     if (SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir())).is_prompt_permanently_disabled()) {
+        return;
+    }
+    if (paid_explorer_extension_suppresses_support_prompt(settings)) {
         return;
     }
 

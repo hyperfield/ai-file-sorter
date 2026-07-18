@@ -1633,6 +1633,13 @@ Procedure: Call the prompt simulation with an increment of `0`.
 Expected outcome: Total counts and thresholds remain unchanged and the callback is not invoked.
 Run: `./build-tests/ai_file_sorter_tests "Zero categorized increments do not change totals or trigger prompts"`
 
+#### Test case: Paid Explorer extension entitlement suppresses future support prompts
+Purpose: Ensure users who own the paid Explorer extension do not see donation reminders.
+Setup: Fresh settings with the test-only paid Explorer extension entitlement override enabled.
+Procedure: Advance categorized files to the support prompt threshold.
+Expected outcome: The support prompt callback is not invoked and the permanent suppression state is written.
+Run: `./build-tests/ai_file_sorter_tests "Paid Explorer extension entitlement suppresses future support prompts"`
+
 ### `tests/unit/test_custom_api_endpoint.cpp`
 
 #### Test case: Custom API endpoints persist across Settings load/save
