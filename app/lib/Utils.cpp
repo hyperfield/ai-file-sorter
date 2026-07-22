@@ -912,8 +912,10 @@ std::string Utils::sanitize_path_label(const std::string& value) {
     cleaned.reserve(utf8_value.size());
 
     // Replace invalid path characters and control chars with spaces.
+    // Byte-wise ctype checks must stay ASCII-only: macOS locales classify
+    // UTF-8 continuation bytes in 0x80-0x9F as control characters.
     for (unsigned char ch : utf8_value) {
-        if (std::iscntrl(ch)) {
+        if (ch < 0x80 && std::iscntrl(ch)) {
             continue;
         }
         if (invalid.find(static_cast<char>(ch)) != std::string::npos) {
@@ -928,7 +930,8 @@ std::string Utils::sanitize_path_label(const std::string& value) {
     collapsed.reserve(cleaned.size());
     bool prev_space = false;
     for (char ch : cleaned) {
-        const bool is_space = std::isspace(static_cast<unsigned char>(ch));
+        const unsigned char uch = static_cast<unsigned char>(ch);
+        const bool is_space = uch < 0x80 && std::isspace(uch);
         if (is_space) {
             if (!prev_space) {
                 collapsed.push_back(' ');
@@ -941,7 +944,10 @@ std::string Utils::sanitize_path_label(const std::string& value) {
 
     // Trim and drop trailing dots/spaces (Windows safety).
     std::string trimmed = trim_ws(collapsed);
-    while (!trimmed.empty() && (trimmed.back() == '.' || std::isspace(static_cast<unsigned char>(trimmed.back())))) {
+    while (!trimmed.empty() &&
+           (trimmed.back() == '.' ||
+            (static_cast<unsigned char>(trimmed.back()) < 0x80 &&
+             std::isspace(static_cast<unsigned char>(trimmed.back()))))) {
         trimmed.pop_back();
     }
 
