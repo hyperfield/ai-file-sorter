@@ -1001,7 +1001,9 @@ std::string to_lower_copy_str(std::string value) {
 // Returns true when the label contains only allowed characters.
 bool contains_only_allowed_chars(const std::string& value) {
     for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
+        // ASCII-only check: macOS locales report UTF-8 continuation bytes
+        // in 0x80-0x9F as control characters.
+        if (ch < 0x80 && std::iscntrl(ch)) {
             return false;
         }
         static const std::string forbidden = R"(<>:"/\|?*)";
