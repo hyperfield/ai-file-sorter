@@ -17,7 +17,31 @@
 #include <QProcess>
 #include <QUrl>
 
+#include <array>
+
 namespace {
+
+struct QuickStartLanguageSuffix {
+    Language language;
+    const char* suffix;
+};
+
+constexpr std::array<QuickStartLanguageSuffix, 14> kQuickStartLanguageSuffixes{{
+    {Language::Dutch, "_nl"},
+    {Language::Swedish, "_sv"},
+    {Language::Icelandic, "_is"},
+    {Language::Norwegian, "_nb"},
+    {Language::Finnish, "_fi"},
+    {Language::Danish, "_da"},
+    {Language::French, "_fr"},
+    {Language::German, "_de"},
+    {Language::Hindi, "_hi"},
+    {Language::Italian, "_it"},
+    {Language::Spanish, "_es"},
+    {Language::Turkish, "_tr"},
+    {Language::Korean, "_ko"},
+    {Language::SimplifiedChinese, "_zh_cn"},
+}};
 
 QString support_page_url_string()
 {
@@ -37,45 +61,39 @@ QString quick_start_fallback_markdown()
         "analysis, and review the suggested moves and renames before applying them.");
 }
 
+QString quick_start_language_suffix(Language language)
+{
+    for (const auto& entry : kQuickStartLanguageSuffixes) {
+        if (entry.language == language) {
+            return QString::fromLatin1(entry.suffix);
+        }
+    }
+    return {};
+}
+
 QString quick_start_resource_path(Language language)
 {
-    switch (language) {
-    case Language::Dutch:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_nl.md");
-    case Language::Swedish:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_sv.md");
-    case Language::Icelandic:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_is.md");
-    case Language::Norwegian:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_nb.md");
-    case Language::Finnish:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_fi.md");
-    case Language::Danish:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_da.md");
-    case Language::French:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_fr.md");
-    case Language::German:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_de.md");
-    case Language::Hindi:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_hi.md");
-    case Language::Italian:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_it.md");
-    case Language::Spanish:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_es.md");
-    case Language::Turkish:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_tr.md");
-    case Language::Korean:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_ko.md");
-    case Language::SimplifiedChinese:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_zh_cn.md");
-    case Language::English:
-    default:
-        return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start.md");
-    }
+    return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start%1.md")
+        .arg(quick_start_language_suffix(language));
+}
+
+QString platform_quick_start_resource_path(const QString& language_suffix)
+{
+#if defined(Q_OS_WIN)
+    return QStringLiteral(":/dev/hfstudio/AIFileSorter/help/quick_start_windows%1.md")
+        .arg(language_suffix);
+#else
+    (void)language_suffix;
+    return {};
+#endif
 }
 
 QString load_text_resource(const QString& path)
 {
+    if (path.isEmpty()) {
+        return {};
+    }
+
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         return {};
@@ -85,17 +103,28 @@ QString load_text_resource(const QString& path)
 
 QString quick_start_markdown_for_language_impl(Language language)
 {
+    QString markdown;
     if (const QString localized = load_text_resource(quick_start_resource_path(language));
         !localized.isEmpty()) {
-        return localized;
-    }
-
-    if (const QString english = load_text_resource(quick_start_resource_path(Language::English));
+        markdown = localized;
+    } else if (const QString english = load_text_resource(quick_start_resource_path(Language::English));
         !english.isEmpty()) {
-        return english;
+        markdown = english;
+    } else {
+        markdown = quick_start_fallback_markdown();
     }
 
-    return quick_start_fallback_markdown();
+    const QString language_suffix = quick_start_language_suffix(language);
+    QString platform = load_text_resource(platform_quick_start_resource_path(language_suffix));
+    if (platform.isEmpty() && !language_suffix.isEmpty()) {
+        platform = load_text_resource(platform_quick_start_resource_path(QString()));
+    }
+    if (!platform.isEmpty()) {
+        markdown.append(QStringLiteral("\n\n"));
+        markdown.append(platform);
+    }
+
+    return markdown;
 }
 
 bool open_external_url(const QUrl& url)

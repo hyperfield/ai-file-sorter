@@ -709,24 +709,62 @@ set(AIFS_IMAGE_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_1080x1080.png"
 )
 
+set(AIFS_HELP_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_zh_cn.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_zh_cn.md"
+)
+
+set(AIFS_WHATS_NEW_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_zh_cn.md"
+)
+
 set(APP_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
     ${AIFS_IMAGE_RESOURCE_FILES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nl.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_zh_cn.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_sv.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_is.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nb.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fi.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_da.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fr.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_de.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_hi.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_it.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_es.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_tr.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_ko.md"
+    ${AIFS_HELP_RESOURCE_FILES}
+    ${AIFS_WHATS_NEW_RESOURCE_FILES}
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
 )
 
@@ -741,66 +779,20 @@ foreach(_aifs_image_resource IN LISTS AIFS_IMAGE_RESOURCE_FILES)
         PROPERTIES QT_RESOURCE_ALIAS "images/${_aifs_image_name}"
     )
 endforeach()
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nl.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_nl.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_zh_cn.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_zh_cn.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_sv.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_sv.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_is.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_is.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nb.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_nb.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fi.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_fi.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_da.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_da.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fr.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_fr.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_de.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_de.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_hi.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_hi.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_it.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_it.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_es.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_es.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_tr.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_tr.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_ko.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_ko.md"
-)
+foreach(_aifs_help_resource IN LISTS AIFS_HELP_RESOURCE_FILES)
+    get_filename_component(_aifs_help_name "${_aifs_help_resource}" NAME)
+    set_source_files_properties(
+        "${_aifs_help_resource}"
+        PROPERTIES QT_RESOURCE_ALIAS "help/${_aifs_help_name}"
+    )
+endforeach()
+foreach(_aifs_whats_new_resource IN LISTS AIFS_WHATS_NEW_RESOURCE_FILES)
+    get_filename_component(_aifs_whats_new_name "${_aifs_whats_new_resource}" NAME)
+    set_source_files_properties(
+        "${_aifs_whats_new_resource}"
+        PROPERTIES QT_RESOURCE_ALIAS "whats_new/${_aifs_whats_new_name}"
+    )
+endforeach()
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
     PROPERTIES QT_RESOURCE_ALIAS "certs/cacert.pem"
@@ -1454,6 +1446,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_storage_support.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_visual_fallback.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_settings_image_options.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_network_locations.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_dialog.cpp"

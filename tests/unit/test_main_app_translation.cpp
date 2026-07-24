@@ -4,7 +4,9 @@
 #include "MainAppTestAccess.hpp"
 #include "TestHelpers.hpp"
 #include "TranslationManager.hpp"
+#include "WhatsNewContent.hpp"
 #include "Language.hpp"
+#include <app_version.hpp>
 
 #include <QCoreApplication>
 
@@ -696,18 +698,32 @@ TEST_CASE("Quick Start guide content follows the selected app language")
     REQUIRE(english.contains(QStringLiteral("Safe First Run")));
     REQUIRE(english.contains(QStringLiteral("small test folder")));
     REQUIRE(english.contains(QStringLiteral("Choose a Folder")));
+    REQUIRE(english.contains(QStringLiteral("auto-approval")));
+#ifdef _WIN32
+    REQUIRE(english.contains(QStringLiteral("Windows Notes")));
+    REQUIRE(english.contains(QStringLiteral("Windows Explorer Extension")));
+#else
+    REQUIRE_FALSE(english.contains(QStringLiteral("Windows Explorer Extension")));
+#endif
 
     TranslationManager::instance().set_language(Language::French);
     const QString french = MainAppHelpActions::quick_start_markdown_for_language(
         TranslationManager::instance().current_language());
     REQUIRE(french.contains(QStringLiteral("# Guide de demarrage rapide")));
     REQUIRE(french.contains(QStringLiteral("Choisir un dossier")));
+#ifdef _WIN32
+    REQUIRE(french.contains(QStringLiteral("# Notes Windows")));
+    REQUIRE_FALSE(french.contains(QStringLiteral("# Windows Notes")));
+#endif
 
     TranslationManager::instance().set_language(Language::Korean);
     const QString korean = MainAppHelpActions::quick_start_markdown_for_language(
         TranslationManager::instance().current_language());
     REQUIRE(korean.contains(QStringLiteral("# 빠른 시작 가이드")));
     REQUIRE(korean.contains(QStringLiteral("폴더 선택")));
+#ifdef _WIN32
+    REQUIRE(korean.contains(QStringLiteral("# Windows 참고 사항")));
+#endif
 
     TranslationManager::instance().set_language(Language::Hindi);
     const QString hindi = MainAppHelpActions::quick_start_markdown_for_language(
@@ -750,6 +766,55 @@ TEST_CASE("Quick Start guide content follows the selected app language")
         TranslationManager::instance().current_language());
     REQUIRE(simplified_chinese.contains(QStringLiteral("# 快速入门指南")));
     REQUIRE(simplified_chinese.contains(QStringLiteral("选择一个文件夹")));
+#ifdef _WIN32
+    REQUIRE(simplified_chinese.contains(QStringLiteral("# Windows 说明")));
+#endif
+}
+
+TEST_CASE("What's New content is packaged for the current app version")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    const QString version = QString::fromStdString(APP_VERSION.to_numeric_string());
+    const QString markdown = WhatsNewContent::markdown_for_version(version);
+
+    REQUIRE(markdown.contains(QStringLiteral("Highlights")));
+    REQUIRE(markdown.contains(QStringLiteral("Windows Explorer Extension")));
+
+    REQUIRE(WhatsNewContent::markdown_for_version(version, Language::English) == markdown);
+
+    const QString french = WhatsNewContent::markdown_for_version(version, Language::French);
+    REQUIRE(french.contains(QStringLiteral("Points forts")));
+    REQUIRE_FALSE(french.contains(QStringLiteral("Highlights")));
+
+    const std::vector<Language> localized_languages = {
+        Language::French,
+        Language::German,
+        Language::Hindi,
+        Language::Italian,
+        Language::Spanish,
+        Language::Turkish,
+        Language::Korean,
+        Language::SimplifiedChinese,
+        Language::Dutch,
+        Language::Swedish,
+        Language::Icelandic,
+        Language::Norwegian,
+        Language::Finnish,
+        Language::Danish,
+    };
+
+    for (const Language language : localized_languages) {
+        INFO("Language enum value: " << static_cast<int>(language));
+        const QString localized = WhatsNewContent::markdown_for_version(version, language);
+        REQUIRE_FALSE(localized.isEmpty());
+        REQUIRE(localized != markdown);
+    }
+
+    REQUIRE(WhatsNewContent::markdown_for_version(QStringLiteral("bad/version")).isEmpty());
+    REQUIRE(WhatsNewContent::markdown_for_version(QStringLiteral("bad/version"), Language::French)
+                .isEmpty());
 }
 
 TEST_CASE("Interface language action labels are translated for the newly added Nordic UI languages")

@@ -53,6 +53,8 @@ class QPushButton;
 class QTimer;
 class QToolButton;
 class QTreeView;
+class QTreeWidget;
+class QTreeWidgetItem;
 class QStackedWidget;
 class QWidget;
 class QLabel;
@@ -190,6 +192,20 @@ private:
     void setup_file_explorer_view();
     void connect_file_explorer_signals();
     void apply_file_explorer_preferences();
+    /**
+     * @brief Rebuilds the Windows-only list of mapped and remembered network locations.
+     */
+    void populate_network_locations();
+    /**
+     * @brief Selects a Windows network location from the file explorer network section.
+     * @param item Tree item that may carry a filesystem path.
+     */
+    void select_network_location(QTreeWidgetItem* item);
+    /**
+     * @brief Records a UNC share root for future display in the network section.
+     * @param path Directory path selected by the user.
+     */
+    void remember_recent_network_location(const QString& path);
     void restore_tree_settings();
     void restore_sort_folder_state();
     void restore_file_scan_options();
@@ -356,6 +372,10 @@ private:
     void show_suitability_benchmark_dialog(bool auto_start);
     void maybe_show_suitability_benchmark();
     /**
+     * @brief Shows the What's New popup once per app version when packaged notes exist.
+     */
+    void maybe_show_whats_new_popup();
+    /**
      * @brief Starts a background local-backend probe after the window is shown.
      */
     void schedule_backend_status_probe();
@@ -475,6 +495,8 @@ private:
     int folder_view_page_index_{-1};
 
     QPointer<QDockWidget> file_explorer_dock;
+    QPointer<QWidget> file_explorer_container;
+    QPointer<QTreeWidget> network_locations_view;
     QPointer<QTreeView> file_explorer_view;
     QPointer<QFileSystemModel> file_system_model;
     QAction* file_explorer_menu_action{nullptr};

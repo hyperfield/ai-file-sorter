@@ -1066,6 +1066,13 @@ Procedure: Call `Settings::load()` and read image analysis flags.
 Expected outcome: `load()` returns false and analysis/offer-rename remain disabled.
 Run: `./build-tests/ai_file_sorter_tests "Settings defaults image analysis off when visual LLM files are missing"`
 
+#### Test case: Settings persists recent network locations
+Purpose: Ensure recently used UNC network roots persist and duplicate entries are collapsed.
+Setup: Use a temporary config directory and set repeated network locations.
+Procedure: Save settings, reload into a new `Settings` instance, and read the recent network location list.
+Expected outcome: The reloaded list keeps unique locations in saved order.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists recent network locations"`
+
 #### Test case: Settings defaults use subcategories on when config key is missing
 Purpose: Ensure the main-window subcategory toggle stays enabled by default when older or partial config files omit the `UseSubcategories` key.
 Setup: Create a temporary config file with a `Settings` section that omits `UseSubcategories`.
@@ -1094,12 +1101,35 @@ Procedure: Save settings, reload into a new `Settings` instance, and read both f
 Expected outcome: The reloaded settings keep filename and categorization auto-approval enabled.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists review auto-approve operation options"`
 
+#### Test case: Settings persists What's New shown version independently of updater skip state
+Purpose: Ensure the once-per-version What's New popup state does not reuse or corrupt updater skip-version state.
+Setup: Use a temporary config directory, set both `SkippedVersion` and `WhatsNewVersionShown`, and save settings.
+Procedure: Reload settings from disk and read both version fields.
+Expected outcome: Both fields retain their independent saved values.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists What's New shown version independently of updater skip state"`
+
 #### Test case: Settings persists selected visual model backend
 Purpose: Ensure the chosen visual backend survives a save/load round-trip so the dialog and runtime stay aligned.
 Setup: Use a temporary config directory and set the visual backend id to `gemma-3-4b-it`.
 Procedure: Save settings, reload into a new `Settings` instance, and read the stored visual backend id.
 Expected outcome: The reloaded settings still report `gemma-3-4b-it`.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists selected visual model backend"`
+
+### `tests/unit/test_windows_network_locations.cpp`
+
+#### Test case: WindowsNetworkLocations extracts UNC share roots
+Purpose: Ensure Windows UNC paths are reduced to stable `\\server\share` roots for the File Explorer network section.
+Setup: Use representative UNC, slash-normalized UNC, incomplete UNC, and local-drive paths.
+Procedure: Call `WindowsNetworkLocations::unc_share_root()`.
+Expected outcome: Complete UNC paths return the share root, while incomplete or local paths return empty.
+Run: `./build-tests/ai_file_sorter_tests "WindowsNetworkLocations extracts UNC share roots"`
+
+#### Test case: WindowsNetworkLocations identifies supported network paths
+Purpose: Verify that UNC locations qualify as supported network locations and local drive roots do not.
+Setup: Use one UNC share and one local drive root.
+Procedure: Call `is_unc_path()` and `is_network_location_path()`.
+Expected outcome: The UNC path is accepted and the local root is rejected.
+Run: `./build-tests/ai_file_sorter_tests "WindowsNetworkLocations identifies supported network paths"`
 
 ### `tests/unit/test_llava_image_analyzer.cpp`
 
@@ -1897,6 +1927,13 @@ Setup: Set the translation manager to English, French, Korean, Hindi, Swedish, I
 Procedure: Resolve the Quick Start markdown for each selected language.
 Expected outcome: Each language loads the matching localized markdown content instead of the English fallback when a translation exists, and the English guide includes the safe-first-run section.
 Run: `./build-tests/ai_file_sorter_tests "Quick Start guide content follows the selected app language"`
+
+#### Test case: What's New content is packaged for the current app version
+Purpose: Ensure the first-run-per-version What's New popup has packaged Markdown content for the active `APP_VERSION`, including localized release notes.
+Setup: Initialize the Qt test app context with embedded resources.
+Procedure: Load What's New markdown for `APP_VERSION` in English and each supported non-English UI language, then load an invalid version string.
+Expected outcome: The current version returns English release notes with expected highlights, each supported non-English language returns localized notes instead of the English fallback, and invalid version strings return no content.
+Run: `./build-tests/ai_file_sorter_tests "What's New content is packaged for the current app version"`
 
 #### Test case: Interface language action labels are translated for the newly added Nordic UI languages
 Purpose: Verify the new interface-language menu entries (`&Swedish`, `&Icelandic`, `&Norwegian`, `&Finnish`, and `&Danish`) are present in the translation catalogs and render localized labels across every supported UI language.

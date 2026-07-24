@@ -269,6 +269,39 @@ std::string decode_multiline(const std::string& value) {
     return output;
 }
 
+std::vector<std::string> parse_multiline_list(const std::string& value)
+{
+    std::vector<std::string> items;
+    const std::string decoded = decode_multiline(value);
+    std::stringstream ss(decoded);
+    std::string item;
+    while (std::getline(ss, item)) {
+        item = trim_copy(item);
+        if (!item.empty()) {
+            items.push_back(item);
+        }
+    }
+    return items;
+}
+
+std::string join_multiline_list(const std::vector<std::string>& items)
+{
+    std::ostringstream oss;
+    bool first = true;
+    for (const auto& item : items) {
+        const std::string trimmed = trim_copy(item);
+        if (trimmed.empty()) {
+            continue;
+        }
+        if (!first) {
+            oss << '\n';
+        }
+        first = false;
+        oss << trimmed;
+    }
+    return encode_multiline(oss.str());
+}
+
 std::string llm_choice_to_string(LLMChoice choice) {
     switch (choice) {
         case LLMChoice::Remote_OpenAI: return "Remote_OpenAI";
@@ -516,6 +549,8 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = load_bool("ShowFileExplorer", true);
+    recent_network_locations = parse_multiline_list(
+        config.getValue("Settings", "RecentNetworkLocations", ""));
     suitability_benchmark_completed = load_bool("SuitabilityBenchmarkCompleted", false);
     suitability_benchmark_suppressed = load_bool("SuitabilityBenchmarkSuppressed", false);
     benchmark_last_report = decode_multiline(config.getValue("Settings", "BenchmarkLastReport", ""));
@@ -528,6 +563,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     review_auto_approve_categorization =
         load_bool("ReviewAutoApproveCategorization", false);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
+    whats_new_version_shown = config.getValue("Settings", "WhatsNewVersionShown", "");
     if (config.hasValue("Settings", "Language")) {
         language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
     } else {
@@ -655,8 +691,13 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "SortFolder", this->sort_folder);
 
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
+    set_optional_setting(config, settings_section, "WhatsNewVersionShown", whats_new_version_shown);
 
     set_bool_setting(config, settings_section, "ShowFileExplorer", show_file_explorer);
+    set_optional_setting(config,
+                         settings_section,
+                         "RecentNetworkLocations",
+                         join_multiline_list(recent_network_locations));
     set_bool_setting(config, settings_section, "SuitabilityBenchmarkCompleted", suitability_benchmark_completed);
     set_bool_setting(config, settings_section, "SuitabilityBenchmarkSuppressed", suitability_benchmark_suppressed);
     set_optional_setting(config, settings_section, "BenchmarkLastReport", encode_multiline(benchmark_last_report));
@@ -1340,6 +1381,16 @@ std::string Settings::get_skipped_version()
     return skipped_version;
 }
 
+void Settings::set_whats_new_version_shown(const std::string& version)
+{
+    whats_new_version_shown = trim_copy(version);
+}
+
+std::string Settings::get_whats_new_version_shown() const
+{
+    return whats_new_version_shown;
+}
+
 
 void Settings::set_show_file_explorer(bool value)
 {
@@ -1350,6 +1401,32 @@ void Settings::set_show_file_explorer(bool value)
 bool Settings::get_show_file_explorer() const
 {
     return show_file_explorer;
+}
+
+void Settings::set_recent_network_locations(const std::vector<std::string>& locations)
+{
+    recent_network_locations.clear();
+    recent_network_locations.reserve(std::min<std::size_t>(locations.size(), 10));
+    for (const auto& location : locations) {
+        const std::string trimmed = trim_copy(location);
+        if (trimmed.empty()) {
+            continue;
+        }
+        const auto duplicate = std::find(recent_network_locations.begin(),
+                                         recent_network_locations.end(),
+                                         trimmed);
+        if (duplicate == recent_network_locations.end()) {
+            recent_network_locations.push_back(trimmed);
+        }
+        if (recent_network_locations.size() >= 10) {
+            break;
+        }
+    }
+}
+
+const std::vector<std::string>& Settings::get_recent_network_locations() const
+{
+    return recent_network_locations;
 }
 
 bool Settings::get_suitability_benchmark_completed() const

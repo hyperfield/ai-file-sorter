@@ -506,6 +506,16 @@ public:
      */
     std::string get_skipped_version();
     /**
+     * @brief Stores the application version whose What's New popup has been shown.
+     * @param version Version string that should not show the startup popup again.
+     */
+    void set_whats_new_version_shown(const std::string& version);
+    /**
+     * @brief Returns the application version whose What's New popup has been shown.
+     * @return Version string, or empty when no What's New popup has been recorded.
+     */
+    std::string get_whats_new_version_shown() const;
+    /**
      * @brief Sets whether the file explorer panel should be shown.
      * @param value True to keep the file explorer visible.
      */
@@ -515,6 +525,16 @@ public:
      * @return True when the file explorer is visible by default.
      */
     bool get_show_file_explorer() const;
+    /**
+     * @brief Stores recently used UNC network share roots.
+     * @param locations UNC share roots to show in the file explorer network section.
+     */
+    void set_recent_network_locations(const std::vector<std::string>& locations);
+    /**
+     * @brief Returns recently used UNC network share roots.
+     * @return Recently used network locations in most-recent-first order.
+     */
+    const std::vector<std::string>& get_recent_network_locations() const;
     /**
      * @brief Returns whether the suitability benchmark has been completed.
      * @return True when the benchmark has run at least once.
@@ -693,7 +713,9 @@ private:
     std::string default_sort_folder;
     std::string sort_folder;
     std::string skipped_version;
+    std::string whats_new_version_shown;
     bool show_file_explorer{true};
+    std::vector<std::string> recent_network_locations;
     bool suitability_benchmark_completed{false};
     bool suitability_benchmark_suppressed{false};
     std::string benchmark_last_report;

@@ -1,88 +1,102 @@
 # Pika-aloitusopas
 
-AI File Sorter auttaa sinua jarjestamaan tiedostoja tarkistuksen ja hyvaksynnan jalkeen.
+AI File Sorter auttaa jarjestamaan tiedostoja tarkistus ensin -tyonkululla ja valinnaisella automaattisella hyvaksyntaa varten niille muutoksille, joihin haluat luottaa.
 
-Tekoaly ohjaa analyysia ja ehdottaa luokkia, alaluokkia ja nimia. Se ei koske suoraan tiedostoihisi. Sovellus suorittaa siirrot tai nimea uudelleen vasta, kun olet vahvistanut tarkistetut muutokset.
+AI ohjaa analyysia ja ehdottaa kategorioita, alakategorioita ja nimia. Se ei muuta tiedostojasi suoraan. Sovellus siirtaa tai nimeaa tiedostoja uudelleen, kun vahvistat tarkistetut muutokset, tai automaattisesti vain silloin, kun vastaava auto-hyvaksynta on otettu kayttoon.
+
+## Turvallinen ensimmainen ajo
+
+Jos kaytat AI File Sorteria ensimmaista kertaa, aloita pienella testikansiolla ennen suuren arkiston tai aseman valitsemista.
+
+Hyvia ensimmaisen ajon kansioita ovat:
+
+- kopio 20-50 tiedostosta kansiosta `Downloads`
+- pieni kuvakaappaus- tai valokuvien siivouskansio
+- valiaikainen kansio, jossa on muutama PDF tai dokumentti
+
+Tama pitaa ensimmaisen ajon helppona tarkistaa. Tiedostosi pysyvat tietokoneellasi, kun kaytat paikallisia malleja, ja AI vain ehdottaa kategorioita ja nimia. Jata auto-hyvaksynta pois paalta ensimmaisella ajolla, jotta mitaan ei siirreta tai nimeta uudelleen ennen kuin hyvaksytyt tarkistuslistan.
 
 ## 1. Valitse kansio
 
-Valitse lajiteltava kansio kayttamalla **Browse**:ta.
+Valitse jarjestettava kansio kayttamalla **Browse**-painiketta tai **File Explorer** -paneelia.
 
 Tyypillisia esimerkkeja:
 
 - `Downloads`
-- tyopoydan puhdistuskansio
+- tyopoydan siivouskansio
 - ulkoisen aseman kansio
+- verkko- tai pilvisynkronoitu kansio
 - projektiarkisto
 
-## 2. Valitse mita sovelluksen pitaisi tehda
+## 2. Valitse mita sovelluksen tulee tehda
 
-Kayta paavaihtoehtoja paattaaksesi, pitaisiko sovelluksen:
+Paavaihtoehdoilla paatat, tuleeko sovelluksen:
 
-- luokitella tiedostot kansioihin
+- lajitella tiedostot kategoriakansioihin
 - analysoida kuvia
-- analysoida asiakirjoja
+- analysoida dokumentteja
 - tarjota uudelleennimeamisehdotuksia tuetuille tiedostoille
 
-Jos haluat vain uudelleennimeamisehdotuksia, ota kayttoon asianmukainen vain uudelleennimeamistila.
+Jos haluat vain uudelleennimeamisehdotuksia, ota kayttoon vastaava vain uudelleennimeaminen -tila.
 
-## 3. Valitse luokittelutyylisi
+## 3. Valitse kategorisointityyli
 
-Valitse tyyli, joka vastaa parhaiten tavoitettasi:
+Valitse tyyli, joka sopii parhaiten tavoitteeseesi:
 
-- **More refined** yleiseen kayttoon ja hienompaan ryhmittelyyn
-- **More consistent**, jos haluat vahvemman tarran johdonmukaisuuden samanlaisissa tiedostoissa
+- **More refined** yleiseen kayttoon ja tarkempaan ryhmittelyyn
+- **More consistent**, jos haluat vahvempaa nimikkeiden yhdenmukaisuutta samankaltaisille tiedostoille
 
-Voit myos ottaa kayttoon luokkien sallittujen luettelot, jos haluat, etta sovellus pysyy kapeamman luokan nimien sisalla.
+Voit myos ottaa kayttoon kategoriavalkolistat, jos haluat sovelluksen pysyvan rajatummassa kategorianimien joukossa.
 
 ## 4. Aloita analyysi
 
 Napsauta **Analyze and categorize files**.
 
-Sovellus skannaa valitun kansion, keraa tarvitsemansa tiedot ja laatii arvosteluluettelon.
+Sovellus skannaa valitun kansion, keraa tarvitsemansa tiedot ja valmistelee tarkistuslistan.
 
 ## 5. Tarkista ennen muutosten kayttoonottoa
 
-Tarkastusikkunassa voit tarkastaa:
+Tarkistusikkunassa voit tarkistaa:
 
-- ehdotetut luokat
-- valinnaisia alaluokkia
-- uudelleennimea ehdotuksia tuetuille tiedostoille
-- lopullisia maaranpaapolkuja
+- ehdotetut kategoriat
+- valinnaiset alakategoriat
+- uudelleennimeamisehdotukset tuetuille tiedostoille
+- lopulliset kohdepolut
+- tiedostojen esikatselut, jos niita tuetaan
 
-Voit muokata tai hylata ehdotuksia ennen kuin vahvistat mitaan.
+Voit saataa tai hylata ehdotuksia ennen minkaan vahvistamista.
 
 ## 6. Ota muutokset kayttoon
 
-Kun olet vahvistanut, sovellus luo tarvittavat kansiot ja suorittaa siirrot tai nimet uudelleen.
+Kun vahvistat, sovellus luo tarvittavat kansiot ja tekee siirrot tai uudelleennimeamiset. Jos auto-hyvaksynta on kaytossa, kelvolliset kategoria- tai tiedostonimimuutokset voidaan ottaa kayttoon pysahtymatta tarkistusikkunaan.
 
-## 7. Kumoa viimeinen ajo
+## 7. Kumoa viimeisin ajo
 
 Jos otat muutokset kayttoon ja haluat peruuttaa ne, kayta valikosta **Undo last run**.
 
-Kumoaminen on suunniteltu viimeisimpaan vahvistettuun lajitteluajoon. Se kayttaa sovelluksen tallennettua ajohistoriaa tiedostojen siirtamiseen taaksepain ja tuettujen uudelleennimeamisen kumoamiseen mahdollisuuksien mukaan.
+Kumoaminen on tarkoitettu viimeisimmalle vahvistetulle lajitteluajolle. Se kayttaa sovelluksen tallentamaa ajohistoriaa tiedostojen palauttamiseen ja tuettujen uudelleennimeamisten peruuttamiseen mahdollisuuksien mukaan.
 
-Saat parhaat tulokset kayttamalla Kumoa-toimintoa ennen kuin aloitat uuden suuren siivouksen samassa kansiossa.
+Parhaan tuloksen saat, kun kaytat Kumoa-toimintoa ennen uuden suuren siivouksen aloittamista samassa kansiossa.
 
-## 8. Oppiminen arvosteluistasi
+## 8. Oppiminen tarkistuksistasi
 
-Kun hyvaksyt luokat tarkistusikkunassa, sovellus voi muistaa kyseiset paikalliset paatokset ja kayttaa niita vihjeina tulevia ajoja varten. Tama ei kouluta tai muokkaa tekoalymallia.
+Kun hyvaksytyt kategorioita tarkistusikkunassa, sovellus voi muistaa nama paikalliset paatokset ja kayttaa niita vihjeina tulevissa ajoissa. Tama ei kouluta tai muuta AI-mallia.
 
-Opitut esimerkit tallennetaan erilliseen paikalliseen tietokantaan, joten normaalin luokitteluvalimuistin tyhjentaminen ei poista niita. Voit poistaa nama paikalliset oppimistiedot kayttamalla **Settings -> Reset learned behavior**:ta.
+Opitut esimerkit tallennetaan erilliseen paikalliseen tietokantaan, joten tavallisen kategorisointivalimuistin tyhjentaminen ei poista niita. Poista nama paikalliset oppimistiedot kayttamalla **Settings -> Reset learned behavior**.
 
 ## Hyva tietaa
 
-- Sovellus kayttaa paikallista valimuistia samojen tiedostojen uudelleenkasittelyn valttamiseksi ja johdonmukaisuuden parantamiseksi.
-- Sovellus ei ota muutoksia kayttoon automaattisesti nayttamatta ensin tarkistusvaihetta.
-- Kuva- ja asiakirjavaihtoehtoja voidaan laajentaa erikseen, jos tarvitset enemman hallintaa.
+- Sovellus kayttaa paikallista valimuistia, jotta samoja tiedostoja ei tarvitse kasitella uudelleen ja yhdenmukaisuus paranee.
+- Auto-hyvaksynta on valinnainen. Jata se pois paalta, kunnes luotat sovelluksen ehdotuksiin.
+- Kuva- ja dokumenttiasetukset voi laajentaa erikseen, jos tarvitset enemman hallintaa.
 
-## Jos jokin nayttaa pieleen
+## Jos jokin nayttaa vaaralta
 
 Tarkista ensin seuraavat:
 
 - valittu kansio on se, jonka tarkoitit
-- asiaankuuluvat analyysivaihtoehdot ovat kaytossa
-- vain uudelleennimeamistila ei rajoita tulosta tavalla, jota et odottanut
-- luokan sallittujen luettelo ei kavenna ehdotuksia liikaa
+- tarvittavat analyysiasetukset ovat kaytossa
+- vain uudelleennimeaminen -tila ei rajoita tulosta odottamattomalla tavalla
+- kategoriavalkolista ei rajaa ehdotuksia liikaa
 
-Lisavianmaaritysta varten avaa **Help -> FAQ**.
+Lisatietoja vianmaaritykseen saat avaamalla **Help -> FAQ**.

@@ -24,6 +24,8 @@
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
 #include "Types.hpp"
+#include "WindowsNetworkLocations.hpp"
+#include "WhatsNewContent.hpp"
 #include "CategoryLanguage.hpp"
 #include "CategoryLanguageSupport.hpp"
 #include "MainAppUiBuilder.hpp"
@@ -38,6 +40,8 @@
 #include "UndoManager.hpp"
 #include "WhitelistTestFixtures.hpp"
 #include "ggml-backend.h"
+
+#include <app_version.hpp>
 
 #include <QAction>
 #include <QActionGroup>
@@ -83,8 +87,11 @@
 #include <QStyle>
 #include <QEvent>
 #include <QStackedWidget>
+#include <QTextBrowser>
 #include <QThread>
 #include <QTimer>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QtGlobal>
 
 #include <chrono>
@@ -358,6 +365,8 @@ std::string to_utf8(const QString& value)
     const QByteArray bytes = value.toUtf8();
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
+
+constexpr int kNetworkLocationPathRole = Qt::UserRole + 1;
 
 QString display_name_for_provider_id(const std::string& provider_id)
 {
@@ -645,6 +654,9 @@ void MainApp::run()
         schedule_backend_status_probe();
     });
 #if !defined(AI_FILE_SORTER_TEST_BUILD)
+    QTimer::singleShot(0, this, [this]() {
+        maybe_show_whats_new_popup();
+    });
     maybe_show_suitability_benchmark();
 #endif
 }
@@ -699,7 +711,28 @@ void MainApp::setup_file_explorer_view()
         return;
     }
 
+#if defined(Q_OS_WIN)
+    file_explorer_container = new QWidget(file_explorer_dock);
+    auto* explorer_layout = new QVBoxLayout(file_explorer_container);
+    explorer_layout->setContentsMargins(0, 0, 0, 0);
+    explorer_layout->setSpacing(2);
+
+    network_locations_view = new QTreeWidget(file_explorer_container);
+    network_locations_view->setHeaderHidden(true);
+    network_locations_view->setColumnCount(1);
+    network_locations_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    network_locations_view->setSelectionMode(QAbstractItemView::SingleSelection);
+    network_locations_view->setExpandsOnDoubleClick(true);
+    network_locations_view->setUniformRowHeights(true);
+    populate_network_locations();
+    explorer_layout->addWidget(network_locations_view, 0);
+#endif
+
+#if defined(Q_OS_WIN)
+    file_explorer_view = new QTreeView(file_explorer_container);
+#else
     file_explorer_view = new QTreeView(file_explorer_dock);
+#endif
     file_explorer_view->setModel(file_system_model);
 #if defined(Q_OS_WIN)
     file_explorer_view->setRootIndex(QModelIndex());
@@ -709,8 +742,7 @@ void MainApp::setup_file_explorer_view()
 
     const QModelIndex home_index = file_system_model->index(QDir::homePath());
     if (home_index.isValid()) {
-        file_explorer_view->setCurrentIndex(home_index);
-        file_explorer_view->scrollTo(home_index);
+        focus_file_explorer_on_path(QDir::homePath());
     }
 
     file_explorer_view->setHeaderHidden(false);
@@ -721,7 +753,12 @@ void MainApp::setup_file_explorer_view()
     file_explorer_view->setColumnHidden(3, true);
     file_explorer_view->setExpandsOnDoubleClick(true);
 
+#if defined(Q_OS_WIN)
+    explorer_layout->addWidget(file_explorer_view, 1);
+    file_explorer_dock->setWidget(file_explorer_container);
+#else
     file_explorer_dock->setWidget(file_explorer_view);
+#endif
 }
 
 void MainApp::connect_file_explorer_signals()
@@ -729,6 +766,23 @@ void MainApp::connect_file_explorer_signals()
     if (!file_explorer_view || !file_explorer_view->selectionModel()) {
         return;
     }
+
+#if defined(Q_OS_WIN)
+    if (network_locations_view) {
+        connect(network_locations_view,
+                &QTreeWidget::currentItemChanged,
+                this,
+                [this](QTreeWidgetItem* current, QTreeWidgetItem*) {
+                    select_network_location(current);
+                });
+        connect(network_locations_view,
+                &QTreeWidget::itemActivated,
+                this,
+                [this](QTreeWidgetItem* item, int) {
+                    select_network_location(item);
+                });
+    }
+#endif
 
     connect(file_explorer_view->selectionModel(), &QItemSelectionModel::currentChanged,
             this, [this](const QModelIndex& current, const QModelIndex&) {
@@ -751,6 +805,105 @@ void MainApp::connect_file_explorer_signals()
             update_results_view_mode();
         });
     }
+}
+
+void MainApp::populate_network_locations()
+{
+#if defined(Q_OS_WIN)
+    if (!network_locations_view) {
+        return;
+    }
+
+    QSignalBlocker blocker(network_locations_view);
+    network_locations_view->clear();
+
+    auto* root = new QTreeWidgetItem(network_locations_view);
+    root->setText(0, tr("Network Locations"));
+    root->setIcon(0, style()->standardIcon(QStyle::SP_DriveNetIcon));
+
+    const std::vector<WindowsNetworkLocation> locations = WindowsNetworkLocations::discover(settings);
+    if (locations.empty()) {
+        auto* placeholder = new QTreeWidgetItem(root);
+        placeholder->setText(0, tr("No network locations found"));
+        placeholder->setFlags(placeholder->flags() & ~Qt::ItemIsEnabled & ~Qt::ItemIsSelectable);
+    } else {
+        for (const WindowsNetworkLocation& location : locations) {
+            const QString label = QString::fromStdString(location.label);
+            const QString path = QString::fromStdString(location.path);
+            auto* item = new QTreeWidgetItem(root);
+            item->setText(0, label);
+            item->setToolTip(0, path);
+            item->setData(0, kNetworkLocationPathRole, path);
+            item->setIcon(0, style()->standardIcon(WindowsNetworkLocations::is_remote_drive_root(location.path)
+                                                       ? QStyle::SP_DriveNetIcon
+                                                       : QStyle::SP_DirIcon));
+        }
+    }
+
+    root->setExpanded(true);
+    network_locations_view->resizeColumnToContents(0);
+
+    const int visible_rows = std::clamp(static_cast<int>(locations.size()) + 1, 2, 7);
+    const int row_height = std::max(network_locations_view->sizeHintForRow(0),
+                                    network_locations_view->fontMetrics().height() + 8);
+    network_locations_view->setMaximumHeight((visible_rows * row_height) +
+                                             (network_locations_view->frameWidth() * 2) + 6);
+#endif
+}
+
+void MainApp::select_network_location(QTreeWidgetItem* item)
+{
+#if defined(Q_OS_WIN)
+    if (!item) {
+        return;
+    }
+
+    const QString path = item->data(0, kNetworkLocationPathRole).toString();
+    if (path.isEmpty()) {
+        return;
+    }
+
+    if (!QDir(path).exists()) {
+        statusBar()->showMessage(tr("Network location unavailable: %1").arg(path), 5000);
+        return;
+    }
+
+    on_directory_selected(path);
+#else
+    Q_UNUSED(item);
+#endif
+}
+
+void MainApp::remember_recent_network_location(const QString& path)
+{
+#if defined(Q_OS_WIN)
+    const QString root = QString::fromStdString(WindowsNetworkLocations::unc_share_root(to_utf8(path)));
+    if (root.isEmpty()) {
+        return;
+    }
+
+    std::vector<std::string> updated;
+    updated.push_back(to_utf8(root));
+    for (const std::string& location : settings.get_recent_network_locations()) {
+        const QString existing = QString::fromStdString(location);
+        if (existing.compare(root, Qt::CaseInsensitive) != 0) {
+            updated.push_back(location);
+        }
+        if (updated.size() >= 10) {
+            break;
+        }
+    }
+
+    const auto& current = settings.get_recent_network_locations();
+    if (current == updated) {
+        return;
+    }
+
+    settings.set_recent_network_locations(updated);
+    populate_network_locations();
+#else
+    Q_UNUSED(path);
+#endif
 }
 
 void MainApp::apply_file_explorer_preferences()
@@ -949,6 +1102,7 @@ void MainApp::retranslate_ui()
     refresh_category_language_menu();
     refresh_windows_explorer_extension_actions();
     refresh_backend_status_label();
+    populate_network_locations();
     apply_accessibility_metadata();
 }
 
@@ -1400,6 +1554,9 @@ void MainApp::on_analyze_clicked()
 
 void MainApp::on_directory_selected(const QString& path, bool user_initiated)
 {
+#if defined(Q_OS_WIN)
+    remember_recent_network_location(path);
+#endif
     path_entry->setText(path);
     statusBar()->showMessage(tr("Folder selected: %1").arg(path), 3000);
     status_is_ready_ = false;
@@ -2045,6 +2202,14 @@ void MainApp::focus_file_explorer_on_path(const QString& path)
 
     const bool previous_suppress = suppress_explorer_sync_;
     suppress_explorer_sync_ = true;
+
+    std::vector<QModelIndex> parents;
+    for (QModelIndex parent = index.parent(); parent.isValid(); parent = parent.parent()) {
+        parents.push_back(parent);
+    }
+    for (auto it = parents.rbegin(); it != parents.rend(); ++it) {
+        file_explorer_view->expand(*it);
+    }
 
     file_explorer_view->setCurrentIndex(index);
     file_explorer_view->expand(index);
@@ -3140,6 +3305,53 @@ void MainApp::maybe_show_suitability_benchmark()
     QTimer::singleShot(0, this, [this]() {
         show_suitability_benchmark_dialog(false);
     });
+}
+
+void MainApp::maybe_show_whats_new_popup()
+{
+    if (test_mode_) {
+        return;
+    }
+
+    const std::string current_version = APP_VERSION.to_numeric_string();
+    if (settings.get_whats_new_version_shown() == current_version) {
+        return;
+    }
+
+    const QString version_text = QString::fromStdString(current_version);
+    const QString markdown = WhatsNewContent::markdown_for_version(version_text, settings.get_language());
+    if (markdown.isEmpty()) {
+        settings.set_whats_new_version_shown(current_version);
+        settings.save();
+        return;
+    }
+
+    const QString heading =
+        QCoreApplication::translate("QObject", "What's new in version %1:").arg(version_text);
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(heading);
+    dialog.resize(680, 520);
+
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* heading_label = new QLabel(QStringLiteral("<b>%1</b>").arg(heading.toHtmlEscaped()), &dialog);
+    heading_label->setWordWrap(true);
+    layout->addWidget(heading_label);
+
+    auto* browser = new QTextBrowser(&dialog);
+    browser->setOpenExternalLinks(true);
+    browser->setReadOnly(true);
+    browser->setMarkdown(markdown);
+    layout->addWidget(browser);
+
+    auto* button_box = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    QObject::connect(button_box, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addWidget(button_box);
+
+    dialog.exec();
+
+    settings.set_whats_new_version_shown(current_version);
+    settings.save();
 }
 
 
