@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
+option(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS
+    "Register opt-in headless tests that run real local LLM models against real files." OFF)
 option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
     "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
 set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
@@ -1612,6 +1614,26 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         if(WIN32)
             add_test(NAME ai_file_sorter_updater_notify_only_tests COMMAND ai_file_sorter_updater_notify_only_tests)
             add_test(NAME ai_file_sorter_updater_disabled_tests COMMAND ai_file_sorter_updater_disabled_tests)
+        endif()
+        if(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS)
+            find_package(Python3 COMPONENTS Interpreter REQUIRED)
+            set(_aifs_live_headless_app_target aifilesorter)
+            if(STARTER_TARGET)
+                set(_aifs_live_headless_app_target ${STARTER_TARGET})
+            endif()
+            add_test(
+                NAME live_headless_llm_tests
+                COMMAND
+                    ${Python3_EXECUTABLE}
+                    -u
+                    ${CMAKE_SOURCE_DIR}/../tests/live_llm/headless_live_llm_tests.py
+                    --app $<TARGET_FILE:${_aifs_live_headless_app_target}>
+            )
+            set_tests_properties(live_headless_llm_tests PROPERTIES
+                LABELS "live-llm;headless"
+                SKIP_RETURN_CODE 77
+                TIMEOUT 7200
+            )
         endif()
     endif()
 

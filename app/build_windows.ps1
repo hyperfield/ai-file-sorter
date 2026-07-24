@@ -6,6 +6,7 @@ param(
     [string]$Generator,
     [switch]$SkipDeploy,
     [switch]$BuildTests,
+    [switch]$EnableLiveLlmTests,
     [switch]$RunTests,
     [ValidateRange(1, 512)]
     [int]$Parallel = [System.Environment]::ProcessorCount,
@@ -533,6 +534,7 @@ function Get-ConfigureArguments {
         [pscustomobject]$Variant,
         [string]$ToolchainFile,
         [switch]$EnableTests,
+        [switch]$EnableLiveLlmTests,
         [int]$CMakeMajor,
         [int]$CMakeMinor
     )
@@ -548,6 +550,9 @@ function Get-ConfigureArguments {
 
     if ($EnableTests) {
         $configureArgs += "-DAI_FILE_SORTER_BUILD_TESTS=ON"
+    }
+    if ($EnableLiveLlmTests) {
+        $configureArgs += "-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON"
     }
 
     if ($env:AI_FILE_SORTER_STARTER_CONSOLE) {
@@ -834,6 +839,14 @@ if (-not (Test-Path (Join-Path $llamaDir "CMakeLists.txt"))) {
 if ($RunTests) {
     $BuildTests = $true
 }
+if ($EnableLiveLlmTests) {
+    $BuildTests = $true
+}
+
+if ($BuildTests -and -not $PSBoundParameters.ContainsKey("Variants")) {
+    Write-Output "Tests requested; limiting default Windows build variants to Standard. Pass -Variants explicitly to build additional variants."
+    $Variants = @("Standard")
+}
 
 $selectedVariantNames = @($Variants | Select-Object -Unique)
 $selectedVariants = foreach ($variantName in $selectedVariantNames) {
@@ -841,7 +854,7 @@ $selectedVariants = foreach ($variantName in $selectedVariantNames) {
 }
 
 if ($BuildTests -and ($selectedVariantNames -notcontains "Standard")) {
-    throw "-BuildTests and -RunTests currently require the Standard variant because tests are only configured in the auto-update build."
+    throw "-BuildTests, -EnableLiveLlmTests, and -RunTests currently require the Standard variant because tests are only configured in the auto-update build."
 }
 
 if (-not $VcpkgRoot) {
@@ -1012,9 +1025,11 @@ foreach ($variant in $selectedVariants) {
     Assert-SufficientConfigureDiskSpace -Path $sharedVcpkgInstalledDir -Label "shared vcpkg install directory"
 
     $enableTests = $BuildTests -and $variant.Name -eq "Standard"
+    $enableLiveLlmTests = $EnableLiveLlmTests -and $variant.Name -eq "Standard"
     $configureArgs = Get-ConfigureArguments -Variant $variant `
                                             -ToolchainFile $toolchainFile `
                                             -EnableTests:$enableTests `
+                                            -EnableLiveLlmTests:$enableLiveLlmTests `
                                             -CMakeMajor $cmakeMajor `
                                             -CMakeMinor $cmakeMinor
 

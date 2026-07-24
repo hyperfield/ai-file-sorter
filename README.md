@@ -93,6 +93,7 @@ This keeps the first run low risk: your files stay on your computer when you use
   - [Using your Gemini API key](#using-your-gemini-api-key)
   - [Using a custom OpenAI-compatible API](#using-a-custom-openai-compatible-api)
   - [Testing](#testing)
+    - [Optional headless live LLM tests](#optional-headless-live-llm-tests)
   - [Diagnostics](#diagnostics)
   - [Help and onboarding](#help-and-onboarding)
   - [How to Use](#how-to-use)
@@ -784,17 +785,98 @@ ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PR
 Notes
 
 - The easiest Windows path is still `app\build_windows.ps1 -Configuration Release -BuildTests -RunTests`, which wires up the same vcpkg manifest/toolchain expectations for the main bundled build.
+- To register the optional live LLM CTest suite from the Windows helper, use `.\app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in PowerShell or `app\build_windows.cmd -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in `cmd.exe`. Add `-RunTests` only if you want the full registered CTest set to run immediately.
 - If you use a Visual Studio multi-config build tree such as `build-tests-vs`, building only `--target aifilesorter` produces `Release\aifilesorter-bin.exe`. The launcher `Release\aifilesorter.exe` belongs to the `StartAiFileSorter` target, so build `StartAiFileSorter` explicitly or omit `--target` if you want the launcher too.
+- If CMake reports a missing hardcoded Visual Studio instance for `build-tests`, the path is coming from the existing build tree's `CMakeCache.txt`, not from this repo. Use `cmake --fresh`, delete/recreate that build directory, or choose a new build directory before changing generators or Visual Studio installations.
 - List individual Catch2 cases: `./build-tests/ai_file_sorter_tests --list-tests`
 - Print each case name (including successes): `./build-tests/ai_file_sorter_tests --verbosity high --success`
 
 On Windows you can pass `-BuildTests` (and `-RunTests` to execute `ctest`) to `app\build_windows.ps1`:
 
 ```powershell
-app\build_windows.ps1 -Configuration Release -BuildTests -RunTests
+.\app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -RunTests
 ```
 
+From `cmd.exe`, use `app\build_windows.cmd -Configuration Release -Variants Standard -BuildTests -RunTests` instead.
+
 The current suite (under `tests/unit`) focuses on core utilities; expand it as new functionality gains coverage.
+
+#### Optional headless live LLM tests
+
+The normal Catch2/CTest suite does not launch a real local model against real files. For that purpose, use the opt-in live runner at `tests/live_llm/headless_live_llm_tests.py`. It invokes the production headless command, seeds an isolated app config with your local GGUF model, creates per-run fixture folders, downloads/caches a few small public PDF/image fixtures, and validates status JSON plus filesystem effects.
+
+These tests are intentionally not enabled by default because they are slow, model-dependent, and partly nondeterministic. Missing live-test prerequisites return exit code `77`, which CTest treats as skipped.
+
+Run sequence with CTest:
+
+```powershell
+# 1. Windows recommended path from PowerShell: configure/build with stale-cache detection.
+.\app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests
+
+# 2. Point the runner at a local text GGUF model.
+#    You can skip this if the normal AI File Sorter settings already select
+#    an available local/custom GGUF model.
+$env:AI_FILE_SORTER_LIVE_LLM_MODEL = "C:\models\text-model.gguf"
+
+# 3. Optional: enable image-content rename cases with a visual model pair.
+$env:AI_FILE_SORTER_LIVE_VISUAL_MODEL = "C:\models\vision-model.gguf"
+$env:AI_FILE_SORTER_LIVE_VISUAL_MMPROJ = "C:\models\mmproj-model.gguf"
+
+# 4. Optional: force a backend. Values: auto, cpu, cuda, vulkan.
+$env:AI_FILE_SORTER_LIVE_BACKEND = "cuda"
+
+# 5. Run only the live LLM suite from the helper's Standard build directory.
+ctest --test-dir app\build-windows -C Release -L live-llm --output-on-failure
+
+# Use -V instead when you want live per-case progress in the terminal.
+ctest --test-dir app\build-windows -C Release -L live-llm -V
+```
+
+From `cmd.exe`, use `app\build_windows.cmd -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` for step 1.
+
+On bundled Windows builds, the live suite runs through `aifilesorter.exe`, not `aifilesorter-bin.exe`, so backend DLL selection matches the normal non-Store launcher. If an older CTest file still passes `aifilesorter-bin.exe`, the Python runner automatically switches to the sibling launcher when it exists. Use `AI_FILE_SORTER_LIVE_BACKEND=cuda` to validate CUDA specifically, leave it unset for the launcher's normal CUDA -> Vulkan -> CPU selection, or use `cpu` for deterministic CPU/OpenBLAS runs.
+
+CTest suppresses passing-test output unless `-V` is used. The runner also writes a live progress log and a pointer file, so a second PowerShell can tail progress while a non-verbose CTest run is active:
+
+```powershell
+$work = Get-Content "$env:TEMP\aifs-live-llm-latest.txt"
+Get-Content (Join-Path $work "progress.log") -Wait
+```
+
+Verbose progress includes the backend environment received by the headless text LLM client, for example `Local text LLM backend request: AI_FILE_SORTER_GPU_BACKEND=cuda`. If that line says `cpu`, clear any stale `AI_FILE_SORTER_LIVE_BACKEND=cpu` setting and rebuild after stopping old test processes that may still hold `aifilesorter-bin.exe`.
+
+Manual Windows CMake users should configure from an x64 Visual Studio Developer PowerShell with an explicit generator and toolchain, for example `cmake -S app -B build-tests -G "Ninja" -DCMAKE_PREFIX_PATH=$qt "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_MANIFEST_DIR=app -DVCPKG_TARGET_TRIPLET=x64-windows -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON`. Use `cmake --fresh` when supported, delete/recreate the build directory, or choose a new build directory if `build-tests` was previously configured with another generator or Visual Studio instance.
+
+On Linux/macOS, configure with `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`, build with your normal parallelism value, set `export AI_FILE_SORTER_LIVE_LLM_MODEL=/path/to/text-model.gguf` if needed, and omit `-C Release` for single-config build directories.
+
+Run sequence without CTest:
+
+```powershell
+python tests\live_llm\headless_live_llm_tests.py `
+  --app app\build-windows\Release\aifilesorter.exe `
+  --model C:\models\text-model.gguf `
+  --backend cpu `
+  --keep-work-dir `
+  --verbose
+```
+
+Useful direct-run filters:
+
+```powershell
+python tests\live_llm\headless_live_llm_tests.py --app app\build-windows\Release\aifilesorter.exe --model C:\models\text-model.gguf --backend cpu --only rename_documents
+python tests\live_llm\headless_live_llm_tests.py --app app\build-windows\Release\aifilesorter.exe --model C:\models\text-model.gguf --backend cpu --only whitelist
+```
+
+Fixture behavior:
+
+- Generated fixtures are created per run under a temporary work directory, or under `AI_FILE_SORTER_LIVE_WORK_DIR` / `--work-dir` if provided.
+- Downloaded public fixtures are cached under `~/.cache/ai-file-sorter/live-fixtures` by default, or `AI_FILE_SORTER_LIVE_FIXTURE_CACHE` / `--fixture-cache`.
+- No static binary fixture folder is committed to the repository; each test copies fixtures into isolated case directories with varied and international filenames.
+- If `--model` / `AI_FILE_SORTER_LIVE_LLM_MODEL` is omitted, the runner reads AI File Sorter `config.ini` and uses the selected local/custom GGUF when available. Override that settings path with `AI_FILE_SORTER_LIVE_SETTINGS_FILE` / `--settings-file`.
+- Runtime status updates include the selected `AI_FILE_SORTER_GPU_BACKEND`, `AI_FILE_SORTER_GGML_DIR`, and CUDA-disable state as reported by the launched headless process.
+- Failed runs keep their generated work directory automatically so `runs\<case>\stdout.txt`, `stderr.txt`, `status.json`, and fixtures remain available for diagnosis.
+
+Current live coverage includes categorization with and without subcategories, selected-file auto-apply boundaries, whitelist-restricted categorization, document renaming in English/French/Simplified Chinese/Hindi, optional image-content renaming in those languages, WAV metadata rename, and categorize-and-rename review-plan generation. See `tests/live_llm/README.md` for all runner options and fixture source URLs.
 
 ### Selecting a backend at runtime
 
