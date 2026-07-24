@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 #include <unordered_set>
@@ -46,6 +47,26 @@ std::shared_ptr<spdlog::logger> resolve_core_logger()
         return logger;
     }
     return spdlog::default_logger();
+}
+
+std::string env_value_or_unset(const char* name)
+{
+    const char* value = std::getenv(name);
+    if (!value || value[0] == '\0') {
+        return "<unset>";
+    }
+    return value;
+}
+
+std::string text_llm_backend_request_summary()
+{
+    return "[INFO] Local text LLM backend request: AI_FILE_SORTER_GPU_BACKEND=" +
+           env_value_or_unset("AI_FILE_SORTER_GPU_BACKEND") +
+           ", LLAMA_ARG_DEVICE=" + env_value_or_unset("LLAMA_ARG_DEVICE") +
+           ", GGML_DISABLE_CUDA=" + env_value_or_unset("GGML_DISABLE_CUDA") +
+           ", AI_FILE_SORTER_N_GPU_LAYERS=" + env_value_or_unset("AI_FILE_SORTER_N_GPU_LAYERS") +
+           ", LLAMA_CPP_N_GPU_LAYERS=" + env_value_or_unset("LLAMA_CPP_N_GPU_LAYERS") +
+           ", AI_FILE_SORTER_GGML_DIR=" + env_value_or_unset("AI_FILE_SORTER_GGML_DIR");
 }
 
 } // namespace
@@ -280,12 +301,10 @@ std::unique_ptr<ILLMClient> HeadlessAnalysisWorkflowHost::make_llm_client()
         if (custom.id.empty() || custom.path.empty()) {
             throw std::runtime_error("Selected custom LLM is missing or invalid. Please re-select it.");
         }
-        LocalLLMClient::Options local_options;
-        local_options.force_cpu_backend = true;
+        append_progress(text_llm_backend_request_summary());
         auto client = std::make_unique<LocalLLMClient>(
             custom.path,
-            [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); },
-            local_options);
+            [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); });
         client->set_status_callback(handle_local_llm_status);
         return client;
     }
@@ -296,12 +315,10 @@ std::unique_ptr<ILLMClient> HeadlessAnalysisWorkflowHost::make_llm_client()
         throw std::runtime_error("Required local LLM model path is not configured.");
     }
 
-    LocalLLMClient::Options local_options;
-    local_options.force_cpu_backend = true;
+    append_progress(text_llm_backend_request_summary());
     auto client = std::make_unique<LocalLLMClient>(
         Utils::path_to_utf8(model_path),
-        [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); },
-        local_options);
+        [this](const std::string& reason) { return prompt_text_cpu_fallback(reason); });
     client->set_status_callback(handle_local_llm_status);
     return client;
 }
@@ -547,8 +564,12 @@ bool HeadlessAnalysisWorkflowHost::prompt_text_cpu_fallback(const std::string& r
     if (core_logger_ && !reason.empty()) {
         core_logger_->warn("Headless text GPU fallback accepted: {}", reason);
     }
-    append_progress(to_utf8(translate_main_app(
-        "[WARN] GPU acceleration failed. Continuing text analysis on CPU.")));
+    std::string message = to_utf8(translate_main_app(
+        "[WARN] GPU acceleration failed. Continuing text analysis on CPU."));
+    if (!reason.empty()) {
+        message += " Reason: " + reason + ".";
+    }
+    append_progress(message);
     return true;
 }
 

@@ -237,7 +237,7 @@ QStringList candidateCudaRuntimeDirectories()
 int parseCudaRuntimeVersionToken(const QString& fileName)
 {
     static const QRegularExpression runtimePattern(
-        QStringLiteral("^cudart64_(\\d+)\\.dll$"),
+        QStringLiteral("^(?:cudart|cublas)64_(\\d+)\\.dll$"),
         QRegularExpression::CaseInsensitiveOption);
     const auto match = runtimePattern.match(fileName);
     if (!match.hasMatch()) {
@@ -270,7 +270,11 @@ CudaRuntimeDetection detectCudaRuntime()
 
         for (const QString& directory : directories) {
             const QDir dir(directory);
-            const QFileInfoList candidates = dir.entryInfoList({QStringLiteral("cudart64_*.dll")},
+            const QFileInfoList candidates = dir.entryInfoList(
+                {
+                    QStringLiteral("cudart64_*.dll"),
+                    QStringLiteral("cublas64_*.dll"),
+                },
                                                                QDir::Files,
                                                                QDir::Name);
             for (const QFileInfo& candidate : candidates) {
@@ -427,16 +431,22 @@ bool promptCudaDownload() {
     return false;
 }
 
-bool launchMainExecutable(const QString& executablePath,
-                          const QStringList& arguments,
-                          bool disableCuda,
-                          const QString& backendTag,
-                          const QString& ggmlDir,
-                          const QString& llamaDevice,
-                          const QProcessEnvironment& extraEnvironment) {
+struct LaunchResult {
+    bool started{false};
+    int exitCode{EXIT_FAILURE};
+};
+
+LaunchResult launchMainExecutable(const QString& executablePath,
+                                  const QStringList& arguments,
+                                  bool disableCuda,
+                                  const QString& backendTag,
+                                  const QString& ggmlDir,
+                                  const QString& llamaDevice,
+                                  const QProcessEnvironment& extraEnvironment,
+                                  bool waitForExit) {
     QFileInfo exeInfo(executablePath);
     if (!exeInfo.exists()) {
-        return false;
+        return {};
     }
 
     QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
@@ -455,7 +465,37 @@ bool launchMainExecutable(const QString& executablePath,
     process.setArguments(arguments);
     process.setWorkingDirectory(exeInfo.absolutePath());
 
-    return process.startDetached();
+    if (!waitForExit) {
+        const bool started = process.startDetached();
+        return LaunchResult{started, started ? EXIT_SUCCESS : EXIT_FAILURE};
+    }
+
+    process.setProcessChannelMode(QProcess::ForwardedChannels);
+    process.start();
+    if (!process.waitForStarted(30000)) {
+        qWarning().noquote()
+            << "Failed to start main application executable:"
+            << QDir::toNativeSeparators(executablePath)
+            << process.errorString();
+        return {};
+    }
+
+    if (!process.waitForFinished(-1)) {
+        qWarning().noquote()
+            << "Failed while waiting for main application executable:"
+            << QDir::toNativeSeparators(executablePath)
+            << process.errorString();
+        return LaunchResult{true, EXIT_FAILURE};
+    }
+
+    if (process.exitStatus() != QProcess::NormalExit) {
+        qWarning().noquote()
+            << "Main application executable crashed:"
+            << QDir::toNativeSeparators(executablePath);
+        return LaunchResult{true, EXIT_FAILURE};
+    }
+
+    return LaunchResult{true, process.exitCode()};
 }
 
 QString resolveExecutableName(const QString& baseDir, const QString& currentExecutablePath) {
@@ -943,6 +983,13 @@ QStringList build_forwarded_args(int argc, char* argv[], bool &console_log_flag)
     return forwardedArgs;
 }
 
+bool is_headless_invocation(const QStringList& forwardedArgs)
+{
+    return forwardedArgs.contains(QStringLiteral("--headless")) ||
+           forwardedArgs.contains(QStringLiteral("--headless-apply")) ||
+           forwardedArgs.contains(QStringLiteral("--headless-help"));
+}
+
 QString backend_tag_for_selection(BackendSelection selection)
 {
     switch (selection) {
@@ -963,28 +1010,35 @@ QString llama_device_for_selection(BackendSelection selection)
     }
 }
 
-bool launch_main_process(const QString& mainExecutable,
-                         const QStringList& forwardedArgs,
-                         BackendSelection selection,
-                         const QString& ggmlPath,
-                         const UpdaterLiveTestArgs& updaterLiveTest)
+int launch_main_process(const QString& mainExecutable,
+                        const QStringList& forwardedArgs,
+                        BackendSelection selection,
+                        const QString& ggmlPath,
+                        const UpdaterLiveTestArgs& updaterLiveTest,
+                        bool waitForExit,
+                        bool showErrors)
 {
     const bool disableCudaEnv = (selection != BackendSelection::Cuda);
     const QString backendTag = backend_tag_for_selection(selection);
     const QString llamaDevice = llama_device_for_selection(selection);
-    if (!launchMainExecutable(mainExecutable,
-                              forwardedArgs,
-                              disableCudaEnv,
-                              backendTag,
-                              ggmlPath,
-                              llamaDevice,
-                              build_updater_live_test_environment(updaterLiveTest))) {
-        QMessageBox::critical(nullptr,
-            QObject::tr("Launch Failed"),
-            QObject::tr("Failed to launch the main application executable:\n%1").arg(mainExecutable));
-        return false;
+    const LaunchResult result = launchMainExecutable(
+        mainExecutable,
+        forwardedArgs,
+        disableCudaEnv,
+        backendTag,
+        ggmlPath,
+        llamaDevice,
+        build_updater_live_test_environment(updaterLiveTest),
+        waitForExit);
+    if (!result.started) {
+        if (showErrors) {
+            QMessageBox::critical(nullptr,
+                QObject::tr("Launch Failed"),
+                QObject::tr("Failed to launch the main application executable:\n%1").arg(mainExecutable));
+        }
+        return EXIT_FAILURE;
     }
-    return true;
+    return result.exitCode;
 }
 
 } // namespace
@@ -1004,6 +1058,9 @@ int main(int argc, char* argv[]) {
 
     BackendOverrides overrides = parse_backend_overrides(argc, argv);
     const UpdaterLiveTestArgs updaterLiveTest = parse_updater_live_test_args(argc, argv);
+    bool console_log_flag = false;
+    QStringList forwardedArgs = build_forwarded_args(argc, argv, console_log_flag);
+    const bool headlessInvocation = is_headless_invocation(forwardedArgs);
     log_observed_arguments(overrides.observedArgs);
     if (!validate_override_conflict(overrides)) {
         return EXIT_FAILURE;
@@ -1030,7 +1087,7 @@ int main(int argc, char* argv[]) {
                                                                    cudaDetection,
                                                                    cudaPayloadPresent);
     apply_override_flags(overrides, availability);
-    if (maybe_prompt_cuda_download(overrides, availability)) {
+    if (!headlessInvocation && maybe_prompt_cuda_download(overrides, availability)) {
         return EXIT_SUCCESS;
     }
     BackendSelection selection = resolve_backend_selection(overrides, availability);
@@ -1062,7 +1119,10 @@ int main(int argc, char* argv[]) {
             ggmlVariant = ggml_variant_for_selection(selection);
         }
 
-        ggmlPath = resolve_ggml_directory(exeDir, ggmlVariant, selection, /*showError=*/true);
+        ggmlPath = resolve_ggml_directory(exeDir,
+                                          ggmlVariant,
+                                          selection,
+                                          /*showError=*/!headlessInvocation);
         if (ggmlPath.isEmpty()) {
             return EXIT_FAILURE;
         }
@@ -1079,8 +1139,6 @@ int main(int argc, char* argv[]) {
                             useVulkan,
                             availability.detectedCudaRuntimeDirectory);
 
-    bool console_log_flag = false;
-    QStringList forwardedArgs = build_forwarded_args(argc, argv, console_log_flag);
     if (console_log_flag) {
         AttachConsole(ATTACH_PARENT_PROCESS);
         FILE* f = nullptr;
@@ -1092,9 +1150,11 @@ int main(int argc, char* argv[]) {
     const QString mainExecutable = resolveExecutableName(
         exeDir,
         QCoreApplication::applicationFilePath());
-    if (!launch_main_process(mainExecutable, forwardedArgs, selection, ggmlPath, updaterLiveTest)) {
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
+    return launch_main_process(mainExecutable,
+                               forwardedArgs,
+                               selection,
+                               ggmlPath,
+                               updaterLiveTest,
+                               /*waitForExit=*/headlessInvocation,
+                               /*showErrors=*/!headlessInvocation);
 }

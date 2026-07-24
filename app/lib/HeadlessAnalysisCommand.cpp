@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <sstream>
 #include <system_error>
 #include <utility>
@@ -164,6 +165,25 @@ QJsonObject metadata_to_json(const AnalysisRuntimeLock::Metadata& metadata)
     return object;
 }
 
+void insert_env_value(QJsonObject& object, const QString& key, const char* env_name)
+{
+    const char* value = std::getenv(env_name);
+    if (!value || value[0] == '\0') {
+        return;
+    }
+    object.insert(key, QString::fromLocal8Bit(value));
+}
+
+QJsonObject runtime_to_json()
+{
+    QJsonObject object;
+    insert_env_value(object, QStringLiteral("gpuBackend"), "AI_FILE_SORTER_GPU_BACKEND");
+    insert_env_value(object, QStringLiteral("ggmlDir"), "AI_FILE_SORTER_GGML_DIR");
+    insert_env_value(object, QStringLiteral("llamaDevice"), "LLAMA_ARG_DEVICE");
+    insert_env_value(object, QStringLiteral("ggmlDisableCuda"), "GGML_DISABLE_CUDA");
+    return object;
+}
+
 QJsonObject status_to_json(const HeadlessAnalysisCommand::Options& options,
                            const std::string& status,
                            const std::string& message,
@@ -180,6 +200,10 @@ QJsonObject status_to_json(const HeadlessAnalysisCommand::Options& options,
     object.insert(QStringLiteral("message"), QString::fromStdString(message));
     object.insert(QStringLiteral("error"), QString::fromStdString(error));
     object.insert(QStringLiteral("updatedAtUtc"), QString::fromStdString(utc_now_iso()));
+    const QJsonObject runtime = runtime_to_json();
+    if (!runtime.isEmpty()) {
+        object.insert(QStringLiteral("runtime"), runtime);
+    }
 
     QJsonArray paths;
     for (const auto& path : options.paths) {
