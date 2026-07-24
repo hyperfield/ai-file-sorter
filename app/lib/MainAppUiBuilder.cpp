@@ -858,18 +858,19 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
 
 void MainAppUiBuilder::build_extensions_menu(MainApp& app) {
     app.extensions_menu = app.menuBar()->addMenu(QString());
-    app.windows_explorer_extension_menu = app.extensions_menu->addMenu(
-        icon_for(app, "system-file-manager", QStyle::SP_DirOpenIcon),
-        QString());
 
     app.windows_explorer_extension_install_action =
-        app.windows_explorer_extension_menu->addAction(
+        app.extensions_menu->addAction(
             icon_for(app, "download", QStyle::SP_ArrowDown),
             QString());
     QObject::connect(app.windows_explorer_extension_install_action,
                      &QAction::triggered,
                      &app,
                      &MainApp::open_windows_explorer_extension_install_page);
+
+    app.windows_explorer_extension_menu = app.extensions_menu->addMenu(
+        icon_for(app, "system-file-manager", QStyle::SP_DirOpenIcon),
+        QString());
 
     app.windows_explorer_extension_settings_action =
         app.windows_explorer_extension_menu->addAction(
@@ -889,6 +890,10 @@ void MainAppUiBuilder::build_extensions_menu(MainApp& app) {
                      &app,
                      &MainApp::open_windows_explorer_extension_activity_window);
 
+    QObject::connect(app.extensions_menu,
+                     &QMenu::aboutToShow,
+                     &app,
+                     &MainApp::refresh_windows_explorer_extension_actions);
     QObject::connect(app.windows_explorer_extension_menu,
                      &QMenu::aboutToShow,
                      &app,

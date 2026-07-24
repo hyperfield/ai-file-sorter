@@ -2137,8 +2137,8 @@ void MainApp::refresh_windows_explorer_extension_actions()
         windows_explorer_extension_activity_action->setEnabled(installed);
     }
     if (windows_explorer_extension_menu && windows_explorer_extension_menu->menuAction()) {
-        windows_explorer_extension_menu->menuAction()->setEnabled(
-            status.state != ExplorerExtensionManager::State::UnsupportedPlatform);
+        windows_explorer_extension_menu->menuAction()->setVisible(installed);
+        windows_explorer_extension_menu->menuAction()->setEnabled(installed);
     }
 }
 
