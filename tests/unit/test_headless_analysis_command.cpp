@@ -314,6 +314,46 @@ TEST_CASE("HeadlessAnalysisCommand runs categorization for an empty folder")
     CHECK_FALSE(lock.is_locked());
 }
 
+TEST_CASE("HeadlessAnalysisCommand honors stop marker for headless jobs")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const QString target_path = dir.filePath(QStringLiteral("target"));
+    REQUIRE(QDir().mkpath(target_path));
+    const std::filesystem::path target = std::filesystem::path(target_path.toStdString());
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+    std::filesystem::path stop_marker = status;
+    stop_marker += ".stop";
+    QFile marker(QString::fromStdString(Utils::path_to_utf8(stop_marker)));
+    REQUIRE(marker.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    REQUIRE(marker.write("stop") == 4);
+    marker.close();
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths.push_back(target);
+    options.status_file = status;
+    options.job_id = "headless-stop-marker";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Failure);
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("cancelled"));
+    CHECK(out.str().find("\"cancelled\"") != std::string::npos);
+
+    AnalysisRuntimeLock lock(runtime_dir);
+    CHECK_FALSE(lock.is_locked());
+}
+
 TEST_CASE("HeadlessAnalysisCommand reports LLM setup action when categorization has no LLM")
 {
     QTemporaryDir dir;

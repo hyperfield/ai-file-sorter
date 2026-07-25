@@ -260,6 +260,13 @@ Procedure: Run the command and inspect the final status JSON and runtime lock.
 Expected outcome: The command exits successfully, writes `completed` status JSON with zero review entries, and leaves no held runtime lock behind.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand runs categorization for an empty folder"`
 
+#### Test case: HeadlessAnalysisCommand honors stop marker for headless jobs
+Purpose: Verify Explorer can request cooperative cancellation of a headless analysis run through the status sidecar stop marker.
+Setup: Create a temporary empty target folder, isolate app settings, prepare a status file path, and create the matching `.stop` marker before running the command.
+Procedure: Run the command and inspect the final status JSON and runtime lock.
+Expected outcome: The command exits with the user-cancellation failure code, writes `cancelled` status JSON, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand honors stop marker for headless jobs"`
+
 #### Test case: HeadlessAnalysisCommand reports LLM setup action when categorization has no LLM
 Purpose: Ensure Explorer/headless categorization reports a machine-readable setup action when first-run settings have no usable LLM.
 Setup: Create a temporary target folder with one uncached file, isolate app settings under a temporary config root, and prepare a headless categorize command with a status file.

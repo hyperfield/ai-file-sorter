@@ -55,6 +55,8 @@ public:
         HeadlessSettingsOverrides settings_overrides;
         /** @brief Optional progress callback receiving translated progress text. */
         std::function<void(const std::string&)> progress_callback;
+        /** @brief Optional external cancellation callback for headless integrations. */
+        std::function<bool()> stop_requested;
     };
 
     /**
@@ -73,6 +75,11 @@ public:
      * @return Terminal workflow status.
      */
     AnalysisRunResult execute();
+
+    /**
+     * @brief Request cooperative cancellation of the running headless workflow.
+     */
+    void request_stop();
 
     /**
      * @brief Return the number of entries prepared for review/apply after analysis.
@@ -206,6 +213,12 @@ private:
      * @param message Progress text.
      */
     void append_progress(const std::string& message);
+
+    /**
+     * @brief Return whether the workflow should stop and latch the shared stop flag.
+     * @return True when cancellation has been requested.
+     */
+    bool should_stop();
 
     /**
      * @brief Decide whether a text LLM GPU failure should retry on CPU.

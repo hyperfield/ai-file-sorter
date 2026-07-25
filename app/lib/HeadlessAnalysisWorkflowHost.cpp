@@ -106,6 +106,11 @@ AnalysisRunResult HeadlessAnalysisWorkflowHost::execute()
     return result;
 }
 
+void HeadlessAnalysisWorkflowHost::request_stop()
+{
+    stop_analysis_.store(true);
+}
+
 std::size_t HeadlessAnalysisWorkflowHost::review_entry_count() const
 {
     return new_files_to_sort_.size();
@@ -179,7 +184,7 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
         text_cpu_fallback_choice_,
         [this]() { return normalize_folder_path(options_.folder_path); },
         [](const char* text) { return translate_main_app(text); },
-        [this]() { return stop_analysis_.load(); },
+        [this]() { return should_stop(); },
         [this](const std::string& message) { append_progress(message); },
         [this](const std::string& directory_path) {
             prune_empty_cached_entries_for(directory_path);
@@ -550,9 +555,22 @@ void HeadlessAnalysisWorkflowHost::filter_file_entries_to_selected_paths(
 
 void HeadlessAnalysisWorkflowHost::append_progress(const std::string& message)
 {
+    should_stop();
     if (options_.progress_callback) {
         options_.progress_callback(message);
     }
+}
+
+bool HeadlessAnalysisWorkflowHost::should_stop()
+{
+    if (stop_analysis_.load()) {
+        return true;
+    }
+    if (options_.stop_requested && options_.stop_requested()) {
+        request_stop();
+        return true;
+    }
+    return false;
 }
 
 bool HeadlessAnalysisWorkflowHost::prompt_text_cpu_fallback(const std::string& reason)

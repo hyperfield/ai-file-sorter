@@ -21,10 +21,13 @@
 #include <QString>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <sstream>
 #include <system_error>
+#include <thread>
 #include <utility>
 
 namespace {
@@ -32,6 +35,7 @@ namespace {
 constexpr int kStatusSchemaVersion = 1;
 constexpr int kReviewPlanSchemaVersion = 1;
 constexpr char kReviewPlanKind[] = "aifs.headlessReviewPlan";
+constexpr auto kStopRequestPollInterval = std::chrono::milliseconds(250);
 
 QString to_qstring(const std::filesystem::path& path)
 {
@@ -54,6 +58,67 @@ std::string lower_copy(std::string value)
     });
     return value;
 }
+
+std::filesystem::path stop_request_file_for_status(const std::filesystem::path& status_file)
+{
+    std::filesystem::path marker = status_file;
+    marker += ".stop";
+    return marker;
+}
+
+bool stop_requested_for_status_file(const std::optional<std::filesystem::path>& status_file)
+{
+    if (!status_file || status_file->empty()) {
+        return false;
+    }
+    std::error_code ec;
+    return std::filesystem::exists(stop_request_file_for_status(*status_file), ec);
+}
+
+/**
+ * @brief Polls the Explorer stop marker while the workflow is inside blocking analysis code.
+ */
+class StopRequestMonitor {
+public:
+    StopRequestMonitor(const HeadlessAnalysisCommand::Options& options,
+                       HeadlessAnalysisWorkflowHost* host)
+        : status_file_(options.status_file),
+          host_(host)
+    {
+        if (!status_file_ || !host_) {
+            return;
+        }
+        worker_ = std::thread([this]() { run(); });
+    }
+
+    StopRequestMonitor(const StopRequestMonitor&) = delete;
+    StopRequestMonitor& operator=(const StopRequestMonitor&) = delete;
+
+    ~StopRequestMonitor()
+    {
+        done_.store(true);
+        if (worker_.joinable()) {
+            worker_.join();
+        }
+    }
+
+private:
+    void run()
+    {
+        while (!done_.load()) {
+            if (stop_requested_for_status_file(status_file_)) {
+                host_->request_stop();
+                return;
+            }
+            std::this_thread::sleep_for(kStopRequestPollInterval);
+        }
+    }
+
+    std::optional<std::filesystem::path> status_file_;
+    HeadlessAnalysisWorkflowHost* host_{nullptr};
+    std::atomic<bool> done_{false};
+    std::thread worker_;
+};
 
 bool message_indicates_llm_setup_required(const std::string& message)
 {
@@ -1294,8 +1359,12 @@ int HeadlessAnalysisCommand::run(const Options& options,
     host_options.progress_callback = [&](const std::string& message) {
         emit_status(options, "running", message, {}, lease->metadata(), out, err);
     };
+    host_options.stop_requested = [&]() {
+        return stop_requested_for_status_file(options.status_file);
+    };
 
     HeadlessAnalysisWorkflowHost host(std::move(host_options));
+    StopRequestMonitor stop_monitor(options, &host);
     const AnalysisRunResult result = host.execute();
     std::optional<HeadlessReviewApplyService::Result> apply_result;
     if (result.status == AnalysisRunStatus::Completed) {
