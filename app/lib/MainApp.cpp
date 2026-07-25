@@ -29,6 +29,7 @@
 #include "CategoryLanguage.hpp"
 #include "CategoryLanguageSupport.hpp"
 #include "MainAppUiBuilder.hpp"
+#include "MenuMnemonicController.hpp"
 #include "ReviewHistoryDialog.hpp"
 #include "SuitabilityBenchmarkDialog.hpp"
 #include "UiTranslator.hpp"
@@ -622,6 +623,7 @@ MainApp::MainApp(Settings& settings,
 
     MainAppUiBuilder ui_builder;
     ui_builder.build(*this);
+    menu_mnemonic_controller_ = std::make_unique<MenuMnemonicController>(menuBar(), this);
     backend_status_label = new QLabel(this);
     backend_status_label->setObjectName(QStringLiteral("backendStatusLabel"));
     backend_status_label->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Preferred);
@@ -1099,6 +1101,9 @@ void MainApp::retranslate_ui()
         .status_is_ready = status_is_ready_
     };
     ui_translator_->retranslate_all(state);
+    if (menu_mnemonic_controller_) {
+        menu_mnemonic_controller_->refresh_titles();
+    }
     refresh_category_language_menu();
     refresh_windows_explorer_extension_actions();
     refresh_backend_status_label();

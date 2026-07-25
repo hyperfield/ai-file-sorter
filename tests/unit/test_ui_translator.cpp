@@ -1,19 +1,24 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Language.hpp"
+#include "MenuMnemonicController.hpp"
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
 #include "UiTranslator.hpp"
 
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
 #include <QChar>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDockWidget>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
+#include <QMenuBar>
 #include <QPushButton>
 #include <QComboBox>
 #include <QRadioButton>
@@ -398,15 +403,23 @@ QStringList menu_action_labels(const QMenu* menu)
 
 void verify_menus_and_actions(const UiTranslatorTestHarness& h)
 {
-    REQUIRE(h.file_menu->title() == QStringLiteral("&File"));
-    REQUIRE(h.edit_menu->title() == QStringLiteral("&Edit"));
-    REQUIRE(h.view_menu->title() == QStringLiteral("&View"));
-    REQUIRE(h.settings_menu->title() == QStringLiteral("&Settings"));
-    REQUIRE(h.extensions_menu->title() == QStringLiteral("E&xtensions"));
+    REQUIRE(h.file_menu->title() == QStringLiteral("File"));
+    REQUIRE(h.edit_menu->title() == QStringLiteral("Edit"));
+    REQUIRE(h.view_menu->title() == QStringLiteral("View"));
+    REQUIRE(h.settings_menu->title() == QStringLiteral("Settings"));
+    REQUIRE(h.extensions_menu->title() == QStringLiteral("Extensions"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.file_menu) == QStringLiteral("&File"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.edit_menu) == QStringLiteral("&Edit"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.view_menu) == QStringLiteral("&View"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.settings_menu) == QStringLiteral("&Settings"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.extensions_menu) == QStringLiteral("E&xtensions"));
     REQUIRE(h.windows_explorer_extension_menu->title() == QStringLiteral("Windows Explorer Extension"));
-    REQUIRE(h.plugins_menu->title() == QStringLiteral("&Plugins"));
-    REQUIRE(h.development_menu->title() == QStringLiteral("&Development"));
-    REQUIRE(h.test_menu->title() == QStringLiteral("&Tests"));
+    REQUIRE(h.plugins_menu->title() == QStringLiteral("Plugins"));
+    REQUIRE(h.development_menu->title() == QStringLiteral("Development"));
+    REQUIRE(h.test_menu->title() == QStringLiteral("Tests"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.plugins_menu) == QStringLiteral("&Plugins"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.development_menu) == QStringLiteral("&Development"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.test_menu) == QStringLiteral("&Tests"));
     REQUIRE(h.language_menu->title() == QStringLiteral("Interface &language"));
     REQUIRE(h.category_language_menu->title() == QStringLiteral("Category &language"));
     REQUIRE(h.run_benchmark_action->text() == QStringLiteral("System compatibility check…"));
@@ -444,8 +457,9 @@ void verify_menus_and_actions(const UiTranslatorTestHarness& h)
     REQUIRE(interface_language_labels == sorted_labels);
 
     const QString help_title = h.help_menu->title();
-    REQUIRE(help_title.endsWith(QStringLiteral("&Help")));
+    REQUIRE(help_title.endsWith(QStringLiteral("Help")));
     REQUIRE(help_title.startsWith(QString(QChar(0x200B))));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.help_menu).endsWith(QStringLiteral("&Help")));
 }
 
 void verify_tree_and_status(const UiTranslatorTestHarness& h)
@@ -468,4 +482,46 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     verify_primary_controls(h);
     verify_menus_and_actions(h);
     verify_tree_and_status(h);
+}
+
+TEST_CASE("MenuMnemonicController hides top-level menu mnemonics until activated")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    QMainWindow window;
+    auto* file_menu = window.menuBar()->addMenu(QString());
+    auto* edit_menu = window.menuBar()->addMenu(QString());
+
+    MenuMnemonicController controller(window.menuBar(), &window);
+    MenuMnemonicController::set_mnemonic_title(file_menu, QStringLiteral("&File"));
+    MenuMnemonicController::set_mnemonic_title(edit_menu, QStringLiteral("&Edit"));
+    controller.refresh_titles();
+
+    REQUIRE_FALSE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(file_menu) == QStringLiteral("&File"));
+
+    QKeyEvent alt_press(QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+    QCoreApplication::sendEvent(qApp, &alt_press);
+    REQUIRE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("&File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("&Edit"));
+
+    QKeyEvent alt_release(QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+    QCoreApplication::sendEvent(qApp, &alt_release);
+    QCoreApplication::processEvents();
+    REQUIRE_FALSE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
+
+    controller.set_mnemonics_visible(true);
+    REQUIRE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("&File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("&Edit"));
+
+    controller.set_mnemonics_visible(false);
+    REQUIRE_FALSE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
 }

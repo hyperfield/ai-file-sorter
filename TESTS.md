@@ -677,6 +677,13 @@ Procedure: Call `retranslate_all()` and verify the text of buttons, checkboxes, 
 Expected outcome: All UI elements show the expected English strings, including File/Edit/View, the interface/category language menus, the `Reset learned behavior…` and `Clear cache…` Settings actions, representative category-language labels such as `Hindi`, `Japanese`, `Simplified Chinese`, and `Traditional Chinese`, the interface-language menu is alphabetized, and the French language action is marked checked, demonstrating the retranslate pipeline is correctly wired.
 Run: `./build-tests/ai_file_sorter_tests "*UiTranslator updates menus*"`
 
+#### Test case: MenuMnemonicController hides top-level menu mnemonics until activated
+Purpose: Verify that top-level menu access-key markers remain available for keyboard navigation without rendering underlines during normal pointer-driven use.
+Setup: Build a headless Qt `QMainWindow` with File and Edit menus and attach `MenuMnemonicController` to its menu bar.
+Procedure: Store mnemonic titles such as `&File` and `&Edit`, verify the visible menu titles are stripped by default, then toggle mnemonic visibility on and off.
+Expected outcome: Visible top-level titles are `File` and `Edit` until mnemonics are activated, while the stored mnemonic titles remain `&File` and `&Edit` for Alt-key access.
+Run: `./build-tests/ai_file_sorter_tests "MenuMnemonicController hides top-level menu mnemonics until activated"`
+
 ### `tests/unit/test_cache_maintenance_service.cpp`
 
 #### Test case: CacheMaintenanceService reports cache paths and sizes

@@ -61,6 +61,7 @@ class QLabel;
 class QEvent;
 class MainAppUiBuilder;
 class MainWindowStateBinder;
+class MenuMnemonicController;
 class WhitelistManagerDialog;
 class SuitabilityBenchmarkDialog;
 struct AnalysisWorkflowContext;
@@ -608,6 +609,7 @@ private:
     void apply_development_logging();
 
     std::unique_ptr<UiTranslator> ui_translator_;
+    std::unique_ptr<MenuMnemonicController> menu_mnemonic_controller_;
     std::unique_ptr<MainWindowStateBinder> main_window_state_binder_;
 
 #if defined(AI_FILE_SORTER_TEST_BUILD)

@@ -2,6 +2,7 @@
 
 #include "Language.hpp"
 #include "CategoryLanguage.hpp"
+#include "MenuMnemonicController.hpp"
 #include "Settings.hpp"
 
 #include <QAction>
@@ -107,30 +108,12 @@ Widget* raw_ptr(const QPointer<Widget>& pointer)
     return pointer.data();
 }
 
-QString strip_mnemonic_markers(const QString& value)
-{
-    QString result;
-    result.reserve(value.size());
-    for (int i = 0; i < value.size(); ++i) {
-        const QChar ch = value.at(i);
-        if (ch != QChar('&')) {
-            result.push_back(ch);
-            continue;
-        }
-        if (i + 1 < value.size() && value.at(i + 1) == QChar('&')) {
-            result.push_back(QChar('&'));
-            ++i;
-        }
-    }
-    return result;
-}
-
 QString menu_action_sort_key(const QAction* action)
 {
     if (!action) {
         return QString();
     }
-    return strip_mnemonic_markers(action->text()).trimmed();
+    return MenuMnemonicController::strip_mnemonic_markers(action->text()).trimmed();
 }
 
 void sort_menu_actions_by_label(QMenu* menu)
@@ -345,26 +328,32 @@ void UiTranslator::translate_menus_and_actions() const
     struct MenuEntry {
         QMenu* menu{nullptr};
         const char* text{nullptr};
+        bool top_level{false};
     };
 
     const MenuEntry menu_entries[] = {
-        {deps_.menus.file_menu, kMenuTitleFile},
-        {deps_.menus.edit_menu, kMenuTitleEdit},
-        {deps_.menus.view_menu, kMenuTitleView},
-        {deps_.menus.settings_menu, kMenuTitleSettings},
-        {deps_.menus.extensions_menu, kMenuTitleExtensions},
-        {deps_.menus.windows_explorer_extension_menu, kMenuTitleWindowsExplorerExtension},
-        {deps_.menus.plugins_menu, kMenuTitlePlugins},
-        {deps_.menus.development_menu, kMenuTitleDevelopment},
-        {deps_.menus.development_settings_menu, kMenuTitleSettings},
-        {deps_.menus.test_menu, kMenuTitleTests},
-        {deps_.menus.language_menu, kMenuTitleInterfaceLanguage},
-        {deps_.menus.category_language_menu, kMenuTitleCategoryLanguage}
+        {deps_.menus.file_menu, kMenuTitleFile, true},
+        {deps_.menus.edit_menu, kMenuTitleEdit, true},
+        {deps_.menus.view_menu, kMenuTitleView, true},
+        {deps_.menus.settings_menu, kMenuTitleSettings, true},
+        {deps_.menus.extensions_menu, kMenuTitleExtensions, true},
+        {deps_.menus.windows_explorer_extension_menu, kMenuTitleWindowsExplorerExtension, false},
+        {deps_.menus.plugins_menu, kMenuTitlePlugins, true},
+        {deps_.menus.development_menu, kMenuTitleDevelopment, true},
+        {deps_.menus.development_settings_menu, kMenuTitleSettings, false},
+        {deps_.menus.test_menu, kMenuTitleTests, true},
+        {deps_.menus.language_menu, kMenuTitleInterfaceLanguage, false},
+        {deps_.menus.category_language_menu, kMenuTitleCategoryLanguage, false}
     };
 
     for (const MenuEntry& entry : menu_entries) {
         if (entry.menu && entry.text) {
-            entry.menu->setTitle(tr(entry.text));
+            const QString translated = tr(entry.text);
+            if (entry.top_level) {
+                MenuMnemonicController::set_mnemonic_title(entry.menu, translated);
+            } else {
+                entry.menu->setTitle(translated);
+            }
         }
     }
 
@@ -434,7 +423,7 @@ void UiTranslator::translate_menus_and_actions() const
             const auto language = static_cast<CategoryLanguage>(idx);
             if (QAction* const shared_action =
                     shared_interface_language_action(deps_, language)) {
-                action->setText(strip_mnemonic_markers(shared_action->text()));
+                action->setText(MenuMnemonicController::strip_mnemonic_markers(shared_action->text()));
                 continue;
             }
             const QByteArray label_bytes = categoryLanguageToString(language).toUtf8();
@@ -444,10 +433,7 @@ void UiTranslator::translate_menus_and_actions() const
 
     if (auto* menu = deps_.menus.help_menu) {
         const QString help_title = QString(QChar(0x200B)) + tr(kMenuTitleHelp);
-        menu->setTitle(help_title);
-        if (QAction* help_action = menu->menuAction()) {
-            help_action->setText(help_title);
-        }
+        MenuMnemonicController::set_mnemonic_title(menu, help_title);
     }
 
     if (auto* dock = raw_ptr(deps_.file_explorer_dock)) {
