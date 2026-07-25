@@ -91,6 +91,13 @@ LLM client, for example `Local text LLM backend request:
 AI_FILE_SORTER_GPU_BACKEND=cuda`. If that line says `cpu`, clear any stale
 `AI_FILE_SORTER_LIVE_BACKEND=cpu` setting and rebuild after stopping old test
 processes that may still hold `aifilesorter-bin.exe`.
+Terminal output is colorized by default for readability: failures are red,
+warnings/skips are yellow, progress/info is blue, and passes are green. Set
+`AI_FILE_SORTER_LIVE_COLOR=never` or pass `--color never` for plain output.
+While a case is running, the runner refreshes an inline `elapsed=NNNs` counter
+on the active `RUN` line instead of printing periodic heartbeat lines. Set
+`AI_FILE_SORTER_LIVE_INLINE_PROGRESS=never` to force plain one-line `RUN`
+records for log collectors that do not handle carriage returns.
 
 For a non-verbose CTest run, tail the runner's progress log from another shell:
 
@@ -146,6 +153,13 @@ python tests\live_llm\headless_live_llm_tests.py --app app\build-windows\Release
 - `AI_FILE_SORTER_LIVE_WORK_DIR`: generated work/config/log directory.
 - `AI_FILE_SORTER_LIVE_TIMEOUT`: per-headless-command timeout in seconds.
 - `AI_FILE_SORTER_LIVE_ONLY`: regex filter for case names.
+- `AI_FILE_SORTER_LIVE_COLOR`: terminal color mode: `always`, `auto`, or
+  `never`. Defaults to `always`; `NO_COLOR` disables color.
+- `AI_FILE_SORTER_LIVE_REQUIRE_LOCALIZED_RENAMES`: fail non-English rename
+  cases when too few destination names show the requested language/script.
+  Defaults to warning-only so weaker local models can still run the smoke suite.
+- `AI_FILE_SORTER_LIVE_INLINE_PROGRESS`: set to `never`, `off`, `false`, or `0`
+  to disable the in-place elapsed-time counter.
 - `AI_FILE_SORTER_LIVE_SKIP_DOWNLOADS`: skip public downloads.
 - `AI_FILE_SORTER_LIVE_REQUIRE_DOWNLOADS`: fail if public downloads fail.
 - `AI_FILE_SORTER_LIVE_FORCE_VISUAL_CPU`: set `AI_FILE_SORTER_VISUAL_USE_GPU=0`.
@@ -166,12 +180,14 @@ review JSON emitted by the app.
 - Document rename in English, French, Simplified Chinese, and Hindi.
 - Image-content rename in English, French, Simplified Chinese, and Hindi when
   visual model artifacts are supplied.
-- Audio metadata rename from a generated WAV file with RIFF INFO tags.
+- Audio metadata rename capability probe from a generated FLAC file with
+  Vorbis comments. The case skips when the current headless build does not emit
+  standalone media rename review entries.
 - Categorize-and-rename review-plan generation.
 
 ## Fixture Sources
 
-The runner generates text, Markdown, CSV, YAML, JSON, XML, HTML, RTF, and WAV
+The runner generates text, Markdown, CSV, YAML, JSON, XML, HTML, RTF, and FLAC
 fixtures locally. It also downloads small public fixtures into a cache:
 
 - W3C dummy PDF: `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`

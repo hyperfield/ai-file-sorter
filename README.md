@@ -845,6 +845,9 @@ Get-Content (Join-Path $work "progress.log") -Wait
 
 Verbose progress includes the backend environment received by the headless text LLM client, for example `Local text LLM backend request: AI_FILE_SORTER_GPU_BACKEND=cuda`. If that line says `cpu`, clear any stale `AI_FILE_SORTER_LIVE_BACKEND=cpu` setting and rebuild after stopping old test processes that may still hold `aifilesorter-bin.exe`.
 
+The live runner colorizes terminal output by default: failures are red, warnings/skips are yellow, progress/info is blue, and passes are green. Set `AI_FILE_SORTER_LIVE_COLOR=never` or pass `--color never` for plain output.
+Long-running cases refresh an inline `elapsed=NNNs` counter on the active `RUN` line instead of printing heartbeat lines; set `AI_FILE_SORTER_LIVE_INLINE_PROGRESS=never` if a log collector needs plain one-line records.
+
 Manual Windows CMake users should configure from an x64 Visual Studio Developer PowerShell with an explicit generator and toolchain, for example `cmake -S app -B build-tests -G "Ninja" -DCMAKE_PREFIX_PATH=$qt "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_MANIFEST_DIR=app -DVCPKG_TARGET_TRIPLET=x64-windows -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON`. Use `cmake --fresh` when supported, delete/recreate the build directory, or choose a new build directory if `build-tests` was previously configured with another generator or Visual Studio instance.
 
 On Linux/macOS, configure with `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`, build with your normal parallelism value, set `export AI_FILE_SORTER_LIVE_LLM_MODEL=/path/to/text-model.gguf` if needed, and omit `-C Release` for single-config build directories.
@@ -874,9 +877,10 @@ Fixture behavior:
 - No static binary fixture folder is committed to the repository; each test copies fixtures into isolated case directories with varied and international filenames.
 - If `--model` / `AI_FILE_SORTER_LIVE_LLM_MODEL` is omitted, the runner reads AI File Sorter `config.ini` and uses the selected local/custom GGUF when available. Override that settings path with `AI_FILE_SORTER_LIVE_SETTINGS_FILE` / `--settings-file`.
 - Runtime status updates include the selected `AI_FILE_SORTER_GPU_BACKEND`, `AI_FILE_SORTER_GGML_DIR`, and CUDA-disable state as reported by the launched headless process.
+- Non-English rename cases report weak language/script localization as warnings by default. Set `AI_FILE_SORTER_LIVE_REQUIRE_LOCALIZED_RENAMES=1` for strict localized rename failures.
 - Failed runs keep their generated work directory automatically so `runs\<case>\stdout.txt`, `stderr.txt`, `status.json`, and fixtures remain available for diagnosis.
 
-Current live coverage includes categorization with and without subcategories, selected-file auto-apply boundaries, whitelist-restricted categorization, document renaming in English/French/Simplified Chinese/Hindi, optional image-content renaming in those languages, WAV metadata rename, and categorize-and-rename review-plan generation. See `tests/live_llm/README.md` for all runner options and fixture source URLs.
+Current live coverage includes categorization with and without subcategories, selected-file auto-apply boundaries, whitelist-restricted categorization, document renaming in English/French/Simplified Chinese/Hindi, optional image-content renaming in those languages, a FLAC metadata rename capability probe, and categorize-and-rename review-plan generation. See `tests/live_llm/README.md` for all runner options and fixture source URLs.
 
 ### Selecting a backend at runtime
 
