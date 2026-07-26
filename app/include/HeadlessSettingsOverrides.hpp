@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 /**
  * @brief Optional settings overlay supplied by headless integrations.
@@ -21,6 +22,10 @@ struct HeadlessSettingsOverrides {
     std::optional<bool> use_whitelist;
     /** @brief Override the active category whitelist name. */
     std::optional<std::string> active_whitelist;
+    /** @brief Override the flat allowed category whitelist for the run. */
+    std::optional<std::vector<std::string>> allowed_categories;
+    /** @brief Override the flat allowed subcategory whitelist for the run. */
+    std::optional<std::vector<std::string>> allowed_subcategories;
     /** @brief Override whether files are included in categorization runs. */
     std::optional<bool> categorize_files;
     /** @brief Override whether folders are included in categorization runs. */

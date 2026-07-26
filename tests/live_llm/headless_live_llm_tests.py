@@ -452,7 +452,7 @@ def configure_console_stream(stream: Any) -> None:
     reconfigure = getattr(stream, "reconfigure", None)
     if callable(reconfigure):
         try:
-            reconfigure(errors="backslashreplace")
+            reconfigure(encoding="utf-8", errors="backslashreplace")
         except (OSError, ValueError):
             pass
 
@@ -1229,15 +1229,18 @@ def case_whitelist_restrictions(ctx: LiveContext) -> None:
 
     allowed_categories = ["Documents", "Finance"]
     allowed_subcategories = ["Invoices", "Reports", "Travel", "Contracts"]
+    overrides = base_categorization_overrides(
+        use_subcategories=True,
+        use_whitelist=True,
+    )
+    overrides["allowedCategories"] = allowed_categories
+    overrides["allowedSubcategories"] = allowed_subcategories
     result = run_headless(
         ctx,
         case_name="categorize_whitelist_restrictions",
         operation="categorize",
         paths=[target_dir],
-        overrides=base_categorization_overrides(
-            use_subcategories=True,
-            use_whitelist=True,
-        ),
+        overrides=overrides,
         auto_apply=False,
     )
     assert_review_required(result.status)

@@ -288,6 +288,13 @@ Procedure: Run the headless categorize command without an auto-apply override, i
 Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload and review plan file, and reports zero moved/renamed/skipped apply counts.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand prepares review before applying by default"`
 
+#### Test case: HeadlessAnalysisCommand preserves UTF-8 filenames in review status
+Purpose: Prevent non-ASCII file names from being corrupted when headless jobs serialize review/status JSON.
+Setup: Create a cached review-only categorization for a file name containing accented Latin, Chinese, and Hindi characters.
+Procedure: Run the headless categorize command in review-only mode and inspect the emitted status JSON review entry.
+Expected outcome: The file name and source/destination paths preserve the exact UTF-8 text and contain no Unicode replacement characters.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand preserves UTF-8 filenames in review status"`
+
 #### Test case: HeadlessAnalysisCommand applies saved review plan
 Purpose: Verify approval can apply the exact saved headless review plan without rerunning analysis.
 Setup: Create a cached categorization, run the default review-required command, and read the generated review plan path.
@@ -350,6 +357,24 @@ Setup: Prepare a headless rename command with two file targets in different pare
 Procedure: Run the command and then inspect the runtime lock.
 Expected outcome: The command exits with the unsupported code, writes `failed` status JSON mentioning same-folder selections, and leaves no held runtime lock behind.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-folder file selections"`
+
+### `tests/unit/test_headless_settings_overrides_json.cpp`
+
+#### Test case: HeadlessSettingsOverridesJson parses direct whitelist lists
+Purpose: Verify headless settings override JSON can carry explicit whitelist categories and subcategories for deterministic integrations and tests.
+Setup: Build a JSON object with `useWhitelist`, `activeWhitelist`, `allowedCategories`, and `allowedSubcategories`, including whitespace, an empty string, and a non-string value.
+Procedure: Parse the object through `HeadlessSettingsOverridesJson`.
+Expected outcome: The parser preserves the whitelist activation/name and returns trimmed category/subcategory lists with empty and non-string entries ignored.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson parses direct whitelist lists"`
+
+### `tests/unit/test_headless_status_json.cpp`
+
+#### Test case: HeadlessStatusJson round-trips UTF-8 review plans
+Purpose: Verify the extracted headless status/review JSON serializer preserves non-ASCII paths and filenames.
+Setup: Build a review plan containing accented Latin, Chinese, and Hindi text in file names and paths.
+Procedure: Write the review plan with `HeadlessStatusJson`, read it back, and compare operation, paths, apply options, and entries.
+Expected outcome: UTF-8 file names, suggested names, paths, and apply options round-trip exactly.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessStatusJson round-trips UTF-8 review plans"`
 
 ### `tests/unit/test_single_instance_coordinator.cpp`
 

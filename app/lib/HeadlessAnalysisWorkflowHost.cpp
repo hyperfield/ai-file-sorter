@@ -331,7 +331,22 @@ std::unique_ptr<ILLMClient> HeadlessAnalysisWorkflowHost::make_llm_client()
 void HeadlessAnalysisWorkflowHost::initialize_whitelists()
 {
     whitelist_store_->initialize_from_settings(settings_);
+    apply_direct_whitelist_overrides();
     sync_whitelists_to_learning_store();
+}
+
+void HeadlessAnalysisWorkflowHost::apply_direct_whitelist_overrides()
+{
+    const HeadlessSettingsOverrides& overrides = options_.settings_overrides;
+    if (overrides.allowed_subcategories) {
+        settings_.set_allowed_subcategories_by_category({});
+    }
+    if (overrides.allowed_categories) {
+        settings_.set_allowed_categories(*overrides.allowed_categories);
+    }
+    if (overrides.allowed_subcategories) {
+        settings_.set_allowed_subcategories(*overrides.allowed_subcategories);
+    }
 }
 
 void HeadlessAnalysisWorkflowHost::sync_whitelists_to_learning_store()
@@ -425,6 +440,9 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     }
     if (overrides.active_whitelist) {
         settings_.set_active_whitelist(*overrides.active_whitelist);
+    }
+    if (overrides.allowed_categories || overrides.allowed_subcategories) {
+        apply_direct_whitelist_overrides();
     }
     if (overrides.categorize_files) {
         settings_.set_categorize_files(*overrides.categorize_files);

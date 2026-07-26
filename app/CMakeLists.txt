@@ -1471,6 +1471,8 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_media_rename_metadata_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_analysis_runtime_lock.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_headless_analysis_command.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_headless_settings_overrides_json.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_headless_status_json.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_single_instance_coordinator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_cuda_probe.cpp"
     )

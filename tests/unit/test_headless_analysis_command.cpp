@@ -70,7 +70,8 @@ QJsonObject read_status(const std::filesystem::path& path)
 
 std::filesystem::path make_file_at(const std::filesystem::path& path)
 {
-    QFile file(QString::fromStdString(Utils::path_to_utf8(path)));
+    const std::string utf8_path = Utils::path_to_utf8(path);
+    QFile file(QString::fromUtf8(utf8_path.data(), static_cast<qsizetype>(utf8_path.size())));
     REQUIRE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
     REQUIRE(file.write("sample") == 6);
     file.close();
@@ -96,6 +97,18 @@ void cache_categorization(DatabaseManager& db,
                                                          resolved,
                                                          false,
                                                          suggested_name));
+}
+
+std::string utf8_review_filename()
+{
+    return std::string("rapport_") +
+           "\xC3\xA9" +
+           "nergie_" +
+           "\xE4\xBC\x9A\xE8\xAE\xAE" +
+           "_" +
+           "\xE0\xA4\x85\xE0\xA4\xA8\xE0\xA5\x81\xE0\xA4\xB8\xE0\xA4\x82"
+           "\xE0\xA4\xA7\xE0\xA4\xBE\xE0\xA4\xA8" +
+           ".txt";
 }
 
 void enable_auto_apply(HeadlessAnalysisCommand::Options& options)
@@ -554,6 +567,62 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     CHECK(plan.value(QStringLiteral("kind")).toString() == QStringLiteral("aifs.headlessReviewPlan"));
     CHECK(plan.value(QStringLiteral("operation")).toString() == QStringLiteral("categorize"));
     CHECK(plan.value(QStringLiteral("entries")).toArray().size() == 1);
+}
+
+TEST_CASE("HeadlessAnalysisCommand preserves UTF-8 filenames in review status")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    const std::string target_text = Utils::path_to_utf8(target);
+    REQUIRE(QDir().mkpath(QString::fromUtf8(target_text.data(),
+                                            static_cast<qsizetype>(target_text.size()))));
+    const std::string file_name = utf8_review_filename();
+    const std::filesystem::path source = make_file_at(target / Utils::utf8_to_path(file_name));
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, target, file_name, "Documents", "Reports");
+
+    const std::filesystem::path runtime_dir = std::filesystem::path(dir.path().toStdString()) / "runtime";
+    const std::filesystem::path status = std::filesystem::path(dir.path().toStdString()) / "status.json";
+
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+    options.paths.push_back(target);
+    options.status_file = status;
+    options.job_id = "headless-unicode-review";
+
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = HeadlessAnalysisCommand::run(options, runtime_dir, out, err);
+
+    CHECK(exit_code == HeadlessAnalysisCommand::Success);
+    const std::string source_text = Utils::path_to_utf8(source);
+    CHECK(QFile::exists(QString::fromUtf8(source_text.data(),
+                                          static_cast<qsizetype>(source_text.size()))));
+    const QJsonObject object = read_status(status);
+    CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("review_required"));
+
+    const QJsonArray entries = object.value(QStringLiteral("review")).toObject()
+                                   .value(QStringLiteral("entries")).toArray();
+    REQUIRE(entries.size() == 1);
+    const QJsonObject entry = entries.at(0).toObject();
+    const QString expected_name =
+        QString::fromUtf8(file_name.data(), static_cast<qsizetype>(file_name.size()));
+    const QString actual_name = entry.value(QStringLiteral("fileName")).toString();
+    CHECK(actual_name == expected_name);
+    CHECK_FALSE(actual_name.contains(QChar::ReplacementCharacter));
+    CHECK(entry.value(QStringLiteral("source")).toString().contains(expected_name));
+    CHECK(entry.value(QStringLiteral("destination")).toString().contains(expected_name));
+    CHECK_FALSE(entry.value(QStringLiteral("destination")).toString().contains(QChar::ReplacementCharacter));
 }
 
 TEST_CASE("HeadlessAnalysisCommand applies saved review plan")

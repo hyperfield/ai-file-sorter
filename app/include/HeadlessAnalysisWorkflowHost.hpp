@@ -177,6 +177,11 @@ private:
     void sync_whitelists_to_learning_store();
 
     /**
+     * @brief Apply direct whitelist list overrides after named whitelist loading.
+     */
+    void apply_direct_whitelist_overrides();
+
+    /**
      * @brief Apply integration-provided settings without persisting them.
      */
     void apply_settings_overrides();
