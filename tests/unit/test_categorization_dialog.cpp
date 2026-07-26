@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include "BulkEditDialog.hpp"
 #include "CategorizationDialog.hpp"
 #include "CloudCompatibilityProvider.hpp"
 #include "DatabaseManager.hpp"
@@ -16,7 +17,10 @@
 #include "Utils.hpp"
 #include <QCheckBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QEvent>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QTableView>
 #include <QTimer>
 #include <QStandardItemModel>
@@ -73,6 +77,47 @@ TEST_CASE("CategorizationDialog delegates preview requests to the preview servic
     REQUIRE(preview_service_ptr->calls == 1);
     CHECK(preview_service_ptr->last_path == std::filesystem::path("/tmp") / "preview.txt");
     CHECK(preview_service_ptr->last_parent == &dialog);
+}
+
+TEST_CASE("BulkEditDialog enables OK only for meaningful edits") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    BulkEditDialog dialog(true);
+    const auto edits = dialog.findChildren<QLineEdit*>();
+    REQUIRE(edits.size() == 2);
+    auto* buttons = dialog.findChild<QDialogButtonBox*>();
+    REQUIRE(buttons != nullptr);
+    auto* ok_button = buttons->button(QDialogButtonBox::Ok);
+    REQUIRE(ok_button != nullptr);
+
+    CHECK_FALSE(ok_button->isEnabled());
+
+    edits.at(0)->setText(QStringLiteral("  Reports  "));
+    CHECK(ok_button->isEnabled());
+    CHECK(dialog.category() == "Reports");
+    CHECK(dialog.subcategory().empty());
+
+    edits.at(0)->clear();
+    CHECK_FALSE(ok_button->isEnabled());
+
+    edits.at(1)->setText(QStringLiteral("  Quarterly  "));
+    CHECK(ok_button->isEnabled());
+    CHECK(dialog.category().empty());
+    CHECK(dialog.subcategory() == "Quarterly");
+}
+
+TEST_CASE("BulkEditDialog omits subcategory edits when disabled") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    BulkEditDialog dialog(false);
+    const auto edits = dialog.findChildren<QLineEdit*>();
+    REQUIRE(edits.size() == 1);
+
+    edits.at(0)->setText(QStringLiteral("Manuals"));
+    CHECK(dialog.category() == "Manuals");
+    CHECK(dialog.subcategory().empty());
 }
 
 namespace {

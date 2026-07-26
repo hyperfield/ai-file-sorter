@@ -1767,6 +1767,20 @@ Procedure: Trigger preview for the first row through the dialog test hook.
 Expected outcome: The preview service is called once with the resolved file path and the dialog as parent.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog delegates preview requests to the preview service"`
 
+#### Test case: BulkEditDialog enables OK only for meaningful edits
+Purpose: Verify the extracted bulk edit dialog only allows confirmation when at least one edit field contains a value.
+Setup: Create the dialog with category and subcategory editing enabled.
+Procedure: Inspect the OK button state while entering and clearing trimmed category/subcategory values.
+Expected outcome: The OK button starts disabled, enables for either category or subcategory text, and returned values are trimmed.
+Run: `./build-tests/ai_file_sorter_tests "BulkEditDialog enables OK only for meaningful edits"`
+
+#### Test case: BulkEditDialog omits subcategory edits when disabled
+Purpose: Verify the extracted bulk edit dialog respects callers that only allow category edits.
+Setup: Create the dialog with subcategory editing disabled.
+Procedure: Inspect the created line edits and read the returned category/subcategory values.
+Expected outcome: Only one line edit is present, category text is returned, and subcategory remains empty.
+Run: `./build-tests/ai_file_sorter_tests "BulkEditDialog omits subcategory edits when disabled"`
+
 #### Test case: CategorizationDialog uses subcategory toggle when moving files
 Purpose: Ensure the dialog respects the subcategory visibility toggle during file moves.
 Setup: Create a sample categorized file and attach a move probe.
