@@ -1758,6 +1758,29 @@ Procedure: Classify the HTTP error through `RemoteApiError::throw_for_http_error
 Expected outcome: A `runtime_error` mentions the provider HTTP error and body excerpt without mentioning JSON parsing.
 Run: `./build-tests/ai_file_sorter_tests "RemoteApiError reports non-JSON server errors without JSON parse failures"`
 
+### `tests/unit/test_review_name_validator.cpp`
+
+#### Test case: ReviewNameValidator validates filenames
+Purpose: Verify review-dialog filename validation rules outside the dialog/controller.
+Setup: Prepare valid ASCII/non-ASCII names and invalid empty, reserved, forbidden-character, and trailing-dot names.
+Procedure: Validate each name through `ReviewNameValidator::validate_filename`.
+Expected outcome: Valid names pass and invalid names return the same human-readable errors used by the review dialog.
+Run: `./build-tests/ai_file_sorter_tests "ReviewNameValidator validates filenames"`
+
+#### Test case: ReviewNameValidator validates category labels
+Purpose: Verify review-dialog category/subcategory folder validation in an isolated pure component.
+Setup: Prepare valid labels plus duplicate labels, extension-like labels, and reserved Windows names.
+Procedure: Validate each pair through `ReviewNameValidator::validate_labels`.
+Expected outcome: Valid pairs pass, identical labels only pass when explicitly allowed, and invalid pairs return stable errors.
+Run: `./build-tests/ai_file_sorter_tests "ReviewNameValidator validates category labels"`
+
+#### Test case: ReviewNameValidator normalizes review labels
+Purpose: Verify shared trimming, missing-label detection, and history-description prefix stripping.
+Setup: Provide padded labels, `Uncategorized`, image/document description prefixes, and plain text.
+Procedure: Call `trim_copy`, `is_missing_category_label`, and `strip_history_description_label`.
+Expected outcome: Labels are normalized consistently with the review dialog.
+Run: `./build-tests/ai_file_sorter_tests "ReviewNameValidator normalizes review labels"`
+
 ### `tests/unit/test_categorization_dialog.cpp`
 
 #### Test case: CategorizationDialog delegates preview requests to the preview service
