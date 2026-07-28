@@ -610,12 +610,16 @@ MainApp::MainApp(Settings& settings,
       results_coordinator(*active_storage_provider_),
       review_history_store_(runtime_data_dir_),
       undo_manager_(runtime_data_dir_ + "/undo", &storage_provider_registry_),
+      progress_controller_(
+          [this](std::function<void()> func) { run_on_ui(std::move(func)); },
+          [this](std::function<void()> func) { run_on_ui_blocking(std::move(func)); }),
       development_mode_(development_mode),
       test_mode_(test_mode),
       development_prompt_logging_enabled_(development_mode ? settings.get_development_prompt_logging() : false),
       main_window_state_binder_(std::make_unique<MainWindowStateBinder>(*this))
 {
     rebuild_storage_provider_registry();
+    progress_controller_.set_show_vision_diagnostics(is_development_mode() || is_test_mode());
     TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
     initialize_whitelists();
 
@@ -1534,6 +1538,7 @@ void MainApp::on_analyze_clicked()
     try {
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         progress_dialog = std::make_unique<CategorizationProgressDialog>(this, this, show_subcategory);
+        progress_controller_.set_dialog(progress_dialog.get());
         progress_dialog->show();
 
         analyze_thread = std::thread([this]() {
@@ -1547,10 +1552,7 @@ void MainApp::on_analyze_clicked()
     } catch (const std::exception& ex) {
         release_analysis_runtime_lock();
         update_analyze_button_state(false);
-        if (progress_dialog) {
-            progress_dialog->hide();
-            progress_dialog.reset();
-        }
+        close_progress_dialog();
         core_logger->error("Could not start analysis: {}", ex.what());
         show_error_dialog(std::string("Could not start analysis: ") + ex.what());
     }
@@ -2593,10 +2595,7 @@ void MainApp::handle_analysis_finished()
     }
     release_analysis_runtime_lock();
 
-    if (progress_dialog) {
-        progress_dialog->hide();
-        progress_dialog.reset();
-    }
+    close_progress_dialog();
 
     stop_analysis = false;
 
@@ -2618,10 +2617,7 @@ void MainApp::handle_analysis_cancelled()
     }
     release_analysis_runtime_lock();
 
-    if (progress_dialog) {
-        progress_dialog->hide();
-        progress_dialog.reset();
-    }
+    close_progress_dialog();
 
     stop_analysis = false;
     statusBar()->showMessage(tr("Analysis cancelled"), 4000);
@@ -2635,10 +2631,7 @@ void MainApp::handle_analysis_failure(const std::string& message)
         analyze_thread.join();
     }
     release_analysis_runtime_lock();
-    if (progress_dialog) {
-        progress_dialog->hide();
-        progress_dialog.reset();
-    }
+    close_progress_dialog();
     stop_analysis = false;
     show_error_dialog(message);
 }
@@ -2670,83 +2663,59 @@ void MainApp::populate_tree_view(const std::vector<CategorizedFile>& files)
 
 
 
+void MainApp::close_progress_dialog()
+{
+    progress_controller_.set_dialog(nullptr);
+    if (!progress_dialog) {
+        return;
+    }
+
+    progress_dialog->hide();
+    progress_dialog.reset();
+}
+
 void MainApp::append_progress(const std::string& message)
 {
-    run_on_ui([this, message]() {
-        if (progress_dialog && should_show_progress_message_in_dialog(message)) {
-            progress_dialog->append_text(message);
-        }
-    });
+    progress_controller_.append_message(message);
 }
 
 bool MainApp::should_show_progress_message_in_dialog(const std::string& message) const
 {
-    const bool vision_diagnostic =
-        message.rfind("[VISION] Runtime: ", 0) == 0 ||
-        message.rfind("[VISION] Timing ", 0) == 0;
-    if (!vision_diagnostic) {
-        return true;
-    }
-
-    return is_development_mode() || is_test_mode();
+    return progress_controller_.should_show_message_in_dialog(message);
 }
 
 void MainApp::configure_progress_stages(const std::vector<CategorizationProgressDialog::StagePlan>& stages)
 {
-    run_on_ui_blocking([this, stages]() {
-        if (progress_dialog) {
-            progress_dialog->configure_stages(stages);
-        }
-    });
+    progress_controller_.configure_stages(stages);
 }
 
 void MainApp::set_progress_stage_items(CategorizationProgressDialog::StageId stage_id,
                                        const std::vector<FileEntry>& items)
 {
-    run_on_ui_blocking([this, stage_id, items]() {
-        if (progress_dialog) {
-            progress_dialog->set_stage_items(stage_id, items);
-        }
-    });
+    progress_controller_.set_stage_items(stage_id, items);
 }
 
 void MainApp::set_progress_active_stage(CategorizationProgressDialog::StageId stage_id)
 {
-    run_on_ui_blocking([this, stage_id]() {
-        if (progress_dialog) {
-            progress_dialog->set_active_stage(stage_id);
-        }
-    });
+    progress_controller_.set_active_stage(stage_id);
 }
 
 void MainApp::mark_progress_stage_item_in_progress(CategorizationProgressDialog::StageId stage_id,
                                                    const FileEntry& entry)
 {
-    run_on_ui_blocking([this, stage_id, entry]() {
-        if (progress_dialog) {
-            progress_dialog->mark_stage_item_in_progress(stage_id, entry);
-        }
-    });
+    progress_controller_.mark_stage_item_in_progress(stage_id, entry);
 }
 
 void MainApp::mark_progress_stage_item_completed(CategorizationProgressDialog::StageId stage_id,
                                                  const FileEntry& entry)
 {
-    run_on_ui_blocking([this, stage_id, entry]() {
-        if (progress_dialog) {
-            progress_dialog->mark_stage_item_completed(stage_id, entry);
-        }
-    });
+    progress_controller_.mark_stage_item_completed(stage_id, entry);
 }
 
 void MainApp::mark_progress_stage_item_skipped(CategorizationProgressDialog::StageId stage_id,
                                                const FileEntry& entry)
 {
-    run_on_ui_blocking([this, stage_id, entry]() {
-        if (progress_dialog) {
-            progress_dialog->mark_stage_item_skipped(stage_id, entry);
-        }
-    });
+    progress_controller_.mark_stage_item_skipped(stage_id, entry);
 }
 
 bool MainApp::should_abort_analysis() const
@@ -2903,13 +2872,7 @@ void MainApp::run_consistency_pass()
 
     text_cpu_fallback_choice_.reset();
 
-    auto progress_sink = [this](const std::string& message) {
-        run_on_ui([this, message]() {
-            if (progress_dialog) {
-                progress_dialog->append_text(message);
-            }
-        });
-    };
+    auto progress_sink = [this](const std::string& message) { append_progress(message); };
 
     consistency_pass_service.run(
         already_categorized_files,
@@ -3183,10 +3146,7 @@ void MainApp::stop_running_analysis()
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
-    if (progress_dialog) {
-        progress_dialog->hide();
-        progress_dialog.reset();
-    }
+    close_progress_dialog();
     release_analysis_runtime_lock();
 }
 
@@ -3546,11 +3506,7 @@ void MainApp::show_error_dialog(const std::string& message)
 
 void MainApp::report_progress(const std::string& message)
 {
-    run_on_ui([this, message]() {
-        if (progress_dialog && should_show_progress_message_in_dialog(message)) {
-            progress_dialog->append_text(message);
-        }
-    });
+    append_progress(message);
 }
 
 

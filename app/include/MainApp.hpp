@@ -11,6 +11,7 @@
 #include "ResultsCoordinator.hpp"
 #include "ReviewHistoryStore.hpp"
 #include "ILLMClient.hpp"
+#include "MainAppProgressController.hpp"
 #include "Settings.hpp"
 #include "StoragePluginLoader.hpp"
 #include "StorageProviderRegistry.hpp"
@@ -331,6 +332,10 @@ private:
     AnalysisWorkflowContext make_analysis_workflow_context();
     void stop_running_analysis();
     void on_about_activate();
+    /**
+     * @brief Hides and releases the active progress dialog.
+     */
+    void close_progress_dialog();
     void append_progress(const std::string& message);
     /**
      * @brief Returns whether a progress message should be shown in the progress dialog.
@@ -578,6 +583,7 @@ private:
     ResultsCoordinator results_coordinator;
     ReviewHistoryStore review_history_store_;
     UndoManager undo_manager_;
+    MainAppProgressController progress_controller_;
     bool development_mode_{false};
     bool test_mode_{false};
     bool development_prompt_logging_enabled_{false};

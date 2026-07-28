@@ -635,6 +635,22 @@ Procedure: Let the window initialize whitelists and inspect the generated data f
 Expected outcome: `whitelists.ini` is created in the test profile and not in the normal config directory.
 Run: `./build-tests/ai_file_sorter_tests "Test mode can use an isolated runtime data directory"`
 
+### `tests/unit/test_main_app_progress_controller.cpp`
+
+#### Test case: MainAppProgressController hides verbose vision diagnostics outside diagnostic modes
+Purpose: Ensure normal users do not see noisy vision runtime/timing diagnostics in the progress dialog.
+Setup: Construct the controller with immediate UI dispatchers and leave diagnostic visibility disabled.
+Procedure: Evaluate verbose vision diagnostics plus ordinary progress messages.
+Expected outcome: Runtime/timing diagnostics are hidden, while ordinary vision/document messages remain visible.
+Run: `./build-tests/ai_file_sorter_tests "MainAppProgressController hides verbose vision diagnostics outside diagnostic modes"`
+
+#### Test case: MainAppProgressController shows verbose vision diagnostics when enabled
+Purpose: Verify development and test modes can expose low-level vision diagnostics.
+Setup: Construct the controller with immediate UI dispatchers and enable diagnostic visibility.
+Procedure: Evaluate verbose vision runtime and timing messages.
+Expected outcome: Both diagnostic messages are visible.
+Run: `./build-tests/ai_file_sorter_tests "MainAppProgressController shows verbose vision diagnostics when enabled"`
+
 ### `tests/unit/test_main_app_category_language_menu.cpp` (non-Windows only)
 
 #### Test case: Gemma 3 category language menu exposes the full supported list
