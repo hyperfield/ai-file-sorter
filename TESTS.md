@@ -1981,6 +1981,29 @@ Procedure: Trigger confirmation and inspect the learning database.
 Expected outcome: The approved category/subcategory and analysis context are stored as learned behavior with the file example attached.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog records confirmed categories as learned behavior"`
 
+### `tests/unit/test_review_file_naming.cpp`
+
+#### Test case: ReviewFileNaming deduplicates duplicate image suggestions
+Purpose: Verify the extracted review naming helper preserves duplicate image-suggestion numbering.
+Setup: Create two image entries with the same suggested filename.
+Procedure: Run `ensure_unique_image_suggested_names`.
+Expected outcome: Suggestions are rewritten with `_1` and `_2` suffixes.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming deduplicates duplicate image suggestions"`
+
+#### Test case: ReviewFileNaming avoids existing on-disk rename suggestions
+Purpose: Ensure review rename suggestions do not collide with files that already exist.
+Setup: Create a target directory containing a file with the desired suggested name.
+Procedure: Build a unique suggested name for that directory.
+Expected outcome: The helper returns an incremented underscore suffix.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming avoids existing on-disk rename suggestions"`
+
+#### Test case: ReviewFileNaming uses parenthetical suffixes for move collisions
+Purpose: Verify category-move destination collisions use Windows-style parenthetical numbering.
+Setup: Create an existing destination file and reuse the same desired move filename twice.
+Procedure: Build unique move names while carrying the allocated-name state forward.
+Expected outcome: The helper returns `report (1).pdf` then `report (2).pdf`.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses parenthetical suffixes for move collisions"`
+
 ### `tests/unit/test_main_app_translation.cpp` (non-Windows only)
 
 #### Test case: MainApp retranslate reflects language changes

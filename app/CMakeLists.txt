@@ -1454,6 +1454,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_cache_action.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_file_naming.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_name_validator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_history_store.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_checkbox_matrix.cpp"
