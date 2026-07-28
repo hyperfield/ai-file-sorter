@@ -17,7 +17,7 @@
 
 namespace {
 
-constexpr std::wstring_view kDownloadUrl = L"https://filesorter.app/download";
+constexpr std::wstring_view kDownloadUrl = L"https://filesorter.app/windows-explorer-extension/";
 
 #ifdef _WIN32
 
