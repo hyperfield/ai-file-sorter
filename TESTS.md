@@ -1246,6 +1246,20 @@ Procedure: Inspect the generated description and filename prompts.
 Expected outcome: The policy adds explicit system guidance, keeps the media marker in the user prompt, and uses structured filename rules aimed at instruction-tuned backends.
 Run: `./build-tests/ai_file_sorter_tests "LlavaImageAnalyzer exposes structured multimodal prompt policy"`
 
+#### Test case: LlavaImageAnalyzer supports WebP files for visual routing
+Purpose: Ensure `.webp` files enter the visual content-analysis pipeline instead of being treated as unsupported image inputs.
+Setup: Provide representative lower-case, upper-case, and non-image paths.
+Procedure: Call `LlavaImageAnalyzer::is_supported_image()` for each path.
+Expected outcome: `.webp` and `.WEBP` return true, while a non-image extension returns false.
+Run: `./build-tests/ai_file_sorter_tests "LlavaImageAnalyzer supports WebP files for visual routing"`
+
+#### Test case: LlavaImageAnalyzer decodes WebP through runtime fallback for visual analysis
+Purpose: Verify WebP input can be decoded and converted to MTMD-compatible PNG bytes even when Qt's image reader needs the runtime libwebp fallback.
+Setup: Write a tiny valid WebP fixture into a temporary directory.
+Procedure: Decode and transcode the fixture through the visual analyzer test-access helper.
+Expected outcome: The helper reports that the WebP can be decoded and encoded as non-empty PNG bytes.
+Run: `./build-tests/ai_file_sorter_tests "LlavaImageAnalyzer decodes WebP through runtime fallback for visual analysis"`
+
 #### Test case: LlavaImageAnalyzer lowers visual ngl when reserving mmproj headroom
 Purpose: Ensure the visual GPU layer estimate reserves enough VRAM for the projector and multimodal eval path instead of blindly offloading every text layer that fits.
 Setup: Create sparse temporary model files that mirror the logged Gemma visual model and mmproj sizes, then feed the helper the observed 3.7 GiB CUDA memory snapshot.

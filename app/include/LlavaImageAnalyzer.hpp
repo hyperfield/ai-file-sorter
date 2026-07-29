@@ -217,5 +217,11 @@ std::string description_system_prompt(VisualPromptPolicy policy);
 std::string description_user_prompt(VisualPromptPolicy policy);
 std::string filename_system_prompt(VisualPromptPolicy policy);
 std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description);
+/**
+ * @brief Checks whether a WebP file can be decoded and transcoded for MTMD input.
+ * @param path WebP image path to decode.
+ * @return True when the file can be decoded and encoded as PNG bytes.
+ */
+bool can_transcode_webp_for_visual_analysis(const std::filesystem::path& path);
 }
 #endif

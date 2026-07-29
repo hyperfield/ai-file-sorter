@@ -4,8 +4,10 @@
 #include "TestHelpers.hpp"
 #include "TestHooks.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
 
 #ifndef GGML_USE_METAL
 namespace {
@@ -102,6 +104,31 @@ TEST_CASE("LlavaImageAnalyzer exposes structured multimodal prompt policy") {
     CHECK(filename_prompt.find("maximum 3 words") != std::string::npos);
     CHECK(filename_prompt.find("lowercase letters only") != std::string::npos);
     CHECK(filename_prompt.find("Output only the filename stem.") != std::string::npos);
+}
+
+TEST_CASE("LlavaImageAnalyzer supports WebP files for visual routing") {
+    CHECK(LlavaImageAnalyzer::is_supported_image("/tmp/photo.webp"));
+    CHECK(LlavaImageAnalyzer::is_supported_image("/tmp/photo.WEBP"));
+    CHECK_FALSE(LlavaImageAnalyzer::is_supported_image("/tmp/photo.txt"));
+}
+
+TEST_CASE("LlavaImageAnalyzer decodes WebP through runtime fallback for visual analysis") {
+    static constexpr std::array<unsigned char, 42> kTinyWebp = {
+        0x52, 0x49, 0x46, 0x46, 0x22, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42,
+        0x50, 0x56, 0x50, 0x38, 0x20, 0x16, 0x00, 0x00, 0x00, 0x30, 0x01,
+        0x00, 0x9d, 0x01, 0x2a, 0x01, 0x00, 0x01, 0x00, 0x0e, 0xc0, 0xfe,
+        0x25, 0xa4, 0x00, 0x03, 0x70, 0x00, 0x00, 0x00, 0x00
+    };
+
+    TempDir temp;
+    const auto webp_path = temp.path() / "tiny.webp";
+    std::ofstream out(webp_path, std::ios::binary);
+    REQUIRE(out);
+    out.write(reinterpret_cast<const char*>(kTinyWebp.data()),
+              static_cast<std::streamsize>(kTinyWebp.size()));
+    out.close();
+
+    CHECK(LlavaImageAnalyzerTestAccess::can_transcode_webp_for_visual_analysis(webp_path));
 }
 
 #ifndef GGML_USE_METAL

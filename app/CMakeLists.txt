@@ -228,6 +228,49 @@ function(aifs_stage_windows_qt_plugins target_name)
     )
 endfunction()
 
+if(WIN32)
+    set(AIFS_COPY_WEBP_RUNTIME_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/cmake/aifs-copy-webp-runtime.cmake")
+    file(GENERATE OUTPUT "${AIFS_COPY_WEBP_RUNTIME_SCRIPT}" CONTENT [=[
+set(_aifs_webp_runtime_roots "")
+if(AIFS_WEBP_RUNTIME_CONFIG STREQUAL "Debug")
+    list(APPEND _aifs_webp_runtime_roots
+        "${AIFS_WEBP_RUNTIME_BASE}/debug/bin"
+        "${AIFS_WEBP_RUNTIME_BASE}/bin")
+else()
+    list(APPEND _aifs_webp_runtime_roots
+        "${AIFS_WEBP_RUNTIME_BASE}/bin"
+        "${AIFS_WEBP_RUNTIME_BASE}/debug/bin")
+endif()
+
+foreach(_aifs_webp_runtime_root IN LISTS _aifs_webp_runtime_roots)
+    if(EXISTS "${_aifs_webp_runtime_root}")
+        file(GLOB _aifs_webp_runtime_dlls LIST_DIRECTORIES FALSE
+            "${_aifs_webp_runtime_root}/libwebp*.dll"
+            "${_aifs_webp_runtime_root}/webp*.dll")
+        if(_aifs_webp_runtime_dlls)
+            file(COPY ${_aifs_webp_runtime_dlls} DESTINATION "${AIFS_WEBP_RUNTIME_DEST}")
+            return()
+        endif()
+    endif()
+endforeach()
+]=])
+endif()
+
+function(aifs_stage_windows_webp_runtime target_name)
+    if(NOT WIN32 OR NOT VCPKG_TARGET_TRIPLET OR NOT DEFINED AIFS_COPY_WEBP_RUNTIME_SCRIPT)
+        return()
+    endif()
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            "-DAIFS_WEBP_RUNTIME_BASE=${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}"
+            "-DAIFS_WEBP_RUNTIME_DEST=$<TARGET_FILE_DIR:${target_name}>"
+            "-DAIFS_WEBP_RUNTIME_CONFIG=$<CONFIG>"
+            -P "${AIFS_COPY_WEBP_RUNTIME_SCRIPT}"
+        VERBATIM
+    )
+endfunction()
+
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -981,6 +1024,7 @@ if(_aifs_pdfium_ready)
 endif()
 
 aifs_stage_windows_qt_plugins(aifilesorter)
+aifs_stage_windows_webp_runtime(aifilesorter)
 
 set(STARTER_TARGET "")
 if(WIN32 AND _aifs_windows_enable_starter)
@@ -1297,6 +1341,13 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 if(EXISTS "${_aifs_vcpkg_runtime_dir}")
                     file(GLOB _aifs_vcpkg_runtime_dlls "${_aifs_vcpkg_runtime_dir}/*.dll")
                     list(APPEND _aifs_test_runtime_dlls ${_aifs_vcpkg_runtime_dlls})
+                endif()
+                set(_aifs_vcpkg_debug_runtime_dir
+                    "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/debug/bin")
+                if(EXISTS "${_aifs_vcpkg_debug_runtime_dir}")
+                    file(GLOB _aifs_vcpkg_debug_runtime_dlls
+                        "${_aifs_vcpkg_debug_runtime_dir}/*.dll")
+                    list(APPEND _aifs_test_runtime_dlls ${_aifs_vcpkg_debug_runtime_dlls})
                 endif()
             endif()
 
