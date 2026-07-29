@@ -113,195 +113,195 @@
 <context>
     <name>CategorizationDialog</name>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="556"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="453"/>
         <source>Tip: Click %1 cells to rename them.</source>
         <translation>Tip: klik op %1-cellen om ze te hernoemen.</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="2393"/>
-        <location filename="../../lib/CategorizationDialog.cpp" line="2615"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="1999"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2221"/>
         <source>No items selected</source>
         <translation>Geen items geselecteerd</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="2394"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2000"/>
         <source>Highlight one or more rows to select them for processing.</source>
         <translation>Markeer een of meer rijen om ze voor verwerking te selecteren.</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="2608"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2214"/>
         <source>Bulk edit unavailable</source>
         <translation>Bulkbewerking niet beschikbaar</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="2609"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2215"/>
         <source>Bulk editing categories is unavailable while picture rename-only mode is active.</source>
         <translation>Bulkbewerking van categorieën is niet beschikbaar zolang de modus Alleen afbeeldingen hernoemen actief is.</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="2616"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2222"/>
         <source>Highlight one or more rows to edit their categories.</source>
         <translation>Markeer een of meer rijen om hun categorieën te bewerken.</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3273"/>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3332"/>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3397"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2852"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2911"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2976"/>
         <source>Preview</source>
         <translation>Voorbeeld</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3315"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2894"/>
         <source>Review and Confirm</source>
         <translation>Beoordelen en bevestigen</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3323"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2902"/>
         <source>Select all</source>
         <translation>Alles selecteren</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3324"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2903"/>
         <source>Auto-approve filename changes</source>
         <translation>Bestandsnaamwijzigingen automatisch goedkeuren</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3326"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2905"/>
         <source>Select highlighted</source>
         <translation>Gemarkeerde selecteren</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3327"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2906"/>
         <source>Edit selected...</source>
         <translation>Geselecteerde bewerken...</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3328"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2907"/>
         <source>Create subcategory folders</source>
         <translation>Subcategoriemappen maken</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3329"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2908"/>
         <source>Dry run (preview only, do not move files)</source>
         <translation>Proefrun (alleen voorbeeld, verplaats geen bestanden)</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3330"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2909"/>
         <source>Do not categorize picture files (only rename)</source>
         <translation>Afbeeldingsbestanden niet categoriseren (alleen hernoemen)</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3331"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2910"/>
         <source>Do not categorize document files (only rename)</source>
         <translation>Documentbestanden niet categoriseren (alleen hernoemen)</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3333"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2912"/>
         <source>Confirm and Process</source>
         <translation>Bevestigen en verwerken</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3334"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2913"/>
         <source>Continue Later</source>
         <translation>Later doorgaan</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3335"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2914"/>
         <source>Undo this change</source>
         <translation>Deze wijziging ongedaan maken</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3336"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2915"/>
         <source>Close</source>
         <translation>Sluiten</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3339"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2918"/>
         <source>Mark highlighted rows for processing (Ctrl+Space).</source>
         <translation>Markeer gemarkeerde rijen voor verwerking (Ctrl+Spatie).</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3343"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2922"/>
         <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
         <translation>Selecteer vooraf rijen met bestandsnaamwijzigingen. Rijen die ook categoriseren vereisen ook automatische goedkeuring van categorisering.</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3325"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2904"/>
         <source>Auto-approve categorization</source>
         <translation>Categorisering automatisch goedkeuren</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3347"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2926"/>
         <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
         <translation>Selecteer vooraf rijen met geldige categorisering. Rijen die ook hernoemen vereisen ook automatische goedkeuring van bestandsnamen.</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3350"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2929"/>
         <source>Apply category/subcategory values to highlighted rows.</source>
         <translation>Pas categorie-/subcategoriewaarden toe op de gemarkeerde rijen.</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3355"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2934"/>
         <source>Process</source>
         <translation>Verwerken</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3356"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2935"/>
         <source>File</source>
         <translation>Bestand</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3357"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2936"/>
         <source>Type</source>
         <translation>Type</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3358"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2937"/>
         <source>Suggested filename</source>
         <translation>Voorgestelde bestandsnaam</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3359"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2938"/>
         <source>Category</source>
         <translation>Categorie</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3360"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2939"/>
         <source>Subcategory</source>
         <translation>Subcategorie</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3361"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2940"/>
         <source>Status</source>
         <translation>Status</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3362"/>
-        <source>Planned destination</source>
-        <translation>Geplande bestemming</translation>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2941"/>
+        <source>Destination</source>
+        <translation>Bestemming</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3385"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2964"/>
         <source>Moved</source>
         <translation>Verplaatst</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3388"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2967"/>
         <source>Renamed</source>
         <translation>Hernoemd</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3391"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2970"/>
         <source>Renamed &amp; Moved</source>
         <translation>Hernoemd en verplaatst</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3394"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2973"/>
         <source>Skipped</source>
         <translation>Overgeslagen</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="3400"/>
+        <location filename="../../lib/CategorizationDialog.cpp" line="2979"/>
         <source>Not selected</source>
         <translation>Niet geselecteerd</translation>
     </message>
@@ -309,98 +309,98 @@
 <context>
     <name>CategorizationProgressDialog</name>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="299"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="383"/>
         <source>[STOP] Analysis will stop after the current item is processed.</source>
         <translation>[STOP] Analyse stopt na het huidige item.</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="331"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="415"/>
         <source>Image analysis</source>
         <translation>Beeldanalyse</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="333"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="417"/>
         <source>Document analysis</source>
         <translation>Documentanalyse</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="336"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="420"/>
         <source>Categorization</source>
         <translation>Categorisatie</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="361"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="445"/>
         <source>Directory</source>
         <translation>Map</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="363"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="447"/>
         <source>Image</source>
         <translation>Afbeelding</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="365"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="449"/>
         <source>Document</source>
         <translation>Document</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="368"/>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="523"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="452"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="607"/>
         <source>File</source>
         <translation>Bestand</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="523"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="607"/>
         <source>Type</source>
         <translation>Type</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="561"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="645"/>
         <source>Stage %1: %2</source>
         <translation>Fase %1: %2</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="673"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="757"/>
         <source>Pending</source>
         <translation>In afwachting</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="678"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="762"/>
         <source>In progress</source>
         <translation>Bezig</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="682"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="766"/>
         <source>Complete</source>
         <translation>Voltooid</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="686"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="770"/>
         <source>Skipped</source>
         <translation>Overgeslagen</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="703"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="787"/>
         <source>Processed 0/0  |  In progress: 0  |  Pending: 0</source>
         <translation>Verwerkt 0/0  |  Bezig: 0  |  In afwachting: 0</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="741"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="825"/>
         <source>Processed %1/%2  |  In progress: %3  |  Pending: %4</source>
         <translation>Verwerkt %1/%2  |  Bezig: %3  |  In afwachting: %4</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="799"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="883"/>
         <source>Analyzing Files</source>
         <translation>Bestanden analyseren</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="801"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="885"/>
         <source>Stop Analysis</source>
         <translation>Analyse stoppen</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationProgressDialog.cpp" line="804"/>
+        <location filename="../../lib/CategorizationProgressDialog.cpp" line="888"/>
         <source>Activity log</source>
         <translation>Activiteitenlogboek</translation>
     </message>
@@ -544,17 +544,17 @@
 <context>
     <name>LLMSelectionDialog</name>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="177"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="168"/>
         <source>Choose LLM Mode</source>
         <translation>LLM-modus kiezen</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="286"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="277"/>
         <source>Select LLM Mode</source>
         <translation>LLM-modus selecteren</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="299"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="290"/>
         <source>Balanced local model for categorization with lower hardware requirements than 7B models.
 Supports many languages for categorization.
 Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
@@ -563,406 +563,406 @@ Ondersteunt veel talen voor categorisering.
 Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="306"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="297"/>
         <source>Larger local model. Slower on CPU, but performs much better with GPU acceleration.
 Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <translation>Groter lokaal model. Langzamer op CPU, maar presteert veel beter met GPU-versnelling.
 Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="148"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1524"/>
         <source>Recommended</source>
         <translation>Aanbevolen</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="314"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="305"/>
         <source>Alternative 7B local model with strong instruction following. Best with GPU acceleration.
 Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <translation>Alternatief lokaal 7B-model met sterke instructievolging. Werkt het best met GPU-versnelling.
 Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="320"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="311"/>
         <source>Legacy model kept for existing downloads.</source>
         <translation>Verouderd model behouden voor bestaande downloads.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="326"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="317"/>
         <source>Gemini (Google AI Studio API key)</source>
         <translation>Gemini (Google AI Studio API-sleutel)</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="328"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="319"/>
         <source>Use Google&apos;s Gemini models with your AI Studio API key (internet required).</source>
         <translation>Gebruik Google&apos;s Gemini-modellen met uw AI Studio-API-sleutel (internet vereist).</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="338"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="329"/>
         <source>AIza...</source>
         <translation>AIza...</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="339"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="379"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="330"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="370"/>
         <source>Show</source>
         <translation>Tonen</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="345"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="336"/>
         <source>Gemini API key</source>
         <translation>Gemini-API-sleutel</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="350"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="341"/>
         <source>e.g. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro</source>
         <translation>bijv. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="351"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="392"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="342"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="383"/>
         <source>Model</source>
         <translation>Model</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="355"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="397"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="346"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="388"/>
         <source>Your key is stored locally in the config file for this device.</source>
         <translation>Uw sleutel wordt lokaal opgeslagen in het configuratiebestand van dit apparaat.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="362"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="353"/>
         <source>&lt;a href=&quot;https://aistudio.google.com/app/apikey&quot;&gt;Get a Gemini API key&lt;/a&gt;</source>
         <translation>&lt;a href=&quot;https://aistudio.google.com/app/apikey&quot;&gt;Een Gemini-API-sleutel ophalen&lt;/a&gt;</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="366"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="357"/>
         <source>ChatGPT (OpenAI API key)</source>
         <translation>ChatGPT (OpenAI API-sleutel)</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="368"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="359"/>
         <source>Use your own OpenAI API key to access ChatGPT models (internet required).</source>
         <translation>Gebruik uw eigen OpenAI-API-sleutel om toegang te krijgen tot ChatGPT-modellen (internet vereist).</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="378"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="369"/>
         <source>sk-...</source>
         <translation>sk-...</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="385"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="376"/>
         <source>OpenAI API key</source>
         <translation>OpenAI-API-sleutel</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="391"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="382"/>
         <source>e.g. gpt-4o-mini, gpt-4.1, o3-mini</source>
         <translation>bijv. gpt-4o-mini, gpt-4.1, o3-mini</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="406"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="397"/>
         <source>&lt;a href=&quot;https://platform.openai.com/api-keys&quot;&gt;Get an OpenAI API key&lt;/a&gt;</source>
         <translation>&lt;a href=&quot;https://platform.openai.com/api-keys&quot;&gt;Een OpenAI-API-sleutel ophalen&lt;/a&gt;</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="411"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="402"/>
         <source>Custom OpenAI-compatible API (advanced)</source>
         <translation>Aangepaste OpenAI-compatibele API (geavanceerd)</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="414"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="405"/>
         <source>Use OpenAI-compatible endpoints such as LM Studio or Ollama (local or remote).</source>
         <translation>Gebruik OpenAI-compatibele eindpunten zoals LM Studio of Ollama (lokaal of extern).</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="425"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="448"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="416"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="439"/>
         <source>Add…</source>
         <translation>Toevoegen…</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="426"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="449"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="417"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="440"/>
         <source>Edit…</source>
         <translation>Bewerken…</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="427"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="450"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="567"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1638"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="418"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="441"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="558"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1606"/>
         <source>Delete</source>
         <translation>Verwijderen</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="438"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="429"/>
         <source>Custom local LLM (gguf)</source>
         <translation>Aangepast lokaal LLM (gguf)</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="496"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="487"/>
         <source>Downloads</source>
         <translation>Downloads</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="565"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1130"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1160"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1636"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="556"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1121"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1151"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1604"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1799"/>
         <location filename="../../lib/LLMSelectionDialog.cpp" line="1831"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1863"/>
         <source>Download</source>
         <translation>Downloaden</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="588"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="579"/>
         <source>Image analysis models</source>
         <translation>Beeldanalysemodellen</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="590"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="581"/>
         <source>Download the visual LLM files required for image analysis.</source>
         <translation>Download de visuele LLM-bestanden die nodig zijn voor beeldanalyse.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="598"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="589"/>
         <source>Visual model</source>
         <translation>Visueel model</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="928"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="919"/>
         <source>Choose or add a custom model.</source>
         <translation>Kies of voeg een aangepast model toe.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="928"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="919"/>
         <source>Custom model selected.</source>
         <translation>Aangepast model geselecteerd.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="949"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="940"/>
         <source>Selection ready.</source>
         <translation>Selectie gereed.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="993"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="984"/>
         <source>Choose or add a custom API endpoint.</source>
         <translation>Kies of voeg een aangepast API-eindpunt toe.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="994"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="985"/>
         <source>Custom API selected.</source>
         <translation>Aangepaste API geselecteerd.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1013"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1004"/>
         <source>ChatGPT will use your API key and model.</source>
         <translation>ChatGPT gebruikt uw API-sleutel en model.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1014"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1005"/>
         <source>Enter your OpenAI API key and model to continue.</source>
         <translation>Voer uw OpenAI-API-sleutel en model in om door te gaan.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1046"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1037"/>
         <source>Gemini will use your API key and model.</source>
         <translation>Gemini gebruikt uw API-sleutel en model.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1047"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1038"/>
         <source>Enter your Gemini API key and model to continue.</source>
         <translation>Voer uw Gemini-API-sleutel en model in om door te gaan.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1123"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1821"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1114"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1789"/>
         <source>Model ready.</source>
         <translation>Model gereed.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1144"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1846"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1135"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1814"/>
         <source>Resume download</source>
         <translation>Download hervatten</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1152"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1852"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1143"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1820"/>
         <source>Partial download detected. You can resume.</source>
         <translation>Gedeeltelijke download gedetecteerd. U kunt hervatten.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1138"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1837"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1129"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1805"/>
         <source>Downloaded file is invalid or incomplete. Delete it and download again.</source>
         <translation>Het gedownloade bestand is ongeldig of onvolledig. Verwijder het en download het opnieuw.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1168"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1869"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1159"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1837"/>
         <source>Download required.</source>
         <translation>Download vereist.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1179"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1170"/>
         <source>Unsupported LLM selection.</source>
         <translation>Niet-ondersteunde LLM-selectie.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1186"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1698"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1177"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1666"/>
         <source>Missing download URL environment variable (%1).</source>
         <translation>Ontbrekende download-URL-omgevingsvariabele (%1).</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1232"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1986"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1223"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1954"/>
         <source>Delete downloaded model?</source>
         <translation>Gedownload model verwijderen?</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1233"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1987"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1224"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1955"/>
         <source>Delete the downloaded model %1?</source>
         <translation>Gedownload model %1 verwijderen?</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1258"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="2028"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1249"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1996"/>
         <source>Failed to delete downloaded model.</source>
         <translation>Kan gedownloade model niet verwijderen.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1260"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="2030"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1251"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1998"/>
         <source>Deleted downloaded model.</source>
         <translation>Gedownload model verwijderd.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1262"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="2032"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1253"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="2000"/>
         <source>No downloaded model found to delete.</source>
         <translation>Geen gedownload model gevonden om te verwijderen.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1277"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1707"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1766"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1268"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1675"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1734"/>
         <source>Remote URL</source>
         <translation>Externe URL</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1281"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1733"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1774"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1272"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1701"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1742"/>
         <source>Local path</source>
         <translation>Lokaal pad</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1293"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1796"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1284"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1764"/>
         <source>File size</source>
         <translation>Bestandsgrootte</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1297"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1682"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1800"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1288"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1650"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1768"/>
         <source>File size: unknown</source>
         <translation>Bestandsgrootte: onbekend</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1460"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1451"/>
         <source>Delete custom model</source>
         <translation>Aangepast model verwijderen</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1461"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1452"/>
         <source>Remove &apos;%1&apos; from your custom LLMs? This does not delete the file on disk.</source>
         <translation>&apos;%1&apos; uit uw aangepaste LLM&apos;s verwijderen? Dit verwijdert het bestand niet van de schijf.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1484"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1475"/>
         <source>Delete custom API</source>
         <translation>Aangepaste API verwijderen</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1485"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1476"/>
         <source>Remove &apos;%1&apos; from your custom API list? This does not affect the server.</source>
         <translation>&apos;%1&apos; uit uw lijst met aangepaste API&apos;s verwijderen? Dit heeft geen invloed op de server.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1676"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1644"/>
         <source>Remote URL: unknown</source>
         <translation>Remote-URL: onbekend</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1679"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1647"/>
         <source>Local path: unavailable</source>
         <translation>Lokaal pad: niet beschikbaar</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1687"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1655"/>
         <source>Missing download URL environment variable.</source>
         <translation>Ontbrekende download-URL-omgevingsvariabele.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1930"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="2228"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1898"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="2187"/>
         <source>Downloading…</source>
         <translation>Bezig met downloaden…</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1945"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="2243"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1913"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="2202"/>
         <source>Download complete.</source>
         <translation>Download voltooid.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1966"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="2261"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1934"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="2220"/>
         <source>Download cancelled.</source>
         <translation>Download geannuleerd.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1968"/>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="2263"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1936"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="2222"/>
         <source>Download error: %1</source>
         <translation>Downloadfout: %1</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="517"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="508"/>
         <source>Model storage</source>
         <translation>Modelopslag</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="520"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="511"/>
         <source>Choose where downloaded local LLM files are stored. Leave empty to use the platform default.</source>
         <translation>Kies waar gedownloade lokale LLM-bestanden worden opgeslagen. Laat leeg om de platformstandaard te gebruiken.</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="532"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="523"/>
         <source>Default: %1</source>
         <translation>Standaard: %1</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="533"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="524"/>
         <source>Browse…</source>
         <translation>Bladeren…</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="534"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="525"/>
         <source>Use default</source>
         <translation>Standaard gebruiken</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1510"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1501"/>
         <source>Select model storage folder</source>
         <translation>Map voor modelopslag selecteren</translation>
     </message>
     <message>
-        <location filename="../../lib/LLMSelectionDialog.cpp" line="1543"/>
+        <location filename="../../lib/LLMSelectionDialog.cpp" line="1525"/>
         <source>Custom: %1</source>
         <translation>Aangepast: %1</translation>
     </message>
@@ -970,167 +970,167 @@ Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
 <context>
     <name>MainApp</name>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="687"/>
+        <location filename="../../lib/MainApp.cpp" line="718"/>
         <source>File Explorer</source>
         <translation>Bestandsverkenner</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="821"/>
+        <location filename="../../lib/MainApp.cpp" line="860"/>
         <source>Network Locations</source>
         <translation>Netwerklocaties</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="827"/>
+        <location filename="../../lib/MainApp.cpp" line="866"/>
         <source>No network locations found</source>
         <translation>Geen netwerklocaties gevonden</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="867"/>
+        <location filename="../../lib/MainApp.cpp" line="906"/>
         <source>Network location unavailable: %1</source>
         <translation>Netwerklocatie niet beschikbaar: %1</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="932"/>
+        <location filename="../../lib/MainApp.cpp" line="971"/>
         <source>Select Directory</source>
         <translation>Map selecteren</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1488"/>
-        <location filename="../../lib/MainApp.cpp" line="2622"/>
+        <location filename="../../lib/MainApp.cpp" line="1530"/>
+        <location filename="../../lib/MainApp.cpp" line="2656"/>
         <source>Analysis cancelled</source>
         <translation>Analyse geannuleerd</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1561"/>
+        <location filename="../../lib/MainApp.cpp" line="1601"/>
         <source>Folder selected: %1</source>
         <translation>Map geselecteerd: %1</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1280"/>
+        <location filename="../../lib/MainApp.cpp" line="1322"/>
         <source>Checking local backend...</source>
         <translation>Lokale backend controleren...</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1710"/>
+        <location filename="../../lib/MainApp.cpp" line="1750"/>
         <source>More consistent</source>
         <translation>Meer consistent</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1710"/>
+        <location filename="../../lib/MainApp.cpp" line="1750"/>
         <source>More refined</source>
         <translation>Meer verfijnd</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1715"/>
+        <location filename="../../lib/MainApp.cpp" line="1755"/>
         <source>Recategorize folder?</source>
         <translation>Map opnieuw categoriseren?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1716"/>
+        <location filename="../../lib/MainApp.cpp" line="1756"/>
         <source>This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?</source>
         <translation>Deze map is gecategoriseerd met de modus %1. Wilt u deze nu opnieuw categoriseren met de modus %2?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1718"/>
+        <location filename="../../lib/MainApp.cpp" line="1758"/>
         <source>Recategorize</source>
         <translation>Opnieuw categoriseren</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1719"/>
+        <location filename="../../lib/MainApp.cpp" line="1759"/>
         <source>Keep existing</source>
         <translation>Bestaande behouden</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1729"/>
+        <location filename="../../lib/MainApp.cpp" line="1769"/>
         <source>Failed to reset cached categorization for this folder.</source>
         <translation>Kon de in cache opgeslagen categorisatie voor deze map niet resetten.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1789"/>
+        <location filename="../../lib/MainApp.cpp" line="1829"/>
         <source>Stop analyzing</source>
         <translation>Analyse stoppen</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1790"/>
-        <location filename="../../lib/MainApp.cpp" line="1801"/>
-        <location filename="../../lib/MainApp.cpp" line="1847"/>
+        <location filename="../../lib/MainApp.cpp" line="1830"/>
+        <location filename="../../lib/MainApp.cpp" line="1841"/>
+        <location filename="../../lib/MainApp.cpp" line="1887"/>
         <source>Analyzing…</source>
         <translation>Bezig met analyseren…</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1793"/>
+        <location filename="../../lib/MainApp.cpp" line="1833"/>
         <source>Analyze folder</source>
         <translation>Map analyseren</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1794"/>
-        <location filename="../../lib/MainApp.cpp" line="2659"/>
+        <location filename="../../lib/MainApp.cpp" line="1834"/>
+        <location filename="../../lib/MainApp.cpp" line="2690"/>
         <source>Ready</source>
         <translation>Gereed</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2075"/>
+        <location filename="../../lib/MainApp.cpp" line="2115"/>
         <source>Install Compatibility Support</source>
         <translation>Compatibiliteitsondersteuning installeren</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2077"/>
+        <location filename="../../lib/MainApp.cpp" line="2117"/>
         <source>Detected a %1 folder.</source>
         <translation>Er is een %1-map gedetecteerd.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2080"/>
+        <location filename="../../lib/MainApp.cpp" line="2120"/>
         <source>Install the &quot;%1&quot; plugin mode now to enable provider-specific compatibility mode for this folder.</source>
         <translation>Installeer nu de pluginmodus &quot;%1&quot; om voor deze map provider-specifieke compatibiliteitsmodus in te schakelen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2084"/>
-        <location filename="../../lib/MainApp.cpp" line="2156"/>
+        <location filename="../../lib/MainApp.cpp" line="2124"/>
+        <location filename="../../lib/MainApp.cpp" line="2196"/>
         <source>Detection source: %1</source>
         <translation>Detectiebron: %1</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2089"/>
+        <location filename="../../lib/MainApp.cpp" line="2129"/>
         <source>Install the %1 plugin mode</source>
         <translation>De pluginmodus %1 installeren</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2101"/>
+        <location filename="../../lib/MainApp.cpp" line="2141"/>
         <source>Install failed</source>
         <translation>Installatie mislukt</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2103"/>
+        <location filename="../../lib/MainApp.cpp" line="2143"/>
         <source>Failed to install compatibility support.</source>
         <translation>Compatibiliteitsondersteuning installeren is mislukt.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2111"/>
+        <location filename="../../lib/MainApp.cpp" line="2151"/>
         <source>Compatibility Support Installed</source>
         <translation>Compatibiliteitsondersteuning geïnstalleerd</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2112"/>
+        <location filename="../../lib/MainApp.cpp" line="2152"/>
         <source>Installed &quot;%1&quot;. The app will now switch to compatibility mode for detected cloud folders.</source>
         <translation>&quot;%1&quot; is geïnstalleerd. De app schakelt nu over naar de compatibiliteitsmodus voor gedetecteerde cloudmappen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2136"/>
+        <location filename="../../lib/MainApp.cpp" line="2176"/>
         <source>Native Plugin Support Unavailable</source>
         <translation>Ondersteuning voor native plug-ins niet beschikbaar</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2139"/>
+        <location filename="../../lib/MainApp.cpp" line="2179"/>
         <source>A %1 folder has been detected, but the &quot;%2&quot; plugin mode is not available on this build. The app will continue in local filesystem mode.</source>
         <translation>Er is een %1-map gedetecteerd, maar de pluginmodus &quot;%2&quot; is in deze build niet beschikbaar. De app gaat verder in de lokale bestandssysteemmodus.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2142"/>
+        <location filename="../../lib/MainApp.cpp" line="2182"/>
         <source>A %1 folder has been detected. Sorting on it is not currently supported in native mode via a plugin. The app will continue in local filesystem mode.</source>
         <translation>Er is een %1-map gedetecteerd. Sorteren daarop wordt momenteel niet ondersteund in de native modus via een plug-in. De app gaat verder in de lokale bestandssysteemmodus.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2146"/>
+        <location filename="../../lib/MainApp.cpp" line="2186"/>
         <source>
 
 %1</source>
@@ -1139,89 +1139,89 @@ Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
 %1</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2183"/>
+        <location filename="../../lib/MainApp.cpp" line="2223"/>
         <source>Compatibility Mode Active</source>
         <translation>Compatibiliteitsmodus actief</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2185"/>
+        <location filename="../../lib/MainApp.cpp" line="2225"/>
         <source>Detected a supported cloud folder. The app switched to %1 compatibility mode.</source>
         <translation>Er is een ondersteunde cloudmap gedetecteerd. De app is overgeschakeld naar compatibiliteitsmodus %1.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2187"/>
+        <location filename="../../lib/MainApp.cpp" line="2227"/>
         <source>Detected a supported cloud folder using %1. The app switched to %2 compatibility mode.</source>
         <translation>Er is een ondersteunde cloudmap gedetecteerd via %1. De app is overgeschakeld naar compatibiliteitsmodus %2.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2243"/>
-        <location filename="../../lib/MainApp.cpp" line="2257"/>
-        <location filename="../../lib/MainApp.cpp" line="2271"/>
+        <location filename="../../lib/MainApp.cpp" line="2283"/>
+        <location filename="../../lib/MainApp.cpp" line="2297"/>
+        <location filename="../../lib/MainApp.cpp" line="2311"/>
         <source>Windows Explorer Extension</source>
         <translation>Windows Explorer-extensie</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2245"/>
+        <location filename="../../lib/MainApp.cpp" line="2285"/>
         <source>Could not open the Windows Explorer Extension download page.</source>
         <translation>Kan de downloadpagina van de Windows Explorer-extensie niet openen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2259"/>
+        <location filename="../../lib/MainApp.cpp" line="2299"/>
         <source>Could not open the Windows Explorer Extension settings.</source>
         <translation>Kan de instellingen van de Windows Explorer-extensie niet openen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2273"/>
+        <location filename="../../lib/MainApp.cpp" line="2313"/>
         <source>Could not open the Windows Explorer Extension activity window.</source>
         <translation>Kan het activiteitenvenster van de Windows Explorer-extensie niet openen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2293"/>
+        <location filename="../../lib/MainApp.cpp" line="2333"/>
         <source>Install or Repair Windows Explorer Extension...</source>
         <translation>Windows Explorer-extensie installeren of herstellen...</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2294"/>
+        <location filename="../../lib/MainApp.cpp" line="2334"/>
         <source>Install Windows Explorer Extension...</source>
         <translation>Windows Explorer-extensie installeren...</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2340"/>
+        <location filename="../../lib/MainApp.cpp" line="2380"/>
         <source>Install Windows Explorer Extension?</source>
         <translation>Windows Explorer-extensie installeren?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2341"/>
+        <location filename="../../lib/MainApp.cpp" line="2381"/>
         <source>Add AI File Sorter actions to the Windows Explorer right-click menu?</source>
         <translation>AI File Sorter-acties toevoegen aan het rechtsklikmenu van Windows Explorer?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2342"/>
+        <location filename="../../lib/MainApp.cpp" line="2382"/>
         <source>The Windows Explorer Extension lets you categorize and rename files directly from File Explorer.</source>
         <translation>Met de Windows Explorer-extensie kunt u bestanden rechtstreeks vanuit File Explorer categoriseren en hernoemen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2343"/>
+        <location filename="../../lib/MainApp.cpp" line="2383"/>
         <source>Install Windows Explorer Extension</source>
         <translation>Windows Explorer-extensie installeren</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2345"/>
+        <location filename="../../lib/MainApp.cpp" line="2385"/>
         <source>Maybe Later</source>
         <translation>Misschien later</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2346"/>
+        <location filename="../../lib/MainApp.cpp" line="2386"/>
         <source>Don&apos;t Show Again</source>
         <translation>Niet opnieuw weergeven</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2372"/>
+        <location filename="../../lib/MainApp.cpp" line="2412"/>
         <source>Undo last run</source>
         <translation>Laatste run ongedaan maken</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2373"/>
+        <location filename="../../lib/MainApp.cpp" line="2413"/>
         <source>This will attempt to move files back to their original locations based on the last run.
 
 Plan file: %1</source>
@@ -1230,76 +1230,66 @@ Plan file: %1</source>
 Planbestand: %1</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2382"/>
-        <location filename="../../lib/MainApp.cpp" line="2425"/>
+        <location filename="../../lib/MainApp.cpp" line="2422"/>
+        <location filename="../../lib/MainApp.cpp" line="2465"/>
         <source>Restored %1 file(s). Skipped %2.</source>
         <translation>%1 bestand(en) hersteld. %2 overgeslagen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2388"/>
-        <location filename="../../lib/MainApp.cpp" line="2430"/>
+        <location filename="../../lib/MainApp.cpp" line="2428"/>
+        <location filename="../../lib/MainApp.cpp" line="2470"/>
         <source>Undo complete</source>
         <translation>Ongedaan maken voltooid</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2440"/>
-        <source>Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you.</source>
-        <translation>Bedankt voor het gebruiken van AI File Sorter! U heeft tot nu toe %1 bestanden gecategoriseerd. Ik, de auteur, hoop echt dat deze app nuttig voor u was.</translation>
-    </message>
-    <message>
-        <location filename="../../lib/MainApp.cpp" line="2442"/>
-        <source>AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. If the app saves you time or brings value, please consider supporting it so it can keep improving.</source>
-        <translation>AI File Sorter kost honderden uren ontwikkeling, feature-werk, supportreacties en doorlopende kosten zoals servers en infrastructuur voor externe modellen. Als de app u tijd bespaart of waarde biedt, overweeg dan om te ondersteunen zodat hij kan blijven verbeteren.</translation>
-    </message>
-    <message>
-        <location filename="../../lib/MainApp.cpp" line="2444"/>
+        <location filename="../../lib/MainApp.cpp" line="2484"/>
         <source>Already donated? Click &quot;I have already donated&quot; to enter your donation code and permanently disable this reminder.</source>
         <translation>Al gedoneerd? Klik op &quot;Ik heb al gedoneerd&quot; om je donatiecode in te voeren en deze herinnering permanent uit te schakelen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2449"/>
+        <location filename="../../lib/MainApp.cpp" line="2489"/>
         <source>Donate to permanently hide the donation dialog</source>
         <translation>Doneer om het donatiedialoogvenster permanent te verbergen</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2450"/>
+        <location filename="../../lib/MainApp.cpp" line="2490"/>
         <source>I&apos;m not yet sure</source>
         <translation>Ik weet het nog niet</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2451"/>
+        <location filename="../../lib/MainApp.cpp" line="2491"/>
         <source>I have already donated</source>
         <translation>Ik heb al gedoneerd</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2544"/>
+        <location filename="../../lib/MainApp.cpp" line="2584"/>
         <source>Donation code</source>
         <translation>Donatiecode</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2545"/>
+        <location filename="../../lib/MainApp.cpp" line="2585"/>
         <source>Enter the donation code generated after your donation.
 A valid code will permanently hide the donation dialog.</source>
         <translation>Voer de donatiecode in die na uw donatie is gegenereerd.
 Een geldige code verbergt het donatiedialoogvenster permanent.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2560"/>
+        <location filename="../../lib/MainApp.cpp" line="2600"/>
         <source>Invalid donation code</source>
         <translation>Ongeldige donatiecode</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2561"/>
+        <location filename="../../lib/MainApp.cpp" line="2601"/>
         <source>The donation code is invalid. Please try again or press Cancel.</source>
         <translation>De donatiecode is ongeldig. Probeer het opnieuw of klik op Annuleren.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2569"/>
+        <location filename="../../lib/MainApp.cpp" line="2609"/>
         <source>Open donation page</source>
         <translation>Donatiepagina openen</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2570"/>
+        <location filename="../../lib/MainApp.cpp" line="2610"/>
         <source>Could not open your browser automatically.
 Please open this link manually:
 %1</source>
@@ -1308,165 +1298,175 @@ Open deze link handmatig:
 %1</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2655"/>
-        <location filename="../../lib/MainApp.cpp" line="2783"/>
-        <location filename="../../lib/MainApp.cpp" line="2808"/>
+        <location filename="../../lib/MainApp.cpp" line="2686"/>
+        <location filename="../../lib/MainApp.cpp" line="2790"/>
+        <location filename="../../lib/MainApp.cpp" line="2815"/>
         <source>Directory</source>
         <translation>Map</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2655"/>
-        <location filename="../../lib/MainApp.cpp" line="2783"/>
-        <location filename="../../lib/MainApp.cpp" line="2808"/>
+        <location filename="../../lib/MainApp.cpp" line="2686"/>
+        <location filename="../../lib/MainApp.cpp" line="2790"/>
+        <location filename="../../lib/MainApp.cpp" line="2815"/>
         <source>File</source>
         <translation>Bestand</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2781"/>
+        <location filename="../../lib/MainApp.cpp" line="2788"/>
         <source>[ARCHIVE] Already categorized highlights:</source>
         <translation>[ARCHIEF] Reeds gecategoriseerde items:</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2802"/>
+        <location filename="../../lib/MainApp.cpp" line="2809"/>
         <source>[DONE] No files to categorize.</source>
         <translation>[KLAAR] Geen bestanden om te categoriseren.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2806"/>
+        <location filename="../../lib/MainApp.cpp" line="2813"/>
         <source>[QUEUE] Items waiting for categorization:</source>
         <translation>[WACHTRIJ] Items in afwachting van categorisatie:</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3085"/>
+        <location filename="../../lib/MainApp.cpp" line="3086"/>
         <source>Switch image analysis to CPU?</source>
         <translation>Beeldanalyse overschakelen naar de CPU?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3022"/>
+        <location filename="../../lib/MainApp.cpp" line="3023"/>
         <source>Cancelling analysis…</source>
         <translation>Analyse wordt geannuleerd…</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3035"/>
+        <location filename="../../lib/MainApp.cpp" line="3036"/>
         <source>Switch local AI to CPU?</source>
         <translation>Lokale AI overschakelen naar de CPU?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3036"/>
+        <location filename="../../lib/MainApp.cpp" line="3037"/>
         <source>The local model encountered a GPU error or ran out of memory.</source>
         <translation>Het lokale model kreeg een GPU-fout of had onvoldoende geheugen.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3037"/>
-        <location filename="../../lib/MainApp.cpp" line="3087"/>
+        <location filename="../../lib/MainApp.cpp" line="3038"/>
+        <location filename="../../lib/MainApp.cpp" line="3088"/>
         <source>Retry on CPU instead? Cancel will stop this analysis.</source>
         <translation>Opnieuw proberen op de CPU? Annuleren stopt deze analyse.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3057"/>
-        <location filename="../../lib/MainApp.cpp" line="3107"/>
+        <location filename="../../lib/MainApp.cpp" line="3058"/>
+        <location filename="../../lib/MainApp.cpp" line="3108"/>
         <source>[WARN] GPU fallback to CPU declined. Cancelling analysis.</source>
         <translation>[WARN] Terugval van GPU naar CPU geweigerd. Analyse wordt geannuleerd.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3134"/>
+        <location filename="../../lib/MainApp.cpp" line="3135"/>
         <source>Continue without visual analysis?</source>
         <translation>Doorgaan zonder beeldanalyse?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3135"/>
+        <location filename="../../lib/MainApp.cpp" line="3136"/>
         <source>Image analysis is unavailable.</source>
         <translation>Beeldanalyse is niet beschikbaar.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3137"/>
+        <location filename="../../lib/MainApp.cpp" line="3138"/>
         <source>Continue this analysis using filenames only? Cancel will stop this analysis.</source>
         <translation>Deze analyse alleen met bestandsnamen voortzetten? Annuleren stopt deze analyse.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3161"/>
+        <location filename="../../lib/MainApp.cpp" line="3162"/>
         <source>[WARN] Continue without visual analysis declined. Cancelling analysis.</source>
         <translation>[WAARSCHUWING] Doorgaan zonder beeldanalyse geweigerd. Analyse wordt geannuleerd.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3382"/>
+        <location filename="../../lib/MainApp.cpp" line="3380"/>
         <source>[WARN] Available GPU memory is too low for GPU acceleration. Continuing on CPU (slower).</source>
         <translation>[WAARSCHUWING] Beschikbaar GPU-geheugen is onvoldoende voor GPU-versnelling. Verdergaan op CPU (langzamer).</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3386"/>
+        <location filename="../../lib/MainApp.cpp" line="3384"/>
         <source>[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).</source>
         <translation>[WAARSCHUWING] GPU-versnelling kon niet worden geïnitialiseerd. Doorgaan op CPU (langzamer).</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3477"/>
+        <location filename="../../lib/MainApp.cpp" line="3475"/>
         <source>[WARN] %1 will be re-categorized: %2</source>
         <translation>[WAARSCHUWING] %1 wordt opnieuw gecategoriseerd: %2</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3251"/>
-        <location filename="../../lib/MainApp.cpp" line="3266"/>
-        <location filename="../../lib/MainApp.cpp" line="3274"/>
+        <location filename="../../lib/MainApp.cpp" line="3249"/>
+        <location filename="../../lib/MainApp.cpp" line="3264"/>
+        <location filename="../../lib/MainApp.cpp" line="3272"/>
         <source>Reset learned behavior?</source>
         <translation>Aangeleerd gedrag resetten?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1266"/>
+        <location filename="../../lib/MainApp.cpp" line="1308"/>
         <source>Loaded backend: OpenAI API</source>
         <translation>Geladen backend: OpenAI API</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1268"/>
+        <location filename="../../lib/MainApp.cpp" line="1310"/>
         <source>Loaded backend: Gemini API</source>
         <translation>Geladen backend: Gemini API</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1270"/>
+        <location filename="../../lib/MainApp.cpp" line="1312"/>
         <source>Loaded backend: Custom API</source>
         <translation>Geladen backend: Aangepaste API</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1276"/>
+        <location filename="../../lib/MainApp.cpp" line="1318"/>
         <source>Loaded backend: Remote API</source>
         <translation>Geladen backend: Externe API</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1290"/>
+        <location filename="../../lib/MainApp.cpp" line="1332"/>
         <source>Loaded GPU backend: %1 with %2</source>
         <translation>Geladen GPU-backend: %1 met %2</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1294"/>
+        <location filename="../../lib/MainApp.cpp" line="1336"/>
         <source>Loaded CPU backend: CPU</source>
         <translation>Geladen CPU-backend: CPU</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="1296"/>
+        <location filename="../../lib/MainApp.cpp" line="1338"/>
         <source>Loaded CPU backend: CPU with %1</source>
         <translation>Geladen CPU-backend: CPU met %1</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2942"/>
+        <location filename="../../lib/MainApp.cpp" line="2480"/>
+        <source>Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app has been useful for you.</source>
+        <translation>Bedankt dat u AI File Sorter gebruikt! U heeft tot nu toe %1 bestanden gecategoriseerd. Ik, de auteur, hoop echt dat deze app nuttig voor u is geweest.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2482"/>
+        <source>AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs. If the app saves you time or brings value, please consider supporting it so it can keep improving.</source>
+        <translation>AI File Sorter vereist honderden uren aan ontwikkeling, functiewerk, het beantwoorden van supportvragen en doorlopende kosten. Als de app u tijd bespaart of waarde biedt, overweeg dan alstublieft om deze te steunen zodat deze kan blijven verbeteren.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2943"/>
         <source>Test mode</source>
         <translation>Testmodus</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2943"/>
+        <location filename="../../lib/MainApp.cpp" line="2944"/>
         <source>An analysis is already running. Stop it before starting a test preset.</source>
         <translation>Er is al een analyse bezig. Stop die voordat u een testvoorinstelling start.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2967"/>
+        <location filename="../../lib/MainApp.cpp" line="2968"/>
         <source>Run large whitelist LLM test?</source>
         <translation>Grote whitelist-LLM-test uitvoeren?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2968"/>
+        <location filename="../../lib/MainApp.cpp" line="2969"/>
         <source>This will configure a temporary large whitelist, create sample files, and run the normal analysis flow with the currently selected real LLM.</source>
         <translation>Dit stelt tijdelijk een grote whitelist in, maakt voorbeeldbestanden aan en voert de normale analysetroom uit met het momenteel geselecteerde echte LLM.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2970"/>
+        <location filename="../../lib/MainApp.cpp" line="2971"/>
         <source>Previous cached results for this sample folder will be cleared so the LLM is called again.
 
 The sample folder is:
@@ -1483,47 +1483,47 @@ Verwachte brede categorieën:
 %2</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2974"/>
+        <location filename="../../lib/MainApp.cpp" line="2975"/>
         <source>Run test</source>
         <translation>Test uitvoeren</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3015"/>
+        <location filename="../../lib/MainApp.cpp" line="3016"/>
         <source>Running large whitelist LLM test…</source>
         <translation>Grote whitelist-LLM-test wordt uitgevoerd…</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3230"/>
+        <location filename="../../lib/MainApp.cpp" line="3228"/>
         <source>Failed to clear the categorization cache.</source>
         <translation>De categorisatiecache kon niet worden gewist.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3252"/>
+        <location filename="../../lib/MainApp.cpp" line="3250"/>
         <source>This removes category examples learned from your approved reviews. It does not clear ordinary caches or touch your files.</source>
         <translation>Hiermee worden categorievoorbeelden verwijderd die zijn geleerd uit uw goedgekeurde controles. Gewone caches worden niet gewist en uw bestanden worden niet aangeraakt.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3254"/>
+        <location filename="../../lib/MainApp.cpp" line="3252"/>
         <source>Current whitelists will be re-imported afterwards so selected whitelists still work.</source>
         <translation>De huidige whitelists worden daarna opnieuw geïmporteerd, zodat geselecteerde whitelists blijven werken.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3255"/>
+        <location filename="../../lib/MainApp.cpp" line="3253"/>
         <source>Reset</source>
         <translation>Resetten</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3267"/>
+        <location filename="../../lib/MainApp.cpp" line="3265"/>
         <source>Failed to reset learned behavior: %1</source>
         <translation>Aangeleerd gedrag resetten is mislukt: %1</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3275"/>
+        <location filename="../../lib/MainApp.cpp" line="3273"/>
         <source>Learned behavior reset. Current whitelists remain configured.</source>
         <translation>Aangeleerd gedrag is gereset. De huidige whitelists blijven geconfigureerd.</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3086"/>
+        <location filename="../../lib/MainApp.cpp" line="3087"/>
         <source>Image analysis failed to start with the GPU backend.</source>
         <translation>De afbeeldingsanalyse kon niet starten met de GPU-backend.</translation>
     </message>
@@ -1554,23 +1554,23 @@ Verwachte brede categorieën:
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="157"/>
+        <location filename="../../lib/BulkEditDialog.cpp" line="14"/>
         <source>Edit selected items</source>
         <translation>Geselecteerde items bewerken</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="163"/>
-        <location filename="../../lib/CategorizationDialog.cpp" line="168"/>
+        <location filename="../../lib/BulkEditDialog.cpp" line="20"/>
+        <location filename="../../lib/BulkEditDialog.cpp" line="25"/>
         <source>Leave empty to keep existing</source>
         <translation>Leeg laten om bestaande waarden te behouden</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="164"/>
+        <location filename="../../lib/BulkEditDialog.cpp" line="21"/>
         <source>Category</source>
         <translation>Categorie</translation>
     </message>
     <message>
-        <location filename="../../lib/CategorizationDialog.cpp" line="169"/>
+        <location filename="../../lib/BulkEditDialog.cpp" line="26"/>
         <source>Subcategory</source>
         <translation>Subcategorie</translation>
     </message>
@@ -2051,7 +2051,7 @@ Verwachte brede categorieën:
         <translation>Lokaal LLM</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="2438"/>
+        <location filename="../../lib/MainApp.cpp" line="2478"/>
         <source>Support %1</source>
         <translation>Ondersteun %1</translation>
     </message>
@@ -2082,7 +2082,7 @@ Verwachte brede categorieën:
         <translation>Er is een optionele update beschikbaar. Wilt u nu bijwerken?</translation>
     </message>
     <message>
-        <location filename="../../lib/MainApp.cpp" line="3330"/>
+        <location filename="../../lib/MainApp.cpp" line="3328"/>
         <location filename="../../lib/Updater.cpp" line="153"/>
         <source>What&apos;s new in version %1:</source>
         <translation>Nieuw in versie %1:</translation>
@@ -2177,12 +2177,12 @@ Verwachte brede categorieën:
         <translation>Categorie-specifieke subcategorieën (optioneel; actief wanneer globale subcategorieën leeg zijn):</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="416"/>
+        <location filename="../../startapp_windows.cpp" line="420"/>
         <source>CUDA Runtime Missing or Incompatible</source>
         <translation>CUDA-runtime ontbreekt of is incompatibel</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="417"/>
+        <location filename="../../startapp_windows.cpp" line="421"/>
         <source>A compatible NVIDIA GPU was detected, but the required CUDA runtime for the bundled CUDA backend could not be found or initialized.
 
 CUDA is required for GPU acceleration in this application.
@@ -2195,28 +2195,28 @@ CUDA is vereist voor GPU-versnelling in deze toepassing.
 Wilt u die nu downloaden en installeren?</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="680"/>
-        <location filename="../../startapp_windows.cpp" line="686"/>
+        <location filename="../../startapp_windows.cpp" line="720"/>
+        <location filename="../../startapp_windows.cpp" line="726"/>
         <source>Launch Error</source>
         <translation>Startfout</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="681"/>
+        <location filename="../../startapp_windows.cpp" line="721"/>
         <source>Cannot enable both CUDA and Vulkan simultaneously.</source>
         <translation>CUDA en Vulkan kunnen niet tegelijkertijd worden ingeschakeld.</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="687"/>
+        <location filename="../../startapp_windows.cpp" line="727"/>
         <source>Cannot force CUDA while %1 is active.</source>
         <translation>CUDA kan niet worden afgedwongen terwijl %1 actief is.</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="877"/>
+        <location filename="../../startapp_windows.cpp" line="917"/>
         <source>Missing GGML Runtime</source>
         <translation>GGML-runtime ontbreekt</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="878"/>
+        <location filename="../../startapp_windows.cpp" line="918"/>
         <source>Could not locate usable backend runtime DLLs.
 Tried:
 %1
@@ -2227,12 +2227,12 @@ Geprobeerd:
 %2</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="983"/>
+        <location filename="../../startapp_windows.cpp" line="1036"/>
         <source>Launch Failed</source>
         <translation>Start mislukt</translation>
     </message>
     <message>
-        <location filename="../../startapp_windows.cpp" line="984"/>
+        <location filename="../../startapp_windows.cpp" line="1037"/>
         <source>Failed to launch the main application executable:
 %1</source>
         <translation>Kon het hoofdprogramma niet starten:
@@ -2459,554 +2459,554 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
 <context>
     <name>UiTranslator</name>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="31"/>
+        <location filename="../../lib/UiTranslator.cpp" line="32"/>
         <source>&amp;File</source>
         <translation>&amp;Bestand</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="32"/>
+        <location filename="../../lib/UiTranslator.cpp" line="33"/>
         <source>&amp;Edit</source>
         <translation>&amp;Bewerken</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="33"/>
+        <location filename="../../lib/UiTranslator.cpp" line="34"/>
         <source>&amp;View</source>
         <translation>&amp;Beeld</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="34"/>
+        <location filename="../../lib/UiTranslator.cpp" line="35"/>
         <source>&amp;Settings</source>
         <translation>&amp;Instellingen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="35"/>
+        <location filename="../../lib/UiTranslator.cpp" line="36"/>
         <source>E&amp;xtensions</source>
         <translation>E&amp;xtensies</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="37"/>
+        <location filename="../../lib/UiTranslator.cpp" line="38"/>
         <source>Windows Explorer Extension</source>
         <translation>Windows Explorer-extensie</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="38"/>
+        <location filename="../../lib/UiTranslator.cpp" line="39"/>
         <source>&amp;Plugins</source>
         <translation>&amp;Plugins</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="39"/>
+        <location filename="../../lib/UiTranslator.cpp" line="40"/>
         <source>&amp;Development</source>
         <translation>&amp;Ontwikkeling</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="40"/>
+        <location filename="../../lib/UiTranslator.cpp" line="41"/>
         <source>&amp;Tests</source>
         <translation>&amp;Tests</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="42"/>
+        <location filename="../../lib/UiTranslator.cpp" line="43"/>
         <source>Interface &amp;language</source>
         <translation>&amp;Interfacetaal</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="44"/>
+        <location filename="../../lib/UiTranslator.cpp" line="45"/>
         <source>Category &amp;language</source>
         <translation>&amp;Categorietaal</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="45"/>
+        <location filename="../../lib/UiTranslator.cpp" line="46"/>
         <source>&amp;Quit</source>
         <translation>&amp;Afsluiten</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="47"/>
+        <location filename="../../lib/UiTranslator.cpp" line="48"/>
         <source>System compatibility check…</source>
         <translation>Systeemcompatibiliteitscontrole…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="48"/>
+        <location filename="../../lib/UiTranslator.cpp" line="49"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiëren</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="49"/>
+        <location filename="../../lib/UiTranslator.cpp" line="50"/>
         <source>Cu&amp;t</source>
         <translation>Kni&amp;ppen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="50"/>
+        <location filename="../../lib/UiTranslator.cpp" line="51"/>
         <source>Undo last run</source>
         <translation>Laatste run ongedaan maken</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="52"/>
+        <location filename="../../lib/UiTranslator.cpp" line="53"/>
         <source>Rename and categorization history…</source>
         <translation>Rename and categorization history…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="53"/>
+        <location filename="../../lib/UiTranslator.cpp" line="54"/>
         <source>&amp;Paste</source>
         <translation>&amp;Plakken</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="54"/>
+        <location filename="../../lib/UiTranslator.cpp" line="55"/>
         <source>&amp;Delete</source>
         <translation>&amp;Verwijderen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="55"/>
+        <location filename="../../lib/UiTranslator.cpp" line="56"/>
         <source>File &amp;Explorer</source>
         <translation>Bestands&amp;verkenner</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="56"/>
+        <location filename="../../lib/UiTranslator.cpp" line="57"/>
         <source>Select &amp;LLM…</source>
         <translation>Selecteer &amp;LLM…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="58"/>
+        <location filename="../../lib/UiTranslator.cpp" line="59"/>
         <source>Manage storage plugins…</source>
         <translation>Opslagplugins beheren…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="60"/>
+        <location filename="../../lib/UiTranslator.cpp" line="61"/>
         <source>Manage category whitelists…</source>
         <translation>Categoriewhitelists beheren…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="62"/>
+        <location filename="../../lib/UiTranslator.cpp" line="63"/>
         <source>Install Windows Explorer Extension...</source>
         <translation>Windows Explorer-extensie installeren...</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="64"/>
+        <location filename="../../lib/UiTranslator.cpp" line="65"/>
         <source>Settings...</source>
         <translation>Instellingen...</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="66"/>
+        <location filename="../../lib/UiTranslator.cpp" line="67"/>
         <source>Activity Window</source>
         <translation>Activiteitenvenster</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="68"/>
+        <location filename="../../lib/UiTranslator.cpp" line="69"/>
         <source>Reset learned behavior…</source>
         <translation>Aangeleerd gedrag resetten…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="69"/>
+        <location filename="../../lib/UiTranslator.cpp" line="70"/>
         <source>Clear cache…</source>
         <translation>Cache wissen…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="71"/>
+        <location filename="../../lib/UiTranslator.cpp" line="72"/>
         <source>Log prompts and responses to stdout</source>
         <translation>Prompts en antwoorden naar stdout loggen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="73"/>
+        <location filename="../../lib/UiTranslator.cpp" line="74"/>
         <source>Run large whitelist LLM test…</source>
         <translation>Grote whitelist-LLM-test uitvoeren…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="75"/>
+        <location filename="../../lib/UiTranslator.cpp" line="76"/>
         <source>Run &amp;consistency pass</source>
         <translation>&amp;Consistentieronde uitvoeren</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="76"/>
+        <location filename="../../lib/UiTranslator.cpp" line="77"/>
         <source>&amp;English</source>
         <translation>&amp;Engels</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="77"/>
+        <location filename="../../lib/UiTranslator.cpp" line="78"/>
         <source>&amp;Dutch</source>
         <translation>&amp;Nederlands</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="78"/>
+        <location filename="../../lib/UiTranslator.cpp" line="79"/>
         <source>&amp;French</source>
         <translation>&amp;Frans</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="79"/>
+        <location filename="../../lib/UiTranslator.cpp" line="80"/>
         <source>&amp;German</source>
         <translation>&amp;Duits</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="81"/>
+        <location filename="../../lib/UiTranslator.cpp" line="82"/>
         <source>&amp;Italian</source>
         <translation>&amp;Italiaans</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="89"/>
+        <location filename="../../lib/UiTranslator.cpp" line="90"/>
         <source>&amp;Spanish</source>
         <translation>&amp;Spaans</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="90"/>
+        <location filename="../../lib/UiTranslator.cpp" line="91"/>
         <source>&amp;Turkish</source>
         <translation>&amp;Turks</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="91"/>
+        <location filename="../../lib/UiTranslator.cpp" line="92"/>
         <source>&amp;Korean</source>
         <translation>&amp;Koreaans</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="84"/>
+        <location filename="../../lib/UiTranslator.cpp" line="85"/>
         <source>&amp;Swedish</source>
         <translation>&amp;Zweeds</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="85"/>
+        <location filename="../../lib/UiTranslator.cpp" line="86"/>
         <source>&amp;Icelandic</source>
         <translation>&amp;IJslands</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="86"/>
+        <location filename="../../lib/UiTranslator.cpp" line="87"/>
         <source>&amp;Norwegian</source>
         <translation>&amp;Noors</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="87"/>
+        <location filename="../../lib/UiTranslator.cpp" line="88"/>
         <source>&amp;Finnish</source>
         <translation>&amp;Fins</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="88"/>
+        <location filename="../../lib/UiTranslator.cpp" line="89"/>
         <source>&amp;Danish</source>
         <translation>&amp;Deens</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="83"/>
+        <location filename="../../lib/UiTranslator.cpp" line="84"/>
         <source>&amp;Simplified Chinese</source>
         <translation>&amp;Vereenvoudigd Chinees</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="93"/>
+        <location filename="../../lib/UiTranslator.cpp" line="94"/>
         <source>&amp;About AI File Sorter</source>
         <translation>&amp;Over AI File Sorter</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="97"/>
+        <location filename="../../lib/UiTranslator.cpp" line="98"/>
         <source>About &amp;Qt</source>
         <translation>Over &amp;Qt</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="98"/>
+        <location filename="../../lib/UiTranslator.cpp" line="99"/>
         <source>About &amp;AGPL</source>
         <translation>Over &amp;AGPL</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="100"/>
+        <location filename="../../lib/UiTranslator.cpp" line="101"/>
         <source>&amp;Support Project</source>
         <translation>Project &amp;ondersteunen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="211"/>
+        <location filename="../../lib/UiTranslator.cpp" line="194"/>
         <source>Folder:</source>
         <translation>Map:</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="214"/>
+        <location filename="../../lib/UiTranslator.cpp" line="197"/>
         <source>Browse…</source>
         <translation>Bladeren…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="217"/>
+        <location filename="../../lib/UiTranslator.cpp" line="200"/>
         <source>Use subcategories</source>
         <translation>Subcategorieën gebruiken</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="218"/>
+        <location filename="../../lib/UiTranslator.cpp" line="201"/>
         <source>Create subcategory folders within each category.</source>
         <translation>Subcategorie-mappen binnen elke categorie maken.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="221"/>
+        <location filename="../../lib/UiTranslator.cpp" line="204"/>
         <source>Categorization type</source>
         <translation>Categorisatietype</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="222"/>
+        <location filename="../../lib/UiTranslator.cpp" line="205"/>
         <source>Choose how strict the category labels should be.</source>
         <translation>Kies hoe strikt de categorielabels moeten zijn.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="225"/>
+        <location filename="../../lib/UiTranslator.cpp" line="208"/>
         <source>More refined</source>
         <translation>Meer verfijnd</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="226"/>
+        <location filename="../../lib/UiTranslator.cpp" line="209"/>
         <source>Favor detailed labels even if similar items vary.</source>
         <translation>Geef de voorkeur aan gedetailleerde labels, ook als vergelijkbare items verschillen.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="229"/>
+        <location filename="../../lib/UiTranslator.cpp" line="212"/>
         <source>More consistent</source>
         <translation>Meer consistent</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="230"/>
+        <location filename="../../lib/UiTranslator.cpp" line="213"/>
         <source>Favor consistent labels across similar items.</source>
         <translation>Geef de voorkeur aan consistente labels voor vergelijkbare items.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="233"/>
+        <location filename="../../lib/UiTranslator.cpp" line="216"/>
         <source>Use a whitelist</source>
         <translation>Whitelist gebruiken</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="234"/>
+        <location filename="../../lib/UiTranslator.cpp" line="217"/>
         <source>Restrict categories and subcategories to the selected whitelist.</source>
         <translation>Beperk categorieën en subcategorieën tot de geselecteerde whitelist.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="237"/>
+        <location filename="../../lib/UiTranslator.cpp" line="220"/>
         <source>Select the whitelist used for this run.</source>
         <translation>Selecteer de whitelist die voor deze run wordt gebruikt.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="240"/>
+        <location filename="../../lib/UiTranslator.cpp" line="223"/>
         <source>Categorize files</source>
         <translation>Bestanden categoriseren</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="241"/>
+        <location filename="../../lib/UiTranslator.cpp" line="224"/>
         <source>Include files in the categorization pass.</source>
         <translation>Neem bestanden op in de categorisatieronde.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="244"/>
+        <location filename="../../lib/UiTranslator.cpp" line="227"/>
         <source>Categorize folders</source>
         <translation>Mappen categoriseren</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="245"/>
+        <location filename="../../lib/UiTranslator.cpp" line="228"/>
         <source>Include directories in the categorization pass.</source>
         <translation>Neem mappen op in de categorisatieronde.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="248"/>
+        <location filename="../../lib/UiTranslator.cpp" line="231"/>
         <source>Scan subfolders</source>
         <translation>Submappen scannen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="249"/>
+        <location filename="../../lib/UiTranslator.cpp" line="232"/>
         <source>Scan files inside subfolders and treat them as part of the main folder.</source>
         <translation>Bestanden in submappen scannen en behandelen alsof ze in de hoofdmap staan.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="252"/>
+        <location filename="../../lib/UiTranslator.cpp" line="235"/>
         <source>Analyze picture files by content</source>
         <translation>Afbeeldingsbestanden op inhoud analyseren</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="253"/>
+        <location filename="../../lib/UiTranslator.cpp" line="236"/>
         <source>Run the visual LLM on supported picture files.</source>
         <translation>Voer de visuele LLM uit op ondersteunde afbeeldingsbestanden.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="256"/>
+        <location filename="../../lib/UiTranslator.cpp" line="239"/>
         <source>Process picture files only (ignore any other files)</source>
         <translation>Alleen afbeeldingsbestanden verwerken (alle andere bestanden negeren)</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="257"/>
+        <location filename="../../lib/UiTranslator.cpp" line="240"/>
         <source>Ignore non-picture files in this run.</source>
         <translation>Niet-afbeeldingsbestanden in deze run negeren.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="260"/>
+        <location filename="../../lib/UiTranslator.cpp" line="243"/>
         <source>Add image creation date (if available) to category name</source>
         <translation>Voeg de aanmaakdatum van de afbeelding (indien beschikbaar) toe aan de categorienaam</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="261"/>
+        <location filename="../../lib/UiTranslator.cpp" line="244"/>
         <source>Append the image creation date from metadata to the category label.</source>
         <translation>Voeg de aanmaakdatum van de afbeelding uit metadata toe aan het categorielabel.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="264"/>
+        <location filename="../../lib/UiTranslator.cpp" line="247"/>
         <source>Add photo date and place to filename (if available)</source>
         <translation>Voeg fotodatum en plaats toe aan bestandsnaam (indien beschikbaar)</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="265"/>
+        <location filename="../../lib/UiTranslator.cpp" line="248"/>
         <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
         <translation>De datum komt uit EXIF-metadata van de foto. Plaatsnamen worden online uit GPS-coördinaten bepaald, dus netwerktoegang is vereist voor plaatsvoorvoegsels.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="268"/>
+        <location filename="../../lib/UiTranslator.cpp" line="251"/>
         <source>Add audio/video metadata to file name (if available)</source>
         <translation>Audio-/videometadata toevoegen aan bestandsnaam (indien beschikbaar)</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="269"/>
+        <location filename="../../lib/UiTranslator.cpp" line="252"/>
         <source>Use embedded media tags (for example year, artist, album, title) to build suggested audio/video filenames.</source>
         <translation>Gebruik ingesloten mediatags (bijv. jaar, artiest, album, titel) om voorgestelde audio-/videobestandsnamen te maken.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="272"/>
+        <location filename="../../lib/UiTranslator.cpp" line="255"/>
         <source>Offer to rename picture files</source>
         <translation>Aanbieden om afbeeldingsbestanden te hernoemen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="273"/>
+        <location filename="../../lib/UiTranslator.cpp" line="256"/>
         <source>Show suggested filenames for picture files.</source>
         <translation>Toon voorgestelde bestandsnamen voor afbeeldingsbestanden.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="276"/>
+        <location filename="../../lib/UiTranslator.cpp" line="259"/>
         <source>Do not categorize picture files (only rename)</source>
         <translation>Afbeeldingsbestanden niet categoriseren (alleen hernoemen)</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="277"/>
+        <location filename="../../lib/UiTranslator.cpp" line="260"/>
         <source>Skip categorization for picture files and only rename them.</source>
         <translation>Categorisatie voor afbeeldingsbestanden overslaan en alleen hernoemen.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="280"/>
+        <location filename="../../lib/UiTranslator.cpp" line="263"/>
         <source>Show or hide picture analysis options</source>
         <translation>Opties voor afbeeldingsanalyse tonen of verbergen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="283"/>
+        <location filename="../../lib/UiTranslator.cpp" line="266"/>
         <source>Analyze document files by content</source>
         <translation>Documentbestanden op inhoud analyseren</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="284"/>
+        <location filename="../../lib/UiTranslator.cpp" line="267"/>
         <source>Summarize document contents with the selected LLM.</source>
         <translation>Documentinhoud samenvatten met het geselecteerde LLM.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="287"/>
+        <location filename="../../lib/UiTranslator.cpp" line="270"/>
         <source>Process document files only (ignore any other files)</source>
         <translation>Alleen documentbestanden verwerken (alle andere bestanden negeren)</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="288"/>
+        <location filename="../../lib/UiTranslator.cpp" line="271"/>
         <source>Ignore non-document files in this run.</source>
         <translation>Niet-documentbestanden in deze run negeren.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="291"/>
+        <location filename="../../lib/UiTranslator.cpp" line="274"/>
         <source>Offer to rename document files</source>
         <translation>Aanbieden om documentbestanden te hernoemen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="292"/>
+        <location filename="../../lib/UiTranslator.cpp" line="275"/>
         <source>Show suggested filenames for document files.</source>
         <translation>Toon voorgestelde bestandsnamen voor documentbestanden.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="295"/>
+        <location filename="../../lib/UiTranslator.cpp" line="278"/>
         <source>Do not categorize document files (only rename)</source>
         <translation>Documentbestanden niet categoriseren (alleen hernoemen)</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="296"/>
+        <location filename="../../lib/UiTranslator.cpp" line="279"/>
         <source>Skip categorization for document files and only rename them.</source>
         <translation>Categorisatie voor documentbestanden overslaan en alleen hernoemen.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="299"/>
+        <location filename="../../lib/UiTranslator.cpp" line="282"/>
         <source>Add document creation date (if available) to category name</source>
         <translation>Voeg de aanmaakdatum van het document (indien beschikbaar) toe aan de categorienaam</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="300"/>
+        <location filename="../../lib/UiTranslator.cpp" line="283"/>
         <source>Append the document creation date from metadata to the category label.</source>
         <translation>Voeg de aanmaakdatum van het document uit metadata toe aan het categorielabel.</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="303"/>
+        <location filename="../../lib/UiTranslator.cpp" line="286"/>
         <source>Show or hide document analysis options</source>
         <translation>Opties voor documentanalyse tonen of verbergen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="306"/>
+        <location filename="../../lib/UiTranslator.cpp" line="289"/>
         <source>Stop analyzing</source>
         <translation>Analyse stoppen</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="306"/>
+        <location filename="../../lib/UiTranslator.cpp" line="289"/>
         <source>Analyze folder</source>
         <translation>Map analyseren</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="318"/>
-        <location filename="../../lib/UiTranslator.cpp" line="331"/>
+        <location filename="../../lib/UiTranslator.cpp" line="301"/>
+        <location filename="../../lib/UiTranslator.cpp" line="314"/>
         <source>File</source>
         <translation>Bestand</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="319"/>
+        <location filename="../../lib/UiTranslator.cpp" line="302"/>
         <source>Type</source>
         <translation>Type</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="320"/>
+        <location filename="../../lib/UiTranslator.cpp" line="303"/>
         <source>Category</source>
         <translation>Categorie</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="321"/>
+        <location filename="../../lib/UiTranslator.cpp" line="304"/>
         <source>Subcategory</source>
         <translation>Subcategorie</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="322"/>
+        <location filename="../../lib/UiTranslator.cpp" line="305"/>
         <source>Status</source>
         <translation>Status</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="329"/>
+        <location filename="../../lib/UiTranslator.cpp" line="312"/>
         <source>Directory</source>
         <translation>Map</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="337"/>
-        <location filename="../../lib/UiTranslator.cpp" line="472"/>
+        <location filename="../../lib/UiTranslator.cpp" line="320"/>
+        <location filename="../../lib/UiTranslator.cpp" line="458"/>
         <source>Ready</source>
         <translation>Gereed</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="101"/>
+        <location filename="../../lib/UiTranslator.cpp" line="102"/>
         <source>&amp;Help</source>
         <translation>&amp;Help</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="102"/>
+        <location filename="../../lib/UiTranslator.cpp" line="103"/>
         <source>File Explorer</source>
         <translation>Bestandsverkenner</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="467"/>
+        <location filename="../../lib/UiTranslator.cpp" line="453"/>
         <source>Cancelling analysis…</source>
         <translation>Analyse wordt geannuleerd…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="469"/>
+        <location filename="../../lib/UiTranslator.cpp" line="455"/>
         <source>Analyzing…</source>
         <translation>Bezig met analyseren…</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="95"/>
+        <location filename="../../lib/UiTranslator.cpp" line="96"/>
         <source>&amp;Quick Start Guide</source>
         <translation>&amp;Snelstartgids</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="96"/>
+        <location filename="../../lib/UiTranslator.cpp" line="97"/>
         <source>&amp;FAQ</source>
         <translation>&amp;FAQ</translation>
     </message>
     <message>
-        <location filename="../../lib/UiTranslator.cpp" line="80"/>
+        <location filename="../../lib/UiTranslator.cpp" line="81"/>
         <source>&amp;Hindi</source>
         <translation>&amp;Hindi</translation>
     </message>
