@@ -2938,7 +2938,7 @@ void CategorizationDialog::retranslate_ui()
             tr("Category"),
             tr("Subcategory"),
             tr("Status"),
-            tr("Planned destination")
+            tr("Destination")
         });
 
         for (int row = 0; row < model->rowCount(); ++row) {
