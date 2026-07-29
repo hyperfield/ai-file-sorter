@@ -22,6 +22,15 @@ obj/
 # Environment variables
 # .env
 encryption.ini
+localize.env
+localize.env.example
+app/scripts/git-private.env
+app/scripts/git-private.env.example
+app/scripts/git-private.manifest
+app/scripts/git-private.manifest.example
+app/scripts/git-private.ps1
+app/scripts/git-private.README.md
+app/scripts/git_private_sync.py
 
 # Virtual environments
 .venv/
@@ -114,6 +123,8 @@ todos_md/
 # Script docs + backups
 app/scripts/SCRIPTS-README.md
 app/scripts/examples/
+app/scripts/localize_ai_file_sorter.py
+app/scripts/localize_ai_file_sorter.README.md
 app/scripts/local_support_code_signer.py
 app/scripts/__pycache__/
 *.bak
@@ -129,6 +140,7 @@ app/include/llama/*.h
 /tools/
 /reports/
 /logo-workdir-temp/
+/tmp/
 /Testing/
 /changelog/*
 !/changelog/*.md
