@@ -166,6 +166,30 @@ QString strip_mnemonic_markers(const QString& value)
     return result;
 }
 
+QString file_explorer_panel_style_sheet()
+{
+    return QStringLiteral(R"(
+        QFrame#aifsFileExplorerPanel {
+            background-color: #fbfcfe;
+            border: 1px solid #c8d0d8;
+            border-radius: 6px;
+        }
+        QTreeWidget#aifsNetworkLocationsView,
+        QTreeView#aifsFileExplorerView {
+            background-color: #ffffff;
+            alternate-background-color: #f4f6f8;
+            border: 1px solid #d6dde5;
+            border-radius: 4px;
+            outline: 0;
+        }
+        QTreeWidget#aifsNetworkLocationsView::item:selected,
+        QTreeView#aifsFileExplorerView::item:selected {
+            background-color: #d7e8f7;
+            color: #111827;
+        }
+    )");
+}
+
 QString category_language_sort_key(CategoryLanguage language)
 {
     return categoryLanguageToString(language);
@@ -586,29 +610,6 @@ std::string resolve_runtime_data_dir(Settings& settings, std::string app_data_di
     return resolved;
 }
 
-QString file_explorer_panel_style_sheet()
-{
-    return QStringLiteral(R"(
-        QFrame#aifsFileExplorerPanel {
-            background-color: #fbfcfe;
-            border: 1px solid #c8d0d8;
-            border-radius: 6px;
-        }
-        QTreeView#aifsFileExplorerView,
-        QTreeWidget#aifsNetworkLocationsView {
-            background-color: #ffffff;
-            alternate-background-color: #f4f6f8;
-            border: none;
-            outline: 0;
-        }
-        QTreeView#aifsFileExplorerView::item:selected,
-        QTreeWidget#aifsNetworkLocationsView::item:selected {
-            background-color: #d7e8f7;
-            color: #111827;
-        }
-    )");
-}
-
 } // namespace
 
 MainApp::MainApp(Settings& settings,
@@ -747,8 +748,8 @@ void MainApp::setup_file_explorer_view()
     explorer_frame->setStyleSheet(file_explorer_panel_style_sheet());
     file_explorer_container = explorer_frame;
     auto* explorer_layout = new QVBoxLayout(file_explorer_container);
-    explorer_layout->setContentsMargins(2, 2, 2, 2);
-    explorer_layout->setSpacing(2);
+    explorer_layout->setContentsMargins(4, 4, 4, 4);
+    explorer_layout->setSpacing(5);
 
     network_locations_view = new QTreeWidget(file_explorer_container);
     network_locations_view->setObjectName(QStringLiteral("aifsNetworkLocationsView"));

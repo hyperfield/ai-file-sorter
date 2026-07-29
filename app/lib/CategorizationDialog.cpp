@@ -85,6 +85,67 @@ struct ScopedFlag {
 
 QString edit_icon_html(int size = 16);
 
+QString review_dialog_style_sheet()
+{
+    return QStringLiteral(R"(
+        QFrame#aifsReviewTablePanel {
+            background-color: #fbfcfe;
+            border: 1px solid #c8d0d8;
+            border-radius: 6px;
+        }
+        QTableView#aifsReviewTable {
+            background-color: #ffffff;
+            alternate-background-color: #f4f6f8;
+            border: none;
+            gridline-color: #d8e0e8;
+            outline: 0;
+            selection-background-color: #d7e8f7;
+            selection-color: #111827;
+        }
+        QTableView#aifsReviewTable QHeaderView::section {
+            background-color: #f3f6f9;
+            border: none;
+            border-right: 1px solid #d8e0e8;
+            border-bottom: 1px solid #c8d0d8;
+            padding: 4px 6px;
+        }
+        QPushButton[aifsReviewActionButton="true"] {
+            background-color: #ffffff;
+            border: 1px solid #b7c3cf;
+            border-radius: 6px;
+            padding: 5px 13px;
+            min-height: 24px;
+        }
+        QPushButton[aifsReviewActionButton="true"]:hover {
+            background-color: #eef5fb;
+            border-color: #8ca9c3;
+        }
+        QPushButton[aifsReviewActionButton="true"]:pressed {
+            background-color: #dceaf5;
+            border-color: #6f92af;
+        }
+        QPushButton[aifsReviewActionButton="true"]:disabled {
+            background-color: #f4f6f8;
+            border-color: #d7dde4;
+            color: #9aa3ad;
+        }
+        QPushButton#aifsReviewPrimaryButton {
+            background-color: #1f6fb2;
+            border: 1px solid #155a94;
+            color: #ffffff;
+            font-weight: 600;
+        }
+        QPushButton#aifsReviewPrimaryButton:hover {
+            background-color: #287fc8;
+            border-color: #1b669f;
+        }
+        QPushButton#aifsReviewPrimaryButton:pressed {
+            background-color: #185c95;
+            border-color: #124d80;
+        }
+    )");
+}
+
 using ReviewNameValidator::is_missing_category_label;
 using ReviewNameValidator::strip_history_description_label;
 using ReviewNameValidator::trim_copy;
@@ -113,64 +174,6 @@ std::string read_item_or_hidden_text(const QStandardItem* item, int hidden_role)
     }
 
     return std::string();
-}
-
-QString review_dialog_style_sheet()
-{
-    return QStringLiteral(R"(
-        QFrame#aifsReviewTablePanel {
-            background-color: #fbfcfe;
-            border: 1px solid #c8d0d8;
-            border-radius: 6px;
-        }
-        QTableView#aifsReviewTable {
-            background-color: #ffffff;
-            alternate-background-color: #f4f6f8;
-            border: none;
-            outline: 0;
-            gridline-color: #d8e0e8;
-            selection-background-color: #d7e8f7;
-            selection-color: #111827;
-        }
-        QTableView#aifsReviewTable QHeaderView::section {
-            background-color: #f3f6f9;
-            border: none;
-            border-right: 1px solid #d8e0e8;
-            border-bottom: 1px solid #c8d0d8;
-            padding: 4px 6px;
-        }
-        QPushButton[aifsReviewActionButton="true"] {
-            background-color: #ffffff;
-            border: 1px solid #b7c3cf;
-            border-radius: 6px;
-            padding: 5px 13px;
-            min-height: 24px;
-        }
-        QPushButton[aifsReviewActionButton="true"]:hover {
-            background-color: #eef5fb;
-            border-color: #93b7d7;
-        }
-        QPushButton[aifsReviewActionButton="true"]:pressed {
-            background-color: #dceaf5;
-            border-color: #709fc5;
-        }
-        QPushButton[aifsReviewActionButton="true"]:disabled {
-            background-color: #f4f6f8;
-            border-color: #d7dde4;
-            color: #9aa3ad;
-        }
-        QPushButton#aifsReviewPrimaryButton {
-            background-color: #1f6fb2;
-            border-color: #1f6fb2;
-            color: #ffffff;
-        }
-        QPushButton#aifsReviewPrimaryButton:hover {
-            background-color: #287fc8;
-        }
-        QPushButton#aifsReviewPrimaryButton:pressed {
-            background-color: #185c95;
-        }
-    )");
 }
 
 } // namespace
@@ -423,6 +426,8 @@ void CategorizationDialog::setup_ui()
     table_view->horizontalHeader()->setSectionsClickable(true);
     table_view->horizontalHeader()->setSortIndicatorShown(true);
     table_view->setSortingEnabled(true);
+    table_view->setAlternatingRowColors(true);
+    table_view->setFrameShape(QFrame::NoFrame);
     table_view->setColumnHidden(ColumnType, false);
     table_view->setColumnHidden(ColumnSuggestedName, !show_rename_column);
     table_view->setColumnHidden(ColumnSubcategory, !show_subcategory_column);
@@ -430,8 +435,6 @@ void CategorizationDialog::setup_ui()
     table_view->setColumnWidth(ColumnSelect, 70);
     table_view->setIconSize(QSize(16, 16));
     table_view->setColumnWidth(ColumnType, table_view->iconSize().width() + 12);
-    table_view->setAlternatingRowColors(true);
-    table_view->setFrameShape(QFrame::NoFrame);
 
     auto* table_panel = new QFrame(this);
     table_panel->setObjectName(QStringLiteral("aifsReviewTablePanel"));
@@ -465,9 +468,7 @@ void CategorizationDialog::setup_ui()
                                 confirm_button,
                                 continue_button,
                                 undo_button,
-                                close_button,
-                                select_highlighted_button,
-                                bulk_edit_button}) {
+                                close_button}) {
         if (button) {
             button->setProperty("aifsReviewActionButton", true);
             button->setCursor(Qt::PointingHandCursor);
