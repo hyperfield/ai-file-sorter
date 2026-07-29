@@ -780,7 +780,8 @@ TEST_CASE("What's New content is packaged for the current app version")
     const QString markdown = WhatsNewContent::markdown_for_version(version);
 
     REQUIRE(markdown.contains(QStringLiteral("Highlights")));
-    REQUIRE(markdown.contains(QStringLiteral("Windows Explorer Extension")));
+    REQUIRE(markdown.contains(QStringLiteral("category whitelists")));
+    REQUIRE(markdown.contains(QStringLiteral("file previews")));
 
     REQUIRE(WhatsNewContent::markdown_for_version(version, Language::English) == markdown);
 
