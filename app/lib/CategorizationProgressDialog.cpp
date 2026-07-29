@@ -9,6 +9,7 @@
 #include <QAbstractItemView>
 #include <QColor>
 #include <QEvent>
+#include <QFrame>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -25,6 +26,71 @@
 
 #include <algorithm>
 
+namespace {
+
+QString progress_dialog_style_sheet()
+{
+    return QStringLiteral(R"(
+        QDialog#analysisProgressDialog {
+            background-color: #f4f6f8;
+        }
+        QFrame#analysisStatusPanel,
+        QFrame#analysisLogPanel {
+            background-color: #fbfcfe;
+            border: 1px solid #c8d0d8;
+            border-radius: 6px;
+        }
+        QTableWidget#analysisStatusTable {
+            background-color: #ffffff;
+            alternate-background-color: #f4f6f8;
+            border: none;
+            gridline-color: #d8e0e8;
+            outline: 0;
+            selection-background-color: #d7e8f7;
+            selection-color: #111827;
+        }
+        QTableWidget#analysisStatusTable QHeaderView::section {
+            background-color: #f3f6f9;
+            border: none;
+            border-right: 1px solid #d8e0e8;
+            border-bottom: 1px solid #c8d0d8;
+            padding: 4px 6px;
+        }
+        QLabel#analysisLogLabel {
+            color: #111827;
+            font-weight: 600;
+        }
+        QPlainTextEdit#analysisLogView {
+            background-color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            padding: 6px;
+        }
+        QPushButton#stopAnalysisButton {
+            background-color: #ffffff;
+            border: 1px solid #b7c3cf;
+            border-radius: 6px;
+            padding: 5px 13px;
+            min-height: 24px;
+        }
+        QPushButton#stopAnalysisButton:hover {
+            background-color: #fff4f2;
+            border-color: #d58a7f;
+        }
+        QPushButton#stopAnalysisButton:pressed {
+            background-color: #f8ddd9;
+            border-color: #b96c62;
+        }
+        QPushButton#stopAnalysisButton:disabled {
+            background-color: #f4f6f8;
+            border-color: #d7dde4;
+            color: #9aa3ad;
+        }
+    )");
+}
+
+} // namespace
+
 CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
                                                            MainApp* main_app,
                                                            bool show_subcategory_col)
@@ -39,7 +105,11 @@ CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
 
 void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
 {
+    setObjectName(QStringLiteral("analysisProgressDialog"));
+    setStyleSheet(progress_dialog_style_sheet());
+
     auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(12, 12, 12, 12);
     layout->setSpacing(10);
 
     stage_list_label = new QLabel(this);
@@ -51,7 +121,13 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
     summary_label->setObjectName(QStringLiteral("analysisSummaryLabel"));
     layout->addWidget(summary_label);
 
-    status_table = new QTableWidget(this);
+    auto* status_panel = new QFrame(this);
+    status_panel->setObjectName(QStringLiteral("analysisStatusPanel"));
+    auto* status_panel_layout = new QVBoxLayout(status_panel);
+    status_panel_layout->setContentsMargins(1, 1, 1, 1);
+    status_panel_layout->setSpacing(0);
+
+    status_table = new QTableWidget(status_panel);
     status_table->setObjectName(QStringLiteral("analysisStatusTable"));
     status_table->setColumnCount(2);
     status_table->setSelectionMode(QAbstractItemView::NoSelection);
@@ -60,17 +136,25 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
     status_table->setAlternatingRowColors(true);
     status_table->setShowGrid(false);
     status_table->verticalHeader()->setVisible(false);
-    layout->addWidget(status_table, 2);
+    status_panel_layout->addWidget(status_table);
+    layout->addWidget(status_panel, 2);
 
-    log_label = new QLabel(this);
+    auto* log_panel = new QFrame(this);
+    log_panel->setObjectName(QStringLiteral("analysisLogPanel"));
+    auto* log_panel_layout = new QVBoxLayout(log_panel);
+    log_panel_layout->setContentsMargins(10, 8, 10, 10);
+    log_panel_layout->setSpacing(6);
+
+    log_label = new QLabel(log_panel);
     log_label->setObjectName(QStringLiteral("analysisLogLabel"));
-    layout->addWidget(log_label);
+    log_panel_layout->addWidget(log_label);
 
-    text_view = new QPlainTextEdit(this);
+    text_view = new QPlainTextEdit(log_panel);
     text_view->setObjectName(QStringLiteral("analysisLogView"));
     text_view->setReadOnly(true);
     text_view->setLineWrapMode(QPlainTextEdit::WidgetWidth);
-    layout->addWidget(text_view, 1);
+    log_panel_layout->addWidget(text_view, 1);
+    layout->addWidget(log_panel, 1);
 
     auto* button_layout = new QHBoxLayout();
     button_layout->addStretch(1);

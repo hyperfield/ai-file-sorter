@@ -26,6 +26,7 @@
 #include <QLinearGradient>
 #include <QComboBox>
 #include <QFontMetrics>
+#include <QFrame>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -331,6 +332,29 @@ QIcon whitelist_menu_icon(MainApp& app)
     });
 }
 
+QString file_listing_panel_style_sheet()
+{
+    return QStringLiteral(R"(
+        QFrame#aifsFileListingPanel {
+            background-color: #fbfcfe;
+            border: 1px solid #c8d0d8;
+            border-radius: 6px;
+        }
+        QTreeView#aifsCategorizedResultsView,
+        QTreeView#aifsFolderContentsView {
+            background-color: #ffffff;
+            alternate-background-color: #f4f6f8;
+            border: none;
+            outline: 0;
+        }
+        QTreeView#aifsCategorizedResultsView::item:selected,
+        QTreeView#aifsFolderContentsView::item:selected {
+            background-color: #d7e8f7;
+            color: #111827;
+        }
+    )");
+}
+
 } // namespace
 
 void MainAppUiBuilder::build(MainApp& app) {
@@ -490,8 +514,10 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.tree_model = new QStandardItemModel(0, 5, &app);
 
     app.results_stack = new QStackedWidget(central);
+    app.results_stack->setObjectName(QStringLiteral("aifsResultsStack"));
 
     app.tree_view = new QTreeView(app.results_stack);
+    app.tree_view->setObjectName(QStringLiteral("aifsCategorizedResultsView"));
     app.tree_view->setModel(app.tree_model);
     app.tree_view->setSelectionBehavior(QAbstractItemView::SelectRows);
     app.tree_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -504,6 +530,7 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.folder_contents_model->setRootPath(QDir::homePath());
 
     app.folder_contents_view = new QTreeView(app.results_stack);
+    app.folder_contents_view->setObjectName(QStringLiteral("aifsFolderContentsView"));
     app.folder_contents_view->setModel(app.folder_contents_model);
     app.folder_contents_view->setRootIndex(app.folder_contents_model->index(QDir::homePath()));
     app.folder_contents_view->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -516,7 +543,15 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.folder_view_page_index_ = app.results_stack->addWidget(app.folder_contents_view);
 
     app.results_stack->setCurrentIndex(app.tree_view_page_index_);
-    main_layout->addWidget(app.results_stack, 1);
+
+    auto* file_listing_panel = new QFrame(central);
+    file_listing_panel->setObjectName(QStringLiteral("aifsFileListingPanel"));
+    file_listing_panel->setStyleSheet(file_listing_panel_style_sheet());
+    auto* file_listing_layout = new QVBoxLayout(file_listing_panel);
+    file_listing_layout->setContentsMargins(2, 2, 2, 2);
+    file_listing_layout->setSpacing(0);
+    file_listing_layout->addWidget(app.results_stack);
+    main_layout->addWidget(file_listing_panel, 1);
 
     app.setCentralWidget(central);
 }

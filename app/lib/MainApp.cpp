@@ -58,6 +58,7 @@
 #include <QFileDialog>
 #include <QFileSystemModel>
 #include <QFile>
+#include <QFrame>
 #include <QHeaderView>
 #include <QInputDialog>
 #include <QKeySequence>
@@ -585,6 +586,29 @@ std::string resolve_runtime_data_dir(Settings& settings, std::string app_data_di
     return resolved;
 }
 
+QString file_explorer_panel_style_sheet()
+{
+    return QStringLiteral(R"(
+        QFrame#aifsFileExplorerPanel {
+            background-color: #fbfcfe;
+            border: 1px solid #c8d0d8;
+            border-radius: 6px;
+        }
+        QTreeView#aifsFileExplorerView,
+        QTreeWidget#aifsNetworkLocationsView {
+            background-color: #ffffff;
+            alternate-background-color: #f4f6f8;
+            border: none;
+            outline: 0;
+        }
+        QTreeView#aifsFileExplorerView::item:selected,
+        QTreeWidget#aifsNetworkLocationsView::item:selected {
+            background-color: #d7e8f7;
+            color: #111827;
+        }
+    )");
+}
+
 } // namespace
 
 MainApp::MainApp(Settings& settings,
@@ -718,12 +742,16 @@ void MainApp::setup_file_explorer_view()
     }
 
 #if defined(Q_OS_WIN)
-    file_explorer_container = new QWidget(file_explorer_dock);
+    auto* explorer_frame = new QFrame(file_explorer_dock);
+    explorer_frame->setObjectName(QStringLiteral("aifsFileExplorerPanel"));
+    explorer_frame->setStyleSheet(file_explorer_panel_style_sheet());
+    file_explorer_container = explorer_frame;
     auto* explorer_layout = new QVBoxLayout(file_explorer_container);
-    explorer_layout->setContentsMargins(0, 0, 0, 0);
+    explorer_layout->setContentsMargins(2, 2, 2, 2);
     explorer_layout->setSpacing(2);
 
     network_locations_view = new QTreeWidget(file_explorer_container);
+    network_locations_view->setObjectName(QStringLiteral("aifsNetworkLocationsView"));
     network_locations_view->setHeaderHidden(true);
     network_locations_view->setColumnCount(1);
     network_locations_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -738,6 +766,10 @@ void MainApp::setup_file_explorer_view()
     file_explorer_view = new QTreeView(file_explorer_container);
 #else
     file_explorer_view = new QTreeView(file_explorer_dock);
+#endif
+    file_explorer_view->setObjectName(QStringLiteral("aifsFileExplorerView"));
+#if !defined(Q_OS_WIN)
+    file_explorer_view->setStyleSheet(file_explorer_panel_style_sheet());
 #endif
     file_explorer_view->setModel(file_system_model);
 #if defined(Q_OS_WIN)

@@ -115,6 +115,64 @@ std::string read_item_or_hidden_text(const QStandardItem* item, int hidden_role)
     return std::string();
 }
 
+QString review_dialog_style_sheet()
+{
+    return QStringLiteral(R"(
+        QFrame#aifsReviewTablePanel {
+            background-color: #fbfcfe;
+            border: 1px solid #c8d0d8;
+            border-radius: 6px;
+        }
+        QTableView#aifsReviewTable {
+            background-color: #ffffff;
+            alternate-background-color: #f4f6f8;
+            border: none;
+            outline: 0;
+            gridline-color: #d8e0e8;
+            selection-background-color: #d7e8f7;
+            selection-color: #111827;
+        }
+        QTableView#aifsReviewTable QHeaderView::section {
+            background-color: #f3f6f9;
+            border: none;
+            border-right: 1px solid #d8e0e8;
+            border-bottom: 1px solid #c8d0d8;
+            padding: 4px 6px;
+        }
+        QPushButton[aifsReviewActionButton="true"] {
+            background-color: #ffffff;
+            border: 1px solid #b7c3cf;
+            border-radius: 6px;
+            padding: 5px 13px;
+            min-height: 24px;
+        }
+        QPushButton[aifsReviewActionButton="true"]:hover {
+            background-color: #eef5fb;
+            border-color: #93b7d7;
+        }
+        QPushButton[aifsReviewActionButton="true"]:pressed {
+            background-color: #dceaf5;
+            border-color: #709fc5;
+        }
+        QPushButton[aifsReviewActionButton="true"]:disabled {
+            background-color: #f4f6f8;
+            border-color: #d7dde4;
+            color: #9aa3ad;
+        }
+        QPushButton#aifsReviewPrimaryButton {
+            background-color: #1f6fb2;
+            border-color: #1f6fb2;
+            color: #ffffff;
+        }
+        QPushButton#aifsReviewPrimaryButton:hover {
+            background-color: #287fc8;
+        }
+        QPushButton#aifsReviewPrimaryButton:pressed {
+            background-color: #185c95;
+        }
+    )");
+}
+
 } // namespace
 
 namespace TestHooks {
@@ -301,6 +359,8 @@ void CategorizationDialog::show_results(const std::vector<CategorizedFile>& file
 
 void CategorizationDialog::setup_ui()
 {
+    setStyleSheet(review_dialog_style_sheet());
+
     auto* layout = new QVBoxLayout(this);
 
     auto* scroll_area = new QScrollArea(this);
@@ -353,6 +413,7 @@ void CategorizationDialog::setup_ui()
     model->setColumnCount(8);
 
     table_view = new QTableView(this);
+    table_view->setObjectName(QStringLiteral("aifsReviewTable"));
     table_view->setModel(model);
     table_view->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_view->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -369,7 +430,16 @@ void CategorizationDialog::setup_ui()
     table_view->setColumnWidth(ColumnSelect, 70);
     table_view->setIconSize(QSize(16, 16));
     table_view->setColumnWidth(ColumnType, table_view->iconSize().width() + 12);
-    scroll_layout->addWidget(table_view, 1);
+    table_view->setAlternatingRowColors(true);
+    table_view->setFrameShape(QFrame::NoFrame);
+
+    auto* table_panel = new QFrame(this);
+    table_panel->setObjectName(QStringLiteral("aifsReviewTablePanel"));
+    auto* table_panel_layout = new QVBoxLayout(table_panel);
+    table_panel_layout->setContentsMargins(2, 2, 2, 2);
+    table_panel_layout->setSpacing(0);
+    table_panel_layout->addWidget(table_view);
+    scroll_layout->addWidget(table_panel, 1);
 
     auto* tip_label = new QLabel(this);
     tip_label->setWordWrap(true);
@@ -390,6 +460,22 @@ void CategorizationDialog::setup_ui()
     close_button->setVisible(false);
     preview_button = new QPushButton(this);
     preview_button->setEnabled(false);
+
+    for (QPushButton* button : {preview_button,
+                                confirm_button,
+                                continue_button,
+                                undo_button,
+                                close_button,
+                                select_highlighted_button,
+                                bulk_edit_button}) {
+        if (button) {
+            button->setProperty("aifsReviewActionButton", true);
+            button->setCursor(Qt::PointingHandCursor);
+        }
+    }
+    if (confirm_button) {
+        confirm_button->setObjectName(QStringLiteral("aifsReviewPrimaryButton"));
+    }
 
     scroll_area->setWidget(scroll_widget);
     layout->addWidget(scroll_area, 1);
