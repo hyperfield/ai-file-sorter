@@ -175,7 +175,7 @@ void MainAppHelpActions::show_about(QWidget* parent)
     about_layout->addWidget(version_label);
 
     auto* copyright_label =
-        new QLabel(QStringLiteral("© 2024-2026 HF Studio. All rights reserved."), about_tab);
+        new QLabel(QStringLiteral("Copyright 2026 HF Studio. All rights reserved."), about_tab);
     copyright_label->setAlignment(Qt::AlignHCenter);
     about_layout->addWidget(copyright_label);
 
