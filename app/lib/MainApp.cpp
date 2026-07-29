@@ -2477,9 +2477,9 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     box.setIcon(QMessageBox::Information);
     box.setWindowTitle(QObject::tr("Support %1").arg(app_display_name()));
 
-    const QString headline = tr("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you.")
+    const QString headline = tr("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app has been useful for you.")
                                  .arg(total_files);
-    const QString details = tr("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+    const QString details = tr("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs. "
                                "If the app saves you time or brings value, please consider supporting it so it can keep improving.");
     const QString code_note = tr("Already donated? Click \"I have already donated\" to enter your donation code and permanently disable this reminder.");
 
