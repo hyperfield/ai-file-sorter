@@ -996,6 +996,29 @@ Procedure: Construct the dialog and inspect the local downloader destination.
 Expected outcome: The downloader targets the visual backend storage path (`gemma-3-4b-it/model.gguf`) instead of the legacy flat URL-derived filename.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog downloads Gemma 4B to the shared visual-model path"`
 
+### `tests/unit/test_llm_selection_visual_backend_model.cpp`
+
+#### Test case: LLM selection visual backend model builds built-in and visual custom items
+Purpose: Verify the extracted visual backend combo model lists built-in backends and only custom LLMs that have visual artifacts.
+Setup: Create one text-only custom LLM and one custom visual LLM.
+Procedure: Build visual backend combo items with fixed localized label strings.
+Expected outcome: Built-in backends are listed, the default Gemma backend is marked recommended, and only the visual custom LLM appears.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model builds built-in and visual custom items"`
+
+#### Test case: LLM selection visual backend model chooses requested default and fallback ids
+Purpose: Ensure visual backend selection restoration prefers the requested id, then the default backend, then an empty result when no items exist.
+Setup: Build combo items without custom visual LLMs.
+Procedure: Resolve requested, missing, and empty selections through the helper.
+Expected outcome: Existing ids are preserved, missing ids fall back to Gemma, and item indexes are reported deterministically.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model chooses requested default and fallback ids"`
+
+#### Test case: LLM selection visual backend model resolves canonical descriptors
+Purpose: Verify selected visual model ids map to the descriptor used by dialog/runtime code.
+Setup: Use a custom visual id and an unknown built-in id.
+Procedure: Resolve descriptors and canonical ids through the helper.
+Expected outcome: Custom ids use the custom descriptor and unknown ids fall back to the default Gemma descriptor.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model resolves canonical descriptors"`
+
 ### `tests/unit/test_llm_selection_dialog_visual.cpp` (non-Windows only)
 
 #### Test case: Visual model entry shows missing env var state

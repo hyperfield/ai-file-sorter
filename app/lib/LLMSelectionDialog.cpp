@@ -3,6 +3,7 @@
 #include "AppIconResources.hpp"
 #include "DialogUtils.hpp"
 #include "LlmCatalog.hpp"
+#include "LLMSelectionVisualBackendModel.hpp"
 #include "ErrorMessages.hpp"
 #include "Settings.hpp"
 #include "Utils.hpp"
@@ -138,16 +139,6 @@ void apply_download_toggle_style(QToolButton* button)
         " color: %3;"
         " }")
         .arg(normal, hover, pressed));
-}
-
-QString visual_backend_combo_label(const VisualModelDescriptor& backend)
-{
-    QString label = QString::fromUtf8(backend.display_name);
-    if (std::string_view(backend.id) == std::string_view(default_visual_model_descriptor().id)) {
-        label = QStringLiteral("%1 (%2)")
-                    .arg(label, LLMSelectionDialog::tr("Recommended"));
-    }
-    return label;
 }
 
 } // namespace
@@ -1528,47 +1519,24 @@ void LLMSelectionDialog::refresh_visual_backend_combo()
     }
 
     const std::string previous_id = selected_visual_model_id_;
+    const auto items = LLMSelectionVisualBackendModel::build_visual_backend_items(
+        settings.get_custom_llms(),
+        tr("Recommended"),
+        tr("Custom: %1"));
+    const std::string target_id =
+        LLMSelectionVisualBackendModel::choose_visual_backend_id(previous_id, items);
+
     visual_backend_combo->blockSignals(true);
     visual_backend_combo->clear();
 
-    for (const auto& backend : visual_model_descriptors()) {
-        visual_backend_combo->addItem(visual_backend_combo_label(backend),
-                                      QString::fromUtf8(backend.id));
+    for (const auto& item : items) {
+        visual_backend_combo->addItem(item.label, QString::fromStdString(item.id));
     }
 
-    for (const auto& custom : settings.get_custom_llms()) {
-        if (!is_visual_custom_llm(custom)) {
-            continue;
-        }
-        const QString label = tr("Custom: %1").arg(QString::fromStdString(custom.name));
-        visual_backend_combo->addItem(label,
-                                      QString::fromStdString(custom_visual_model_id_for_llm(custom.id)));
-    }
-
-    int target_index = -1;
-    for (int i = 0; i < visual_backend_combo->count(); ++i) {
-        if (visual_backend_combo->itemData(i).toString().toStdString() == previous_id) {
-            target_index = i;
-            break;
-        }
-    }
-
-    const std::string default_id = default_visual_model_descriptor().id;
-    if (target_index < 0) {
-        for (int i = 0; i < visual_backend_combo->count(); ++i) {
-            if (visual_backend_combo->itemData(i).toString().toStdString() == default_id) {
-                target_index = i;
-                break;
-            }
-        }
-    }
-    if (target_index < 0 && visual_backend_combo->count() > 0) {
-        target_index = 0;
-    }
-
+    const int target_index = LLMSelectionVisualBackendModel::index_of_visual_backend_id(items, target_id);
     if (target_index >= 0) {
         visual_backend_combo->setCurrentIndex(target_index);
-        selected_visual_model_id_ = visual_backend_combo->itemData(target_index).toString().toStdString();
+        selected_visual_model_id_ = target_id;
     } else {
         selected_visual_model_id_.clear();
     }
@@ -2038,14 +2006,11 @@ void LLMSelectionDialog::handle_delete_visual_download(VisualLlmDownloadEntry& e
 
 void LLMSelectionDialog::update_visual_backend_selection()
 {
-    const auto* descriptor = selected_visual_model_descriptor();
-    if (!descriptor) {
+    const std::string target_id =
+        LLMSelectionVisualBackendModel::canonical_visual_backend_id(selected_visual_model_id_);
+    if (target_id.empty()) {
         return;
     }
-
-    const std::string target_id = is_custom_visual_model_id(selected_visual_model_id_)
-        ? selected_visual_model_id_
-        : std::string(descriptor->id);
     selected_visual_model_id_ = target_id;
     if (!visual_backend_combo) {
         return;
@@ -2067,13 +2032,7 @@ void LLMSelectionDialog::update_visual_backend_selection()
 
 const VisualModelDescriptor* LLMSelectionDialog::selected_visual_model_descriptor() const
 {
-    if (is_custom_visual_model_id(selected_visual_model_id_)) {
-        return &custom_visual_model_descriptor();
-    }
-    if (const auto* descriptor = find_visual_model_descriptor(selected_visual_model_id_)) {
-        return descriptor;
-    }
-    return &default_visual_model_descriptor();
+    return LLMSelectionVisualBackendModel::selected_visual_model_descriptor(selected_visual_model_id_);
 }
 
 LLMSelectionDialog::VisualLlmDownloadEntry* LLMSelectionDialog::find_visual_download_entry(
