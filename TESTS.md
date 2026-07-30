@@ -193,6 +193,29 @@ Procedure: Call `prepare_model_params_result_for_testing()` for a temporary mode
 Expected outcome: `n_gpu_layers` is `0` and the captured status is `GpuLowMemoryFallbackToCpu`.
 Run: `./build-tests/ai_file_sorter_tests "Vulkan backend reports low GPU memory before load"`
 
+### `tests/unit/test_local_llm_prompt_builder.cpp`
+
+#### Test case: LocalLLMPromptBuilder preserves specialized prompt routing
+Purpose: Verify the extracted prompt builder still selects image, document, and directory system prompts from the target context.
+Setup: Provide representative image-description, document, and directory prompt paths.
+Procedure: Build system prompts through `LocalLLMPromptBuilder`.
+Expected outcome: Each target gets its specialized prompt text.
+Run: `./build-tests/ai_file_sorter_tests "LocalLLMPromptBuilder preserves specialized prompt routing"`
+
+#### Test case: LocalLLMPromptBuilder strips image guidance from image prompts only
+Purpose: Keep image categorization prompts concise by removing duplicated image-specific guidance while preserving whitelist context.
+Setup: Provide an image prompt path with a visual description and consistency context containing image guidance plus allowed categories.
+Procedure: Build the user prompt through `LocalLLMPromptBuilder`.
+Expected outcome: The image guidance block is removed, while allowed categories and the image description remain.
+Run: `./build-tests/ai_file_sorter_tests "LocalLLMPromptBuilder strips image guidance from image prompts only"`
+
+#### Test case: LocalLLMPromptBuilder shrinks long analysis sections before truncating prompt
+Purpose: Ensure context fallback retries trim long document or image analysis sections without losing category restrictions or answer-format instructions.
+Setup: Build a document prompt containing a long `Document summary:` section.
+Procedure: Shrink the prompt for a retry attempt.
+Expected outcome: The summary is shortened with an ellipsis and the allowed-category and answer-format sections remain present.
+Run: `./build-tests/ai_file_sorter_tests "LocalLLMPromptBuilder shrinks long analysis sections before truncating prompt"`
+
 ### `tests/unit/test_analysis_runtime_lock.cpp`
 
 #### Test case: AnalysisRuntimeLock serializes active jobs and persists metadata
