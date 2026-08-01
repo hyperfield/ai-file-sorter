@@ -1438,6 +1438,24 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         add_executable(${target_name} ${ARGN})
     endfunction()
 
+    function(aifs_set_windows_test_runtime_output target_name)
+        if(NOT WIN32)
+            return()
+        endif()
+
+        set_target_properties(${target_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tests"
+        )
+
+        foreach(_aifs_test_config IN ITEMS Debug Release MinSizeRel RelWithDebInfo)
+            string(TOUPPER "${_aifs_test_config}" _aifs_test_config_upper)
+            set_target_properties(${target_name} PROPERTIES
+                "RUNTIME_OUTPUT_DIRECTORY_${_aifs_test_config_upper}"
+                "${CMAKE_CURRENT_BINARY_DIR}/tests/${_aifs_test_config}"
+            )
+        endforeach()
+    endfunction()
+
     aifs_add_windows_test_executable(aifs_onedrive_storage_plugin
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/onedrive_storage_plugin_main.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/CloudPathSupport.cpp"
@@ -1583,6 +1601,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     add_dependencies(ai_file_sorter_tests aifs_storage_plugin_stub)
     aifs_apply_update_mode(ai_file_sorter_tests)
     aifs_apply_expected_update_mode(ai_file_sorter_tests "${_aifs_effective_update_mode}")
+    aifs_set_windows_test_runtime_output(ai_file_sorter_tests)
 
     if(WIN32)
         target_link_libraries(ai_file_sorter_tests PRIVATE ggml ggml_base ggml_cpu)
@@ -1598,6 +1617,14 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     endif()
 
     aifs_stage_test_runtime(ai_file_sorter_tests)
+    if(WIN32)
+        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:aifs_onedrive_storage_plugin>
+                $<TARGET_FILE:aifs_storage_plugin_stub>
+                $<TARGET_FILE_DIR:ai_file_sorter_tests>
+        )
+    endif()
 
     if(WIN32)
         set(AIFS_UPDATER_MODE_TEST_APP_SOURCES
@@ -1653,6 +1680,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
             aifs_apply_named_update_mode(${target_name} "${update_mode}")
             aifs_apply_expected_update_mode(${target_name} "${update_mode}")
+            aifs_set_windows_test_runtime_output(${target_name})
             aifs_stage_test_runtime(${target_name})
         endfunction()
 
