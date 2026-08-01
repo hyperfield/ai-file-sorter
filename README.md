@@ -29,14 +29,14 @@ AI File Sorter is a cross-platform desktop application that uses AI to organize 
 
 The app can analyze picture files locally with built-in visual LLM backends and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. AI File Sorter can also clean up messy audio and video filenames by using the metadata already stored inside supported media files. If tags such as year, artist, album, or title are available, the app can turn them into a clear suggestion like `2024_artist_album_title.mp3`, which you can review, edit, or ignore before any change is applied.
 
-AI File Sorter helps tidy up cluttered folders such as Downloads, external drives, or NAS storage by automatically grouping files based on their names, extensions, folder context, taxonomy normalization, and cached categorization results.
+AI File Sorter helps tidy up cluttered folders such as Downloads, external drives, or NAS storage by grouping files based on their names, file types, folder context, and past sorting results.
 
-Instead of relying only on fixed rules, the app combines LLM output with taxonomy matching, optional whitelists, consistency hints from the current session and recent cached assignments for similar file types, and locally approved review decisions when available. This helps keep labels more consistent over time, while still letting you review and adjust everything before anything is applied.
+Instead of relying only on fixed rules, the app combines AI suggestions with optional whitelists, recent similar results, and your approved review decisions. This helps keep sorting more consistent over time while still letting you review and adjust everything before anything is changed.
 
 Categories (and optional subcategories) are suggested for each file, and for supported file types, rename suggestions are provided as well. Once you confirm, the required folders are created automatically and files are sorted accordingly.
 
 Privacy-first by design:
-AI File Sorter can run entirely on your device, using local text and visual models such as Gemma 3 4B IT and other supported GGUF backends. The same Gemma 3 4B IT GGUF can be used on its own as a local text model, while visual image analysis additionally requires a matching `mmproj` file. No files, filenames, images, or metadata are uploaded anywhere, and no telemetry is sent. An internet connection is only needed if you explicitly choose to enable a remote model.
+AI File Sorter can run entirely on your device. When you use a local model, your files, filenames, images, and metadata stay on your computer, and no telemetry is sent. An internet connection is only needed if you choose to use a remote model.
 
 ---
 
@@ -137,13 +137,13 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Features
 
-- **AI-Powered Categorization**: Classify files intelligently using either a **local LLM** (built-in Gemma 3 4B IT, Mistral 7B, Gemma 1.1 7B, or your own GGUF) or a remote model (ChatGPT with your own OpenAI API key, Gemini with your own Gemini API key, or a custom OpenAI-compatible API endpoint).
+- **AI-powered categorization**: Sort files using either local AI models on your computer or remote models with your own API key.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
-- **Robust categorization**: Taxonomy and heuristics help keep labels more consistent across runs.
+- **Robust categorization**: Built-in rules and category matching help keep results more consistent across runs.
 - **Configurable categorization controls**: Use whitelists, taxonomy normalization, consistency modes, and review-time edits to steer categories and subcategories.
-- **Two categorization modes**: Pick **More Refined** for detailed labels or **More Consistent** to bias toward uniform categories within a folder.
+- **Two categorization modes**: Pick **More Refined** for more specific labels with less pressure to stay in broad default categories, or **More Consistent** for steadier top-level categories across similar files.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, including smart branching lists where each main category has its own allowed subcategories. Manage them under **Settings → Manage category whitelists…**, then toggle/select them in the main window when you want to constrain model output for a session.
-- **Model-aware category and rename languages**: Categorization stays canonical in English first and then translates labels into the selected category language. Suggested filenames for images, documents, and supported audio/video metadata flows are also localized into that same selected language before review. The available languages depend on the selected local model; Gemma 3 4B and custom local models expose the full app-supported list, while smaller built-in models expose only their supported subset.
+- **Category and rename languages**: Categories are chosen in English behind the scenes and then shown in your selected category language. Suggested filenames for images, documents, and supported audio/video files are localized the same way. The available languages depend on the selected local model.
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog. Add a matching MMProj file to make a custom model available for image analysis as well.
 - **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends such as the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
 - **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
@@ -171,20 +171,34 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ### Categorization modes
 
-- **More refined**: The flexible, detail-oriented mode. Consistency hints are disabled so the model can pick the most specific category/subcategory it deems appropriate, which is useful for long-tail or mixed folders.
-- **More consistent**: The uniform mode. The model receives consistency hints from prior assignments in the current session so files with similar names/extensions trend toward the same categories. This is helpful when you want strict uniformity across a batch.
+- **More refined**: The flexible, detail-oriented mode. It is less tied to the default category structure, so it can choose a more specific top-level category when that fits better. For example: `Security / PCI DSS`, `Manuals / Camera Guides`, or `Wildlife / Lions`. This works well for mixed, specialized, or long-tail folders.
+- **More consistent**: The uniform mode. It uses recent similar results to favor stable broad folder categories, so related files are more likely to land under the same top-level folders. For example: `Documents / PCI DSS`, `Documents / Camera Guides`, or `Images / Lions`. This works well when you want a cleaner, more uniform folder layout.
 - Switch between the two via the **Categorization type** radio buttons on the main window; your choice is saved for the next run.
+
+Example without a whitelist:
+
+```text
+More refined
+- pci_dss_quick_reference.pdf -> Security / PCI DSS
+- camera_setup_manual.pdf -> Manuals / Camera Guides
+- lion_photo.jpg -> Wildlife / Lions
+
+More consistent
+- pci_dss_quick_reference.pdf -> Documents / PCI DSS
+- camera_setup_manual.pdf -> Documents / Camera Guides
+- lion_photo.jpg -> Images / Lions
+```
 
 ### Category language selection
 
-- Category labels are generated canonically in English first and then translated into the selected **Settings → Category language** target.
+- Category labels are chosen in English first behind the scenes, then shown in the category language you selected under **Settings → Category language**.
 - Suggested filenames for image, document, and supported audio/video rename flows are also localized into the selected **Settings → Category language** target before review/apply.
 - The list is model-dependent for built-in local models. **Gemma 3 4B IT** and **Custom** local models expose the full app-supported category-language list, **Mistral 7B** exposes a smaller supported subset, and **Gemma 1.1 7B** stays English-only.
 - When the supported list is long, the menu is grouped into alphabetical submenus to keep it usable on smaller screens.
 
 ### Category whitelists
 
-- Enable **Use a whitelist** to inject the selected whitelist into the LLM prompt; disable it to let the model choose freely.
+- Enable **Use a whitelist** to apply the selected category list during categorization; disable it to let the model choose more freely.
 - Manage lists (add, edit, remove) under **Settings → Manage category whitelists…**. Built-in `Default` and `Documents` lists are auto-created only when no lists exist, and multiple named lists can be kept for different projects.
 - The whitelist editor has three sections. **Main categories / top-level folders** defines the destination category folders. **Global subcategories** defines subcategories that may be used under any main category. **Category-specific subcategories** defines smart branching rows where each main category has its own allowed subcategories.
 - **Global subcategories** and **Category-specific subcategories** are alternatives. If you enter values in one section, the other section is disabled/ignored for that whitelist so the app does not mix two incompatible constraint styles.
@@ -197,7 +211,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ## Image analysis (Visual LLM)
 
-Image analysis uses local MTMD-backed visual LLM backends to describe image contents and (optionally) suggest a better filename. This runs locally and does not require an API key.
+Image analysis can run locally to understand what a picture shows and suggest a better category or filename. It does not require an API key.
 
 As of 1.8.0, **Gemma 3 4B IT** is the default visual backend. The app also gives screenshots, webpage captures, dashboards, forms, mockups, and other UI-like images extra prompt guidance so categories describe what is shown on screen instead of misclassifying the image as the software artifact itself.
 

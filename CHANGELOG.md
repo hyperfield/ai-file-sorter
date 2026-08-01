@@ -6,6 +6,7 @@
 - Improved the whitelist editor with clearer top-level category, global subcategory, and category-specific subcategory sections. Global and category-specific subcategory modes are mutually exclusive so a whitelist has one clear constraint style.
 - Added file preview support to the Categorization Review dialog.
 - Added headless Explorer review gating so context-menu jobs can prepare saved review plans without moving or renaming files until explicitly approved.
+- The More Refined categorization mode is now less tied to broad fixed categories like Documents or Images, so it can choose a more specific top-level category when that fits the file better.
 - Added structured project-folder protection for recursive scans. The scanner now skips recognized Unity, Unreal, Godot, Blender, Git, and common source-code project roots to avoid moving files that depend on project-relative paths or metadata.
 - Improved accessibility by adding screen-reader labels for main-window controls and progress announcements during analysis.
 - Added custom visual model support and configurable model storage in the LLM selection flow. Custom local GGUF entries can now supply a matching MMProj file for image analysis, and built-in local/visual downloads can share the configured model storage location.
