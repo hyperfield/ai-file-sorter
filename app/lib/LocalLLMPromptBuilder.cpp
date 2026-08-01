@@ -12,6 +12,7 @@ namespace {
 
 constexpr std::string_view kImageDescriptionMarker = "\nImage description: ";
 constexpr std::string_view kDocumentSummaryMarker = "\nDocument summary: ";
+constexpr std::string_view kRefinedSortingStyleMarker = "Sorting style: More refined";
 
 std::string trim_copy(std::string value)
 {
@@ -79,6 +80,11 @@ std::string extract_prompt_file_name(std::string_view payload)
     return first_line.substr(slash + 1);
 }
 
+bool is_refined_sorting_mode(std::string_view consistency_context)
+{
+    return consistency_context.find(kRefinedSortingStyleMarker) != std::string_view::npos;
+}
+
 std::string generic_file_categorization_system_prompt()
 {
     return "You are a file categorization assistant. If the file is an installer, "
@@ -94,8 +100,29 @@ std::string generic_file_categorization_system_prompt()
            "'Subcategory'. If uncertain, make your best guess from the name only.";
 }
 
-std::string document_categorization_system_prompt()
+std::string document_categorization_system_prompt(bool prefer_stable_taxonomy)
 {
+    if (!prefer_stable_taxonomy) {
+        return "You are a document categorization assistant. Categorize the "
+               "document by its subject matter and content for filesystem "
+               "organization, not merely by its file extension or the "
+               "application that may have created it. Use any provided document "
+               "summary as the primary evidence when available, and use the "
+               "filename, extension, and directory context only as supporting "
+               "clues. If the prompt includes an 'Allowed main categories' list, "
+               "choose the main category from that list only. Otherwise choose "
+               "the most semantically accurate main category and subcategory pair. "
+               "Broad filesystem buckets such as Documents, Presentations, "
+               "Spreadsheets, Data Exports, and Configs remain valid when they "
+               "fit best, but you do not need to force every file into them. "
+               "Reply with exactly one line in the format <Main category> : "
+               "<Subcategory>. Main category must be broad enough to work as a "
+               "folder label, and subcategory must be specific, relevant, and "
+               "must not repeat the main category. Do not explain your answer, "
+               "add extra lines, or use label words like 'Category' or "
+               "'Subcategory'.";
+    }
+
     return "You are a document categorization assistant. Categorize the document by "
            "its subject matter and content for filesystem organization, not merely "
            "by its file extension or the application that may have created it. Use "
@@ -111,8 +138,30 @@ std::string document_categorization_system_prompt()
            "lines, or use label words like 'Category' or 'Subcategory'.";
 }
 
-std::string image_categorization_system_prompt()
+std::string image_categorization_system_prompt(bool prefer_stable_taxonomy)
 {
+    if (!prefer_stable_taxonomy) {
+        return "You categorize image files for filesystem organization. If the "
+               "prompt includes an 'Allowed main categories' list, choose the "
+               "main category from that list only. Otherwise choose the most "
+               "semantically accurate main category and subcategory pair for what "
+               "the image shows. You may use Images as the main category when "
+               "media-type grouping is best, but you may also choose a more "
+               "content-specific main category when that clearly improves "
+               "organization. For screenshots and UI captures, describe the "
+               "on-screen content rather than treating the image as the installer, "
+               "operating system, database, or other artifact itself. Do not use "
+               "Software, Operating Systems, Databases, Installers, Technology, "
+               "or similar artifact categories as the main category for ordinary "
+               "image files. Use any provided image description as the primary "
+               "evidence, and use the filename, extension, and directory context "
+               "only as supporting clues. Reply with exactly one line in the "
+               "format <Main category> : <Subcategory>. The subcategory must be "
+               "specific, relevant, concise, and must not repeat the main "
+               "category. Do not explain your answer, add extra lines, or use "
+               "label words like 'Category' or 'Subcategory'.";
+    }
+
     return "You categorize image files for filesystem organization. If the prompt "
            "includes an 'Allowed main categories' list, choose the main category "
            "from that list only. Otherwise, because the input is an image file, "
@@ -170,6 +219,7 @@ std::string build_image_categorization_user_prompt(const std::string& file_name,
 {
     const auto [base_path, image_description] = split_prompt_payload(file_path, kImageDescriptionMarker);
     const std::string extra_context = strip_image_guidance_block(consistency_context);
+    const bool prefer_stable_taxonomy = !is_refined_sorting_mode(consistency_context);
 
     std::ostringstream prompt;
     prompt << "Categorize this image file for file organization.\n\n";
@@ -183,7 +233,11 @@ std::string build_image_categorization_user_prompt(const std::string& file_name,
     if (!extra_context.empty()) {
         prompt << "\n" << extra_context << "\n";
     }
-    prompt << "\nAnswer with exactly one line:\nImages : <Subcategory>";
+    if (prefer_stable_taxonomy) {
+        prompt << "\nAnswer with exactly one line:\nImages : <Subcategory>";
+    } else {
+        prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    }
     return prompt.str();
 }
 
@@ -227,16 +281,19 @@ std::string truncate_with_ellipsis(std::string value, std::size_t limit)
 
 namespace LocalLLMPromptBuilder {
 
-std::string build_system_prompt(std::string_view file_path, FileType file_type)
+std::string build_system_prompt(std::string_view file_path,
+                                FileType file_type,
+                                std::string_view consistency_context)
 {
+    const bool prefer_stable_taxonomy = !is_refined_sorting_mode(consistency_context);
     if (file_type == FileType::Directory) {
         return directory_categorization_system_prompt();
     }
     if (has_marker(file_path, kImageDescriptionMarker)) {
-        return image_categorization_system_prompt();
+        return image_categorization_system_prompt(prefer_stable_taxonomy);
     }
     if (FileCategoryPolicy::is_supported_document_file_name(extract_prompt_file_name(file_path))) {
-        return document_categorization_system_prompt();
+        return document_categorization_system_prompt(prefer_stable_taxonomy);
     }
     return generic_file_categorization_system_prompt();
 }

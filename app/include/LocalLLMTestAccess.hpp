@@ -7,6 +7,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "llama.h"
 
@@ -51,7 +52,8 @@ llama_model_params prepare_model_params_for_testing(const std::string& model_pat
 std::vector<int> gpu_layer_retry_candidates_for_testing(int optimistic_layers,
                                                         int conservative_layers);
 std::string categorization_system_prompt_for_testing(const std::string& file_path,
-                                                     FileType file_type);
+                                                     FileType file_type,
+                                                     std::string_view consistency_context = {});
 std::string categorization_user_prompt_for_testing(const std::string& file_name,
                                                    const std::string& file_path,
                                                    FileType file_type,

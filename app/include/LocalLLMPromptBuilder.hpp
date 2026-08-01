@@ -11,9 +11,12 @@ namespace LocalLLMPromptBuilder {
  * @brief Build the system prompt for local categorization.
  * @param file_path Prompt path/context, optionally including image or document analysis text.
  * @param file_type File or directory classification target.
+ * @param consistency_context Optional prompt context used to infer refined vs. consistent taxonomy guidance.
  * @return System prompt tailored to the target type and available context.
  */
-std::string build_system_prompt(std::string_view file_path, FileType file_type);
+std::string build_system_prompt(std::string_view file_path,
+                                FileType file_type,
+                                std::string_view consistency_context = {});
 
 /**
  * @brief Build the user prompt for local categorization.

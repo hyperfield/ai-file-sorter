@@ -655,7 +655,7 @@ TEST_CASE("CategorizationService adds relevant learned taxonomy candidates to co
         FileType::File);
 
     CHECK(context.find("User-learned category candidates") != std::string::npos);
-    CHECK(context.find("Documents : Camera Guides") != std::string::npos);
+    CHECK(context.find("Manuals : Camera Guides") != std::string::npos);
 }
 
 TEST_CASE("CategorizationService prefers learned candidates over generic model categories") {
@@ -698,9 +698,9 @@ TEST_CASE("CategorizationService prefers learned candidates over generic model c
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
-    CHECK(categorized.front().canonical_category == "Documents");
+    CHECK(categorized.front().canonical_category == "Manuals");
     CHECK(categorized.front().canonical_subcategory == "Camera Guides");
-    CHECK(categorized.front().category == "Documents");
+    CHECK(categorized.front().category == "Manuals");
     CHECK(categorized.front().subcategory == "Camera Guides");
 }
 
@@ -1319,6 +1319,7 @@ TEST_CASE("CategorizationService adds stable guidance for supported document pro
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1357,10 +1358,37 @@ TEST_CASE("CategorizationService adds stable guidance for supported document pro
     CHECK(legacy_context.find("Allowed main categories") != std::string::npos);
 }
 
+TEST_CASE("CategorizationService relaxes document family guidance in more refined mode") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string prompt_name = "pci_dss_quick_reference.pdf";
+    const std::string prompt_path = MainAppTestAccess::build_document_prompt_path(
+        (base_dir.path() / prompt_name).string(),
+        prompt_name,
+        "Quick reference to PCI DSS controls for merchants.");
+
+    const std::string context = CategorizationServiceTestAccess::build_combined_context(
+        service,
+        {},
+        prompt_name,
+        prompt_path,
+        FileType::File);
+
+    CHECK(context.find("Sorting style: More refined") != std::string::npos);
+    CHECK(context.find("Use the most semantically accurate main category and subcategory pair for the document.") != std::string::npos);
+    CHECK(context.find("If a more topic-specific main category such as Finance, Security, Marketing, Legal, Research, or Manuals is clearly better, use it.") != std::string::npos);
+    CHECK(context.find("Allowed main categories") == std::string::npos);
+}
+
 TEST_CASE("CategorizationService normalizes supported document main categories to stable buckets") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1452,6 +1480,46 @@ TEST_CASE("CategorizationService normalizes supported document main categories t
     }
 }
 
+TEST_CASE("CategorizationService preserves topic-specific document main categories in more refined mode") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "pci_dss_quick_reference.pdf";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::string prompt_path = MainAppTestAccess::build_document_prompt_path(
+        full_path,
+        file_name,
+        "Quick reference to PCI DSS controls and security requirements.");
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(calls, "Security : PCI DSS");
+    };
+
+    const auto categorized = service.categorize_entries(
+        files,
+        true,
+        stop_flag,
+        {},
+        {},
+        {},
+        {},
+        factory,
+        [file_name, prompt_path](const FileEntry&) {
+            return CategorizationService::PromptOverride{file_name, prompt_path};
+        });
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().canonical_category == "Security");
+    CHECK(categorized.front().canonical_subcategory == "PCI DSS");
+}
+
 TEST_CASE("CategorizationService preserves explicit whitelist document main categories") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
@@ -1499,6 +1567,7 @@ TEST_CASE("CategorizationService adds stable guidance for supported image prompt
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1517,6 +1586,28 @@ TEST_CASE("CategorizationService adds stable guidance for supported image prompt
     CHECK(context.find("put the depicted subject, scene, or on-screen content in the subcategory") != std::string::npos);
     CHECK(context.find("Allowed main categories") != std::string::npos);
     CHECK(context.find("1) Images") != std::string::npos);
+}
+
+TEST_CASE("CategorizationService relaxes image family guidance in more refined mode") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string prompt_name = "seal_photo.jpg";
+    const std::string prompt_path = (base_dir.path() / prompt_name).string();
+
+    const std::string context = CategorizationServiceTestAccess::build_combined_context(
+        service,
+        {},
+        prompt_name,
+        prompt_path,
+        FileType::File);
+
+    CHECK(context.find("Sorting style: More refined") != std::string::npos);
+    CHECK(context.find("Use Images as the main category when media-type grouping is the best fit, but you may choose a more semantically specific main category when that clearly improves organization.") != std::string::npos);
+    CHECK(context.find("Allowed main categories") == std::string::npos);
 }
 
 TEST_CASE("CategorizationService leaves generic software-like prompts unscaffolded without whitelist") {
@@ -1783,6 +1874,7 @@ TEST_CASE("CategorizationService uses one-shot categorization prompts for docume
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1835,6 +1927,7 @@ TEST_CASE("CategorizationService normalizes supported image main categories to I
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1903,6 +1996,46 @@ TEST_CASE("CategorizationService normalizes supported image main categories to I
         CHECK(categorized.front().canonical_category == "Images");
         CHECK(categorized.front().canonical_subcategory == test_case.expected_subcategory);
     }
+}
+
+TEST_CASE("CategorizationService preserves content-specific image main categories in more refined mode") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    TempDir data_dir;
+    const std::string file_name = "lion-805084_1920.jpg";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::string prompt_path = MainAppTestAccess::build_image_prompt_path(
+        full_path,
+        file_name,
+        "A lion standing in tall grass on an African savanna.");
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<FixedResponseLLM>(calls, "Wildlife : Lions");
+    };
+
+    const auto categorized = service.categorize_entries(
+        files,
+        true,
+        stop_flag,
+        {},
+        {},
+        {},
+        {},
+        factory,
+        [file_name, prompt_path](const FileEntry&) {
+            return CategorizationService::PromptOverride{file_name, prompt_path};
+        });
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().canonical_category == "Wildlife");
+    CHECK(categorized.front().canonical_subcategory == "Lions");
 }
 
 TEST_CASE("CategorizationService preserves explicit whitelist image main categories when Images is disallowed") {

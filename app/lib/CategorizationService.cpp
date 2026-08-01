@@ -37,6 +37,8 @@ constexpr size_t kLargeWhitelistPromptThreshold = 30;
 constexpr size_t kMaxLargeWhitelistPromptCandidates = 8;
 constexpr std::string_view kImageDescriptionMarker = "\nImage description: ";
 constexpr std::string_view kDocumentSummaryMarker = "\nDocument summary: ";
+constexpr std::string_view kConsistentSortingStyleMarker = "Sorting style: More consistent";
+constexpr std::string_view kRefinedSortingStyleMarker = "Sorting style: More refined";
 constexpr int kMinimumLearnedPreferenceScore = 12;
 constexpr int kCategoryTranslationCompletionTokens = 128;
 std::string to_lower_copy_str(std::string value);
@@ -379,9 +381,13 @@ std::pair<std::string, std::string> normalize_image_category_labels(
     const std::string& category,
     const std::string& subcategory,
     bool whitelist_enabled,
-    const std::vector<std::string>& allowed_categories)
+    const std::vector<std::string>& allowed_categories,
+    bool prefer_stable_main_category)
 {
     if (!is_image_prompt_context(prompt_name, file_type)) {
+        return {category, subcategory};
+    }
+    if (!prefer_stable_main_category && !whitelist_enabled) {
         return {category, subcategory};
     }
     if (whitelist_enabled && !is_allowed("Images", allowed_categories)) {
@@ -401,9 +407,10 @@ std::pair<std::string, std::string> normalize_document_category_labels(
     FileType file_type,
     const std::string& category,
     const std::string& subcategory,
-    bool whitelist_enabled)
+    bool whitelist_enabled,
+    bool prefer_stable_main_category)
 {
-    if (file_type != FileType::File || whitelist_enabled) {
+    if (file_type != FileType::File || whitelist_enabled || !prefer_stable_main_category) {
         return {category, subcategory};
     }
 
@@ -926,6 +933,7 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
         return std::string();
     }
 
+    const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
     std::string query = prompt_name;
     if (!prompt_path.empty()) {
         query += "\n";
@@ -935,7 +943,7 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
     const auto candidates = user_learning_store_->retrieve_taxonomy_candidates(query, 5);
     std::ostringstream oss;
     const auto family_selection =
-        settings.get_use_whitelist()
+        (settings.get_use_whitelist() || !prefer_stable_taxonomy)
             ? FileCategoryPolicy::MainCategorySelection{}
             : FileCategoryPolicy::determine_main_category_selection(prompt_name, file_type);
     const auto whitelist_subcategories_by_category = settings.get_allowed_subcategories_by_category();
@@ -947,12 +955,14 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
                                                                           category,
                                                                           subcategory,
                                                                           settings.get_use_whitelist(),
-                                                                          whitelist_categories);
+                                                                          whitelist_categories,
+                                                                          prefer_stable_taxonomy);
         std::tie(category, subcategory) = normalize_document_category_labels(prompt_name,
                                                                              file_type,
                                                                              category,
                                                                              subcategory,
-                                                                             settings.get_use_whitelist());
+                                                                             settings.get_use_whitelist(),
+                                                                             prefer_stable_taxonomy);
         std::tie(category, subcategory) = normalize_artifact_category_labels(prompt_name,
                                                                              file_type,
                                                                              category,
@@ -1007,6 +1017,7 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
         return resolved;
     }
 
+    const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
     std::string query = prompt_name;
     if (!prompt_path.empty()) {
         query += "\n";
@@ -1021,27 +1032,29 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
     }
 
     auto candidate = candidates.front();
+    const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
+    const auto allowed_categories =
+        allowed_categories_for_whitelist(settings.get_allowed_categories(), allowed_subcategories_by_category);
     std::tie(candidate.category, candidate.subcategory) = normalize_image_category_labels(prompt_name,
                                                                                           file_type,
                                                                                           candidate.category,
                                                                                           candidate.subcategory,
                                                                                           settings.get_use_whitelist(),
-                                                                                          settings.get_allowed_categories());
+                                                                                          allowed_categories,
+                                                                                          prefer_stable_taxonomy);
     std::tie(candidate.category, candidate.subcategory) = normalize_document_category_labels(prompt_name,
                                                                                              file_type,
                                                                                              candidate.category,
                                                                                              candidate.subcategory,
-                                                                                             settings.get_use_whitelist());
+                                                                                             settings.get_use_whitelist(),
+                                                                                             prefer_stable_taxonomy);
     std::tie(candidate.category, candidate.subcategory) = normalize_artifact_category_labels(prompt_name,
                                                                                              file_type,
                                                                                              candidate.category,
                                                                                              candidate.subcategory,
                                                                                              settings.get_use_whitelist());
-    const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
-    const auto allowed_categories =
-        allowed_categories_for_whitelist(settings.get_allowed_categories(), allowed_subcategories_by_category);
     const auto allowed_subcategories = settings.get_allowed_subcategories();
-    if (!settings.get_use_whitelist()) {
+    if (!settings.get_use_whitelist() && prefer_stable_taxonomy) {
         const auto family_selection =
             FileCategoryPolicy::determine_main_category_selection(prompt_name, file_type);
         if (!family_selection.categories.empty() &&
@@ -1210,6 +1223,7 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
         const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
         const auto effective_allowed_categories =
             allowed_categories_for_whitelist(allowed_categories, allowed_subcategories_by_category);
+        const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
         const std::string original_category = category;
         const std::string original_subcategory = subcategory;
         std::tie(category, subcategory) = normalize_image_category_labels(prompt_name,
@@ -1217,7 +1231,8 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                                                                           category,
                                                                           subcategory,
                                                                           settings.get_use_whitelist(),
-                                                                          effective_allowed_categories);
+                                                                          effective_allowed_categories,
+                                                                          prefer_stable_taxonomy);
         if (core_logger &&
             (category != original_category || subcategory != original_subcategory)) {
             core_logger->info("Normalized image category for '{}' from '{}'/'{}' to '{}'/'{}'",
@@ -1233,7 +1248,8 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                                                                              file_type,
                                                                              category,
                                                                              subcategory,
-                                                                             settings.get_use_whitelist());
+                                                                             settings.get_use_whitelist(),
+                                                                             prefer_stable_taxonomy);
         if (core_logger &&
             (category != pre_document_category || subcategory != pre_document_subcategory)) {
             core_logger->info("Normalized document category for '{}' from '{}'/'{}' to '{}'/'{}'",
@@ -1489,6 +1505,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
                                                           FileType file_type) const
 {
     std::string combined_context;
+    const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
     const auto allowed_categories = settings.get_allowed_categories();
     const auto allowed_subcategories = settings.get_allowed_subcategories();
     const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
@@ -1502,6 +1519,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         whitelist_constraint_count(allowed_categories,
                                    allowed_subcategories,
                                    allowed_subcategories_by_category) > kLargeWhitelistPromptThreshold;
+    std::string sorting_style_block;
     const std::string whitelist_block = settings.get_use_whitelist()
         ? build_whitelist_context_for_prompt(prompt_name, prompt_path)
         : std::string();
@@ -1509,7 +1527,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         ? std::string()
         : build_learned_candidate_context(prompt_name, prompt_path, file_type);
     const std::string language_block = build_category_language_context();
-    const std::string family_candidate_block = use_specialized_prompt_context
+    const std::string family_candidate_block = (use_specialized_prompt_context && prefer_stable_taxonomy)
         ? build_main_category_candidate_context(prompt_name, file_type)
         : std::string();
     const bool rich_image_context =
@@ -1521,23 +1539,51 @@ std::string CategorizationService::build_combined_context(const std::string& hin
     std::string document_block;
     std::string artifact_block;
 
+    if (!settings.get_use_whitelist() && use_specialized_prompt_context) {
+        std::ostringstream style_guidance;
+        style_guidance << (prefer_stable_taxonomy ? kConsistentSortingStyleMarker
+                                                  : kRefinedSortingStyleMarker)
+                       << "\n";
+        if (prefer_stable_taxonomy) {
+            style_guidance
+                << "- Favor stable, filesystem-oriented main categories when they fit.\n"
+                << "- Keep similar files aligned to the same broad taxonomy when the evidence is close.\n";
+        } else {
+            style_guidance
+                << "- Favor the most semantically accurate category and subcategory pair for this specific item.\n";
+            if (document_context) {
+                style_guidance
+                    << "- You may use a topic-specific main category instead of forcing the file into Documents, Presentations, Spreadsheets, Data Exports, or Configs when a more precise main category is clearly better.\n";
+            }
+            if (image_context) {
+                style_guidance
+                    << "- You may use a content-specific main category instead of forcing the file into Images when that clearly improves organization, but avoid artifact families like Software or Operating Systems for ordinary screenshots and photos.\n";
+            }
+        }
+        sorting_style_block = style_guidance.str();
+    }
+
     if (image_context) {
         std::ostringstream image_guidance;
         image_guidance
             << "Image categorization guidance:\n"
-            << "- Keep the main category stable and filesystem-oriented.\n";
+            << "- Categorize the subject matter shown in the image, not merely the file format.\n";
 
         if (settings.get_use_whitelist() && !is_allowed("Images", effective_allowed_categories)) {
             image_guidance
                 << "- Respect the active whitelist if one is provided.\n"
                 << "- Prefer image-focused labels, and put the depicted subject, scene, or on-screen content in the subcategory when the whitelist allows it.\n";
+        } else if (prefer_stable_taxonomy) {
+            image_guidance
+                << "- Keep the main category stable and filesystem-oriented.\n"
+                << "- Always use Images as the main category, and put the depicted subject, scene, or on-screen content in the subcategory.\n";
         } else {
             image_guidance
-                << "- Always use Images as the main category, and put the depicted subject, scene, or on-screen content in the subcategory.\n";
+                << "- Use Images as the main category when media-type grouping is the best fit, but you may choose a more semantically specific main category when that clearly improves organization.\n"
+                << "- Put the depicted subject, scene, or on-screen content in the subcategory when that creates the clearest folder label.\n";
         }
 
         image_guidance
-            << "- Categorize the subject matter shown in the image, not merely the file format.\n"
             << "- Keep the subcategory concise and leaf-like: prefer labels such as Pets, Small Mammals, Wildlife, Landscapes, or Dashboard Interfaces, and do not prefix them with Images.\n"
             << "- Treat screenshots, webpage captures, dashboards, forms, mockups, and app interfaces as images depicting content.\n"
             << "- Do not classify a PNG/JPG/WebP screenshot as Software, Operating Systems, Installers, Databases, or similar artifact categories unless the file itself is actually such an artifact.\n"
@@ -1568,7 +1614,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
             document_guidance
                 << "- Respect the active whitelist if one is provided.\n"
                 << "- Keep the main category broad and filesystem-friendly, and put the specific topic in the subcategory when the whitelist allows it.\n";
-        } else {
+        } else if (prefer_stable_taxonomy) {
             document_guidance
                 << "- Keep the main category stable and filesystem-oriented.\n"
                 << "- Prefer one of these main categories when it clearly fits: Documents, Presentations, Spreadsheets, Data Exports, Configs.\n"
@@ -1576,6 +1622,12 @@ std::string CategorizationService::build_combined_context(const std::string& hin
                 << "- Use Presentations only for slide decks, Spreadsheets only for workbook-like tabular files, Data Exports only for export-style tabular data files, and Configs only for configuration files.\n"
                 << "- Keep the subcategory concise and leaf-like: prefer labels such as PCI DSS, Financial Documents, Camera Guides, or Vendor Services, and do not prefix them with Documents.\n"
                 << "- Put the specific topic or subject matter in the subcategory instead of inventing a topical main category like Security, Marketing, or Computing.\n";
+        } else {
+            document_guidance
+                << "- Use the most semantically accurate main category and subcategory pair for the document.\n"
+                << "- Broad filesystem buckets like Documents, Presentations, Spreadsheets, Data Exports, and Configs remain valid when they are the best fit, but do not force every file into them.\n"
+                << "- If a more topic-specific main category such as Finance, Security, Marketing, Legal, Research, or Manuals is clearly better, use it.\n"
+                << "- Keep the subcategory concise and leaf-like: prefer labels such as PCI DSS, Financial Documents, Camera Guides, or Vendor Services, and avoid simply repeating the main category.\n";
         }
 
         document_block = document_guidance.str();
@@ -1596,6 +1648,12 @@ std::string CategorizationService::build_combined_context(const std::string& hin
 
     if (!language_block.empty()) {
         combined_context += language_block;
+    }
+    if (!sorting_style_block.empty()) {
+        if (!combined_context.empty()) {
+            combined_context += "\n\n";
+        }
+        combined_context += sorting_style_block;
     }
     if (!image_block.empty()) {
         if (!combined_context.empty()) {

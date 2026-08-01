@@ -54,6 +54,32 @@ TEST_CASE("Image categorization uses an image-specific system prompt") {
     CHECK(prompt.find("If uncertain, make your best guess from the name only") == std::string::npos);
 }
 
+TEST_CASE("Image categorization uses refined local prompts when refined mode is requested") {
+    const std::string file_name = "django_project_dashboard.png";
+    const std::string prompt_path =
+        "home/theuser/Downloads/django_project_dashboard.png\n"
+        "Image description: Django administration interface screenshot showing a project dashboard.";
+    const std::string consistency_context =
+        "Sorting style: More refined\n"
+        "- Favor the most semantically accurate category and subcategory pair for this specific item.";
+
+    const std::string system_prompt = LocalLLMTestAccess::categorization_system_prompt_for_testing(
+        prompt_path,
+        FileType::File,
+        consistency_context);
+    const std::string user_prompt = LocalLLMTestAccess::categorization_user_prompt_for_testing(
+        file_name,
+        prompt_path,
+        FileType::File,
+        consistency_context);
+
+    CHECK(system_prompt.find("always use Images as the main category") == std::string::npos);
+    CHECK(system_prompt.find("you may also choose a more content-specific main category") != std::string::npos);
+    CHECK(system_prompt.find("format <Main category> : <Subcategory>") != std::string::npos);
+    CHECK(user_prompt.find("Answer with exactly one line:\n<Main category> : <Subcategory>") != std::string::npos);
+    CHECK(user_prompt.find("Answer with exactly one line:\nImages : <Subcategory>") == std::string::npos);
+}
+
 TEST_CASE("Generic file categorization keeps the general system prompt") {
     const std::string prompt = LocalLLMTestAccess::categorization_system_prompt_for_testing(
         "home/theuser/Downloads/freetube_0.23.5_amd64.deb",

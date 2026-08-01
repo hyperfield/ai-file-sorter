@@ -1979,8 +1979,9 @@ std::vector<int> gpu_layer_retry_candidates_for_testing(int optimistic_layers,
 namespace LocalLLMTestAccess {
 
 std::string categorization_system_prompt_for_testing(const std::string& file_path,
-                                                     FileType file_type) {
-    return LocalLLMPromptBuilder::build_system_prompt(file_path, file_type);
+                                                     FileType file_type,
+                                                     std::string_view consistency_context) {
+    return LocalLLMPromptBuilder::build_system_prompt(file_path, file_type, consistency_context);
 }
 
 std::string categorization_user_prompt_for_testing(const std::string& file_name,
@@ -2379,7 +2380,8 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
         }
     }
     std::string prompt = make_prompt(file_name, file_path, file_type, consistency_context);
-    const std::string system_prompt = LocalLLMPromptBuilder::build_system_prompt(file_path, file_type);
+    const std::string system_prompt =
+        LocalLLMPromptBuilder::build_system_prompt(file_path, file_type, consistency_context);
     if (prompt_logging_enabled) {
         std::cout << "\n[DEV][PROMPT] Categorization request\n"
                   << "[system]\n" << system_prompt << "\n"

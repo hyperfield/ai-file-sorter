@@ -96,6 +96,13 @@ Procedure: Build the categorization user prompt through the local LLM test acces
 Expected outcome: Both prompts start with the document-specific instruction text, include file name and path, keep the shared guidance, and omit the generic `Full path:` framing; only the summarized file includes a `Document summary:` line.
 Run: `./build-tests/ai_file_sorter_tests "Document categorization uses a document-specific user prompt"`
 
+#### Test case: Image categorization uses refined local prompts when refined mode is requested
+Purpose: Ensure the local image prompt path relaxes the fixed `Images` bucket when `More refined` guidance is present.
+Setup: Provide an image prompt path with an `Image description:` payload and a consistency context block starting with `Sorting style: More refined`.
+Procedure: Build both the categorization system prompt and user prompt through the local LLM test access layer.
+Expected outcome: The system prompt allows a content-specific main category, and the user prompt switches to the generic `<Main category> : <Subcategory>` answer format instead of forcing `Images : <Subcategory>`.
+Run: `./build-tests/ai_file_sorter_tests "Image categorization uses refined local prompts when refined mode is requested"`
+
 #### Test case: Generic file categorization user prompt includes explicit answer format
 Purpose: Keep the generic file prompt short while still forcing the model back into the strict `<Main category> : <Subcategory>` response shape.
 Setup: Provide a representative software-like file name and a sample allowed-main-category block.
@@ -2259,14 +2266,14 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService ranks large whit
 Purpose: Ensure learned behavior produces a small prompt candidate block before LLM categorization.
 Setup: Record a review-confirmed manual mapping, import an unrelated spreadsheet candidate, and build a categorization service with the learning store attached.
 Procedure: Build combined context for a camera manual file.
-Expected outcome: The context includes the learned candidate normalized into the stable document family as `Documents : Camera Guides`.
+Expected outcome: In `More refined` mode, the context preserves the learned manual taxonomy as `Manuals : Camera Guides` instead of coercing it into the stable document family.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService adds relevant learned taxonomy candidates to context"`
 
 #### Test case: CategorizationService prefers learned candidates over generic model categories
 Purpose: Prefer a strong user-learned category when the model returns a generic category for a semantically matching file.
 Setup: Record a review-confirmed manual mapping and use an LLM stub that returns `Documents : General`.
 Procedure: Categorize a camera manual file through the service.
-Expected outcome: The final category/subcategory uses the learned `Documents : Camera Guides` mapping instead of the generic model output.
+Expected outcome: In `More refined` mode, the final category/subcategory uses the learned `Manuals : Camera Guides` mapping instead of the generic model output.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService prefers learned candidates over generic model categories"`
 
 #### Test case: CategorizationService ignores whitelist-imported candidates when the model already returns a specific document subcategory
@@ -2446,17 +2453,31 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves analys
 
 #### Test case: CategorizationService adds stable guidance for supported document prompts
 Purpose: Ensure both analyzable and legacy Office document prompts receive shared document-specific guidance and the bounded document main-category candidate list before the LLM runs.
-Setup: Build a document prompt path for a representative `.pdf` file with a summary and use a plain path for a representative legacy `.doc` file.
+Setup: Enable `More consistent`, build a document prompt path for a representative `.pdf` file with a summary, and use a plain path for a representative legacy `.doc` file.
 Procedure: Generate the combined prompt context through the categorization service test access layer for both files.
 Expected outcome: Both contexts include document guidance that emphasizes stable main categories and subject-focused subcategories, plus the ordered `Documents`/`Presentations`/`Spreadsheets`/`Data Exports`/`Configs` main-category list.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService adds stable guidance for supported document prompts"`
 
+#### Test case: CategorizationService relaxes document family guidance in more refined mode
+Purpose: Ensure `More refined` document prompts stop injecting the fixed stable-document main-category list.
+Setup: Build a summarized `.pdf` document prompt path with default `More refined` settings.
+Procedure: Generate the combined prompt context through the categorization service test access layer.
+Expected outcome: The context includes `Sorting style: More refined`, encourages the most semantically accurate document category, and omits the ordered stable document main-category list.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService relaxes document family guidance in more refined mode"`
+
 #### Test case: CategorizationService normalizes supported document main categories to stable buckets
 Purpose: Prevent supported document files from fragmenting across topical main categories such as `Security`, `Marketing`, or `Computing`.
-Setup: Prepare representative `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.conf`, `.doc`, `.xls`, and `.ppt` prompt overrides with stubbed LLM responses that use unstable topical main categories.
+Setup: Enable `More consistent`, then prepare representative `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.conf`, `.doc`, `.xls`, and `.ppt` prompt overrides with stubbed LLM responses that use unstable topical main categories.
 Procedure: Categorize each entry through the service and inspect the canonical result.
 Expected outcome: The final main categories normalize to the bounded set `Documents`, `Presentations`, `Spreadsheets`, `Data Exports`, and `Configs` while preserving the subject matter in the subcategory.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService normalizes supported document main categories to stable buckets"`
+
+#### Test case: CategorizationService preserves topic-specific document main categories in more refined mode
+Purpose: Let `More refined` keep a semantically specific document main category when the model returns one.
+Setup: Build a summarized `.pdf` prompt override with default `More refined` settings and use a stubbed response such as `Security : PCI DSS`.
+Procedure: Categorize the entry through the service and inspect the canonical result.
+Expected outcome: The final category remains `Security` with subcategory `PCI DSS` instead of being remapped into `Documents`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves topic-specific document main categories in more refined mode"`
 
 #### Test case: CategorizationService preserves explicit whitelist document main categories
 Purpose: Avoid breaking workflows where a document whitelist intentionally uses subject-specific main categories.
@@ -2467,10 +2488,17 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves explic
 
 #### Test case: CategorizationService adds stable guidance for supported image prompts
 Purpose: Ensure supported image files receive shared image-specific guidance and an `Images`-only main-category candidate list before the LLM runs, even without a generated visual description payload.
-Setup: Build a plain prompt path for a representative `.jpg` file.
+Setup: Enable `More consistent` and build a plain prompt path for a representative `.jpg` file.
 Procedure: Generate the combined prompt context through the categorization service test access layer.
 Expected outcome: The context includes image guidance that keeps `Images` as the main category and pushes the depicted subject into the subcategory.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService adds stable guidance for supported image prompts"`
+
+#### Test case: CategorizationService relaxes image family guidance in more refined mode
+Purpose: Ensure `More refined` image prompts stop injecting the fixed `Images`-only main-category list.
+Setup: Build a representative `.jpg` prompt path with default `More refined` settings.
+Procedure: Generate the combined prompt context through the categorization service test access layer.
+Expected outcome: The context includes `Sorting style: More refined`, allows a more semantically specific image main category when useful, and omits the `Images`-only main-category list.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService relaxes image family guidance in more refined mode"`
 
 #### Test case: CategorizationService leaves generic software-like prompts unscaffolded without whitelist
 Purpose: Keep non-document, non-image prompts close to the older minimal prompt style when no whitelist is active.
@@ -2523,17 +2551,24 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService leaves unknown g
 
 #### Test case: CategorizationService uses one-shot categorization prompts for document files
 Purpose: Keep document categorization on the simpler single-pass prompt path while preserving the newer main-category guidance and normalization afterward.
-Setup: Prepare a summarized `.pdf` prompt override and a prompt-capturing LLM stub that returns `Documents : PCI DSS`.
+Setup: Enable `More consistent`, then prepare a summarized `.pdf` prompt override and a prompt-capturing LLM stub that returns `Documents : PCI DSS`.
 Procedure: Categorize the file through the service and inspect the captured categorization path and combined context.
 Expected outcome: The service performs one categorization call, the document summary stays attached to the prompt path, the combined context still includes document guidance plus allowed main categories, and no split-pass-only subcategory prompt text is present.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses one-shot categorization prompts for document files"`
 
 #### Test case: CategorizationService normalizes supported image main categories to Images
 Purpose: Prevent supported image files from fragmenting across topical main categories such as `Wildlife`, `Paris_Skyline`, or screenshot subject headings.
-Setup: Prepare representative `.png` and `.jpg` prompt overrides, with and without generated image descriptions, and stub LLM responses that use unstable topical main categories.
+Setup: Enable `More consistent`, then prepare representative `.png` and `.jpg` prompt overrides, with and without generated image descriptions, and stub LLM responses that use unstable topical main categories.
 Procedure: Categorize each entry through the service and inspect the canonical result.
 Expected outcome: The final main category normalizes to `Images` while preserving the depicted subject in the subcategory.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService normalizes supported image main categories to Images"`
+
+#### Test case: CategorizationService preserves content-specific image main categories in more refined mode
+Purpose: Let `More refined` keep a semantically specific image main category when the model returns one.
+Setup: Build a rich `.jpg` image prompt override with default `More refined` settings and use a stubbed response such as `Wildlife : Lions`.
+Procedure: Categorize the entry through the service and inspect the canonical result.
+Expected outcome: The final category remains `Wildlife` with subcategory `Lions` instead of being remapped into `Images`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves content-specific image main categories in more refined mode"`
 
 #### Test case: CategorizationService preserves explicit whitelist image main categories when Images is disallowed
 Purpose: Avoid breaking image whitelists that intentionally exclude `Images` as an allowed main category.
