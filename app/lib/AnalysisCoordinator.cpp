@@ -1727,6 +1727,17 @@ AnalysisRunResult AnalysisCoordinator::execute()
             };
         apply_image_dates(app_.already_categorized_files);
         apply_document_dates(app_.already_categorized_files);
+        app_.new_files_with_categories.clear();
+
+        auto publish_review_preview_entry = [&](const CategorizedFile& entry) {
+            std::vector<CategorizedFile> preview_entries;
+            preview_entries.push_back(entry);
+            apply_image_dates(preview_entries);
+            apply_document_dates(preview_entries);
+            app_.new_files_with_categories.push_back(std::move(preview_entries.front()));
+            app_.notify_review_preview_changed();
+        };
+        app_.notify_review_preview_changed();
 
         std::vector<CategorizedFile> other_results;
         if (!stop_requested && !other_entries.empty()) {
@@ -1750,7 +1761,10 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 },
                 [this]() { return app_.make_llm_client(); },
                 {},
-                suggested_name_provider);
+                suggested_name_provider,
+                [&publish_review_preview_entry](const CategorizedFile& entry) {
+                    publish_review_preview_entry(entry);
+                });
         }
         apply_image_dates(other_results);
         apply_document_dates(other_results);
@@ -1775,6 +1789,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                             result.suggested_name = resolve_image_display_name(entry, info_it->second);
                         }
                     }
+                    publish_review_preview_entry(result);
                     image_results.push_back(std::move(result));
                 }
             } else if (!image_entries_for_llm.empty()) {
@@ -1814,7 +1829,10 @@ AnalysisRunResult AnalysisCoordinator::execute()
                     },
                     [this]() { return app_.make_llm_client(); },
                     override_provider,
-                    suggested_name_provider);
+                    suggested_name_provider,
+                    [&publish_review_preview_entry](const CategorizedFile& entry) {
+                        publish_review_preview_entry(entry);
+                    });
 
                 update_stop();
             }
@@ -1840,6 +1858,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                             result.suggested_name = resolve_document_display_name(entry, info_it->second);
                         }
                     }
+                    publish_review_preview_entry(result);
                     document_results.push_back(std::move(result));
                 }
             } else if (!document_entries_for_llm.empty()) {
@@ -1880,7 +1899,10 @@ AnalysisRunResult AnalysisCoordinator::execute()
                     },
                     [this]() { return app_.make_llm_client(); },
                     override_provider,
-                    suggested_name_provider);
+                    suggested_name_provider,
+                    [&publish_review_preview_entry](const CategorizedFile& entry) {
+                        publish_review_preview_entry(entry);
+                    });
             }
         }
 
@@ -1946,6 +1968,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
 
         localize_review_suggestions(app_.already_categorized_files, true);
         localize_review_suggestions(pending_renames, false);
+        app_.notify_review_preview_changed();
 
         std::vector<CategorizedFile> review_entries = app_.already_categorized_files;
         if ((rename_images_only || rename_documents_only) && !pending_renames.empty()) {

@@ -637,7 +637,8 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
     const RecategorizationCallback& recategorization_callback,
     std::function<std::unique_ptr<ILLMClient>()> llm_factory,
     const PromptOverrideProvider& prompt_override,
-    const SuggestedNameProvider& suggested_name_provider) const
+    const SuggestedNameProvider& suggested_name_provider,
+    const ResultCallback& result_callback) const
 {
     std::vector<CategorizedFile> categorized;
     if (files.empty()) {
@@ -705,11 +706,14 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
                                                              override_value,
                                                              suggested_name,
                                                              stop_flag,
-                                                              progress_callback,
+                                                             progress_callback,
                                                               recategorization_callback,
                                                               session_history,
                                                               remote_throttle_callback)) {
             categorized.push_back(*categorized_entry);
+            if (result_callback) {
+                result_callback(*categorized_entry);
+            }
         }
 
         if (completion_callback) {

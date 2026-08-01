@@ -121,6 +121,53 @@ const std::vector<CategorizedFile>& HeadlessAnalysisWorkflowHost::review_entries
     return new_files_to_sort_;
 }
 
+std::vector<CategorizedFile> HeadlessAnalysisWorkflowHost::preview_review_entries() const
+{
+    std::vector<CategorizedFile> entries = already_categorized_files_;
+    entries.reserve(entries.size() + new_files_with_categories_.size());
+    entries.insert(entries.end(),
+                   new_files_with_categories_.begin(),
+                   new_files_with_categories_.end());
+
+    std::unordered_set<std::string> seen;
+    seen.reserve(entries.size());
+    entries.erase(
+        std::remove_if(entries.begin(),
+                       entries.end(),
+                       [&seen](const CategorizedFile& entry) {
+                           const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                                  Utils::utf8_to_path(entry.file_name);
+                           return !seen.insert(HeadlessAnalysisWorkflowHost::selected_path_key(full_path)).second;
+                       }),
+        entries.end());
+
+    if (options_.selected_paths.empty()) {
+        return entries;
+    }
+
+    std::unordered_set<std::string> selected;
+    selected.reserve(options_.selected_paths.size());
+    for (const auto& path : options_.selected_paths) {
+        selected.insert(selected_path_key(path));
+    }
+
+    entries.erase(
+        std::remove_if(entries.begin(),
+                       entries.end(),
+                       [&selected](const CategorizedFile& entry) {
+                           const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                                  Utils::utf8_to_path(entry.file_name);
+                           return !selected.contains(HeadlessAnalysisWorkflowHost::selected_path_key(full_path));
+                       }),
+        entries.end());
+    return entries;
+}
+
+std::string HeadlessAnalysisWorkflowHost::last_progress_message() const
+{
+    return last_progress_message_;
+}
+
 std::string HeadlessAnalysisWorkflowHost::folder_path() const
 {
     return normalize_folder_path(options_.folder_path);
@@ -195,6 +242,7 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
         [this](std::vector<FileEntry>& entries) {
             filter_file_entries_to_selected_paths(entries);
         },
+        [this]() { notify_review_preview_changed(); },
         [](const std::vector<AnalysisWorkflowContext::StagePlan>&) {},
         [](AnalysisWorkflowContext::StageId, const std::vector<FileEntry>&) {},
         [](AnalysisWorkflowContext::StageId) {},
@@ -574,8 +622,16 @@ void HeadlessAnalysisWorkflowHost::filter_file_entries_to_selected_paths(
 void HeadlessAnalysisWorkflowHost::append_progress(const std::string& message)
 {
     should_stop();
+    last_progress_message_ = message;
     if (options_.progress_callback) {
         options_.progress_callback(message);
+    }
+}
+
+void HeadlessAnalysisWorkflowHost::notify_review_preview_changed()
+{
+    if (options_.review_preview_callback) {
+        options_.review_preview_callback();
     }
 }
 

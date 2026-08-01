@@ -352,6 +352,56 @@ bool should_apply_changes(HeadlessAnalysisCommand::ApplyMode mode,
     }
 }
 
+HeadlessReviewApplyService::Options preview_apply_options(
+    const HeadlessAnalysisCommand::Options& options,
+    const HeadlessAnalysisWorkflowHost& host)
+{
+    HeadlessReviewApplyService::Options apply_options;
+    apply_options.base_dir = host.folder_path();
+    apply_options.undo_dir = host.undo_dir();
+    apply_options.use_subcategories = host.use_subcategories();
+    apply_options.include_subdirectories = host.include_subdirectories();
+    apply_options.apply_suggested_names = operation_applies_suggested_names(options.operation);
+    apply_options.move_categorized_entries = operation_moves_categorized_entries(options.operation);
+    apply_options.category_language = host.category_language();
+    apply_options.apply_changes = false;
+    return apply_options;
+}
+
+QJsonObject running_review_preview_payload(const HeadlessAnalysisCommand::Options& options,
+                                          HeadlessAnalysisWorkflowHost& host)
+{
+    const std::vector<CategorizedFile> preview_entries = host.preview_review_entries();
+    if (preview_entries.empty()) {
+        return {};
+    }
+
+    HeadlessReviewApplyService preview_service(&host.db_manager(),
+                                               host.storage_provider(),
+                                               host.core_logger());
+    return apply_result_to_json(preview_service.apply(preview_entries,
+                                                      preview_apply_options(options, host)),
+                                false);
+}
+
+void emit_running_status(const HeadlessAnalysisCommand::Options& options,
+                         const std::string& message,
+                         HeadlessAnalysisWorkflowHost* host,
+                         const AnalysisRuntimeLock::Metadata& metadata,
+                         std::ostream& out,
+                         std::ostream& err)
+{
+    QJsonObject payload;
+    const QJsonObject* payload_ptr = nullptr;
+    if (host) {
+        payload = running_review_preview_payload(options, *host);
+        if (!payload.isEmpty()) {
+            payload_ptr = &payload;
+        }
+    }
+    emit_status(options, "running", message, {}, metadata, out, err, payload_ptr);
+}
+
 bool has_actionable_review_entries(const HeadlessReviewApplyService::Result& result)
 {
     return std::any_of(result.entries.cbegin(), result.entries.cend(), [](const auto& entry) {
@@ -874,14 +924,25 @@ int HeadlessAnalysisCommand::run(const Options& options,
     host_options.operation_mode = host_operation_mode(options.operation);
     host_options.include_subdirectories = options.include_subdirectories;
     host_options.settings_overrides = settings_overrides;
+    HeadlessAnalysisWorkflowHost* host_ptr = nullptr;
     host_options.progress_callback = [&](const std::string& message) {
-        emit_status(options, "running", message, {}, lease->metadata(), out, err);
+        emit_running_status(options, message, host_ptr, lease->metadata(), out, err);
+    };
+    host_options.review_preview_callback = [&]() {
+        if (!host_ptr) {
+            return;
+        }
+        const std::string message = host_ptr->last_progress_message();
+        if (!message.empty()) {
+            emit_running_status(options, message, host_ptr, lease->metadata(), out, err);
+        }
     };
     host_options.stop_requested = [&]() {
         return stop_requested_for_status_file(options.status_file);
     };
 
     HeadlessAnalysisWorkflowHost host(std::move(host_options));
+    host_ptr = &host;
     StopRequestMonitor stop_monitor(options, &host);
     const AnalysisRunResult result = host.execute();
     std::optional<HeadlessReviewApplyService::Result> apply_result;

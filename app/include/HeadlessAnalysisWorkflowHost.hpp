@@ -55,6 +55,8 @@ public:
         HeadlessSettingsOverrides settings_overrides;
         /** @brief Optional progress callback receiving translated progress text. */
         std::function<void(const std::string&)> progress_callback;
+        /** @brief Optional callback when partial review rows become available. */
+        std::function<void()> review_preview_callback;
         /** @brief Optional external cancellation callback for headless integrations. */
         std::function<bool()> stop_requested;
     };
@@ -92,6 +94,18 @@ public:
      * @return Immutable review entry list.
      */
     const std::vector<CategorizedFile>& review_entries() const;
+
+    /**
+     * @brief Return currently known review/apply entries while analysis is still running.
+     * @return Snapshot of entries prepared so far.
+     */
+    std::vector<CategorizedFile> preview_review_entries() const;
+
+    /**
+     * @brief Return the most recent headless progress message.
+     * @return Last progress text sent through the host callback.
+     */
+    std::string last_progress_message() const;
 
     /**
      * @brief Return the normalized selected folder path.
@@ -220,6 +234,11 @@ private:
     void append_progress(const std::string& message);
 
     /**
+     * @brief Notify the caller that the in-progress review preview changed.
+     */
+    void notify_review_preview_changed();
+
+    /**
      * @brief Return whether the workflow should stop and latch the shared stop flag.
      * @return True when cancellation has been requested.
      */
@@ -291,4 +310,5 @@ private:
     std::optional<bool> text_cpu_fallback_choice_;
     std::optional<bool> visual_cpu_fallback_choice_;
     std::optional<bool> continue_without_visual_analysis_choice_;
+    std::string last_progress_message_;
 };

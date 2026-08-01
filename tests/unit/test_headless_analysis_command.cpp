@@ -18,7 +18,9 @@
 #include <QTemporaryDir>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <sstream>
+#include <vector>
 
 namespace {
 
@@ -66,6 +68,23 @@ QJsonObject read_status(const std::filesystem::path& path)
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     REQUIRE(doc.isObject());
     return doc.object();
+}
+
+std::vector<QJsonObject> parse_status_stream(const std::string& stream)
+{
+    std::vector<QJsonObject> statuses;
+    std::istringstream input(stream);
+    std::string line;
+    while (std::getline(input, line)) {
+        if (line.empty()) {
+            continue;
+        }
+        const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(line));
+        if (doc.isObject()) {
+            statuses.push_back(doc.object());
+        }
+    }
+    return statuses;
 }
 
 std::filesystem::path make_file_at(const std::filesystem::path& path)
@@ -549,6 +568,10 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     const QString review_file = object.value(QStringLiteral("reviewFile")).toString();
     REQUIRE_FALSE(review_file.isEmpty());
     CHECK(QFile::exists(review_file));
+    CHECK(object.value(QStringLiteral("entryCount")).toInt() == 1);
+    CHECK(object.value(QStringLiteral("movedCount")).toInt() == 0);
+    CHECK(object.value(QStringLiteral("renamedCount")).toInt() == 0);
+    CHECK(object.value(QStringLiteral("skippedCount")).toInt() == 0);
     const QJsonObject review = object.value(QStringLiteral("review")).toObject();
     const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
     CHECK(review.value(QStringLiteral("requiresApproval")).toBool());
@@ -562,6 +585,19 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     const QJsonObject entry = entries.at(0).toObject();
     CHECK(entry.value(QStringLiteral("destination")).toString().contains(QStringLiteral("Documents")));
     CHECK(entry.value(QStringLiteral("message")).toString() == QStringLiteral("Waiting for review approval."));
+    const QJsonArray flat_entries = object.value(QStringLiteral("entries")).toArray();
+    REQUIRE(flat_entries.size() == 1);
+
+    const auto statuses = parse_status_stream(out.str());
+    const auto running_with_preview = std::find_if(
+        statuses.begin(),
+        statuses.end(),
+        [](const QJsonObject& status) {
+            return status.value(QStringLiteral("status")).toString() == QStringLiteral("running") &&
+                   !status.value(QStringLiteral("review")).toObject()
+                        .value(QStringLiteral("entries")).toArray().isEmpty();
+        });
+    REQUIRE(running_with_preview != statuses.end());
 
     const QJsonObject plan = read_status(Utils::utf8_to_path(review_file.toStdString()));
     CHECK(plan.value(QStringLiteral("kind")).toString() == QStringLiteral("aifs.headlessReviewPlan"));

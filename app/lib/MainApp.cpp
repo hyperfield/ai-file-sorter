@@ -2842,6 +2842,7 @@ AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
         [this]() { log_pending_queue(); },
         [this]() { return effective_scan_options(); },
         [](std::vector<FileEntry>&) {},
+        []() {},
         [this](const std::vector<AnalysisWorkflowContext::StagePlan>& stages) {
             configure_progress_stages(stages);
         },

@@ -302,6 +302,11 @@ QJsonObject HeadlessStatusJson::apply_result_to_json(
     apply.insert(QStringLiteral("undoPlanSaved"), result.undo_plan_saved);
 
     QJsonObject payload;
+    payload.insert(QStringLiteral("entryCount"), static_cast<qint64>(result.planned_count));
+    payload.insert(QStringLiteral("entries"), entries);
+    payload.insert(QStringLiteral("movedCount"), static_cast<qint64>(result.moved_count));
+    payload.insert(QStringLiteral("renamedCount"), static_cast<qint64>(result.renamed_count));
+    payload.insert(QStringLiteral("skippedCount"), static_cast<qint64>(result.skipped_count));
     payload.insert(QStringLiteral("review"), review);
     payload.insert(QStringLiteral("apply"), apply);
     return payload;

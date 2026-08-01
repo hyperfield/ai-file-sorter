@@ -28,6 +28,7 @@ public:
     using ProgressCallback = std::function<void(const std::string&)>;
     using QueueCallback = std::function<void(const FileEntry&)>;
     using CompletionCallback = std::function<void(const FileEntry&)>;
+    using ResultCallback = std::function<void(const CategorizedFile&)>;
     using RecategorizationCallback = std::function<void(const CategorizedFile&, const std::string&)>;
     /**
      * @brief Overrides the name/path used in LLM prompts for a file entry.
@@ -84,6 +85,7 @@ public:
      * @param progress_callback Progress updates callback.
      * @param queue_callback Called when an entry is queued.
      * @param completion_callback Called when an entry has finished processing.
+     * @param result_callback Called when an entry produced a categorizable review row.
      * @param recategorization_callback Called when an entry must be re-categorized.
      * @param llm_factory Factory for creating an LLM client.
      * @param prompt_override Optional prompt override provider.
@@ -100,7 +102,8 @@ public:
         const RecategorizationCallback& recategorization_callback,
         std::function<std::unique_ptr<ILLMClient>()> llm_factory,
         const PromptOverrideProvider& prompt_override = {},
-        const SuggestedNameProvider& suggested_name_provider = {}) const;
+        const SuggestedNameProvider& suggested_name_provider = {},
+        const ResultCallback& result_callback = {}) const;
 
 private:
     using CategoryPair = std::pair<std::string, std::string>;
