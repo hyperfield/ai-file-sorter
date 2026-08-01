@@ -3,6 +3,7 @@ name: Build
 on:
   pull_request:
     branches: [ main, dev ]
+  workflow_dispatch: {}
 
 jobs:
   build-linux:
@@ -74,4 +75,13 @@ jobs:
             -VcpkgRoot $vcpkgRoot `
             -BuildTests `
             -RunTests `
-            -Parallel 4
+            -Parallel 4 `
+            -Variants Standard
+
+      - name: Upload Windows build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aifilesorter-windows-standard
+          path: app/build-windows/Release/
+          if-no-files-found: warn
