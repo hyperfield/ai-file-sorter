@@ -18,7 +18,8 @@ enum class Language {
     Icelandic,
     Norwegian,
     Finnish,
-    Danish
+    Danish,
+    Ukrainian
 };
 
 inline QString languageToString(Language language)
@@ -50,6 +51,8 @@ inline QString languageToString(Language language)
         return QStringLiteral("Finnish");
     case Language::Danish:
         return QStringLiteral("Danish");
+    case Language::Ukrainian:
+        return QStringLiteral("Ukrainian");
     case Language::French:
         return QStringLiteral("French");
     case Language::English:
@@ -109,6 +112,9 @@ inline Language languageFromString(const QString& value)
     }
     if (lowered == QStringLiteral("danish") || lowered == QStringLiteral("da")) {
         return Language::Danish;
+    }
+    if (lowered == QStringLiteral("ukrainian") || lowered == QStringLiteral("uk")) {
+        return Language::Ukrainian;
     }
     return Language::English;
 }

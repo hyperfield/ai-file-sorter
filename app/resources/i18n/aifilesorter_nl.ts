@@ -2338,6 +2338,11 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
     </message>
 
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="74"/>
+        <source>&amp;Ukrainian</source>
+        <translation>&amp;Oekraïens</translation>
+    </message>
+    <message>
 
         <location filename="../../lib/UiTranslator.cpp" line="69"/>
 

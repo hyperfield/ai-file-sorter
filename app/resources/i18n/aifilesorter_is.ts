@@ -2693,6 +2693,11 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
         </message>
 
         <message>
+            <location filename="../../lib/UiTranslator.cpp" line="74"/>
+            <source>&amp;Ukrainian</source>
+            <translation>&amp;úkraínska</translation>
+        </message>
+        <message>
 
             <location filename="../../lib/UiTranslator.cpp" line="69"/>
 

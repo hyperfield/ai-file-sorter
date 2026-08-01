@@ -2338,6 +2338,11 @@ Bitte aktualisieren Sie, um fortzufahren. Wenn Sie Beenden wählen, wird die Anw
     </message>
 
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="74"/>
+        <source>&amp;Ukrainian</source>
+        <translation>&amp;Ukrainisch</translation>
+    </message>
+    <message>
 
         <location filename="../../lib/UiTranslator.cpp" line="69"/>
 

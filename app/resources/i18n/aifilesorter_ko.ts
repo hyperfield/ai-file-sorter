@@ -2338,6 +2338,11 @@ Please update to continue. If you choose to quit, the application will close.</s
     </message>
 
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="74"/>
+        <source>&amp;Ukrainian</source>
+        <translation>&amp;우크라이나어</translation>
+    </message>
+    <message>
 
         <location filename="../../lib/UiTranslator.cpp" line="69"/>
 

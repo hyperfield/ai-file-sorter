@@ -200,6 +200,7 @@ Language system_default_language()
         case QLocale::Turkish: return Language::Turkish;
         case QLocale::Korean: return Language::Korean;
         case QLocale::Dutch: return Language::Dutch;
+        case QLocale::Ukrainian: return Language::Ukrainian;
         default: return Language::English;
     }
 }

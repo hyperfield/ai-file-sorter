@@ -75,6 +75,7 @@ constexpr auto kActionIcelandic = QT_TRANSLATE_NOOP("UiTranslator", "&Icelandic"
 constexpr auto kActionNorwegian = QT_TRANSLATE_NOOP("UiTranslator", "&Norwegian");
 constexpr auto kActionFinnish = QT_TRANSLATE_NOOP("UiTranslator", "&Finnish");
 constexpr auto kActionDanish = QT_TRANSLATE_NOOP("UiTranslator", "&Danish");
+constexpr auto kActionUkrainian = QT_TRANSLATE_NOOP("UiTranslator", "&Ukrainian");
 constexpr auto kActionSpanish = QT_TRANSLATE_NOOP("UiTranslator", "&Spanish");
 constexpr auto kActionTurkish = QT_TRANSLATE_NOOP("UiTranslator", "&Turkish");
 constexpr auto kActionKorean = QT_TRANSLATE_NOOP("UiTranslator", "&Korean");
@@ -163,6 +164,7 @@ QAction* shared_interface_language_action(const UiTranslator::Dependencies& deps
     case CategoryLanguage::Spanish: return deps.actions.spanish_action;
     case CategoryLanguage::Swedish: return deps.actions.swedish_action;
     case CategoryLanguage::Turkish: return deps.actions.turkish_action;
+    case CategoryLanguage::Ukrainian: return deps.actions.ukrainian_action;
     default: return nullptr;
     }
 }
@@ -389,6 +391,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.norwegian_action, kActionNorwegian},
         {deps_.actions.finnish_action, kActionFinnish},
         {deps_.actions.danish_action, kActionDanish},
+        {deps_.actions.ukrainian_action, kActionUkrainian},
         {deps_.actions.spanish_action, kActionSpanish},
         {deps_.actions.turkish_action, kActionTurkish},
         {deps_.actions.korean_action, kActionKorean},
@@ -507,6 +510,9 @@ void UiTranslator::update_language_group_checks(Language configured) const
     }
     if (deps_.language.danish_action) {
         deps_.language.danish_action->setChecked(configured == Language::Danish);
+    }
+    if (deps_.language.ukrainian_action) {
+        deps_.language.ukrainian_action->setChecked(configured == Language::Ukrainian);
     }
     if (deps_.language.spanish_action) {
         deps_.language.spanish_action->setChecked(configured == Language::Spanish);

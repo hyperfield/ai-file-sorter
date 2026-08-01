@@ -2693,6 +2693,11 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
         </message>
 
         <message>
+            <location filename="../../lib/UiTranslator.cpp" line="74"/>
+            <source>&amp;Ukrainian</source>
+            <translation>&amp;ukrainalainen</translation>
+        </message>
+        <message>
 
             <location filename="../../lib/UiTranslator.cpp" line="69"/>
 
