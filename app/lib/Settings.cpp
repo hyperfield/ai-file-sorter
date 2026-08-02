@@ -14,10 +14,12 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 #include <algorithm>
+#include <array>
 #include <sstream>
 #include <cctype>
 #include <chrono>
 #include <random>
+#include <utility>
 #ifdef _WIN32
     #include <shlobj.h>
     #include <windows.h>
@@ -178,30 +180,40 @@ std::string normalize_visual_model_id(const std::string& value)
 Language system_default_language()
 {
     const QLocale locale = QLocale::system();
-    switch (locale.language()) {
-        case QLocale::Chinese:
-            if (locale.script() == QLocale::SimplifiedHanScript
-                || locale.territory() == QLocale::China
-                || locale.territory() == QLocale::Singapore) {
-                return Language::SimplifiedChinese;
-            }
-            return Language::English;
-        case QLocale::Danish: return Language::Danish;
-        case QLocale::Finnish: return Language::Finnish;
-        case QLocale::French: return Language::French;
-        case QLocale::German: return Language::German;
-        case QLocale::Hindi: return Language::Hindi;
-        case QLocale::Icelandic: return Language::Icelandic;
-        case QLocale::Italian: return Language::Italian;
-        case QLocale::NorwegianBokmal: return Language::Norwegian;
-        case QLocale::NorwegianNynorsk: return Language::Norwegian;
-        case QLocale::Swedish: return Language::Swedish;
-        case QLocale::Spanish: return Language::Spanish;
-        case QLocale::Turkish: return Language::Turkish;
-        case QLocale::Korean: return Language::Korean;
-        case QLocale::Dutch: return Language::Dutch;
-        default: return Language::English;
+
+    if (locale.language() == QLocale::Chinese) {
+        if (locale.script() == QLocale::SimplifiedHanScript
+            || locale.territory() == QLocale::China
+            || locale.territory() == QLocale::Singapore) {
+            return Language::SimplifiedChinese;
+        }
+        return Language::English;
     }
+
+    static const std::array<std::pair<QLocale::Language, Language>, 15> kLocaleToLanguage = {{
+        {QLocale::Danish, Language::Danish},
+        {QLocale::Finnish, Language::Finnish},
+        {QLocale::French, Language::French},
+        {QLocale::German, Language::German},
+        {QLocale::Hindi, Language::Hindi},
+        {QLocale::Icelandic, Language::Icelandic},
+        {QLocale::Italian, Language::Italian},
+        {QLocale::NorwegianBokmal, Language::Norwegian},
+        {QLocale::NorwegianNynorsk, Language::Norwegian},
+        {QLocale::Swedish, Language::Swedish},
+        {QLocale::Spanish, Language::Spanish},
+        {QLocale::Turkish, Language::Turkish},
+        {QLocale::Korean, Language::Korean},
+        {QLocale::Dutch, Language::Dutch},
+        {QLocale::Ukrainian, Language::Ukrainian},
+    }};
+
+    for (const auto& [qtLanguage, appLanguage] : kLocaleToLanguage) {
+        if (locale.language() == qtLanguage) {
+            return appLanguage;
+        }
+    }
+    return Language::English;
 }
 
 std::string path_from_env_url(const char* env_key)

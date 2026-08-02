@@ -25,6 +25,8 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <array>
+#include <utility>
 
 namespace {
 
@@ -75,6 +77,7 @@ constexpr auto kActionIcelandic = QT_TRANSLATE_NOOP("UiTranslator", "&Icelandic"
 constexpr auto kActionNorwegian = QT_TRANSLATE_NOOP("UiTranslator", "&Norwegian");
 constexpr auto kActionFinnish = QT_TRANSLATE_NOOP("UiTranslator", "&Finnish");
 constexpr auto kActionDanish = QT_TRANSLATE_NOOP("UiTranslator", "&Danish");
+constexpr auto kActionUkrainian = QT_TRANSLATE_NOOP("UiTranslator", "&Ukrainian");
 constexpr auto kActionSpanish = QT_TRANSLATE_NOOP("UiTranslator", "&Spanish");
 constexpr auto kActionTurkish = QT_TRANSLATE_NOOP("UiTranslator", "&Turkish");
 constexpr auto kActionKorean = QT_TRANSLATE_NOOP("UiTranslator", "&Korean");
@@ -147,24 +150,31 @@ void sort_menu_actions_by_label(QMenu* menu)
 QAction* shared_interface_language_action(const UiTranslator::Dependencies& deps,
                                           CategoryLanguage language)
 {
-    switch (language) {
-    case CategoryLanguage::Danish: return deps.actions.danish_action;
-    case CategoryLanguage::Dutch: return deps.actions.dutch_action;
-    case CategoryLanguage::English: return deps.actions.english_action;
-    case CategoryLanguage::Finnish: return deps.actions.finnish_action;
-    case CategoryLanguage::French: return deps.actions.french_action;
-    case CategoryLanguage::German: return deps.actions.german_action;
-    case CategoryLanguage::Hindi: return deps.actions.hindi_action;
-    case CategoryLanguage::Icelandic: return deps.actions.icelandic_action;
-    case CategoryLanguage::Italian: return deps.actions.italian_action;
-    case CategoryLanguage::Korean: return deps.actions.korean_action;
-    case CategoryLanguage::Norwegian: return deps.actions.norwegian_action;
-    case CategoryLanguage::SimplifiedChinese: return deps.actions.simplified_chinese_action;
-    case CategoryLanguage::Spanish: return deps.actions.spanish_action;
-    case CategoryLanguage::Swedish: return deps.actions.swedish_action;
-    case CategoryLanguage::Turkish: return deps.actions.turkish_action;
-    default: return nullptr;
+    const std::array<std::pair<CategoryLanguage, QAction*>, 16> mapping = {{
+        {CategoryLanguage::Danish, deps.actions.danish_action},
+        {CategoryLanguage::Dutch, deps.actions.dutch_action},
+        {CategoryLanguage::English, deps.actions.english_action},
+        {CategoryLanguage::Finnish, deps.actions.finnish_action},
+        {CategoryLanguage::French, deps.actions.french_action},
+        {CategoryLanguage::German, deps.actions.german_action},
+        {CategoryLanguage::Hindi, deps.actions.hindi_action},
+        {CategoryLanguage::Icelandic, deps.actions.icelandic_action},
+        {CategoryLanguage::Italian, deps.actions.italian_action},
+        {CategoryLanguage::Korean, deps.actions.korean_action},
+        {CategoryLanguage::Norwegian, deps.actions.norwegian_action},
+        {CategoryLanguage::SimplifiedChinese, deps.actions.simplified_chinese_action},
+        {CategoryLanguage::Spanish, deps.actions.spanish_action},
+        {CategoryLanguage::Swedish, deps.actions.swedish_action},
+        {CategoryLanguage::Turkish, deps.actions.turkish_action},
+        {CategoryLanguage::Ukrainian, deps.actions.ukrainian_action},
+    }};
+
+    for (const auto& [key, action] : mapping) {
+        if (key == language) {
+            return action;
+        }
     }
+    return nullptr;
 }
 
 } // namespace
@@ -389,6 +399,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.norwegian_action, kActionNorwegian},
         {deps_.actions.finnish_action, kActionFinnish},
         {deps_.actions.danish_action, kActionDanish},
+        {deps_.actions.ukrainian_action, kActionUkrainian},
         {deps_.actions.spanish_action, kActionSpanish},
         {deps_.actions.turkish_action, kActionTurkish},
         {deps_.actions.korean_action, kActionKorean},
@@ -471,51 +482,30 @@ void UiTranslator::update_language_group_checks(Language configured) const
         return;
     }
     QSignalBlocker blocker(deps_.language.language_group);
-    if (deps_.language.english_action) {
-        deps_.language.english_action->setChecked(configured == Language::English);
-    }
-    if (deps_.language.dutch_action) {
-        deps_.language.dutch_action->setChecked(configured == Language::Dutch);
-    }
-    if (deps_.language.french_action) {
-        deps_.language.french_action->setChecked(configured == Language::French);
-    }
-    if (deps_.language.german_action) {
-        deps_.language.german_action->setChecked(configured == Language::German);
-    }
-    if (deps_.language.hindi_action) {
-        deps_.language.hindi_action->setChecked(configured == Language::Hindi);
-    }
-    if (deps_.language.italian_action) {
-        deps_.language.italian_action->setChecked(configured == Language::Italian);
-    }
-    if (deps_.language.simplified_chinese_action) {
-        deps_.language.simplified_chinese_action->setChecked(
-            configured == Language::SimplifiedChinese);
-    }
-    if (deps_.language.swedish_action) {
-        deps_.language.swedish_action->setChecked(configured == Language::Swedish);
-    }
-    if (deps_.language.icelandic_action) {
-        deps_.language.icelandic_action->setChecked(configured == Language::Icelandic);
-    }
-    if (deps_.language.norwegian_action) {
-        deps_.language.norwegian_action->setChecked(configured == Language::Norwegian);
-    }
-    if (deps_.language.finnish_action) {
-        deps_.language.finnish_action->setChecked(configured == Language::Finnish);
-    }
-    if (deps_.language.danish_action) {
-        deps_.language.danish_action->setChecked(configured == Language::Danish);
-    }
-    if (deps_.language.spanish_action) {
-        deps_.language.spanish_action->setChecked(configured == Language::Spanish);
-    }
-    if (deps_.language.turkish_action) {
-        deps_.language.turkish_action->setChecked(configured == Language::Turkish);
-    }
-    if (deps_.language.korean_action) {
-        deps_.language.korean_action->setChecked(configured == Language::Korean);
+
+    const std::array<std::pair<QAction*, Language>, 16> actions = {{
+        {deps_.language.english_action, Language::English},
+        {deps_.language.dutch_action, Language::Dutch},
+        {deps_.language.french_action, Language::French},
+        {deps_.language.german_action, Language::German},
+        {deps_.language.hindi_action, Language::Hindi},
+        {deps_.language.italian_action, Language::Italian},
+        {deps_.language.simplified_chinese_action, Language::SimplifiedChinese},
+        {deps_.language.swedish_action, Language::Swedish},
+        {deps_.language.icelandic_action, Language::Icelandic},
+        {deps_.language.norwegian_action, Language::Norwegian},
+        {deps_.language.finnish_action, Language::Finnish},
+        {deps_.language.danish_action, Language::Danish},
+        {deps_.language.ukrainian_action, Language::Ukrainian},
+        {deps_.language.spanish_action, Language::Spanish},
+        {deps_.language.turkish_action, Language::Turkish},
+        {deps_.language.korean_action, Language::Korean},
+    }};
+
+    for (const auto& [action, lang] : actions) {
+        if (action) {
+            action->setChecked(configured == lang);
+        }
     }
 }
 

@@ -2338,6 +2338,11 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
     </message>
 
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="74"/>
+        <source>&amp;Ukrainian</source>
+        <translation>&amp;Ucraniano</translation>
+    </message>
+    <message>
 
         <location filename="../../lib/UiTranslator.cpp" line="69"/>
 

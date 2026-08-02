@@ -2693,6 +2693,11 @@ Oppdater for å fortsette. Hvis du velger å avslutte, lukkes applikasjonen.</tr
         </message>
 
         <message>
+            <location filename="../../lib/UiTranslator.cpp" line="74"/>
+            <source>&amp;Ukrainian</source>
+            <translation>&amp;ukrainsk</translation>
+        </message>
+        <message>
 
             <location filename="../../lib/UiTranslator.cpp" line="69"/>
 

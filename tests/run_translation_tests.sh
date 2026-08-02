@@ -20,6 +20,7 @@ TS_FILES=(
     "$ROOT_DIR/app/resources/i18n/aifilesorter_da.ts"
     "$ROOT_DIR/app/resources/i18n/aifilesorter_tr.ts"
     "$ROOT_DIR/app/resources/i18n/aifilesorter_ko.ts"
+    "$ROOT_DIR/app/resources/i18n/aifilesorter_uk.ts"
 )
 
 LUPDATE_SOURCES=(

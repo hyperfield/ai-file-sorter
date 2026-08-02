@@ -2338,6 +2338,11 @@ Veuillez mettre à jour pour continuer. Si vous choisissez de quitter, l&apos;ap
     </message>
 
     <message>
+        <location filename="../../lib/UiTranslator.cpp" line="74"/>
+        <source>&amp;Ukrainian</source>
+        <translation>&amp;Ukrainien</translation>
+    </message>
+    <message>
 
         <location filename="../../lib/UiTranslator.cpp" line="69"/>
 
