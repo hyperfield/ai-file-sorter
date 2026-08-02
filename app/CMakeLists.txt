@@ -1209,7 +1209,10 @@ if(WIN32)
     # Version info resource generated from app_version.hpp
     set(APP_VERSION_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/app_version.hpp")
     file(READ "${APP_VERSION_HEADER}" APP_VERSION_CONTENTS)
-    string(REGEX MATCH "Version\\{([0-9]+),[ \t]*([0-9]+),[ \t]*([0-9]+)" _ "${APP_VERSION_CONTENTS}")
+    string(REGEX MATCH
+        "APP_VERSION[ \t\r\n]*\\([ \t\r\n]*\\{([0-9]+),[ \t\r\n]*([0-9]+),[ \t\r\n]*([0-9]+)\\}[ \t\r\n]*\\)"
+        _
+        "${APP_VERSION_CONTENTS}")
     if(CMAKE_MATCH_1)
         set(APP_VER_MAJOR "${CMAKE_MATCH_1}")
         set(APP_VER_MINOR "${CMAKE_MATCH_2}")
