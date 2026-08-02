@@ -1339,21 +1339,6 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 COMMAND_EXPAND_LISTS
             )
 
-            if(VCPKG_TARGET_TRIPLET)
-                set(_aifs_vcpkg_runtime_dir "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/bin")
-                if(EXISTS "${_aifs_vcpkg_runtime_dir}")
-                    file(GLOB _aifs_vcpkg_runtime_dlls "${_aifs_vcpkg_runtime_dir}/*.dll")
-                    list(APPEND _aifs_test_runtime_dlls ${_aifs_vcpkg_runtime_dlls})
-                endif()
-                set(_aifs_vcpkg_debug_runtime_dir
-                    "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/debug/bin")
-                if(EXISTS "${_aifs_vcpkg_debug_runtime_dir}")
-                    file(GLOB _aifs_vcpkg_debug_runtime_dlls
-                        "${_aifs_vcpkg_debug_runtime_dir}/*.dll")
-                    list(APPEND _aifs_test_runtime_dlls ${_aifs_vcpkg_debug_runtime_dlls})
-                endif()
-            endif()
-
             if(EXISTS "${PRECOMPILED_CPU_BIN_DIR}")
                 foreach(_aifs_precompiled_runtime_name IN ITEMS
                     llama.dll
@@ -1407,6 +1392,17 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                         ${_aifs_test_runtime_dlls}
                         $<TARGET_FILE_DIR:${target_name}>
                     COMMAND_EXPAND_LISTS
+                )
+            endif()
+
+            if(VCPKG_TARGET_TRIPLET)
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND}
+                        "-DAIFS_VCPKG_INSTALLED_ROOT=${AIFS_VCPKG_INSTALLED_ROOT}"
+                        "-DAIFS_VCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}"
+                        "-DAIFS_TARGET_CONFIG=$<CONFIG>"
+                        "-DAIFS_DEST_DIR=$<TARGET_FILE_DIR:${target_name}>"
+                        -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/stage_vcpkg_runtime.cmake"
                 )
             endif()
 
