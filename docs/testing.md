@@ -36,6 +36,10 @@ On Windows multi-config builds, the direct executable lives under
 ./build-tests/tests/Release/ai_file_sorter_tests.exe "<test case name or pattern>"
 ```
 
+Windows test targets copy the matching vcpkg runtime DLLs beside each test
+executable after the target builds. If a direct `ctest` run fails because a DLL
+is missing or stale, rebuild the relevant test target before rerunning `ctest`.
+
 ## When to run what
 
 - Prompt or taxonomy changes: run the prompt-builder and categorization-focused
@@ -56,4 +60,3 @@ See these references for the full details:
 
 - `TESTS.md`
 - `tests/live_llm/README.md`
-- [Windows release builds](windows-release-builds.md)

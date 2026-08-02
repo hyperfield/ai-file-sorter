@@ -118,7 +118,6 @@ the main entry page, use these technical references:
 - [Categorization behavior](docs/categorization-behavior.md)
 - [Testing](docs/testing.md)
 - [Updater contract](docs/updater-contract.md)
-- [Windows release builds](docs/windows-release-builds.md)
 
 ---
 
@@ -722,7 +721,7 @@ Option A - CMake + vcpkg (recommended)
    - `aifilesorter.exe` is the Windows entry point for the bundled build and launches `aifilesorter-bin.exe`.
    - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
    - Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
-   - Pass `-Parallel <N>` to override the default “all cores” parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build ... --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
+   - Pass `-Parallel <N>` to override the default "all cores" parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build ... --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
 
 Option B - CMake + Qt online installer
 

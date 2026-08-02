@@ -151,7 +151,6 @@ app/include/llama/*.h
 /.github/workflows/ms-store-listing.yml
 /docs/**
 !/docs/
-!/docs/windows-release-builds.md
 !/docs/architecture.md
 !/docs/headless-runtime-contract.md
 !/docs/configuration-and-environment.md

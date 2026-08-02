@@ -16,6 +16,7 @@ automatically redacting common sensitive data, and creating a zipped bundle to s
 - `verify_onedrive_windows_sync_root.ps1` (Run real Windows OneDrive sync-root verification tests)
 - `package_deb.sh` (Build a Debian package that bundles the staged Linux runtime payloads)
 - `create_rpm.sh` (Build an RPM package that bundles the staged Linux runtime payloads)
+- `stage_vcpkg_runtime.cmake` (Internal CMake helper used by Windows test targets to copy config-specific vcpkg runtime DLLs beside the test executables)
 
 ## What they do
 
