@@ -1100,7 +1100,7 @@ TEST_CASE("CategorizationService extracts a short category from natural language
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
-    CHECK(categorized.front().category == "Documents");
+    CHECK(categorized.front().category == "Finances");
     CHECK(categorized.front().subcategory == "Credit reports");
     CHECK(*calls == 1);
 }
@@ -1178,7 +1178,7 @@ TEST_CASE("CategorizationService progress shows current and categorization paths
 
     REQUIRE(categorized.size() == 1);
     REQUIRE(progress_messages.size() == 1);
-    CHECK(progress_messages.front().find("Category            : Documents") != std::string::npos);
+    CHECK(progress_messages.front().find("Category            : Security") != std::string::npos);
     CHECK(progress_messages.front().find("Subcat              : PCI DSS guidelines") != std::string::npos);
     CHECK(progress_messages.front().find("Current Path        : " +
                                          Utils::abbreviate_user_path(full_path)) != std::string::npos);
@@ -2085,6 +2085,7 @@ TEST_CASE("CategorizationService adds subject-focused guidance for screenshot-li
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 

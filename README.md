@@ -213,7 +213,7 @@ More consistent
 
 Image analysis can run locally to understand what a picture shows and suggest a better category or filename. It does not require an API key.
 
-As of 1.8.0, **Gemma 3 4B IT** is the default visual backend. The app also gives screenshots, webpage captures, dashboards, forms, mockups, and other UI-like images extra prompt guidance so categories describe what is shown on screen instead of misclassifying the image as the software artifact itself.
+As of 1.9.0, **Gemma 3 4B IT** is the default visual backend. The app also gives screenshots, webpage captures, dashboards, forms, mockups, and other UI-like images extra prompt guidance so categories describe what is shown on screen instead of misclassifying the image as the software artifact itself.
 
 The app currently exposes two built-in visual backends: the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B. In the current embedded runtime, all supported local visual backends require two GGUF files: the main text model and a matching `mmproj` projector file.
 
