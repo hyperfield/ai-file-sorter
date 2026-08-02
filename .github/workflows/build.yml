@@ -3,7 +3,6 @@ name: Build
 on:
   pull_request:
     branches: [ main, dev ]
-  workflow_dispatch: {}
 
 jobs:
   build-linux:
@@ -40,7 +39,7 @@ jobs:
         run: cd build && ctest --output-on-failure
 
   build-windows:
-    runs-on: windows-2022
+    runs-on: windows-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -66,20 +65,13 @@ jobs:
             "blas=off" `
             "vcpkgroot=$vcpkgRoot"
 
-      - name: Build Windows app
+      - name: Build and test Windows app
         shell: pwsh
         run: |
           $vcpkgRoot = "$env:GITHUB_WORKSPACE\vcpkg"
           & "$env:GITHUB_WORKSPACE\app\build_windows.ps1" `
             -Configuration Release `
             -VcpkgRoot $vcpkgRoot `
-            -Parallel 4 `
-            -Variants Standard
-
-      - name: Upload Windows build artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: aifilesorter-windows-standard
-          path: app/build-windows/Release/
-          if-no-files-found: warn
+            -BuildTests `
+            -RunTests `
+            -Parallel 4
