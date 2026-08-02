@@ -67,6 +67,7 @@ This keeps the first run low risk: your files stay on your computer when you use
 
 - [AI File Sorter](#ai-file-sorter)
   - [Safe First Run](#safe-first-run)
+  - [Technical reference](#technical-reference)
   - [Changelog](#changelog)
   - [Features](#features)
   - [Categorization](#categorization)
@@ -102,6 +103,22 @@ This keeps the first run low risk: your files stay on your computer when you use
   - [Credits](#credits)
   - [License](#license)
   - [Donation](#donation)
+
+---
+
+## Technical reference
+
+The main README stays focused on installation, features, and normal everyday
+use. For contributor-facing and integration-facing details that are too deep for
+the main entry page, use these technical references:
+
+- [Architecture](docs/architecture.md)
+- [Headless runtime contract](docs/headless-runtime-contract.md)
+- [Configuration and environment](docs/configuration-and-environment.md)
+- [Categorization behavior](docs/categorization-behavior.md)
+- [Testing](docs/testing.md)
+- [Updater contract](docs/updater-contract.md)
+- [Windows release builds](docs/windows-release-builds.md)
 
 ---
 
