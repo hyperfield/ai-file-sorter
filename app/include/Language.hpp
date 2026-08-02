@@ -3,6 +3,9 @@
 
 #include <QString>
 
+#include <array>
+#include <cstddef>
+
 enum class Language {
     English,
     French,
@@ -24,41 +27,18 @@ enum class Language {
 
 inline QString languageToString(Language language)
 {
-    switch (language) {
-    case Language::German:
-        return QStringLiteral("German");
-    case Language::Hindi:
-        return QStringLiteral("Hindi");
-    case Language::Italian:
-        return QStringLiteral("Italian");
-    case Language::Spanish:
-        return QStringLiteral("Spanish");
-    case Language::Turkish:
-        return QStringLiteral("Turkish");
-    case Language::Korean:
-        return QStringLiteral("Korean");
-    case Language::SimplifiedChinese:
-        return QStringLiteral("Simplified Chinese");
-    case Language::Dutch:
-        return QStringLiteral("Dutch");
-    case Language::Swedish:
-        return QStringLiteral("Swedish");
-    case Language::Icelandic:
-        return QStringLiteral("Icelandic");
-    case Language::Norwegian:
-        return QStringLiteral("Norwegian");
-    case Language::Finnish:
-        return QStringLiteral("Finnish");
-    case Language::Danish:
-        return QStringLiteral("Danish");
-    case Language::Ukrainian:
-        return QStringLiteral("Ukrainian");
-    case Language::French:
-        return QStringLiteral("French");
-    case Language::English:
-    default:
-        return QStringLiteral("English");
+    // Indexed by declaration order in the Language enum above.
+    static constexpr std::array<const char*, 16> kLanguageNames = {
+        "English", "French", "German", "Hindi", "Italian", "Spanish",
+        "Turkish", "Korean", "Simplified Chinese", "Dutch", "Swedish",
+        "Icelandic", "Norwegian", "Finnish", "Danish", "Ukrainian",
+    };
+
+    const auto index = static_cast<std::size_t>(language);
+    if (index < kLanguageNames.size()) {
+        return QString::fromLatin1(kLanguageNames[index]);
     }
+    return QStringLiteral("English");
 }
 
 inline Language languageFromString(const QString& value)
