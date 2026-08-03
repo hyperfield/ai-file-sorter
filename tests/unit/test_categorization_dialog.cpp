@@ -945,6 +945,39 @@ TEST_CASE("CategorizationDialog deduplicates suggested picture filenames") {
     CHECK(second_suggestion == QStringLiteral("sunny_barbeque_dinner_2.png"));
 }
 
+TEST_CASE("CategorizationDialog deduplicates suggested media filenames") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+
+    CategorizedFile first;
+    first.file_path = base.string();
+    first.file_name = "20250917_124208.mp4";
+    first.type = FileType::File;
+    first.category = "Media files";
+    first.suggested_name = "2025_videohandle.mp4";
+
+    CategorizedFile second = first;
+    second.file_name = "20250917_124239.mp4";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, false, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({first, second});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    const QString first_suggestion = model->item(0, 3)->text();
+    const QString second_suggestion = model->item(1, 3)->text();
+
+    CHECK(first_suggestion == QStringLiteral("2025_videohandle_1.mp4"));
+    CHECK(second_suggestion == QStringLiteral("2025_videohandle_2.mp4"));
+}
+
 TEST_CASE("CategorizationDialog avoids existing picture filename collisions") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;

@@ -114,6 +114,20 @@ bool file_exists_in_target_dir(const std::filesystem::path& target_dir,
     return std::filesystem::exists(candidate_path, ec);
 }
 
+bool should_deduplicate_suggested_name(const CategorizedFile& file)
+{
+    if (file.type != FileType::File) {
+        return false;
+    }
+    if (file.suggested_name.empty()) {
+        return false;
+    }
+    if (file.rename_applied) {
+        return false;
+    }
+    return to_lower_copy_str(file.suggested_name) != to_lower_copy_str(file.file_name);
+}
+
 } // namespace
 
 std::string to_lower_copy_str(std::string value)
@@ -148,22 +162,27 @@ bool is_supported_document_entry(const std::string& file_path,
 
 std::filesystem::path build_suggested_target_dir(const CategorizedFile& file,
                                                  const std::string& base_dir_override,
-                                                 bool use_subcategory)
+                                                 bool use_subcategory,
+                                                 bool move_categorized_entries)
 {
     const auto source_dir = Utils::utf8_to_path(file.file_path);
     const auto base_dir = base_dir_override.empty()
         ? source_dir
         : Utils::utf8_to_path(base_dir_override);
-    if (file.rename_only || file.category.empty()) {
+    const std::string category = file.category.empty() ? file.canonical_category : file.category;
+    if (file.rename_only || category.empty() || !move_categorized_entries) {
         return source_dir;
     }
 
-    const auto category = Utils::utf8_to_path(file.category);
-    if (use_subcategory && !file.subcategory.empty()) {
-        const auto subcategory = Utils::utf8_to_path(file.subcategory);
-        return base_dir / category / subcategory;
+    const auto category_path = Utils::utf8_to_path(category);
+    const std::string subcategory = file.subcategory.empty()
+        ? file.canonical_subcategory
+        : file.subcategory;
+    if (use_subcategory && !subcategory.empty()) {
+        const auto subcategory_path = Utils::utf8_to_path(subcategory);
+        return base_dir / category_path / subcategory_path;
     }
-    return base_dir / category;
+    return base_dir / category_path;
 }
 
 std::string build_unique_suggested_name(const std::string& desired_name,
@@ -264,27 +283,22 @@ std::string build_unique_move_name(const std::string& desired_name,
     }
 }
 
-void ensure_unique_image_suggested_names(std::vector<CategorizedFile>& files,
-                                         const std::string& base_dir,
-                                         bool use_subcategory)
+void ensure_unique_suggested_names(std::vector<CategorizedFile>& files,
+                                   const std::string& base_dir,
+                                   bool use_subcategory,
+                                   bool move_categorized_entries)
 {
     std::unordered_map<std::string, std::unordered_map<std::string, int>> counts;
     counts.reserve(files.size());
 
     for (const auto& file : files) {
-        if (file.suggested_name.empty()) {
+        if (!should_deduplicate_suggested_name(file)) {
             continue;
         }
-        if (file.rename_applied) {
-            continue;
-        }
-        if (to_lower_copy_str(file.suggested_name) == to_lower_copy_str(file.file_name)) {
-            continue;
-        }
-        if (!is_supported_image_entry(file.file_path, file.file_name, file.type)) {
-            continue;
-        }
-        const auto target_dir = build_suggested_target_dir(file, base_dir, use_subcategory);
+        const auto target_dir = build_suggested_target_dir(file,
+                                                           base_dir,
+                                                           use_subcategory,
+                                                           move_categorized_entries);
         const std::string dir_key = Utils::path_to_utf8(target_dir);
         const std::string name_key = to_lower_copy_str(file.suggested_name);
         counts[dir_key][name_key] += 1;
@@ -294,19 +308,13 @@ void ensure_unique_image_suggested_names(std::vector<CategorizedFile>& files,
     std::unordered_map<std::string, std::unordered_map<std::string, int>> next_index;
 
     for (auto& file : files) {
-        if (file.suggested_name.empty()) {
+        if (!should_deduplicate_suggested_name(file)) {
             continue;
         }
-        if (file.rename_applied) {
-            continue;
-        }
-        if (to_lower_copy_str(file.suggested_name) == to_lower_copy_str(file.file_name)) {
-            continue;
-        }
-        if (!is_supported_image_entry(file.file_path, file.file_name, file.type)) {
-            continue;
-        }
-        const auto target_dir = build_suggested_target_dir(file, base_dir, use_subcategory);
+        const auto target_dir = build_suggested_target_dir(file,
+                                                           base_dir,
+                                                           use_subcategory,
+                                                           move_categorized_entries);
         const std::string dir_key = Utils::path_to_utf8(target_dir);
         const std::string name_key = to_lower_copy_str(file.suggested_name);
         const bool force_numbering = counts[dir_key][name_key] > 1;

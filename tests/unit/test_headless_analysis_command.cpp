@@ -1098,6 +1098,56 @@ TEST_CASE("HeadlessReviewApplyService uses display folders and canonical storage
     CHECK(cached->subcategory == "Monthly Statements");
 }
 
+TEST_CASE("HeadlessReviewApplyService deduplicates duplicate suggested filenames")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path first_source = make_file_at(target / "first.mp4");
+    const std::filesystem::path second_source = make_file_at(target / "second.mp4");
+    const std::filesystem::path first_destination =
+        target / "Media files" / "2025_videohandle_1.mp4";
+    const std::filesystem::path second_destination =
+        target / "Media files" / "2025_videohandle_2.mp4";
+
+    CategorizedFile first;
+    first.file_path = Utils::path_to_utf8(target);
+    first.file_name = "first.mp4";
+    first.type = FileType::File;
+    first.category = "Media files";
+    first.suggested_name = "2025_videohandle.mp4";
+
+    CategorizedFile second = first;
+    second.file_name = "second.mp4";
+
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService service(nullptr, storage_provider, nullptr);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = normalized_path_key(target);
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+    options.use_subcategories = false;
+    options.apply_suggested_names = true;
+
+    const auto result = service.apply({first, second}, options);
+
+    CHECK(result.planned_count == 2);
+    CHECK(result.moved_count == 2);
+    CHECK(result.renamed_count == 2);
+    CHECK(result.skipped_count == 0);
+    CHECK(result.undo_plan_saved);
+    REQUIRE(result.entries.size() == 2);
+    CHECK(result.entries.at(0).destination_name == "2025_videohandle_1.mp4");
+    CHECK(result.entries.at(1).destination_name == "2025_videohandle_2.mp4");
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(first_source))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(second_source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(first_destination))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(second_destination))));
+}
+
 TEST_CASE("HeadlessAnalysisCommand rejects cross-folder file selections")
 {
     QTemporaryDir dir;

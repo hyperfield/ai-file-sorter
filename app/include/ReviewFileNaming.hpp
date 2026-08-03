@@ -44,14 +44,16 @@ bool is_supported_document_entry(const std::string& file_path,
  * @param file Reviewed categorization entry.
  * @param base_dir_override Base folder for category moves, or empty to use the file source directory.
  * @param use_subcategory True to include subcategory folders.
+ * @param move_categorized_entries True when categorized entries move into category folders.
  * @return Destination directory for the suggested operation.
  */
 std::filesystem::path build_suggested_target_dir(const CategorizedFile& file,
                                                  const std::string& base_dir_override,
-                                                 bool use_subcategory);
+                                                 bool use_subcategory,
+                                                 bool move_categorized_entries = true);
 
 /**
- * @brief Builds a unique image rename suggestion with underscore numeric suffixes.
+ * @brief Builds a unique rename suggestion with underscore numeric suffixes.
  * @param desired_name Desired suggested filename.
  * @param target_dir Directory where the filename must be unique.
  * @param used_names Case-insensitive names already allocated by the current review pass.
@@ -79,13 +81,15 @@ std::string build_unique_move_name(const std::string& desired_name,
                                    std::unordered_map<std::string, int>& next_index);
 
 /**
- * @brief Makes image rename suggestions unique across the reviewed file set.
+ * @brief Makes rename suggestions unique across the reviewed regular-file set.
  * @param files Review entries to update in place.
  * @param base_dir Base folder used for category moves.
  * @param use_subcategory True to deduplicate per category/subcategory target.
+ * @param move_categorized_entries True when categorized entries move into category folders.
  */
-void ensure_unique_image_suggested_names(std::vector<CategorizedFile>& files,
-                                         const std::string& base_dir,
-                                         bool use_subcategory);
+void ensure_unique_suggested_names(std::vector<CategorizedFile>& files,
+                                   const std::string& base_dir,
+                                   bool use_subcategory,
+                                   bool move_categorized_entries = true);
 
 } // namespace ReviewFileNaming

@@ -382,6 +382,13 @@ Procedure: Apply the headless review plan with recursive cache updates enabled, 
 Expected outcome: The file is moved into the display category/subcategory path, an undo plan is saved, and the cache row stores the canonical category.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService uses display folders and canonical storage"`
 
+#### Test case: HeadlessReviewApplyService deduplicates duplicate suggested filenames
+Purpose: Ensure headless apply does not skip later files when several review entries suggest the same new filename.
+Setup: Create two video files with the same suggested filename and the same destination category.
+Procedure: Apply the headless review plan with suggested filenames enabled.
+Expected outcome: Both files move successfully and receive `_1`/`_2` filename suffixes.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService deduplicates duplicate suggested filenames"`
+
 #### Test case: HeadlessAnalysisCommand rejects cross-folder file selections
 Purpose: Ensure unsupported cross-folder file selections release the runtime lock.
 Setup: Prepare a headless rename command with two file targets in different parent folders and a writable runtime directory.
@@ -2021,6 +2028,13 @@ Procedure: Populate the dialog and read the suggested names.
 Expected outcome: Suggestions become `_1` and `_2` variants to avoid collisions.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog deduplicates suggested picture filenames"`
 
+#### Test case: CategorizationDialog deduplicates suggested media filenames
+Purpose: Ensure non-image review rows also receive unique suggested filenames before apply.
+Setup: Provide two video entries with the same suggested filename and category destination.
+Procedure: Populate the dialog and read the suggested names.
+Expected outcome: Suggestions become `_1` and `_2` variants instead of leaving duplicate `.mp4` names.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog deduplicates suggested media filenames"`
+
 #### Test case: CategorizationDialog avoids existing picture filename collisions
 Purpose: Ensure suggested names do not collide with existing files on disk.
 Setup: Create a file on disk that matches the suggested name and add a rename-only entry with that suggestion.
@@ -2051,12 +2065,19 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog records confirmed
 
 ### `tests/unit/test_review_file_naming.cpp`
 
-#### Test case: ReviewFileNaming deduplicates duplicate image suggestions
-Purpose: Verify the extracted review naming helper preserves duplicate image-suggestion numbering.
-Setup: Create two image entries with the same suggested filename.
-Procedure: Run `ensure_unique_image_suggested_names`.
+#### Test case: ReviewFileNaming deduplicates duplicate regular-file suggestions
+Purpose: Verify the extracted review naming helper makes duplicate file suggestions unique, including non-image files.
+Setup: Create two video entries with the same suggested filename.
+Procedure: Run `ensure_unique_suggested_names`.
 Expected outcome: Suggestions are rewritten with `_1` and `_2` suffixes.
-Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming deduplicates duplicate image suggestions"`
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming deduplicates duplicate regular-file suggestions"`
+
+#### Test case: ReviewFileNaming deduplicates same-folder renames against the source directory
+Purpose: Ensure rename-only/headless rename operations check collisions where the rename will actually happen.
+Setup: Create a category-folder collision for a suggested video filename while leaving the source folder free.
+Procedure: Run `ensure_unique_suggested_names` with category moves disabled.
+Expected outcome: The suggestion is left unchanged because the category folder is not the active destination.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming deduplicates same-folder renames against the source directory"`
 
 #### Test case: ReviewFileNaming avoids existing on-disk rename suggestions
 Purpose: Ensure review rename suggestions do not collide with files that already exist.

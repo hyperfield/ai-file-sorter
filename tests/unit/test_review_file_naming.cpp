@@ -8,29 +8,53 @@
 #include <unordered_map>
 #include <unordered_set>
 
-TEST_CASE("ReviewFileNaming deduplicates duplicate image suggestions")
+TEST_CASE("ReviewFileNaming deduplicates duplicate regular-file suggestions")
 {
     TempDir temp_dir;
 
     CategorizedFile first;
     first.file_path = temp_dir.path().string();
-    first.file_name = "a.png";
+    first.file_name = "a.mp4";
     first.type = FileType::File;
-    first.suggested_name = "same_name.png";
-    first.rename_only = true;
+    first.category = "Media files";
+    first.suggested_name = "2025_videohandle.mp4";
 
     CategorizedFile second = first;
-    second.file_name = "b.png";
+    second.file_name = "b.mp4";
 
     std::vector<CategorizedFile> files{first, second};
-    ReviewFileNaming::ensure_unique_image_suggested_names(
+    ReviewFileNaming::ensure_unique_suggested_names(
         files,
         temp_dir.path().string(),
         false);
 
     REQUIRE(files.size() == 2);
-    CHECK(files[0].suggested_name == "same_name_1.png");
-    CHECK(files[1].suggested_name == "same_name_2.png");
+    CHECK(files[0].suggested_name == "2025_videohandle_1.mp4");
+    CHECK(files[1].suggested_name == "2025_videohandle_2.mp4");
+}
+
+TEST_CASE("ReviewFileNaming deduplicates same-folder renames against the source directory")
+{
+    TempDir temp_dir;
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "Media files"));
+    std::ofstream(temp_dir.path() / "Media files" / "2025_videohandle.mp4").put('x');
+
+    CategorizedFile file;
+    file.file_path = temp_dir.path().string();
+    file.file_name = "clip.mp4";
+    file.type = FileType::File;
+    file.category = "Media files";
+    file.suggested_name = "2025_videohandle.mp4";
+
+    std::vector<CategorizedFile> files{file};
+    ReviewFileNaming::ensure_unique_suggested_names(
+        files,
+        temp_dir.path().string(),
+        false,
+        false);
+
+    REQUIRE(files.size() == 1);
+    CHECK(files[0].suggested_name == "2025_videohandle.mp4");
 }
 
 TEST_CASE("ReviewFileNaming avoids existing on-disk rename suggestions")

@@ -2,6 +2,7 @@
 
 #include "DatabaseManager.hpp"
 #include "MovableCategorizedFile.hpp"
+#include "ReviewFileNaming.hpp"
 #include "ReviewHistoryStore.hpp"
 #include "StorageProvider.hpp"
 #include "UndoManager.hpp"
@@ -267,9 +268,17 @@ HeadlessReviewApplyService::apply(const std::vector<CategorizedFile>& entries,
     result.planned_count = entries.size();
     result.entries.reserve(entries.size());
 
+    std::vector<CategorizedFile> entries_to_apply = entries;
+    if (options.apply_suggested_names) {
+        ReviewFileNaming::ensure_unique_suggested_names(entries_to_apply,
+                                                        options.base_dir,
+                                                        options.use_subcategories,
+                                                        options.move_categorized_entries);
+    }
+
     std::vector<MoveRecord> move_history;
     move_history.reserve(entries.size());
-    for (const auto& entry : entries) {
+    for (const auto& entry : entries_to_apply) {
         apply_entry(entry, options, result, move_history);
     }
 
