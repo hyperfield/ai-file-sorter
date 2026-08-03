@@ -53,7 +53,7 @@ constexpr std::wstring_view kExtensionPathValue = L"ExtensionPath";
 constexpr std::wstring_view kProgressPathValue = L"ProgressPath";
 constexpr std::wstring_view kPackageRepositoryKey =
     L"Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages";
-constexpr std::wstring_view kPaidPackageIdentityPrefix = L"HFStudio.AIFileSorterExplorerExtension_";
+constexpr std::wstring_view kPaidPackageIdentityPrefix = L"Hyperfield.AIFileSorterforFileExplorer_";
 
 bool existing_file_path(std::wstring_view value)
 {

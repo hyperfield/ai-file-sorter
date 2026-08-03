@@ -26,7 +26,7 @@ constexpr std::wstring_view kProgressPathValue = L"ProgressPath";
 constexpr std::wstring_view kExtensionPathValue = L"ExtensionPath";
 constexpr std::wstring_view kPackageRepositoryKey =
     L"Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages";
-constexpr std::wstring_view kPackageIdentityPrefix = L"HFStudio.AIFileSorterExplorerExtension_";
+constexpr std::wstring_view kPackageIdentityPrefix = L"Hyperfield.AIFileSorterforFileExplorer_";
 
 bool starts_with_case_insensitive(std::wstring_view value, std::wstring_view prefix)
 {
