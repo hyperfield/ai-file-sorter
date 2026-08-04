@@ -62,13 +62,13 @@ This keeps the first run low risk: your files stay on your computer when you use
 [![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9npk4dzd6r6s)
 
 <p align="center">
-  <img src="images/screenshots/aifs-analyzing.png" alt="AI File Sorter analysis progress dialog on Windows" width="49%">
-  <img src="images/screenshots/aifs-done-linux.png" alt="AI File Sorter review and confirm results on Linux" width="49%">
+  <img src="images/screenshots/aifs-analyzing.png" alt="AI File Sorter analysis progress dialog on Windows" width="49%" align="top" style="vertical-align: top;">
+  <img src="images/screenshots/aifs-done-linux.png" alt="AI File Sorter review and confirm results on Linux" width="49%" align="top" style="vertical-align: top;">
 </p>
 
 <p align="center">
-  <img src="images/screenshots/main_windows_macos.png" alt="AI File Sorter main window on macOS" width="49%">
-  <img src="images/screenshots/aifs-done-2.png" alt="AI File Sorter review and confirm results with mixed file types on Windows" width="49%">
+  <img src="images/screenshots/aifs-benchmark-dialog-macos.png" alt="AI File Sorter compatibility benchmark on macOS" width="49%" align="top" style="vertical-align: top;">
+  <img src="images/screenshots/aifs-done-2.png" alt="AI File Sorter review and confirm results with mixed file types on Windows" width="49%" align="top" style="vertical-align: top;">
 </p>
 
 ---
