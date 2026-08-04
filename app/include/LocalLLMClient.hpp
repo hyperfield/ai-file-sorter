@@ -48,9 +48,12 @@ public:
      */
     using FallbackDecisionCallback = std::function<bool(const std::string& reason)>;
 
-    explicit LocalLLMClient(const std::string& model_path,
-                            FallbackDecisionCallback fallback_decision_callback = {},
-                            Options options = {});
+    explicit LocalLLMClient(const std::string& model_path);
+    LocalLLMClient(const std::string& model_path,
+                   FallbackDecisionCallback fallback_decision_callback);
+    LocalLLMClient(const std::string& model_path,
+                   FallbackDecisionCallback fallback_decision_callback,
+                   Options options);
     ~LocalLLMClient();
 
     std::string make_prompt(const std::string& file_name,

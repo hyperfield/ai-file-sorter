@@ -1753,6 +1753,17 @@ bool llama_logs_enabled_from_env()
     return value != "0" && value != "false" && value != "off" && value != "no";
 }
 
+LocalLLMClient::LocalLLMClient(const std::string& model_path)
+    : LocalLLMClient(model_path, {}, Options{})
+{
+}
+
+LocalLLMClient::LocalLLMClient(const std::string& model_path,
+                               FallbackDecisionCallback fallback_decision_callback)
+    : LocalLLMClient(model_path, std::move(fallback_decision_callback), Options{})
+{
+}
+
 LocalLLMClient::LocalLLMClient(const std::string& model_path,
                                FallbackDecisionCallback fallback_decision_callback,
                                Options options)

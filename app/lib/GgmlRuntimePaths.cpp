@@ -68,7 +68,8 @@ std::optional<std::string> normalized_linux_accelerator_backend_key(std::string_
     return std::nullopt;
 }
 
-std::optional<std::string> detect_linux_accelerator_backend_key(const std::filesystem::path& dir)
+[[maybe_unused]] std::optional<std::string> detect_linux_accelerator_backend_key(
+    const std::filesystem::path& dir)
 {
     if (has_regular_entry(dir / "libggml-cuda.so")) {
         return std::string("cuda");
@@ -106,7 +107,7 @@ const char* linux_accelerator_plugin_name(std::string_view backend_key)
     return nullptr;
 }
 
-void set_env_value(const char* key, const char* value)
+[[maybe_unused]] void set_env_value(const char* key, const char* value)
 {
 #ifdef _WIN32
     _putenv_s(key, value ? value : "");
