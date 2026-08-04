@@ -24,7 +24,7 @@
 AI File Sorter is a cross-platform desktop application that uses AI to organize files and suggest cleaner, more consistent names for images, documents, and supported audio/video files. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
 
 <p align="center">
-  <img src="images/screenshots/before-after/aifs_before_after_v.png" alt="AI File Sorter before and after organization example" width="600">
+  <img src="images/screenshots/aifs-main.png" alt="AI File Sorter main window on Windows" width="900">
 </p>
 
 The app can analyze picture files locally with built-in visual LLM backends and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. AI File Sorter can also clean up messy audio and video filenames by using the metadata already stored inside supported media files. If tags such as year, artist, album, or title are available, the app can turn them into a clear suggestion like `2024_artist_album_title.mp3`, which you can review, edit, or ignore before any change is applied.
@@ -61,7 +61,15 @@ This keeps the first run low risk: your files stay on your computer when you use
 
 [![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9npk4dzd6r6s)
 
-![AI File Sorter Screenshot](images/screenshots/ai-file-sorter-win.gif) ![AI File Sorter Screenshot](images/screenshots/main_windows_macos.png) ![AI File Sorter Screenshot](images/screenshots/sort-confirm-moved-win.png)
+<p align="center">
+  <img src="images/screenshots/aifs-analyzing.png" alt="AI File Sorter analysis progress dialog on Windows" width="49%">
+  <img src="images/screenshots/aifs-done-linux.png" alt="AI File Sorter review and confirm results on Linux" width="49%">
+</p>
+
+<p align="center">
+  <img src="images/screenshots/main_windows_macos.png" alt="AI File Sorter main window on macOS" width="49%">
+  <img src="images/screenshots/aifs-done-2.png" alt="AI File Sorter review and confirm results with mixed file types on Windows" width="49%">
+</p>
 
 ---
 
