@@ -27,6 +27,7 @@
 #include <sstream>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <unordered_set>
 #include <vector>
 
@@ -1141,6 +1142,39 @@ struct ChunkDeleter {
 using BitmapPtr = std::unique_ptr<mtmd_bitmap, BitmapDeleter>;
 using ChunkPtr = std::unique_ptr<mtmd_input_chunks, ChunkDeleter>;
 
+template <typename LoadedBitmap>
+mtmd_bitmap* unwrap_loaded_bitmap(LoadedBitmap&& loaded_bitmap) {
+    if constexpr (std::is_convertible_v<std::decay_t<LoadedBitmap>, mtmd_bitmap*>) {
+        return loaded_bitmap;
+    } else {
+        return loaded_bitmap.bitmap;
+    }
+}
+
+template <typename Context, typename Byte>
+auto load_bitmap_from_buf_compat(Context* vision_ctx, const Byte* data, size_t size, int)
+    -> decltype(mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size)) {
+    return mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size);
+}
+
+template <typename Context, typename Byte>
+auto load_bitmap_from_buf_compat(Context* vision_ctx, const Byte* data, size_t size, long)
+    -> decltype(mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size, false)) {
+    return mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size, false);
+}
+
+template <typename Context>
+auto load_bitmap_from_file_compat(Context* vision_ctx, const char* path, int)
+    -> decltype(mtmd_helper_bitmap_init_from_file(vision_ctx, path)) {
+    return mtmd_helper_bitmap_init_from_file(vision_ctx, path);
+}
+
+template <typename Context>
+auto load_bitmap_from_file_compat(Context* vision_ctx, const char* path, long)
+    -> decltype(mtmd_helper_bitmap_init_from_file(vision_ctx, path, false)) {
+    return mtmd_helper_bitmap_init_from_file(vision_ctx, path, false);
+}
+
 BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
                                               const std::string& image_path_utf8) {
     std::string decode_error;
@@ -1163,12 +1197,12 @@ BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
                                  image_path_utf8);
     }
 
-    const auto loaded_bitmap = mtmd_helper_bitmap_init_from_buf(
+    auto loaded_bitmap = load_bitmap_from_buf_compat(
         vision_ctx,
         reinterpret_cast<const unsigned char*>(png_bytes.constData()),
         static_cast<size_t>(png_bytes.size()),
-        false);
-    return BitmapPtr(loaded_bitmap.bitmap);
+        0);
+    return BitmapPtr(unwrap_loaded_bitmap(loaded_bitmap));
 }
 
 BitmapPtr load_visual_bitmap(mtmd_context* vision_ctx,
@@ -1182,9 +1216,9 @@ BitmapPtr load_visual_bitmap(mtmd_context* vision_ctx,
         return load_webp_bitmap_as_supported_image(vision_ctx, image_path_utf8);
     }
 
-    const auto loaded_bitmap =
-        mtmd_helper_bitmap_init_from_file(vision_ctx, image_path_utf8.c_str(), false);
-    return BitmapPtr(loaded_bitmap.bitmap);
+    auto loaded_bitmap =
+        load_bitmap_from_file_compat(vision_ctx, image_path_utf8.c_str(), 0);
+    return BitmapPtr(unwrap_loaded_bitmap(loaded_bitmap));
 }
 
 llama_token greedy_sample(const float* logits, int vocab_size, float temperature) {
