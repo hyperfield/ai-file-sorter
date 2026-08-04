@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <vector>
 
 namespace {
 
@@ -109,6 +110,56 @@ TEST_CASE("VisualLlmRuntime resolves the active backend through descriptor artif
     REQUIRE(legacy_paths.has_value());
     CHECK(legacy_paths->model_path == model_path);
     CHECK(legacy_paths->mmproj_path == mmproj_path);
+}
+
+TEST_CASE("VisualLlmRuntime resolves custom visual LLM artifacts") {
+    TempDir temp;
+    const auto model_path = temp.path() / "custom-model.gguf";
+    const auto mmproj_path = temp.path() / "custom-mmproj.gguf";
+    write_gguf_file(model_path);
+    write_gguf_file(mmproj_path);
+
+    CustomLLM custom;
+    custom.id = "custom-vision";
+    custom.name = "Custom Vision";
+    custom.path = model_path.string();
+    custom.mmproj_path = mmproj_path.string();
+
+    std::string error;
+    const auto backend = VisualLlmRuntime::resolve_active_backend(
+        custom_visual_model_id_for_llm(custom.id),
+        std::vector<CustomLLM>{custom},
+        &error);
+
+    REQUIRE(backend.has_value());
+    CHECK(error.empty());
+    REQUIRE(backend->descriptor != nullptr);
+    CHECK(std::string(backend->descriptor->id) == "custom");
+    CHECK(backend->descriptor->prompt_policy == VisualPromptPolicy::StructuredVisionInstruct);
+    REQUIRE(backend->path_for(VisualModelArtifactKind::Model).has_value());
+    REQUIRE(backend->path_for(VisualModelArtifactKind::Mmproj).has_value());
+    CHECK(*backend->path_for(VisualModelArtifactKind::Model) == model_path);
+    CHECK(*backend->path_for(VisualModelArtifactKind::Mmproj) == mmproj_path);
+}
+
+TEST_CASE("VisualLlmRuntime rejects custom visual LLMs without MMProj") {
+    TempDir temp;
+    const auto model_path = temp.path() / "custom-model.gguf";
+    write_gguf_file(model_path);
+
+    CustomLLM custom;
+    custom.id = "custom-without-mmproj";
+    custom.name = "Custom without MMProj";
+    custom.path = model_path.string();
+
+    std::string error;
+    CHECK_FALSE(VisualLlmRuntime::resolve_active_backend(
+                    custom_visual_model_id_for_llm(custom.id),
+                    std::vector<CustomLLM>{custom},
+                    &error)
+                    .has_value());
+    CHECK(error == "Custom visual LLM requires both a model file and an MMProj file. "
+                   "Edit the custom LLM entry and add an MMProj file.");
 }
 
 TEST_CASE("VisualLlmRuntime reports missing backend URLs before resolving artifacts") {

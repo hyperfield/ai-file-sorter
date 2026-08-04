@@ -1,6 +1,7 @@
 #include "ImageRenameMetadataService.hpp"
 
 #include "Utils.hpp"
+#include "app_version.hpp"
 
 #include <curl/curl.h>
 
@@ -41,6 +42,11 @@ constexpr std::array<uint8_t, 8> kPngSignature = {
     0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
 };
 constexpr size_t kHeifProbeOutputLimit = 256 * 1024;
+
+std::string reverse_geocoder_user_agent()
+{
+    return "AIFileSorter/" + APP_VERSION.to_numeric_string() + " (reverse-geocoder)";
+}
 
 constexpr uint16_t kTagDateTime = 0x0132;
 constexpr uint16_t kTagExifIfd = 0x8769;
@@ -1077,7 +1083,8 @@ ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::rev
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "AIFileSorter/1.7 (reverse-geocoder)");
+    const std::string user_agent = reverse_geocoder_user_agent();
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, user_agent.c_str());
     configure_tls(curl);
 
     curl_slist* headers = nullptr;

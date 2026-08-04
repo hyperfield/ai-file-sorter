@@ -75,6 +75,39 @@ TEST_CASE("SingleInstanceCoordinator notifies the primary instance on relaunch")
     }));
 }
 
+TEST_CASE("SingleInstanceCoordinator forwards secondary launch command payload")
+{
+    TempDir runtime_dir;
+    std::filesystem::permissions(runtime_dir.path(),
+                                 std::filesystem::perms::owner_all,
+                                 std::filesystem::perm_options::replace);
+    EnvVarGuard runtime_guard("AI_FILE_SORTER_SINGLE_INSTANCE_RUNTIME_DIR", runtime_dir.path().string());
+    QtAppContext app_context;
+    if (!local_server_listen_available(runtime_dir.path())) {
+        SUCCEED("Local socket binding is unavailable in this sandbox; activation handoff is skipped.");
+        return;
+    }
+
+    const QString instance_id = QString::fromStdString(make_unique_token("single-instance-payload-"));
+
+    SingleInstanceCoordinator primary(instance_id);
+    QString activation_message;
+    primary.set_activation_callback([&activation_message](const QString& message) {
+        activation_message = message;
+    });
+
+    REQUIRE(primary.acquire_primary_instance());
+    REQUIRE(primary.is_primary_instance());
+
+    SingleInstanceCoordinator secondary(instance_id);
+    secondary.set_activation_message(QStringLiteral("show-review-history"));
+    REQUIRE_FALSE(secondary.acquire_primary_instance());
+    REQUIRE_FALSE(secondary.is_primary_instance());
+    REQUIRE(wait_for_condition([&activation_message]() {
+        return activation_message == QStringLiteral("show-review-history");
+    }));
+}
+
 TEST_CASE("SingleInstanceCoordinator allows different instance ids to coexist")
 {
     TempDir runtime_dir;

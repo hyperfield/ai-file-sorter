@@ -1,6 +1,7 @@
 #include "LlmCatalog.hpp"
 #include "VisualLlmRuntime.hpp"
 
+#include "GgufFileValidation.hpp"
 #include "Utils.hpp"
 
 #include <algorithm>
@@ -14,6 +15,107 @@ std::string to_lower_copy(std::string value)
     std::transform(value.begin(), value.end(), value.begin(),
                    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return value;
+}
+
+std::optional<std::filesystem::path> custom_visual_path_from_utf8(const std::string& value,
+                                                                  const char* label,
+                                                                  std::string* error)
+{
+    if (value.empty()) {
+        if (error) {
+            *error = std::string("Custom visual LLM ") + label + " file is not configured.";
+        }
+        return std::nullopt;
+    }
+
+    std::filesystem::path path;
+    try {
+        path = Utils::utf8_to_path(value);
+    } catch (const std::exception& ex) {
+        if (error) {
+            *error = std::string("Custom visual LLM ") + label
+                + " path is invalid UTF-8: " + ex.what();
+        }
+        return std::nullopt;
+    }
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) {
+        if (error) {
+            *error = std::string("Custom visual LLM ") + label + " file is missing: "
+                + Utils::path_to_utf8(path);
+        }
+        return std::nullopt;
+    }
+    if (!has_gguf_header(path)) {
+        if (error) {
+            *error = std::string("Custom visual LLM ") + label
+                + " file is invalid or incomplete: " + Utils::path_to_utf8(path);
+        }
+        return std::nullopt;
+    }
+    return path;
+}
+
+const CustomLLM* find_custom_visual_llm(std::string_view id,
+                                        const std::vector<CustomLLM>& custom_llms)
+{
+    const auto it = std::find_if(custom_llms.begin(),
+                                 custom_llms.end(),
+                                 [id](const CustomLLM& llm) {
+                                     return llm.id == id;
+                                 });
+    if (it == custom_llms.end()) {
+        return nullptr;
+    }
+    return &(*it);
+}
+
+std::optional<VisualLlmRuntime::Backend> resolve_custom_visual_backend(
+    std::string_view backend_id,
+    const std::vector<CustomLLM>& custom_llms,
+    std::string* error)
+{
+    const auto custom_id = custom_llm_id_from_visual_model_id(backend_id);
+    if (!custom_id.has_value()) {
+        return std::nullopt;
+    }
+
+    const CustomLLM* custom = find_custom_visual_llm(*custom_id, custom_llms);
+    if (!custom || !is_valid_custom_llm(*custom)) {
+        if (error) {
+            *error = "Selected custom visual LLM is missing or invalid. Please re-select it.";
+        }
+        return std::nullopt;
+    }
+    if (!is_visual_custom_llm(*custom)) {
+        if (error) {
+            *error = "Custom visual LLM requires both a model file and an MMProj file. "
+                     "Edit the custom LLM entry and add an MMProj file.";
+        }
+        return std::nullopt;
+    }
+
+    const auto model_path = custom_visual_path_from_utf8(custom->path, "model", error);
+    if (!model_path.has_value()) {
+        return std::nullopt;
+    }
+    const auto mmproj_path = custom_visual_path_from_utf8(custom->mmproj_path, "MMProj", error);
+    if (!mmproj_path.has_value()) {
+        return std::nullopt;
+    }
+
+    const auto& descriptor = custom_visual_model_descriptor();
+    if (descriptor.artifacts.size() < 2) {
+        if (error) {
+            *error = "Custom visual backend descriptor is incomplete.";
+        }
+        return std::nullopt;
+    }
+
+    std::vector<VisualLlmRuntime::ResolvedArtifact> artifacts;
+    artifacts.push_back({&descriptor.artifacts[0], *model_path});
+    artifacts.push_back({&descriptor.artifacts[1], *mmproj_path});
+    return VisualLlmRuntime::Backend{&descriptor, std::move(artifacts)};
 }
 
 } // namespace
@@ -45,6 +147,19 @@ std::optional<VisualLlmRuntime::Backend> VisualLlmRuntime::resolve_active_backen
     std::string_view backend_id,
     std::string* error)
 {
+    static const std::vector<CustomLLM> no_custom_llms;
+    return resolve_active_backend(backend_id, no_custom_llms, error);
+}
+
+std::optional<VisualLlmRuntime::Backend> VisualLlmRuntime::resolve_active_backend(
+    std::string_view backend_id,
+    const std::vector<CustomLLM>& custom_llms,
+    std::string* error)
+{
+    if (is_custom_visual_model_id(backend_id)) {
+        return resolve_custom_visual_backend(backend_id, custom_llms, error);
+    }
+
     const VisualModelDescriptor* descriptor_ptr = nullptr;
     if (!backend_id.empty()) {
         descriptor_ptr = find_visual_model_descriptor(backend_id);
@@ -103,7 +218,16 @@ std::optional<VisualLlmRuntime::Backend> VisualLlmRuntime::resolve_active_backen
 std::optional<VisualLlmRuntime::Paths> VisualLlmRuntime::resolve_paths(std::string_view backend_id,
                                                                        std::string* error)
 {
-    const auto backend = resolve_active_backend(backend_id, error);
+    static const std::vector<CustomLLM> no_custom_llms;
+    return resolve_paths(backend_id, no_custom_llms, error);
+}
+
+std::optional<VisualLlmRuntime::Paths> VisualLlmRuntime::resolve_paths(
+    std::string_view backend_id,
+    const std::vector<CustomLLM>& custom_llms,
+    std::string* error)
+{
+    const auto backend = resolve_active_backend(backend_id, custom_llms, error);
     if (!backend.has_value()) {
         return std::nullopt;
     }

@@ -4,12 +4,14 @@
 
 #include "AnalysisCoordinator.hpp"
 #include "AnalysisEntryRouter.hpp"
+#include "ExplorerExtensionEntitlement.hpp"
 #include "MainApp.hpp"
 #include "SupportCodeManager.hpp"
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
 
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QToolButton>
 
@@ -21,6 +23,21 @@ QString MainAppTestAccess::analyze_button_text(const MainApp& app) {
 
 QString MainAppTestAccess::path_label_text(const MainApp& app) {
     return app.path_label ? app.path_label->text() : QString();
+}
+
+QLineEdit* MainAppTestAccess::path_entry(MainApp& app)
+{
+    return app.path_entry;
+}
+
+QPushButton* MainAppTestAccess::browse_button(MainApp& app)
+{
+    return app.browse_button;
+}
+
+QPushButton* MainAppTestAccess::analyze_button(MainApp& app)
+{
+    return app.analyze_button;
 }
 
 QAction* MainAppTestAccess::clear_cache_action(MainApp& app)
@@ -275,6 +292,11 @@ void MainAppTestAccess::simulate_support_prompt(Settings& settings,
 
     if (SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
             .is_prompt_permanently_disabled()) {
+        return;
+    }
+    if (ExplorerExtensionEntitlement::has_paid_entitlement()) {
+        (void)SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
+            .disable_prompt_for_paid_product("explorer-extension");
         return;
     }
 

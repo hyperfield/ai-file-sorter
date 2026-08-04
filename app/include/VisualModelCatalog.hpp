@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -84,6 +85,33 @@ const VisualModelDescriptor* find_visual_model_descriptor(std::string_view id);
  * @return Default visual model descriptor.
  */
 const VisualModelDescriptor& default_visual_model_descriptor();
+
+/**
+ * @brief Return the generic descriptor used for user-provided visual GGUF/MMProj pairs.
+ * @return Descriptor with the default custom visual runtime policy.
+ */
+const VisualModelDescriptor& custom_visual_model_descriptor();
+
+/**
+ * @brief Build a persisted visual model id for a custom local LLM.
+ * @param custom_llm_id Custom LLM id.
+ * @return Visual model id in `custom:<id>` form, or empty when the id is empty.
+ */
+std::string custom_visual_model_id_for_llm(std::string_view custom_llm_id);
+
+/**
+ * @brief Extract a custom LLM id from a persisted custom visual model id.
+ * @param visual_model_id Visual model id to parse.
+ * @return Custom LLM id when the value uses the `custom:<id>` form.
+ */
+std::optional<std::string> custom_llm_id_from_visual_model_id(std::string_view visual_model_id);
+
+/**
+ * @brief Return whether a visual model id references a custom local LLM.
+ * @param visual_model_id Visual model id to inspect.
+ * @return True when the id uses the `custom:<id>` form.
+ */
+bool is_custom_visual_model_id(std::string_view visual_model_id);
 
 /**
  * @brief Return the canonical on-disk location for a visual model artifact.

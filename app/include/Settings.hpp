@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <vector>
 #include <functional>
+#include <unordered_map>
 
 /**
  * @brief Stores and persists application configuration for UI and runtime behavior.
@@ -83,6 +84,16 @@ public:
      */
     void set_gemini_model(const std::string& model);
     /**
+     * @brief Returns the configured remote LLM request limit.
+     * @return Maximum remote requests per minute, or 0 when throttling is disabled.
+     */
+    int get_remote_requests_per_minute() const;
+    /**
+     * @brief Sets the remote LLM request limit.
+     * @param value Maximum remote requests per minute; non-positive values disable throttling.
+     */
+    void set_remote_requests_per_minute(int value);
+    /**
      * @brief Returns whether the LLM download UI section should remain expanded.
      * @return True when the downloads section is expanded.
      */
@@ -92,6 +103,16 @@ public:
      * @param value True to keep the downloads section expanded.
      */
     void set_llm_downloads_expanded(bool value);
+    /**
+     * @brief Returns the configured local LLM storage directory override.
+     * @return Directory path, or empty when platform defaults are used.
+     */
+    std::string get_llm_storage_dir() const;
+    /**
+     * @brief Sets the local LLM storage directory override.
+     * @param path Directory path; empty restores platform defaults.
+     */
+    void set_llm_storage_dir(const std::string& path);
     /**
      * @brief Returns the selected visual model backend identifier.
      * @return Stable visual model id.
@@ -433,6 +454,37 @@ public:
     void set_development_prompt_logging(bool value);
 
     /**
+     * @brief Returns whether headless integrations should stop for review before applying.
+     * @return True when headless jobs must produce a review payload without filesystem changes.
+     */
+    bool get_headless_review_before_apply() const;
+    /**
+     * @brief Enables or disables review-before-apply behavior for headless integrations.
+     * @param value True to require explicit review approval before applying headless jobs.
+     */
+    void set_headless_review_before_apply(bool value);
+    /**
+     * @brief Returns whether the review dialog should preselect actionable filename changes.
+     * @return True when filename auto-approval is enabled.
+     */
+    bool get_review_auto_approve_filename_changes() const;
+    /**
+     * @brief Enables or disables automatic approval of filename changes.
+     * @param value True to preselect actionable filename changes.
+     */
+    void set_review_auto_approve_filename_changes(bool value);
+    /**
+     * @brief Returns whether the review dialog should preselect actionable categorization rows.
+     * @return True when categorization auto-approval is enabled.
+     */
+    bool get_review_auto_approve_categorization() const;
+    /**
+     * @brief Enables or disables automatic approval of categorization rows.
+     * @param value True to preselect actionable categorization rows.
+     */
+    void set_review_auto_approve_categorization(bool value);
+
+    /**
      * @brief Resolves the full path to the active `config.ini` file.
      * @return Platform-appropriate config file path.
      */
@@ -454,6 +506,16 @@ public:
      */
     std::string get_skipped_version();
     /**
+     * @brief Stores the application version whose What's New popup has been shown.
+     * @param version Version string that should not show the startup popup again.
+     */
+    void set_whats_new_version_shown(const std::string& version);
+    /**
+     * @brief Returns the application version whose What's New popup has been shown.
+     * @return Version string, or empty when no What's New popup has been recorded.
+     */
+    std::string get_whats_new_version_shown() const;
+    /**
      * @brief Sets whether the file explorer panel should be shown.
      * @param value True to keep the file explorer visible.
      */
@@ -463,6 +525,16 @@ public:
      * @return True when the file explorer is visible by default.
      */
     bool get_show_file_explorer() const;
+    /**
+     * @brief Stores recently used UNC network share roots.
+     * @param locations UNC share roots to show in the file explorer network section.
+     */
+    void set_recent_network_locations(const std::vector<std::string>& locations);
+    /**
+     * @brief Returns recently used UNC network share roots.
+     * @return Recently used network locations in most-recent-first order.
+     */
+    const std::vector<std::string>& get_recent_network_locations() const;
     /**
      * @brief Returns whether the suitability benchmark has been completed.
      * @return True when the benchmark has run at least once.
@@ -534,6 +606,26 @@ public:
      */
     void set_next_support_prompt_threshold(int threshold);
     /**
+     * @brief Returns whether the Windows Explorer extension install prompt is suppressed.
+     * @return True when the prompt should no longer be shown.
+     */
+    bool get_windows_explorer_extension_prompt_dismissed() const;
+    /**
+     * @brief Sets whether the Windows Explorer extension install prompt is suppressed.
+     * @param value True to suppress future prompts.
+     */
+    void set_windows_explorer_extension_prompt_dismissed(bool value);
+    /**
+     * @brief Returns the last UTC timestamp when the Windows Explorer extension prompt was shown.
+     * @return ISO timestamp string, or empty when never shown.
+     */
+    std::string get_windows_explorer_extension_prompt_last_shown_utc() const;
+    /**
+     * @brief Stores the last UTC timestamp when the Windows Explorer extension prompt was shown.
+     * @param value ISO timestamp string, or empty to clear.
+     */
+    void set_windows_explorer_extension_prompt_last_shown_utc(const std::string& value);
+    /**
      * @brief Returns the configured allowed category whitelist.
      * @return Copy of the allowed category list.
      */
@@ -553,6 +645,17 @@ public:
      * @param values Allowed subcategory names to store.
      */
     void set_allowed_subcategories(std::vector<std::string> values);
+    /**
+     * @brief Returns category-specific subcategory constraints for the active whitelist.
+     * @return Copy of the category-to-subcategories map.
+     */
+    std::unordered_map<std::string, std::vector<std::string>> get_allowed_subcategories_by_category() const;
+    /**
+     * @brief Replaces category-specific subcategory constraints for the active whitelist.
+     * @param values Category-to-subcategories map to store.
+     */
+    void set_allowed_subcategories_by_category(
+        std::unordered_map<std::string, std::vector<std::string>> values);
 
 private:
     LLMChoice parse_llm_choice() const;
@@ -583,7 +686,9 @@ private:
     std::string openai_model{ "gpt-4o-mini" };
     std::string gemini_api_key;
     std::string gemini_model{ "gemini-2.5-flash-lite" };
+    int remote_requests_per_minute{0};
     bool llm_downloads_expanded{true};
+    std::string llm_storage_dir;
     std::string visual_model_id;
     bool use_subcategories;
     bool categorize_files;
@@ -608,7 +713,9 @@ private:
     std::string default_sort_folder;
     std::string sort_folder;
     std::string skipped_version;
+    std::string whats_new_version_shown;
     bool show_file_explorer{true};
+    std::vector<std::string> recent_network_locations;
     bool suitability_benchmark_completed{false};
     bool suitability_benchmark_suppressed{false};
     std::string benchmark_last_report;
@@ -617,10 +724,16 @@ private:
     CategoryLanguage category_language{CategoryLanguage::English};
     bool consistency_pass_enabled{false};
     bool development_prompt_logging{false};
+    bool headless_review_before_apply{true};
+    bool review_auto_approve_filename_changes{false};
+    bool review_auto_approve_categorization{false};
     int categorized_file_count{0};
     int next_support_prompt_threshold{50};
+    bool windows_explorer_extension_prompt_dismissed{false};
+    std::string windows_explorer_extension_prompt_last_shown_utc;
     std::vector<std::string> allowed_categories;
     std::vector<std::string> allowed_subcategories;
+    std::unordered_map<std::string, std::vector<std::string>> allowed_subcategories_by_category;
     std::string active_whitelist;
     std::vector<CustomLLM> custom_llms;
     std::string active_custom_llm_id;

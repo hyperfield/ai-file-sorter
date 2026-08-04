@@ -14,7 +14,7 @@ Options:
       --m2                            Shortcut for --variant m2
       --intel                         Shortcut for --variant intel
       --default                       Shortcut for --variant default
-      --all                           Package all variant bundles (m1, m2, intel)
+      --all                           Package all Apple Silicon variant bundles (m1, m2)
   -h, --help                          Show this help
 USAGE
 }
@@ -59,7 +59,6 @@ while [[ $# -gt 0 ]]; do
         if [[ "$norm" == "all" ]]; then
           add_variant "m1"
           add_variant "m2"
-          add_variant "intel"
         else
           add_variant "$norm"
         fi
@@ -73,7 +72,6 @@ while [[ $# -gt 0 ]]; do
     --all)
       add_variant "m1"
       add_variant "m2"
-      add_variant "intel"
       shift
       ;;
     -h|--help)
@@ -91,7 +89,7 @@ done
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-AI File Sorter}"
 APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-AIFileSorter}"
-DMG_APP_DISPLAY_NAME="${DMG_APP_DISPLAY_NAME:-AI File Sorter}"
+DMG_APP_DISPLAY_NAME="${DMG_APP_DISPLAY_NAME-}"
 APP_DIR="$ROOT_DIR/app"
 BUNDLE_SCRIPT="$APP_DIR/scripts/create_macos_bundle.sh"
 DIST_DIR="$APP_DIR/dist"
@@ -121,11 +119,12 @@ build_dmg() {
   local display_name="$3"
   local dmg_path="$DIST_DIR/$dmg_name"
   local safe_display_name="${display_name//\//-}"
-  local safe_dmg_app_name="${DMG_APP_DISPLAY_NAME//\//-}"
+  local staged_app_name="${DMG_APP_DISPLAY_NAME:-$display_name}"
+  local safe_dmg_app_name="${staged_app_name//\//-}"
   if [[ "$safe_display_name" != "$display_name" ]]; then
     echo "Adjusted DMG display name for filesystem safety: $safe_display_name"
   fi
-  if [[ "$safe_dmg_app_name" != "$DMG_APP_DISPLAY_NAME" ]]; then
+  if [[ "$safe_dmg_app_name" != "$staged_app_name" ]]; then
     echo "Adjusted staged app name for filesystem safety: $safe_dmg_app_name"
   fi
 
@@ -171,9 +170,6 @@ else
   if [[ -f "$APP_DIR/bin/m2/aifilesorter" ]]; then
     variants+=("m2")
   fi
-  if [[ -f "$APP_DIR/bin/intel/aifilesorter" ]]; then
-    variants+=("intel")
-  fi
   if (( ${#variants[@]} == 0 )); then
     if [[ ! -d "$BUNDLE_PATH" ]]; then
       echo "No variant binaries found; default bundle missing at $BUNDLE_PATH." >&2
@@ -195,8 +191,8 @@ if (( ${#variants[@]} > 0 )); then
         ;;
       m2)
         rebuild_bundle_for_variant "$variant"
-        dmg_name="AIFileSorter-M2-M3.dmg"
-        display_name="AI File Sorter for Mac M2/M3"
+        dmg_name="AIFileSorter-M2-M5.dmg"
+        display_name="AI File Sorter for Mac M2-M5"
         ;;
       intel)
         rebuild_bundle_for_variant "$variant"

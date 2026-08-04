@@ -88,6 +88,59 @@ TEST_CASE("recursive scans include nested files") {
     }));
 }
 
+TEST_CASE("recursive scans skip protected project directories") {
+    TempDir temp_dir;
+    write_file(temp_dir.path() / "top.txt");
+    write_file(temp_dir.path() / "UnityGame" / "ProjectSettings" / "ProjectVersion.txt");
+    write_file(temp_dir.path() / "UnityGame" / "Assets" / "scene.prefab");
+    write_file(temp_dir.path() / "UnityGame" / "notes.txt");
+
+    FileScanner scanner;
+    const auto entries = scanner.get_directory_entries(
+        temp_dir.path().string(),
+        FileScanOptions::Files | FileScanOptions::Recursive);
+
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().file_name == "top.txt");
+}
+
+TEST_CASE("protected selected roots produce no scan entries") {
+    TempDir temp_dir;
+    const auto project = temp_dir.path() / "GodotGame";
+    write_file(project / "project.godot");
+    write_file(project / "scenes" / "main.tscn");
+
+    FileScanner scanner;
+    const auto entries = scanner.get_directory_entries(
+        project.string(),
+        FileScanOptions::Files | FileScanOptions::Recursive);
+
+    CHECK(entries.empty());
+}
+
+TEST_CASE("project protection can be disabled for raw scanner traversal") {
+    TempDir temp_dir;
+    write_file(temp_dir.path() / "RustApp" / "Cargo.toml");
+    write_file(temp_dir.path() / "RustApp" / "src" / "main.rs");
+
+    FileScannerBehavior behavior;
+    behavior.protect_project_directories = false;
+
+    FileScanner scanner;
+    const auto entries = scanner.get_directory_entries(
+        temp_dir.path().string(),
+        FileScanOptions::Files | FileScanOptions::Recursive,
+        behavior);
+
+    REQUIRE(entries.size() == 2);
+    CHECK(std::any_of(entries.begin(), entries.end(), [](const FileEntry& entry) {
+        return entry.file_name == "Cargo.toml";
+    }));
+    CHECK(std::any_of(entries.begin(), entries.end(), [](const FileEntry& entry) {
+        return entry.file_name == "main.rs";
+    }));
+}
+
 #ifndef _WIN32
 TEST_CASE("cloud compatibility providers skip recursive symlink traversal") {
     TempDir temp_dir;

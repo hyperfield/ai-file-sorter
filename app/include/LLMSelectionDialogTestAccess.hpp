@@ -30,6 +30,12 @@ public:
     static std::string selected_visual_model_id(const LLMSelectionDialog& dialog);
     static std::string selected_visual_model_label(const LLMSelectionDialog& dialog);
     /**
+     * @brief Returns the active built-in local model downloader.
+     * @param dialog Selection dialog instance under test.
+     * @return Downloader used by the local LLM download panel, or nullptr.
+     */
+    static LLMDownloader* local_downloader(LLMSelectionDialog& dialog);
+    /**
      * @brief Returns the visible built-in local model labels in top-to-bottom dialog order.
      * @param dialog Selection dialog instance under test.
      * @return Ordered list of built-in local model labels.

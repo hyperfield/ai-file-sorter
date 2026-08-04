@@ -23,6 +23,12 @@ struct BackendProbeGuard {
     }
 };
 
+std::string env_value_or_empty(const char* key)
+{
+    const char* value = std::getenv(key);
+    return value ? std::string(value) : std::string();
+}
+
 } // namespace
 
 TEST_CASE("detect_preferred_backend reads environment") {
@@ -46,6 +52,32 @@ TEST_CASE("Image categorization uses an image-specific system prompt") {
     CHECK(prompt.find("Use any provided image description as the primary evidence") != std::string::npos);
     CHECK(prompt.find("If the file is an installer") == std::string::npos);
     CHECK(prompt.find("If uncertain, make your best guess from the name only") == std::string::npos);
+}
+
+TEST_CASE("Image categorization uses refined local prompts when refined mode is requested") {
+    const std::string file_name = "django_project_dashboard.png";
+    const std::string prompt_path =
+        "home/theuser/Downloads/django_project_dashboard.png\n"
+        "Image description: Django administration interface screenshot showing a project dashboard.";
+    const std::string consistency_context =
+        "Sorting style: More refined\n"
+        "- Favor the most semantically accurate category and subcategory pair for this specific item.";
+
+    const std::string system_prompt = LocalLLMTestAccess::categorization_system_prompt_for_testing(
+        prompt_path,
+        FileType::File,
+        consistency_context);
+    const std::string user_prompt = LocalLLMTestAccess::categorization_user_prompt_for_testing(
+        file_name,
+        prompt_path,
+        FileType::File,
+        consistency_context);
+
+    CHECK(system_prompt.find("always use Images as the main category") == std::string::npos);
+    CHECK(system_prompt.find("you may also choose a more content-specific main category") != std::string::npos);
+    CHECK(system_prompt.find("format <Main category> : <Subcategory>") != std::string::npos);
+    CHECK(user_prompt.find("Answer with exactly one line:\n<Main category> : <Subcategory>") != std::string::npos);
+    CHECK(user_prompt.find("Answer with exactly one line:\nImages : <Subcategory>") == std::string::npos);
 }
 
 TEST_CASE("Generic file categorization keeps the general system prompt") {
@@ -183,8 +215,8 @@ TEST_CASE("CUDA backend can be forced off via GGML_DISABLE_CUDA") {
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", "1");
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
-    CudaProbeGuard guard;
-    TestHooks::set_cuda_availability_probe([] { return true; });
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) { return true; });
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
@@ -210,8 +242,13 @@ TEST_CASE("CUDA override is applied when backend is available") {
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "7");
-    CudaProbeGuard guard;
-    TestHooks::set_cuda_availability_probe([] { return true; });
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view backend_name) {
+        return backend_name == "CUDA";
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        return std::nullopt;
+    });
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
@@ -223,12 +260,14 @@ TEST_CASE("CUDA backend reports low GPU memory before load") {
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
-    CudaProbeGuard guard;
-    TestHooks::set_cuda_availability_probe([] { return true; });
-    TestHooks::set_cuda_memory_probe([] {
-        Utils::CudaMemoryInfo info;
-        info.free_bytes = 1ULL * 1024ULL * 1024ULL;
-        info.total_bytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view backend_name) {
+        return backend_name == "CUDA";
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        TestHooks::BackendMemoryInfo info;
+        info.memory.free_bytes = 1ULL * 1024ULL * 1024ULL;
+        info.memory.total_bytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
         return info;
     });
 
@@ -238,16 +277,35 @@ TEST_CASE("CUDA backend reports low GPU memory before load") {
     REQUIRE(result.status == LocalLLMClient::Status::GpuLowMemoryFallbackToCpu);
 }
 
+TEST_CASE("CUDA backend falls back to CPU when backend memory metrics are unavailable") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
+    EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
+    EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view backend_name) {
+        return backend_name == "CUDA";
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        return std::nullopt;
+    });
+
+    auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
+        model.path().string());
+    REQUIRE(params.n_gpu_layers == 0);
+}
+
 TEST_CASE("Auto backend prefers CUDA when both backends are possible") {
     TempModelFile model;
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", std::nullopt);
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", "7");
-    CudaProbeGuard cuda_guard;
     BackendProbeGuard backend_guard;
-    TestHooks::set_cuda_availability_probe([] { return true; });
-    TestHooks::set_backend_availability_probe([](std::string_view) {
-        return false;
+    TestHooks::set_backend_availability_probe([](std::string_view backend_name) {
+        return backend_name == "CUDA";
+    });
+    TestHooks::set_backend_memory_probe([](std::string_view) {
+        return std::nullopt;
     });
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
@@ -276,12 +334,12 @@ TEST_CASE("CUDA fallback when no GPU is available") {
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
     EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
     EnvVarGuard override_ngl("AI_FILE_SORTER_N_GPU_LAYERS", std::nullopt);
-    CudaProbeGuard guard;
-    TestHooks::set_cuda_availability_probe([] { return false; });
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) { return false; });
 
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
-    REQUIRE((params.n_gpu_layers == 0 || params.n_gpu_layers == -1));
+    REQUIRE(params.n_gpu_layers == 0);
 }
 
 TEST_CASE("Vulkan backend honors explicit override") {
@@ -380,6 +438,31 @@ TEST_CASE("Vulkan backend falls back to CPU when unavailable") {
     auto params = LocalLLMTestAccess::prepare_model_params_for_testing(
         model.path().string());
     REQUIRE(params.n_gpu_layers == 0);
+}
+
+TEST_CASE("LocalLLMClient force CPU option preserves caller backend environment") {
+    TempModelFile model;
+    EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");
+    EnvVarGuard llama_device("LLAMA_ARG_DEVICE", "cuda");
+    EnvVarGuard disable_cuda("GGML_DISABLE_CUDA", std::nullopt);
+    BackendProbeGuard guard;
+    TestHooks::set_backend_availability_probe([](std::string_view) {
+        return true;
+    });
+
+    LocalLLMClient::Options options;
+    options.force_cpu_backend = true;
+
+    try {
+        LocalLLMClient client(model.path().string(), {}, options);
+        FAIL("Expected LocalLLMClient to throw due to invalid model");
+    } catch (const std::runtime_error& ex) {
+        REQUIRE(std::string(ex.what()).find("Failed to load model") != std::string::npos);
+    }
+
+    REQUIRE(env_value_or_empty("AI_FILE_SORTER_GPU_BACKEND") == "cuda");
+    REQUIRE(env_value_or_empty("LLAMA_ARG_DEVICE") == "cuda");
+    REQUIRE(env_value_or_empty("GGML_DISABLE_CUDA").empty());
 }
 
 TEST_CASE("LocalLLMClient declines GPU fallback when callback returns false") {

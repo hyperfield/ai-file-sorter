@@ -1,89 +1,102 @@
 # Guia de inicio rapido
 
-AI File Sorter te ayuda a organizar archivos despues de tu revision y aprobacion.
+AI File Sorter le ayuda a organizar archivos con un flujo de trabajo de revision primero y aprobacion automatica opcional para los cambios en los que decida confiar.
 
-La IA dirige el analisis y sugiere categorias, subcategorias y nombres. No toca directamente tus archivos. La aplicacion realiza los movimientos o cambios de nombre solo despues de que confirmes los cambios revisados.
+La IA dirige el analisis y sugiere categorias, subcategorias y nombres. No modifica directamente sus archivos. La aplicacion mueve o cambia nombres despues de que usted confirme los cambios revisados, o automaticamente solo cuando haya activado la opcion de aprobacion automatica correspondiente.
 
-## 1. Elige una carpeta
+## Primera ejecucion segura
 
-Usa **Browse** para elegir la carpeta que quieres ordenar.
+Si es la primera vez que usa AI File Sorter, empiece con una carpeta de prueba pequena antes de usar un archivo grande o una unidad completa.
+
+Buenas carpetas para la primera ejecucion incluyen:
+
+- una copia de 20-50 archivos de `Downloads`
+- una carpeta pequena de capturas de pantalla o fotos para limpiar
+- una carpeta temporal con algunos PDF o documentos
+
+Esto facilita revisar la primera ejecucion. Sus archivos permanecen en su equipo cuando usa modelos locales, y la IA solo sugiere categorias y nombres. Deje desactivadas las opciones de aprobacion automatica en la primera ejecucion para que nada se mueva ni cambie de nombre hasta que apruebe la lista de revision.
+
+## 1. Elegir una carpeta
+
+Use **Browse** o el panel **File Explorer** para elegir la carpeta que desea ordenar.
 
 Ejemplos tipicos:
 
 - `Downloads`
-- una carpeta del escritorio para limpiar
-- una carpeta en una unidad externa
+- una carpeta de limpieza del escritorio
+- una carpeta de una unidad externa
+- una carpeta de red o sincronizada con la nube
 - un archivo de proyecto
 
-## 2. Elige lo que debe hacer la aplicacion
+## 2. Elegir que debe hacer la aplicacion
 
-Usa las opciones principales para decidir si la aplicacion debe:
+Use las opciones principales para decidir si la aplicacion debe:
 
-- clasificar archivos en carpetas por categoria
+- categorizar archivos en carpetas
 - analizar imagenes
 - analizar documentos
 - ofrecer sugerencias de cambio de nombre para archivos compatibles
 
-Si solo quieres sugerencias de cambio de nombre, activa el modo correspondiente de solo renombrar.
+Si solo quiere sugerencias de cambio de nombre, active el modo correspondiente de solo cambio de nombre.
 
-## 3. Elige el estilo de categorizacion
+## 3. Seleccionar el estilo de categorizacion
 
-Elige el estilo que mejor se adapte a tu objetivo:
+Elija el estilo que mejor coincida con su objetivo:
 
-- **Default** para uso general
-- **More categories** si quieres una agrupacion mas detallada
-- **More consistent** si quieres una mayor coherencia entre archivos similares
+- **More refined** para uso general y agrupacion mas detallada
+- **More consistent** si desea mayor coherencia de etiquetas entre archivos similares
 
-Tambien puedes activar listas blancas de categorias si quieres que la aplicacion se limite a un conjunto mas reducido de nombres de categoria.
+Tambien puede activar listas blancas de categorias si quiere que la aplicacion se mantenga dentro de un conjunto mas limitado de nombres de categorias.
 
-## 4. Inicia el analisis
+## 4. Iniciar el analisis
 
-Haz clic en **Analyze and categorize files**.
+Haga clic en **Analyze and categorize files**.
 
-La aplicacion analiza la carpeta seleccionada, recopila la informacion necesaria y prepara una lista de revision.
+La aplicacion escanea la carpeta seleccionada, recopila la informacion necesaria y prepara una lista de revision.
 
-## 5. Revisa antes de aplicar
+## 5. Revisar antes de aplicar cambios
 
-La ventana de revision te permite comprobar:
+El cuadro de revision le permite inspeccionar:
 
 - categorias sugeridas
 - subcategorias opcionales
 - sugerencias de cambio de nombre para archivos compatibles
-- las rutas de destino finales
+- las rutas finales de destino
+- vistas previas de archivos cuando sean compatibles
 
-Puedes ajustar o rechazar sugerencias antes de confirmar nada.
+Puede ajustar o rechazar sugerencias antes de confirmar cualquier cosa.
 
-## 6. Aplica los cambios
+## 6. Aplicar los cambios
 
-Una vez confirmado, la aplicacion crea las carpetas necesarias y realiza los movimientos o cambios de nombre.
+Una vez que confirme, la aplicacion crea las carpetas necesarias y realiza los movimientos o cambios de nombre. Si la aprobacion automatica esta activada, los cambios de categoria o nombre de archivo elegibles pueden aplicarse sin detenerse en el cuadro de revision.
 
-## 7. Deshaz la ultima ejecucion
+## 7. Deshacer la ultima ejecucion
 
-Si aplicas cambios y luego quieres revertirlos, usa **Undo last run** desde el menu.
+Si aplica cambios y luego quiere revertirlos, use **Undo last run** desde el menu.
 
-La funcion de deshacer esta pensada para la ejecucion de ordenacion confirmada mas reciente. Usa el historial registrado por la aplicacion para devolver archivos a su ubicacion anterior y revertir cambios de nombre compatibles cuando sea posible.
+Deshacer esta pensado para la ejecucion de ordenacion confirmada mas reciente. Usa el historial registrado por la aplicacion para devolver archivos y revertir cambios de nombre compatibles cuando sea posible.
 
-Para obtener mejores resultados, usa deshacer antes de iniciar otra limpieza grande en la misma carpeta.
+Para obtener mejores resultados, use Deshacer antes de iniciar otra limpieza grande en la misma carpeta.
 
-## 8. Aprendizaje a partir de tus revisiones
+## 8. Aprender de sus revisiones
 
-Cuando apruebas categorias en el dialogo de revision, la aplicacion puede recordar esas decisiones locales y usarlas como pistas en futuras ejecuciones. Esto no entrena ni modifica el modelo de IA.
+Cuando aprueba categorias en el cuadro de revision, la aplicacion puede recordar esas decisiones locales y usarlas como pistas para futuras ejecuciones. Esto no entrena ni modifica el modelo de IA.
 
-Los ejemplos aprendidos se guardan en una base de datos local separada, por lo que borrar la cache normal de categorizacion no los elimina. Para borrar estos datos locales de aprendizaje, usa **Settings -> Reset learned behavior**.
+Los ejemplos aprendidos se almacenan en una base de datos local separada, por lo que borrar la cache normal de categorizacion no los elimina. Para eliminar estos datos de aprendizaje local, use **Settings -> Reset learned behavior**.
 
-## Conviene saber
+## Bueno saber
 
 - La aplicacion usa una cache local para evitar reprocesar los mismos archivos y mejorar la coherencia.
-- La aplicacion no aplica cambios automaticamente sin mostrar antes el paso de revision.
-- Las opciones de imagenes y documentos pueden expandirse por separado si necesitas mas control.
+- La aprobacion automatica es opcional. Dejela desactivada hasta que se sienta comodo con las sugerencias de la aplicacion.
+- Las opciones de imagenes y documentos pueden expandirse por separado si necesita mas control.
 
 ## Si algo parece incorrecto
 
-Comprueba primero lo siguiente:
+Revise primero lo siguiente:
 
-- la carpeta seleccionada es realmente la que querias
+- la carpeta seleccionada es la que queria usar
 - las opciones de analisis relevantes estan activadas
-- el modo de solo renombrar no esta limitando el resultado de forma no deseada
-- una whitelist de categorias no esta restringiendo demasiado las sugerencias
+- el modo de solo cambio de nombre no limita el resultado de una forma inesperada
+- una lista blanca de categorias no esta restringiendo demasiado las sugerencias
 
-Para obtener mas ayuda, abre **Help -> FAQ**.
+Para mas solucion de problemas, abra **Help -> FAQ**.

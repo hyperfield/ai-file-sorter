@@ -1,10 +1,12 @@
 #include "SuitabilityBenchmarkDialog.hpp"
 
 #include "DocumentTextAnalyzer.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "ILLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "LocalLLMClient.hpp"
+#include "Logger.hpp"
 #include "Settings.hpp"
 #include "Types.hpp"
 #include "Utils.hpp"
@@ -15,11 +17,14 @@
 #include <QColor>
 #include <QCheckBox>
 #include <QEvent>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QLabel>
 #include <QMetaObject>
+#include <QOperatingSystemVersion>
 #include <QPainter>
+#include <QPalette>
 #include <QObject>
 #include <QPointer>
 #include <QProgressBar>
@@ -201,6 +206,39 @@ int perf_rank(PerfClass perf)
 PerfClass worst_perf(PerfClass a, PerfClass b)
 {
     return perf_rank(a) >= perf_rank(b) ? a : b;
+}
+
+QColor blend_colors(const QColor& foreground,
+                    const QColor& background,
+                    double foreground_weight)
+{
+    const double clamped_weight = std::clamp(foreground_weight, 0.0, 1.0);
+    const double background_weight = 1.0 - clamped_weight;
+    return QColor(static_cast<int>(std::round(foreground.red() * clamped_weight +
+                                              background.red() * background_weight)),
+                  static_cast<int>(std::round(foreground.green() * clamped_weight +
+                                              background.green() * background_weight)),
+                  static_cast<int>(std::round(foreground.blue() * clamped_weight +
+                                              background.blue() * background_weight)));
+}
+
+QString css_color(const QColor& color)
+{
+    return color.name(QColor::HexRgb);
+}
+
+bool is_windows_11_or_newer()
+{
+#if defined(Q_OS_WIN)
+    const QOperatingSystemVersion version = QOperatingSystemVersion::current();
+    if (version.type() != QOperatingSystemVersion::Windows) {
+        return false;
+    }
+    return version.majorVersion() > 10 ||
+           (version.majorVersion() == 10 && version.microVersion() >= 22000);
+#else
+    return false;
+#endif
 }
 
 QString perf_color(PerfClass perf)
@@ -455,29 +493,12 @@ std::string format_backend_label(std::string_view name)
     return std::string(name);
 }
 
-std::optional<std::filesystem::path> resolve_default_model_path(const char* env_var)
-{
-    const char* url = std::getenv(env_var);
-    if (!url || !*url) {
-        return std::nullopt;
-    }
-    try {
-        std::filesystem::path path = Utils::make_default_path_to_file_from_download_url(url);
-        if (std::filesystem::exists(path)) {
-            return path;
-        }
-    } catch (...) {
-        return std::nullopt;
-    }
-    return std::nullopt;
-}
-
 std::vector<DefaultModel> collect_default_models()
 {
     std::vector<DefaultModel> models;
     std::unordered_set<std::string> seen;
     for (const auto& entry : default_llm_entries()) {
-        auto path = resolve_default_model_path(entry.url_env);
+        auto path = resolve_downloaded_builtin_llm_path(entry.choice);
         if (!path) {
             continue;
         }
@@ -547,18 +568,7 @@ struct BackendMemorySnapshot {
 
 void load_ggml_backends_once()
 {
-    static bool loaded = false;
-    if (loaded) {
-        return;
-    }
-
-    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-    if (ggml_dir && *ggml_dir) {
-        ggml_backend_load_all_from_path(ggml_dir);
-    } else {
-        ggml_backend_load_all();
-    }
-    loaded = true;
+    GgmlRuntimePaths::ensure_ggml_backends_loaded(Logger::get_logger("core_logger"));
 }
 
 std::optional<BackendMemorySnapshot> query_backend_memory(std::string_view backend_name)
@@ -692,14 +702,16 @@ double median_seconds(std::vector<double> seconds)
     return (seconds[mid - 1] + seconds[mid]) / 2.0;
 }
 
-bool has_visual_llm_files()
+bool has_visual_llm_files(std::string_view visual_backend_id,
+                          const std::vector<CustomLLM>& custom_llms)
 {
-    return VisualLlmRuntime::resolve_paths().has_value();
+    return VisualLlmRuntime::resolve_paths(visual_backend_id, custom_llms).has_value();
 }
 
-bool has_any_llm_available()
+bool has_any_llm_available(std::string_view visual_backend_id,
+                           const std::vector<CustomLLM>& custom_llms)
 {
-    return !collect_default_models().empty() || has_visual_llm_files();
+    return !collect_default_models().empty() || has_visual_llm_files(visual_backend_id, custom_llms);
 }
 
 std::filesystem::path create_temp_dir()
@@ -932,7 +944,8 @@ StepResult run_document_test(ILLMClient& llm, const std::filesystem::path& temp_
 }
 
 StepResult run_image_test(const std::filesystem::path& temp_dir,
-                          std::string_view visual_backend_id)
+                          std::string_view visual_backend_id,
+                          const std::vector<CustomLLM>& custom_llms)
 {
     StepResult result;
 #if defined(AI_FILE_SORTER_HAS_MTMD)
@@ -943,6 +956,7 @@ StepResult run_image_test(const std::filesystem::path& temp_dir,
 
     std::string visual_error;
     auto visual_backend = VisualLlmRuntime::resolve_active_backend(visual_backend_id,
+                                                                  custom_llms,
                                                                   &visual_error);
     if (!visual_backend) {
         result.skipped = true;
@@ -1385,22 +1399,43 @@ SuitabilityBenchmarkDialog::~SuitabilityBenchmarkDialog()
 void SuitabilityBenchmarkDialog::setup_ui()
 {
     auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(12, 12, 12, 12);
+    layout->setSpacing(10);
 
     intro_label_ = new QLabel(this);
     intro_label_->setTextFormat(Qt::RichText);
     intro_label_->setWordWrap(true);
     layout->addWidget(intro_label_);
 
-    output_view_ = new QTextEdit(this);
+    auto* output_panel = new QFrame(this);
+    output_panel->setObjectName(QStringLiteral("benchmarkActivityCard"));
+    auto* output_layout = new QVBoxLayout(output_panel);
+    output_layout->setContentsMargins(10, 10, 10, 10);
+    output_layout->setSpacing(0);
+
+    output_view_ = new QTextEdit(output_panel);
+    output_view_->setObjectName(QStringLiteral("benchmarkActivityView"));
     output_view_->setReadOnly(true);
     output_view_->setAcceptRichText(true);
     output_view_->setLineWrapMode(QTextEdit::WidgetWidth);
-    layout->addWidget(output_view_, 1);
+    output_layout->addWidget(output_view_);
+    layout->addWidget(output_panel, 1);
 
-    progress_bar_ = new QProgressBar(this);
+    auto* progress_row = new QWidget(this);
+    progress_row->setObjectName(QStringLiteral("benchmarkProgressRow"));
+    auto* progress_layout = new QHBoxLayout(progress_row);
+    progress_layout->setContentsMargins(0, 2, 0, 0);
+    progress_layout->setSpacing(0);
+    progress_layout->addStretch(1);
+
+    progress_bar_ = new QProgressBar(progress_row);
+    progress_bar_->setObjectName(QStringLiteral("benchmarkProgressBar"));
     progress_bar_->setVisible(false);
     progress_bar_->setRange(0, 0);
-    layout->addWidget(progress_bar_);
+    progress_bar_->setFixedWidth(320);
+    progress_layout->addWidget(progress_bar_, 0, Qt::AlignCenter);
+    progress_layout->addStretch(1);
+    layout->addWidget(progress_row);
 
     auto* button_layout = new QHBoxLayout();
     suppress_checkbox_ = new QCheckBox(this);
@@ -1427,6 +1462,62 @@ void SuitabilityBenchmarkDialog::setup_ui()
         settings_.set_suitability_benchmark_suppressed(checked);
         settings_.save();
     });
+
+    apply_platform_styling();
+}
+
+void SuitabilityBenchmarkDialog::apply_platform_styling()
+{
+    if (!output_view_ || !progress_bar_) {
+        return;
+    }
+
+    output_view_->document()->setDocumentMargin(4.0);
+    progress_bar_->setTextVisible(false);
+
+    if (!is_windows_11_or_newer()) {
+        return;
+    }
+
+    output_view_->setFrameShape(QFrame::NoFrame);
+
+    const QPalette palette = this->palette();
+    const QColor window_color = palette.color(QPalette::Window);
+    const QColor base_color = palette.color(QPalette::Base);
+    const QColor text_color = palette.color(QPalette::WindowText);
+    const QColor border_color = blend_colors(text_color, window_color, 0.14);
+    const QColor panel_color = blend_colors(base_color, window_color, 0.82);
+    const QColor progress_track_color = blend_colors(text_color, base_color, 0.08);
+    const QColor progress_border_color = blend_colors(text_color, window_color, 0.18);
+    const QColor accent_color = palette.color(QPalette::Highlight);
+
+    setStyleSheet(QStringLiteral(
+        "QFrame#benchmarkActivityCard {"
+        "  background-color: %1;"
+        "  border: 1px solid %2;"
+        "  border-radius: 12px;"
+        "}"
+        "QTextEdit#benchmarkActivityView {"
+        "  background-color: %1;"
+        "  border: none;"
+        "  padding: 0px;"
+        "}"
+        "QProgressBar#benchmarkProgressBar {"
+        "  background-color: %3;"
+        "  border: 1px solid %4;"
+        "  border-radius: 5px;"
+        "  min-height: 10px;"
+        "  max-height: 10px;"
+        "}"
+        "QProgressBar#benchmarkProgressBar::chunk {"
+        "  background-color: %5;"
+        "  border-radius: 5px;"
+        "}"
+    ).arg(css_color(panel_color),
+          css_color(border_color),
+          css_color(progress_track_color),
+          css_color(progress_border_color),
+          css_color(accent_color)));
 }
 
 void SuitabilityBenchmarkDialog::retranslate_ui()
@@ -1523,7 +1614,7 @@ void SuitabilityBenchmarkDialog::start_benchmark()
         worker_.join();
     }
 
-    if (!has_any_llm_available()) {
+    if (!has_any_llm_available(settings_.get_visual_model_id(), settings_.get_custom_llms())) {
         if (output_view_) {
             output_view_->clear();
         }
@@ -1694,7 +1785,9 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
             finish();
             return;
         }
-        StepResult image_result = run_image_test(temp_dir, settings_.get_visual_model_id());
+        StepResult image_result = run_image_test(temp_dir,
+                                                 settings_.get_visual_model_id(),
+                                                 settings_.get_custom_llms());
 
         if (image_result.skipped) {
             const QString detail = image_result.detail.empty()

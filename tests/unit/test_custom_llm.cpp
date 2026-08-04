@@ -14,6 +14,15 @@ constexpr char kLegacyLlama3BQ4Url[] =
     "https://huggingface.co/Mungert/Llama-3.2-3B-Instruct-GGUF/resolve/main/"
     "Llama-3.2-3B-Instruct-bf16-q4_k.gguf";
 
+struct LlmStorageOverrideGuard {
+    std::string previous = Utils::get_llm_storage_directory_override();
+
+    ~LlmStorageOverrideGuard()
+    {
+        Utils::set_llm_storage_directory_override(previous);
+    }
+};
+
 void write_gguf_file(const std::filesystem::path& path)
 {
     std::filesystem::create_directories(path.parent_path());
@@ -26,6 +35,7 @@ void write_gguf_file(const std::filesystem::path& path)
 } // namespace
 
 TEST_CASE("Custom LLM entries persist across Settings load/save") {
+    LlmStorageOverrideGuard storage_guard;
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
 
@@ -35,10 +45,13 @@ TEST_CASE("Custom LLM entries persist across Settings load/save") {
     CustomLLM llm;
     llm.name = "My Local Model";
     llm.path = "/models/custom.gguf";
+    llm.mmproj_path = "/models/custom-mmproj.gguf";
 
     const std::string id = settings.upsert_custom_llm(llm);
     REQUIRE_FALSE(id.empty());
     settings.set_active_custom_llm_id(id);
+    settings.set_visual_model_id(custom_visual_model_id_for_llm(id));
+    settings.set_llm_storage_dir("/models/aifs-cache");
     REQUIRE(settings.save());
 
     Settings reloaded;
@@ -48,7 +61,10 @@ TEST_CASE("Custom LLM entries persist across Settings load/save") {
     REQUIRE(loaded.id == id);
     REQUIRE(loaded.name == llm.name);
     REQUIRE(loaded.path == llm.path);
+    REQUIRE(loaded.mmproj_path == llm.mmproj_path);
     REQUIRE(reloaded.get_active_custom_llm_id() == id);
+    REQUIRE(reloaded.get_visual_model_id() == custom_visual_model_id_for_llm(id));
+    REQUIRE(reloaded.get_llm_storage_dir() == "/models/aifs-cache");
 }
 
 TEST_CASE("Settings maps legacy Local_3b choices to Gemma 4B") {
@@ -126,4 +142,29 @@ TEST_CASE("Built-in Gemma 4B resolves the shared visual-model artifact path") {
     REQUIRE(resolved_path.has_value());
     CHECK(*resolved_path == visual_model_path);
     CHECK(builtin_llm_artifact_available(LLMChoice::Local_4b_Gemma));
+}
+
+TEST_CASE("Built-in Gemma 4B prefers the shared visual-model artifact path for new downloads") {
+    TempDir config_dir;
+    EnvVarGuard home_guard("HOME", config_dir.path().string());
+    EnvVarGuard appdata_guard("APPDATA", config_dir.path().string());
+    EnvVarGuard localappdata_guard("LOCALAPPDATA", config_dir.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    EnvVarGuard local_url_guard(
+        "LOCAL_LLM_3B_DOWNLOAD_URL",
+        std::string("https://local.example/models/gemma-3-4b-it-Q4_K_M.gguf"));
+    EnvVarGuard visual_url_guard(
+        "GEMMA3_4B_MODEL_URL",
+        std::string("https://visual.example/downloads/gemma-3-4b-it-Q4_K_M.gguf"));
+
+    const auto* descriptor = find_visual_model_descriptor("gemma-3-4b-it");
+    REQUIRE(descriptor != nullptr);
+    REQUIRE_FALSE(descriptor->artifacts.empty());
+    REQUIRE(descriptor->artifacts.front().kind == VisualModelArtifactKind::Model);
+
+    const auto visual_model_path =
+        visual_artifact_storage_path(*descriptor, descriptor->artifacts.front());
+
+    CHECK(preferred_builtin_llm_path(LLMChoice::Local_4b_Gemma) == visual_model_path);
+    CHECK_FALSE(resolve_downloaded_builtin_llm_path(LLMChoice::Local_4b_Gemma).has_value());
 }

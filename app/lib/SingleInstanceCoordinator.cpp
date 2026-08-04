@@ -1,8 +1,8 @@
 #include "SingleInstanceCoordinator.hpp"
 
-#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QLockFile>
 #include <QtNetwork/QLocalServer>
@@ -17,7 +17,7 @@ QString normalized_instance_id(QString instance_id)
 {
     instance_id = instance_id.trimmed();
     if (instance_id.isEmpty()) {
-        instance_id = QStringLiteral("net.quicknode.AIFileSorter");
+        instance_id = QStringLiteral("dev.hfstudio.AIFileSorter");
     }
     return instance_id;
 }
@@ -63,6 +63,7 @@ SingleInstanceCoordinator::SingleInstanceCoordinator(QString instance_id)
     : instance_id_(normalized_instance_id(std::move(instance_id))),
       server_name_(build_server_endpoint(build_server_name(instance_id_))),
       lock_file_path_(build_lock_file_path(instance_id_)),
+      activation_message_path_(lock_file_path_ + QStringLiteral(".activation")),
       lock_file_(std::make_unique<QLockFile>(lock_file_path_))
 {
 }
@@ -109,7 +110,21 @@ bool SingleInstanceCoordinator::is_primary_instance() const noexcept
 
 void SingleInstanceCoordinator::set_activation_callback(std::function<void()> callback)
 {
+    activation_callback_ = [callback = std::move(callback)](const QString&) {
+        if (callback) {
+            callback();
+        }
+    };
+}
+
+void SingleInstanceCoordinator::set_activation_callback(std::function<void(QString)> callback)
+{
     activation_callback_ = std::move(callback);
+}
+
+void SingleInstanceCoordinator::set_activation_message(QString message)
+{
+    activation_message_ = std::move(message);
 }
 
 QString SingleInstanceCoordinator::build_server_name(const QString& instance_id)
@@ -117,7 +132,7 @@ QString SingleInstanceCoordinator::build_server_name(const QString& instance_id)
     const QByteArray digest = QCryptographicHash::hash(
         normalized_instance_id(instance_id).toUtf8(),
         QCryptographicHash::Sha256).toHex();
-    return QStringLiteral("net.quicknode.AIFileSorter.instance.%1")
+    return QStringLiteral("dev.hfstudio.AIFileSorter.instance.%1")
         .arg(QString::fromLatin1(digest.left(32)));
 }
 
@@ -159,15 +174,26 @@ bool SingleInstanceCoordinator::start_primary_listener()
 
 bool SingleInstanceCoordinator::notify_primary_instance() const
 {
+    if (!activation_message_.isEmpty()) {
+        QFile message_file(activation_message_path_);
+        if (message_file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            message_file.write(activation_message_.toUtf8());
+            message_file.close();
+        }
+    }
+
     QLocalSocket socket;
-    socket.connectToServer(server_name_, QIODevice::WriteOnly);
+    socket.connectToServer(server_name_);
     if (!socket.waitForConnected(300)) {
+        if (!activation_message_.isEmpty()) {
+            QFile::remove(activation_message_path_);
+        }
         return false;
     }
 
     socket.flush();
-    socket.waitForBytesWritten(100);
     socket.disconnectFromServer();
+    socket.waitForDisconnected(100);
     return true;
 }
 
@@ -184,7 +210,16 @@ void SingleInstanceCoordinator::handle_activation_requests()
         socket->deleteLater();
     }
 
-    if (notified && activation_callback_) {
-        activation_callback_();
+    if (!notified || !activation_callback_) {
+        return;
     }
+
+    QString message;
+    QFile message_file(activation_message_path_);
+    if (message_file.open(QIODevice::ReadOnly)) {
+        message = QString::fromUtf8(message_file.readAll());
+        message_file.close();
+        QFile::remove(activation_message_path_);
+    }
+    activation_callback_(message);
 }

@@ -22,6 +22,17 @@ obj/
 # Environment variables
 # .env
 encryption.ini
+msstore.env
+msstore-api/
+localize.env
+localize.env.example
+app/scripts/git-private.env
+app/scripts/git-private.env.example
+app/scripts/git-private.manifest
+app/scripts/git-private.manifest.example
+app/scripts/git-private.ps1
+app/scripts/git-private.README.md
+app/scripts/git_private_sync.py
 
 # Virtual environments
 .venv/
@@ -114,6 +125,8 @@ todos_md/
 # Script docs + backups
 app/scripts/SCRIPTS-README.md
 app/scripts/examples/
+app/scripts/localize_ai_file_sorter.py
+app/scripts/localize_ai_file_sorter.README.md
 app/scripts/local_support_code_signer.py
 app/scripts/__pycache__/
 *.bak
@@ -129,14 +142,23 @@ app/include/llama/*.h
 /tools/
 /reports/
 /logo-workdir-temp/
+/tmp/
 /Testing/
-/changelog/
+/changelog/*
+!/changelog/*.md
 /models/
 /rd/
 /prototypes/
 /store/ms-store/
 /.github/workflows/ms-store-listing.yml
-/docs/
+/docs/**
+!/docs/
+!/docs/architecture.md
+!/docs/headless-runtime-contract.md
+!/docs/configuration-and-environment.md
+!/docs/testing.md
+!/docs/categorization-behavior.md
+!/docs/updater-contract.md
 
 # Build artifacts
 
@@ -176,4 +198,3 @@ api-key-encryption/
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
-/changelog/

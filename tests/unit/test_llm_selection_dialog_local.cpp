@@ -1,11 +1,13 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "LLMDownloader.hpp"
 #include "LLMSelectionDialog.hpp"
 #include "LLMSelectionDialogTestAccess.hpp"
 #include "LlmCatalog.hpp"
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
+#include "VisualModelCatalog.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -73,4 +75,39 @@ TEST_CASE("LLM selection dialog keeps the legacy LLaMa choice when the previous 
 
     LLMSelectionDialog dialog(settings);
     CHECK(dialog.get_selected_llm_choice() == LLMChoice::Local_3b_legacy);
+}
+
+TEST_CASE("LLM selection dialog downloads Gemma 4B to the shared visual-model path") {
+    QtAppContext qt;
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+    EnvVarGuard localappdata_guard("LOCALAPPDATA", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    EnvVarGuard local_url_guard(
+        "LOCAL_LLM_3B_DOWNLOAD_URL",
+        std::string("https://local.example/models/gemma-3-4b-it-Q4_K_M.gguf"));
+    EnvVarGuard visual_url_guard(
+        "GEMMA3_4B_MODEL_URL",
+        std::string("https://visual.example/downloads/gemma-3-4b-it-Q4_K_M.gguf"));
+
+    const auto* descriptor = find_visual_model_descriptor("gemma-3-4b-it");
+    REQUIRE(descriptor != nullptr);
+    REQUIRE_FALSE(descriptor->artifacts.empty());
+    REQUIRE(descriptor->artifacts.front().kind == VisualModelArtifactKind::Model);
+    const auto shared_model_path =
+        visual_artifact_storage_path(*descriptor, descriptor->artifacts.front());
+
+    Settings settings;
+    settings.load();
+    settings.set_llm_choice(LLMChoice::Local_4b_Gemma);
+
+    LLMSelectionDialog dialog(settings);
+    auto* downloader = LLMSelectionDialogTestAccess::local_downloader(dialog);
+    REQUIRE(downloader != nullptr);
+
+    CHECK(std::filesystem::path(downloader->get_download_destination()) == shared_model_path);
+    CHECK(std::filesystem::path(downloader->get_download_destination())
+          != std::filesystem::path(Utils::make_default_path_to_file_from_download_url(
+              "https://local.example/models/gemma-3-4b-it-Q4_K_M.gguf")));
 }

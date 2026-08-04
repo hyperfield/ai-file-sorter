@@ -205,6 +205,7 @@ AppTestRunner::CaseResult test_large_whitelist_uses_compact_prompt()
     context.settings.set_use_whitelist(true);
     context.settings.set_allowed_categories(preset.categories);
     context.settings.set_allowed_subcategories(preset.subcategories);
+    context.settings.set_allowed_subcategories_by_category(preset.subcategories_by_category);
 
     CategorizationService service(context.settings, context.db, nullptr);
     auto captured_context = std::make_shared<std::string>();
@@ -236,6 +237,7 @@ AppTestRunner::CaseResult test_large_whitelist_prefers_learned_candidate()
     context.settings.set_use_whitelist(true);
     context.settings.set_allowed_categories(preset.categories);
     context.settings.set_allowed_subcategories({});
+    context.settings.set_allowed_subcategories_by_category({});
 
     UserLearningStore learning_store(context.settings.get_config_dir());
     std::string error;
@@ -282,6 +284,7 @@ AppTestRunner::CaseResult test_large_whitelist_preserves_unicode_labels()
     context.settings.set_use_whitelist(true);
     context.settings.set_allowed_categories(preset.categories);
     context.settings.set_allowed_subcategories(preset.subcategories);
+    context.settings.set_allowed_subcategories_by_category(preset.subcategories_by_category);
 
     CategorizationService service(context.settings, context.db, nullptr);
     auto captured_context = std::make_shared<std::string>();

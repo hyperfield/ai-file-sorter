@@ -11,6 +11,7 @@
     "sqlite3",
     "openssl",
     "zlib",
+    "libwebp",
     "fmt",
     "spdlog",
     "gettext",

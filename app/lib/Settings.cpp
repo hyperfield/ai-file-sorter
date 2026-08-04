@@ -77,6 +77,156 @@ std::string join_list(const std::vector<std::string>& items) {
     return oss.str();
 }
 
+std::string escape_map_token(const std::string& value)
+{
+    std::string escaped;
+    escaped.reserve(value.size());
+    for (char ch : value) {
+        if (ch == '\\' || ch == ';' || ch == '=' || ch == '|') {
+            escaped.push_back('\\');
+        }
+        escaped.push_back(ch);
+    }
+    return escaped;
+}
+
+std::string unescape_map_token(const std::string& value)
+{
+    std::string unescaped;
+    unescaped.reserve(value.size());
+    bool escaped = false;
+    for (char ch : value) {
+        if (escaped) {
+            unescaped.push_back(ch);
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        unescaped.push_back(ch);
+    }
+    if (escaped) {
+        unescaped.push_back('\\');
+    }
+    return unescaped;
+}
+
+std::vector<std::string> split_escaped(const std::string& value, char delimiter)
+{
+    std::vector<std::string> segments;
+    std::string current;
+    current.reserve(value.size());
+    bool escaped = false;
+    for (char ch : value) {
+        if (escaped) {
+            current.push_back('\\');
+            current.push_back(ch);
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (ch == delimiter) {
+            segments.push_back(current);
+            current.clear();
+            continue;
+        }
+        current.push_back(ch);
+    }
+    if (escaped) {
+        current.push_back('\\');
+    }
+    segments.push_back(current);
+    return segments;
+}
+
+std::size_t find_unescaped(const std::string& value, char target)
+{
+    bool escaped = false;
+    for (std::size_t i = 0; i < value.size(); ++i) {
+        const char ch = value[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (ch == target) {
+            return i;
+        }
+    }
+    return std::string::npos;
+}
+
+std::unordered_map<std::string, std::vector<std::string>> parse_subcategory_map(
+    const std::string& value)
+{
+    std::unordered_map<std::string, std::vector<std::string>> result;
+    for (const auto& entry : split_escaped(value, ';')) {
+        const auto delimiter = find_unescaped(entry, '=');
+        if (delimiter == std::string::npos) {
+            continue;
+        }
+        const std::string category = trim_copy(unescape_map_token(entry.substr(0, delimiter)));
+        if (category.empty()) {
+            continue;
+        }
+
+        std::vector<std::string> subcategories;
+        for (const auto& raw_subcategory : split_escaped(entry.substr(delimiter + 1), '|')) {
+            const std::string subcategory = trim_copy(unescape_map_token(raw_subcategory));
+            if (!subcategory.empty() &&
+                std::find(subcategories.begin(), subcategories.end(), subcategory) == subcategories.end()) {
+                subcategories.push_back(subcategory);
+            }
+        }
+        if (!subcategories.empty()) {
+            result[category] = std::move(subcategories);
+        }
+    }
+    return result;
+}
+
+std::string join_subcategory_map(
+    const std::unordered_map<std::string, std::vector<std::string>>& values)
+{
+    std::vector<std::string> categories;
+    categories.reserve(values.size());
+    for (const auto& [category, subcategories] : values) {
+        if (!category.empty() && !subcategories.empty()) {
+            categories.push_back(category);
+        }
+    }
+    std::sort(categories.begin(), categories.end());
+
+    std::ostringstream oss;
+    bool first_entry = true;
+    for (const auto& category : categories) {
+        const auto it = values.find(category);
+        if (it == values.end() || it->second.empty()) {
+            continue;
+        }
+        if (!first_entry) {
+            oss << ";";
+        }
+        first_entry = false;
+        oss << escape_map_token(category) << "=";
+        for (std::size_t i = 0; i < it->second.size(); ++i) {
+            if (i > 0) {
+                oss << "|";
+            }
+            oss << escape_map_token(it->second[i]);
+        }
+    }
+    return oss.str();
+}
+
 std::string to_bool_string(bool value) {
     return value ? "true" : "false";
 }
@@ -117,6 +267,39 @@ std::string decode_multiline(const std::string& value) {
         output.push_back(ch);
     }
     return output;
+}
+
+std::vector<std::string> parse_multiline_list(const std::string& value)
+{
+    std::vector<std::string> items;
+    const std::string decoded = decode_multiline(value);
+    std::stringstream ss(decoded);
+    std::string item;
+    while (std::getline(ss, item)) {
+        item = trim_copy(item);
+        if (!item.empty()) {
+            items.push_back(item);
+        }
+    }
+    return items;
+}
+
+std::string join_multiline_list(const std::vector<std::string>& items)
+{
+    std::ostringstream oss;
+    bool first = true;
+    for (const auto& item : items) {
+        const std::string trimmed = trim_copy(item);
+        if (trimmed.empty()) {
+            continue;
+        }
+        if (!first) {
+            oss << '\n';
+        }
+        first = false;
+        oss << trimmed;
+    }
+    return encode_multiline(oss.str());
 }
 
 std::string llm_choice_to_string(LLMChoice choice) {
@@ -168,6 +351,9 @@ std::string normalize_visual_model_id(const std::string& value)
     const auto trimmed = trim_copy(value);
     if (trimmed.empty()) {
         return default_visual_model_descriptor().id;
+    }
+    if (is_custom_visual_model_id(trimmed)) {
+        return trimmed;
     }
     if (find_visual_model_descriptor(trimmed)) {
         return trimmed;
@@ -311,7 +497,9 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     set_openai_model(config.getValue("Settings", "RemoteModel", "gpt-4o-mini"));
     set_gemini_api_key(config.getValue("Settings", "GeminiApiKey", ""));
     set_gemini_model(config.getValue("Settings", "GeminiModel", "gemini-2.5-flash-lite"));
+    set_remote_requests_per_minute(load_int("RemoteRequestsPerMinute", 0, 0));
     llm_downloads_expanded = load_bool("LLMDownloadsExpanded", true);
+    set_llm_storage_dir(config.getValue("Settings", "LlmStorageDir", ""));
     visual_model_id = normalize_visual_model_id(
         config.getValue("Settings", "VisualModelId", default_visual_model_descriptor().id));
     use_subcategories = load_bool("UseSubcategories", true);
@@ -361,13 +549,21 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     show_file_explorer = load_bool("ShowFileExplorer", true);
+    recent_network_locations = parse_multiline_list(
+        config.getValue("Settings", "RecentNetworkLocations", ""));
     suitability_benchmark_completed = load_bool("SuitabilityBenchmarkCompleted", false);
     suitability_benchmark_suppressed = load_bool("SuitabilityBenchmarkSuppressed", false);
     benchmark_last_report = decode_multiline(config.getValue("Settings", "BenchmarkLastReport", ""));
     benchmark_last_run = config.getValue("Settings", "BenchmarkLastRun", "");
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
+    headless_review_before_apply = load_bool("HeadlessReviewBeforeApply", true);
+    review_auto_approve_filename_changes =
+        load_bool("ReviewAutoApproveFilenameChanges", false);
+    review_auto_approve_categorization =
+        load_bool("ReviewAutoApproveCategorization", false);
     skipped_version = config.getValue("Settings", "SkippedVersion", "0.0.0");
+    whats_new_version_shown = config.getValue("Settings", "WhatsNewVersionShown", "");
     if (config.hasValue("Settings", "Language")) {
         language = languageFromString(QString::fromStdString(config.getValue("Settings", "Language", "English")));
     } else {
@@ -376,12 +572,18 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
     categorized_file_count = load_int("CategorizedFileCount", 0, 0);
     next_support_prompt_threshold = load_int("SupportPromptThreshold", 50, 50);
+    windows_explorer_extension_prompt_dismissed =
+        load_bool("WindowsExplorerExtensionPromptDismissed", false);
+    windows_explorer_extension_prompt_last_shown_utc =
+        config.getValue("Settings", "WindowsExplorerExtensionPromptLastShownUtc", "");
 }
 
 void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)
 {
     allowed_categories = parse_list(config.getValue("Settings", "AllowedCategories", ""));
     allowed_subcategories = parse_list(config.getValue("Settings", "AllowedSubcategories", ""));
+    allowed_subcategories_by_category =
+        parse_subcategory_map(config.getValue("Settings", "AllowedSubcategoriesByCategory", ""));
     use_whitelist = load_bool("UseWhitelist", false);
     active_whitelist = config.getValue("Settings", "ActiveWhitelist", "");
 }
@@ -399,6 +601,7 @@ void Settings::load_custom_llm_settings()
         entry.name = config.getValue(section, "Name", "");
         entry.description = config.getValue(section, "Description", "");
         entry.path = config.getValue(section, "Path", "");
+        entry.mmproj_path = config.getValue(section, "MmprojPath", "");
         if (!entry.name.empty() && !entry.path.empty()) {
             custom_llms.push_back(entry);
         }
@@ -456,7 +659,9 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "RemoteModel", openai_model.empty() ? "gpt-4o-mini" : openai_model);
     config.setValue(settings_section, "GeminiApiKey", gemini_api_key);
     config.setValue(settings_section, "GeminiModel", gemini_model.empty() ? "gemini-2.5-flash-lite" : gemini_model);
+    config.setValue(settings_section, "RemoteRequestsPerMinute", std::to_string(remote_requests_per_minute));
     set_bool_setting(config, settings_section, "LLMDownloadsExpanded", llm_downloads_expanded);
+    config.setValue(settings_section, "LlmStorageDir", llm_storage_dir);
     config.setValue(settings_section, "VisualModelId", normalize_visual_model_id(visual_model_id));
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
@@ -486,18 +691,40 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "SortFolder", this->sort_folder);
 
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
+    set_optional_setting(config, settings_section, "WhatsNewVersionShown", whats_new_version_shown);
 
     set_bool_setting(config, settings_section, "ShowFileExplorer", show_file_explorer);
+    set_optional_setting(config,
+                         settings_section,
+                         "RecentNetworkLocations",
+                         join_multiline_list(recent_network_locations));
     set_bool_setting(config, settings_section, "SuitabilityBenchmarkCompleted", suitability_benchmark_completed);
     set_bool_setting(config, settings_section, "SuitabilityBenchmarkSuppressed", suitability_benchmark_suppressed);
     set_optional_setting(config, settings_section, "BenchmarkLastReport", encode_multiline(benchmark_last_report));
     set_optional_setting(config, settings_section, "BenchmarkLastRun", benchmark_last_run);
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
     set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
+    set_bool_setting(config, settings_section, "HeadlessReviewBeforeApply", headless_review_before_apply);
+    set_bool_setting(config,
+                     settings_section,
+                     "ReviewAutoApproveFilenameChanges",
+                     review_auto_approve_filename_changes);
+    set_bool_setting(config,
+                     settings_section,
+                     "ReviewAutoApproveCategorization",
+                     review_auto_approve_categorization);
     config.setValue(settings_section, "Language", languageToString(language).toStdString());
     config.setValue(settings_section, "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
     config.setValue(settings_section, "CategorizedFileCount", std::to_string(categorized_file_count));
     config.setValue(settings_section, "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
+    set_bool_setting(config,
+                     settings_section,
+                     "WindowsExplorerExtensionPromptDismissed",
+                     windows_explorer_extension_prompt_dismissed);
+    set_optional_setting(config,
+                         settings_section,
+                         "WindowsExplorerExtensionPromptLastShownUtc",
+                         windows_explorer_extension_prompt_last_shown_utc);
 }
 
 void Settings::save_whitelist_settings()
@@ -506,6 +733,9 @@ void Settings::save_whitelist_settings()
 
     config.setValue(settings_section, "AllowedCategories", join_list(allowed_categories));
     config.setValue(settings_section, "AllowedSubcategories", join_list(allowed_subcategories));
+    config.setValue(settings_section,
+                    "AllowedSubcategoriesByCategory",
+                    join_subcategory_map(allowed_subcategories_by_category));
     set_bool_setting(config, settings_section, "UseWhitelist", use_whitelist);
     set_optional_setting(config, settings_section, "ActiveWhitelist", active_whitelist);
 }
@@ -527,6 +757,7 @@ void Settings::save_custom_llms()
         config.setValue(section, "Name", entry.name);
         config.setValue(section, "Description", entry.description);
         config.setValue(section, "Path", entry.path);
+        config.setValue(section, "MmprojPath", entry.mmproj_path);
     }
     config.setValue(llm_section, "CustomIds", join_list(ids));
 }
@@ -585,6 +816,7 @@ bool Settings::load()
 {
     if (!config.load(config_path)) {
         sort_folder = default_sort_folder.empty() ? std::string("/") : default_sort_folder;
+        set_llm_storage_dir("");
         // Keep language defaults derived from system locale when no config is found.
         return false;
     }
@@ -691,6 +923,16 @@ void Settings::set_gemini_model(const std::string& model)
     gemini_model = trimmed;
 }
 
+int Settings::get_remote_requests_per_minute() const
+{
+    return remote_requests_per_minute;
+}
+
+void Settings::set_remote_requests_per_minute(int value)
+{
+    remote_requests_per_minute = std::max(0, value);
+}
+
 bool Settings::get_llm_downloads_expanded() const
 {
     return llm_downloads_expanded;
@@ -699,6 +941,17 @@ bool Settings::get_llm_downloads_expanded() const
 void Settings::set_llm_downloads_expanded(bool value)
 {
     llm_downloads_expanded = value;
+}
+
+std::string Settings::get_llm_storage_dir() const
+{
+    return llm_storage_dir;
+}
+
+void Settings::set_llm_storage_dir(const std::string& path)
+{
+    llm_storage_dir = trim_copy(path);
+    Utils::set_llm_storage_directory_override(llm_storage_dir);
 }
 
 std::string Settings::get_visual_model_id() const
@@ -739,6 +992,10 @@ CustomLLM Settings::find_custom_llm(const std::string& id) const
 std::string Settings::upsert_custom_llm(const CustomLLM& llm)
 {
     CustomLLM copy = llm;
+    copy.name = trim_copy(copy.name);
+    copy.description = trim_copy(copy.description);
+    copy.path = trim_copy(copy.path);
+    copy.mmproj_path = trim_copy(copy.mmproj_path);
     if (copy.id.empty()) {
         copy.id = generate_custom_llm_id();
     }
@@ -1063,6 +1320,36 @@ void Settings::set_development_prompt_logging(bool value)
     development_prompt_logging = value;
 }
 
+bool Settings::get_headless_review_before_apply() const
+{
+    return headless_review_before_apply;
+}
+
+void Settings::set_headless_review_before_apply(bool value)
+{
+    headless_review_before_apply = value;
+}
+
+bool Settings::get_review_auto_approve_filename_changes() const
+{
+    return review_auto_approve_filename_changes;
+}
+
+void Settings::set_review_auto_approve_filename_changes(bool value)
+{
+    review_auto_approve_filename_changes = value;
+}
+
+bool Settings::get_review_auto_approve_categorization() const
+{
+    return review_auto_approve_categorization;
+}
+
+void Settings::set_review_auto_approve_categorization(bool value)
+{
+    review_auto_approve_categorization = value;
+}
+
 bool Settings::get_use_whitelist() const
 {
     return use_whitelist;
@@ -1094,6 +1381,16 @@ std::string Settings::get_skipped_version()
     return skipped_version;
 }
 
+void Settings::set_whats_new_version_shown(const std::string& version)
+{
+    whats_new_version_shown = trim_copy(version);
+}
+
+std::string Settings::get_whats_new_version_shown() const
+{
+    return whats_new_version_shown;
+}
+
 
 void Settings::set_show_file_explorer(bool value)
 {
@@ -1104,6 +1401,32 @@ void Settings::set_show_file_explorer(bool value)
 bool Settings::get_show_file_explorer() const
 {
     return show_file_explorer;
+}
+
+void Settings::set_recent_network_locations(const std::vector<std::string>& locations)
+{
+    recent_network_locations.clear();
+    recent_network_locations.reserve(std::min<std::size_t>(locations.size(), 10));
+    for (const auto& location : locations) {
+        const std::string trimmed = trim_copy(location);
+        if (trimmed.empty()) {
+            continue;
+        }
+        const auto duplicate = std::find(recent_network_locations.begin(),
+                                         recent_network_locations.end(),
+                                         trimmed);
+        if (duplicate == recent_network_locations.end()) {
+            recent_network_locations.push_back(trimmed);
+        }
+        if (recent_network_locations.size() >= 10) {
+            break;
+        }
+    }
+}
+
+const std::vector<std::string>& Settings::get_recent_network_locations() const
+{
+    return recent_network_locations;
 }
 
 bool Settings::get_suitability_benchmark_completed() const
@@ -1184,6 +1507,26 @@ void Settings::set_next_support_prompt_threshold(int threshold)
     next_support_prompt_threshold = threshold;
 }
 
+bool Settings::get_windows_explorer_extension_prompt_dismissed() const
+{
+    return windows_explorer_extension_prompt_dismissed;
+}
+
+void Settings::set_windows_explorer_extension_prompt_dismissed(bool value)
+{
+    windows_explorer_extension_prompt_dismissed = value;
+}
+
+std::string Settings::get_windows_explorer_extension_prompt_last_shown_utc() const
+{
+    return windows_explorer_extension_prompt_last_shown_utc;
+}
+
+void Settings::set_windows_explorer_extension_prompt_last_shown_utc(const std::string& value)
+{
+    windows_explorer_extension_prompt_last_shown_utc = value;
+}
+
 std::vector<std::string> Settings::get_allowed_categories() const
 {
     return allowed_categories;
@@ -1202,4 +1545,16 @@ std::vector<std::string> Settings::get_allowed_subcategories() const
 void Settings::set_allowed_subcategories(std::vector<std::string> values)
 {
     allowed_subcategories = std::move(values);
+}
+
+std::unordered_map<std::string, std::vector<std::string>>
+Settings::get_allowed_subcategories_by_category() const
+{
+    return allowed_subcategories_by_category;
+}
+
+void Settings::set_allowed_subcategories_by_category(
+    std::unordered_map<std::string, std::vector<std::string>> values)
+{
+    allowed_subcategories_by_category = std::move(values);
 }

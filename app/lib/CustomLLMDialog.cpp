@@ -40,10 +40,17 @@ void CustomLLMDialog::setup_ui()
     auto* path_row = new QHBoxLayout();
     path_row->addWidget(path_edit, 1);
     path_row->addWidget(browse_button);
+    mmproj_path_edit = new QLineEdit(this);
+    mmproj_path_edit->setPlaceholderText(tr("Optional, enables this model for image analysis"));
+    browse_mmproj_button = new QPushButton(tr("Browse…"), this);
+    auto* mmproj_path_row = new QHBoxLayout();
+    mmproj_path_row->addWidget(mmproj_path_edit, 1);
+    mmproj_path_row->addWidget(browse_mmproj_button);
 
     form->addRow(tr("Display name"), name_edit);
     form->addRow(tr("Description"), description_edit);
     form->addRow(tr("Model file (.gguf)"), path_row);
+    form->addRow(tr("MMProj file (.gguf, optional)"), mmproj_path_row);
 
     layout->addLayout(form);
 
@@ -61,6 +68,7 @@ void CustomLLMDialog::wire_signals()
     connect(name_edit, &QLineEdit::textChanged, this, &CustomLLMDialog::validate_inputs);
     connect(path_edit, &QLineEdit::textChanged, this, &CustomLLMDialog::validate_inputs);
     connect(browse_button, &QPushButton::clicked, this, &CustomLLMDialog::browse_for_file);
+    connect(browse_mmproj_button, &QPushButton::clicked, this, &CustomLLMDialog::browse_for_mmproj_file);
 }
 
 void CustomLLMDialog::apply_existing(const CustomLLM& existing)
@@ -68,6 +76,7 @@ void CustomLLMDialog::apply_existing(const CustomLLM& existing)
     name_edit->setText(QString::fromStdString(existing.name));
     description_edit->setPlainText(QString::fromStdString(existing.description));
     path_edit->setText(QString::fromStdString(existing.path));
+    mmproj_path_edit->setText(QString::fromStdString(existing.mmproj_path));
     validate_inputs();
 }
 
@@ -91,11 +100,23 @@ void CustomLLMDialog::browse_for_file()
     }
 }
 
+void CustomLLMDialog::browse_for_mmproj_file()
+{
+    const QString path = QFileDialog::getOpenFileName(this,
+                                                      tr("Select .gguf MMProj file"),
+                                                      QString(),
+                                                      tr("GGUF models (*.gguf);;All files (*.*)"));
+    if (!path.isEmpty()) {
+        mmproj_path_edit->setText(path);
+    }
+}
+
 CustomLLM CustomLLMDialog::result() const
 {
     CustomLLM llm;
     llm.name = name_edit->text().trimmed().toStdString();
     llm.description = description_edit->toPlainText().trimmed().toStdString();
     llm.path = path_edit->text().trimmed().toStdString();
+    llm.mmproj_path = mmproj_path_edit->text().trimmed().toStdString();
     return llm;
 }

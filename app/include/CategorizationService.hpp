@@ -28,6 +28,7 @@ public:
     using ProgressCallback = std::function<void(const std::string&)>;
     using QueueCallback = std::function<void(const FileEntry&)>;
     using CompletionCallback = std::function<void(const FileEntry&)>;
+    using ResultCallback = std::function<void(const CategorizedFile&)>;
     using RecategorizationCallback = std::function<void(const CategorizedFile&, const std::string&)>;
     /**
      * @brief Overrides the name/path used in LLM prompts for a file entry.
@@ -84,6 +85,7 @@ public:
      * @param progress_callback Progress updates callback.
      * @param queue_callback Called when an entry is queued.
      * @param completion_callback Called when an entry has finished processing.
+     * @param result_callback Called when an entry produced a categorizable review row.
      * @param recategorization_callback Called when an entry must be re-categorized.
      * @param llm_factory Factory for creating an LLM client.
      * @param prompt_override Optional prompt override provider.
@@ -100,12 +102,14 @@ public:
         const RecategorizationCallback& recategorization_callback,
         std::function<std::unique_ptr<ILLMClient>()> llm_factory,
         const PromptOverrideProvider& prompt_override = {},
-        const SuggestedNameProvider& suggested_name_provider = {}) const;
+        const SuggestedNameProvider& suggested_name_provider = {},
+        const ResultCallback& result_callback = {}) const;
 
 private:
     using CategoryPair = std::pair<std::string, std::string>;
     using HintHistory = std::deque<CategoryPair>;
     using SessionHistoryMap = std::unordered_map<std::string, HintHistory>;
+    using RemoteThrottleCallback = std::function<bool(const std::string&)>;
 
     /**
      * @brief Returns a cached categorization when available, otherwise calls the LLM.
@@ -119,6 +123,7 @@ private:
      * @param file_type File or directory.
      * @param progress_callback Progress updates callback.
      * @param consistency_context Consistency hints block.
+     * @param remote_throttle_callback Optional callback invoked before remote cache misses.
      * @return Resolved category for the item.
      */
     DatabaseManager::ResolvedCategory categorize_with_cache(
@@ -131,7 +136,8 @@ private:
         const std::string& prompt_path,
         FileType file_type,
         const ProgressCallback& progress_callback,
-        const std::string& consistency_context) const;
+        const std::string& consistency_context,
+        const RemoteThrottleCallback& remote_throttle_callback) const;
 
     /**
      * @brief Categorizes a single entry and persists the result.
@@ -144,6 +150,7 @@ private:
      * @param progress_callback Progress updates callback.
      * @param recategorization_callback Callback for re-categorization events.
      * @param session_history Mutable session history for consistency hints.
+     * @param remote_throttle_callback Optional callback invoked before remote cache misses.
      * @return Categorized entry when successful.
      */
     std::optional<CategorizedFile> categorize_single_entry(
@@ -155,7 +162,8 @@ private:
         std::atomic<bool>& stop_flag,
         const ProgressCallback& progress_callback,
         const RecategorizationCallback& recategorization_callback,
-        SessionHistoryMap& session_history) const;
+        SessionHistoryMap& session_history,
+        const RemoteThrottleCallback& remote_throttle_callback) const;
 
     /**
      * @brief Combines language, family-candidate, whitelist, and hint blocks into a single prompt context.
@@ -186,6 +194,7 @@ private:
      * @param prompt_path Path used in the prompt.
      * @param progress_callback Progress updates callback.
      * @param combined_context Combined prompt context.
+     * @param remote_throttle_callback Optional callback invoked before remote cache misses.
      * @return Resolved category for the item.
      */
     DatabaseManager::ResolvedCategory run_categorization_with_cache(
@@ -197,7 +206,8 @@ private:
         const std::string& prompt_name,
         const std::string& prompt_path,
         const ProgressCallback& progress_callback,
-        const std::string& combined_context) const;
+        const std::string& combined_context,
+        const RemoteThrottleCallback& remote_throttle_callback) const;
     /**
      * @brief Handles empty or invalid categorization results.
      * @param entry File entry being categorized.
@@ -254,6 +264,11 @@ private:
      * @return Timeout in seconds.
      */
     int resolve_llm_timeout(bool is_local_llm) const;
+    /**
+     * @brief Resolves the optional remote request throttle.
+     * @return Maximum remote requests per minute, or 0 when disabled.
+     */
+    int resolve_remote_requests_per_minute() const;
     /**
      * @brief Launches an asynchronous LLM categorization request.
      * @param llm LLM client used for the request.

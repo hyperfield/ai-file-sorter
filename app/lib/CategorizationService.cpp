@@ -1,22 +1,16 @@
 #include "CategorizationService.hpp"
 
 #include "ArtifactCategoryPolicy.hpp"
+#include "CategorizationResponseParser.hpp"
 #include "FileCategoryPolicy.hpp"
 #include "Settings.hpp"
 #include "CategoryLanguage.hpp"
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
 #include "LLMErrors.hpp"
+#include "TestHooks.hpp"
 #include "UserLearningStore.hpp"
 #include "Utils.hpp"
-
-#if __has_include(<jsoncpp/json/json.h>)
-#include <jsoncpp/json/json.h>
-#elif __has_include(<json/json.h>)
-#include <json/json.h>
-#else
-#error "jsoncpp headers not found. Install jsoncpp development files."
-#endif
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -30,52 +24,49 @@
 #include <sstream>
 #include <thread>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace {
 constexpr const char* kLocalTimeoutEnv = "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT";
 constexpr const char* kRemoteTimeoutEnv = "AI_FILE_SORTER_REMOTE_LLM_TIMEOUT";
 constexpr const char* kCustomTimeoutEnv = "AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT";
+constexpr const char* kRemoteRequestsPerMinuteEnv = "AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE";
 constexpr size_t kMaxConsistencyHints = 5;
 constexpr size_t kLargeWhitelistPromptThreshold = 30;
 constexpr size_t kMaxLargeWhitelistPromptCandidates = 8;
-constexpr size_t kMaxLabelLength = 80;
 constexpr std::string_view kImageDescriptionMarker = "\nImage description: ";
 constexpr std::string_view kDocumentSummaryMarker = "\nDocument summary: ";
+constexpr std::string_view kConsistentSortingStyleMarker = "Sorting style: More consistent";
+constexpr std::string_view kRefinedSortingStyleMarker = "Sorting style: More refined";
 constexpr int kMinimumLearnedPreferenceScore = 12;
 constexpr int kCategoryTranslationCompletionTokens = 128;
 std::string to_lower_copy_str(std::string value);
-std::pair<std::string, std::string> split_category_subcategory(const std::string& input);
-std::string strip_code_fence(std::string output);
-bool starts_with_case_insensitive(std::string_view value, std::string_view prefix);
-std::optional<std::string> extract_relaxed_labeled_value_from_response(
-    const std::string& response,
-    std::initializer_list<std::string_view> labels,
-    bool category_label);
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+TestHooks::CategorizationSleepProbe& categorization_sleep_probe()
+{
+    static TestHooks::CategorizationSleepProbe probe;
+    return probe;
+}
+#endif
+
+void sleep_for_categorization(std::chrono::milliseconds duration)
+{
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (auto& probe = categorization_sleep_probe()) {
+        probe(duration);
+        return;
+    }
+#endif
+
+    std::this_thread::sleep_for(duration);
+}
 std::string trim_copy(std::string value) {
     auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
-}
-
-std::string collapse_spaces_copy(std::string value) {
-    std::string collapsed;
-    collapsed.reserve(value.size());
-    bool previous_space = false;
-    for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
-            if (!previous_space) {
-                collapsed.push_back(' ');
-            }
-            previous_space = true;
-            continue;
-        }
-        collapsed.push_back(static_cast<char>(ch));
-        previous_space = false;
-    }
-    return trim_copy(std::move(collapsed));
 }
 
 std::string first_line_copy(std::string value) {
@@ -90,282 +81,6 @@ bool is_whitelist_learning_source(const std::string& source) {
     constexpr std::string_view kWhitelistSourcePrefix = "whitelist:";
     return source.size() >= kWhitelistSourcePrefix.size() &&
            source.compare(0, kWhitelistSourcePrefix.size(), kWhitelistSourcePrefix) == 0;
-}
-
-std::string strip_wrapping_punctuation(std::string value) {
-    auto is_wrapping = [](unsigned char ch) {
-        switch (ch) {
-            case '"':
-            case '\'':
-            case '`':
-            case '(':
-            case ')':
-            case '[':
-            case ']':
-            case '{':
-            case '}':
-            case '<':
-            case '>':
-                return true;
-            default:
-                return false;
-        }
-    };
-
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.front())) ||
-                              is_wrapping(static_cast<unsigned char>(value.front())))) {
-        value.erase(value.begin());
-    }
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.back())) ||
-                              is_wrapping(static_cast<unsigned char>(value.back())) ||
-                              value.back() == '.' || value.back() == ',' ||
-                              value.back() == ':' || value.back() == ';')) {
-        value.pop_back();
-    }
-    return value;
-}
-
-std::string strip_trailing_parenthetical_gloss(std::string value) {
-    value = trim_copy(std::move(value));
-    while (true) {
-        const auto open = value.rfind(" (");
-        if (open == std::string::npos) {
-            break;
-        }
-
-        std::string gloss = trim_copy(value.substr(open + 2));
-        if (!gloss.empty() && gloss.back() == ')') {
-            gloss.pop_back();
-            gloss = trim_copy(std::move(gloss));
-        }
-
-        const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
-            return std::isalpha(ch);
-        });
-        if (!has_alpha_chars) {
-            break;
-        }
-
-        value = trim_copy(value.substr(0, open));
-    }
-    return value;
-}
-
-std::size_t find_case_insensitive(const std::string& value, std::string_view needle) {
-    const std::string lower_value = to_lower_copy_str(value);
-    std::string lower_needle(needle);
-    std::transform(lower_needle.begin(), lower_needle.end(), lower_needle.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return lower_value.find(lower_needle);
-}
-
-std::string strip_explanatory_suffix(std::string value) {
-    static const std::vector<std::string_view> markers = {
-        " (based on",
-        " (note",
-        " (since",
-        " - this ",
-        " - based on",
-        " because ",
-        " based on ",
-        " which ",
-        " since ",
-        " however ",
-        " specifically ",
-        " indicating ",
-        " indicates ",
-        " commonly ",
-        " related to "
-    };
-
-    std::size_t cut = std::string::npos;
-    for (const std::string_view marker : markers) {
-        const auto pos = find_case_insensitive(value, marker);
-        if (pos != std::string::npos && (cut == std::string::npos || pos < cut)) {
-            cut = pos;
-        }
-    }
-    if (cut != std::string::npos) {
-        value.resize(cut);
-    }
-
-    return strip_wrapping_punctuation(collapse_spaces_copy(std::move(value)));
-}
-
-std::string extract_category_phrase(std::string value) {
-    struct PhrasePattern {
-        std::string_view prefix;
-        std::string_view suffix;
-    };
-    static const std::vector<PhrasePattern> patterns = {
-        {"falls under the ", " category"},
-        {"falls under ", " category"},
-        {"belongs to the ", " category"},
-        {"belongs to ", " category"},
-        {"categorized as ", ""},
-        {"classified as ", ""},
-        {"category is ", ""},
-        {"category would be ", ""}
-    };
-
-    const std::string lower = to_lower_copy_str(value);
-    for (const auto& pattern : patterns) {
-        const auto start = lower.find(pattern.prefix);
-        if (start == std::string::npos) {
-            continue;
-        }
-        const std::size_t content_start = start + pattern.prefix.size();
-        std::size_t content_end = value.size();
-        if (!pattern.suffix.empty()) {
-            content_end = lower.find(pattern.suffix, content_start);
-            if (content_end == std::string::npos || content_end <= content_start) {
-                continue;
-            }
-        }
-        return value.substr(content_start, content_end - content_start);
-    }
-    return value;
-}
-
-std::string strip_inline_label_artifacts(std::string value, bool category_label) {
-    const std::vector<std::string_view> markers = category_label
-        ? std::vector<std::string_view>{
-              ", subcategory",
-              ", sub category",
-              " - subcategory",
-              " - sub category",
-              "; subcategory",
-              "; sub category",
-              " subcategory:",
-              " sub category:"
-          }
-        : std::vector<std::string_view>{
-              ", category",
-              ", main category",
-              " - category",
-              " - main category",
-              "; category",
-              "; main category",
-              " category:",
-              " main category:"
-          };
-
-    std::size_t cut = std::string::npos;
-    for (const std::string_view marker : markers) {
-        const auto pos = find_case_insensitive(value, marker);
-        if (pos != std::string::npos && (cut == std::string::npos || pos < cut)) {
-            cut = pos;
-        }
-    }
-    if (cut != std::string::npos) {
-        value.resize(cut);
-    }
-
-    return trim_copy(std::move(value));
-}
-
-std::string strip_leading_label_artifacts(std::string value) {
-    static const std::vector<std::string_view> markers = {
-        "category",
-        "main category",
-        "main_category",
-        "subcategory",
-        "sub category",
-        "sub_category"
-    };
-
-    for (const std::string_view marker : markers) {
-        if (!starts_with_case_insensitive(value, marker)) {
-            continue;
-        }
-
-        std::size_t pos = marker.size();
-        while (pos < value.size()) {
-            const unsigned char ch = static_cast<unsigned char>(value[pos]);
-            if (std::isspace(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
-                ch == '"' || ch == '\'' || ch == '`') {
-                ++pos;
-                continue;
-            }
-            break;
-        }
-        return trim_copy(value.substr(pos));
-    }
-
-    return value;
-}
-
-std::string normalize_candidate_label(std::string value, bool category_label) {
-    value = strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(std::move(value))));
-    if (value.empty()) {
-        return value;
-    }
-    if (category_label) {
-        value = extract_category_phrase(std::move(value));
-    }
-    value = strip_leading_label_artifacts(std::move(value));
-    value = strip_explanatory_suffix(std::move(value));
-    value = strip_trailing_parenthetical_gloss(std::move(value));
-    value = strip_inline_label_artifacts(std::move(value), category_label);
-    return strip_wrapping_punctuation(collapse_spaces_copy(std::move(value)));
-}
-
-std::string strip_list_prefix(std::string line) {
-    line = trim_copy(std::move(line));
-    if (line.empty()) {
-        return line;
-    }
-
-    if ((line.front() == '-' || line.front() == '*') && line.size() > 1 &&
-        std::isspace(static_cast<unsigned char>(line[1]))) {
-        return trim_copy(line.substr(1));
-    }
-
-    size_t idx = 0;
-    while (idx < line.size() && std::isdigit(static_cast<unsigned char>(line[idx]))) {
-        ++idx;
-    }
-    if (idx > 0 && idx + 1 < line.size() &&
-        (line[idx] == '.' || line[idx] == ')') &&
-        std::isspace(static_cast<unsigned char>(line[idx + 1]))) {
-        return trim_copy(line.substr(idx + 1));
-    }
-
-    return line;
-}
-
-bool has_alpha(const std::string& value) {
-    return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
-    });
-}
-
-bool is_heading_like_label(const std::string& value) {
-    const std::string lower = to_lower_copy_str(strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(value))));
-    static const std::vector<std::string> exact_matches = {
-        "category",
-        "main category",
-        "subcategory",
-        "sub category",
-        "categorization",
-        "classification",
-        "result",
-        "answer",
-        "note",
-        "warning",
-        "disclaimer",
-        "reason",
-        "explanation",
-        "full path",
-        "file name",
-        "directory name"
-    };
-    if (std::find(exact_matches.begin(), exact_matches.end(), lower) != exact_matches.end()) {
-        return true;
-    }
-    return lower.find("categorization") != std::string::npos ||
-           lower.find("classification") != std::string::npos;
 }
 
 bool contains_any_substring(const std::string& haystack,
@@ -666,9 +381,13 @@ std::pair<std::string, std::string> normalize_image_category_labels(
     const std::string& category,
     const std::string& subcategory,
     bool whitelist_enabled,
-    const std::vector<std::string>& allowed_categories)
+    const std::vector<std::string>& allowed_categories,
+    bool prefer_stable_main_category)
 {
     if (!is_image_prompt_context(prompt_name, file_type)) {
+        return {category, subcategory};
+    }
+    if (!prefer_stable_main_category && !whitelist_enabled) {
         return {category, subcategory};
     }
     if (whitelist_enabled && !is_allowed("Images", allowed_categories)) {
@@ -688,9 +407,10 @@ std::pair<std::string, std::string> normalize_document_category_labels(
     FileType file_type,
     const std::string& category,
     const std::string& subcategory,
-    bool whitelist_enabled)
+    bool whitelist_enabled,
+    bool prefer_stable_main_category)
 {
-    if (file_type != FileType::File || whitelist_enabled) {
+    if (file_type != FileType::File || whitelist_enabled || !prefer_stable_main_category) {
         return {category, subcategory};
     }
 
@@ -726,268 +446,116 @@ std::string first_allowed_or_blank(const std::vector<std::string>& allowed) {
     return allowed.empty() ? std::string() : allowed.front();
 }
 
-std::vector<std::string> split_segments(const std::string& line, std::string_view delimiter) {
-    std::vector<std::string> segments;
-    std::size_t start = 0;
-    while (start <= line.size()) {
-        const auto pos = line.find(delimiter, start);
-        const std::string segment = trim_copy(line.substr(start, pos == std::string::npos ? pos : pos - start));
-        if (!segment.empty()) {
-            segments.push_back(segment);
+std::vector<std::string> category_map_keys(
+    const std::unordered_map<std::string, std::vector<std::string>>& subcategories_by_category)
+{
+    std::vector<std::string> keys;
+    keys.reserve(subcategories_by_category.size());
+    for (const auto& [category, subcategories] : subcategories_by_category) {
+        if (!category.empty() && !subcategories.empty()) {
+            keys.push_back(category);
         }
-        if (pos == std::string::npos) {
-            break;
-        }
-        start = pos + delimiter.size();
     }
-    return segments;
+    std::sort(keys.begin(), keys.end());
+    return keys;
 }
 
-std::optional<std::string> extract_labeled_value(const std::string& line,
-                                                 std::initializer_list<std::string_view> labels,
-                                                 bool category_label) {
-    const auto colon = line.find(':');
-    if (colon == std::string::npos) {
-        return std::nullopt;
+std::vector<std::string> allowed_categories_for_whitelist(
+    const std::vector<std::string>& categories,
+    const std::unordered_map<std::string, std::vector<std::string>>& subcategories_by_category)
+{
+    if (!categories.empty()) {
+        return categories;
     }
+    return category_map_keys(subcategories_by_category);
+}
 
-    const std::string key = to_lower_copy_str(trim_copy(line.substr(0, colon)));
-    for (const std::string_view label : labels) {
-        if (key == label) {
-            const std::string value = normalize_candidate_label(line.substr(colon + 1), category_label);
-            if (!value.empty()) {
-                return value;
-            }
-            break;
+std::optional<std::vector<std::string>> explicit_subcategories_for_category(
+    const std::string& category,
+    const std::unordered_map<std::string, std::vector<std::string>>& subcategories_by_category)
+{
+    const std::string normalized = to_lower_copy_str(category);
+    for (const auto& [mapped_category, subcategories] : subcategories_by_category) {
+        if (to_lower_copy_str(mapped_category) == normalized) {
+            return subcategories;
         }
     }
     return std::nullopt;
 }
 
-bool starts_with_case_insensitive(std::string_view value, std::string_view prefix) {
-    if (prefix.size() > value.size()) {
-        return false;
+std::vector<std::string> effective_subcategories_for_category(
+    const std::string& category,
+    const std::vector<std::string>& flat_subcategories,
+    const std::unordered_map<std::string, std::vector<std::string>>& subcategories_by_category)
+{
+    if (auto mapped = explicit_subcategories_for_category(category, subcategories_by_category)) {
+        return *mapped;
     }
-
-    for (std::size_t i = 0; i < prefix.size(); ++i) {
-        if (std::tolower(static_cast<unsigned char>(value[i])) !=
-            std::tolower(static_cast<unsigned char>(prefix[i]))) {
-            return false;
-        }
-    }
-    return true;
+    return flat_subcategories;
 }
 
-std::optional<std::string> extract_relaxed_labeled_value(const std::string& line,
-                                                         std::initializer_list<std::string_view> labels,
-                                                         bool category_label) {
-    const std::string cleaned = strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(line)));
-    if (cleaned.empty()) {
-        return std::nullopt;
-    }
-
-    const auto try_variant = [&](std::string_view variant) -> std::optional<std::string> {
-        if (!starts_with_case_insensitive(cleaned, variant)) {
-            return std::nullopt;
-        }
-
-        std::size_t pos = variant.size();
-        while (pos < cleaned.size()) {
-            const unsigned char ch = static_cast<unsigned char>(cleaned[pos]);
-            if (std::isspace(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
-                ch == '"' || ch == '\'' || ch == '`') {
-                ++pos;
-                continue;
-            }
-            break;
-        }
-
-        const std::string value = normalize_candidate_label(cleaned.substr(pos), category_label);
-        if (value.empty()) {
-            return std::nullopt;
-        }
-        return value;
-    };
-
-    for (const std::string_view label : labels) {
-        const std::string spaced = collapse_spaces_copy(trim_copy(std::string(label)));
-        if (const auto value = try_variant(spaced)) {
-            return value;
-        }
-
-        std::string underscored = spaced;
-        std::replace(underscored.begin(), underscored.end(), ' ', '_');
-        if (underscored != spaced) {
-            if (const auto value = try_variant(underscored)) {
-                return value;
-            }
-        }
-    }
-
-    return std::nullopt;
+bool is_allowed_subcategory_for_category(
+    const std::string& category,
+    const std::string& subcategory,
+    const std::vector<std::string>& flat_subcategories,
+    const std::unordered_map<std::string, std::vector<std::string>>& subcategories_by_category)
+{
+    const auto allowed = effective_subcategories_for_category(category,
+                                                              flat_subcategories,
+                                                              subcategories_by_category);
+    return is_allowed(subcategory, allowed);
 }
 
-std::optional<std::string> extract_relaxed_labeled_value_from_response(
-    const std::string& response,
-    std::initializer_list<std::string_view> labels,
-    bool category_label) {
-    const std::string cleaned = strip_code_fence(response);
-    if (const auto value = extract_relaxed_labeled_value(cleaned, labels, category_label)) {
-        return value;
-    }
-
-    std::istringstream iss(cleaned);
-    for (std::string line; std::getline(iss, line); ) {
-        if (const auto value = extract_relaxed_labeled_value(line, labels, category_label)) {
-            return value;
-        }
-    }
-
-    return std::nullopt;
+std::string first_allowed_subcategory_for_category(
+    const std::string& category,
+    const std::vector<std::string>& flat_subcategories,
+    const std::unordered_map<std::string, std::vector<std::string>>& subcategories_by_category)
+{
+    const auto allowed = effective_subcategories_for_category(category,
+                                                              flat_subcategories,
+                                                              subcategories_by_category);
+    return first_allowed_or_blank(allowed);
 }
 
-std::string strip_code_fence(std::string output) {
-    output = trim_copy(std::move(output));
-    if (output.rfind("```", 0) != 0) {
-        return output;
-    }
-
-    const auto first_newline = output.find('\n');
-    if (first_newline == std::string::npos) {
-        return output;
-    }
-
-    const auto last_fence = output.rfind("\n```");
-    if (last_fence == std::string::npos || last_fence <= first_newline) {
-        return output;
-    }
-
-    return trim_copy(output.substr(first_newline + 1, last_fence - first_newline - 1));
-}
-
-bool split_inline_pair(const std::string& line, std::string& category, std::string& subcategory) {
-    for (std::string_view delimiter : {std::string_view(" : "), std::string_view(":")}) {
-        const auto segments = split_segments(line, delimiter);
-        if (segments.size() < 2) {
-            continue;
-        }
-
-        for (std::size_t idx = segments.size() - 1; idx > 0; --idx) {
-            const std::string left = normalize_candidate_label(segments[idx - 1], true);
-            const std::string right = normalize_candidate_label(segments[idx], false);
-            if (left.size() < 2 || right.empty()) {
-                continue;
-            }
-            if (!has_alpha(left) || !has_alpha(right)) {
-                continue;
-            }
-            if (is_heading_like_label(left)) {
-                continue;
-            }
-            category = left;
-            subcategory = right;
-            return true;
-        }
-    }
-    return false;
-}
-
-// Splits common category/subcategory response variants and sanitizes the labels.
-std::pair<std::string, std::string> split_category_subcategory(const std::string& input) {
-    std::vector<std::string> lines;
-    lines.reserve(4);
-
-    std::istringstream iss(input);
-    std::string line;
-    while (std::getline(iss, line)) {
-        std::string cleaned = strip_list_prefix(std::move(line));
-        if (!cleaned.empty()) {
-            lines.push_back(std::move(cleaned));
-        }
-    }
-
-    if (lines.empty()) {
-        std::string fallback = Utils::sanitize_path_label(trim_copy(input));
-        return {fallback, ""};
-    }
-
-    std::string category;
-    std::string subcategory;
-
-    for (const auto& entry : lines) {
-        if (category.empty()) {
-            if (auto value = extract_labeled_value(entry, {"category", "main category"}, true)) {
-                category = std::move(*value);
-            } else if (auto value = extract_relaxed_labeled_value(
-                           entry,
-                           {"category", "main category"},
-                           true)) {
-                category = std::move(*value);
-            }
-        }
-        if (subcategory.empty()) {
-            if (auto value = extract_labeled_value(entry, {"subcategory", "sub category"}, false)) {
-                subcategory = std::move(*value);
-            } else if (auto value = extract_relaxed_labeled_value(
-                           entry,
-                           {"subcategory", "sub category"},
-                           false)) {
-                subcategory = std::move(*value);
-            }
-        }
-    }
-
-    if (category.empty() || subcategory.empty()) {
-        for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
-            std::string parsed_category;
-            std::string parsed_subcategory;
-            if (!split_inline_pair(*it, parsed_category, parsed_subcategory)) {
-                continue;
-            }
-            if (category.empty()) {
-                category = std::move(parsed_category);
-            }
-            if (subcategory.empty()) {
-                subcategory = std::move(parsed_subcategory);
-            }
-            if (!category.empty() && !subcategory.empty()) {
-                break;
-            }
-        }
-    }
-
-    if (category.empty() && subcategory.empty()) {
-        category = normalize_candidate_label(lines.front(), true);
-        if (category.empty()) {
-            category = lines.front();
-        }
-    }
-
-    return {Utils::sanitize_path_label(category), Utils::sanitize_path_label(subcategory)};
-}
-
-std::optional<std::pair<std::string, std::string>> parse_translated_category_response(const std::string& response) {
-    Json::Value root;
-    Json::CharReaderBuilder reader;
-    std::string errors;
-    std::istringstream stream(response);
-    if (Json::parseFromStream(reader, stream, &root, &errors) && root.isObject()) {
-        const std::string category = normalize_candidate_label(root.get("category", "").asString(), true);
-        const std::string subcategory = normalize_candidate_label(root.get("subcategory", "").asString(), false);
+std::size_t whitelist_constraint_count(
+    const std::vector<std::string>& categories,
+    const std::vector<std::string>& flat_subcategories,
+    const std::unordered_map<std::string, std::vector<std::string>>& subcategories_by_category)
+{
+    std::size_t count = categories.size() + flat_subcategories.size();
+    for (const auto& [category, subcategories] : subcategories_by_category) {
         if (!category.empty()) {
-            return std::make_pair(Utils::sanitize_path_label(category),
-                                  Utils::sanitize_path_label(subcategory.empty() ? category : subcategory));
+            count += subcategories.size();
         }
     }
+    return count;
+}
 
-    auto [category, subcategory] = split_category_subcategory(response);
-    if (category.empty()) {
-        return std::nullopt;
+std::string join_label_list(const std::vector<std::string>& labels)
+{
+    std::ostringstream oss;
+    for (std::size_t i = 0; i < labels.size(); ++i) {
+        if (i > 0) {
+            oss << ", ";
+        }
+        oss << labels[i];
     }
-    if (subcategory.empty()) {
-        subcategory = category;
+    return oss.str();
+}
+
+std::vector<std::string> unique_categories_from_pairs(const std::vector<std::pair<std::string, std::string>>& pairs)
+{
+    std::vector<std::string> categories;
+    for (const auto& [category, subcategory] : pairs) {
+        (void)subcategory;
+        if (!category.empty() &&
+            std::none_of(categories.begin(), categories.end(), [&category](const std::string& existing) {
+                return to_lower_copy_str(existing) == to_lower_copy_str(category);
+            })) {
+            categories.push_back(category);
+        }
     }
-    return std::make_pair(category, subcategory);
+    return categories;
 }
 
 // Returns a lowercase copy of the input string.
@@ -996,88 +564,6 @@ std::string to_lower_copy_str(std::string value) {
         return static_cast<char>(std::tolower(c));
     });
     return value;
-}
-
-// Returns true when the label contains only allowed characters.
-bool contains_only_allowed_chars(const std::string& value) {
-    for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
-            return false;
-        }
-        static const std::string forbidden = R"(<>:"/\|?*)";
-        if (forbidden.find(static_cast<char>(ch)) != std::string::npos) {
-            return false;
-        }
-        // Everything else is allowed (including non-ASCII letters and punctuation).
-    }
-    return true;
-}
-
-// Returns true when the label has leading/trailing whitespace.
-bool has_leading_or_trailing_space_or_dot(const std::string& value) {
-    if (value.empty()) {
-        return false;
-    }
-    const unsigned char first = static_cast<unsigned char>(value.front());
-    const unsigned char last = static_cast<unsigned char>(value.back());
-    // Only guard leading/trailing whitespace; dots are allowed.
-    return std::isspace(first) || std::isspace(last);
-}
-
-// Returns true when the label matches a reserved Windows device name.
-bool is_reserved_windows_name(const std::string& value) {
-    static const std::vector<std::string> reserved = {
-        "con","prn","aux","nul",
-        "com1","com2","com3","com4","com5","com6","com7","com8","com9",
-        "lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"
-    };
-    const std::string lower = to_lower_copy_str(value);
-    return std::find(reserved.begin(), reserved.end(), lower) != reserved.end();
-}
-
-// Returns true when the label looks like a file extension.
-bool looks_like_extension_label(const std::string& value) {
-    const auto dot_pos = value.rfind('.');
-    if (dot_pos == std::string::npos || dot_pos == value.size() - 1) {
-        return false;
-    }
-    const std::string ext = value.substr(dot_pos + 1);
-    if (ext.empty() || ext.size() > 5) {
-        return false;
-    }
-    return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) { return std::isalpha(ch); });
-}
-
-// Result for category/subcategory validation.
-struct LabelValidationResult {
-    bool valid{false};
-    std::string error;
-};
-
-// Validates category/subcategory labels for length and invalid content.
-LabelValidationResult validate_labels(const std::string& category, const std::string& subcategory) {
-    if (category.empty() || subcategory.empty()) {
-        return {false, "Category or subcategory is empty"};
-    }
-    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
-        return {false, "Category or subcategory exceeds max length"};
-    }
-    if (!contains_only_allowed_chars(category) || !contains_only_allowed_chars(subcategory)) {
-        return {false, "Category or subcategory contains disallowed characters"};
-    }
-    if (looks_like_extension_label(category) || looks_like_extension_label(subcategory)) {
-        return {false, "Category or subcategory looks like a file extension"};
-    }
-    if (is_reserved_windows_name(category) || is_reserved_windows_name(subcategory)) {
-        return {false, "Category or subcategory is a reserved name"};
-    }
-    if (has_leading_or_trailing_space_or_dot(category) || has_leading_or_trailing_space_or_dot(subcategory)) {
-        return {false, "Category or subcategory has leading/trailing space or dot"};
-    }
-    if (to_lower_copy_str(category) == to_lower_copy_str(subcategory)) {
-        return {false, "Category and subcategory are identical"};
-    }
-    return {true, {}};
 }
 
 }
@@ -1158,7 +644,8 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
     const RecategorizationCallback& recategorization_callback,
     std::function<std::unique_ptr<ILLMClient>()> llm_factory,
     const PromptOverrideProvider& prompt_override,
-    const SuggestedNameProvider& suggested_name_provider) const
+    const SuggestedNameProvider& suggested_name_provider,
+    const ResultCallback& result_callback) const
 {
     std::vector<CategorizedFile> categorized;
     if (files.empty()) {
@@ -1175,6 +662,37 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
 
     categorized.reserve(files.size());
     SessionHistoryMap session_history;
+    const int remote_requests_per_minute = is_local_llm ? 0 : resolve_remote_requests_per_minute();
+    std::chrono::steady_clock::time_point next_remote_request = std::chrono::steady_clock::now();
+    RemoteThrottleCallback remote_throttle_callback;
+    if (remote_requests_per_minute > 0) {
+        const auto interval_ms = std::chrono::milliseconds(
+            std::max(1, (60000 + remote_requests_per_minute - 1) / remote_requests_per_minute));
+        remote_throttle_callback = [&](const std::string& item_name) {
+            auto now = std::chrono::steady_clock::now();
+            if (now < next_remote_request) {
+                const auto wait_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    next_remote_request - now).count();
+                if (progress_callback && wait_ms >= 1000) {
+                    progress_callback(fmt::format(
+                        "[REMOTE] Waiting {:.1f}s to respect the configured request limit before {}...",
+                        static_cast<double>(wait_ms) / 1000.0,
+                        item_name));
+                }
+                while (now < next_remote_request) {
+                    if (stop_flag.load()) {
+                        return false;
+                    }
+                    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        next_remote_request - now);
+                    sleep_for_categorization(std::min(remaining, std::chrono::milliseconds(250)));
+                    now = std::chrono::steady_clock::now();
+                }
+            }
+            next_remote_request = std::chrono::steady_clock::now() + interval_ms;
+            return true;
+        };
+    }
 
     for (const auto& entry : files) {
         if (stop_flag.load()) {
@@ -1196,9 +714,13 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
                                                              suggested_name,
                                                              stop_flag,
                                                              progress_callback,
-                                                             recategorization_callback,
-                                                             session_history)) {
+                                                              recategorization_callback,
+                                                              session_history,
+                                                              remote_throttle_callback)) {
             categorized.push_back(*categorized_entry);
+            if (result_callback) {
+                result_callback(*categorized_entry);
+            }
         }
 
         if (completion_callback) {
@@ -1212,13 +734,34 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
 std::string CategorizationService::build_whitelist_context() const
 {
     std::ostringstream oss;
-    const auto cats = settings.get_allowed_categories();
+    const auto raw_cats = settings.get_allowed_categories();
     const auto subs = settings.get_allowed_subcategories();
+    const auto subcategories_by_category = settings.get_allowed_subcategories_by_category();
+    const auto cats = allowed_categories_for_whitelist(raw_cats, subcategories_by_category);
     if (!cats.empty()) {
         oss << "Allowed main categories (pick exactly one label from the numbered list):\n";
         for (size_t i = 0; i < cats.size(); ++i) {
             oss << (i + 1) << ") " << cats[i] << "\n";
         }
+    }
+    if (!subcategories_by_category.empty()) {
+        oss << "Allowed subcategories by main category (use only labels listed for the chosen main category):\n";
+        std::size_t row = 1;
+        for (const auto& category : cats.empty() ? category_map_keys(subcategories_by_category) : cats) {
+            const auto mapped = explicit_subcategories_for_category(category, subcategories_by_category);
+            if (!mapped || mapped->empty()) {
+                continue;
+            }
+            oss << row++ << ") " << category << " : " << join_label_list(*mapped) << "\n";
+        }
+        if (!subs.empty()) {
+            oss << "For categories not listed above, allowed subcategories are: "
+                << join_label_list(subs) << "\n";
+        } else {
+            oss << "For categories not listed above, subcategories are unrestricted; "
+                   "pick a specific, relevant subcategory and do not repeat the main category.";
+        }
+        return oss.str();
     }
     if (!subs.empty()) {
         oss << "Allowed subcategories (pick exactly one label from the numbered list):\n";
@@ -1263,7 +806,8 @@ std::string CategorizationService::build_whitelist_context_for_prompt(const std:
 {
     const auto cats = settings.get_allowed_categories();
     const auto subs = settings.get_allowed_subcategories();
-    if (cats.size() + subs.size() <= kLargeWhitelistPromptThreshold) {
+    const auto subcategories_by_category = settings.get_allowed_subcategories_by_category();
+    if (whitelist_constraint_count(cats, subs, subcategories_by_category) <= kLargeWhitelistPromptThreshold) {
         return build_whitelist_context();
     }
     return build_large_whitelist_candidate_context(prompt_name, prompt_path);
@@ -1274,7 +818,9 @@ std::string CategorizationService::build_large_whitelist_candidate_context(const
 {
     const auto cats = settings.get_allowed_categories();
     const auto subs = settings.get_allowed_subcategories();
-    if (cats.empty()) {
+    const auto subcategories_by_category = settings.get_allowed_subcategories_by_category();
+    const auto effective_cats = allowed_categories_for_whitelist(cats, subcategories_by_category);
+    if (effective_cats.empty()) {
         return build_whitelist_context();
     }
 
@@ -1298,10 +844,11 @@ std::string CategorizationService::build_large_whitelist_candidate_context(const
     const auto append_candidate = [&](std::string category, std::string subcategory) {
         category = Utils::sanitize_path_label(std::move(category));
         subcategory = Utils::sanitize_path_label(std::move(subcategory));
-        if (category.empty() || !allowed_contains(category, cats)) {
+        if (category.empty() || !allowed_contains(category, effective_cats)) {
             return;
         }
-        if (!subcategory.empty() && !allowed_contains(subcategory, subs)) {
+        if (!subcategory.empty() &&
+            !is_allowed_subcategory_for_category(category, subcategory, subs, subcategories_by_category)) {
             subcategory.clear();
         }
         const CategoryPair pair{category, subcategory};
@@ -1322,7 +869,7 @@ std::string CategorizationService::build_large_whitelist_candidate_context(const
 
     if (candidates.size() < kMaxLargeWhitelistPromptCandidates) {
         for (const auto& category :
-             rank_allowed_labels_for_query(cats, query, kMaxLargeWhitelistPromptCandidates)) {
+             rank_allowed_labels_for_query(effective_cats, query, kMaxLargeWhitelistPromptCandidates)) {
             append_candidate(category, {});
             if (candidates.size() == kMaxLargeWhitelistPromptCandidates) {
                 break;
@@ -1345,7 +892,23 @@ std::string CategorizationService::build_large_whitelist_candidate_context(const
         oss << "No strong whitelist candidate matched this file. Choose the best category from the selected whitelist if you know it; otherwise suggest a new category for review.\n";
     }
 
-    if (!subs.empty()) {
+    if (!subcategories_by_category.empty()) {
+        const auto candidate_categories = unique_categories_from_pairs(candidates);
+        if (!candidate_categories.empty()) {
+            oss << "Allowed subcategories for shown category candidates:\n";
+            for (const auto& category : candidate_categories) {
+                const auto allowed = effective_subcategories_for_category(category,
+                                                                          subs,
+                                                                          subcategories_by_category);
+                if (allowed.empty()) {
+                    oss << "- " << category
+                        << ": any specific, relevant subcategory; do not repeat the main category\n";
+                } else {
+                    oss << "- " << category << ": " << join_label_list(allowed) << "\n";
+                }
+            }
+        }
+    } else if (!subs.empty()) {
         const auto ranked_subs = rank_allowed_labels_for_query(subs, query, kMaxLargeWhitelistPromptCandidates);
         if (!ranked_subs.empty()) {
             oss << "Allowed subcategory candidates:\n";
@@ -1370,6 +933,7 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
         return std::string();
     }
 
+    const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
     std::string query = prompt_name;
     if (!prompt_path.empty()) {
         query += "\n";
@@ -1379,21 +943,26 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
     const auto candidates = user_learning_store_->retrieve_taxonomy_candidates(query, 5);
     std::ostringstream oss;
     const auto family_selection =
-        settings.get_use_whitelist()
+        (settings.get_use_whitelist() || !prefer_stable_taxonomy)
             ? FileCategoryPolicy::MainCategorySelection{}
             : FileCategoryPolicy::determine_main_category_selection(prompt_name, file_type);
+    const auto whitelist_subcategories_by_category = settings.get_allowed_subcategories_by_category();
+    const auto whitelist_categories =
+        allowed_categories_for_whitelist(settings.get_allowed_categories(), whitelist_subcategories_by_category);
     const auto normalize_candidate_for_prompt = [&](std::string category, std::string subcategory) {
         std::tie(category, subcategory) = normalize_image_category_labels(prompt_name,
                                                                           file_type,
                                                                           category,
                                                                           subcategory,
                                                                           settings.get_use_whitelist(),
-                                                                          settings.get_allowed_categories());
+                                                                          whitelist_categories,
+                                                                          prefer_stable_taxonomy);
         std::tie(category, subcategory) = normalize_document_category_labels(prompt_name,
                                                                              file_type,
                                                                              category,
                                                                              subcategory,
-                                                                             settings.get_use_whitelist());
+                                                                             settings.get_use_whitelist(),
+                                                                             prefer_stable_taxonomy);
         std::tie(category, subcategory) = normalize_artifact_category_labels(prompt_name,
                                                                              file_type,
                                                                              category,
@@ -1448,6 +1017,7 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
         return resolved;
     }
 
+    const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
     std::string query = prompt_name;
     if (!prompt_path.empty()) {
         query += "\n";
@@ -1462,25 +1032,29 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
     }
 
     auto candidate = candidates.front();
+    const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
+    const auto allowed_categories =
+        allowed_categories_for_whitelist(settings.get_allowed_categories(), allowed_subcategories_by_category);
     std::tie(candidate.category, candidate.subcategory) = normalize_image_category_labels(prompt_name,
                                                                                           file_type,
                                                                                           candidate.category,
                                                                                           candidate.subcategory,
                                                                                           settings.get_use_whitelist(),
-                                                                                          settings.get_allowed_categories());
+                                                                                          allowed_categories,
+                                                                                          prefer_stable_taxonomy);
     std::tie(candidate.category, candidate.subcategory) = normalize_document_category_labels(prompt_name,
                                                                                              file_type,
                                                                                              candidate.category,
                                                                                              candidate.subcategory,
-                                                                                             settings.get_use_whitelist());
+                                                                                             settings.get_use_whitelist(),
+                                                                                             prefer_stable_taxonomy);
     std::tie(candidate.category, candidate.subcategory) = normalize_artifact_category_labels(prompt_name,
                                                                                              file_type,
                                                                                              candidate.category,
                                                                                              candidate.subcategory,
                                                                                              settings.get_use_whitelist());
-    const auto allowed_categories = settings.get_allowed_categories();
     const auto allowed_subcategories = settings.get_allowed_subcategories();
-    if (!settings.get_use_whitelist()) {
+    if (!settings.get_use_whitelist() && prefer_stable_taxonomy) {
         const auto family_selection =
             FileCategoryPolicy::determine_main_category_selection(prompt_name, file_type);
         if (!family_selection.categories.empty() &&
@@ -1493,7 +1067,10 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
     }
     if (settings.get_use_whitelist() &&
         !candidate.subcategory.empty() &&
-        !is_allowed(candidate.subcategory, allowed_subcategories)) {
+        !is_allowed_subcategory_for_category(candidate.category,
+                                             candidate.subcategory,
+                                             allowed_subcategories,
+                                             allowed_subcategories_by_category)) {
         return resolved;
     }
 
@@ -1561,7 +1138,8 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
         }
         return std::nullopt;
     }
-    const auto validation = validate_labels(sanitized_category, sanitized_subcategory);
+    const auto validation = CategorizationResponseParser::validate_labels(sanitized_category,
+                                                                          sanitized_subcategory);
     if (!validation.valid) {
         if (core_logger) {
             core_logger->warn("Ignoring cached categorization for '{}' due to validation error: {} (cat='{}', sub='{}')",
@@ -1637,10 +1215,15 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
     try {
         const std::string category_subcategory =
             run_llm_with_timeout(llm, prompt_name, prompt_path, file_type, is_local_llm, consistency_context);
-        auto [category, subcategory] = split_category_subcategory(category_subcategory);
+        auto [category, subcategory] =
+            CategorizationResponseParser::split_category_subcategory(category_subcategory);
 
         const auto allowed_categories = settings.get_allowed_categories();
         const auto allowed_subcategories = settings.get_allowed_subcategories();
+        const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
+        const auto effective_allowed_categories =
+            allowed_categories_for_whitelist(allowed_categories, allowed_subcategories_by_category);
+        const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
         const std::string original_category = category;
         const std::string original_subcategory = subcategory;
         std::tie(category, subcategory) = normalize_image_category_labels(prompt_name,
@@ -1648,7 +1231,8 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                                                                           category,
                                                                           subcategory,
                                                                           settings.get_use_whitelist(),
-                                                                          allowed_categories);
+                                                                          effective_allowed_categories,
+                                                                          prefer_stable_taxonomy);
         if (core_logger &&
             (category != original_category || subcategory != original_subcategory)) {
             core_logger->info("Normalized image category for '{}' from '{}'/'{}' to '{}'/'{}'",
@@ -1664,7 +1248,8 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                                                                              file_type,
                                                                              category,
                                                                              subcategory,
-                                                                             settings.get_use_whitelist());
+                                                                             settings.get_use_whitelist(),
+                                                                             prefer_stable_taxonomy);
         if (core_logger &&
             (category != pre_document_category || subcategory != pre_document_subcategory)) {
             core_logger->info("Normalized document category for '{}' from '{}'/'{}' to '{}'/'{}'",
@@ -1692,15 +1277,27 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
         }
         auto resolved = db_manager.resolve_category(category, subcategory);
         if (settings.get_use_whitelist()) {
-            if (!is_allowed(resolved.category, allowed_categories)) {
-                resolved.category = first_allowed_or_blank(allowed_categories);
+            bool whitelist_adjusted = false;
+            if (!is_allowed(resolved.category, effective_allowed_categories)) {
+                resolved.category = first_allowed_or_blank(effective_allowed_categories);
+                whitelist_adjusted = true;
             }
-            if (!is_allowed(resolved.subcategory, allowed_subcategories)) {
-                resolved.subcategory = first_allowed_or_blank(allowed_subcategories);
+            if (!is_allowed_subcategory_for_category(resolved.category,
+                                                     resolved.subcategory,
+                                                     allowed_subcategories,
+                                                     allowed_subcategories_by_category)) {
+                resolved.subcategory = first_allowed_subcategory_for_category(resolved.category,
+                                                                              allowed_subcategories,
+                                                                              allowed_subcategories_by_category);
+                whitelist_adjusted = true;
+            }
+            if (whitelist_adjusted) {
+                resolved = db_manager.resolve_category(resolved.category, resolved.subcategory);
             }
         }
         resolved = prefer_learned_candidate_for_generic_result(resolved, prompt_name, prompt_path, file_type);
-        const auto validation = validate_labels(resolved.category, resolved.subcategory);
+        const auto validation = CategorizationResponseParser::validate_labels(resolved.category,
+                                                                              resolved.subcategory);
         if (!validation.valid) {
             if (progress_callback) {
                 progress_callback(fmt::format("[LLM-ERROR] {} (invalid category/subcategory: {})",
@@ -1768,7 +1365,8 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     const std::string& prompt_path,
     FileType file_type,
     const ProgressCallback& progress_callback,
-    const std::string& consistency_context) const
+    const std::string& consistency_context,
+    const RemoteThrottleCallback& remote_throttle_callback) const
 {
     if (auto cached = try_cached_categorization(display_name,
                                                 display_path,
@@ -1782,6 +1380,10 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     }
 
     if (!is_local_llm && !ensure_remote_credentials_for_request(display_name, progress_callback)) {
+        return DatabaseManager::ResolvedCategory{-1, "", ""};
+    }
+
+    if (!is_local_llm && remote_throttle_callback && !remote_throttle_callback(display_name)) {
         return DatabaseManager::ResolvedCategory{-1, "", ""};
     }
 
@@ -1805,10 +1407,9 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     std::atomic<bool>& stop_flag,
     const ProgressCallback& progress_callback,
     const RecategorizationCallback& recategorization_callback,
-    SessionHistoryMap& session_history) const
+    SessionHistoryMap& session_history,
+    const RemoteThrottleCallback& remote_throttle_callback) const
 {
-    (void)stop_flag;
-
     const std::filesystem::path entry_path = Utils::utf8_to_path(entry.full_path);
     const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
     const std::string display_path = Utils::abbreviate_user_path(entry.full_path);
@@ -1839,9 +1440,10 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
                                                      display_path,
                                                      dir_path,
                                                      prompt_name,
-                                                     prompt_path_display,
-                                                     progress_callback,
-                                                     combined_context);
+                                                      prompt_path_display,
+                                                      progress_callback,
+                                                      combined_context,
+                                                      remote_throttle_callback);
             break;
         } catch (const BackoffError& backoff) {
             const int wait_seconds = backoff.retry_after_seconds() > 0 ? backoff.retry_after_seconds() : 60;
@@ -1861,7 +1463,7 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
                 if (progress_callback && (remaining % 10 == 0 || remaining <= 3)) {
                     progress_callback(fmt::format("[REMOTE] Retrying {} in {}s...", entry.file_name, remaining));
                 }
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                sleep_for_categorization(std::chrono::seconds(1));
             }
             if (retried_after_backoff) {
                 throw;
@@ -1903,14 +1505,21 @@ std::string CategorizationService::build_combined_context(const std::string& hin
                                                           FileType file_type) const
 {
     std::string combined_context;
+    const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
     const auto allowed_categories = settings.get_allowed_categories();
     const auto allowed_subcategories = settings.get_allowed_subcategories();
+    const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
+    const auto effective_allowed_categories =
+        allowed_categories_for_whitelist(allowed_categories, allowed_subcategories_by_category);
     const bool image_context = is_image_prompt_context(prompt_name, file_type);
     const bool document_context = is_document_prompt_context(prompt_name, file_type);
     const bool use_specialized_prompt_context = image_context || document_context;
     const bool large_whitelist =
         settings.get_use_whitelist() &&
-        allowed_categories.size() + allowed_subcategories.size() > kLargeWhitelistPromptThreshold;
+        whitelist_constraint_count(allowed_categories,
+                                   allowed_subcategories,
+                                   allowed_subcategories_by_category) > kLargeWhitelistPromptThreshold;
+    std::string sorting_style_block;
     const std::string whitelist_block = settings.get_use_whitelist()
         ? build_whitelist_context_for_prompt(prompt_name, prompt_path)
         : std::string();
@@ -1918,7 +1527,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         ? std::string()
         : build_learned_candidate_context(prompt_name, prompt_path, file_type);
     const std::string language_block = build_category_language_context();
-    const std::string family_candidate_block = use_specialized_prompt_context
+    const std::string family_candidate_block = (use_specialized_prompt_context && prefer_stable_taxonomy)
         ? build_main_category_candidate_context(prompt_name, file_type)
         : std::string();
     const bool rich_image_context =
@@ -1930,23 +1539,51 @@ std::string CategorizationService::build_combined_context(const std::string& hin
     std::string document_block;
     std::string artifact_block;
 
+    if (!settings.get_use_whitelist() && use_specialized_prompt_context) {
+        std::ostringstream style_guidance;
+        style_guidance << (prefer_stable_taxonomy ? kConsistentSortingStyleMarker
+                                                  : kRefinedSortingStyleMarker)
+                       << "\n";
+        if (prefer_stable_taxonomy) {
+            style_guidance
+                << "- Favor stable, filesystem-oriented main categories when they fit.\n"
+                << "- Keep similar files aligned to the same broad taxonomy when the evidence is close.\n";
+        } else {
+            style_guidance
+                << "- Favor the most semantically accurate category and subcategory pair for this specific item.\n";
+            if (document_context) {
+                style_guidance
+                    << "- You may use a topic-specific main category instead of forcing the file into Documents, Presentations, Spreadsheets, Data Exports, or Configs when a more precise main category is clearly better.\n";
+            }
+            if (image_context) {
+                style_guidance
+                    << "- You may use a content-specific main category instead of forcing the file into Images when that clearly improves organization, but avoid artifact families like Software or Operating Systems for ordinary screenshots and photos.\n";
+            }
+        }
+        sorting_style_block = style_guidance.str();
+    }
+
     if (image_context) {
         std::ostringstream image_guidance;
         image_guidance
             << "Image categorization guidance:\n"
-            << "- Keep the main category stable and filesystem-oriented.\n";
+            << "- Categorize the subject matter shown in the image, not merely the file format.\n";
 
-        if (settings.get_use_whitelist() && !is_allowed("Images", allowed_categories)) {
+        if (settings.get_use_whitelist() && !is_allowed("Images", effective_allowed_categories)) {
             image_guidance
                 << "- Respect the active whitelist if one is provided.\n"
                 << "- Prefer image-focused labels, and put the depicted subject, scene, or on-screen content in the subcategory when the whitelist allows it.\n";
+        } else if (prefer_stable_taxonomy) {
+            image_guidance
+                << "- Keep the main category stable and filesystem-oriented.\n"
+                << "- Always use Images as the main category, and put the depicted subject, scene, or on-screen content in the subcategory.\n";
         } else {
             image_guidance
-                << "- Always use Images as the main category, and put the depicted subject, scene, or on-screen content in the subcategory.\n";
+                << "- Use Images as the main category when media-type grouping is the best fit, but you may choose a more semantically specific main category when that clearly improves organization.\n"
+                << "- Put the depicted subject, scene, or on-screen content in the subcategory when that creates the clearest folder label.\n";
         }
 
         image_guidance
-            << "- Categorize the subject matter shown in the image, not merely the file format.\n"
             << "- Keep the subcategory concise and leaf-like: prefer labels such as Pets, Small Mammals, Wildlife, Landscapes, or Dashboard Interfaces, and do not prefix them with Images.\n"
             << "- Treat screenshots, webpage captures, dashboards, forms, mockups, and app interfaces as images depicting content.\n"
             << "- Do not classify a PNG/JPG/WebP screenshot as Software, Operating Systems, Installers, Databases, or similar artifact categories unless the file itself is actually such an artifact.\n"
@@ -1977,7 +1614,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
             document_guidance
                 << "- Respect the active whitelist if one is provided.\n"
                 << "- Keep the main category broad and filesystem-friendly, and put the specific topic in the subcategory when the whitelist allows it.\n";
-        } else {
+        } else if (prefer_stable_taxonomy) {
             document_guidance
                 << "- Keep the main category stable and filesystem-oriented.\n"
                 << "- Prefer one of these main categories when it clearly fits: Documents, Presentations, Spreadsheets, Data Exports, Configs.\n"
@@ -1985,6 +1622,12 @@ std::string CategorizationService::build_combined_context(const std::string& hin
                 << "- Use Presentations only for slide decks, Spreadsheets only for workbook-like tabular files, Data Exports only for export-style tabular data files, and Configs only for configuration files.\n"
                 << "- Keep the subcategory concise and leaf-like: prefer labels such as PCI DSS, Financial Documents, Camera Guides, or Vendor Services, and do not prefix them with Documents.\n"
                 << "- Put the specific topic or subject matter in the subcategory instead of inventing a topical main category like Security, Marketing, or Computing.\n";
+        } else {
+            document_guidance
+                << "- Use the most semantically accurate main category and subcategory pair for the document.\n"
+                << "- Broad filesystem buckets like Documents, Presentations, Spreadsheets, Data Exports, and Configs remain valid when they are the best fit, but do not force every file into them.\n"
+                << "- If a more topic-specific main category such as Finance, Security, Marketing, Legal, Research, or Manuals is clearly better, use it.\n"
+                << "- Keep the subcategory concise and leaf-like: prefer labels such as PCI DSS, Financial Documents, Camera Guides, or Vendor Services, and avoid simply repeating the main category.\n";
         }
 
         document_block = document_guidance.str();
@@ -2005,6 +1648,12 @@ std::string CategorizationService::build_combined_context(const std::string& hin
 
     if (!language_block.empty()) {
         combined_context += language_block;
+    }
+    if (!sorting_style_block.empty()) {
+        if (!combined_context.empty()) {
+            combined_context += "\n\n";
+        }
+        combined_context += sorting_style_block;
     }
     if (!image_block.empty()) {
         if (!combined_context.empty()) {
@@ -2032,9 +1681,10 @@ std::string CategorizationService::build_combined_context(const std::string& hin
     }
     if (settings.get_use_whitelist() && !whitelist_block.empty()) {
         if (core_logger) {
-            core_logger->debug("Applying category whitelist ({} cats, {} subs)",
-                               settings.get_allowed_categories().size(),
-                               settings.get_allowed_subcategories().size());
+            core_logger->debug("Applying category whitelist ({} cats, {} flat subs, {} mapped cats)",
+                               allowed_categories.size(),
+                               allowed_subcategories.size(),
+                               allowed_subcategories_by_category.size());
         }
         if (!combined_context.empty()) {
             combined_context += "\n\n";
@@ -2108,7 +1758,7 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::translat
     try {
         const std::string response =
             llm.complete_prompt(prompt, kCategoryTranslationCompletionTokens);
-        const auto translated = parse_translated_category_response(response);
+        const auto translated = CategorizationResponseParser::parse_translated_category_response(response);
         if (!translated) {
             return std::nullopt;
         }
@@ -2118,7 +1768,9 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::translat
             translated->first,
             translated->second
         };
-        const auto validation = validate_labels(translated_resolved.category, translated_resolved.subcategory);
+        const auto validation =
+            CategorizationResponseParser::validate_labels(translated_resolved.category,
+                                                          translated_resolved.subcategory);
         if (!validation.valid) {
             if (core_logger) {
                 core_logger->warn("Ignoring invalid translated category pair for taxonomy {}: {} (cat='{}', sub='{}')",
@@ -2150,7 +1802,8 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
     const std::string& prompt_name,
     const std::string& prompt_path,
     const ProgressCallback& progress_callback,
-    const std::string& combined_context) const
+    const std::string& combined_context,
+    const RemoteThrottleCallback& remote_throttle_callback) const
 {
     return categorize_with_cache(llm,
                                  is_local_llm,
@@ -2161,7 +1814,8 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
                                  prompt_path,
                                  entry.type,
                                  progress_callback,
-                                 combined_context);
+                                 combined_context,
+                                 remote_throttle_callback);
 }
 
 std::optional<CategorizedFile> CategorizationService::handle_empty_result(
@@ -2279,6 +1933,27 @@ int CategorizationService::resolve_llm_timeout(bool is_local_llm) const
     }
 
     return timeout_seconds;
+}
+
+int CategorizationService::resolve_remote_requests_per_minute() const
+{
+    int requests_per_minute = settings.get_remote_requests_per_minute();
+    const char* limit_env = std::getenv(kRemoteRequestsPerMinuteEnv);
+    if (limit_env && *limit_env != '\0') {
+        try {
+            requests_per_minute = std::max(0, std::stoi(limit_env));
+        } catch (const std::exception& ex) {
+            if (core_logger) {
+                core_logger->warn("Failed to parse remote request limit '{}': {}", limit_env, ex.what());
+            }
+        }
+    }
+
+    if (requests_per_minute > 0 && core_logger) {
+        core_logger->debug("Using remote LLM request limit of {} request(s) per minute",
+                           requests_per_minute);
+    }
+    return requests_per_minute;
 }
 
 std::future<std::string> CategorizationService::start_llm_future(
@@ -2408,3 +2083,19 @@ std::string CategorizationService::format_hint_block(const std::vector<CategoryP
     oss << "Prefer one of the above when it fits; otherwise, choose the closest consistent alternative.";
     return oss.str();
 }
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+namespace TestHooks {
+
+void set_categorization_sleep_probe(CategorizationSleepProbe probe)
+{
+    categorization_sleep_probe() = std::move(probe);
+}
+
+void reset_categorization_sleep_probe()
+{
+    categorization_sleep_probe() = CategorizationSleepProbe{};
+}
+
+} // namespace TestHooks
+#endif

@@ -1,10 +1,36 @@
 <!DOCTYPE RCC><RCC version="1.0">
-  <qresource prefix="/net/quicknode/AIFileSorter">
+  <qresource prefix="/dev/hfstudio/AIFileSorter">
     <file>images/logo.png</file>
-    <file>images/qn_logo.png</file>
+    <file>images/hf_logo.png</file>
+    <file>images/app_icon_64.png</file>
     <file>images/app_icon_128.png</file>
+    <file>images/app_icon_256.png</file>
+    <file>images/app_icon_256_arrows.png</file>
+    <file>images/app_icon_256.svg</file>
+    <file>images/app_icon_arrows.svg</file>
+    <file>images/icon_16x16.png</file>
+    <file>images/icon_32x32.png</file>
+    <file>images/icon_64x64.png</file>
+    <file>images/icon_128x128.png</file>
+    <file>images/icon_256x256.png</file>
     <file>images/icon_512x512.png</file>
+    <file>images/icon_1080x1080.png</file>
     <file>help/quick_start.md</file>
+    <file>help/quick_start_windows.md</file>
+    <file>help/quick_start_windows_nl.md</file>
+    <file>help/quick_start_windows_zh_cn.md</file>
+    <file>help/quick_start_windows_sv.md</file>
+    <file>help/quick_start_windows_is.md</file>
+    <file>help/quick_start_windows_nb.md</file>
+    <file>help/quick_start_windows_fi.md</file>
+    <file>help/quick_start_windows_da.md</file>
+    <file>help/quick_start_windows_fr.md</file>
+    <file>help/quick_start_windows_de.md</file>
+    <file>help/quick_start_windows_hi.md</file>
+    <file>help/quick_start_windows_it.md</file>
+    <file>help/quick_start_windows_es.md</file>
+    <file>help/quick_start_windows_tr.md</file>
+    <file>help/quick_start_windows_ko.md</file>
     <file>help/quick_start_nl.md</file>
     <file>help/quick_start_zh_cn.md</file>
     <file>help/quick_start_sv.md</file>
@@ -19,6 +45,21 @@
     <file>help/quick_start_es.md</file>
     <file>help/quick_start_tr.md</file>
     <file>help/quick_start_ko.md</file>
+    <file>whats_new/1.9.0.md</file>
+    <file>whats_new/1.9.0_da.md</file>
+    <file>whats_new/1.9.0_de.md</file>
+    <file>whats_new/1.9.0_es.md</file>
+    <file>whats_new/1.9.0_fi.md</file>
+    <file>whats_new/1.9.0_fr.md</file>
+    <file>whats_new/1.9.0_hi.md</file>
+    <file>whats_new/1.9.0_is.md</file>
+    <file>whats_new/1.9.0_it.md</file>
+    <file>whats_new/1.9.0_ko.md</file>
+    <file>whats_new/1.9.0_nb.md</file>
+    <file>whats_new/1.9.0_nl.md</file>
+    <file>whats_new/1.9.0_sv.md</file>
+    <file>whats_new/1.9.0_tr.md</file>
+    <file>whats_new/1.9.0_zh_cn.md</file>
     <file>.env</file>
     <file>certs/cacert.pem</file>
   </qresource>

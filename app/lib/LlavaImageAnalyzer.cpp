@@ -1,9 +1,12 @@
 #include "LlavaImageAnalyzer.hpp"
 
+#include "ImageDecodeUtils.hpp"
 #include "Logger.hpp"
 #include "LlamaModelParams.hpp"
 #include "Utils.hpp"
 
+#include <QByteArray>
+#include <QImage>
 #include <QString>
 
 #include <algorithm>
@@ -88,6 +91,7 @@ constexpr double kVisualMaxUsableTotalBudgetFraction = 0.90;
 constexpr double kVisualMinApproxFreeBudgetFraction = 0.45;
 constexpr double kVisualLayerOverheadFactor = 1.08;
 constexpr int32_t kVisualTierHeuristicReconciliationWindowLayers = 4;
+constexpr std::string_view kWebpExtension = ".webp";
 
 #if defined(AI_FILE_SORTER_HAS_MTMD) && defined(_WIN32)
 FARPROC resolve_mtmd_helper(const char* name) {
@@ -174,7 +178,7 @@ PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view
         oss << "Based on the description below, generate a specific and descriptive filename for the image.\n"
             << "Limit the filename to a maximum of 3 words. Use nouns and avoid starting with verbs like "
             << "'depicts', 'shows', 'presents', etc.\n"
-            << "Do not include any data type words like 'image', 'jpg', 'png', etc. Use only letters and "
+            << "Do not include any data type words like 'image', 'jpg', 'png', 'webp', etc. Use only letters and "
             << "connect words with underscores.\n\n"
             << "Description: " << description << "\n\n"
             << "Example:\n"
@@ -218,6 +222,13 @@ std::string to_lower_copy(std::string value) {
         return static_cast<char>(std::tolower(ch));
     });
     return value;
+}
+
+std::string path_extension_lower(const std::filesystem::path& path) {
+    if (!path.has_extension()) {
+        return {};
+    }
+    return to_lower_copy(Utils::path_to_utf8(path.extension()));
 }
 
 std::optional<bool> read_env_bool(const char* key) {
@@ -366,7 +377,7 @@ const std::unordered_set<std::string> kStopwords = {
     "a", "an", "and", "are", "as", "at", "based", "be", "by", "category", "describes",
     "description", "depicts", "details", "document", "file", "filename", "for", "from",
     "gif", "has", "image", "in", "is", "it", "jpeg", "jpg", "of", "on", "only",
-    "photo", "picture", "png", "shows", "the", "this", "to", "txt", "unknown", "with"
+    "photo", "picture", "png", "shows", "the", "this", "to", "txt", "unknown", "webp", "with"
 };
 
 bool case_insensitive_contains(std::string_view text, std::string_view needle) {
@@ -1130,6 +1141,52 @@ struct ChunkDeleter {
 using BitmapPtr = std::unique_ptr<mtmd_bitmap, BitmapDeleter>;
 using ChunkPtr = std::unique_ptr<mtmd_input_chunks, ChunkDeleter>;
 
+BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
+                                              const std::string& image_path_utf8) {
+    std::string decode_error;
+    const QImage image = ImageDecodeUtils::decode_image_with_webp_fallback(
+        QString::fromUtf8(image_path_utf8.c_str()),
+        QSize(),
+        &decode_error);
+    if (image.isNull()) {
+        std::string message = "Failed to decode WebP image for visual analysis: " +
+                              image_path_utf8;
+        if (!decode_error.empty()) {
+            message += " (" + decode_error + ")";
+        }
+        throw std::runtime_error(message);
+    }
+
+    QByteArray png_bytes;
+    if (!ImageDecodeUtils::encode_image_as_png_bytes(image, png_bytes)) {
+        throw std::runtime_error("Failed to transcode WebP image for visual analysis: " +
+                                 image_path_utf8);
+    }
+
+    const auto loaded_bitmap = mtmd_helper_bitmap_init_from_buf(
+        vision_ctx,
+        reinterpret_cast<const unsigned char*>(png_bytes.constData()),
+        static_cast<size_t>(png_bytes.size()),
+        false);
+    return BitmapPtr(loaded_bitmap.bitmap);
+}
+
+BitmapPtr load_visual_bitmap(mtmd_context* vision_ctx,
+                             const std::filesystem::path& image_path,
+                             const std::string& image_path_utf8) {
+    if (path_extension_lower(image_path) == kWebpExtension) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->info("Transcoding WebP image '{}' to PNG bytes for visual analysis.",
+                         image_path_utf8);
+        }
+        return load_webp_bitmap_as_supported_image(vision_ctx, image_path_utf8);
+    }
+
+    const auto loaded_bitmap =
+        mtmd_helper_bitmap_init_from_file(vision_ctx, image_path_utf8.c_str(), false);
+    return BitmapPtr(loaded_bitmap.bitmap);
+}
+
 llama_token greedy_sample(const float* logits, int vocab_size, float temperature) {
     const float temp = std::max(temperature, 1e-3f);
     int best_index = 0;
@@ -1275,6 +1332,13 @@ std::string filename_system_prompt(VisualPromptPolicy policy) {
 
 std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description) {
     return build_filename_request(policy, description).user_prompt;
+}
+
+bool can_transcode_webp_for_visual_analysis(const std::filesystem::path& path) {
+    const QImage image = ImageDecodeUtils::decode_image_with_webp_fallback(
+        QString::fromStdString(Utils::path_to_utf8(path)));
+    QByteArray png_bytes;
+    return ImageDecodeUtils::encode_image_as_png_bytes(image, png_bytes) && !png_bytes.isEmpty();
 }
 }
 #endif
@@ -1561,12 +1625,12 @@ void LlavaImageAnalyzer::reset_context_state() {
 #endif
 
 bool LlavaImageAnalyzer::is_supported_image(const std::filesystem::path& path) {
-    if (!path.has_extension()) {
+    const std::string ext = path_extension_lower(path);
+    if (ext.empty()) {
         return false;
     }
-    std::string ext = to_lower_copy(Utils::path_to_utf8(path.extension()));
     static const std::unordered_set<std::string> kExtensions = {
-        ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tga", ".psd", ".hdr",
+        ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tga", ".psd", ".hdr",
         ".pic", ".pnm", ".ppm", ".pgm", ".pbm"
     };
     return kExtensions.find(ext) != kExtensions.end();
@@ -1581,7 +1645,7 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
     const auto analysis_started = std::chrono::steady_clock::now();
     const std::string image_path_utf8 = Utils::path_to_utf8(image_path);
     const auto bitmap_started = std::chrono::steady_clock::now();
-    BitmapPtr bitmap(mtmd_helper_bitmap_init_from_file(vision_ctx_, image_path_utf8.c_str()));
+    BitmapPtr bitmap = load_visual_bitmap(vision_ctx_, image_path, image_path_utf8);
     if (!bitmap) {
         throw std::runtime_error("Failed to load image for visual analysis: " + image_path_utf8);
     }

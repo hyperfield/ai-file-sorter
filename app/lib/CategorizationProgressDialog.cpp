@@ -9,6 +9,7 @@
 #include <QAbstractItemView>
 #include <QColor>
 #include <QEvent>
+#include <QFrame>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -25,6 +26,71 @@
 
 #include <algorithm>
 
+namespace {
+
+QString progress_dialog_style_sheet()
+{
+    return QStringLiteral(R"(
+        QDialog#analysisProgressDialog {
+            background-color: #f4f6f8;
+        }
+        QFrame#analysisStatusPanel,
+        QFrame#analysisLogPanel {
+            background-color: #fbfcfe;
+            border: 1px solid #c8d0d8;
+            border-radius: 6px;
+        }
+        QTableWidget#analysisStatusTable {
+            background-color: #ffffff;
+            alternate-background-color: #f4f6f8;
+            border: none;
+            gridline-color: #d8e0e8;
+            outline: 0;
+            selection-background-color: #d7e8f7;
+            selection-color: #111827;
+        }
+        QTableWidget#analysisStatusTable QHeaderView::section {
+            background-color: #f3f6f9;
+            border: none;
+            border-right: 1px solid #d8e0e8;
+            border-bottom: 1px solid #c8d0d8;
+            padding: 4px 6px;
+        }
+        QLabel#analysisLogLabel {
+            color: #111827;
+            font-weight: 600;
+        }
+        QPlainTextEdit#analysisLogView {
+            background-color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            padding: 6px;
+        }
+        QPushButton#stopAnalysisButton {
+            background-color: #ffffff;
+            border: 1px solid #b7c3cf;
+            border-radius: 6px;
+            padding: 5px 13px;
+            min-height: 24px;
+        }
+        QPushButton#stopAnalysisButton:hover {
+            background-color: #fff4f2;
+            border-color: #d58a7f;
+        }
+        QPushButton#stopAnalysisButton:pressed {
+            background-color: #f8ddd9;
+            border-color: #b96c62;
+        }
+        QPushButton#stopAnalysisButton:disabled {
+            background-color: #f4f6f8;
+            border-color: #d7dde4;
+            color: #9aa3ad;
+        }
+    )");
+}
+
+} // namespace
+
 CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
                                                            MainApp* main_app,
                                                            bool show_subcategory_col)
@@ -39,17 +105,30 @@ CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
 
 void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
 {
+    setObjectName(QStringLiteral("analysisProgressDialog"));
+    setStyleSheet(progress_dialog_style_sheet());
+
     auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(12, 12, 12, 12);
     layout->setSpacing(10);
 
     stage_list_label = new QLabel(this);
+    stage_list_label->setObjectName(QStringLiteral("analysisStageListLabel"));
     stage_list_label->setTextFormat(Qt::RichText);
     layout->addWidget(stage_list_label);
 
     summary_label = new QLabel(this);
+    summary_label->setObjectName(QStringLiteral("analysisSummaryLabel"));
     layout->addWidget(summary_label);
 
-    status_table = new QTableWidget(this);
+    auto* status_panel = new QFrame(this);
+    status_panel->setObjectName(QStringLiteral("analysisStatusPanel"));
+    auto* status_panel_layout = new QVBoxLayout(status_panel);
+    status_panel_layout->setContentsMargins(1, 1, 1, 1);
+    status_panel_layout->setSpacing(0);
+
+    status_table = new QTableWidget(status_panel);
+    status_table->setObjectName(QStringLiteral("analysisStatusTable"));
     status_table->setColumnCount(2);
     status_table->setSelectionMode(QAbstractItemView::NoSelection);
     status_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -57,20 +136,31 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
     status_table->setAlternatingRowColors(true);
     status_table->setShowGrid(false);
     status_table->verticalHeader()->setVisible(false);
-    layout->addWidget(status_table, 2);
+    status_panel_layout->addWidget(status_table);
+    layout->addWidget(status_panel, 2);
 
-    log_label = new QLabel(this);
-    layout->addWidget(log_label);
+    auto* log_panel = new QFrame(this);
+    log_panel->setObjectName(QStringLiteral("analysisLogPanel"));
+    auto* log_panel_layout = new QVBoxLayout(log_panel);
+    log_panel_layout->setContentsMargins(10, 8, 10, 10);
+    log_panel_layout->setSpacing(6);
 
-    text_view = new QPlainTextEdit(this);
+    log_label = new QLabel(log_panel);
+    log_label->setObjectName(QStringLiteral("analysisLogLabel"));
+    log_panel_layout->addWidget(log_label);
+
+    text_view = new QPlainTextEdit(log_panel);
+    text_view->setObjectName(QStringLiteral("analysisLogView"));
     text_view->setReadOnly(true);
     text_view->setLineWrapMode(QPlainTextEdit::WidgetWidth);
-    layout->addWidget(text_view, 1);
+    log_panel_layout->addWidget(text_view, 1);
+    layout->addWidget(log_panel, 1);
 
     auto* button_layout = new QHBoxLayout();
     button_layout->addStretch(1);
 
     stop_button = new QPushButton(this);
+    stop_button->setObjectName(QStringLiteral("stopAnalysisButton"));
     QIcon stop_icon = QIcon::fromTheme(QStringLiteral("process-stop"));
     if (stop_icon.isNull()) {
         stop_icon = QIcon(style()->standardIcon(QStyle::SP_BrowserStop));
@@ -92,9 +182,22 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
 void CategorizationProgressDialog::show()
 {
     QDialog::show();
+    raise();
+    activateWindow();
+    apply_accessibility_metadata();
+    if (stop_button) {
+        stop_button->setFocus(Qt::OtherFocusReason);
+        QAccessibleEvent focus_event(stop_button, QAccessible::Focus);
+        QAccessible::updateAccessibility(&focus_event);
+    }
     if (text_view) {
         text_view->moveCursor(QTextCursor::End);
     }
+    QString announcement = windowTitle();
+    if (active_stage_.has_value()) {
+        announcement += QStringLiteral(" - %1").arg(stage_label(active_stage_.value()));
+    }
+    announce_accessibility_message(announcement);
 }
 
 
@@ -126,6 +229,8 @@ void CategorizationProgressDialog::append_text(const std::string& text)
     if (scroll) {
         scroll->setValue(scroll->maximum());
     }
+
+    notify_accessible_text_insert(qt_text);
 }
 
 
@@ -230,6 +335,7 @@ void CategorizationProgressDialog::set_active_stage(StageId stage_id)
     active_stage_ = stage_id;
     refresh_stage_overview();
     refresh_summary();
+    announce_accessibility_message(stage_label(stage_id));
 
     if (const auto in_progress_row = find_stage_row(stage_id, ItemStatus::InProgress)) {
         ensure_row_visible(*in_progress_row);
@@ -273,10 +379,10 @@ void CategorizationProgressDialog::request_stop()
     if (!main_app) {
         return;
     }
-    main_app->report_progress(
-        tr("[STOP] Analysis will stop after the current item is processed.")
-            .toUtf8()
-            .toStdString());
+    const QString stop_message =
+        tr("[STOP] Analysis will stop after the current item is processed.");
+    main_app->report_progress(stop_message.toUtf8().toStdString());
+    announce_accessibility_message(stop_message);
     main_app->request_stop_analysis();
 }
 
@@ -503,6 +609,8 @@ void CategorizationProgressDialog::rebuild_headers()
         headers << stage_label(stage_id);
     }
     status_table->setHorizontalHeaderLabels(headers);
+    status_table->setAccessibleName(headers.join(QStringLiteral(", ")));
+    status_table->setAccessibleDescription(headers.join(QStringLiteral(", ")));
 
     auto* header = status_table->horizontalHeader();
     if (!header) {
@@ -525,21 +633,29 @@ void CategorizationProgressDialog::refresh_stage_overview()
 
     if (active_stage_order_.empty()) {
         stage_list_label->setText(QString());
+        stage_list_label->setAccessibleName(QString());
+        stage_list_label->setAccessibleDescription(QString());
         return;
     }
 
     QStringList lines;
+    QStringList plain_lines;
     for (std::size_t i = 0; i < active_stage_order_.size(); ++i) {
         const StageId stage_id = active_stage_order_[i];
-        QString line = tr("Stage %1: %2")
-                           .arg(static_cast<int>(i + 1))
-                           .arg(stage_label(stage_id));
-        if (active_stage_.has_value() && active_stage_.value() == stage_id) {
-            line = QStringLiteral("<b>%1</b>").arg(line);
+        const QString plain_line = tr("Stage %1: %2")
+                                       .arg(static_cast<int>(i + 1))
+                                       .arg(stage_label(stage_id));
+        QString line = plain_line;
+        if (active_stage_ == stage_id) {
+            line = QStringLiteral("<b>%1</b>").arg(plain_line);
         }
         lines << line;
+        plain_lines << plain_line;
     }
     stage_list_label->setText(lines.join(QStringLiteral("<br/>")));
+    const QString plain_text = plain_lines.join(QStringLiteral("\n"));
+    stage_list_label->setAccessibleName(plain_lines.value(0));
+    stage_list_label->setAccessibleDescription(plain_text);
 }
 
 
@@ -669,6 +785,8 @@ void CategorizationProgressDialog::refresh_summary()
 
     if (!active_stage_.has_value()) {
         summary_label->setText(tr("Processed 0/0  |  In progress: 0  |  Pending: 0"));
+        summary_label->setAccessibleName(summary_label->text());
+        summary_label->setAccessibleDescription(summary_label->text());
         return;
     }
 
@@ -709,6 +827,8 @@ void CategorizationProgressDialog::refresh_summary()
                                .arg(total)
                                .arg(in_progress)
                                .arg(pending));
+    summary_label->setAccessibleName(summary_label->text());
+    summary_label->setAccessibleDescription(summary_label->text());
 }
 
 
@@ -776,4 +896,79 @@ void CategorizationProgressDialog::retranslate_ui()
         refresh_row(item.row);
     }
     refresh_summary();
+    apply_accessibility_metadata();
+}
+
+void CategorizationProgressDialog::apply_accessibility_metadata()
+{
+    setAccessibleName(windowTitle());
+    if (!accessibleDescription().isEmpty()) {
+        setAccessibleDescription(accessibleDescription().trimmed());
+    }
+
+    if (stage_list_label) {
+        if (stage_list_label->accessibleName().isEmpty()) {
+            stage_list_label->setAccessibleName(stage_list_label->accessibleDescription());
+        }
+    }
+
+    if (summary_label) {
+        summary_label->setAccessibleName(summary_label->text());
+        summary_label->setAccessibleDescription(summary_label->text());
+    }
+
+    if (log_label) {
+        log_label->setAccessibleName(log_label->text());
+    }
+
+    if (text_view) {
+        const QString log_name = log_label ? log_label->text() : text_view->objectName();
+        text_view->setAccessibleName(log_name);
+        text_view->setAccessibleDescription(log_name);
+    }
+
+    if (stop_button) {
+        stop_button->setAccessibleName(stop_button->text());
+    }
+}
+
+void CategorizationProgressDialog::announce_accessibility_message(const QString& message,
+                                                                  QAccessible::Event event)
+{
+    const QString trimmed_message = message.trimmed();
+    if (trimmed_message.isEmpty()) {
+        return;
+    }
+    if (trimmed_message == last_announced_message_) {
+        return;
+    }
+
+    last_announced_message_ = trimmed_message;
+    setAccessibleDescription(trimmed_message);
+
+    if (!isVisible()) {
+        return;
+    }
+
+    QAccessibleEvent description_event(this, QAccessible::DescriptionChanged);
+    QAccessible::updateAccessibility(&description_event);
+
+    if (event != QAccessible::DescriptionChanged) {
+        QAccessibleEvent announcement_event(this, event);
+        QAccessible::updateAccessibility(&announcement_event);
+    }
+}
+
+void CategorizationProgressDialog::notify_accessible_text_insert(const QString& text) const
+{
+    if (!text_view || text.isEmpty()) {
+        return;
+    }
+
+    const qsizetype insert_position =
+        std::max<qsizetype>(0, text_view->toPlainText().size() - text.size());
+    QAccessibleTextInsertEvent text_insert_event(text_view,
+                                                 static_cast<int>(insert_position),
+                                                 text);
+    QAccessible::updateAccessibility(&text_insert_event);
 }

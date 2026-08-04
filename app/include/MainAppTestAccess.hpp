@@ -21,6 +21,8 @@ class MainApp;
 class Settings;
 class QAction;
 class QMenu;
+class QLineEdit;
+class QPushButton;
 struct StorageProviderDetection;
 
 /**
@@ -50,6 +52,24 @@ public:
      * @return Current path label text.
      */
     static QString path_label_text(const MainApp& app);
+    /**
+     * @brief Access the folder/path line edit.
+     * @param app MainApp instance.
+     * @return Pointer to the line edit, or nullptr if unavailable.
+     */
+    static QLineEdit* path_entry(MainApp& app);
+    /**
+     * @brief Access the folder browse button.
+     * @param app MainApp instance.
+     * @return Pointer to the button, or nullptr if unavailable.
+     */
+    static QPushButton* browse_button(MainApp& app);
+    /**
+     * @brief Access the main analyze button.
+     * @param app MainApp instance.
+     * @return Pointer to the button, or nullptr if unavailable.
+     */
+    static QPushButton* analyze_button(MainApp& app);
     /**
      * @brief Access the Settings -> Clear cache action.
      * @param app MainApp instance.

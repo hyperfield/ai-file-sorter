@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
+option(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS
+    "Register opt-in headless tests that run real local LLM models against real files." OFF)
 option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
     "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
 set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
@@ -82,6 +84,59 @@ endif()
 include(CheckSymbolExists)
 include(CheckCXXSourceCompiles)
 
+if(WIN32)
+    set(_aifs_windows_powershell_candidates
+        "$ENV{ProgramW6432}/PowerShell/7/pwsh.exe"
+        "$ENV{ProgramFiles}/PowerShell/7/pwsh.exe"
+        "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0/powershell.exe")
+    set(_aifs_windows_powershell "")
+    foreach(_aifs_windows_powershell_candidate IN LISTS _aifs_windows_powershell_candidates)
+        if(EXISTS "${_aifs_windows_powershell_candidate}")
+            set(_aifs_windows_powershell "${_aifs_windows_powershell_candidate}")
+            break()
+        endif()
+    endforeach()
+    if(NOT _aifs_windows_powershell)
+        find_program(_aifs_windows_powershell NAMES powershell.exe powershell pwsh.exe pwsh)
+    endif()
+    if(_aifs_windows_powershell MATCHES "([/\\\\])WindowsApps([/\\\\])")
+        set(_aifs_windows_powershell "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0/powershell.exe")
+    endif()
+    if(_aifs_windows_powershell AND EXISTS "${_aifs_windows_powershell}")
+        set(POWERSHELL_EXECUTABLE "${_aifs_windows_powershell}" CACHE FILEPATH
+            "PowerShell executable used for Windows resource generation" FORCE)
+        set(Z_VCPKG_POWERSHELL_PATH "${_aifs_windows_powershell}" CACHE INTERNAL
+            "The path to the PowerShell implementation to use." FORCE)
+    endif()
+endif()
+
+function(aifs_find_required_package package_name)
+    find_package(${package_name} ${ARGN} QUIET)
+    if(${package_name}_FOUND)
+        return()
+    endif()
+
+    if(WIN32)
+        message(FATAL_ERROR
+            "Could not find package '${package_name}'. On Windows, AI File Sorter source/test builds "
+            "expect third-party dependencies from the vcpkg manifest in app/vcpkg.json. "
+            "Re-run CMake from a Visual Studio Developer PowerShell with a writable vcpkg clone and your Qt 6 MSVC kit, for example:\n"
+            "  $env:VCPKG_ROOT = \"D:/path/to/vcpkg\"\n"
+            "  $qt = \"C:/Qt/6.6.3/msvc2019_64\"\n"
+            "  $toolchain = Join-Path $env:VCPKG_ROOT \"scripts/buildsystems/vcpkg.cmake\"\n"
+            "  cmake -S app -B build-tests -G \"Ninja\" "
+            "-DCMAKE_PREFIX_PATH=$qt "
+            "\"-DCMAKE_TOOLCHAIN_FILE=$toolchain\" "
+            "-DVCPKG_MANIFEST_DIR=app "
+            "-DVCPKG_TARGET_TRIPLET=x64-windows "
+            "-DAI_FILE_SORTER_BUILD_TESTS=ON "
+            "-DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON\n"
+            "The README Windows build and testing sections include the matching PowerShell example.")
+    endif()
+
+    find_package(${package_name} ${ARGN} REQUIRED)
+endfunction()
+
 function(aifs_apply_update_mode target_name)
     target_compile_definitions(${target_name} PRIVATE ${AI_FILE_SORTER_UPDATE_MODE_DEFINE})
 endfunction()
@@ -112,6 +167,110 @@ function(aifs_apply_expected_update_mode target_name update_mode)
     endif()
 endfunction()
 
+if(WIN32)
+    set(AIFS_COPY_QT_PLUGINS_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/cmake/aifs-copy-qt-plugins.cmake")
+    file(GENERATE OUTPUT "${AIFS_COPY_QT_PLUGINS_SCRIPT}" CONTENT [=[
+if(AIFS_QT_PLUGIN_CONFIG STREQUAL "Debug")
+    set(_aifs_qt_plugin_roots
+        "${AIFS_QT_PLUGIN_BASE}/debug/Qt6/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/Qt6/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/debug/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/plugins")
+else()
+    set(_aifs_qt_plugin_roots
+        "${AIFS_QT_PLUGIN_BASE}/Qt6/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/debug/Qt6/plugins"
+        "${AIFS_QT_PLUGIN_BASE}/debug/plugins")
+endif()
+
+set(_aifs_qt_plugin_root "")
+foreach(_aifs_qt_plugin_candidate IN LISTS _aifs_qt_plugin_roots)
+    if(EXISTS "${_aifs_qt_plugin_candidate}")
+        set(_aifs_qt_plugin_root "${_aifs_qt_plugin_candidate}")
+        break()
+    endif()
+endforeach()
+
+if(NOT _aifs_qt_plugin_root)
+    message(WARNING
+        "Qt plugin root not found under '${AIFS_QT_PLUGIN_BASE}' for configuration "
+        "'${AIFS_QT_PLUGIN_CONFIG}'. The application may fail to start without "
+        "platform plugins.")
+    return()
+endif()
+
+foreach(_aifs_qt_plugin_subdir IN ITEMS platforms styles imageformats networkinformation tls)
+    set(_aifs_qt_plugin_src_dir "${_aifs_qt_plugin_root}/${_aifs_qt_plugin_subdir}")
+    if(EXISTS "${_aifs_qt_plugin_src_dir}")
+        file(GLOB _aifs_qt_plugin_dlls LIST_DIRECTORIES FALSE "${_aifs_qt_plugin_src_dir}/*.dll")
+        if(_aifs_qt_plugin_dlls)
+            file(MAKE_DIRECTORY "${AIFS_QT_PLUGIN_DEST}/${_aifs_qt_plugin_subdir}")
+            file(COPY ${_aifs_qt_plugin_dlls} DESTINATION "${AIFS_QT_PLUGIN_DEST}/${_aifs_qt_plugin_subdir}")
+        endif()
+    endif()
+endforeach()
+]=])
+endif()
+
+function(aifs_stage_windows_qt_plugins target_name)
+    if(NOT WIN32 OR NOT VCPKG_TARGET_TRIPLET OR NOT DEFINED AIFS_COPY_QT_PLUGINS_SCRIPT)
+        return()
+    endif()
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            "-DAIFS_QT_PLUGIN_BASE=${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}"
+            "-DAIFS_QT_PLUGIN_DEST=$<TARGET_FILE_DIR:${target_name}>"
+            "-DAIFS_QT_PLUGIN_CONFIG=$<CONFIG>"
+            -P "${AIFS_COPY_QT_PLUGINS_SCRIPT}"
+        VERBATIM
+    )
+endfunction()
+
+if(WIN32)
+    set(AIFS_COPY_WEBP_RUNTIME_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/cmake/aifs-copy-webp-runtime.cmake")
+    file(GENERATE OUTPUT "${AIFS_COPY_WEBP_RUNTIME_SCRIPT}" CONTENT [=[
+set(_aifs_webp_runtime_roots "")
+if(AIFS_WEBP_RUNTIME_CONFIG STREQUAL "Debug")
+    list(APPEND _aifs_webp_runtime_roots
+        "${AIFS_WEBP_RUNTIME_BASE}/debug/bin"
+        "${AIFS_WEBP_RUNTIME_BASE}/bin")
+else()
+    list(APPEND _aifs_webp_runtime_roots
+        "${AIFS_WEBP_RUNTIME_BASE}/bin"
+        "${AIFS_WEBP_RUNTIME_BASE}/debug/bin")
+endif()
+
+foreach(_aifs_webp_runtime_root IN LISTS _aifs_webp_runtime_roots)
+    if(EXISTS "${_aifs_webp_runtime_root}")
+        file(GLOB _aifs_webp_runtime_dlls LIST_DIRECTORIES FALSE
+            "${_aifs_webp_runtime_root}/libwebp*.dll"
+            "${_aifs_webp_runtime_root}/webp*.dll")
+        if(_aifs_webp_runtime_dlls)
+            file(COPY ${_aifs_webp_runtime_dlls} DESTINATION "${AIFS_WEBP_RUNTIME_DEST}")
+            return()
+        endif()
+    endif()
+endforeach()
+]=])
+endif()
+
+function(aifs_stage_windows_webp_runtime target_name)
+    if(NOT WIN32 OR NOT VCPKG_TARGET_TRIPLET OR NOT DEFINED AIFS_COPY_WEBP_RUNTIME_SCRIPT)
+        return()
+    endif()
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            "-DAIFS_WEBP_RUNTIME_BASE=${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}"
+            "-DAIFS_WEBP_RUNTIME_DEST=$<TARGET_FILE_DIR:${target_name}>"
+            "-DAIFS_WEBP_RUNTIME_CONFIG=$<CONFIG>"
+            -P "${AIFS_COPY_WEBP_RUNTIME_SCRIPT}"
+        VERBATIM
+    )
+endfunction()
+
 # Prefer MSVC on Windows if available
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -136,6 +295,7 @@ endif()
 
 # Qt6
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+set(_aifs_enable_translation_generation TRUE)
 find_package(Qt6LinguistTools CONFIG QUIET)
 if(NOT Qt6LinguistTools_FOUND)
     set(_aifs_qttools_hints "")
@@ -154,17 +314,26 @@ if(NOT Qt6LinguistTools_FOUND)
         endif()
     endforeach()
     list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
-    find_package(Qt6LinguistTools CONFIG REQUIRED)
+    if(AI_FILE_SORTER_BUILD_TESTS)
+        find_package(Qt6LinguistTools CONFIG QUIET)
+        if(NOT Qt6LinguistTools_FOUND)
+            set(_aifs_enable_translation_generation FALSE)
+            message(STATUS
+                "Qt6LinguistTools not found; skipping translation generation for test build.")
+        endif()
+    else()
+        find_package(Qt6LinguistTools CONFIG REQUIRED)
+    endif()
 endif()
 
 # Third-party deps (resolved best via vcpkg on Windows)
-find_package(CURL REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(SQLite3 REQUIRED)
-if(TARGET SQLite::SQLite3)
-    set(AIFS_SQLITE_TARGET SQLite::SQLite3)
-elseif(TARGET SQLite3::SQLite3)
+aifs_find_required_package(CURL)
+aifs_find_required_package(OpenSSL)
+aifs_find_required_package(SQLite3)
+if(TARGET SQLite3::SQLite3)
     set(AIFS_SQLITE_TARGET SQLite3::SQLite3)
+elseif(TARGET SQLite::SQLite3)
+    set(AIFS_SQLITE_TARGET SQLite::SQLite3)
 elseif(TARGET unofficial::sqlite3::sqlite3)
     set(AIFS_SQLITE_TARGET unofficial::sqlite3::sqlite3)
 elseif(SQLite3_LIBRARIES)
@@ -194,9 +363,9 @@ else()
         add_library(JsonCpp::JsonCpp INTERFACE IMPORTED)
     endif()
 endif()
-find_package(fmt REQUIRED CONFIG)
-find_package(spdlog REQUIRED CONFIG)
-find_package(Intl REQUIRED) # libintl/gettext
+aifs_find_required_package(fmt CONFIG)
+aifs_find_required_package(spdlog CONFIG)
+aifs_find_required_package(Intl) # libintl/gettext
 # MediaInfoLib from vcpkg depends on the separate ZenLib package and refers to
 # its imported target as plain "zen".
 find_package(ZenLib CONFIG QUIET)
@@ -371,6 +540,9 @@ endif()
 if(EXISTS "${LIBZIP_DIR}/CMakeLists.txt")
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     set(BUILD_REGRESS OFF CACHE BOOL "" FORCE)
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    set(BUILD_OSSFUZZ OFF CACHE BOOL "" FORCE)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(ENABLE_BZIP2 OFF CACHE BOOL "" FORCE)
     set(ENABLE_LZMA OFF CACHE BOOL "" FORCE)
     set(ENABLE_ZSTD OFF CACHE BOOL "" FORCE)
@@ -506,6 +678,7 @@ set(AIFS_TRANSLATION_TS_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_ko.ts"
 )
 set(AIFS_TRANSLATION_QM_DIR "${CMAKE_CURRENT_BINARY_DIR}/i18n")
+set(AIFS_TRANSLATION_QM_FILES)
 
 # Executable (GUI subsystem on Windows)
 if(WIN32)
@@ -526,26 +699,31 @@ target_include_directories(aifilesorter PRIVATE
     ${DOC_DEPS_INCLUDE_DIRS}
 )
 
-qt_add_lupdate(
-    aifilesorter
-    NO_GLOBAL_TARGET
-    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
-    OPTIONS -no-obsolete
-)
+if(_aifs_enable_translation_generation)
+    qt_add_lupdate(
+        aifilesorter
+        NO_GLOBAL_TARGET
+        TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+        SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
+        OPTIONS -no-obsolete
+    )
 
-set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
-    PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
+    set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
+        PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
 
-qt_add_lrelease(
-    aifilesorter
-    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-    QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
-)
+    qt_add_lrelease(
+        aifilesorter
+        TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+        QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
+    )
 
-set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
+    set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
+endif()
 
 function(aifs_add_translation_resources target_name)
+    if(NOT AIFS_TRANSLATION_QM_FILES)
+        return()
+    endif()
     qt_add_resources(${target_name} "${target_name}_translations"
         PREFIX "/i18n"
         BASE "${AIFS_TRANSLATION_QM_DIR}"
@@ -556,27 +734,80 @@ endfunction()
 aifs_add_translation_resources(aifilesorter)
 
 # Resources (equivalent to rcc generation in Makefile)
+set(AIFS_IMAGE_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/hf_logo.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_64.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_256.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_256_arrows.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_256.svg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_arrows.svg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_16x16.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_32x32.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_64x64.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_128x128.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_256x256.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_512x512.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_1080x1080.png"
+)
+
+set(AIFS_HELP_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_zh_cn.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_zh_cn.md"
+)
+
+set(AIFS_WHATS_NEW_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_zh_cn.md"
+)
+
 set(APP_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/qn_logo.png"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_512x512.png"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nl.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_zh_cn.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_sv.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_is.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nb.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fi.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_da.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fr.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_de.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_hi.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_it.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_es.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_tr.md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_ko.md"
+    ${AIFS_IMAGE_RESOURCE_FILES}
+    ${AIFS_HELP_RESOURCE_FILES}
+    ${AIFS_WHATS_NEW_RESOURCE_FILES}
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
 )
 
@@ -584,89 +815,34 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
     PROPERTIES QT_RESOURCE_ALIAS ".env"
 )
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/logo.png"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/qn_logo.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/qn_logo.png"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/app_icon_128.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/app_icon_128.png"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_512x512.png"
-    PROPERTIES QT_RESOURCE_ALIAS "images/icon_512x512.png"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nl.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_nl.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_zh_cn.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_zh_cn.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_sv.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_sv.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_is.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_is.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nb.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_nb.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fi.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_fi.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_da.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_da.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_fr.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_fr.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_de.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_de.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_hi.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_hi.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_it.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_it.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_es.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_es.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_tr.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_tr.md"
-)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_ko.md"
-    PROPERTIES QT_RESOURCE_ALIAS "help/quick_start_ko.md"
-)
+foreach(_aifs_image_resource IN LISTS AIFS_IMAGE_RESOURCE_FILES)
+    get_filename_component(_aifs_image_name "${_aifs_image_resource}" NAME)
+    set_source_files_properties(
+        "${_aifs_image_resource}"
+        PROPERTIES QT_RESOURCE_ALIAS "images/${_aifs_image_name}"
+    )
+endforeach()
+foreach(_aifs_help_resource IN LISTS AIFS_HELP_RESOURCE_FILES)
+    get_filename_component(_aifs_help_name "${_aifs_help_resource}" NAME)
+    set_source_files_properties(
+        "${_aifs_help_resource}"
+        PROPERTIES QT_RESOURCE_ALIAS "help/${_aifs_help_name}"
+    )
+endforeach()
+foreach(_aifs_whats_new_resource IN LISTS AIFS_WHATS_NEW_RESOURCE_FILES)
+    get_filename_component(_aifs_whats_new_name "${_aifs_whats_new_resource}" NAME)
+    set_source_files_properties(
+        "${_aifs_whats_new_resource}"
+        PROPERTIES QT_RESOURCE_ALIAS "whats_new/${_aifs_whats_new_name}"
+    )
+endforeach()
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
     PROPERTIES QT_RESOURCE_ALIAS "certs/cacert.pem"
 )
 
 qt_add_resources(aifilesorter "app_resources"
-    PREFIX "/net/quicknode/AIFileSorter"
+    PREFIX "/dev/hfstudio/AIFileSorter"
     FILES ${APP_RESOURCE_FILES}
 )
 
@@ -847,6 +1023,9 @@ if(_aifs_pdfium_ready)
     endif()
 endif()
 
+aifs_stage_windows_qt_plugins(aifilesorter)
+aifs_stage_windows_webp_runtime(aifilesorter)
+
 set(STARTER_TARGET "")
 if(WIN32 AND _aifs_windows_enable_starter)
     set(STARTER_TARGET StartAiFileSorter)
@@ -869,15 +1048,17 @@ if(WIN32 AND _aifs_windows_enable_starter)
         AIFS_MAIN_EXECUTABLE_NAME="${_aifs_windows_main_output_name}.exe"
     )
     target_compile_definitions(${STARTER_TARGET} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_compile_definitions(${STARTER_TARGET} PRIVATE AI_FILE_SORTER_GGML_RUNTIME_PATHS_NO_BACKEND_LOADING)
     add_custom_command(TARGET ${STARTER_TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E rm -f "$<TARGET_FILE_DIR:${STARTER_TARGET}>/StartAiFileSorter.exe"
     )
+    aifs_stage_windows_qt_plugins(${STARTER_TARGET})
 endif()
 
 # On Windows, ensure Unicode and lean Windows headers in deps that need it
 if(WIN32)
     target_compile_definitions(aifilesorter PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-    set(WIN_SYSTEM_LIBS wininet d3d11 dxgi dxguid d3d12 mpr userenv cldapi)
+    set(WIN_SYSTEM_LIBS advapi32 wininet d3d11 dxgi dxguid d3d12 mpr userenv cldapi ole32 shell32 shlwapi)
 
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(_win_sdk_arch "x64")
@@ -974,8 +1155,26 @@ if(WIN32)
 endif()
 
 if(WIN32)
-    find_program(POWERSHELL_EXECUTABLE NAMES pwsh pwsh.exe powershell powershell.exe)
-    if(NOT POWERSHELL_EXECUTABLE)
+    set(_aifs_windows_powershell_candidates
+        "$ENV{ProgramW6432}/PowerShell/7/pwsh.exe"
+        "$ENV{ProgramFiles}/PowerShell/7/pwsh.exe"
+        "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0/powershell.exe")
+    set(_aifs_windows_powershell "")
+    foreach(_aifs_windows_powershell_candidate IN LISTS _aifs_windows_powershell_candidates)
+        if(EXISTS "${_aifs_windows_powershell_candidate}")
+            set(_aifs_windows_powershell "${_aifs_windows_powershell_candidate}")
+            break()
+        endif()
+    endforeach()
+    if(NOT _aifs_windows_powershell)
+        find_program(_aifs_windows_powershell NAMES powershell.exe powershell pwsh.exe pwsh)
+    endif()
+    if(_aifs_windows_powershell MATCHES "([/\\\\])WindowsApps([/\\\\])")
+        set(_aifs_windows_powershell "$ENV{SystemRoot}/System32/WindowsPowerShell/v1.0/powershell.exe")
+    endif()
+    set(POWERSHELL_EXECUTABLE "${_aifs_windows_powershell}" CACHE FILEPATH
+        "PowerShell executable used for Windows resource generation" FORCE)
+    if(NOT POWERSHELL_EXECUTABLE OR NOT EXISTS "${POWERSHELL_EXECUTABLE}")
         message(FATAL_ERROR "PowerShell is required to generate Windows resources")
     endif()
 
@@ -1010,7 +1209,10 @@ if(WIN32)
     # Version info resource generated from app_version.hpp
     set(APP_VERSION_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/app_version.hpp")
     file(READ "${APP_VERSION_HEADER}" APP_VERSION_CONTENTS)
-    string(REGEX MATCH "Version\\{([0-9]+),[ \t]*([0-9]+),[ \t]*([0-9]+)" _ "${APP_VERSION_CONTENTS}")
+    string(REGEX MATCH
+        "APP_VERSION[ \t\r\n]*\\([ \t\r\n]*\\{([0-9]+),[ \t\r\n]*([0-9]+),[ \t\r\n]*([0-9]+)\\}[ \t\r\n]*\\)"
+        _
+        "${APP_VERSION_CONTENTS}")
     if(CMAKE_MATCH_1)
         set(APP_VER_MAJOR "${CMAKE_MATCH_1}")
         set(APP_VER_MINOR "${CMAKE_MATCH_2}")
@@ -1137,24 +1339,35 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 COMMAND_EXPAND_LISTS
             )
 
-            if(VCPKG_TARGET_TRIPLET)
-                set(_aifs_vcpkg_runtime_dir "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/bin")
-                if(EXISTS "${_aifs_vcpkg_runtime_dir}")
-                    file(GLOB _aifs_vcpkg_runtime_dlls "${_aifs_vcpkg_runtime_dir}/*.dll")
-                    list(APPEND _aifs_test_runtime_dlls ${_aifs_vcpkg_runtime_dlls})
-                endif()
-            endif()
-
             if(EXISTS "${PRECOMPILED_CPU_BIN_DIR}")
-                file(GLOB _aifs_precompiled_cpu_runtime_dlls
-                    "${PRECOMPILED_CPU_BIN_DIR}/*.dll")
-                list(APPEND _aifs_test_runtime_dlls ${_aifs_precompiled_cpu_runtime_dlls})
+                foreach(_aifs_precompiled_runtime_name IN ITEMS
+                    llama.dll
+                    llama-common.dll
+                    mtmd.dll
+                    ggml.dll
+                    ggml-base.dll
+                    ggml-cpu.dll
+                    ggml-blas.dll
+                    libopenblas.dll
+                    libgomp-1.dll
+                    libgcc_s_seh-1.dll
+                    libgfortran-5.dll
+                    libwinpthread-1.dll
+                    libquadmath-0.dll)
+                    set(_aifs_precompiled_runtime_path
+                        "${PRECOMPILED_CPU_BIN_DIR}/${_aifs_precompiled_runtime_name}")
+                    if(EXISTS "${_aifs_precompiled_runtime_path}")
+                        list(APPEND _aifs_test_runtime_dlls
+                            "${_aifs_precompiled_runtime_path}")
+                    endif()
+                endforeach()
             endif()
 
             set(_aifs_mingw_runtime_search_paths "")
             if(DEFINED ENV{OPENBLAS_ROOT} AND NOT "$ENV{OPENBLAS_ROOT}" STREQUAL "")
                 list(APPEND _aifs_mingw_runtime_search_paths "$ENV{OPENBLAS_ROOT}/bin")
             endif()
+            list(APPEND _aifs_mingw_runtime_search_paths "C:/msys64/ucrt64/bin")
             list(APPEND _aifs_mingw_runtime_search_paths "C:/msys64/mingw64/bin")
 
             foreach(_aifs_mingw_runtime_name IN ITEMS
@@ -1183,24 +1396,17 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             endif()
 
             if(VCPKG_TARGET_TRIPLET)
-                set(_aifs_qt_plugin_root "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/Qt6/plugins")
-                foreach(_aifs_qt_plugin_subdir IN ITEMS platforms styles imageformats)
-                    set(_aifs_qt_plugin_src_dir "${_aifs_qt_plugin_root}/${_aifs_qt_plugin_subdir}")
-                    if(EXISTS "${_aifs_qt_plugin_src_dir}")
-                        file(GLOB _aifs_qt_plugin_dlls "${_aifs_qt_plugin_src_dir}/*.dll")
-                        if(_aifs_qt_plugin_dlls)
-                            add_custom_command(TARGET ${target_name} POST_BUILD
-                                COMMAND ${CMAKE_COMMAND} -E make_directory
-                                    "$<TARGET_FILE_DIR:${target_name}>/${_aifs_qt_plugin_subdir}"
-                                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                                    ${_aifs_qt_plugin_dlls}
-                                    "$<TARGET_FILE_DIR:${target_name}>/${_aifs_qt_plugin_subdir}"
-                                COMMAND_EXPAND_LISTS
-                            )
-                        endif()
-                    endif()
-                endforeach()
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND}
+                        "-DAIFS_VCPKG_INSTALLED_ROOT=${AIFS_VCPKG_INSTALLED_ROOT}"
+                        "-DAIFS_VCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}"
+                        "-DAIFS_TARGET_CONFIG=$<CONFIG>"
+                        "-DAIFS_DEST_DIR=$<TARGET_FILE_DIR:${target_name}>"
+                        -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/stage_vcpkg_runtime.cmake"
+                )
             endif()
+
+            aifs_stage_windows_qt_plugins(${target_name})
         endif()
 
         if(_aifs_pdfium_ready AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
@@ -1224,13 +1430,39 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         endif()
     endfunction()
 
-    add_executable(aifs_onedrive_storage_plugin
+    function(aifs_add_windows_test_executable target_name)
+        if(WIN32)
+            set(VCPKG_APPLOCAL_DEPS OFF)
+        endif()
+        add_executable(${target_name} ${ARGN})
+    endfunction()
+
+    function(aifs_set_windows_test_runtime_output target_name)
+        if(NOT WIN32)
+            return()
+        endif()
+
+        set_target_properties(${target_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tests"
+        )
+
+        foreach(_aifs_test_config IN ITEMS Debug Release MinSizeRel RelWithDebInfo)
+            string(TOUPPER "${_aifs_test_config}" _aifs_test_config_upper)
+            set_target_properties(${target_name} PROPERTIES
+                "RUNTIME_OUTPUT_DIRECTORY_${_aifs_test_config_upper}"
+                "${CMAKE_CURRENT_BINARY_DIR}/tests/${_aifs_test_config}"
+            )
+        endforeach()
+    endfunction()
+
+    aifs_add_windows_test_executable(aifs_onedrive_storage_plugin
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/onedrive_storage_plugin_main.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/CloudPathSupport.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/FileScanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/LocalFsProvider.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/OneDriveStorageProvider.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/ProtectedProjectDetector.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
     )
@@ -1257,15 +1489,18 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     )
     add_dependencies(aifilesorter aifs_onedrive_storage_plugin)
 
-    add_executable(ai_file_sorter_tests
+    aifs_add_windows_test_executable(ai_file_sorter_tests
         ${APP_LIB_SOURCES}
         ${AIFS_TEST_ONLY_APP_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_protected_project_detector.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_prompt_builder.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ggml_runtime_paths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_custom_llm.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_category_date_suffix.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_category_language_support.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_local.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_update_feed.cpp"
@@ -1273,37 +1508,49 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_updater_build_modes.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_version.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_visual_llm_runtime.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_visual_backend_model.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_visual.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_category_language_menu.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_image_options.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_storage_support.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_progress_controller.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_visual_fallback.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_settings_image_options.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_network_locations.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_cache_action.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_file_naming.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_name_validator.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_history_store.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_checkbox_matrix.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_dialog_rename_gate.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cli_reporter.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_support_prompt.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_remote_api_error.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_whitelist_and_prompt.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_app_test_runner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_user_learning_store.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_database_manager_rename_only.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_interactions.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_image_rename_metadata_service.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_filename_localization_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llava_image_analyzer.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_image_analyzer_factory.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_media_rename_metadata_service.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_analysis_runtime_lock.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_headless_analysis_command.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_headless_settings_overrides_json.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_headless_status_json.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_single_instance_coordinator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_cuda_probe.cpp"
     )
 
-    add_executable(aifs_storage_plugin_stub
+    aifs_add_windows_test_executable(aifs_storage_plugin_stub
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/storage_plugin_stub.cpp"
     )
     target_link_libraries(aifs_storage_plugin_stub PRIVATE Qt6::Core)
@@ -1336,7 +1583,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     )
 
     qt_add_resources(ai_file_sorter_tests "ai_file_sorter_test_app_resources"
-        PREFIX "/net/quicknode/AIFileSorter"
+        PREFIX "/dev/hfstudio/AIFileSorter"
         FILES ${APP_RESOURCE_FILES}
     )
 
@@ -1353,6 +1600,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     add_dependencies(ai_file_sorter_tests aifs_storage_plugin_stub)
     aifs_apply_update_mode(ai_file_sorter_tests)
     aifs_apply_expected_update_mode(ai_file_sorter_tests "${_aifs_effective_update_mode}")
+    aifs_set_windows_test_runtime_output(ai_file_sorter_tests)
 
     if(WIN32)
         target_link_libraries(ai_file_sorter_tests PRIVATE ggml ggml_base ggml_cpu)
@@ -1368,6 +1616,14 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     endif()
 
     aifs_stage_test_runtime(ai_file_sorter_tests)
+    if(WIN32)
+        add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:aifs_onedrive_storage_plugin>
+                $<TARGET_FILE:aifs_storage_plugin_stub>
+                $<TARGET_FILE_DIR:ai_file_sorter_tests>
+        )
+    endif()
 
     if(WIN32)
         set(AIFS_UPDATER_MODE_TEST_APP_SOURCES
@@ -1385,7 +1641,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         )
 
         function(aifs_add_updater_mode_test target_name update_mode)
-            add_executable(${target_name}
+            aifs_add_windows_test_executable(${target_name}
                 ${AIFS_UPDATER_MODE_TEST_APP_SOURCES}
                 "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_updater_build_modes.cpp"
             )
@@ -1423,6 +1679,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
             aifs_apply_named_update_mode(${target_name} "${update_mode}")
             aifs_apply_expected_update_mode(${target_name} "${update_mode}")
+            aifs_set_windows_test_runtime_output(${target_name})
             aifs_stage_test_runtime(${target_name})
         endfunction()
 
@@ -1435,6 +1692,26 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         if(WIN32)
             add_test(NAME ai_file_sorter_updater_notify_only_tests COMMAND ai_file_sorter_updater_notify_only_tests)
             add_test(NAME ai_file_sorter_updater_disabled_tests COMMAND ai_file_sorter_updater_disabled_tests)
+        endif()
+        if(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS)
+            find_package(Python3 COMPONENTS Interpreter REQUIRED)
+            set(_aifs_live_headless_app_target aifilesorter)
+            if(STARTER_TARGET)
+                set(_aifs_live_headless_app_target ${STARTER_TARGET})
+            endif()
+            add_test(
+                NAME live_headless_llm_tests
+                COMMAND
+                    ${Python3_EXECUTABLE}
+                    -u
+                    ${CMAKE_SOURCE_DIR}/../tests/live_llm/headless_live_llm_tests.py
+                    --app $<TARGET_FILE:${_aifs_live_headless_app_target}>
+            )
+            set_tests_properties(live_headless_llm_tests PROPERTIES
+                LABELS "live-llm;headless"
+                SKIP_RETURN_CODE 77
+                TIMEOUT 7200
+            )
         endif()
     endif()
 

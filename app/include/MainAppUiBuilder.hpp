@@ -31,6 +31,7 @@ private:
     void build_edit_menu(MainApp& app);
     void build_view_menu(MainApp& app);
     void build_settings_menu(MainApp& app);
+    void build_extensions_menu(MainApp& app);
     void build_plugins_menu(MainApp& app);
     void build_development_menu(MainApp& app);
     void build_test_menu(MainApp& app);

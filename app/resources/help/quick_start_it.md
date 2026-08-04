@@ -1,89 +1,102 @@
 # Guida rapida
 
-AI File Sorter ti aiuta a organizzare i file dopo la tua revisione e approvazione.
+AI File Sorter aiuta a organizzare i file con un flusso di lavoro prima di revisione e con approvazione automatica opzionale per le modifiche di cui decidi di fidarti.
 
-L'IA guida l'analisi e suggerisce categorie, sottocategorie e nomi. Non modifica direttamente i tuoi file. L'app esegue spostamenti o rinomine solo dopo che confermi le modifiche revisionate.
+L'IA guida l'analisi e suggerisce categorie, sottocategorie e nomi. Non modifica direttamente i file. L'app esegue spostamenti o rinomine dopo la conferma delle modifiche revisionate, oppure automaticamente solo quando e attiva l'opzione di approvazione automatica pertinente.
 
-## 1. Scegli una cartella
+## Prima esecuzione sicura
 
-Usa **Browse** per scegliere la cartella che vuoi ordinare.
+Se usi AI File Sorter per la prima volta, inizia con una piccola cartella di prova prima di scegliere un grande archivio o un intero disco.
+
+Buone cartelle per la prima esecuzione includono:
+
+- una copia di 20-50 file da `Downloads`
+- una piccola cartella di screenshot o foto da pulire
+- una cartella temporanea con alcuni PDF o documenti
+
+Questo rende facile controllare la prima esecuzione. I file restano sul computer quando usi modelli locali, e l'IA suggerisce solo categorie e nomi. Lascia disattivate le opzioni di approvazione automatica per la prima esecuzione, cosi nulla viene spostato o rinominato finche non approvi l'elenco di revisione.
+
+## 1. Scegliere una cartella
+
+Usa **Browse** o il riquadro **File Explorer** per scegliere la cartella da ordinare.
 
 Esempi tipici:
 
 - `Downloads`
-- una cartella del desktop da sistemare
+- una cartella di pulizia del desktop
 - una cartella su un disco esterno
+- una cartella di rete o sincronizzata con il cloud
 - un archivio di progetto
 
-## 2. Scegli cosa deve fare l'app
+## 2. Scegliere cosa deve fare l'app
 
 Usa le opzioni principali per decidere se l'app deve:
 
-- classificare i file in cartelle di categoria
-- analizzare le immagini
-- analizzare i documenti
-- proporre suggerimenti di rinomina per i file supportati
+- categorizzare i file in cartelle
+- analizzare immagini
+- analizzare documenti
+- offrire suggerimenti di rinomina per i file supportati
 
-Se vuoi solo suggerimenti di rinomina, abilita la relativa modalita solo-rinomina.
+Se vuoi solo suggerimenti di rinomina, abilita la modalita solo rinomina pertinente.
 
-## 3. Scegli lo stile di categorizzazione
+## 3. Selezionare lo stile di categorizzazione
 
 Scegli lo stile piu adatto al tuo obiettivo:
 
-- **Default** per l'uso generale
-- **More categories** se vuoi un raggruppamento piu dettagliato
-- **More consistent** se vuoi maggiore coerenza tra file simili
+- **More refined** per uso generale e raggruppamenti piu dettagliati
+- **More consistent** se vuoi maggiore coerenza delle etichette tra file simili
 
-Puoi anche abilitare whitelist di categorie se vuoi che l'app resti entro un insieme piu ristretto di nomi di categoria.
+Puoi anche abilitare whitelist di categorie se vuoi che l'app resti entro un insieme piu ristretto di nomi categoria.
 
-## 4. Avvia l'analisi
+## 4. Avviare l'analisi
 
 Fai clic su **Analyze and categorize files**.
 
-L'app analizza la cartella selezionata, raccoglie le informazioni necessarie e prepara un elenco di revisione.
+L'app scansiona la cartella selezionata, raccoglie le informazioni necessarie e prepara un elenco di revisione.
 
-## 5. Controlla prima di applicare
+## 5. Rivedere prima di applicare modifiche
 
-La finestra di revisione ti permette di esaminare:
+La finestra di revisione permette di controllare:
 
 - categorie suggerite
 - sottocategorie opzionali
 - suggerimenti di rinomina per i file supportati
-- i percorsi di destinazione finali
+- percorsi di destinazione finali
+- anteprime dei file dove supportate
 
-Puoi modificare o rifiutare i suggerimenti prima di confermare qualunque cosa.
+Puoi modificare o rifiutare i suggerimenti prima di confermare qualsiasi cosa.
 
-## 6. Applica le modifiche
+## 6. Applicare le modifiche
 
-Dopo la conferma, l'app crea le cartelle necessarie ed esegue gli spostamenti o le rinomine.
+Dopo la conferma, l'app crea le cartelle necessarie ed esegue spostamenti o rinomine. Se l'approvazione automatica e attiva, le modifiche idonee di categoria o nome file possono essere applicate senza fermarsi alla finestra di revisione.
 
-## 7. Annulla l'ultima esecuzione
+## 7. Annullare l'ultima esecuzione
 
 Se applichi le modifiche e poi vuoi annullarle, usa **Undo last run** dal menu.
 
-L'annullamento e pensato per l'ultima esecuzione di ordinamento confermata. Usa la cronologia registrata dall'app per riportare i file dove si trovavano e annullare le rinomine supportate quando possibile.
+L'annullamento e progettato per l'ultima esecuzione di ordinamento confermata. Usa la cronologia registrata dall'app per riportare i file indietro e annullare le rinomine supportate quando possibile.
 
-Per risultati migliori, usa l'annullamento prima di avviare un altro grande riordino nella stessa cartella.
+Per risultati migliori, usa Annulla prima di iniziare un'altra grande pulizia nella stessa cartella.
 
-## 8. Apprendimento dalle tue revisioni
+## 8. Apprendere dalle revisioni
 
-Quando approvi le categorie nella finestra di revisione, l'app puo ricordare queste decisioni locali e usarle come suggerimenti nelle esecuzioni future. Questo non addestra e non modifica il modello di IA.
+Quando approvi categorie nella finestra di revisione, l'app puo ricordare queste decisioni locali e usarle come indicazioni per le esecuzioni future. Questo non addestra ne modifica il modello IA.
 
-Gli esempi appresi vengono salvati in un database locale separato, quindi svuotare la normale cache di categorizzazione non li elimina. Per eliminare questi dati locali di apprendimento, usa **Settings -> Reset learned behavior**.
+Gli esempi appresi sono memorizzati in un database locale separato, quindi svuotare la normale cache di categorizzazione non li rimuove. Per rimuovere questi dati di apprendimento locali, usa **Settings -> Reset learned behavior**.
 
-## Utile da sapere
+## Buono a sapersi
 
-- L'app usa una cache locale per evitare di rielaborare gli stessi file e per migliorare la coerenza.
-- L'app non applica automaticamente le modifiche senza prima mostrarti il passaggio di revisione.
-- Le opzioni per immagini e documenti possono essere espanse separatamente se hai bisogno di piu controllo.
+- L'app usa una cache locale per evitare di rielaborare gli stessi file e migliorare la coerenza.
+- L'approvazione automatica e opzionale. Lasciala disattivata finche non ti senti a tuo agio con i suggerimenti dell'app.
+- Le opzioni per immagini e documenti possono essere espanse separatamente se serve piu controllo.
 
-## Se qualcosa non sembra corretto
+## Se qualcosa sembra sbagliato
 
-Controlla prima questi punti:
+Controlla prima quanto segue:
 
-- la cartella selezionata e davvero quella desiderata
+- la cartella selezionata e quella prevista
 - le opzioni di analisi pertinenti sono abilitate
-- la modalita solo-rinomina non sta limitando il risultato in modo indesiderato
-- una whitelist di categorie non sta restringendo troppo i suggerimenti
+- la modalita solo rinomina non limita il risultato in modo inatteso
+- una whitelist di categorie non restringe troppo i suggerimenti
 
-Per ulteriore assistenza, apri **Help -> FAQ**.
+Per ulteriore risoluzione dei problemi, apri **Help -> FAQ**.

@@ -3,11 +3,15 @@
 
 #include "CategorizationDialog.hpp"
 #include "CategorizationProgressDialog.hpp"
+#include "AnalysisRuntimeLock.hpp"
 #include "DatabaseManager.hpp"
 #include "CategorizationService.hpp"
 #include "ConsistencyPassService.hpp"
+#include "ExplorerExtensionManager.hpp"
 #include "ResultsCoordinator.hpp"
+#include "ReviewHistoryStore.hpp"
 #include "ILLMClient.hpp"
+#include "MainAppProgressController.hpp"
 #include "Settings.hpp"
 #include "StoragePluginLoader.hpp"
 #include "StorageProviderRegistry.hpp"
@@ -47,17 +51,21 @@ class QFileSystemModel;
 class QLineEdit;
 class QString;
 class QPushButton;
+class QTimer;
 class QToolButton;
 class QTreeView;
+class QTreeWidget;
+class QTreeWidgetItem;
 class QStackedWidget;
 class QWidget;
 class QLabel;
 class QEvent;
 class MainAppUiBuilder;
 class MainWindowStateBinder;
+class MenuMnemonicController;
 class WhitelistManagerDialog;
 class SuitabilityBenchmarkDialog;
-class AnalysisCoordinator;
+struct AnalysisWorkflowContext;
 class StoragePluginManager;
 
 struct CategorizedFile;
@@ -129,6 +137,18 @@ public:
      */
     void show_error_dialog(const std::string& message);
     /**
+     * @brief Opens the searchable rename/categorization history dialog.
+     */
+    void open_review_history_dialog();
+    /**
+     * @brief Opens the LLM selection dialog and persists accepted model settings.
+     */
+    void show_llm_selection_dialog();
+    /**
+     * @brief Opens the cache and log maintenance dialog.
+     */
+    void open_cache_cleanup_dialog();
+    /**
      * @brief Appends a progress message to the active progress UI.
      * @param message Progress text to report.
      */
@@ -174,6 +194,20 @@ private:
     void setup_file_explorer_view();
     void connect_file_explorer_signals();
     void apply_file_explorer_preferences();
+    /**
+     * @brief Rebuilds the Windows-only list of mapped and remembered network locations.
+     */
+    void populate_network_locations();
+    /**
+     * @brief Selects a Windows network location from the file explorer network section.
+     * @param item Tree item that may carry a filesystem path.
+     */
+    void select_network_location(QTreeWidgetItem* item);
+    /**
+     * @brief Records a UNC share root for future display in the network section.
+     * @param path Directory path selected by the user.
+     */
+    void remember_recent_network_location(const QString& path);
     void restore_tree_settings();
     void restore_sort_folder_state();
     void restore_file_scan_options();
@@ -192,8 +226,16 @@ private:
     void sync_settings_to_ui();
     void sync_ui_to_settings();
     void retranslate_ui();
+    /**
+     * @brief Applies accessible names, descriptions, and label associations to the main window UI.
+     */
+    void apply_accessibility_metadata();
     void on_language_selected(Language language);
     void on_category_language_selected(CategoryLanguage language);
+    /**
+     * @brief Defers category-language menu rebuilding until the current UI event completes.
+     */
+    void schedule_category_language_menu_refresh();
     void initialize_whitelists();
     /**
      * @brief Imports current whitelist labels into the separate user-learning database.
@@ -228,6 +270,24 @@ private:
      */
     void run_llm_selection_dialog_for_visual();
     void update_analyze_button_state(bool analyzing);
+    /**
+     * @brief Starts polling for analysis jobs owned by other app entry points.
+     */
+    void start_analysis_runtime_lock_polling();
+    /**
+     * @brief Refreshes the Analyze button state from the shared runtime lock.
+     */
+    void refresh_analysis_runtime_lock_state();
+    /**
+     * @brief Attempts to acquire the shared analysis runtime lock for the GUI.
+     * @param folder_path Folder path about to be analyzed.
+     * @return True when the GUI owns the lock and analysis may begin.
+     */
+    bool acquire_analysis_runtime_lock(const std::string& folder_path);
+    /**
+     * @brief Releases any shared analysis runtime lock owned by the GUI.
+     */
+    void release_analysis_runtime_lock();
     void update_results_view_mode();
     void update_folder_contents(const QString& directory);
     void focus_file_explorer_on_path(const QString& path);
@@ -241,6 +301,22 @@ private:
     void maybe_notify_storage_provider_switch(const StorageProviderDetection& detection,
                                               const std::string& directory_path);
     void show_storage_plugin_dialog();
+    /**
+     * @brief Opens the Windows Explorer extension install/download page.
+     */
+    void open_windows_explorer_extension_install_page();
+    /**
+     * @brief Opens the Windows Explorer extension settings window.
+     */
+    void open_windows_explorer_extension_settings();
+    /**
+     * @brief Opens the Windows Explorer extension activity window.
+     */
+    void open_windows_explorer_extension_activity_window();
+    /**
+     * @brief Refreshes Windows Explorer extension menu action visibility and enabled state.
+     */
+    void refresh_windows_explorer_extension_actions();
 
     void handle_analysis_finished();
     void handle_analysis_cancelled();
@@ -249,9 +325,17 @@ private:
     void populate_tree_view(const std::vector<CategorizedFile>& files);
 
     void perform_analysis();
+    /**
+     * @brief Builds the host context used by the analysis workflow.
+     * @return Context containing workflow services, state, and callbacks.
+     */
+    AnalysisWorkflowContext make_analysis_workflow_context();
     void stop_running_analysis();
-    void show_llm_selection_dialog();
     void on_about_activate();
+    /**
+     * @brief Hides and releases the active progress dialog.
+     */
+    void close_progress_dialog();
     void append_progress(const std::string& message);
     /**
      * @brief Returns whether a progress message should be shown in the progress dialog.
@@ -281,10 +365,26 @@ private:
     void run_large_whitelist_llm_test();
     void record_categorized_metrics(int count);
     SupportPromptResult show_support_prompt_dialog(int categorized_files);
+    /**
+     * @brief Shows the post-success Windows Explorer extension install prompt when eligible.
+     */
+    void maybe_show_windows_explorer_extension_install_prompt();
     void undo_last_run();
+    /**
+     * @brief Opens the searchable rename/categorization history dialog.
+     */
+    void show_review_history_dialog();
     bool perform_undo_from_plan(const QString& plan_path);
     void show_suitability_benchmark_dialog(bool auto_start);
     void maybe_show_suitability_benchmark();
+    /**
+     * @brief Shows the What's New popup once per app version when packaged notes exist.
+     */
+    void maybe_show_whats_new_popup();
+    /**
+     * @brief Starts a background local-backend probe after the window is shown.
+     */
+    void schedule_backend_status_probe();
     void refresh_backend_status_label();
     void schedule_backend_status_label_refresh();
     QString current_backend_status_text() const;
@@ -345,7 +445,6 @@ private:
     StorageSupportResolution resolve_storage_support(const StorageProviderDetection& detection) const;
 
     friend class MainAppUiBuilder;
-    friend class AnalysisCoordinator;
     friend class MainWindowStateBinder;
 #ifdef AI_FILE_SORTER_TEST_BUILD
     friend class MainAppTestAccess;
@@ -353,6 +452,7 @@ private:
 
     Settings& settings;
     std::string runtime_data_dir_;
+    AnalysisRuntimeLock analysis_runtime_lock_;
     DatabaseManager db_manager;
     UserLearningStore user_learning_store_;
     bool using_local_llm{false};
@@ -401,6 +501,8 @@ private:
     int folder_view_page_index_{-1};
 
     QPointer<QDockWidget> file_explorer_dock;
+    QPointer<QWidget> file_explorer_container;
+    QPointer<QTreeWidget> network_locations_view;
     QPointer<QTreeView> file_explorer_view;
     QPointer<QFileSystemModel> file_system_model;
     QAction* file_explorer_menu_action{nullptr};
@@ -408,6 +510,8 @@ private:
     QMenu* edit_menu{nullptr};
     QMenu* view_menu{nullptr};
     QMenu* settings_menu{nullptr};
+    QMenu* extensions_menu{nullptr};
+    QMenu* windows_explorer_extension_menu{nullptr};
     QMenu* plugins_menu{nullptr};
     QMenu* development_menu{nullptr};
     QMenu* development_settings_menu{nullptr};
@@ -422,9 +526,13 @@ private:
     QAction* paste_action{nullptr};
     QAction* delete_action{nullptr};
     QAction* undo_last_run_action{nullptr};
+    QAction* review_history_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
     QAction* manage_storage_plugins_action{nullptr};
+    QAction* windows_explorer_extension_install_action{nullptr};
+    QAction* windows_explorer_extension_settings_action{nullptr};
+    QAction* windows_explorer_extension_activity_action{nullptr};
     QAction* manage_whitelists_action{nullptr};
     QAction* reset_learning_action{nullptr};
     QAction* clear_cache_action{nullptr};
@@ -467,26 +575,39 @@ private:
     std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
     std::shared_ptr<StoragePluginManager> storage_plugin_manager_;
     StoragePluginLoader storage_plugin_loader_;
+    ExplorerExtensionManager explorer_extension_manager_;
     CategorizationService categorization_service;
     ConsistencyPassService consistency_pass_service;
     StorageProviderRegistry storage_provider_registry_;
     std::shared_ptr<IStorageProvider> active_storage_provider_;
     ResultsCoordinator results_coordinator;
+    ReviewHistoryStore review_history_store_;
     UndoManager undo_manager_;
+    MainAppProgressController progress_controller_;
     bool development_mode_{false};
     bool test_mode_{false};
     bool development_prompt_logging_enabled_{false};
 
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;
+    std::jthread backend_status_probe_thread_;
     std::atomic<bool> stop_analysis{false};
+    std::optional<AnalysisRuntimeLock::Lease> analysis_runtime_lease_;
+    QTimer* analysis_runtime_lock_timer_{nullptr};
     bool analysis_in_progress_{false};
+    bool external_analysis_lock_active_{false};
     bool status_is_ready_{true};
     bool suppress_explorer_sync_{false};
     bool suppress_folder_view_sync_{false};
+    bool backend_status_probe_started_{false};
+    bool backend_status_probe_completed_{false};
+    bool category_language_refresh_pending_{false};
     bool donation_prompt_active_{false};
+    bool windows_explorer_extension_prompt_active_{false};
     std::string last_storage_support_warning_key_;
     std::string last_storage_provider_notice_key_;
+    std::optional<std::string> backend_status_probe_backend_key_;
+    std::optional<std::string> backend_status_probe_cpu_backend_label_;
     std::optional<bool> text_cpu_fallback_choice_;
     std::optional<bool> visual_cpu_fallback_choice_;
     std::optional<bool> continue_without_visual_analysis_choice_;
@@ -494,6 +615,7 @@ private:
     void apply_development_logging();
 
     std::unique_ptr<UiTranslator> ui_translator_;
+    std::unique_ptr<MenuMnemonicController> menu_mnemonic_controller_;
     std::unique_ptr<MainWindowStateBinder> main_window_state_binder_;
 
 #if defined(AI_FILE_SORTER_TEST_BUILD)

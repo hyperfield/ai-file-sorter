@@ -67,6 +67,18 @@ std::optional<std::string> env_string(const char* key)
     return trimmed;
 }
 
+std::optional<std::string> resolve_update_spec_file_url(bool development_mode)
+{
+    if (development_mode) {
+        if (auto development_url = env_string(kDevelopmentUpdateSpecFileUrlEnv)) {
+            return development_url;
+        }
+    }
+
+    return env_string(kUpdateSpecFileUrlEnv);
+}
+
+#if defined(_WIN32)
 bool env_flag_enabled(const char* key)
 {
     const auto value = env_string(key);
@@ -81,17 +93,6 @@ bool env_flag_enabled(const char* key)
     return lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on";
 }
 
-std::optional<std::string> resolve_update_spec_file_url(bool development_mode)
-{
-    if (development_mode) {
-        if (auto development_url = env_string(kDevelopmentUpdateSpecFileUrlEnv)) {
-            return development_url;
-        }
-    }
-
-    return env_string(kUpdateSpecFileUrlEnv);
-}
-
 std::string normalized_sha256_copy(std::string value)
 {
     value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
@@ -102,6 +103,7 @@ std::string normalized_sha256_copy(std::string value)
     });
     return value;
 }
+#endif
 
 void throw_for_http_status(long http_code)
 {

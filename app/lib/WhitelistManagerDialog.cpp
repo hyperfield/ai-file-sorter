@@ -11,6 +11,12 @@
 #include <QTextEdit>
 #include <QLineEdit>
 #include <QAbstractItemView>
+#include <QFormLayout>
+#include <QLayout>
+#include <QScrollArea>
+
+#include <unordered_map>
+#include <utility>
 
 namespace {
 QString join_lines(const std::vector<std::string>& items) {
@@ -32,11 +38,55 @@ std::vector<std::string> split_lines(const QString& text) {
     return items;
 }
 
+void clear_layout(QLayout& layout)
+{
+    while (auto* item = layout.takeAt(0)) {
+        if (auto* child_layout = item->layout()) {
+            clear_layout(*child_layout);
+            delete child_layout;
+        }
+        if (auto* widget = item->widget()) {
+            delete widget;
+        }
+        delete item;
+    }
+}
+
 struct EditDialogResult {
     QString name;
     std::vector<std::string> categories;
     std::vector<std::string> subcategories;
+    std::unordered_map<std::string, std::vector<std::string>> subcategories_by_category;
 };
+
+using CategoryRowEdits = std::unordered_map<std::string, QLineEdit*>;
+
+std::unordered_map<std::string, std::vector<std::string>> collect_category_row_values(
+    const CategoryRowEdits& row_edits)
+{
+    std::unordered_map<std::string, std::vector<std::string>> values;
+    for (const auto& [category, edit] : row_edits) {
+        if (!edit) {
+            continue;
+        }
+        auto subcategories = split_lines(edit->text());
+        if (!subcategories.empty()) {
+            values[category] = std::move(subcategories);
+        }
+    }
+    return values;
+}
+
+bool has_category_row_values(const CategoryRowEdits& row_edits)
+{
+    for (const auto& [category, edit] : row_edits) {
+        (void)category;
+        if (edit && !split_lines(edit->text()).empty()) {
+            return true;
+        }
+    }
+    return false;
+}
 
 std::optional<EditDialogResult> show_edit_dialog(QWidget* parent,
                                                  const QString& initial_name,
@@ -45,26 +95,93 @@ std::optional<EditDialogResult> show_edit_dialog(QWidget* parent,
     QDialog dialog(parent);
     dialog.setWindowTitle(QObject::tr("Edit whitelist"));
     auto* layout = new QVBoxLayout(&dialog);
+    const auto add_label = [&](const QString& text) {
+        auto* label = new QLabel(text, &dialog);
+        label->setWordWrap(true);
+        layout->addWidget(label);
+    };
 
     auto* name_edit = new QLineEdit(&dialog);
     name_edit->setText(initial_name);
-    layout->addWidget(new QLabel(QObject::tr("Name:"), &dialog));
+    add_label(QObject::tr("Name:"));
     layout->addWidget(name_edit);
 
     auto* cats_edit = new QTextEdit(&dialog);
     cats_edit->setPlainText(join_lines(entry.categories));
-    layout->addWidget(new QLabel(QObject::tr("Categories (comma separated):"), &dialog));
+    add_label(QObject::tr("Main categories / top-level folders (comma separated):"));
     layout->addWidget(cats_edit);
 
     auto* subs_edit = new QTextEdit(&dialog);
     subs_edit->setPlainText(join_lines(entry.subcategories));
-    layout->addWidget(new QLabel(QObject::tr("Subcategories (comma separated):"), &dialog));
+    add_label(QObject::tr("Global subcategories (optional; active when category-specific rows are empty):"));
     layout->addWidget(subs_edit);
+
+    add_label(QObject::tr("Category-specific subcategories (optional; active when global subcategories are empty):"));
+    auto* mapped_subs_container = new QWidget(&dialog);
+    auto* mapped_subs_layout = new QFormLayout(mapped_subs_container);
+    mapped_subs_layout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    auto* mapped_subs_scroll = new QScrollArea(&dialog);
+    mapped_subs_scroll->setWidgetResizable(true);
+    mapped_subs_scroll->setWidget(mapped_subs_container);
+    mapped_subs_scroll->setMinimumHeight(120);
+    layout->addWidget(mapped_subs_scroll);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     layout->addWidget(buttons);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    std::unordered_map<std::string, std::vector<std::string>> mapped_values =
+        entry.subcategories_by_category;
+    CategoryRowEdits row_edits;
+    bool rebuilding_rows = false;
+
+    const auto update_exclusive_mode = [&]() {
+        if (rebuilding_rows) {
+            return;
+        }
+        const bool has_global = !split_lines(subs_edit->toPlainText()).empty();
+        const bool has_specific = has_category_row_values(row_edits);
+        const bool use_specific = has_specific;
+        const bool use_global = has_global && !use_specific;
+        subs_edit->setEnabled(!use_specific);
+        mapped_subs_scroll->setEnabled(!use_global);
+    };
+
+    const auto remember_rows = [&]() {
+        for (const auto& [category, subcategories] : collect_category_row_values(row_edits)) {
+            mapped_values[category] = subcategories;
+        }
+        for (const auto& [category, edit] : row_edits) {
+            if (edit && split_lines(edit->text()).empty()) {
+                mapped_values.erase(category);
+            }
+        }
+    };
+
+    const auto rebuild_category_rows = [&]() {
+        rebuilding_rows = true;
+        remember_rows();
+        clear_layout(*mapped_subs_layout);
+        row_edits.clear();
+
+        for (const auto& category : split_lines(cats_edit->toPlainText())) {
+            auto* row_edit = new QLineEdit(mapped_subs_container);
+            if (auto existing = mapped_values.find(category); existing != mapped_values.end()) {
+                row_edit->setText(join_lines(existing->second));
+            }
+            QObject::connect(row_edit, &QLineEdit::textChanged, &dialog, update_exclusive_mode);
+            mapped_subs_layout->addRow(QString::fromStdString(category) + QStringLiteral(":"), row_edit);
+            row_edits[category] = row_edit;
+        }
+
+        rebuilding_rows = false;
+        update_exclusive_mode();
+    };
+
+    QObject::connect(cats_edit, &QTextEdit::textChanged, &dialog, rebuild_category_rows);
+    QObject::connect(subs_edit, &QTextEdit::textChanged, &dialog, update_exclusive_mode);
+    rebuild_category_rows();
 
     if (dialog.exec() != QDialog::Accepted) {
         return std::nullopt;
@@ -76,7 +193,10 @@ std::optional<EditDialogResult> show_edit_dialog(QWidget* parent,
         return std::nullopt;
     }
     result.categories = split_lines(cats_edit->toPlainText());
-    result.subcategories = split_lines(subs_edit->toPlainText());
+    result.subcategories_by_category = collect_category_row_values(row_edits);
+    result.subcategories = result.subcategories_by_category.empty()
+        ? split_lines(subs_edit->toPlainText())
+        : std::vector<std::string>{};
     return result;
 }
 }
@@ -136,7 +256,12 @@ bool WhitelistManagerDialog::edit_entry(const QString& name, WhitelistEntry& ent
     }
 
     store_.remove(name.toStdString());
-    store_.set(result->name.toStdString(), WhitelistEntry{result->categories, result->subcategories});
+    store_.set(result->name.toStdString(),
+               WhitelistEntry{
+                   result->categories,
+                   result->subcategories,
+                   result->subcategories_by_category
+               });
     store_.save();
     refresh_list();
     notify_changed();

@@ -1,24 +1,124 @@
 #include <catch2/catch_test_macros.hpp>
+#include "BulkEditDialog.hpp"
 #include "CategorizationDialog.hpp"
 #include "CloudCompatibilityProvider.hpp"
 #include "DatabaseManager.hpp"
+#include "IFilePreviewService.hpp"
+#include "Language.hpp"
 #include "Logger.hpp"
 #include "LocalFsProvider.hpp"
+#include "ReviewHistoryStore.hpp"
 #include "StorageProviderRegistry.hpp"
 #include "TestHooks.hpp"
 #include "TestHelpers.hpp"
+#include "TranslationManager.hpp"
 #include "UndoManager.hpp"
 #include "UserLearningStore.hpp"
+#include "Utils.hpp"
 #include <QCheckBox>
 #include <QDialog>
+#include <QDialogButtonBox>
+#include <QEvent>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QTableView>
 #include <QTimer>
 #include <QStandardItemModel>
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 
-#ifndef _WIN32
+namespace {
+
+class RecordingPreviewService final : public IFilePreviewService {
+public:
+    bool preview_file(const std::filesystem::path& file_path,
+                      QWidget* parent) override {
+        ++calls;
+        last_path = file_path;
+        last_parent = parent;
+        return should_succeed;
+    }
+
+    int calls{0};
+    bool should_succeed{true};
+    std::filesystem::path last_path;
+    QWidget* last_parent{nullptr};
+};
+
+std::string normalized_path_text(std::string value)
+{
+    std::replace(value.begin(), value.end(), '\\', '/');
+    return value;
+}
+
+} // namespace
+
+TEST_CASE("CategorizationDialog delegates preview requests to the preview service") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir undo_dir;
+    CategorizedFile file;
+    file.file_path = "/tmp";
+    file.file_name = "preview.txt";
+    file.type = FileType::File;
+    file.category = "Docs";
+    file.subcategory = "Reports";
+
+    CategorizationDialog dialog(nullptr, true, undo_dir.path().string());
+    auto preview_service = std::make_unique<RecordingPreviewService>();
+    auto* preview_service_ptr = preview_service.get();
+    dialog.set_file_preview_service(std::move(preview_service));
+    dialog.test_set_entries({file});
+
+    REQUIRE(dialog.test_trigger_preview(0));
+    REQUIRE(preview_service_ptr->calls == 1);
+    CHECK(preview_service_ptr->last_path == std::filesystem::path("/tmp") / "preview.txt");
+    CHECK(preview_service_ptr->last_parent == &dialog);
+}
+
+TEST_CASE("BulkEditDialog enables OK only for meaningful edits") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    BulkEditDialog dialog(true);
+    const auto edits = dialog.findChildren<QLineEdit*>();
+    REQUIRE(edits.size() == 2);
+    auto* buttons = dialog.findChild<QDialogButtonBox*>();
+    REQUIRE(buttons != nullptr);
+    auto* ok_button = buttons->button(QDialogButtonBox::Ok);
+    REQUIRE(ok_button != nullptr);
+
+    CHECK_FALSE(ok_button->isEnabled());
+
+    edits.at(0)->setText(QStringLiteral("  Reports  "));
+    CHECK(ok_button->isEnabled());
+    CHECK(dialog.category() == "Reports");
+    CHECK(dialog.subcategory().empty());
+
+    edits.at(0)->clear();
+    CHECK_FALSE(ok_button->isEnabled());
+
+    edits.at(1)->setText(QStringLiteral("  Quarterly  "));
+    CHECK(ok_button->isEnabled());
+    CHECK(dialog.category().empty());
+    CHECK(dialog.subcategory() == "Quarterly");
+}
+
+TEST_CASE("BulkEditDialog omits subcategory edits when disabled") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    BulkEditDialog dialog(false);
+    const auto edits = dialog.findChildren<QLineEdit*>();
+    REQUIRE(edits.size() == 1);
+
+    edits.at(0)->setText(QStringLiteral("Manuals"));
+    CHECK(dialog.category() == "Manuals");
+    CHECK(dialog.subcategory().empty());
+}
 
 namespace {
 
@@ -62,7 +162,7 @@ CategorizedFile sample_file() {
 } // namespace
 
 TEST_CASE("CategorizationDialog uses subcategory toggle when moving files") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     const std::vector<CategorizedFile> files = {sample_file()};
@@ -102,9 +202,8 @@ TEST_CASE("CategorizationDialog uses subcategory toggle when moving files") {
     }
 }
 
-#ifndef _WIN32
 TEST_CASE("CategorizationDialog supports sorting by columns") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     CategorizedFile alpha;
@@ -142,11 +241,61 @@ TEST_CASE("CategorizationDialog supports sorting by columns") {
         REQUIRE(model->item(1, 4)->text() == QStringLiteral("Alpha"));
     }
 }
-#endif
 
-#ifndef _WIN32
+TEST_CASE("CategorizationDialog auto-approves rows by enabled operation") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    CategorizedFile rename_only = sample_file();
+    rename_only.file_name = "rename-only.txt";
+    rename_only.category.clear();
+    rename_only.subcategory.clear();
+    rename_only.rename_only = true;
+    rename_only.suggested_name = "renamed.txt";
+
+    CategorizedFile categorized = sample_file();
+    categorized.file_name = "categorized.txt";
+
+    CategorizedFile combined = sample_file();
+    combined.file_name = "combined.txt";
+    combined.suggested_name = "combined-renamed.txt";
+
+    CategorizedFile incomplete = sample_file();
+    incomplete.file_name = "incomplete.txt";
+    incomplete.category.clear();
+    incomplete.subcategory.clear();
+
+    TempDir undo_dir;
+    CategorizationDialog dialog(nullptr, true, undo_dir.path().string());
+    dialog.set_review_auto_approve_filename_changes_enabled(true);
+    dialog.test_set_entries({rename_only, categorized, combined, incomplete});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+    REQUIRE(model->rowCount() == 4);
+
+    CHECK(model->item(0, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(1, 0)->checkState() == Qt::Unchecked);
+    CHECK(model->item(2, 0)->checkState() == Qt::Unchecked);
+    CHECK(model->item(3, 0)->checkState() == Qt::Unchecked);
+
+    dialog.set_review_auto_approve_categorization_enabled(true);
+    CHECK(model->item(0, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(1, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(2, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(3, 0)->checkState() == Qt::Unchecked);
+
+    dialog.set_review_auto_approve_filename_changes_enabled(false);
+    CHECK(model->item(0, 0)->checkState() == Qt::Unchecked);
+    CHECK(model->item(1, 0)->checkState() == Qt::Checked);
+    CHECK(model->item(2, 0)->checkState() == Qt::Unchecked);
+    CHECK(model->item(3, 0)->checkState() == Qt::Unchecked);
+}
+
 TEST_CASE("CategorizationDialog undo restores moved files") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp_dir;
@@ -182,8 +331,176 @@ TEST_CASE("CategorizationDialog undo restores moved files") {
     REQUIRE_FALSE(dialog.test_undo_enabled());
 }
 
+TEST_CASE("CategorizationDialog records applied review history with descriptions")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir history_dir;
+    ReviewHistoryStore history_store(history_dir.path().string());
+    REQUIRE(history_store.is_open());
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "picnic.jpg";
+    const std::filesystem::path source = base / file_name;
+    std::ofstream(source).put('x');
+
+    CategorizedFile file;
+    file.file_path = base.string();
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "Photos";
+    file.subcategory = "Family";
+    file.learning_context = "Image description: Sunny picnic near the lake.";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr,
+                                true,
+                                undo_dir_for_dialog.path().string(),
+                                CategoryLanguage::English,
+                                nullptr,
+                                nullptr,
+                                &history_store);
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+
+    const std::filesystem::path destination = base / file.category / file.subcategory / file_name;
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    auto entries = history_store.entries();
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().operation == ReviewHistoryStore::Operation::Categorize);
+    CHECK(entries.front().original_file_name == file_name);
+    CHECK(entries.front().final_file_name == file_name);
+    CHECK(entries.front().category == "Photos");
+    CHECK(entries.front().subcategory == "Family");
+    CHECK(entries.front().file_description == "Sunny picnic near the lake.");
+    CHECK_FALSE(entries.front().undone);
+
+    dialog.test_trigger_undo();
+    entries = history_store.entries();
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().undone);
+}
+
+TEST_CASE("CategorizationDialog keeps date category suffixes out of stored canonical categories")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    DatabaseManager db(config_dir.path().string());
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "manual.pdf";
+    const std::filesystem::path source = base / file_name;
+    std::ofstream(source).put('x');
+
+    CategorizedFile file;
+    file.file_path = base.string();
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "Records_2026-06";
+    file.subcategory = "Monthly Statements";
+    file.canonical_category = "Records";
+    file.canonical_subcategory = "Monthly Statements";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(&db, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+
+    const std::filesystem::path destination = base / file.category / file.subcategory / file_name;
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    const auto cached = db.get_categorized_file(base.string(), file_name, FileType::File);
+    REQUIRE(cached.has_value());
+    CHECK(cached->category == "Records");
+    CHECK(cached->subcategory == "Monthly Statements");
+}
+
+TEST_CASE("CategorizationDialog moves Unicode files into French nested subcategory folders")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "東京_보고서.txt";
+    const std::filesystem::path source = base / Utils::utf8_to_path(file_name);
+    std::ofstream(source).put('x');
+
+    CategorizedFile file;
+    file.file_path = Utils::path_to_utf8(base);
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "Logiciels";
+    file.subcategory = "Navigateur";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr,
+                                true,
+                                undo_dir_for_dialog.path().string(),
+                                CategoryLanguage::French);
+    dialog.test_set_entries({file});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    const auto expected_destination =
+        base / Utils::utf8_to_path("Logiciels") / Utils::utf8_to_path("Navigateur") /
+        Utils::utf8_to_path(file_name);
+    const std::string expected_preview = normalized_path_text(Utils::path_to_utf8(expected_destination));
+    auto* preview_item = model->item(0, 7);
+    REQUIRE(preview_item != nullptr);
+    const std::string preview =
+        normalized_path_text(preview_item->text().toStdString());
+    CHECK(preview == expected_preview);
+    CHECK(preview.find("subcategory") == std::string::npos);
+
+    dialog.show();
+    QApplication::processEvents();
+    TranslationManager::instance().set_language(Language::French);
+    QEvent language_change(QEvent::LanguageChange);
+    QApplication::sendEvent(&dialog, &language_change);
+    QApplication::processEvents();
+
+    table->sortByColumn(1, Qt::AscendingOrder);
+    dialog.set_show_subcategory_column(false);
+    dialog.set_show_subcategory_column(true);
+    QApplication::processEvents();
+
+    dialog.test_trigger_confirm();
+
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(expected_destination));
+    CHECK_FALSE(std::filesystem::exists(base / Utils::utf8_to_path("Logiciels , subcategory Navigateur") /
+                                        Utils::utf8_to_path(file_name)));
+    CHECK(dialog.test_undo_enabled());
+
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(base)) {
+        CHECK(normalized_path_text(Utils::path_to_utf8(entry.path())).find("subcategory") ==
+              std::string::npos);
+    }
+
+    dialog.test_trigger_undo();
+
+    REQUIRE(std::filesystem::exists(source));
+    REQUIRE_FALSE(std::filesystem::exists(expected_destination));
+    CHECK_FALSE(dialog.test_undo_enabled());
+}
+
 TEST_CASE("CategorizationDialog undo allows renaming again") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp_dir;
@@ -219,7 +536,7 @@ TEST_CASE("CategorizationDialog undo allows renaming again") {
 }
 
 TEST_CASE("CategorizationDialog dry run logs preview completion without moved success") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir cache_home;
@@ -367,7 +684,7 @@ TEST_CASE("UndoManager relaxes timestamp validation for cloud providers") {
 }
 
 TEST_CASE("CategorizationDialog rename-only updates cached filename") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir config_dir;
@@ -408,7 +725,7 @@ TEST_CASE("CategorizationDialog rename-only updates cached filename") {
 }
 
 TEST_CASE("CategorizationDialog allows editing when rename-only checkbox is off") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     CategorizedFile rename_only_entry;
@@ -439,7 +756,7 @@ TEST_CASE("CategorizationDialog allows editing when rename-only checkbox is off"
 }
 
 TEST_CASE("CategorizationDialog deduplicates suggested names when rename-only is toggled") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     CategorizedFile first;
@@ -482,7 +799,7 @@ TEST_CASE("CategorizationDialog deduplicates suggested names when rename-only is
 }
 
 TEST_CASE("CategorizationDialog avoids double suffixes for numbered suggestions") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     CategorizedFile first;
@@ -512,7 +829,7 @@ TEST_CASE("CategorizationDialog avoids double suffixes for numbered suggestions"
 }
 
 TEST_CASE("CategorizationDialog hides suggested names for renamed entries") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     CategorizedFile entry;
@@ -536,7 +853,7 @@ TEST_CASE("CategorizationDialog hides suggested names for renamed entries") {
 }
 
 TEST_CASE("CategorizationDialog hides already renamed rows when rename-only is on") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     CategorizedFile renamed;
@@ -596,7 +913,7 @@ TEST_CASE("CategorizationDialog hides already renamed rows when rename-only is o
 }
 
 TEST_CASE("CategorizationDialog deduplicates suggested picture filenames") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp_dir;
@@ -628,8 +945,41 @@ TEST_CASE("CategorizationDialog deduplicates suggested picture filenames") {
     CHECK(second_suggestion == QStringLiteral("sunny_barbeque_dinner_2.png"));
 }
 
+TEST_CASE("CategorizationDialog deduplicates suggested media filenames") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+
+    CategorizedFile first;
+    first.file_path = base.string();
+    first.file_name = "20250917_124208.mp4";
+    first.type = FileType::File;
+    first.category = "Media files";
+    first.suggested_name = "2025_videohandle.mp4";
+
+    CategorizedFile second = first;
+    second.file_name = "20250917_124239.mp4";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, false, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({first, second});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+
+    const QString first_suggestion = model->item(0, 3)->text();
+    const QString second_suggestion = model->item(1, 3)->text();
+
+    CHECK(first_suggestion == QStringLiteral("2025_videohandle_1.mp4"));
+    CHECK(second_suggestion == QStringLiteral("2025_videohandle_2.mp4"));
+}
+
 TEST_CASE("CategorizationDialog avoids existing picture filename collisions") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir temp_dir;
@@ -658,7 +1008,7 @@ TEST_CASE("CategorizationDialog avoids existing picture filename collisions") {
 }
 
 TEST_CASE("CategorizationDialog rename-only preserves cached categories without renaming") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir config_dir;
@@ -693,8 +1043,48 @@ TEST_CASE("CategorizationDialog rename-only preserves cached categories without 
     CHECK(cached->rename_only);
 }
 
+TEST_CASE("CategorizationDialog preserves cached subcategories when the subcategory column is hidden") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    DatabaseManager db(config_dir.path().string());
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "photo.jpg";
+    std::ofstream(base / file_name).put('x');
+
+    auto resolved = db.resolve_category("Images", "Screens");
+    REQUIRE(db.insert_or_update_file_with_categorization(
+        file_name, "F", base.string(), resolved, false, std::string(), false));
+
+    CategorizedFile file;
+    file.file_path = base.string();
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "Images";
+    file.subcategory = "Screens";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(&db, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+    dialog.set_show_subcategory_column(false);
+
+    dialog.show();
+    QApplication::processEvents();
+    dialog.close();
+    QApplication::processEvents();
+
+    const auto cached = db.get_categorized_file(base.string(), file_name, FileType::File);
+    REQUIRE(cached.has_value());
+    CHECK(cached->category == resolved.category);
+    CHECK(cached->subcategory == resolved.subcategory);
+}
+
 TEST_CASE("CategorizationDialog rename-only preserves cached categories when renaming") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir config_dir;
@@ -736,7 +1126,7 @@ TEST_CASE("CategorizationDialog rename-only preserves cached categories when ren
 }
 
 TEST_CASE("CategorizationDialog records confirmed categories as learned behavior") {
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", "offscreen");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
     TempDir config_dir;
@@ -782,6 +1172,3 @@ TEST_CASE("CategorizationDialog records confirmed categories as learned behavior
     CHECK(examples.front().subcategory == "Product Guides");
     CHECK(examples.front().context_text == file.learning_context);
 }
-#endif
-
-#endif // !_WIN32

@@ -1,19 +1,24 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Language.hpp"
+#include "MenuMnemonicController.hpp"
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
 #include "UiTranslator.hpp"
 
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
 #include <QChar>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDockWidget>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
+#include <QMenuBar>
 #include <QPushButton>
 #include <QComboBox>
 #include <QRadioButton>
@@ -26,11 +31,10 @@
 #include <algorithm>
 #include <cstddef>
 
-#ifndef _WIN32
 namespace {
 
 struct UiTranslatorTestHarness {
-    EnvVarGuard platform_guard{"QT_QPA_PLATFORM", "offscreen"};
+    EnvVarGuard platform_guard{"QT_QPA_PLATFORM", preferred_qt_test_platform()};
     QtAppContext qt_context{};
     Settings settings{};
     QMainWindow window{};
@@ -67,6 +71,8 @@ struct UiTranslatorTestHarness {
     QMenu* edit_menu = new QMenu(&window);
     QMenu* view_menu = new QMenu(&window);
     QMenu* settings_menu = new QMenu(&window);
+    QMenu* extensions_menu = new QMenu(&window);
+    QMenu* windows_explorer_extension_menu = new QMenu(&window);
     QMenu* plugins_menu = new QMenu(&window);
     QMenu* development_menu = new QMenu(&window);
     QMenu* development_settings_menu = new QMenu(&window);
@@ -80,11 +86,15 @@ struct UiTranslatorTestHarness {
     QAction* copy_action = new QAction(&window);
     QAction* cut_action = new QAction(&window);
     QAction* undo_last_run_action = new QAction(&window);
+    QAction* review_history_action = new QAction(&window);
     QAction* paste_action = new QAction(&window);
     QAction* delete_action = new QAction(&window);
     QAction* toggle_explorer_action = new QAction(&window);
     QAction* toggle_llm_action = new QAction(&window);
     QAction* manage_storage_plugins_action = new QAction(&window);
+    QAction* windows_explorer_extension_install_action = new QAction(&window);
+    QAction* windows_explorer_extension_settings_action = new QAction(&window);
+    QAction* windows_explorer_extension_activity_action = new QAction(&window);
     QAction* manage_whitelists_action = new QAction(&window);
     QAction* reset_learning_action = new QAction(&window);
     QAction* clear_cache_action = new QAction(&window);
@@ -263,6 +273,8 @@ struct UiTranslatorTestHarness {
                 edit_menu,
                 view_menu,
                 settings_menu,
+                extensions_menu,
+                windows_explorer_extension_menu,
                 plugins_menu,
                 development_menu,
                 development_settings_menu,
@@ -276,11 +288,15 @@ struct UiTranslatorTestHarness {
                 copy_action,
                 cut_action,
                 undo_last_run_action,
+                review_history_action,
                 paste_action,
                 delete_action,
                 toggle_explorer_action,
                 toggle_llm_action,
                 manage_storage_plugins_action,
+                windows_explorer_extension_install_action,
+                windows_explorer_extension_settings_action,
+                windows_explorer_extension_activity_action,
                 manage_whitelists_action,
                 reset_learning_action,
                 clear_cache_action,
@@ -387,19 +403,35 @@ QStringList menu_action_labels(const QMenu* menu)
 
 void verify_menus_and_actions(const UiTranslatorTestHarness& h)
 {
-    REQUIRE(h.file_menu->title() == QStringLiteral("&File"));
-    REQUIRE(h.edit_menu->title() == QStringLiteral("&Edit"));
-    REQUIRE(h.view_menu->title() == QStringLiteral("&View"));
-    REQUIRE(h.settings_menu->title() == QStringLiteral("&Settings"));
-    REQUIRE(h.plugins_menu->title() == QStringLiteral("&Plugins"));
-    REQUIRE(h.development_menu->title() == QStringLiteral("&Development"));
-    REQUIRE(h.test_menu->title() == QStringLiteral("&Tests"));
+    REQUIRE(h.file_menu->title() == QStringLiteral("File"));
+    REQUIRE(h.edit_menu->title() == QStringLiteral("Edit"));
+    REQUIRE(h.view_menu->title() == QStringLiteral("View"));
+    REQUIRE(h.settings_menu->title() == QStringLiteral("Settings"));
+    REQUIRE(h.extensions_menu->title() == QStringLiteral("Extensions"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.file_menu) == QStringLiteral("&File"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.edit_menu) == QStringLiteral("&Edit"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.view_menu) == QStringLiteral("&View"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.settings_menu) == QStringLiteral("&Settings"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.extensions_menu) == QStringLiteral("E&xtensions"));
+    REQUIRE(h.windows_explorer_extension_menu->title() == QStringLiteral("Windows Explorer Extension"));
+    REQUIRE(h.plugins_menu->title() == QStringLiteral("Plugins"));
+    REQUIRE(h.development_menu->title() == QStringLiteral("Development"));
+    REQUIRE(h.test_menu->title() == QStringLiteral("Tests"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.plugins_menu) == QStringLiteral("&Plugins"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.development_menu) == QStringLiteral("&Development"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.test_menu) == QStringLiteral("&Tests"));
     REQUIRE(h.language_menu->title() == QStringLiteral("Interface &language"));
     REQUIRE(h.category_language_menu->title() == QStringLiteral("Category &language"));
     REQUIRE(h.run_benchmark_action->text() == QStringLiteral("System compatibility check…"));
+    REQUIRE(h.review_history_action->text() ==
+            QStringLiteral("Rename and categorization history…"));
     REQUIRE(h.toggle_llm_action->text() == QStringLiteral("Select &LLM…"));
     REQUIRE(h.manage_storage_plugins_action->text() == QStringLiteral("Manage storage plugins…"));
     REQUIRE(h.manage_whitelists_action->text() == QStringLiteral("Manage category whitelists…"));
+    REQUIRE(h.windows_explorer_extension_install_action->text() ==
+            QStringLiteral("Install Windows Explorer Extension..."));
+    REQUIRE(h.windows_explorer_extension_settings_action->text() == QStringLiteral("Settings..."));
+    REQUIRE(h.windows_explorer_extension_activity_action->text() == QStringLiteral("Activity Window"));
     REQUIRE(h.reset_learning_action->text() == QStringLiteral("Reset learned behavior…"));
     REQUIRE(h.clear_cache_action->text() == QStringLiteral("Clear cache…"));
     REQUIRE(h.category_language_action(CategoryLanguage::Hindi)->text() == QStringLiteral("Hindi"));
@@ -425,8 +457,9 @@ void verify_menus_and_actions(const UiTranslatorTestHarness& h)
     REQUIRE(interface_language_labels == sorted_labels);
 
     const QString help_title = h.help_menu->title();
-    REQUIRE(help_title.endsWith(QStringLiteral("&Help")));
+    REQUIRE(help_title.endsWith(QStringLiteral("Help")));
     REQUIRE(help_title.startsWith(QString(QChar(0x200B))));
+    REQUIRE(MenuMnemonicController::mnemonic_title(h.help_menu).endsWith(QStringLiteral("&Help")));
 }
 
 void verify_tree_and_status(const UiTranslatorTestHarness& h)
@@ -450,4 +483,45 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     verify_menus_and_actions(h);
     verify_tree_and_status(h);
 }
-#endif
+
+TEST_CASE("MenuMnemonicController hides top-level menu mnemonics until activated")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    QMainWindow window;
+    auto* file_menu = window.menuBar()->addMenu(QString());
+    auto* edit_menu = window.menuBar()->addMenu(QString());
+
+    MenuMnemonicController controller(window.menuBar(), &window);
+    MenuMnemonicController::set_mnemonic_title(file_menu, QStringLiteral("&File"));
+    MenuMnemonicController::set_mnemonic_title(edit_menu, QStringLiteral("&Edit"));
+    controller.refresh_titles();
+
+    REQUIRE_FALSE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(file_menu) == QStringLiteral("&File"));
+
+    QKeyEvent alt_press(QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
+    QCoreApplication::sendEvent(qApp, &alt_press);
+    REQUIRE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("&File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("&Edit"));
+
+    QKeyEvent alt_release(QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+    QCoreApplication::sendEvent(qApp, &alt_release);
+    QCoreApplication::processEvents();
+    REQUIRE_FALSE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
+
+    controller.set_mnemonics_visible(true);
+    REQUIRE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("&File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("&Edit"));
+
+    controller.set_mnemonics_visible(false);
+    REQUIRE_FALSE(controller.mnemonics_visible());
+    REQUIRE(file_menu->title() == QStringLiteral("File"));
+    REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
+}

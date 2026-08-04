@@ -75,6 +75,8 @@ public:
         QMenu*& edit_menu;
         QMenu*& view_menu;
         QMenu*& settings_menu;
+        QMenu*& extensions_menu;
+        QMenu*& windows_explorer_extension_menu;
         QMenu*& plugins_menu;
         QMenu*& development_menu;
         QMenu*& development_settings_menu;
@@ -93,11 +95,15 @@ public:
         QAction*& copy_action;
         QAction*& cut_action;
         QAction*& undo_last_run_action;
+        QAction*& review_history_action;
         QAction*& paste_action;
         QAction*& delete_action;
         QAction*& toggle_explorer_action;
         QAction*& toggle_llm_action;
         QAction*& manage_storage_plugins_action;
+        QAction*& windows_explorer_extension_install_action;
+        QAction*& windows_explorer_extension_settings_action;
+        QAction*& windows_explorer_extension_activity_action;
         QAction*& manage_whitelists_action;
         QAction*& reset_learning_action;
         QAction*& clear_cache_action;

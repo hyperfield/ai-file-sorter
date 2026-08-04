@@ -64,6 +64,31 @@ TEST_CASE("Settings defaults image analysis off when visual LLM files are missin
     REQUIRE_FALSE(settings.get_offer_rename_images());
 }
 
+TEST_CASE("Settings persists recent network locations") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.load();
+    settings.set_recent_network_locations({
+        "\\\\server\\share",
+        "",
+        "\\\\server\\share",
+        "\\\\server-two\\archive"
+    });
+    REQUIRE(settings.save());
+
+    Settings loaded;
+    REQUIRE(loaded.load());
+    REQUIRE(loaded.get_recent_network_locations().size() == 2);
+    CHECK(loaded.get_recent_network_locations().at(0) == "\\\\server\\share");
+    CHECK(loaded.get_recent_network_locations().at(1) == "\\\\server-two\\archive");
+}
+
 TEST_CASE("Settings defaults use subcategories on when config key is missing") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
@@ -128,6 +153,44 @@ TEST_CASE("Settings persists options group expansion state") {
     REQUIRE(reloaded.load());
     REQUIRE(reloaded.get_image_options_expanded());
     REQUIRE_FALSE(reloaded.get_document_options_expanded());
+}
+
+TEST_CASE("Settings persists review auto-approve operation options") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_review_auto_approve_filename_changes(true);
+    settings.set_review_auto_approve_categorization(true);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_review_auto_approve_filename_changes());
+    REQUIRE(reloaded.get_review_auto_approve_categorization());
+}
+
+TEST_CASE("Settings persists What's New shown version independently of updater skip state") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_skipped_version("9.9.9");
+    settings.set_whats_new_version_shown("1.9.0");
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_skipped_version() == "9.9.9");
+    REQUIRE(reloaded.get_whats_new_version_shown() == "1.9.0");
 }
 
 TEST_CASE("Settings persists image EXIF date/place rename toggle") {

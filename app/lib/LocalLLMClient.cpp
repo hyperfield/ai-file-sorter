@@ -1,5 +1,7 @@
 #include "LocalLLMClient.hpp"
-#include "FileCategoryPolicy.hpp"
+#include "GgmlRuntimePaths.hpp"
+#include "LocalLLMPromptBuilder.hpp"
+#include "LocalLLMResponseSanitizer.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "TestHooks.hpp"
@@ -13,7 +15,6 @@
 #include <cstdio>
 #include <stdexcept>
 #include <iostream>
-#include <sstream>
 #include <spdlog/spdlog.h>
 #include <cstdlib>
 #include <algorithm>
@@ -316,687 +317,6 @@ bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     return text_lower.find(needle_lower) != std::string::npos;
 }
 
-std::string to_lower_copy(std::string value);
-
-std::string trim_copy(std::string value) {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
-    value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
-    value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
-    return value;
-}
-
-std::string collapse_spaces_copy(std::string value) {
-    std::string collapsed;
-    collapsed.reserve(value.size());
-    bool previous_space = false;
-    for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
-            if (!previous_space) {
-                collapsed.push_back(' ');
-            }
-            previous_space = true;
-            continue;
-        }
-        collapsed.push_back(static_cast<char>(ch));
-        previous_space = false;
-    }
-    return trim_copy(std::move(collapsed));
-}
-
-std::string strip_wrapping_punctuation(std::string value) {
-    auto is_wrapping = [](unsigned char ch) {
-        switch (ch) {
-            case '"':
-            case '\'':
-            case '`':
-            case '(':
-            case ')':
-            case '[':
-            case ']':
-            case '{':
-            case '}':
-            case '<':
-            case '>':
-                return true;
-            default:
-                return false;
-        }
-    };
-
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.front())) ||
-                              is_wrapping(static_cast<unsigned char>(value.front())))) {
-        value.erase(value.begin());
-    }
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.back())) ||
-                              is_wrapping(static_cast<unsigned char>(value.back())) ||
-                              value.back() == '.' || value.back() == ',' ||
-                              value.back() == ':' || value.back() == ';')) {
-        value.pop_back();
-    }
-    return value;
-}
-
-std::string strip_trailing_parenthetical_gloss(std::string value) {
-    value = trim_copy(std::move(value));
-    while (true) {
-        const auto open = value.rfind(" (");
-        if (open == std::string::npos) {
-            break;
-        }
-
-        std::string gloss = trim_copy(value.substr(open + 2));
-        if (!gloss.empty() && gloss.back() == ')') {
-            gloss.pop_back();
-            gloss = trim_copy(std::move(gloss));
-        }
-
-        const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
-            return std::isalpha(ch);
-        });
-        if (!has_alpha_chars) {
-            break;
-        }
-
-        value = trim_copy(value.substr(0, open));
-    }
-    return value;
-}
-
-std::size_t find_case_insensitive(const std::string& value, std::string_view needle) {
-    const std::string lower_value = to_lower_copy(value);
-    std::string lower_needle(needle);
-    std::transform(lower_needle.begin(), lower_needle.end(), lower_needle.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return lower_value.find(lower_needle);
-}
-
-std::string strip_explanatory_suffix(std::string value) {
-    static const std::vector<std::string_view> markers = {
-        " (based on",
-        " (note",
-        " (since",
-        " - this ",
-        " - based on",
-        " because ",
-        " based on ",
-        " which ",
-        " since ",
-        " however ",
-        " specifically ",
-        " indicating ",
-        " indicates ",
-        " commonly ",
-        " related to "
-    };
-
-    std::size_t cut = std::string::npos;
-    for (const std::string_view marker : markers) {
-        const auto pos = find_case_insensitive(value, marker);
-        if (pos != std::string::npos && (cut == std::string::npos || pos < cut)) {
-            cut = pos;
-        }
-    }
-    if (cut != std::string::npos) {
-        value.resize(cut);
-    }
-
-    return strip_wrapping_punctuation(collapse_spaces_copy(std::move(value)));
-}
-
-std::string extract_category_phrase(std::string value) {
-    struct PhrasePattern {
-        std::string_view prefix;
-        std::string_view suffix;
-    };
-    static const std::vector<PhrasePattern> patterns = {
-        {"falls under the ", " category"},
-        {"falls under ", " category"},
-        {"belongs to the ", " category"},
-        {"belongs to ", " category"},
-        {"categorized as ", ""},
-        {"classified as ", ""},
-        {"category is ", ""},
-        {"category would be ", ""}
-    };
-
-    const std::string lower = to_lower_copy(value);
-    for (const auto& pattern : patterns) {
-        const auto start = lower.find(pattern.prefix);
-        if (start == std::string::npos) {
-            continue;
-        }
-        const std::size_t content_start = start + pattern.prefix.size();
-        std::size_t content_end = value.size();
-        if (!pattern.suffix.empty()) {
-            content_end = lower.find(pattern.suffix, content_start);
-            if (content_end == std::string::npos || content_end <= content_start) {
-                continue;
-            }
-        }
-        return value.substr(content_start, content_end - content_start);
-    }
-    return value;
-}
-
-std::string strip_inline_label_artifacts(std::string value, bool category_label) {
-    const auto markers = category_label
-        ? std::array<std::string_view, 8>{
-              ", subcategory",
-              ", sub category",
-              " - subcategory",
-              " - sub category",
-              "; subcategory",
-              "; sub category",
-              " subcategory:",
-              " sub category:"
-          }
-        : std::array<std::string_view, 8>{
-              ", category",
-              ", main category",
-              " - category",
-              " - main category",
-              "; category",
-              "; main category",
-              " category:",
-              " main category:"
-          };
-
-    std::size_t cut = std::string::npos;
-    for (const std::string_view marker : markers) {
-        const auto pos = find_case_insensitive(value, marker);
-        if (pos != std::string::npos && (cut == std::string::npos || pos < cut)) {
-            cut = pos;
-        }
-    }
-    if (cut != std::string::npos) {
-        value.resize(cut);
-    }
-
-    return trim_copy(std::move(value));
-}
-
-std::string normalize_candidate_label(std::string value, bool category_label) {
-    value = strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(std::move(value))));
-    if (value.empty()) {
-        return value;
-    }
-    if (category_label) {
-        value = extract_category_phrase(std::move(value));
-    }
-    value = strip_explanatory_suffix(std::move(value));
-    value = strip_trailing_parenthetical_gloss(std::move(value));
-    value = strip_inline_label_artifacts(std::move(value), category_label);
-    return strip_wrapping_punctuation(collapse_spaces_copy(std::move(value)));
-}
-
-std::string to_lower_copy(std::string value) {
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return value;
-}
-
-bool has_alpha(std::string_view value) {
-    return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
-    });
-}
-
-bool is_heading_like_label(const std::string& value) {
-    const std::string lower = to_lower_copy(strip_wrapping_punctuation(collapse_spaces_copy(trim_copy(value))));
-    static const std::array<std::string_view, 16> exact_matches = {
-        "category",
-        "main category",
-        "subcategory",
-        "sub category",
-        "categorization",
-        "classification",
-        "result",
-        "answer",
-        "note",
-        "warning",
-        "disclaimer",
-        "reason",
-        "explanation",
-        "full path",
-        "file name",
-        "directory name"
-    };
-    for (const std::string_view candidate : exact_matches) {
-        if (lower == candidate) {
-            return true;
-        }
-    }
-    return case_insensitive_contains(lower, "categorization") ||
-           case_insensitive_contains(lower, "classification");
-}
-
-std::vector<std::string> split_segments(const std::string& line, std::string_view delimiter) {
-    std::vector<std::string> segments;
-    std::size_t start = 0;
-    while (start <= line.size()) {
-        const auto pos = line.find(delimiter, start);
-        const std::string segment = trim_copy(line.substr(start, pos == std::string::npos ? pos : pos - start));
-        if (!segment.empty()) {
-            segments.push_back(segment);
-        }
-        if (pos == std::string::npos) {
-            break;
-        }
-        start = pos + delimiter.size();
-    }
-    return segments;
-}
-
-std::optional<std::pair<std::string, std::string>> extract_inline_pair_from_line(const std::string& line) {
-    for (std::string_view delimiter : {std::string_view(" : "), std::string_view(":")}) {
-        const auto segments = split_segments(line, delimiter);
-        if (segments.size() < 2) {
-            continue;
-        }
-
-        for (std::size_t idx = segments.size() - 1; idx > 0; --idx) {
-            const std::string left = normalize_candidate_label(segments[idx - 1], true);
-            const std::string right = normalize_candidate_label(segments[idx], false);
-            if (left.size() < 2 || right.empty()) {
-                continue;
-            }
-            if (!has_alpha(left) || !has_alpha(right)) {
-                continue;
-            }
-            if (is_heading_like_label(left)) {
-                continue;
-            }
-            return std::make_pair(left, right);
-        }
-    }
-    return std::nullopt;
-}
-
-std::optional<std::string> extract_labeled_value(const std::string& line,
-                                                 std::initializer_list<std::string_view> labels,
-                                                 bool category_label) {
-    const auto colon = line.find(':');
-    if (colon == std::string::npos) {
-        return std::nullopt;
-    }
-
-    const std::string key = to_lower_copy(trim_copy(line.substr(0, colon)));
-    for (const std::string_view label : labels) {
-        if (key == label) {
-            const std::string value = normalize_candidate_label(line.substr(colon + 1), category_label);
-            if (!value.empty()) {
-                return value;
-            }
-            break;
-        }
-    }
-    return std::nullopt;
-}
-
-std::string strip_code_fence(std::string output) {
-    output = trim_copy(std::move(output));
-    if (output.rfind("```", 0) != 0) {
-        return output;
-    }
-
-    const auto first_newline = output.find('\n');
-    if (first_newline == std::string::npos) {
-        return output;
-    }
-
-    const auto last_fence = output.rfind("\n```");
-    if (last_fence == std::string::npos || last_fence <= first_newline) {
-        return output;
-    }
-
-    return trim_copy(output.substr(first_newline + 1, last_fence - first_newline - 1));
-}
-
-std::string sanitize_categorization_output(std::string output) {
-    output = strip_code_fence(std::move(output));
-    if (output.empty()) {
-        return output;
-    }
-
-    std::vector<std::string> lines;
-    std::istringstream input(output);
-    for (std::string line; std::getline(input, line); ) {
-        line = trim_copy(std::move(line));
-        if (!line.empty()) {
-            lines.push_back(std::move(line));
-        }
-    }
-
-    if (lines.empty()) {
-        return output;
-    }
-
-    std::string category;
-    std::string subcategory;
-    for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
-        if (subcategory.empty()) {
-            if (auto value = extract_labeled_value(*it, {"subcategory", "sub category"}, false)) {
-                subcategory = std::move(*value);
-            }
-        }
-        if (category.empty()) {
-            if (auto value = extract_labeled_value(*it, {"category", "main category"}, true)) {
-                category = std::move(*value);
-            }
-        }
-        if (!category.empty() && !subcategory.empty()) {
-            return category + " : " + subcategory;
-        }
-    }
-
-    for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
-        if (auto pair = extract_inline_pair_from_line(*it)) {
-            return pair->first + " : " + pair->second;
-        }
-    }
-
-    if (!category.empty()) {
-        return category;
-    }
-
-    return output;
-}
-
-constexpr std::string_view kImageDescriptionMarker = "\nImage description: ";
-constexpr std::string_view kDocumentSummaryMarker = "\nDocument summary: ";
-
-bool has_marker(std::string_view text, std::string_view marker) {
-    return text.find(marker) != std::string_view::npos;
-}
-
-std::pair<std::string, std::string> split_prompt_payload(std::string_view payload,
-                                                         std::string_view marker) {
-    const auto marker_pos = payload.find(marker);
-    if (marker_pos == std::string_view::npos) {
-        return {std::string(payload), std::string()};
-    }
-
-    const std::size_t content_pos = marker_pos + marker.size();
-    std::string base = trim_copy(std::string(payload.substr(0, marker_pos)));
-    std::string content = trim_copy(std::string(payload.substr(content_pos)));
-    return {std::move(base), std::move(content)};
-}
-
-std::string strip_guidance_block(std::string context,
-                                 std::string_view header) {
-    const auto header_pos = context.find(header);
-    if (header_pos == std::string::npos) {
-        return trim_copy(std::move(context));
-    }
-
-    std::size_t erase_begin = header_pos;
-    if (erase_begin >= 2 && context.substr(erase_begin - 2, 2) == "\n\n") {
-        erase_begin -= 2;
-    }
-
-    std::size_t erase_end = context.find("\n\n", header_pos + header.size());
-    if (erase_end == std::string::npos) {
-        erase_end = context.size();
-    }
-
-    context.erase(erase_begin, erase_end - erase_begin);
-    return trim_copy(std::move(context));
-}
-
-std::string strip_image_guidance_block(std::string context) {
-    constexpr std::string_view kImageGuidanceHeader = "Image categorization guidance:\n";
-    return strip_guidance_block(std::move(context), kImageGuidanceHeader);
-}
-
-std::string extract_prompt_file_name(std::string_view payload)
-{
-    const auto newline = payload.find('\n');
-    const std::string first_line = trim_copy(std::string(payload.substr(0, newline)));
-    const auto slash = first_line.find_last_of("/\\");
-    if (slash == std::string::npos || slash + 1 >= first_line.size()) {
-        return first_line;
-    }
-    return first_line.substr(slash + 1);
-}
-
-std::string generic_file_categorization_system_prompt() {
-    return "You are a file categorization assistant. If the file is an installer, "
-           "determine the type of software it installs. Base your answer on the "
-           "filename, extension, and any directory context provided. If the prompt "
-           "includes an 'Allowed main categories' list, choose the main category "
-           "from that list only. Use Other only when it is listed and none of the "
-           "other listed main categories clearly fits. Reply with exactly one line "
-           "in the format <Main category> : <Subcategory>. Main category must be "
-           "broad (one or two words, plural). Subcategory must be specific, "
-           "relevant, and must not repeat the main category. Do not explain your "
-           "answer, add extra lines, or use label words like 'Category' or "
-           "'Subcategory'. If uncertain, make your best guess from the name only.";
-}
-
-std::string document_categorization_system_prompt() {
-    return "You are a document categorization assistant. Categorize the document by "
-           "its subject matter and content for filesystem organization, not merely "
-           "by its file extension or the application that may have created it. Use "
-           "any provided document summary as the primary evidence when available, "
-           "and use the filename, extension, and directory context only as "
-           "supporting clues. If the prompt includes an 'Allowed main categories' "
-           "list, choose the main category from that list only. Otherwise keep the "
-           "main category broad and filesystem-friendly, and use the subcategory "
-           "for the specific topic. Reply with exactly one line in the format "
-           "<Main category> : <Subcategory>. Main category must be broad (one or "
-           "two words, plural). Subcategory must be specific, relevant, and must "
-           "not repeat the main category. Do not explain your answer, add extra "
-           "lines, or use label words like 'Category' or 'Subcategory'.";
-}
-
-std::string image_categorization_system_prompt() {
-    return "You categorize image files for filesystem organization. If the prompt "
-           "includes an 'Allowed main categories' list, choose the main category "
-           "from that list only. Otherwise, because the input is an image file, "
-           "always use Images as the main category. The subcategory should "
-           "describe what the image shows in concise plural form when possible. For "
-           "screenshots and UI captures, classify the on-screen content as an image "
-           "subtype such as Dashboards, Forms, Product Pages, Interfaces, File "
-           "Managers, Admin Panels, Charts, or similar. Do not use Software, "
-           "Operating Systems, Databases, Installers, Technology, or similar domain "
-           "categories as the main category for ordinary image files. Use any "
-           "provided image description as the primary evidence, and use the "
-           "filename, extension, and directory context only as supporting clues. "
-           "Reply with exactly one line in the format Images : <Subcategory>. The "
-           "subcategory must be specific, relevant, concise, and must not repeat "
-           "Images. Do not explain your answer, add extra lines, or use label words "
-           "like 'Category' or 'Subcategory'.";
-}
-
-std::string directory_categorization_system_prompt() {
-    return "You are a directory categorization assistant. Categorize the directory "
-           "by the overall theme suggested by its name and path context. If the "
-           "prompt includes an 'Allowed main categories' list, choose the main "
-           "category from that list only. Reply with exactly one line in the format "
-           "<Main category> : <Subcategory>. Main category must be broad (one or "
-           "two words, plural). Subcategory must be specific, relevant, and must "
-           "not repeat the main category. Do not explain your answer, add extra "
-           "lines, or use label words like 'Category' or 'Subcategory'.";
-}
-
-std::string categorization_system_prompt(std::string_view file_path, FileType file_type) {
-    if (file_type == FileType::Directory) {
-        return directory_categorization_system_prompt();
-    }
-    if (has_marker(file_path, kImageDescriptionMarker)) {
-        return image_categorization_system_prompt();
-    }
-    if (FileCategoryPolicy::is_supported_document_file_name(extract_prompt_file_name(file_path))) {
-        return document_categorization_system_prompt();
-    }
-    return generic_file_categorization_system_prompt();
-}
-
-std::string build_generic_categorization_user_prompt(const std::string& file_name,
-                                                     const std::string& file_path,
-                                                     FileType file_type,
-                                                     const std::string& consistency_context) {
-    std::ostringstream prompt;
-    prompt << (file_type == FileType::File ? "Categorize this file.\n" : "Categorize this directory.\n");
-    if (!file_path.empty()) {
-        prompt << "Full path: " << file_path << "\n";
-    }
-    prompt << (file_type == FileType::File ? "File name: " : "Directory name: ")
-           << file_name << "\n";
-
-    if (!consistency_context.empty()) {
-        prompt << "\n" << consistency_context << "\n";
-    }
-
-    prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
-    return prompt.str();
-}
-
-std::string build_image_categorization_user_prompt(const std::string& file_name,
-                                                   const std::string& file_path,
-                                                   const std::string& consistency_context) {
-    const auto [base_path, image_description] = split_prompt_payload(file_path, kImageDescriptionMarker);
-    const std::string extra_context = strip_image_guidance_block(consistency_context);
-
-    std::ostringstream prompt;
-    prompt << "Categorize this image file for file organization.\n\n";
-    prompt << "File name: " << file_name << "\n";
-    if (!base_path.empty()) {
-        prompt << "Path: " << base_path << "\n";
-    }
-    if (!image_description.empty()) {
-        prompt << "Image description: " << image_description << "\n";
-    }
-    if (!extra_context.empty()) {
-        prompt << "\n" << extra_context << "\n";
-    }
-    prompt << "\nAnswer with exactly one line:\nImages : <Subcategory>";
-    return prompt.str();
-}
-
-std::string build_document_categorization_user_prompt(const std::string& file_name,
-                                                      const std::string& file_path,
-                                                      const std::string& consistency_context) {
-    const auto [base_path, document_summary] = split_prompt_payload(file_path, kDocumentSummaryMarker);
-
-    std::ostringstream prompt;
-    prompt << "Categorize this document file for file organization.\n\n";
-    prompt << "File name: " << file_name << "\n";
-    if (!base_path.empty()) {
-        prompt << "Path: " << base_path << "\n";
-    }
-    if (!document_summary.empty()) {
-        prompt << "Document summary: " << document_summary << "\n";
-    }
-    if (!consistency_context.empty()) {
-        prompt << "\n" << consistency_context << "\n";
-    }
-    prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
-    return prompt.str();
-}
-
-std::string categorization_user_prompt(const std::string& file_name,
-                                       const std::string& file_path,
-                                       FileType file_type,
-                                       const std::string& consistency_context) {
-    if (file_type == FileType::File && has_marker(file_path, kImageDescriptionMarker)) {
-        return build_image_categorization_user_prompt(file_name, file_path, consistency_context);
-    }
-    if (file_type == FileType::File &&
-        FileCategoryPolicy::is_supported_document_file_name(file_name)) {
-        return build_document_categorization_user_prompt(file_name, file_path, consistency_context);
-    }
-    return build_generic_categorization_user_prompt(file_name,
-                                                    file_path,
-                                                    file_type,
-                                                    consistency_context);
-}
-
-int prompt_token_budget(int context_tokens, int max_tokens) {
-    if (context_tokens <= 0) {
-        return 0;
-    }
-    const int generation_reserve = std::max(32, max_tokens);
-    return std::max(1, context_tokens - generation_reserve);
-}
-
-std::string truncate_with_ellipsis(std::string value, std::size_t limit) {
-    if (value.size() <= limit) {
-        return value;
-    }
-    if (limit <= 3) {
-        value.resize(limit);
-        return value;
-    }
-    value.resize(limit - 3);
-    value += "...";
-    return value;
-}
-
-std::string shrink_user_prompt_for_context(const std::string& prompt, int attempt) {
-    static const std::array<std::size_t, 4> kSummaryBudgets = {1200, 800, 500, 300};
-    static const std::array<std::size_t, 4> kPromptBudgets = {1800, 1400, 1000, 700};
-
-    auto trim_labeled_section = [&](std::string text, std::string_view marker) {
-        const auto marker_pos = text.find(marker);
-        if (marker_pos == std::string::npos) {
-            return text;
-        }
-
-        std::size_t suffix_start = std::string::npos;
-        constexpr std::array<std::string_view, 8> kSectionMarkers = {
-            "\nFile name:",
-            "\nDirectory name:",
-            "\nPath:",
-            "\nAllowed main categories",
-            "\nAllowed subcategories",
-            "\nDetermine the canonical main category and subcategory",
-            "\nRecent assignments for similar items:",
-            "\nAnswer with exactly one line:"
-        };
-        for (const std::string_view section_marker : kSectionMarkers) {
-            const auto section_pos = text.find(section_marker, marker_pos + 1);
-            if (section_pos != std::string::npos) {
-                suffix_start = suffix_start == std::string::npos
-                    ? section_pos
-                    : std::min(suffix_start, section_pos);
-            }
-        }
-        if (suffix_start == std::string::npos) {
-            suffix_start = text.size();
-        }
-
-        const std::size_t section_start = marker_pos + marker.size();
-        const std::size_t section_length = suffix_start > section_start ? suffix_start - section_start : 0;
-        const std::size_t budget = kSummaryBudgets[std::min<std::size_t>(
-            static_cast<std::size_t>(attempt),
-            kSummaryBudgets.size() - 1)];
-        if (section_length <= budget) {
-            return text;
-        }
-
-        const std::string prefix = text.substr(0, section_start);
-        const std::string section = truncate_with_ellipsis(text.substr(section_start, section_length), budget);
-        const std::string suffix = text.substr(suffix_start);
-        return prefix + section + suffix;
-    };
-
-    std::string trimmed = prompt;
-    trimmed = trim_labeled_section(std::move(trimmed), "\nDocument summary: ");
-    trimmed = trim_labeled_section(std::move(trimmed), "\nImage description: ");
-
-    const std::size_t budget = kPromptBudgets[std::min<std::size_t>(
-        static_cast<std::size_t>(attempt),
-        kPromptBudgets.size() - 1)];
-    if (trimmed.size() > budget) {
-        return truncate_with_ellipsis(trimmed, budget);
-    }
-
-    return trimmed;
-}
-
 bool is_probably_integrated_gpu(ggml_backend_dev_t device,
                                 enum ggml_backend_dev_type type) {
 #if defined(AI_FILE_SORTER_GGML_HAS_IGPU_ENUM)
@@ -1025,22 +345,7 @@ bool is_probably_integrated_gpu(ggml_backend_dev_t device,
 }
 
 void load_ggml_backends_once(const std::shared_ptr<spdlog::logger>& logger) {
-    static bool loaded = false;
-    if (loaded) {
-        return;
-    }
-
-    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-    if (ggml_dir && ggml_dir[0] != '\0') {
-        if (logger) {
-            logger->info("Loading ggml backends from '{}'", ggml_dir);
-        }
-        ggml_backend_load_all_from_path(ggml_dir);
-    } else {
-        ggml_backend_load_all();
-    }
-
-    loaded = true;
+    GgmlRuntimePaths::ensure_ggml_backends_loaded(logger);
 }
 
 using BackendMemoryInfo = TestHooks::BackendMemoryInfo;
@@ -1433,7 +738,7 @@ std::string run_generation_loop(llama_context* ctx,
         ctx_n_batch = ctx_n_ctx;
     }
 
-    const int prompt_budget = prompt_token_budget(ctx_n_ctx, max_tokens);
+    const int prompt_budget = LocalLLMPromptBuilder::prompt_token_budget(ctx_n_ctx, max_tokens);
     if (prompt_budget > 0 && n_prompt > prompt_budget) {
         const int overflow = n_prompt - prompt_budget;
         if (overflow > 0 && overflow < n_prompt) {
@@ -1942,6 +1247,7 @@ bool apply_cpu_backend(llama_model_params& params,
 }
 
 Utils::CudaMemoryInfo cap_integrated_gpu_memory(const BackendMemoryInfo& backend_memory,
+                                                std::string_view backend_label,
                                                 const std::shared_ptr<spdlog::logger>& logger)
 {
     Utils::CudaMemoryInfo adjusted = backend_memory.memory;
@@ -1953,8 +1259,10 @@ Utils::CudaMemoryInfo cap_integrated_gpu_memory(const BackendMemoryInfo& backend
     adjusted.total_bytes = std::min(adjusted.total_bytes, kIntegratedGpuMemoryCapBytes);
     if (logger) {
         const double to_mib = kBytesPerMiB;
-        logger->info("Vulkan device reported as integrated GPU; capping usable memory to {:.1f} MiB",
-                     kIntegratedGpuMemoryCapBytes / to_mib);
+        logger->info(
+            "{} device reported as integrated GPU; capping usable memory to {:.1f} MiB",
+            backend_label.empty() ? "GPU" : backend_label,
+            kIntegratedGpuMemoryCapBytes / to_mib);
     }
     return adjusted;
 }
@@ -1978,7 +1286,8 @@ bool apply_vulkan_override(const std::string& model_path,
         return true;
     }
 
-    Utils::CudaMemoryInfo adjusted_memory = cap_integrated_gpu_memory(backend_memory, logger);
+    Utils::CudaMemoryInfo adjusted_memory =
+        cap_integrated_gpu_memory(backend_memory, "Vulkan", logger);
     const AutoGpuLayerEstimation estimation =
         estimate_gpu_layers_for_cuda(model_path, adjusted_memory);
     if (override_exceeds_available_gpu_memory(override_layers, estimation)) {
@@ -2114,7 +1423,8 @@ bool apply_vulkan_backend(const std::string& model_path,
         return false;
     }
 
-    Utils::CudaMemoryInfo adjusted = cap_integrated_gpu_memory(*vk_memory, logger);
+    Utils::CudaMemoryInfo adjusted =
+        cap_integrated_gpu_memory(*vk_memory, "Vulkan", logger);
     const auto estimation = estimate_gpu_layers_for_cuda(model_path, adjusted);
     finalize_vulkan_layers(estimation, adjusted, params, *vk_memory, logger, preflight_status);
     return true;
@@ -2171,7 +1481,7 @@ void disable_cuda_backend(llama_model_params& params,
 bool ensure_cuda_available(llama_model_params& params,
                            const std::shared_ptr<spdlog::logger>& logger)
 {
-    if (Utils::is_cuda_available()) {
+    if (resolve_backend_available("CUDA")) {
         return true;
     }
     disable_cuda_backend(params, logger, "CUDA backend unavailable; using CPU backend");
@@ -2181,6 +1491,7 @@ bool ensure_cuda_available(llama_model_params& params,
 
 bool apply_ngl_override(int override_layers,
                         const std::string& model_path,
+                        const std::optional<BackendMemoryInfo>& backend_memory,
                         llama_model_params& params,
                         const std::shared_ptr<spdlog::logger>& logger,
                         std::optional<LocalLLMClient::Status>* preflight_status)
@@ -2197,9 +1508,11 @@ bool apply_ngl_override(int override_layers,
         return true;
     }
 
-    if (const auto cuda_info = Utils::query_cuda_memory()) {
+    if (backend_memory.has_value()) {
+        Utils::CudaMemoryInfo adjusted_memory =
+            cap_integrated_gpu_memory(*backend_memory, "CUDA", logger);
         const AutoGpuLayerEstimation estimation =
-            estimate_gpu_layers_for_cuda(model_path, *cuda_info);
+            estimate_gpu_layers_for_cuda(model_path, adjusted_memory);
         if (override_exceeds_available_gpu_memory(override_layers, estimation)) {
             disable_cuda_backend(
                 params,
@@ -2215,8 +1528,14 @@ bool apply_ngl_override(int override_layers,
 
     params.n_gpu_layers = override_layers;
     if (logger) {
-        logger->info("Using explicit CUDA n_gpu_layers override {}",
-                     gpu_layers_to_string(override_layers));
+        if (backend_memory.has_value()) {
+            logger->info("Using explicit CUDA n_gpu_layers override {}",
+                         gpu_layers_to_string(override_layers));
+        } else {
+            logger->info(
+                "Using explicit CUDA n_gpu_layers override {} without memory preflight (metrics unavailable).",
+                gpu_layers_to_string(override_layers));
+        }
     }
     std::cout << "ngl override: " << params.n_gpu_layers << std::endl;
     return true;
@@ -2284,23 +1603,25 @@ std::vector<int> build_gpu_layer_retry_candidates(int optimistic_layers,
     return candidates;
 }
 
-NglEstimationResult estimate_ngl_from_cuda_info(const std::string& model_path,
-                                               const std::shared_ptr<spdlog::logger>& logger)
+NglEstimationResult estimate_ngl_from_cuda_info(
+    const std::string& model_path,
+    const std::optional<BackendMemoryInfo>& backend_memory,
+    const std::shared_ptr<spdlog::logger>& logger)
 {
     NglEstimationResult result;
     AutoGpuLayerEstimation estimation{};
-    std::optional<Utils::CudaMemoryInfo> cuda_info = Utils::query_cuda_memory();
-
-    if (!cuda_info.has_value()) {
+    if (!backend_memory.has_value()) {
         if (logger) {
-            logger->warn("Unable to query CUDA memory information, falling back to heuristic");
+            logger->warn("CUDA backend memory metrics unavailable; using CPU fallback.");
         }
         return result;
     }
 
-    estimation = estimate_gpu_layers_for_cuda(model_path, *cuda_info);
+    Utils::CudaMemoryInfo adjusted_memory =
+        cap_integrated_gpu_memory(*backend_memory, "CUDA", logger);
+    estimation = estimate_gpu_layers_for_cuda(model_path, adjusted_memory);
     result.estimator_layers = std::max(estimation.layers, 0);
-    result.heuristic_layers = Utils::compute_ngl_from_cuda_memory(*cuda_info);
+    result.heuristic_layers = Utils::compute_ngl_from_cuda_memory(adjusted_memory);
 
     int candidate_layers = estimation.layers > 0 ? estimation.layers : 0;
     if (estimation.insufficient_memory) {
@@ -2317,10 +1638,13 @@ NglEstimationResult estimate_ngl_from_cuda_info(const std::string& model_path,
                          estimation.layers, candidate_layers);
         }
         const double to_mib = kBytesPerMiB;
+        const char* device_label = backend_memory->name.empty() ? "CUDA device"
+                                                                : backend_memory->name.c_str();
         logger->info(
-            "CUDA device total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
-            cuda_info->total_bytes / to_mib,
-            cuda_info->free_bytes / to_mib,
+            "{} total {:.1f} MiB, free {:.1f} MiB -> estimator={}, heuristic={}, chosen={} ({})",
+            device_label,
+            adjusted_memory.total_bytes / to_mib,
+            adjusted_memory.free_bytes / to_mib,
             gpu_layers_to_string(estimation.layers),
             gpu_layers_to_string(result.heuristic_layers),
             gpu_layers_to_string(candidate_layers),
@@ -2336,27 +1660,16 @@ std::vector<int> build_model_load_retry_candidates(const std::string& model_path
     int conservative_layers = optimistic_layers;
     const PreferredBackend backend = detect_preferred_backend();
     if (backend != PreferredBackend::Cpu && backend != PreferredBackend::Vulkan) {
-        const NglEstimationResult estimation = estimate_ngl_from_cuda_info(model_path, nullptr);
+        const NglEstimationResult estimation = estimate_ngl_from_cuda_info(
+            model_path,
+            resolve_backend_memory("cuda"),
+            nullptr);
         conservative_layers = conservative_retry_layers(estimation.estimator_layers,
                                                         estimation.heuristic_layers,
                                                         optimistic_layers);
     }
 
     return build_gpu_layer_retry_candidates(optimistic_layers, conservative_layers);
-}
-
-int fallback_ngl(int heuristic_layers, const std::shared_ptr<spdlog::logger>& logger)
-{
-    if (heuristic_layers > 0) {
-        return heuristic_layers;
-    }
-
-    const int fallback = Utils::determine_ngl_cuda();
-    if (fallback > 0 && logger) {
-        logger->info("Using heuristic CUDA fallback -> n_gpu_layers={}",
-                     gpu_layers_to_string(fallback));
-    }
-    return fallback;
 }
 
 bool configure_cuda_backend(const std::string& model_path,
@@ -2367,17 +1680,28 @@ bool configure_cuda_backend(const std::string& model_path,
         return false;
     }
 
+    const auto cuda_memory = resolve_backend_memory("cuda");
     const int override_layers = resolve_gpu_layer_override();
-    if (apply_ngl_override(override_layers, model_path, params, logger, preflight_status)) {
+    if (apply_ngl_override(override_layers,
+                           model_path,
+                           cuda_memory,
+                           params,
+                           logger,
+                           preflight_status)) {
         return true;
     }
 
-    const NglEstimationResult estimation = estimate_ngl_from_cuda_info(model_path, logger);
-    int ngl = estimation.candidate_layers;
-    if (ngl <= 0 && !estimation.low_memory) {
-        ngl = fallback_ngl(estimation.heuristic_layers, logger);
+    if (!cuda_memory.has_value()) {
+        disable_cuda_backend(params,
+                             logger,
+                             "CUDA backend memory metrics unavailable; using CPU backend");
+        std::cout << "CUDA memory metrics unavailable, falling back to CPU.\n";
+        return true;
     }
 
+    const NglEstimationResult estimation =
+        estimate_ngl_from_cuda_info(model_path, cuda_memory, logger);
+    const int ngl = estimation.candidate_layers;
     if (ngl > 0) {
         params.n_gpu_layers = ngl;
         std::cout << "ngl: " << params.n_gpu_layers << std::endl;
@@ -2430,8 +1754,10 @@ bool llama_logs_enabled_from_env()
 }
 
 LocalLLMClient::LocalLLMClient(const std::string& model_path,
-                               FallbackDecisionCallback fallback_decision_callback)
+                               FallbackDecisionCallback fallback_decision_callback,
+                               Options options)
     : model_path(model_path),
+      options_(options),
       fallback_decision_callback_(std::move(fallback_decision_callback)),
       original_gpu_backend_env_(read_env_value("AI_FILE_SORTER_GPU_BACKEND")),
       original_llama_arg_device_env_(read_env_value("LLAMA_ARG_DEVICE")),
@@ -2442,6 +1768,15 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path,
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
         logger->info("Initializing local LLM client with model '{}'", model_path);
+    }
+
+    if (options_.force_cpu_backend) {
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+        set_env_var("LLAMA_ARG_DEVICE", "cpu");
+        set_env_var("GGML_DISABLE_CUDA", "1");
+        if (logger) {
+            logger->info("Forcing this local LLM client to use CPU backend.");
+        }
     }
 
     configure_llama_logging(logger);
@@ -2644,19 +1979,20 @@ std::vector<int> gpu_layer_retry_candidates_for_testing(int optimistic_layers,
 namespace LocalLLMTestAccess {
 
 std::string categorization_system_prompt_for_testing(const std::string& file_path,
-                                                     FileType file_type) {
-    return categorization_system_prompt(file_path, file_type);
+                                                     FileType file_type,
+                                                     std::string_view consistency_context) {
+    return LocalLLMPromptBuilder::build_system_prompt(file_path, file_type, consistency_context);
 }
 
 std::string categorization_user_prompt_for_testing(const std::string& file_name,
                                                    const std::string& file_path,
                                                    FileType file_type,
                                                    const std::string& consistency_context) {
-    return categorization_user_prompt(file_name, file_path, file_type, consistency_context);
+    return LocalLLMPromptBuilder::build_user_prompt(file_name, file_path, file_type, consistency_context);
 }
 
 std::string sanitize_output_for_testing(const std::string& output) {
-    return sanitize_categorization_output(output);
+    return LocalLLMResponseSanitizer::sanitize_categorization_output(output);
 }
 
 } // namespace LocalLLMTestAccess
@@ -2761,7 +2097,7 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
                                         FileType file_type,
                                         const std::string& consistency_context)
 {
-    return categorization_user_prompt(file_name, file_path, file_type, consistency_context);
+    return LocalLLMPromptBuilder::build_user_prompt(file_name, file_path, file_type, consistency_context);
 }
 
 
@@ -2916,7 +2252,8 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
             int n_prompt = 0;
             std::string working_prompt = prompt;
             std::string final_prompt;
-            const int context_budget = prompt_token_budget(static_cast<int>(resolved_params.n_ctx), n_predict);
+            const int context_budget =
+                LocalLLMPromptBuilder::prompt_token_budget(static_cast<int>(resolved_params.n_ctx), n_predict);
             for (int shrink_attempt = 0;; ++shrink_attempt) {
                 if (!format_prompt(model, system_prompt, working_prompt, final_prompt)) {
                     if (logger) {
@@ -2937,7 +2274,8 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
                     break;
                 }
 
-                const std::string trimmed_prompt = shrink_user_prompt_for_context(working_prompt, shrink_attempt);
+                const std::string trimmed_prompt =
+                    LocalLLMPromptBuilder::shrink_user_prompt_for_context(working_prompt, shrink_attempt);
                 if (trimmed_prompt == working_prompt) {
                     if (logger) {
                         logger->warn("Prompt tokens ({}) still exceed prompt budget ({}); proceeding with token truncation",
@@ -3042,7 +2380,8 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
         }
     }
     std::string prompt = make_prompt(file_name, file_path, file_type, consistency_context);
-    const std::string system_prompt = categorization_system_prompt(file_path, file_type);
+    const std::string system_prompt =
+        LocalLLMPromptBuilder::build_system_prompt(file_path, file_type, consistency_context);
     if (prompt_logging_enabled) {
         std::cout << "\n[DEV][PROMPT] Categorization request\n"
                   << "[system]\n" << system_prompt << "\n"
@@ -3073,7 +2412,7 @@ std::string LocalLLMClient::complete_prompt(const std::string& prompt,
 
 
 std::string LocalLLMClient::sanitize_output(const std::string& output) {
-    return sanitize_categorization_output(output);
+    return LocalLLMResponseSanitizer::sanitize_categorization_output(output);
 }
 
 

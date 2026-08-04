@@ -89,6 +89,7 @@ WhitelistTestFixtures::Preset WhitelistTestFixtures::large_whitelist_preset()
         "Test - Large Whitelist LLM",
         make_large_category_sample(),
         {},
+        {},
         make_sample_files()
     };
 }

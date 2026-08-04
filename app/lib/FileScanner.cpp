@@ -25,6 +25,7 @@ struct FileScanner::ScanContext {
     bool include_directories{false};
     bool include_hidden{false};
     FileScannerBehavior behavior;
+    ProtectedProjectDetector protected_project_detector;
     std::shared_ptr<spdlog::logger> logger;
 };
 
@@ -50,6 +51,11 @@ FileScanner::get_directory_entries(const std::string &directory_path,
 
     try {
         const fs::path scan_path = Utils::utf8_to_path(directory_path);
+        if (const auto match = strong_protected_project_match(scan_path, context)) {
+            log_protected_project_skip(context, *match);
+            return file_paths_and_names;
+        }
+
         if (!recursive) {
             scan_non_recursive(scan_path, context, file_paths_and_names);
         } else {
@@ -166,6 +172,19 @@ void FileScanner::log_scan_warning(const ScanContext& context,
         return;
     }
     context.logger->warn("{} '{}': {}", action, Utils::path_to_utf8(path), error.message());
+}
+
+void FileScanner::log_protected_project_skip(const ScanContext& context,
+                                             const ProtectedProjectMatch& match) const
+{
+    if (!context.logger) {
+        return;
+    }
+
+    context.logger->info("Skipping protected {} at '{}': {}",
+                         match.name,
+                         Utils::path_to_utf8(match.root),
+                         match.reason);
 }
 
 
@@ -290,6 +309,11 @@ bool FileScanner::should_skip_entry(const fs::directory_entry& entry,
         return true;
     }
 
+    if (const auto match = strong_protected_project_match(entry_path, context)) {
+        log_protected_project_skip(context, *match);
+        return true;
+    }
+
     return false;
 }
 
@@ -316,4 +340,19 @@ std::optional<FileType> FileScanner::classify_entry(const fs::directory_entry& e
     }
 
     return std::nullopt;
+}
+
+std::optional<ProtectedProjectMatch> FileScanner::strong_protected_project_match(
+    const fs::path& path,
+    const ScanContext& context) const
+{
+    if (!context.behavior.protect_project_directories) {
+        return std::nullopt;
+    }
+
+    const auto match = context.protected_project_detector.detect(path);
+    if (!match || !ProtectedProjectDetector::should_skip(*match)) {
+        return std::nullopt;
+    }
+    return match;
 }

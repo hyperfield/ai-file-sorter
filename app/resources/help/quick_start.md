@@ -1,18 +1,31 @@
 # Quick Start Guide
 
-AI File Sorter helps you organize files after your review and approval.
+AI File Sorter helps you organize files with a review-first workflow and optional auto-approval for changes you choose to trust.
 
-The AI drives the analysis and suggests categories, subcategories, and names. It does not directly touch your files. The app performs any moves or renames only after you confirm the reviewed changes.
+The AI drives the analysis and suggests categories, subcategories, and names. It does not directly touch your files. The app performs moves or renames after you confirm the reviewed changes, or automatically only when you have enabled the relevant auto-approval setting.
+
+## Safe First Run
+
+If this is your first time using AI File Sorter, start with a small test folder before pointing it at a large archive or drive.
+
+Good first-run folders include:
+
+- a copy of 20-50 files from `Downloads`
+- a small screenshot or photo cleanup folder
+- a temporary folder with a few PDFs or documents
+
+This keeps the first run easy to review. Your files stay on your computer when you use local models, and the AI only suggests categories and names. Leave auto-approval options off for your first run so nothing is moved or renamed until you approve the review list.
 
 ## 1. Choose a Folder
 
-Use **Browse** to pick the folder you want to sort.
+Use **Browse** or the **File Explorer** pane to pick the folder you want to sort.
 
 Typical examples:
 
 - `Downloads`
 - a desktop cleanup folder
 - an external drive folder
+- a network or cloud-synced folder
 - a project archive
 
 ## 2. Pick What the App Should Do
@@ -30,8 +43,7 @@ If you only want rename suggestions, enable the relevant rename-only mode.
 
 Choose the style that best matches your goal:
 
-- **Default** for general use
-- **More categories** if you want finer grouping
+- **More refined** for general use and finer grouping
 - **More consistent** if you want stronger label consistency across similar files
 
 You can also enable category whitelists if you want the app to stay within a narrower set of category names.
@@ -50,12 +62,13 @@ The review dialog lets you inspect:
 - optional subcategories
 - rename suggestions for supported files
 - the final destination paths
+- file previews where supported
 
 You can adjust or reject suggestions before confirming anything.
 
 ## 6. Apply the Changes
 
-Once you confirm, the app creates the required folders and performs the moves or renames.
+Once you confirm, the app creates the required folders and performs the moves or renames. If auto-approval is enabled, eligible category or filename changes can be applied without stopping at the review dialog.
 
 ## 7. Undo the Last Run
 
@@ -74,7 +87,7 @@ The learned examples are stored in a separate local database, so clearing the no
 ## Good to Know
 
 - The app uses a local cache to avoid reprocessing the same files and to improve consistency.
-- The app does not automatically apply changes without showing you the review step first.
+- Auto-approval is optional. Leave it off until you are comfortable with the app's suggestions.
 - Image and document options can be expanded separately if you need more control.
 
 ## If Something Looks Wrong

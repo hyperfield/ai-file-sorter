@@ -37,6 +37,20 @@ public:
     static std::optional<CudaMemoryInfo> query_cuda_memory();
     static int compute_ngl_from_cuda_memory(const CudaMemoryInfo& info);
     template <typename Func> void run_on_main_thread(Func &&func);
+    /**
+     * @brief Set the process-local override for downloaded local LLM storage.
+     * @param path Directory to use; empty clears the override and falls back to defaults.
+     */
+    static void set_llm_storage_directory_override(const std::string& path);
+    /**
+     * @brief Return the process-local local LLM storage override.
+     * @return Override directory, or empty when platform defaults are used.
+     */
+    static std::string get_llm_storage_directory_override();
+    /**
+     * @brief Return the effective directory used for downloaded local LLM files.
+     * @return User override, environment override, or platform-specific default directory.
+     */
     static std::string get_default_llm_destination();
     static std::string get_file_name_from_url(std::string url);
     static std::string make_default_path_to_file_from_download_url(std::string url);

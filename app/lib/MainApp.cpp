@@ -1,5 +1,6 @@
 #include "MainApp.hpp"
 #include "AnalysisCoordinator.hpp"
+#include "AppIconResources.hpp"
 #include "AppInfo.hpp"
 
 #include "CategorizationSession.hpp"
@@ -7,9 +8,11 @@
 #include "CacheMaintenanceService.hpp"
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
+#include "ExplorerExtensionEntitlement.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "GeminiClient.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "LocalFsProvider.hpp"
 #include "LLMSelectionDialog.hpp"
 #include "Logger.hpp"
@@ -21,9 +24,13 @@
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
 #include "Types.hpp"
+#include "WindowsNetworkLocations.hpp"
+#include "WhatsNewContent.hpp"
 #include "CategoryLanguage.hpp"
 #include "CategoryLanguageSupport.hpp"
 #include "MainAppUiBuilder.hpp"
+#include "MenuMnemonicController.hpp"
+#include "ReviewHistoryDialog.hpp"
 #include "SuitabilityBenchmarkDialog.hpp"
 #include "UiTranslator.hpp"
 #include "UpdaterBuildConfig.hpp"
@@ -35,8 +42,11 @@
 #include "WhitelistTestFixtures.hpp"
 #include "ggml-backend.h"
 
+#include <app_version.hpp>
+
 #include <QAction>
 #include <QActionGroup>
+#include <QAccessible>
 #include <QApplication>
 #include <QBoxLayout>
 #include <QCheckBox>
@@ -48,10 +58,12 @@
 #include <QFileDialog>
 #include <QFileSystemModel>
 #include <QFile>
+#include <QFrame>
 #include <QHeaderView>
 #include <QInputDialog>
 #include <QKeySequence>
 #include <QByteArray>
+#include <QDateTime>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -66,6 +78,7 @@
 #include <QStandardItemModel>
 #include <QCoreApplication>
 #include <QStatusBar>
+#include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QSizePolicy>
@@ -76,8 +89,11 @@
 #include <QStyle>
 #include <QEvent>
 #include <QStackedWidget>
+#include <QTextBrowser>
 #include <QThread>
 #include <QTimer>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QtGlobal>
 
 #include <chrono>
@@ -130,6 +146,48 @@ std::string trim_ws_copy(const std::string& value) {
     }
     const auto end = value.find_last_not_of(whitespace);
     return value.substr(start, end - start + 1);
+}
+
+QString strip_mnemonic_markers(const QString& value)
+{
+    QString result;
+    result.reserve(value.size());
+    for (int i = 0; i < value.size(); ++i) {
+        const QChar ch = value.at(i);
+        if (ch != QChar('&')) {
+            result.push_back(ch);
+            continue;
+        }
+        if (i + 1 < value.size() && value.at(i + 1) == QChar('&')) {
+            result.push_back(QChar('&'));
+            ++i;
+        }
+    }
+    return result;
+}
+
+QString file_explorer_panel_style_sheet()
+{
+    return QStringLiteral(R"(
+        QFrame#aifsFileExplorerPanel {
+            background-color: #fbfcfe;
+            border: 1px solid #c8d0d8;
+            border-radius: 6px;
+        }
+        QTreeWidget#aifsNetworkLocationsView,
+        QTreeView#aifsFileExplorerView {
+            background-color: #ffffff;
+            alternate-background-color: #f4f6f8;
+            border: 1px solid #d6dde5;
+            border-radius: 4px;
+            outline: 0;
+        }
+        QTreeWidget#aifsNetworkLocationsView::item:selected,
+        QTreeView#aifsFileExplorerView::item:selected {
+            background-color: #d7e8f7;
+            color: #111827;
+        }
+    )");
 }
 
 QString category_language_sort_key(CategoryLanguage language)
@@ -242,6 +300,38 @@ void schedule_next_support_prompt(Settings& settings, int total_files) {
     settings.save();
 }
 
+std::string current_utc_iso_timestamp()
+{
+    return QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs).toStdString();
+}
+
+bool explorer_extension_prompt_cooldown_elapsed(const Settings& settings)
+{
+    const std::string last_shown = settings.get_windows_explorer_extension_prompt_last_shown_utc();
+    if (last_shown.empty()) {
+        return true;
+    }
+
+    QDateTime parsed = QDateTime::fromString(QString::fromStdString(last_shown), Qt::ISODateWithMs);
+    if (!parsed.isValid()) {
+        parsed = QDateTime::fromString(QString::fromStdString(last_shown), Qt::ISODate);
+    }
+    if (!parsed.isValid()) {
+        return true;
+    }
+    return parsed.toUTC().daysTo(QDateTime::currentDateTimeUtc()) >= 14;
+}
+
+bool paid_explorer_extension_suppresses_support_prompt(Settings& settings) {
+    if (!ExplorerExtensionEntitlement::has_paid_entitlement()) {
+        return false;
+    }
+
+    (void)SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
+        .disable_prompt_for_paid_product("explorer-extension");
+    return true;
+}
+
 void maybe_show_support_prompt(Settings& settings,
                                bool& prompt_active,
                                std::function<MainApp::SupportPromptResult(int)> show_prompt) {
@@ -250,6 +340,9 @@ void maybe_show_support_prompt(Settings& settings,
     }
 
     if (SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir())).is_prompt_permanently_disabled()) {
+        return;
+    }
+    if (paid_explorer_extension_suppresses_support_prompt(settings)) {
         return;
     }
 
@@ -299,6 +392,8 @@ std::string to_utf8(const QString& value)
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
 
+constexpr int kNetworkLocationPathRole = Qt::UserRole + 1;
+
 QString display_name_for_provider_id(const std::string& provider_id)
 {
     if (provider_id == "onedrive") {
@@ -341,18 +436,7 @@ bool case_insensitive_contains(std::string_view haystack, std::string_view needl
 
 void load_status_ggml_backends_once()
 {
-    static bool loaded = false;
-    if (loaded) {
-        return;
-    }
-
-    const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-    if (ggml_dir && *ggml_dir) {
-        ggml_backend_load_all_from_path(ggml_dir);
-    } else {
-        ggml_backend_load_all();
-    }
-    loaded = true;
+    GgmlRuntimePaths::ensure_ggml_backends_loaded(Logger::get_logger("core_logger"));
 }
 
 bool status_backend_available(std::string_view backend_name)
@@ -421,6 +505,12 @@ std::optional<std::string> detect_status_blas_backend_label()
 
 std::string detect_loaded_backend_key()
 {
+    if (const auto reason = GgmlRuntimePaths::sanitize_linux_backend_environment()) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("{}", *reason);
+        }
+    }
+
     const auto read_env = [](const char* name) -> std::string {
         const char* value = std::getenv(name);
         if (!value || !*value) {
@@ -530,6 +620,7 @@ MainApp::MainApp(Settings& settings,
     : QMainWindow(parent),
       settings(settings),
       runtime_data_dir_(resolve_runtime_data_dir(settings, std::move(app_data_dir))),
+      analysis_runtime_lock_(Utils::utf8_to_path(runtime_data_dir_) / "runtime"),
       db_manager(runtime_data_dir_),
       user_learning_store_(runtime_data_dir_),
       core_logger(Logger::get_logger("core_logger")),
@@ -542,13 +633,18 @@ MainApp::MainApp(Settings& settings,
       storage_provider_registry_(),
       active_storage_provider_(std::make_shared<LocalFsProvider>()),
       results_coordinator(*active_storage_provider_),
+      review_history_store_(runtime_data_dir_),
       undo_manager_(runtime_data_dir_ + "/undo", &storage_provider_registry_),
+      progress_controller_(
+          [this](std::function<void()> func) { run_on_ui(std::move(func)); },
+          [this](std::function<void()> func) { run_on_ui_blocking(std::move(func)); }),
       development_mode_(development_mode),
       test_mode_(test_mode),
       development_prompt_logging_enabled_(development_mode ? settings.get_development_prompt_logging() : false),
       main_window_state_binder_(std::make_unique<MainWindowStateBinder>(*this))
 {
     rebuild_storage_provider_registry();
+    progress_controller_.set_show_vision_diagnostics(is_development_mode() || is_test_mode());
     TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
     initialize_whitelists();
 
@@ -556,6 +652,7 @@ MainApp::MainApp(Settings& settings,
 
     MainAppUiBuilder ui_builder;
     ui_builder.build(*this);
+    menu_mnemonic_controller_ = std::make_unique<MenuMnemonicController>(menuBar(), this);
     backend_status_label = new QLabel(this);
     backend_status_label->setObjectName(QStringLiteral("backendStatusLabel"));
     backend_status_label->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Preferred);
@@ -574,6 +671,7 @@ MainApp::MainApp(Settings& settings,
     load_settings();
     refresh_backend_status_label();
     set_app_icon();
+    start_analysis_runtime_lock_polling();
 }
 
 
@@ -583,7 +681,13 @@ MainApp::~MainApp() = default;
 void MainApp::run()
 {
     show();
+    QTimer::singleShot(0, this, [this]() {
+        schedule_backend_status_probe();
+    });
 #if !defined(AI_FILE_SORTER_TEST_BUILD)
+    QTimer::singleShot(0, this, [this]() {
+        maybe_show_whats_new_popup();
+    });
     maybe_show_suitability_benchmark();
 #endif
 }
@@ -591,6 +695,10 @@ void MainApp::run()
 
 void MainApp::shutdown()
 {
+    backend_status_probe_thread_.request_stop();
+    if (analysis_runtime_lock_timer_) {
+        analysis_runtime_lock_timer_->stop();
+    }
     stop_running_analysis();
     save_settings();
 }
@@ -619,7 +727,12 @@ void MainApp::setup_file_system_model()
     }
 
     file_system_model = new QFileSystemModel(file_explorer_dock);
+#if defined(Q_OS_WIN)
+    // Start from the model's top level so the dock can expose every drive.
+    file_system_model->setRootPath(QString());
+#else
     file_system_model->setRootPath(QDir::rootPath());
+#endif
     file_system_model->setFilter(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Drives | QDir::AllDirs);
 }
 
@@ -629,15 +742,46 @@ void MainApp::setup_file_explorer_view()
         return;
     }
 
+#if defined(Q_OS_WIN)
+    auto* explorer_frame = new QFrame(file_explorer_dock);
+    explorer_frame->setObjectName(QStringLiteral("aifsFileExplorerPanel"));
+    explorer_frame->setStyleSheet(file_explorer_panel_style_sheet());
+    file_explorer_container = explorer_frame;
+    auto* explorer_layout = new QVBoxLayout(file_explorer_container);
+    explorer_layout->setContentsMargins(4, 4, 4, 4);
+    explorer_layout->setSpacing(5);
+
+    network_locations_view = new QTreeWidget(file_explorer_container);
+    network_locations_view->setObjectName(QStringLiteral("aifsNetworkLocationsView"));
+    network_locations_view->setHeaderHidden(true);
+    network_locations_view->setColumnCount(1);
+    network_locations_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    network_locations_view->setSelectionMode(QAbstractItemView::SingleSelection);
+    network_locations_view->setExpandsOnDoubleClick(true);
+    network_locations_view->setUniformRowHeights(true);
+    populate_network_locations();
+    explorer_layout->addWidget(network_locations_view, 0);
+#endif
+
+#if defined(Q_OS_WIN)
+    file_explorer_view = new QTreeView(file_explorer_container);
+#else
     file_explorer_view = new QTreeView(file_explorer_dock);
+#endif
+    file_explorer_view->setObjectName(QStringLiteral("aifsFileExplorerView"));
+#if !defined(Q_OS_WIN)
+    file_explorer_view->setStyleSheet(file_explorer_panel_style_sheet());
+#endif
     file_explorer_view->setModel(file_system_model);
-    const QString root_path = file_system_model->rootPath();
-    file_explorer_view->setRootIndex(file_system_model->index(root_path));
+#if defined(Q_OS_WIN)
+    file_explorer_view->setRootIndex(QModelIndex());
+#else
+    file_explorer_view->setRootIndex(file_system_model->index(file_system_model->rootPath()));
+#endif
 
     const QModelIndex home_index = file_system_model->index(QDir::homePath());
     if (home_index.isValid()) {
-        file_explorer_view->setCurrentIndex(home_index);
-        file_explorer_view->scrollTo(home_index);
+        focus_file_explorer_on_path(QDir::homePath());
     }
 
     file_explorer_view->setHeaderHidden(false);
@@ -648,7 +792,12 @@ void MainApp::setup_file_explorer_view()
     file_explorer_view->setColumnHidden(3, true);
     file_explorer_view->setExpandsOnDoubleClick(true);
 
+#if defined(Q_OS_WIN)
+    explorer_layout->addWidget(file_explorer_view, 1);
+    file_explorer_dock->setWidget(file_explorer_container);
+#else
     file_explorer_dock->setWidget(file_explorer_view);
+#endif
 }
 
 void MainApp::connect_file_explorer_signals()
@@ -656,6 +805,23 @@ void MainApp::connect_file_explorer_signals()
     if (!file_explorer_view || !file_explorer_view->selectionModel()) {
         return;
     }
+
+#if defined(Q_OS_WIN)
+    if (network_locations_view) {
+        connect(network_locations_view,
+                &QTreeWidget::currentItemChanged,
+                this,
+                [this](QTreeWidgetItem* current, QTreeWidgetItem*) {
+                    select_network_location(current);
+                });
+        connect(network_locations_view,
+                &QTreeWidget::itemActivated,
+                this,
+                [this](QTreeWidgetItem* item, int) {
+                    select_network_location(item);
+                });
+    }
+#endif
 
     connect(file_explorer_view->selectionModel(), &QItemSelectionModel::currentChanged,
             this, [this](const QModelIndex& current, const QModelIndex&) {
@@ -678,6 +844,105 @@ void MainApp::connect_file_explorer_signals()
             update_results_view_mode();
         });
     }
+}
+
+void MainApp::populate_network_locations()
+{
+#if defined(Q_OS_WIN)
+    if (!network_locations_view) {
+        return;
+    }
+
+    QSignalBlocker blocker(network_locations_view);
+    network_locations_view->clear();
+
+    auto* root = new QTreeWidgetItem(network_locations_view);
+    root->setText(0, tr("Network Locations"));
+    root->setIcon(0, style()->standardIcon(QStyle::SP_DriveNetIcon));
+
+    const std::vector<WindowsNetworkLocation> locations = WindowsNetworkLocations::discover(settings);
+    if (locations.empty()) {
+        auto* placeholder = new QTreeWidgetItem(root);
+        placeholder->setText(0, tr("No network locations found"));
+        placeholder->setFlags(placeholder->flags() & ~Qt::ItemIsEnabled & ~Qt::ItemIsSelectable);
+    } else {
+        for (const WindowsNetworkLocation& location : locations) {
+            const QString label = QString::fromStdString(location.label);
+            const QString path = QString::fromStdString(location.path);
+            auto* item = new QTreeWidgetItem(root);
+            item->setText(0, label);
+            item->setToolTip(0, path);
+            item->setData(0, kNetworkLocationPathRole, path);
+            item->setIcon(0, style()->standardIcon(WindowsNetworkLocations::is_remote_drive_root(location.path)
+                                                       ? QStyle::SP_DriveNetIcon
+                                                       : QStyle::SP_DirIcon));
+        }
+    }
+
+    root->setExpanded(true);
+    network_locations_view->resizeColumnToContents(0);
+
+    const int visible_rows = std::clamp(static_cast<int>(locations.size()) + 1, 2, 7);
+    const int row_height = std::max(network_locations_view->sizeHintForRow(0),
+                                    network_locations_view->fontMetrics().height() + 8);
+    network_locations_view->setMaximumHeight((visible_rows * row_height) +
+                                             (network_locations_view->frameWidth() * 2) + 6);
+#endif
+}
+
+void MainApp::select_network_location(QTreeWidgetItem* item)
+{
+#if defined(Q_OS_WIN)
+    if (!item) {
+        return;
+    }
+
+    const QString path = item->data(0, kNetworkLocationPathRole).toString();
+    if (path.isEmpty()) {
+        return;
+    }
+
+    if (!QDir(path).exists()) {
+        statusBar()->showMessage(tr("Network location unavailable: %1").arg(path), 5000);
+        return;
+    }
+
+    on_directory_selected(path);
+#else
+    Q_UNUSED(item);
+#endif
+}
+
+void MainApp::remember_recent_network_location(const QString& path)
+{
+#if defined(Q_OS_WIN)
+    const QString root = QString::fromStdString(WindowsNetworkLocations::unc_share_root(to_utf8(path)));
+    if (root.isEmpty()) {
+        return;
+    }
+
+    std::vector<std::string> updated;
+    updated.push_back(to_utf8(root));
+    for (const std::string& location : settings.get_recent_network_locations()) {
+        const QString existing = QString::fromStdString(location);
+        if (existing.compare(root, Qt::CaseInsensitive) != 0) {
+            updated.push_back(location);
+        }
+        if (updated.size() >= 10) {
+            break;
+        }
+    }
+
+    const auto& current = settings.get_recent_network_locations();
+    if (current == updated) {
+        return;
+    }
+
+    settings.set_recent_network_locations(updated);
+    populate_network_locations();
+#else
+    Q_UNUSED(path);
+#endif
 }
 
 void MainApp::apply_file_explorer_preferences()
@@ -784,10 +1049,9 @@ void MainApp::start_updater()
 
 void MainApp::set_app_icon()
 {
-    const QString icon_path = QStringLiteral(":/net/quicknode/AIFileSorter/images/app_icon_128.png");
-    QIcon icon(icon_path);
+    QIcon icon = AppIconResources::build_window_icon();
     if (icon.isNull()) {
-        icon = QIcon(QStringLiteral(":/net/quicknode/AIFileSorter/images/logo.png"));
+        icon = QIcon(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/logo.png"));
     }
     if (!icon.isNull()) {
         QApplication::setWindowIcon(icon);
@@ -874,8 +1138,153 @@ void MainApp::retranslate_ui()
         .status_is_ready = status_is_ready_
     };
     ui_translator_->retranslate_all(state);
+    if (menu_mnemonic_controller_) {
+        menu_mnemonic_controller_->refresh_titles();
+    }
     refresh_category_language_menu();
+    refresh_windows_explorer_extension_actions();
     refresh_backend_status_label();
+    populate_network_locations();
+    apply_accessibility_metadata();
+}
+
+void MainApp::apply_accessibility_metadata()
+{
+    const auto apply_named_control = [](QWidget* widget,
+                                        const QString& label_text,
+                                        const QString& description = QString()) {
+        if (!widget) {
+            return;
+        }
+
+        const QString accessible_name = strip_mnemonic_markers(label_text).trimmed();
+        if (!accessible_name.isEmpty()) {
+            widget->setAccessibleName(accessible_name);
+        }
+
+        const QString accessible_description = description.trimmed();
+        if (!accessible_description.isEmpty()) {
+            widget->setAccessibleDescription(accessible_description);
+        }
+    };
+
+    if (path_label && path_entry) {
+        path_label->setBuddy(path_entry);
+        apply_named_control(path_entry, path_label->text(), path_entry->toolTip());
+    }
+
+    apply_named_control(browse_button, browse_button ? browse_button->text() : QString());
+    apply_named_control(use_subcategories_checkbox,
+                        use_subcategories_checkbox ? use_subcategories_checkbox->text() : QString(),
+                        use_subcategories_checkbox ? use_subcategories_checkbox->toolTip() : QString());
+    apply_named_control(categorize_files_checkbox,
+                        categorize_files_checkbox ? categorize_files_checkbox->text() : QString(),
+                        categorize_files_checkbox ? categorize_files_checkbox->toolTip() : QString());
+    apply_named_control(categorize_directories_checkbox,
+                        categorize_directories_checkbox ? categorize_directories_checkbox->text() : QString(),
+                        categorize_directories_checkbox ? categorize_directories_checkbox->toolTip() : QString());
+    apply_named_control(include_subdirectories_checkbox,
+                        include_subdirectories_checkbox ? include_subdirectories_checkbox->text() : QString(),
+                        include_subdirectories_checkbox ? include_subdirectories_checkbox->toolTip() : QString());
+    apply_named_control(categorization_style_refined_radio,
+                        categorization_style_refined_radio ? categorization_style_refined_radio->text() : QString(),
+                        categorization_style_refined_radio
+                            ? categorization_style_refined_radio->toolTip()
+                            : QString());
+    apply_named_control(categorization_style_consistent_radio,
+                        categorization_style_consistent_radio
+                            ? categorization_style_consistent_radio->text()
+                            : QString(),
+                        categorization_style_consistent_radio
+                            ? categorization_style_consistent_radio->toolTip()
+                            : QString());
+    apply_named_control(use_whitelist_checkbox,
+                        use_whitelist_checkbox ? use_whitelist_checkbox->text() : QString(),
+                        use_whitelist_checkbox ? use_whitelist_checkbox->toolTip() : QString());
+    apply_named_control(whitelist_selector,
+                        use_whitelist_checkbox ? use_whitelist_checkbox->text() : QString(),
+                        whitelist_selector ? whitelist_selector->toolTip() : QString());
+    apply_named_control(analyze_images_checkbox,
+                        analyze_images_checkbox ? analyze_images_checkbox->text() : QString(),
+                        analyze_images_checkbox ? analyze_images_checkbox->toolTip() : QString());
+    apply_named_control(process_images_only_checkbox,
+                        process_images_only_checkbox ? process_images_only_checkbox->text() : QString(),
+                        process_images_only_checkbox
+                            ? process_images_only_checkbox->toolTip()
+                            : QString());
+    apply_named_control(add_image_date_to_category_checkbox,
+                        add_image_date_to_category_checkbox
+                            ? add_image_date_to_category_checkbox->text()
+                            : QString(),
+                        add_image_date_to_category_checkbox
+                            ? add_image_date_to_category_checkbox->toolTip()
+                            : QString());
+    apply_named_control(add_image_date_place_to_filename_checkbox,
+                        add_image_date_place_to_filename_checkbox
+                            ? add_image_date_place_to_filename_checkbox->text()
+                            : QString(),
+                        add_image_date_place_to_filename_checkbox
+                            ? add_image_date_place_to_filename_checkbox->toolTip()
+                            : QString());
+    apply_named_control(add_audio_video_metadata_to_filename_checkbox,
+                        add_audio_video_metadata_to_filename_checkbox
+                            ? add_audio_video_metadata_to_filename_checkbox->text()
+                            : QString(),
+                        add_audio_video_metadata_to_filename_checkbox
+                            ? add_audio_video_metadata_to_filename_checkbox->toolTip()
+                            : QString());
+    apply_named_control(offer_rename_images_checkbox,
+                        offer_rename_images_checkbox ? offer_rename_images_checkbox->text() : QString(),
+                        offer_rename_images_checkbox
+                            ? offer_rename_images_checkbox->toolTip()
+                            : QString());
+    apply_named_control(rename_images_only_checkbox,
+                        rename_images_only_checkbox ? rename_images_only_checkbox->text() : QString(),
+                        rename_images_only_checkbox
+                            ? rename_images_only_checkbox->toolTip()
+                            : QString());
+    apply_named_control(image_options_toggle_button,
+                        image_options_toggle_button ? image_options_toggle_button->toolTip() : QString(),
+                        image_options_toggle_button ? image_options_toggle_button->toolTip() : QString());
+    apply_named_control(analyze_documents_checkbox,
+                        analyze_documents_checkbox ? analyze_documents_checkbox->text() : QString(),
+                        analyze_documents_checkbox ? analyze_documents_checkbox->toolTip() : QString());
+    apply_named_control(process_documents_only_checkbox,
+                        process_documents_only_checkbox
+                            ? process_documents_only_checkbox->text()
+                            : QString(),
+                        process_documents_only_checkbox
+                            ? process_documents_only_checkbox->toolTip()
+                            : QString());
+    apply_named_control(offer_rename_documents_checkbox,
+                        offer_rename_documents_checkbox
+                            ? offer_rename_documents_checkbox->text()
+                            : QString(),
+                        offer_rename_documents_checkbox
+                            ? offer_rename_documents_checkbox->toolTip()
+                            : QString());
+    apply_named_control(rename_documents_only_checkbox,
+                        rename_documents_only_checkbox
+                            ? rename_documents_only_checkbox->text()
+                            : QString(),
+                        rename_documents_only_checkbox
+                            ? rename_documents_only_checkbox->toolTip()
+                            : QString());
+    apply_named_control(add_document_date_to_category_checkbox,
+                        add_document_date_to_category_checkbox
+                            ? add_document_date_to_category_checkbox->text()
+                            : QString(),
+                        add_document_date_to_category_checkbox
+                            ? add_document_date_to_category_checkbox->toolTip()
+                            : QString());
+    apply_named_control(document_options_toggle_button,
+                        document_options_toggle_button
+                            ? document_options_toggle_button->toolTip()
+                            : QString(),
+                        document_options_toggle_button
+                            ? document_options_toggle_button->toolTip()
+                            : QString());
+    apply_named_control(analyze_button, analyze_button ? analyze_button->text() : QString());
 }
 
 void MainApp::update_settings_action_states()
@@ -909,9 +1318,13 @@ QString MainApp::current_backend_status_text() const
         return tr("Loaded backend: Remote API");
     }
 
+    if (!backend_status_probe_completed_) {
+        return tr("Checking local backend...");
+    }
+
     const QString cpu_backend = QString::fromStdString(
-        detect_status_blas_backend_label().value_or(std::string("CPU")));
-    const std::string backend_key = detect_loaded_backend_key();
+        backend_status_probe_cpu_backend_label_.value_or(std::string("CPU")));
+    const std::string backend_key = backend_status_probe_backend_key_.value_or(std::string("cpu"));
     const QString backend_name = backend_display_name(backend_key);
 
     if (backend_key == "cuda" || backend_key == "vulkan" ||
@@ -925,13 +1338,48 @@ QString MainApp::current_backend_status_text() const
     return tr("Loaded CPU backend: CPU with %1").arg(cpu_backend);
 }
 
+void MainApp::schedule_backend_status_probe()
+{
+    if (!using_local_llm || backend_status_probe_started_) {
+        return;
+    }
+
+    backend_status_probe_started_ = true;
+    backend_status_probe_thread_ = std::jthread([this](std::stop_token stop_token) {
+        const std::string backend_key = detect_loaded_backend_key();
+
+        if (stop_token.stop_requested()) {
+            return;
+        }
+
+        const std::optional<std::string> cpu_backend_label = detect_status_blas_backend_label();
+
+        if (stop_token.stop_requested()) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(
+            this,
+            [this, backend_key, cpu_backend_label]() {
+                backend_status_probe_backend_key_ = backend_key;
+                backend_status_probe_cpu_backend_label_ = cpu_backend_label;
+                backend_status_probe_completed_ = true;
+                refresh_backend_status_label();
+            },
+            Qt::QueuedConnection);
+    });
+}
+
 void MainApp::refresh_backend_status_label()
 {
     if (!backend_status_label) {
         return;
     }
-    backend_status_label->setText(current_backend_status_text());
-    backend_status_label->setToolTip(current_backend_status_text());
+    const QString status_text = current_backend_status_text();
+    backend_status_label->setText(status_text);
+    backend_status_label->setToolTip(status_text);
+    backend_status_label->setAccessibleName(status_text);
+    backend_status_label->setAccessibleDescription(status_text);
 }
 
 void MainApp::schedule_backend_status_label_refresh()
@@ -965,7 +1413,23 @@ void MainApp::on_language_selected(Language language)
 void MainApp::on_category_language_selected(CategoryLanguage language)
 {
     settings.set_category_language(language);
-    refresh_category_language_menu();
+    schedule_category_language_menu_refresh();
+}
+
+void MainApp::schedule_category_language_menu_refresh()
+{
+    if (category_language_refresh_pending_) {
+        return;
+    }
+
+    category_language_refresh_pending_ = true;
+    QTimer::singleShot(0, this, [this]() {
+        if (!category_language_refresh_pending_) {
+            return;
+        }
+
+        refresh_category_language_menu();
+    });
 }
 
 QAction* MainApp::category_language_action(CategoryLanguage language) const
@@ -979,6 +1443,8 @@ QAction* MainApp::category_language_action(CategoryLanguage language) const
 
 void MainApp::refresh_category_language_menu()
 {
+    category_language_refresh_pending_ = false;
+
     const LLMChoice choice = settings.get_llm_choice();
     const auto& supported_languages = supported_category_languages_for_llm_choice(choice);
     std::vector<CategoryLanguage> ordered_languages = supported_languages;
@@ -1008,9 +1474,6 @@ void MainApp::refresh_category_language_menu()
               });
 
     if (category_language_menu) {
-        for (QMenu* const submenu : category_language_submenus_) {
-            delete submenu;
-        }
         category_language_submenus_.clear();
         category_language_menu->clear();
 
@@ -1045,7 +1508,7 @@ void MainApp::refresh_category_language_menu()
 
     const CategoryLanguage current = settings.get_category_language();
     if (!is_category_language_supported_for_llm_choice(choice, current)) {
-        if (current != CategoryLanguage::English) {
+        if (current != CategoryLanguage::English && core_logger) {
             core_logger->info("Resetting unsupported category language '{}' for LLM choice #{}.",
                               categoryLanguageDisplay(current),
                               static_cast<int>(choice));
@@ -1095,29 +1558,45 @@ void MainApp::on_analyze_clicked()
         return;
     }
 
+    if (!acquire_analysis_runtime_lock(folder_path)) {
+        return;
+    }
+
     stop_analysis = false;
     text_cpu_fallback_choice_.reset();
     visual_cpu_fallback_choice_.reset();
     continue_without_visual_analysis_choice_.reset();
     update_analyze_button_state(true);
 
-    const bool show_subcategory = use_subcategories_checkbox->isChecked();
-    progress_dialog = std::make_unique<CategorizationProgressDialog>(this, this, show_subcategory);
-    progress_dialog->show();
+    try {
+        const bool show_subcategory = use_subcategories_checkbox->isChecked();
+        progress_dialog = std::make_unique<CategorizationProgressDialog>(this, this, show_subcategory);
+        progress_controller_.set_dialog(progress_dialog.get());
+        progress_dialog->show();
 
-    analyze_thread = std::thread([this]() {
-        try {
-            perform_analysis();
-        } catch (const std::exception& ex) {
-            core_logger->error("Exception during analysis: {}", ex.what());
-            post_analysis_failure(std::string("Analysis error: ") + ex.what());
-        }
-    });
+        analyze_thread = std::thread([this]() {
+            try {
+                perform_analysis();
+            } catch (const std::exception& ex) {
+                core_logger->error("Exception during analysis: {}", ex.what());
+                post_analysis_failure(std::string("Analysis error: ") + ex.what());
+            }
+        });
+    } catch (const std::exception& ex) {
+        release_analysis_runtime_lock();
+        update_analyze_button_state(false);
+        close_progress_dialog();
+        core_logger->error("Could not start analysis: {}", ex.what());
+        show_error_dialog(std::string("Could not start analysis: ") + ex.what());
+    }
 }
 
 
 void MainApp::on_directory_selected(const QString& path, bool user_initiated)
 {
+#if defined(Q_OS_WIN)
+    remember_recent_network_location(path);
+#endif
     path_entry->setText(path);
     statusBar()->showMessage(tr("Folder selected: %1").arg(path), 3000);
     status_is_ready_ = false;
@@ -1176,6 +1655,7 @@ void MainApp::apply_whitelist_to_selector()
         if (auto entry = whitelist_store.get(chosen.toStdString())) {
             settings.set_allowed_categories(entry->categories);
             settings.set_allowed_subcategories(entry->subcategories);
+            settings.set_allowed_subcategories_by_category(entry->subcategories_by_category);
         }
     }
     whitelist_selector->blockSignals(false);
@@ -1223,7 +1703,11 @@ void MainApp::sync_whitelists_to_learning_store()
         if (!entry) {
             continue;
         }
-        candidates.reserve(candidates.size() + entry->categories.size());
+        std::size_t mapped_pair_count = 0;
+        for (const auto& [category, subcategories] : entry->subcategories_by_category) {
+            mapped_pair_count += subcategories.size();
+        }
+        candidates.reserve(candidates.size() + entry->categories.size() + mapped_pair_count);
         const std::string source = "whitelist:" + name;
         for (const auto& category : entry->categories) {
             candidates.push_back(UserLearningStore::TaxonomyCandidate{
@@ -1231,6 +1715,15 @@ void MainApp::sync_whitelists_to_learning_store()
                 std::string(),
                 source
             });
+        }
+        for (const auto& [category, subcategories] : entry->subcategories_by_category) {
+            for (const auto& subcategory : subcategories) {
+                candidates.push_back(UserLearningStore::TaxonomyCandidate{
+                    category,
+                    subcategory,
+                    source
+                });
+            }
         }
     }
 
@@ -1341,7 +1834,116 @@ void MainApp::update_analyze_button_state(bool analyzing)
         statusBar()->showMessage(tr("Ready"));
         status_is_ready_ = true;
     }
+    if (analyze_button) {
+        const bool blocked_by_external_lock = !analyzing && external_analysis_lock_active_;
+        analyze_button->setEnabled(!blocked_by_external_lock);
+        if (blocked_by_external_lock) {
+            statusBar()->showMessage(tr("Analyzing…"));
+            status_is_ready_ = false;
+        }
+    }
+    apply_accessibility_metadata();
+    if (analyze_button) {
+        QAccessibleEvent button_name_changed(analyze_button, QAccessible::NameChanged);
+        QAccessible::updateAccessibility(&button_name_changed);
+    }
     update_settings_action_states();
+}
+
+void MainApp::start_analysis_runtime_lock_polling()
+{
+    if (analysis_runtime_lock_timer_) {
+        return;
+    }
+    analysis_runtime_lock_timer_ = new QTimer(this);
+    analysis_runtime_lock_timer_->setInterval(2000);
+    connect(analysis_runtime_lock_timer_,
+            &QTimer::timeout,
+            this,
+            &MainApp::refresh_analysis_runtime_lock_state);
+    analysis_runtime_lock_timer_->start();
+    refresh_analysis_runtime_lock_state();
+}
+
+void MainApp::refresh_analysis_runtime_lock_state()
+{
+    if (!analyze_button) {
+        return;
+    }
+    if (analysis_runtime_lease_ || analysis_in_progress_) {
+        if (external_analysis_lock_active_) {
+            external_analysis_lock_active_ = false;
+            update_analyze_button_state(analysis_in_progress_);
+        }
+        analyze_button->setEnabled(true);
+        return;
+    }
+
+    AnalysisRuntimeLock::Metadata metadata;
+    const bool locked = analysis_runtime_lock_.is_locked(&metadata);
+    if (locked == external_analysis_lock_active_) {
+        if (locked) {
+            analyze_button->setEnabled(false);
+            statusBar()->showMessage(tr("Analyzing…"));
+            status_is_ready_ = false;
+        }
+        return;
+    }
+
+    external_analysis_lock_active_ = locked;
+    if (ui_logger) {
+        if (locked) {
+            ui_logger->info("Analyze button disabled by shared analysis runtime lock from owner '{}' pid {}.",
+                            AnalysisRuntimeLock::owner_to_string(metadata.owner),
+                            metadata.pid);
+        } else {
+            ui_logger->info("Analyze button re-enabled after shared analysis runtime lock was released.");
+        }
+    }
+    update_analyze_button_state(false);
+}
+
+bool MainApp::acquire_analysis_runtime_lock(const std::string& folder_path)
+{
+    refresh_analysis_runtime_lock_state();
+    if (external_analysis_lock_active_) {
+        return false;
+    }
+
+    AnalysisRuntimeLock::Metadata metadata;
+    metadata.owner = AnalysisRuntimeLock::Owner::Gui;
+    metadata.description = "GUI analysis";
+
+    std::string error;
+    auto lease = analysis_runtime_lock_.try_acquire(metadata, &error);
+    if (!lease) {
+        if (core_logger) {
+            core_logger->warn("Could not acquire shared analysis runtime lock for '{}': {}",
+                              folder_path,
+                              error.empty() ? "unknown error" : error);
+        }
+        refresh_analysis_runtime_lock_state();
+        return false;
+    }
+
+    analysis_runtime_lease_.emplace(std::move(*lease));
+    external_analysis_lock_active_ = false;
+    if (core_logger) {
+        core_logger->info("Acquired shared analysis runtime lock for GUI analysis of '{}'.", folder_path);
+    }
+    return true;
+}
+
+void MainApp::release_analysis_runtime_lock()
+{
+    if (!analysis_runtime_lease_) {
+        return;
+    }
+    analysis_runtime_lease_->release();
+    analysis_runtime_lease_.reset();
+    if (core_logger) {
+        core_logger->info("Released shared analysis runtime lock.");
+    }
 }
 
 void MainApp::update_results_view_mode()
@@ -1641,6 +2243,14 @@ void MainApp::focus_file_explorer_on_path(const QString& path)
     const bool previous_suppress = suppress_explorer_sync_;
     suppress_explorer_sync_ = true;
 
+    std::vector<QModelIndex> parents;
+    for (QModelIndex parent = index.parent(); parent.isValid(); parent = parent.parent()) {
+        parents.push_back(parent);
+    }
+    for (auto it = parents.rbegin(); it != parents.rend(); ++it) {
+        file_explorer_view->expand(*it);
+    }
+
     file_explorer_view->setCurrentIndex(index);
     file_explorer_view->expand(index);
     file_explorer_view->scrollTo(index, QAbstractItemView::PositionAtCenter);
@@ -1665,6 +2275,78 @@ void MainApp::show_storage_plugin_dialog()
     }
 }
 
+void MainApp::open_windows_explorer_extension_install_page()
+{
+    std::string error;
+    if (!explorer_extension_manager_.open_install_page(&error)) {
+        QMessageBox::warning(this,
+                             tr("Windows Explorer Extension"),
+                             error.empty()
+                                 ? tr("Could not open the Windows Explorer Extension download page.")
+                                 : QString::fromStdString(error));
+        return;
+    }
+    refresh_windows_explorer_extension_actions();
+}
+
+void MainApp::open_windows_explorer_extension_settings()
+{
+    std::string error;
+    if (!explorer_extension_manager_.open_settings(&error)) {
+        QMessageBox::warning(this,
+                             tr("Windows Explorer Extension"),
+                             error.empty()
+                                 ? tr("Could not open the Windows Explorer Extension settings.")
+                                 : QString::fromStdString(error));
+        return;
+    }
+    refresh_windows_explorer_extension_actions();
+}
+
+void MainApp::open_windows_explorer_extension_activity_window()
+{
+    std::string error;
+    if (!explorer_extension_manager_.open_activity_window(&error)) {
+        QMessageBox::warning(this,
+                             tr("Windows Explorer Extension"),
+                             error.empty()
+                                 ? tr("Could not open the Windows Explorer Extension activity window.")
+                                 : QString::fromStdString(error));
+        return;
+    }
+    refresh_windows_explorer_extension_actions();
+}
+
+void MainApp::refresh_windows_explorer_extension_actions()
+{
+    const ExplorerExtensionManager::Status status = explorer_extension_manager_.inspect();
+    const bool installed = status.state == ExplorerExtensionManager::State::Installed;
+    const bool repair_needed = status.state == ExplorerExtensionManager::State::InstalledNeedsRepair;
+    const bool show_install = status.state == ExplorerExtensionManager::State::NotInstalled ||
+                              repair_needed;
+
+    if (windows_explorer_extension_install_action) {
+        windows_explorer_extension_install_action->setVisible(show_install);
+        windows_explorer_extension_install_action->setEnabled(show_install);
+        windows_explorer_extension_install_action->setText(
+            repair_needed
+                ? tr("Install or Repair Windows Explorer Extension...")
+                : tr("Install Windows Explorer Extension..."));
+    }
+    if (windows_explorer_extension_settings_action) {
+        windows_explorer_extension_settings_action->setVisible(installed);
+        windows_explorer_extension_settings_action->setEnabled(installed);
+    }
+    if (windows_explorer_extension_activity_action) {
+        windows_explorer_extension_activity_action->setVisible(installed);
+        windows_explorer_extension_activity_action->setEnabled(installed);
+    }
+    if (windows_explorer_extension_menu && windows_explorer_extension_menu->menuAction()) {
+        windows_explorer_extension_menu->menuAction()->setVisible(installed);
+        windows_explorer_extension_menu->menuAction()->setEnabled(installed);
+    }
+}
+
 void MainApp::record_categorized_metrics(int count)
 {
     if (test_mode_) {
@@ -1675,6 +2357,47 @@ void MainApp::record_categorized_metrics(int count)
         donation_prompt_active_,
         count,
         [this](int total) { return show_support_prompt_dialog(total); });
+}
+
+void MainApp::maybe_show_windows_explorer_extension_install_prompt()
+{
+    if (test_mode_ || windows_explorer_extension_prompt_active_) {
+        return;
+    }
+    if (settings.get_windows_explorer_extension_prompt_dismissed()) {
+        return;
+    }
+    if (!explorer_extension_prompt_cooldown_elapsed(settings)) {
+        return;
+    }
+    if (explorer_extension_manager_.state() != ExplorerExtensionManager::State::NotInstalled) {
+        return;
+    }
+
+    windows_explorer_extension_prompt_active_ = true;
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Information);
+    box.setWindowTitle(tr("Install Windows Explorer Extension?"));
+    box.setText(tr("Add AI File Sorter actions to the Windows Explorer right-click menu?"));
+    box.setInformativeText(tr("The Windows Explorer Extension lets you categorize and rename files directly from File Explorer."));
+    QPushButton* install_button = box.addButton(tr("Install Windows Explorer Extension"),
+                                                QMessageBox::AcceptRole);
+    QPushButton* later_button = box.addButton(tr("Maybe Later"), QMessageBox::RejectRole);
+    QPushButton* never_button = box.addButton(tr("Don't Show Again"), QMessageBox::DestructiveRole);
+    box.setDefaultButton(later_button);
+    box.setEscapeButton(later_button);
+    box.exec();
+
+    settings.set_windows_explorer_extension_prompt_last_shown_utc(current_utc_iso_timestamp());
+    if (box.clickedButton() == never_button) {
+        settings.set_windows_explorer_extension_prompt_dismissed(true);
+    }
+    settings.save();
+
+    if (box.clickedButton() == install_button) {
+        open_windows_explorer_extension_install_page();
+    }
+    windows_explorer_extension_prompt_active_ = false;
 }
 
 void MainApp::undo_last_run()
@@ -1711,6 +2434,31 @@ void MainApp::undo_last_run()
     }
 }
 
+void MainApp::show_review_history_dialog()
+{
+    if (!active_storage_provider_) {
+        show_error_dialog("No storage provider is available for history undo.");
+        return;
+    }
+    if (!review_history_store_.is_open()) {
+        show_error_dialog("The review history database is not available.");
+        return;
+    }
+
+    ReviewHistoryDialog dialog(review_history_store_, *active_storage_provider_, this);
+    dialog.exec();
+}
+
+void MainApp::open_review_history_dialog()
+{
+    show_review_history_dialog();
+}
+
+void MainApp::open_cache_cleanup_dialog()
+{
+    show_cache_cleanup_dialog();
+}
+
 bool MainApp::perform_undo_from_plan(const QString& plan_path)
 {
     const auto res = undo_manager_.undo_plan(plan_path);
@@ -1729,9 +2477,9 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     box.setIcon(QMessageBox::Information);
     box.setWindowTitle(QObject::tr("Support %1").arg(app_display_name()));
 
-    const QString headline = tr("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app was useful for you.")
+    const QString headline = tr("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app has been useful for you.")
                                  .arg(total_files);
-    const QString details = tr("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs such as servers and remote-model infrastructure. "
+    const QString details = tr("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs. "
                                "If the app saves you time or brings value, please consider supporting it so it can keep improving.");
     const QString code_note = tr("Already donated? Click \"I have already donated\" to enter your donation code and permanently disable this reminder.");
 
@@ -1878,11 +2626,9 @@ void MainApp::handle_analysis_finished()
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
+    release_analysis_runtime_lock();
 
-    if (progress_dialog) {
-        progress_dialog->hide();
-        progress_dialog.reset();
-    }
+    close_progress_dialog();
 
     stop_analysis = false;
 
@@ -1902,11 +2648,9 @@ void MainApp::handle_analysis_cancelled()
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
+    release_analysis_runtime_lock();
 
-    if (progress_dialog) {
-        progress_dialog->hide();
-        progress_dialog.reset();
-    }
+    close_progress_dialog();
 
     stop_analysis = false;
     statusBar()->showMessage(tr("Analysis cancelled"), 4000);
@@ -1919,10 +2663,8 @@ void MainApp::handle_analysis_failure(const std::string& message)
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
-    if (progress_dialog) {
-        progress_dialog->hide();
-        progress_dialog.reset();
-    }
+    release_analysis_runtime_lock();
+    close_progress_dialog();
     stop_analysis = false;
     show_error_dialog(message);
 }
@@ -1954,83 +2696,59 @@ void MainApp::populate_tree_view(const std::vector<CategorizedFile>& files)
 
 
 
+void MainApp::close_progress_dialog()
+{
+    progress_controller_.set_dialog(nullptr);
+    if (!progress_dialog) {
+        return;
+    }
+
+    progress_dialog->hide();
+    progress_dialog.reset();
+}
+
 void MainApp::append_progress(const std::string& message)
 {
-    run_on_ui([this, message]() {
-        if (progress_dialog && should_show_progress_message_in_dialog(message)) {
-            progress_dialog->append_text(message);
-        }
-    });
+    progress_controller_.append_message(message);
 }
 
 bool MainApp::should_show_progress_message_in_dialog(const std::string& message) const
 {
-    const bool vision_diagnostic =
-        message.rfind("[VISION] Runtime: ", 0) == 0 ||
-        message.rfind("[VISION] Timing ", 0) == 0;
-    if (!vision_diagnostic) {
-        return true;
-    }
-
-    return is_development_mode() || is_test_mode();
+    return progress_controller_.should_show_message_in_dialog(message);
 }
 
 void MainApp::configure_progress_stages(const std::vector<CategorizationProgressDialog::StagePlan>& stages)
 {
-    run_on_ui_blocking([this, stages]() {
-        if (progress_dialog) {
-            progress_dialog->configure_stages(stages);
-        }
-    });
+    progress_controller_.configure_stages(stages);
 }
 
 void MainApp::set_progress_stage_items(CategorizationProgressDialog::StageId stage_id,
                                        const std::vector<FileEntry>& items)
 {
-    run_on_ui_blocking([this, stage_id, items]() {
-        if (progress_dialog) {
-            progress_dialog->set_stage_items(stage_id, items);
-        }
-    });
+    progress_controller_.set_stage_items(stage_id, items);
 }
 
 void MainApp::set_progress_active_stage(CategorizationProgressDialog::StageId stage_id)
 {
-    run_on_ui_blocking([this, stage_id]() {
-        if (progress_dialog) {
-            progress_dialog->set_active_stage(stage_id);
-        }
-    });
+    progress_controller_.set_active_stage(stage_id);
 }
 
 void MainApp::mark_progress_stage_item_in_progress(CategorizationProgressDialog::StageId stage_id,
                                                    const FileEntry& entry)
 {
-    run_on_ui_blocking([this, stage_id, entry]() {
-        if (progress_dialog) {
-            progress_dialog->mark_stage_item_in_progress(stage_id, entry);
-        }
-    });
+    progress_controller_.mark_stage_item_in_progress(stage_id, entry);
 }
 
 void MainApp::mark_progress_stage_item_completed(CategorizationProgressDialog::StageId stage_id,
                                                  const FileEntry& entry)
 {
-    run_on_ui_blocking([this, stage_id, entry]() {
-        if (progress_dialog) {
-            progress_dialog->mark_stage_item_completed(stage_id, entry);
-        }
-    });
+    progress_controller_.mark_stage_item_completed(stage_id, entry);
 }
 
 void MainApp::mark_progress_stage_item_skipped(CategorizationProgressDialog::StageId stage_id,
                                                const FileEntry& entry)
 {
-    run_on_ui_blocking([this, stage_id, entry]() {
-        if (progress_dialog) {
-            progress_dialog->mark_stage_item_skipped(stage_id, entry);
-        }
-    });
+    progress_controller_.mark_stage_item_skipped(stage_id, entry);
 }
 
 bool MainApp::should_abort_analysis() const
@@ -2100,9 +2818,83 @@ void MainApp::log_pending_queue()
     }
 }
 
+AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
+{
+    return AnalysisWorkflowContext{
+        settings,
+        db_manager,
+        categorization_service,
+        results_coordinator,
+        core_logger,
+        using_local_llm,
+        already_categorized_files,
+        new_files_with_categories,
+        files_to_categorize,
+        new_files_to_sort,
+        stop_analysis,
+        text_cpu_fallback_choice_,
+        [this]() { return get_folder_path(); },
+        [this](const char* text) { return tr(text); },
+        [this]() { return should_abort_analysis(); },
+        [this](const std::string& message) { append_progress(message); },
+        [this](const std::string& directory_path) { prune_empty_cached_entries_for(directory_path); },
+        [this]() { log_cached_highlights(); },
+        [this]() { log_pending_queue(); },
+        [this]() { return effective_scan_options(); },
+        [](std::vector<FileEntry>&) {},
+        []() {},
+        [this](const std::vector<AnalysisWorkflowContext::StagePlan>& stages) {
+            configure_progress_stages(stages);
+        },
+        [this](AnalysisWorkflowContext::StageId stage_id, const std::vector<FileEntry>& items) {
+            set_progress_stage_items(stage_id, items);
+        },
+        [this](AnalysisWorkflowContext::StageId stage_id) { set_progress_active_stage(stage_id); },
+        [this](AnalysisWorkflowContext::StageId stage_id, const FileEntry& entry) {
+            mark_progress_stage_item_in_progress(stage_id, entry);
+        },
+        [this](AnalysisWorkflowContext::StageId stage_id, const FileEntry& entry) {
+            mark_progress_stage_item_completed(stage_id, entry);
+        },
+        [this](AnalysisWorkflowContext::StageId stage_id, const FileEntry& entry) {
+            mark_progress_stage_item_skipped(stage_id, entry);
+        },
+        [this]() { return make_llm_client(); },
+        [this]() { return should_log_prompts(); },
+        true,
+        [this](const std::string& reason) { return prompt_visual_cpu_fallback(reason); },
+        [this](const std::string& reason) { return prompt_continue_without_visual_analysis(reason); },
+        [this](const CategorizedFile& entry, const std::string& reason) {
+            notify_recategorization_reset(entry, reason);
+        }};
+}
+
 void MainApp::perform_analysis()
 {
-    AnalysisCoordinator(*this).execute();
+    const AnalysisRunResult result =
+        AnalysisCoordinator(make_analysis_workflow_context()).execute();
+    const QPointer<MainApp> app(this);
+
+    QMetaObject::invokeMethod(
+        this,
+        [app, result]() {
+            if (!app) {
+                return;
+            }
+
+            switch (result.status) {
+            case AnalysisRunStatus::Completed:
+                app->handle_analysis_finished();
+                break;
+            case AnalysisRunStatus::Cancelled:
+                app->handle_analysis_cancelled();
+                break;
+            case AnalysisRunStatus::Failed:
+                app->handle_analysis_failure(result.error_message);
+                break;
+            }
+        },
+        Qt::QueuedConnection);
 }
 
 
@@ -2114,13 +2906,7 @@ void MainApp::run_consistency_pass()
 
     text_cpu_fallback_choice_.reset();
 
-    auto progress_sink = [this](const std::string& message) {
-        run_on_ui([this, message]() {
-            if (progress_dialog) {
-                progress_dialog->append_text(message);
-            }
-        });
-    };
+    auto progress_sink = [this](const std::string& message) { append_progress(message); };
 
     consistency_pass_service.run(
         already_categorized_files,
@@ -2195,10 +2981,15 @@ void MainApp::run_large_whitelist_llm_test()
     }
 
     whitelist_store.set(preset.whitelist_name,
-                        WhitelistEntry{preset.categories, preset.subcategories});
+                        WhitelistEntry{
+                            preset.categories,
+                            preset.subcategories,
+                            preset.subcategories_by_category
+                        });
     settings.set_active_whitelist(preset.whitelist_name);
     settings.set_allowed_categories(preset.categories);
     settings.set_allowed_subcategories(preset.subcategories);
+    settings.set_allowed_subcategories_by_category(preset.subcategories_by_category);
     settings.set_use_whitelist(true);
     settings.set_use_subcategories(true);
     settings.set_use_consistency_hints(false);
@@ -2389,10 +3180,8 @@ void MainApp::stop_running_analysis()
     if (analyze_thread.joinable()) {
         analyze_thread.join();
     }
-    if (progress_dialog) {
-        progress_dialog->hide();
-        progress_dialog.reset();
-    }
+    close_progress_dialog();
+    release_analysis_runtime_lock();
 }
 
 
@@ -2407,6 +3196,7 @@ void MainApp::show_llm_selection_dialog()
             settings.set_gemini_model(dialog->get_gemini_model());
             settings.set_llm_choice(dialog->get_selected_llm_choice());
             settings.set_llm_downloads_expanded(dialog->get_llm_downloads_expanded());
+            settings.set_llm_storage_dir(dialog->get_llm_storage_dir());
             settings.set_visual_model_id(dialog->get_selected_visual_model_id());
             if (dialog->get_selected_llm_choice() == LLMChoice::Custom) {
                 settings.set_active_custom_llm_id(dialog->get_selected_custom_llm_id());
@@ -2422,6 +3212,7 @@ void MainApp::show_llm_selection_dialog()
             refresh_category_language_menu();
             settings.save();
             refresh_backend_status_label();
+            schedule_backend_status_probe();
         }
     } catch (const std::exception& ex) {
         show_error_dialog(fmt::format("LLM selection error: {}", ex.what()));
@@ -2513,6 +3304,53 @@ void MainApp::maybe_show_suitability_benchmark()
     QTimer::singleShot(0, this, [this]() {
         show_suitability_benchmark_dialog(false);
     });
+}
+
+void MainApp::maybe_show_whats_new_popup()
+{
+    if (test_mode_) {
+        return;
+    }
+
+    const std::string current_version = APP_VERSION.to_numeric_string();
+    if (settings.get_whats_new_version_shown() == current_version) {
+        return;
+    }
+
+    const QString version_text = QString::fromStdString(current_version);
+    const QString markdown = WhatsNewContent::markdown_for_version(version_text, settings.get_language());
+    if (markdown.isEmpty()) {
+        settings.set_whats_new_version_shown(current_version);
+        settings.save();
+        return;
+    }
+
+    const QString heading =
+        QCoreApplication::translate("QObject", "What's new in version %1:").arg(version_text);
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(heading);
+    dialog.resize(680, 520);
+
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* heading_label = new QLabel(QStringLiteral("<b>%1</b>").arg(heading.toHtmlEscaped()), &dialog);
+    heading_label->setWordWrap(true);
+    layout->addWidget(heading_label);
+
+    auto* browser = new QTextBrowser(&dialog);
+    browser->setOpenExternalLinks(true);
+    browser->setReadOnly(true);
+    browser->setMarkdown(markdown);
+    layout->addWidget(browser);
+
+    auto* button_box = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    QObject::connect(button_box, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addWidget(button_box);
+
+    dialog.exec();
+
+    settings.set_whats_new_version_shown(current_version);
+    settings.save();
 }
 
 
@@ -2663,12 +3501,19 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
                                                                        undo_dir,
                                                                        settings.get_category_language(),
                                                                        this,
-                                                                       &user_learning_store_);
+                                                                       &user_learning_store_,
+                                                                       &review_history_store_);
         categorization_dialog->show_results(results,
                                             get_folder_path(),
                                             settings.get_include_subdirectories(),
                                             settings.get_offer_rename_images(),
-                                            settings.get_offer_rename_documents());
+                                            settings.get_offer_rename_documents(),
+                                            settings.get_review_auto_approve_filename_changes(),
+                                            settings.get_review_auto_approve_categorization());
+        settings.set_review_auto_approve_filename_changes(
+            categorization_dialog->review_auto_approve_filename_changes_enabled());
+        settings.set_review_auto_approve_categorization(
+            categorization_dialog->review_auto_approve_categorization_enabled());
 
         const int newly_analyzed = static_cast<int>(std::count_if(
             results.begin(),
@@ -2676,6 +3521,7 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
             [](const CategorizedFile& file) { return !file.from_cache; }));
         if (newly_analyzed > 0) {
             record_categorized_metrics(newly_analyzed);
+            maybe_show_windows_explorer_extension_install_prompt();
         }
     } catch (const std::exception& ex) {
         if (ui_logger) {
@@ -2694,11 +3540,7 @@ void MainApp::show_error_dialog(const std::string& message)
 
 void MainApp::report_progress(const std::string& message)
 {
-    run_on_ui([this, message]() {
-        if (progress_dialog && should_show_progress_message_in_dialog(message)) {
-            progress_dialog->append_text(message);
-        }
-    });
+    append_progress(message);
 }
 
 

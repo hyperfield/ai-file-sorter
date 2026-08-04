@@ -11,20 +11,19 @@ Usage:
 ```
 
 Options:
-- `--arch <arm64|x86_64>`: Target architecture.
+- `--arch <arm64>`: Target architecture.
 - `--arm64`, `--m1`, `--m2`, `--m3`: Alias for `--arch arm64`.
-- `--x86_64`, `--intel`: Alias for `--arch x86_64`.
 - `-h`, `--help`: Show help.
 
 Notes:
 - `--m1` selects `arm64` (same as any Apple Silicon build). For an M1-safe CPU backend, also set `LLAMA_MACOS_MULTI_VARIANT=1`.
 
 Environment overrides:
-- `LLAMA_MACOS_ARCH`: Target architecture (`arm64` or `x86_64`). CLI flags take precedence.
-- `LLAMA_MACOS_ENABLE_METAL=0|1|auto`: Enable Metal backend. Default is `auto` (on for arm64, off for x86_64).
+- `LLAMA_MACOS_ARCH`: Target architecture. CLI flags take precedence.
+- `LLAMA_MACOS_ENABLE_METAL=0|1|auto`: Enable Metal backend. Default is `auto` for Apple Silicon builds.
 - `LLAMA_MACOS_MULTI_VARIANT=0|1`: Build multi-variant CPU backends (useful for M1-safe binaries).
 - `LLAMA_PRECOMPILED_DIR`: Output directory for the compiled libs (default: `app/lib/precompiled`).
-- `MACOSX_DEPLOYMENT_TARGET`: Override the deployment target (default: `11.0`).
+- `MACOSX_DEPLOYMENT_TARGET`: Override the deployment target (default: `15.0`).
 
 Examples:
 
@@ -32,14 +31,8 @@ Examples:
 # Apple Silicon (arm64)
 ./app/scripts/build_llama_macos.sh --arm64
 
-# Intel (x86_64)
-./app/scripts/build_llama_macos.sh --intel
-
 # M1-safe multi-variant CPU backend
 LLAMA_MACOS_MULTI_VARIANT=1 ./app/scripts/build_llama_macos.sh --arm64
-
-# Intel CPU-only (disable Metal)
-LLAMA_MACOS_ENABLE_METAL=0 ./app/scripts/build_llama_macos.sh --x86_64
 ```
 
 Outputs:
@@ -69,7 +62,12 @@ Usage:
 CLI flags (optional):
 - `-v, --variant <m1|m2|intel|default>`: Build only the specified bundle (repeat or comma-separate).
 - `--m1`, `--m2`, `--intel`, `--default`: Shortcuts for `--variant`.
-- `--all`: Build all variant bundles.
+- `--all`: Build all Apple Silicon variant bundles.
+
+Variant display names:
+- `m1` defaults to `AI File Sorter for Mac M1`.
+- `m2` defaults to `AI File Sorter for Mac M2-M5`.
+- `intel` defaults to `AI File Sorter for Mac Intel`.
 
 Environment overrides (optional):
 - `APP_NAME`: Bundle name (default: `AIFileSorter`).
@@ -78,8 +76,8 @@ Environment overrides (optional):
 - `EXECUTABLE_SRC`: Full path to the source binary (default: `$BIN_DIR/aifilesorter`).
 - `PRECOMPILED_SUBDIR`: Subdirectory under `app/lib/` to bundle from (default: `precompiled`).
 - `BUNDLE_OUTPUT_DIR`: Bundle output directory (default: `app/` for single-variant runs).
-- `BUNDLE_ARCH`: Force target arch (`arm64`, `x86_64`, or `universal`).
-- `BREW_PREFIX`: Override Homebrew prefix (useful for cross-compiling Intel on Apple Silicon).
+- `BUNDLE_ARCH`: Force target arch (`arm64` or `universal`).
+- `BREW_PREFIX`: Override Homebrew prefix.
 - `MACDEPLOYQT`: Full path to `macdeployqt` (optional; used for arch sanity checks).
 
 ## create_dmg.sh
@@ -89,6 +87,7 @@ Packages macOS `.app` bundles into `.dmg` files.
 Behavior:
 - Variant runs rebuild `AIFileSorter.app` for the requested variant first, unless `REBUILD_BUNDLE_BEFORE_PACKAGE=0` is set.
 - Variant DMGs are written with distinct filenames under `app/dist/`.
+- Variant DMGs stage a variant-specific `.app` name by default so the mounted bundle matches the release variant.
 - If no variant is requested, the script packages the existing `app/AIFileSorter.app` bundle when present.
 
 Usage:
@@ -100,7 +99,7 @@ Usage:
 CLI flags (optional):
 - `-v, --variant <m1|m2|intel|default>`: Package only the specified bundle (repeat or comma-separate).
 - `--m1`, `--m2`, `--intel`, `--default`: Shortcuts for `--variant`.
-- `--all`: Package all variant bundles.
+- `--all`: Package all Apple Silicon variant bundles.
 
 Output:
 - Creates one DMG per bundle under `app/dist/` and prints the list at the end.

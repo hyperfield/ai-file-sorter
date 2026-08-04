@@ -302,6 +302,28 @@ TEST_CASE("DatabaseManager can clear cached categorizations together with taxono
     sqlite3_close(raw_db);
 }
 
+TEST_CASE("DatabaseManager strips inline subcategory artifacts from stored translations") {
+    TempDir base_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
+    DatabaseManager db(base_dir.path().string());
+
+    const auto resolved = db.resolve_category("Documents", "French Language Files");
+    REQUIRE(resolved.taxonomy_id > 0);
+    REQUIRE(db.upsert_category_translation(resolved.taxonomy_id,
+                                           CategoryLanguage::French,
+                                           "Documents , subcategory Fichiers en Francais",
+                                           "Fichiers en Francais"));
+
+    const auto translated = db.get_category_translation(resolved.taxonomy_id, CategoryLanguage::French);
+    REQUIRE(translated.has_value());
+    CHECK(translated->category == "Documents");
+    CHECK(translated->subcategory == "Fichiers en Francais");
+
+    const auto localized = db.localize_category(resolved, CategoryLanguage::French);
+    CHECK(localized.category == "Documents");
+    CHECK(localized.subcategory == "Fichiers en Francais");
+}
+
 TEST_CASE("DatabaseManager migrates legacy audio and installer-builder taxonomy labels on reopen") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());

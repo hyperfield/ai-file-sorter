@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 /**
@@ -31,6 +32,8 @@ public:
         std::vector<std::string> categories;
         /** @brief Optional subcategory constraints; empty means subcategories are unrestricted. */
         std::vector<std::string> subcategories;
+        /** @brief Optional category-specific subcategory constraints. */
+        std::unordered_map<std::string, std::vector<std::string>> subcategories_by_category;
         /** @brief Sample files to materialize for the test run. */
         std::vector<SampleFile> files;
     };

@@ -59,10 +59,18 @@ struct CustomLLM {
     std::string name;
     std::string description;
     std::string path;
+    std::string mmproj_path;
 };
 
 inline bool is_valid_custom_llm(const CustomLLM& entry) {
     return !entry.id.empty() && !entry.name.empty() && !entry.path.empty();
+}
+
+/**
+ * @brief Returns true when a custom LLM has the files required for visual analysis.
+ */
+inline bool is_visual_custom_llm(const CustomLLM& entry) {
+    return is_valid_custom_llm(entry) && !entry.mmproj_path.empty();
 }
 
 /**

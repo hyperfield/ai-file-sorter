@@ -57,6 +57,11 @@ public:
     std::string get_gemini_model() const;
     bool get_llm_downloads_expanded() const;
     /**
+     * @brief Return the selected local LLM storage directory override.
+     * @return Directory path, or empty when platform defaults should be used.
+     */
+    std::string get_llm_storage_dir() const;
+    /**
      * @brief Return the selected visual model backend id.
      * @return Stable visual model identifier.
      */
@@ -90,6 +95,7 @@ private:
     void setup_ui();
     void connect_signals();
     void showEvent(QShowEvent* event) override;
+    void accept() override;
     void update_ui_for_choice();
     void update_legacy_local_3b_visibility();
     void update_radio_selection();
@@ -149,6 +155,22 @@ private:
      * @brief Recalculate the dialog size based on visible content.
      */
     void adjust_dialog_size();
+    /**
+     * @brief Refresh built-in and custom visual backend choices.
+     */
+    void refresh_visual_backend_combo();
+    /**
+     * @brief Apply the dialog's current model storage directory to path resolution.
+     */
+    void apply_model_storage_dir_override();
+    /**
+     * @brief Open a directory picker for the local LLM storage directory.
+     */
+    void browse_model_storage_dir();
+    /**
+     * @brief Reset the local LLM storage directory to platform defaults.
+     */
+    void reset_model_storage_dir();
     void setup_visual_llm_download_entry(VisualLlmDownloadEntry& entry,
                                      QWidget* parent,
                                      const VisualModelDescriptor& backend,
@@ -183,6 +205,9 @@ private:
     std::string gemini_api_key;
     std::string gemini_model;
     bool downloads_expanded_{true};
+    std::string model_storage_dir_;
+    std::string original_model_storage_dir_;
+    bool accepted_{false};
 
     QRadioButton* openai_radio{nullptr};
     QRadioButton* gemini_radio{nullptr};
@@ -213,6 +238,9 @@ private:
     QPushButton* ok_button{nullptr};
     QDialogButtonBox* button_box{nullptr};
     QWidget* downloads_container{nullptr};
+    QLineEdit* model_storage_dir_edit{nullptr};
+    QPushButton* browse_model_storage_dir_button{nullptr};
+    QPushButton* reset_model_storage_dir_button{nullptr};
     QWidget* download_section{nullptr};
     QWidget* visual_llm_download_section{nullptr};
     QComboBox* visual_backend_combo{nullptr};

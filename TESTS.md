@@ -1,13 +1,18 @@
 # Test Suite Guide
 
-This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. Some UI-centric tests are compiled only on non-Windows platforms and use the Qt offscreen platform plugin so they can run without a visible display.
+This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. UI-centric tests use a headless Qt platform plugin so they can run without a visible display: `minimal` on Windows and `offscreen` on other platforms.
 
 ## How to run tests
-- Configure tests (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
-- Build and run all tests: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
+- Configure tests on Linux/macOS (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
+- Build and run all tests on Linux/macOS: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
+- On Windows, configure from a Visual Studio Developer PowerShell with the vcpkg toolchain and a Qt 6 MSVC kit, for example: `$env:VCPKG_ROOT="D:\path\to\vcpkg"; $qt="C:\Qt\6.6.3\msvc2019_64"; $toolchain=Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"; cmake -S app -B build-tests -G "Ninja" -DCMAKE_PREFIX_PATH=$qt "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_MANIFEST_DIR=app -DVCPKG_TARGET_TRIPLET=x64-windows -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
+- On Windows, build and run all tests with: `cmake --build build-tests --config Release --target ai_file_sorter_tests ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests --parallel $env:NUMBER_OF_PROCESSORS` then `ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS`
 - Run a single test case by name: `./build-tests/ai_file_sorter_tests "<test case name or pattern>"`
+- On Windows multi-config builds, the direct test executable lives under `./build-tests/tests/<Config>/`, for example: `./build-tests/tests/Release/ai_file_sorter_tests.exe "<test case name or pattern>"`
 - Run GUI test mode: `./build-tests/aifilesorter --test`
 - Run production-binary self-tests: `./build-tests/aifilesorter --self-test` or `./build-tests/aifilesorter --self-test=whitelist`
+- Register optional live LLM headless tests by adding `-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON` when configuring tests, or on Windows by running `.\app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in PowerShell or `app\build_windows.cmd -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in `cmd.exe`. Then either set `AI_FILE_SORTER_LIVE_LLM_MODEL` to a local text GGUF path or rely on the selected local/custom GGUF in AI File Sorter `config.ini`, optionally set `AI_FILE_SORTER_LIVE_BACKEND=cpu|cuda|vulkan|auto` (`cuda` validates CUDA explicitly; `cpu` is for deterministic CPU/OpenBLAS runs), and run `ctest --test-dir build-tests -L live-llm --output-on-failure` for manual CMake builds or `ctest --test-dir app\build-windows -C Release -L live-llm --output-on-failure` for the Windows helper build. Use `ctest -V` for live progress; otherwise tail the work dir from `%TEMP%\aifs-live-llm-latest.txt`. Image rename cases also require `AI_FILE_SORTER_LIVE_VISUAL_MODEL` and `AI_FILE_SORTER_LIVE_VISUAL_MMPROJ`, unless a custom visual model pair is selected in settings.
+- If Windows CMake reports a missing Visual Studio instance from an existing `build-tests` directory, use `cmake --fresh` when supported, delete/recreate that build directory, or choose a new build directory; the Visual Studio path is stored in `CMakeCache.txt`.
 - MediaInfo is expected from a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`); vendored MediaInfo directories/binaries are intentionally rejected by the build.
 
 ## App test modes
@@ -16,6 +21,16 @@ The production executable supports two developer-oriented test modes:
 
 - `--test` launches the normal GUI, implies development mode, and adds a Tests menu. The current GUI preset creates a larger sample whitelist and sample files, then runs the normal analysis flow with the selected real LLM for manual review in the Review dialog. It reuses the user's selected LLM settings, but test-mode whitelists, categorization cache, learned behavior, undo data, and sample files are stored under an isolated `test_mode_profile` directory inside the normal config directory.
 - `--self-test` runs deterministic headless checks and exits with a pass/fail status. The current suite is `whitelist`, which builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite.
+
+## Optional live LLM headless tests
+
+`tests/live_llm/headless_live_llm_tests.py` is an opt-in black-box integration suite. It runs the production `aifilesorter --headless` command against isolated copies of real/generated files, seeds a temporary app config with a custom local text model, writes a persisted test whitelist, and validates the emitted status/review JSON plus filesystem effects. The explicit `--model` / `AI_FILE_SORTER_LIVE_LLM_MODEL` value wins; if omitted, the runner reads AI File Sorter `config.ini` and uses the selected local/custom GGUF when it can resolve the file. On bundled Windows builds it uses the `aifilesorter.exe` launcher, or auto-promotes a supplied `aifilesorter-bin.exe` path to the sibling launcher, so llama.cpp backend DLL selection matches the non-Store app. The runner emits per-case progress, writes `progress.log`, and includes runtime backend fields from the headless status JSON. The suite exits with `77` when the required executable or usable text model path is missing so CTest reports it as skipped rather than failed.
+
+Covered cases include categorization with and without subcategories, whitelist-restricted categorization, selected-file auto-apply boundaries, document renaming in English/French/Simplified Chinese/Hindi, optional image-content renaming in the same languages when visual artifacts are configured, a FLAC metadata rename capability probe, and categorize-and-rename review-plan generation. Exact model labels are not treated as golden output; assertions focus on stable invariants such as non-empty categories, whitelist confinement, extension preservation, and review-plan creation. Non-English rename language/script signals are warning-only by default; set `AI_FILE_SORTER_LIVE_REQUIRE_LOCALIZED_RENAMES=1` for strict localized rename failures.
+
+Run directly with: `python tests/live_llm/headless_live_llm_tests.py --app app\build-windows\Release\aifilesorter.exe --model C:\models\text-model.gguf --backend cpu --keep-work-dir --verbose`. See `tests/live_llm/README.md` for all environment variables and public fixture sources.
+
+Manual Windows GUI smoke validation for issue #95: launch a normal visible build, switch the UI/category language to French, scan a folder containing non-CP1252 filenames, open the Review dialog, sort columns, toggle subcategory visibility, change UI language while the dialog is open, apply `Logiciels / Navigateur`, and undo. Expected outcome: no `Qt6Widgets.dll` crash, no Windows code-page path exception, no literal `subcategory` folder, and the file is restored by undo.
 
 ## Unit test catalog
 
@@ -34,6 +49,29 @@ Setup: Construct `AppTestRunner` with an unknown suite selector.
 Procedure: Run the suite and inspect the aggregate result.
 Expected outcome: The runner returns an error, no cases are executed, and the aggregate result fails.
 Run: `./build-tests/ai_file_sorter_tests "AppTestRunner rejects unknown self-test suite"`
+
+### `tests/unit/test_category_date_suffix.cpp`
+
+#### Test case: CategoryDateSuffix appends generated date suffixes once
+Purpose: Ensure generated category date suffixes remain deterministic display overlays.
+Setup: Provide base categories and existing suffixed categories for document and image date formats.
+Procedure: Append generated date suffixes.
+Expected outcome: Base categories receive one suffix, already suffixed categories are unchanged, and empty dates leave the category unchanged.
+Run: `./build-tests/ai_file_sorter_tests "CategoryDateSuffix appends generated date suffixes once"`
+
+#### Test case: CategoryDateSuffix strips exact generated date suffixes
+Purpose: Verify exact generated date suffixes can be removed before canonical storage.
+Setup: Provide category labels with document and image date suffixes.
+Procedure: Strip matching and non-matching generated suffixes.
+Expected outcome: Matching suffixes are removed and non-matching suffixes are preserved.
+Run: `./build-tests/ai_file_sorter_tests "CategoryDateSuffix strips exact generated date suffixes"`
+
+#### Test case: CategoryDateSuffix strips generated suffixes by kind
+Purpose: Support legacy cache cleanup without needing to re-extract metadata first.
+Setup: Provide document-style, image-style, and malformed suffixed category labels.
+Procedure: Strip suffixes by expected file kind.
+Expected outcome: Only valid suffixes for the requested kind are removed.
+Run: `./build-tests/ai_file_sorter_tests "CategoryDateSuffix strips generated suffixes by kind"`
 
 ### `tests/unit/test_local_llm_backend.cpp` (skipped when `GGML_USE_METAL` is defined)
 
@@ -58,6 +96,13 @@ Procedure: Build the categorization user prompt through the local LLM test acces
 Expected outcome: Both prompts start with the document-specific instruction text, include file name and path, keep the shared guidance, and omit the generic `Full path:` framing; only the summarized file includes a `Document summary:` line.
 Run: `./build-tests/ai_file_sorter_tests "Document categorization uses a document-specific user prompt"`
 
+#### Test case: Image categorization uses refined local prompts when refined mode is requested
+Purpose: Ensure the local image prompt path relaxes the fixed `Images` bucket when `More refined` guidance is present.
+Setup: Provide an image prompt path with an `Image description:` payload and a consistency context block starting with `Sorting style: More refined`.
+Procedure: Build both the categorization system prompt and user prompt through the local LLM test access layer.
+Expected outcome: The system prompt allows a content-specific main category, and the user prompt switches to the generic `<Main category> : <Subcategory>` answer format instead of forcing `Images : <Subcategory>`.
+Run: `./build-tests/ai_file_sorter_tests "Image categorization uses refined local prompts when refined mode is requested"`
+
 #### Test case: Generic file categorization user prompt includes explicit answer format
 Purpose: Keep the generic file prompt short while still forcing the model back into the strict `<Main category> : <Subcategory>` response shape.
 Setup: Provide a representative software-like file name and a sample allowed-main-category block.
@@ -74,14 +119,14 @@ Run: `./build-tests/ai_file_sorter_tests "CPU backend is honored when forced"`
 
 #### Test case: CUDA backend can be forced off via GGML_DISABLE_CUDA
 Purpose: Confirm that the global CUDA disable flag overrides a CUDA backend preference.
-Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda` and `GGML_DISABLE_CUDA=1`. Inject a probe that reports CUDA available.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda` and `GGML_DISABLE_CUDA=1`. Inject a backend-availability probe that reports CUDA available.
 Procedure: Call `prepare_model_params_for_testing()`.
 Expected outcome: `n_gpu_layers` is `0`, indicating CPU fallback.
 Run: `./build-tests/ai_file_sorter_tests "CUDA backend can be forced off via GGML_DISABLE_CUDA"`
 
 #### Test case: CUDA override is applied when backend is available
-Purpose: Validate that an explicit layer override is used when CUDA is available.
-Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, and inject a CUDA-available probe.
+Purpose: Validate that an explicit layer override is used when the ggml CUDA backend is available, even if backend memory metrics are absent.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, inject a backend-availability probe for CUDA, and inject a backend-memory probe that returns no metrics.
 Procedure: Call `prepare_model_params_for_testing()`.
 Expected outcome: `n_gpu_layers` equals `7`.
 Run: `./build-tests/ai_file_sorter_tests "CUDA override is applied when backend is available"`
@@ -101,15 +146,22 @@ Expected outcome: The ladder starts at `15` once and then descends to `11, 8, 6,
 Run: `./build-tests/ai_file_sorter_tests "LocalLLMClient deduplicates matching retry estimates before reducing GPU layers"`
 
 #### Test case: CUDA backend reports low GPU memory before load
-Purpose: Ensure CUDA preflight checks fall back to CPU before model load when available VRAM is too low.
-Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave the layer override unset, inject a CUDA-available probe, and inject a CUDA memory probe with extremely low free memory.
+Purpose: Ensure CUDA preflight checks fall back to CPU before model load when the ggml CUDA backend reports too little available VRAM.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave the layer override unset, inject a backend-availability probe for CUDA, and inject backend memory with extremely low free memory.
 Procedure: Call `prepare_model_params_result_for_testing()` for a temporary model with enough layers to exceed the reported budget.
 Expected outcome: `n_gpu_layers` is `0` and the captured status is `GpuLowMemoryFallbackToCpu`.
 Run: `./build-tests/ai_file_sorter_tests "CUDA backend reports low GPU memory before load"`
 
+#### Test case: CUDA backend falls back to CPU when backend memory metrics are unavailable
+Purpose: Ensure CUDA preflight declines GPU offload instead of hanging or guessing when the ggml CUDA backend cannot report memory metrics and no explicit layer override is set.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave the layer override unset, inject a backend-availability probe for CUDA, and inject a backend-memory probe that returns no data.
+Procedure: Call `prepare_model_params_for_testing()`.
+Expected outcome: `n_gpu_layers` is `0`, indicating a safe CPU fallback.
+Run: `./build-tests/ai_file_sorter_tests "CUDA backend falls back to CPU when backend memory metrics are unavailable"`
+
 #### Test case: Auto backend prefers CUDA when both backends are possible
 Purpose: Verify that automatic backend selection uses CUDA before Vulkan.
-Setup: Leave `AI_FILE_SORTER_GPU_BACKEND` unset, clear `GGML_DISABLE_CUDA`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, inject a CUDA-available probe, and inject a Vulkan probe that reports unavailable.
+Setup: Leave `AI_FILE_SORTER_GPU_BACKEND` unset, clear `GGML_DISABLE_CUDA`, set `AI_FILE_SORTER_N_GPU_LAYERS=7`, inject a backend-availability probe that reports CUDA available, and inject a backend-memory probe that returns no metrics.
 Procedure: Call `prepare_model_params_for_testing()`.
 Expected outcome: `n_gpu_layers` equals `7`, proving the auto path chose CUDA without consulting Vulkan first.
 Run: `./build-tests/ai_file_sorter_tests "Auto backend prefers CUDA when both backends are possible"`
@@ -122,10 +174,10 @@ Expected outcome: `n_gpu_layers` equals `12`, proving the auto path fell through
 Run: `./build-tests/ai_file_sorter_tests "Auto backend falls back to Vulkan when CUDA is disabled"`
 
 #### Test case: CUDA fallback when no GPU is available
-Purpose: Ensure CUDA preference falls back when no GPU is detected.
-Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave layer override unset, and inject a CUDA-unavailable probe.
+Purpose: Ensure CUDA preference falls back when no ggml CUDA backend is detected.
+Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave layer override unset, and inject a backend-availability probe that reports CUDA unavailable.
 Procedure: Call `prepare_model_params_for_testing()`.
-Expected outcome: `n_gpu_layers` is `0` or `-1` (CPU or auto fallback).
+Expected outcome: `n_gpu_layers` is `0`.
 Run: `./build-tests/ai_file_sorter_tests "CUDA fallback when no GPU is available"`
 
 #### Test case: Vulkan backend honors explicit override
@@ -149,6 +201,219 @@ Procedure: Call `prepare_model_params_result_for_testing()` for a temporary mode
 Expected outcome: `n_gpu_layers` is `0` and the captured status is `GpuLowMemoryFallbackToCpu`.
 Run: `./build-tests/ai_file_sorter_tests "Vulkan backend reports low GPU memory before load"`
 
+### `tests/unit/test_local_llm_prompt_builder.cpp`
+
+#### Test case: LocalLLMPromptBuilder preserves specialized prompt routing
+Purpose: Verify the extracted prompt builder still selects image, document, and directory system prompts from the target context.
+Setup: Provide representative image-description, document, and directory prompt paths.
+Procedure: Build system prompts through `LocalLLMPromptBuilder`.
+Expected outcome: Each target gets its specialized prompt text.
+Run: `./build-tests/ai_file_sorter_tests "LocalLLMPromptBuilder preserves specialized prompt routing"`
+
+#### Test case: LocalLLMPromptBuilder strips image guidance from image prompts only
+Purpose: Keep image categorization prompts concise by removing duplicated image-specific guidance while preserving whitelist context.
+Setup: Provide an image prompt path with a visual description and consistency context containing image guidance plus allowed categories.
+Procedure: Build the user prompt through `LocalLLMPromptBuilder`.
+Expected outcome: The image guidance block is removed, while allowed categories and the image description remain.
+Run: `./build-tests/ai_file_sorter_tests "LocalLLMPromptBuilder strips image guidance from image prompts only"`
+
+#### Test case: LocalLLMPromptBuilder shrinks long analysis sections before truncating prompt
+Purpose: Ensure context fallback retries trim long document or image analysis sections without losing category restrictions or answer-format instructions.
+Setup: Build a document prompt containing a long `Document summary:` section.
+Procedure: Shrink the prompt for a retry attempt.
+Expected outcome: The summary is shortened with an ellipsis and the allowed-category and answer-format sections remain present.
+Run: `./build-tests/ai_file_sorter_tests "LocalLLMPromptBuilder shrinks long analysis sections before truncating prompt"`
+
+### `tests/unit/test_analysis_runtime_lock.cpp`
+
+#### Test case: AnalysisRuntimeLock serializes active jobs and persists metadata
+Purpose: Ensure the shared runtime lock allows only one analysis owner and writes status metadata for other entry points.
+Setup: Create a writable temporary runtime directory and acquire the lock as the GUI owner.
+Procedure: Read the persisted metadata, attempt a competing Explorer-worker lock, release the GUI lease, and retry the Explorer-worker acquisition.
+Expected outcome: The competing acquisition is rejected while the GUI lease is active, metadata reflects the GUI job, and the Explorer-worker lease succeeds after release.
+Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock serializes active jobs and persists metadata"`
+
+#### Test case: AnalysisRuntimeLock owner strings are stable
+Purpose: Keep persisted lock owner values compatible across GUI, Explorer worker, and headless entry points.
+Setup: Use each supported runtime-lock owner enum.
+Procedure: Convert owners to strings and parse strings back to owners.
+Expected outcome: `gui`, `explorerWorker`, and `headless` round-trip to the expected owners, while unknown strings parse as `Unknown`.
+Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock owner strings are stable"`
+
+### `tests/unit/test_headless_analysis_command.cpp`
+
+#### Test case: HeadlessAnalysisCommand parses operation paths and status file
+Purpose: Verify the Explorer-facing command contract accepts operation, path, status-file, and job-id options.
+Setup: Create a temporary input file and build an argv vector for `--headless`.
+Procedure: Parse the arguments.
+Expected outcome: The command is marked requested, consumes the headless arguments, resolves the operation, and preserves the supplied path, status file, and job id.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses operation paths and status file"`
+
+#### Test case: HeadlessAnalysisCommand parses apply mode flags
+Purpose: Verify headless callers can explicitly request review-only or auto-apply behavior.
+Setup: Create a temporary input file and build argv vectors with `--review-only` and `--headless-auto-apply`.
+Procedure: Parse both argument sets.
+Expected outcome: The parsed options select `ReviewOnly` and `AutoApply` respectively without validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses apply mode flags"`
+
+#### Test case: HeadlessAnalysisCommand parses include subdirectories override
+Purpose: Verify headless callers can override recursive scanning for integration-specific settings.
+Setup: Create a temporary input file and build argv vectors with `--include-subdirectories` and `--headless-no-include-subdirectories`.
+Procedure: Parse both argument sets.
+Expected outcome: The parsed options preserve the requested include-subdirectories override values without validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses include subdirectories override"`
+
+#### Test case: HeadlessAnalysisCommand parses settings overrides file
+Purpose: Verify Explorer and other integrations can provide a JSON settings overlay for a headless run.
+Setup: Create a temporary input file and settings-overrides path, then build an argv vector with `--settings-overrides-file`.
+Procedure: Parse the arguments.
+Expected outcome: The parsed options preserve the supplied overrides file path without validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses settings overrides file"`
+
+#### Test case: HeadlessAnalysisCommand parses saved review apply requests
+Purpose: Verify the headless CLI accepts applying a previously saved review plan.
+Setup: Create temporary review/status paths and build an argv vector with `--headless-apply`.
+Procedure: Parse the arguments.
+Expected outcome: The parsed options select `ApplyReview`, preserve the review file, status file, and job id, and produce no validation errors.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand parses saved review apply requests"`
+
+#### Test case: HeadlessAnalysisCommand reports busy runtime lock
+Purpose: Ensure the headless command reports an existing Explorer/GUI analysis lock instead of running concurrently.
+Setup: Hold an `AnalysisRuntimeLock` as an Explorer worker and prepare a headless command with a status file.
+Procedure: Run the command.
+Expected outcome: The command exits with the busy code, writes `blocked` status JSON, and includes the lock owner metadata.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand reports busy runtime lock"`
+
+#### Test case: HeadlessAnalysisCommand runs categorization for an empty folder
+Purpose: Verify the headless command can execute the real analysis workflow for a folder target without invoking an LLM when no entries are pending.
+Setup: Create a temporary empty target folder, isolate app settings under a temporary config root, and prepare a headless categorize command with a status file.
+Procedure: Run the command and inspect the final status JSON and runtime lock.
+Expected outcome: The command exits successfully, writes `completed` status JSON with zero review entries, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand runs categorization for an empty folder"`
+
+#### Test case: HeadlessAnalysisCommand honors stop marker for headless jobs
+Purpose: Verify Explorer can request cooperative cancellation of a headless analysis run through the status sidecar stop marker.
+Setup: Create a temporary empty target folder, isolate app settings, prepare a status file path, and create the matching `.stop` marker before running the command.
+Procedure: Run the command and inspect the final status JSON and runtime lock.
+Expected outcome: The command exits with the user-cancellation failure code, writes `cancelled` status JSON, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand honors stop marker for headless jobs"`
+
+#### Test case: HeadlessAnalysisCommand reports LLM setup action when categorization has no LLM
+Purpose: Ensure Explorer/headless categorization reports a machine-readable setup action when first-run settings have no usable LLM.
+Setup: Create a temporary target folder with one uncached file, isolate app settings under a temporary config root, and prepare a headless categorize command with a status file.
+Procedure: Run the command and inspect the final status JSON and runtime lock.
+Expected outcome: The command exits with failure, writes `blocked` status JSON with `actionRequired: select_llm`, includes the setup error, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand reports LLM setup action when categorization has no LLM"`
+
+#### Test case: HeadlessAnalysisCommand applies cached categorization for a folder
+Purpose: Verify the headless review/apply layer moves categorized files and emits machine-readable review/apply details.
+Setup: Create a temporary target folder containing one file, disable headless review-before-apply in isolated settings, insert a cached `Documents / Reports` categorization for that file, and prepare a headless categorize command.
+Procedure: Run the command, inspect the moved file, and read the final status JSON.
+Expected outcome: The command exits successfully, moves the file into the category/subcategory folder, saves an undo plan, and writes review/apply counts with one moved entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorization for a folder"`
+
+#### Test case: HeadlessAnalysisCommand prepares review before applying by default
+Purpose: Ensure Explorer/headless jobs honor the review-before-apply default and do not move files silently.
+Setup: Create a temporary target folder containing one cached `Documents / Reports` file with isolated settings.
+Procedure: Run the headless categorize command without an auto-apply override, inspect the file locations, and read the final status JSON.
+Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload and review plan file, and reports zero moved/renamed/skipped apply counts.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand prepares review before applying by default"`
+
+#### Test case: HeadlessAnalysisCommand preserves UTF-8 filenames in review status
+Purpose: Prevent non-ASCII file names from being corrupted when headless jobs serialize review/status JSON.
+Setup: Create a cached review-only categorization for a file name containing accented Latin, Chinese, and Hindi characters.
+Procedure: Run the headless categorize command in review-only mode and inspect the emitted status JSON review entry.
+Expected outcome: The file name and source/destination paths preserve the exact UTF-8 text and contain no Unicode replacement characters.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand preserves UTF-8 filenames in review status"`
+
+#### Test case: HeadlessAnalysisCommand applies saved review plan
+Purpose: Verify approval can apply the exact saved headless review plan without rerunning analysis.
+Setup: Create a cached categorization, run the default review-required command, and read the generated review plan path.
+Procedure: Run `HeadlessAnalysisCommand` in `ApplyReview` mode against the saved review plan.
+Expected outcome: The command moves the file according to the saved plan, writes `completed` status JSON, preserves the review plan path in status, and records moved/undo counts.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies saved review plan"`
+
+#### Test case: HeadlessAnalysisCommand categorizes only a selected file target
+Purpose: Verify a single file target runs the parent-folder workflow but applies only the selected file.
+Setup: Create a temporary target folder with one cached selected file and one uncached sibling, then pass the selected file path to the headless categorize command.
+Procedure: Run the command, inspect the selected and sibling files, and read the final status JSON.
+Expected outcome: Only the selected file is moved, the sibling remains in place, and the review/apply counts report one moved entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand categorizes only a selected file target"`
+
+#### Test case: HeadlessAnalysisCommand applies cached rename for a folder
+Purpose: Verify the headless rename operation applies cached suggested names without moving files into category folders.
+Setup: Create a temporary target folder containing a document, enable document rename suggestions in isolated settings, and insert a cached category row with a suggested filename.
+Procedure: Run the headless rename command, inspect the renamed file, and read the final status JSON.
+Expected outcome: The command exits successfully, renames the file in place, saves an undo plan, and reports one renamed entry with zero moved entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached rename for a folder"`
+
+#### Test case: HeadlessAnalysisCommand renames only a selected file target
+Purpose: Verify a single file rename target applies only that file's cached suggested name.
+Setup: Create a temporary target folder with one cached selected rename suggestion and one uncached sibling, then pass the selected file path to the headless rename command.
+Procedure: Run the command and inspect both source/destination pairs and final status JSON.
+Expected outcome: Only the selected file is renamed, the sibling remains in place, and the apply counts report one renamed entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand renames only a selected file target"`
+
+#### Test case: HeadlessAnalysisCommand skips rename when no cached suggestion exists
+Purpose: Verify rename-only headless apply skips files that have no suggested filename.
+Setup: Create a temporary target folder containing a cached categorized file without a suggested name.
+Procedure: Run the headless rename command and inspect the source file and final status JSON.
+Expected outcome: The command exits successfully, leaves the source file in place, and reports one skipped entry with zero moved or renamed entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand skips rename when no cached suggestion exists"`
+
+#### Test case: HeadlessAnalysisCommand applies cached categorize and rename for a folder
+Purpose: Verify the combined headless operation moves categorized files while applying cached suggested names.
+Setup: Create a temporary target folder containing a document, enable document rename suggestions, and insert a cached `Documents / Reports` categorization with a suggested filename.
+Procedure: Run the headless categorize-and-rename command, inspect the destination file, and read the final status JSON.
+Expected outcome: The command exits successfully, moves the file into the category/subcategory folder using the suggested filename, saves an undo plan, and reports one moved and renamed entry.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorize and rename for a folder"`
+
+#### Test case: HeadlessAnalysisCommand applies same-folder multi-select only
+Purpose: Verify same-folder multi-select file targets are applied without touching unselected siblings.
+Setup: Create a temporary target folder with two cached selected files and one uncached sibling, then pass two file paths to the headless categorize command.
+Procedure: Run the command, inspect selected and unselected files, and read the final status JSON.
+Expected outcome: Only the two selected files are moved, the unselected file remains in place, and the review/apply counts report two moved entries.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies same-folder multi-select only"`
+
+#### Test case: HeadlessReviewApplyService uses display folders and canonical storage
+Purpose: Verify headless apply mirrors the review dialog by moving into display-label folders while storing canonical taxonomy labels.
+Setup: Create a temporary file with a date-suffixed display category and canonical category metadata.
+Procedure: Apply the headless review plan with recursive cache updates enabled, inspect the moved file, and read the updated cache row.
+Expected outcome: The file is moved into the display category/subcategory path, an undo plan is saved, and the cache row stores the canonical category.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService uses display folders and canonical storage"`
+
+#### Test case: HeadlessReviewApplyService deduplicates duplicate suggested filenames
+Purpose: Ensure headless apply does not skip later files when several review entries suggest the same new filename.
+Setup: Create two video files with the same suggested filename and the same destination category.
+Procedure: Apply the headless review plan with suggested filenames enabled.
+Expected outcome: Both files move successfully and receive `_1`/`_2` filename suffixes.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService deduplicates duplicate suggested filenames"`
+
+#### Test case: HeadlessAnalysisCommand rejects cross-folder file selections
+Purpose: Ensure unsupported cross-folder file selections release the runtime lock.
+Setup: Prepare a headless rename command with two file targets in different parent folders and a writable runtime directory.
+Procedure: Run the command and then inspect the runtime lock.
+Expected outcome: The command exits with the unsupported code, writes `failed` status JSON mentioning same-folder selections, and leaves no held runtime lock behind.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-folder file selections"`
+
+### `tests/unit/test_headless_settings_overrides_json.cpp`
+
+#### Test case: HeadlessSettingsOverridesJson parses direct whitelist lists
+Purpose: Verify headless settings override JSON can carry explicit whitelist categories and subcategories for deterministic integrations and tests.
+Setup: Build a JSON object with `useWhitelist`, `activeWhitelist`, `allowedCategories`, and `allowedSubcategories`, including whitespace, an empty string, and a non-string value.
+Procedure: Parse the object through `HeadlessSettingsOverridesJson`.
+Expected outcome: The parser preserves the whitelist activation/name and returns trimmed category/subcategory lists with empty and non-string entries ignored.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson parses direct whitelist lists"`
+
+### `tests/unit/test_headless_status_json.cpp`
+
+#### Test case: HeadlessStatusJson round-trips UTF-8 review plans
+Purpose: Verify the extracted headless status/review JSON serializer preserves non-ASCII paths and filenames.
+Setup: Build a review plan containing accented Latin, Chinese, and Hindi text in file names and paths.
+Procedure: Write the review plan with `HeadlessStatusJson`, read it back, and compare operation, paths, apply options, and entries.
+Expected outcome: UTF-8 file names, suggested names, paths, and apply options round-trip exactly.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessStatusJson round-trips UTF-8 review plans"`
+
 ### `tests/unit/test_single_instance_coordinator.cpp`
 
 #### Test case: SingleInstanceCoordinator notifies the primary instance on relaunch
@@ -157,6 +422,13 @@ Setup: Create a writable temporary runtime directory, point `AI_FILE_SORTER_SING
 Procedure: Verify local socket binding is available, then start a second coordinator with the same instance id and wait for the primary callback to fire.
 Expected outcome: When local sockets are available, the second coordinator reports that it is not primary and the first coordinator receives exactly the relaunch activation request. If the sandbox cannot bind local sockets, the test records that the activation handoff is skipped.
 Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator notifies the primary instance on relaunch"`
+
+#### Test case: SingleInstanceCoordinator forwards secondary launch command payload
+Purpose: Verify that a second launch can send a startup command to the already running primary process.
+Setup: Create a writable temporary runtime directory, point `AI_FILE_SORTER_SINGLE_INSTANCE_RUNTIME_DIR` at it, start one coordinator as the primary instance, and install an activation callback that records the received message.
+Procedure: Start a second coordinator with the same instance id, set its activation message to `show-review-history`, and wait for the primary callback to receive it.
+Expected outcome: When local sockets are available, the second coordinator exits as non-primary and the first coordinator receives the `show-review-history` payload. If the sandbox cannot bind local sockets, the test records that the payload handoff is skipped.
+Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator forwards secondary launch command payload"`
 
 #### Test case: SingleInstanceCoordinator allows different instance ids to coexist
 Purpose: Ensure the coordinator only deduplicates launches that share the same logical app id.
@@ -187,6 +459,20 @@ Setup: Build `MainApp` with offscreen Qt.
 Procedure: Inspect the image and document option toggle buttons through the test access layer.
 Expected outcome: Both toggles are checkable and use `Qt::NoArrow`, leaving the visible indicator to the styled label.
 Run: `./build-tests/ai_file_sorter_tests "Analysis toggles use disclosure indicators instead of toolbutton arrows"`
+
+#### Test case: Main window controls expose accessibility metadata
+Purpose: Verify the primary controls expose accessible names and label associations needed by screen readers.
+Setup: Build `MainApp` with offscreen Qt and show the window so translated labels and buddies are applied.
+Procedure: Inspect the folder label, path entry, main action buttons, and disclosure toggles through the widget tree and test access layer.
+Expected outcome: The folder label is linked to the path entry as its buddy, the path entry inherits that accessible name, and the primary buttons and disclosure toggles expose non-empty accessible names.
+Run: `./build-tests/ai_file_sorter_tests "Main window controls expose accessibility metadata"`
+
+#### Test case: Progress dialog takes focus and exposes accessibility metadata
+Purpose: Ensure analysis startup moves focus into the progress dialog and exposes accessible metadata for its key controls.
+Setup: Build `MainApp` with offscreen Qt, construct a `CategorizationProgressDialog`, and configure it with a simple image-analysis stage.
+Procedure: Show the progress dialog, process Qt events, and inspect the stop button, dialog metadata, and activity log widget.
+Expected outcome: The dialog becomes the active window, the stop button receives focus, and the dialog and log view expose non-empty accessible names or descriptions.
+Run: `./build-tests/ai_file_sorter_tests "Progress dialog takes focus and exposes accessibility metadata"`
 
 #### Test case: Image rename-only does not disable categorization unless processing images only
 Purpose: Confirm that rename-only for images does not disable file categorization by itself.
@@ -304,6 +590,59 @@ Procedure: Call `ImageAnalyzerFactory::create()` with GPU disabled.
 Expected outcome: Creation throws a clear invalid/incomplete GGUF artifact error.
 Run: `./build-tests/ai_file_sorter_tests "ImageAnalyzerFactory rejects invalid GGUF artifacts before analyzer startup"`
 
+### `tests/unit/test_filename_localization_service.cpp`
+
+#### Test case: FilenameLocalizationService localizes filename stems and preserves extensions
+Purpose: Ensure localized rename suggestions keep the original extension and derive a sensible translated word budget from the source filename.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that returns a translated stem.
+Procedure: Localize a three-word English filename into French and inspect both the output filename and the captured prompt.
+Expected outcome: The translated stem is returned with the original extension, and the prompt references the target language, the original stem, and the derived three-word limit.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService localizes filename stems and preserves extensions"`
+
+#### Test case: FilenameLocalizationService keeps the original suggestion when localization is unusable
+Purpose: Avoid replacing a valid suggestion with an empty or malformed translation response.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that returns only punctuation.
+Procedure: Attempt to localize an English filename into German.
+Expected outcome: The original filename suggestion is returned unchanged.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService keeps the original suggestion when localization is unusable"`
+
+#### Test case: FilenameLocalizationService skips localization when English is selected
+Purpose: Ensure English stays the no-op path and does not spend an extra LLM call on filename localization.
+Setup: Construct the filename-localization service with a fixed-response LLM stub that records any prompt it receives.
+Procedure: Attempt to localize an English filename while the selected language is English.
+Expected outcome: The original filename suggestion is returned unchanged and no prompt is sent to the LLM.
+Run: `./build-tests/ai_file_sorter_tests "FilenameLocalizationService skips localization when English is selected"`
+
+### `tests/unit/test_media_rename_metadata_service.cpp`
+
+#### Test case: MediaRenameMetadataService composes year-artist-album-title filenames
+Purpose: Verify audio/video rename suggestions keep the intended metadata ordering.
+Setup: Prepare metadata containing year, artist, album, and title.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The result is `year_artist_album_title.ext`.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService composes year-artist-album-title filenames"`
+
+#### Test case: MediaRenameMetadataService falls back to source stem when title is missing
+Purpose: Ensure metadata-based suggestions stay useful even when the title field is absent.
+Setup: Prepare metadata with year and artist only.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The source stem is used in place of the missing title segment.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService falls back to source stem when title is missing"`
+
+#### Test case: MediaRenameMetadataService keeps original filename when metadata is absent
+Purpose: Confirm the service does not invent rename suggestions when there is no usable metadata.
+Setup: Use an empty metadata payload.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The original filename is returned unchanged.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService keeps original filename when metadata is absent"`
+
+#### Test case: MediaRenameMetadataService preserves UTF-8 metadata in composed filenames
+Purpose: Ensure non-Latin artist/title metadata survives filename normalization instead of collapsing to ASCII-only output.
+Setup: Prepare metadata containing Korean artist and title values plus a year.
+Procedure: Compose a filename for a representative media path.
+Expected outcome: The resulting filename preserves the UTF-8 metadata words and joins them with underscores.
+Run: `./build-tests/ai_file_sorter_tests "MediaRenameMetadataService preserves UTF-8 metadata in composed filenames"`
+
 ### `tests/unit/test_main_app_cache_action.cpp` (non-Windows only)
 
 #### Test case: Settings maintenance actions stay separate and follow analysis state
@@ -333,6 +672,22 @@ Setup: Build a test-mode `MainApp` with a dedicated test profile path.
 Procedure: Let the window initialize whitelists and inspect the generated data files.
 Expected outcome: `whitelists.ini` is created in the test profile and not in the normal config directory.
 Run: `./build-tests/ai_file_sorter_tests "Test mode can use an isolated runtime data directory"`
+
+### `tests/unit/test_main_app_progress_controller.cpp`
+
+#### Test case: MainAppProgressController hides verbose vision diagnostics outside diagnostic modes
+Purpose: Ensure normal users do not see noisy vision runtime/timing diagnostics in the progress dialog.
+Setup: Construct the controller with immediate UI dispatchers and leave diagnostic visibility disabled.
+Procedure: Evaluate verbose vision diagnostics plus ordinary progress messages.
+Expected outcome: Runtime/timing diagnostics are hidden, while ordinary vision/document messages remain visible.
+Run: `./build-tests/ai_file_sorter_tests "MainAppProgressController hides verbose vision diagnostics outside diagnostic modes"`
+
+#### Test case: MainAppProgressController shows verbose vision diagnostics when enabled
+Purpose: Verify development and test modes can expose low-level vision diagnostics.
+Setup: Construct the controller with immediate UI dispatchers and enable diagnostic visibility.
+Procedure: Evaluate verbose vision runtime and timing messages.
+Expected outcome: Both diagnostic messages are visible.
+Run: `./build-tests/ai_file_sorter_tests "MainAppProgressController shows verbose vision diagnostics when enabled"`
 
 ### `tests/unit/test_main_app_category_language_menu.cpp` (non-Windows only)
 
@@ -378,7 +733,21 @@ Procedure: Refresh the category-language menu through the test access layer and 
 Expected outcome: At least one top-level category-language menu entry is a submenu, confirming the expanded list is compartmentalized.
 Run: `./build-tests/ai_file_sorter_tests "Full Gemma 3 category language menus are compartmentalized into submenus"`
 
-### `tests/unit/test_ui_translator.cpp` (non-Windows only)
+#### Test case: Selecting a submenu-backed category language does not rebuild menus synchronously
+Purpose: Prevent submenu-backed category-language selections from destroying the active Qt menu tree during the `triggered` signal, which previously caused Windows crashes inside `Qt6Widgets.dll`.
+Setup: Build `MainApp` with offscreen Qt in a temporary config directory and switch settings to `Local_4b_Gemma` so the category-language menu is grouped into submenus.
+Procedure: Refresh the category-language menu, locate the submenu that contains `French`, trigger that action directly, and process the queued Qt events.
+Expected outcome: The selected category language changes to French, the original parent submenu remains alive for the duration of the trigger handler, and the rebuilt menu still exposes `French` as the checked choice after queued events run.
+Run: `./build-tests/ai_file_sorter_tests "Selecting a submenu-backed category language does not rebuild menus synchronously"`
+
+#### Test case: Repeated category language switching keeps submenu-backed menus stable
+Purpose: Exercise the crash-prone Windows menu lifetime path by repeatedly opening/closing the grouped category-language menu and switching between English, French, and German.
+Setup: Build `MainApp` with headless Qt in a temporary config directory and switch settings to `Local_4b_Gemma` so the category-language menu is grouped into submenus.
+Procedure: Loop 20 times, show and hide the category-language menu, trigger the next language action, process queued menu refresh events, and locate the rebuilt checked action.
+Expected outcome: No submenu pointer is destroyed during the trigger handler, settings track the selected language, and the rebuilt menu keeps the selected action checked after every iteration.
+Run: `./build-tests/ai_file_sorter_tests "Repeated category language switching keeps submenu-backed menus stable"`
+
+### `tests/unit/test_ui_translator.cpp`
 
 #### Test case: UiTranslator updates menus, actions, and controls
 Purpose: Validate that the UI translator updates all primary controls, menus, and stateful labels in a consistent pass, including category-language actions now generated from the expanded catalog.
@@ -386,6 +755,13 @@ Setup: Build a test harness with a `QMainWindow`, many UI controls, a full inter
 Procedure: Call `retranslate_all()` and verify the text of buttons, checkboxes, top-level menus, language menus, representative category-language actions, status labels, and the file explorer dock title. Also verify the interface-language menu is re-sorted alphabetically and the language action group selection stays correct.
 Expected outcome: All UI elements show the expected English strings, including File/Edit/View, the interface/category language menus, the `Reset learned behavior…` and `Clear cache…` Settings actions, representative category-language labels such as `Hindi`, `Japanese`, `Simplified Chinese`, and `Traditional Chinese`, the interface-language menu is alphabetized, and the French language action is marked checked, demonstrating the retranslate pipeline is correctly wired.
 Run: `./build-tests/ai_file_sorter_tests "*UiTranslator updates menus*"`
+
+#### Test case: MenuMnemonicController hides top-level menu mnemonics until activated
+Purpose: Verify that top-level menu access-key markers remain available for keyboard navigation without rendering underlines during normal pointer-driven use.
+Setup: Build a headless Qt `QMainWindow` with File and Edit menus and attach `MenuMnemonicController` to its menu bar.
+Procedure: Store mnemonic titles such as `&File` and `&Edit`, verify the visible menu titles are stripped by default, then toggle mnemonic visibility on and off.
+Expected outcome: Visible top-level titles are `File` and `Edit` until mnemonics are activated, while the stored mnemonic titles remain `&File` and `&Edit` for Alt-key access.
+Run: `./build-tests/ai_file_sorter_tests "MenuMnemonicController hides top-level menu mnemonics until activated"`
 
 ### `tests/unit/test_cache_maintenance_service.cpp`
 
@@ -416,6 +792,15 @@ Setup: Create a real empty `file_categorization` SQLite database on disk and vac
 Procedure: Query the categorization target through `target_info()`.
 Expected outcome: The target still exists on disk, but the reported reclaimable size is `0`, reflecting that no cached categorization rows remain.
 Run: `./build-tests/ai_file_sorter_tests "CacheMaintenanceService reports zero size for an empty categorization database"`
+
+### `tests/unit/test_review_history_store.cpp`
+
+#### Test case: ReviewHistoryStore persists, searches, and marks history entries undone
+Purpose: Verify the user-visible review history database persists applied rename/categorization records.
+Setup: Create an isolated config directory and record a combined rename/categorization history row with filename, category, and description data.
+Procedure: Search the store by filename, category, and description, mark the row undone, then reopen the store.
+Expected outcome: The row is found by each searchable field, undo state persists, and the history survives reopening the database.
+Run: `./build-tests/ai_file_sorter_tests "ReviewHistoryStore persists, searches, and marks history entries undone"`
 
 ### `tests/unit/test_user_learning_store.cpp`
 
@@ -528,6 +913,13 @@ Procedure: Call `Utils::get_file_name_from_url()` and expect an exception.
 Expected outcome: A `std::runtime_error` is thrown.
 Run: `./build-tests/ai_file_sorter_tests "get_file_name_from_url rejects malformed input"`
 
+#### Test case: LLM storage override changes default download destination
+Purpose: Ensure the configurable local LLM storage directory is used by URL-derived download paths.
+Setup: Set a process-local LLM storage override to a temporary directory.
+Procedure: Call `Utils::make_default_path_to_file_from_download_url()` for a GGUF URL.
+Expected outcome: The resolved path points inside the override directory with the URL filename appended.
+Run: `./build-tests/ai_file_sorter_tests "LLM storage override changes default download destination"`
+
 #### Test case: is_cuda_available honors probe overrides
 Purpose: Verify that CUDA availability probes are honored.
 Setup: Install a test hook that returns `true`, then one that returns `false`.
@@ -577,6 +969,27 @@ Procedure: Call `GgmlRuntimePaths::resolve_windows_vulkan_payload_dir()`.
 Expected outcome: The resolved path points to `lib/precompiled/vulkan-blas/bin`.
 Run: `./build-tests/ai_file_sorter_tests "Windows Vulkan payload resolution prefers the BLAS runtime layout"`
 
+#### Test case: Linux Vulkan payload validation rejects stale runtime directories
+Purpose: Ensure Linux launch/runtime checks refuse accelerator payloads that contain a backend plugin but omit the versioned core libraries and CPU backend module required by the ggml dynamic-backend layout.
+Setup: Create a temporary Vulkan runtime directory with `libggml-vulkan.so` plus only unversioned core library names.
+Procedure: Call `GgmlRuntimePaths::validate_linux_accelerator_payload()`.
+Expected outcome: Validation fails with a reason that mentions missing Linux runtime dependencies.
+Run: `./build-tests/ai_file_sorter_tests "Linux Vulkan payload validation rejects stale runtime directories"`
+
+#### Test case: Linux Vulkan payload validation accepts compatible runtime directories
+Purpose: Ensure Linux accelerator payloads remain usable when they contain both the Vulkan plugin and the mix of versioned core libraries and unversioned CPU backend module produced by `GGML_BACKEND_DL=ON`.
+Setup: Create a temporary Vulkan runtime directory with `libggml-vulkan.so`, versioned core files such as `libggml.so.0` and `libllama.so.0`, and the CPU backend module `libggml-cpu.so`.
+Procedure: Call `GgmlRuntimePaths::validate_linux_accelerator_payload()`.
+Expected outcome: Validation succeeds with no rejection reason.
+Run: `./build-tests/ai_file_sorter_tests "Linux Vulkan payload validation accepts compatible runtime directories"`
+
+#### Test case: Linux backend environment sanitization demotes stale Vulkan payloads to CPU
+Purpose: Ensure the runtime environment is rewritten to CPU when the configured Linux Vulkan payload is stale, preventing the app from advertising or attempting to use an incompatible GPU payload.
+Setup: Point `AI_FILE_SORTER_GPU_BACKEND`, `LLAMA_ARG_DEVICE`, and `AI_FILE_SORTER_GGML_DIR` at a temporary stale Vulkan runtime directory.
+Procedure: Call `GgmlRuntimePaths::sanitize_linux_backend_environment()`.
+Expected outcome: The helper returns a rejection reason, sets `AI_FILE_SORTER_GPU_BACKEND=cpu`, sets `GGML_DISABLE_CUDA=1`, and clears the custom ggml directory/device overrides.
+Run: `./build-tests/ai_file_sorter_tests "Linux backend environment sanitization demotes stale Vulkan payloads to CPU"`
+
 #### Test case: sanitize_path_label preserves valid Unicode emoji labels
 Purpose: Confirm valid Unicode labels are not stripped while sanitizing invalid path text.
 Setup: Build a UTF-8 label containing a cloud emoji.
@@ -613,6 +1026,36 @@ Setup: Write the historical `Llama-3.2-3B-Instruct-bf16-q4_k.gguf` file into the
 Procedure: Construct the dialog and read back the selected choice.
 Expected outcome: The dialog keeps `Local_3b_legacy` selected instead of silently falling back to Gemma 4B.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog keeps the legacy LLaMa choice when the previous Q4 artifact exists"`
+
+#### Test case: LLM selection dialog downloads Gemma 4B to the shared visual-model path
+Purpose: Prevent duplicate Gemma 3 4B downloads when the categorization and visual Gemma model URLs point to the same GGUF artifact.
+Setup: Configure matching Gemma 4B local/visual download URLs in a temporary runtime directory and select the Gemma 4B local categorization model.
+Procedure: Construct the dialog and inspect the local downloader destination.
+Expected outcome: The downloader targets the visual backend storage path (`gemma-3-4b-it/model.gguf`) instead of the legacy flat URL-derived filename.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog downloads Gemma 4B to the shared visual-model path"`
+
+### `tests/unit/test_llm_selection_visual_backend_model.cpp`
+
+#### Test case: LLM selection visual backend model builds built-in and visual custom items
+Purpose: Verify the extracted visual backend combo model lists built-in backends and only custom LLMs that have visual artifacts.
+Setup: Create one text-only custom LLM and one custom visual LLM.
+Procedure: Build visual backend combo items with fixed localized label strings.
+Expected outcome: Built-in backends are listed, the default Gemma backend is marked recommended, and only the visual custom LLM appears.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model builds built-in and visual custom items"`
+
+#### Test case: LLM selection visual backend model chooses requested default and fallback ids
+Purpose: Ensure visual backend selection restoration prefers the requested id, then the default backend, then an empty result when no items exist.
+Setup: Build combo items without custom visual LLMs.
+Procedure: Resolve requested, missing, and empty selections through the helper.
+Expected outcome: Existing ids are preserved, missing ids fall back to Gemma, and item indexes are reported deterministically.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model chooses requested default and fallback ids"`
+
+#### Test case: LLM selection visual backend model resolves canonical descriptors
+Purpose: Verify selected visual model ids map to the descriptor used by dialog/runtime code.
+Setup: Use a custom visual id and an unknown built-in id.
+Procedure: Resolve descriptors and canonical ids through the helper.
+Expected outcome: Custom ids use the custom descriptor and unknown ids fall back to the default Gemma descriptor.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model resolves canonical descriptors"`
 
 ### `tests/unit/test_llm_selection_dialog_visual.cpp` (non-Windows only)
 
@@ -688,6 +1131,20 @@ Procedure: Call `resolve_active_backend()` and `resolve_paths()`.
 Expected outcome: The backend resolves successfully, returns the LLaVA descriptor, maps the model artifact to the primary file, and maps the mmproj artifact to the fallback file.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the active backend through descriptor artifacts"`
 
+#### Test case: VisualLlmRuntime resolves custom visual LLM artifacts
+Purpose: Ensure a user-provided local GGUF plus MMProj pair can be used as the visual model backend.
+Setup: Create valid GGUF files for a custom model and matching MMProj, then build a custom LLM entry with both paths.
+Procedure: Resolve `custom:<id>` through `VisualLlmRuntime::resolve_active_backend()`.
+Expected outcome: The runtime returns the generic custom visual descriptor and resolves both configured paths.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves custom visual LLM artifacts"`
+
+#### Test case: VisualLlmRuntime rejects custom visual LLMs without MMProj
+Purpose: Ensure a custom text-only local LLM is not treated as usable for image analysis.
+Setup: Create a valid custom model GGUF entry without an MMProj path.
+Procedure: Resolve `custom:<id>` through `VisualLlmRuntime::resolve_active_backend()`.
+Expected outcome: Resolution fails with guidance to edit the custom LLM and add an MMProj file.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime rejects custom visual LLMs without MMProj"`
+
 #### Test case: VisualLlmRuntime reports missing backend URLs before resolving artifacts
 Purpose: Confirm runtime resolution fails early when the configured visual backend is missing its required URL environment variables.
 Setup: Clear `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`.
@@ -725,6 +1182,13 @@ Procedure: Call `Settings::load()` and read image analysis flags.
 Expected outcome: `load()` returns false and analysis/offer-rename remain disabled.
 Run: `./build-tests/ai_file_sorter_tests "Settings defaults image analysis off when visual LLM files are missing"`
 
+#### Test case: Settings persists recent network locations
+Purpose: Ensure recently used UNC network roots persist and duplicate entries are collapsed.
+Setup: Use a temporary config directory and set repeated network locations.
+Procedure: Save settings, reload into a new `Settings` instance, and read the recent network location list.
+Expected outcome: The reloaded list keeps unique locations in saved order.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists recent network locations"`
+
 #### Test case: Settings defaults use subcategories on when config key is missing
 Purpose: Ensure the main-window subcategory toggle stays enabled by default when older or partial config files omit the `UseSubcategories` key.
 Setup: Create a temporary config file with a `Settings` section that omits `UseSubcategories`.
@@ -746,12 +1210,42 @@ Procedure: Save settings, reload into a new `Settings` instance, and read the fl
 Expected outcome: The expansion flags match the saved values.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists options group expansion state"`
 
+#### Test case: Settings persists review auto-approve operation options
+Purpose: Ensure the review-dialog filename and categorization auto-approve options survive a save/load round-trip.
+Setup: Use a temporary config directory and enable both review auto-approval options.
+Procedure: Save settings, reload into a new `Settings` instance, and read both flags.
+Expected outcome: The reloaded settings keep filename and categorization auto-approval enabled.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists review auto-approve operation options"`
+
+#### Test case: Settings persists What's New shown version independently of updater skip state
+Purpose: Ensure the once-per-version What's New popup state does not reuse or corrupt updater skip-version state.
+Setup: Use a temporary config directory, set both `SkippedVersion` and `WhatsNewVersionShown`, and save settings.
+Procedure: Reload settings from disk and read both version fields.
+Expected outcome: Both fields retain their independent saved values.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists What's New shown version independently of updater skip state"`
+
 #### Test case: Settings persists selected visual model backend
 Purpose: Ensure the chosen visual backend survives a save/load round-trip so the dialog and runtime stay aligned.
 Setup: Use a temporary config directory and set the visual backend id to `gemma-3-4b-it`.
 Procedure: Save settings, reload into a new `Settings` instance, and read the stored visual backend id.
 Expected outcome: The reloaded settings still report `gemma-3-4b-it`.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists selected visual model backend"`
+
+### `tests/unit/test_windows_network_locations.cpp`
+
+#### Test case: WindowsNetworkLocations extracts UNC share roots
+Purpose: Ensure Windows UNC paths are reduced to stable `\\server\share` roots for the File Explorer network section.
+Setup: Use representative UNC, slash-normalized UNC, incomplete UNC, and local-drive paths.
+Procedure: Call `WindowsNetworkLocations::unc_share_root()`.
+Expected outcome: Complete UNC paths return the share root, while incomplete or local paths return empty.
+Run: `./build-tests/ai_file_sorter_tests "WindowsNetworkLocations extracts UNC share roots"`
+
+#### Test case: WindowsNetworkLocations identifies supported network paths
+Purpose: Verify that UNC locations qualify as supported network locations and local drive roots do not.
+Setup: Use one UNC share and one local drive root.
+Procedure: Call `is_unc_path()` and `is_network_location_path()`.
+Expected outcome: The UNC path is accepted and the local root is rejected.
+Run: `./build-tests/ai_file_sorter_tests "WindowsNetworkLocations identifies supported network paths"`
 
 ### `tests/unit/test_llava_image_analyzer.cpp`
 
@@ -789,6 +1283,20 @@ Setup: Use the prompt-policy test access helpers with the structured multimodal 
 Procedure: Inspect the generated description and filename prompts.
 Expected outcome: The policy adds explicit system guidance, keeps the media marker in the user prompt, and uses structured filename rules aimed at instruction-tuned backends.
 Run: `./build-tests/ai_file_sorter_tests "LlavaImageAnalyzer exposes structured multimodal prompt policy"`
+
+#### Test case: LlavaImageAnalyzer supports WebP files for visual routing
+Purpose: Ensure `.webp` files enter the visual content-analysis pipeline instead of being treated as unsupported image inputs.
+Setup: Provide representative lower-case, upper-case, and non-image paths.
+Procedure: Call `LlavaImageAnalyzer::is_supported_image()` for each path.
+Expected outcome: `.webp` and `.WEBP` return true, while a non-image extension returns false.
+Run: `./build-tests/ai_file_sorter_tests "LlavaImageAnalyzer supports WebP files for visual routing"`
+
+#### Test case: LlavaImageAnalyzer decodes WebP through runtime fallback for visual analysis
+Purpose: Verify WebP input can be decoded and converted to MTMD-compatible PNG bytes even when Qt's image reader needs the runtime libwebp fallback.
+Setup: Write a tiny valid WebP fixture into a temporary directory.
+Procedure: Decode and transcode the fixture through the visual analyzer test-access helper.
+Expected outcome: The helper reports that the WebP can be decoded and encoded as non-empty PNG bytes.
+Run: `./build-tests/ai_file_sorter_tests "LlavaImageAnalyzer decodes WebP through runtime fallback for visual analysis"`
 
 #### Test case: LlavaImageAnalyzer lowers visual ngl when reserving mmproj headroom
 Purpose: Ensure the visual GPU layer estimate reserves enough VRAM for the projector and multimodal eval path instead of blindly offloading every text layer that fits.
@@ -992,10 +1500,10 @@ Run: `./build-tests/ai_file_sorter_tests "Review dialog rename-only toggles disa
 ### `tests/unit/test_custom_llm.cpp`
 
 #### Test case: Custom LLM entries persist across Settings load/save
-Purpose: Ensure custom LLM definitions persist correctly.
-Setup: Insert a custom LLM entry and set it as active, then save settings.
+Purpose: Ensure custom LLM definitions persist correctly, including optional visual MMProj metadata and the selected model storage directory.
+Setup: Insert a custom LLM entry with a model path and MMProj path, set it as active and selected for visual analysis, set a custom model storage directory, then save settings.
 Procedure: Reload settings and retrieve the custom LLM by ID.
-Expected outcome: The reloaded entry matches the original fields and the active ID is preserved.
+Expected outcome: The reloaded entry matches the original fields, the active ID is preserved, the `custom:<id>` visual selection round-trips, and the model storage directory is restored.
 Run: `./build-tests/ai_file_sorter_tests "Custom LLM entries persist across Settings load/save"`
 
 #### Test case: Settings maps legacy Local_3b choices to Gemma 4B
@@ -1025,6 +1533,13 @@ Setup: Configure matching Gemma 4B local/visual download URLs and place only the
 Procedure: Resolve the downloaded path for `Local_4b_Gemma` and query built-in availability.
 Expected outcome: The built-in Gemma choice resolves to the visual backend artifact path and reports available.
 Run: `./build-tests/ai_file_sorter_tests "Built-in Gemma 4B resolves the shared visual-model artifact path"`
+
+#### Test case: Built-in Gemma 4B prefers the shared visual-model artifact path for new downloads
+Purpose: Ensure fresh Gemma 4B local-categorization downloads use the same backend-specific text-model artifact path as visual Gemma.
+Setup: Configure matching Gemma 4B local/visual download URLs without creating either artifact.
+Procedure: Query the preferred built-in Gemma path and downloaded-artifact resolver.
+Expected outcome: The preferred path is the visual backend storage path, and no downloaded artifact is reported before the file exists.
+Run: `./build-tests/ai_file_sorter_tests "Built-in Gemma 4B prefers the shared visual-model artifact path for new downloads"`
 
 ### `tests/unit/test_category_language_support.cpp`
 
@@ -1156,6 +1671,13 @@ Procedure: Call `clear_all_categorizations(true)` and inspect the SQLite tables 
 Expected outcome: `file_categorization`, `category_taxonomy`, `category_alias`, and `category_translation` are all empty afterward.
 Run: `./build-tests/ai_file_sorter_tests "DatabaseManager can clear cached categorizations together with taxonomy state"`
 
+#### Test case: DatabaseManager strips inline subcategory artifacts from stored translations
+Purpose: Ensure malformed translated category labels cannot persist inline `subcategory` artifacts into the review dialog.
+Setup: Resolve an English taxonomy entry and upsert a French translation whose category contains `, subcategory ...`.
+Procedure: Read the translation back directly and through localized category lookup.
+Expected outcome: The stored/displayed translated category is clean and the translated subcategory remains specific.
+Run: `./build-tests/ai_file_sorter_tests "DatabaseManager strips inline subcategory artifacts from stored translations"`
+
 #### Test case: DatabaseManager migrates legacy audio and installer-builder taxonomy labels on reopen
 Purpose: Ensure old cached DB rows using `Music` or `Installer Builders` are upgraded automatically when the app reopens.
 Setup: Seed a temporary SQLite cache with legacy taxonomy rows and cached file rows that still use those labels.
@@ -1193,12 +1715,77 @@ Procedure: Scan with `Files | Recursive`.
 Expected outcome: Both files appear in the results.
 Run: `./build-tests/ai_file_sorter_tests "recursive scans include nested files"`
 
+#### Test case: recursive scans skip protected project directories
+Purpose: Ensure recursive scans do not traverse project roots whose layout can be broken by moving files independently.
+Setup: Create a normal root file and a nested Unity project containing `Assets` and `ProjectSettings/ProjectVersion.txt`.
+Procedure: Scan the parent directory with `Files | Recursive`.
+Expected outcome: Only the normal root file is returned; files inside the Unity project are skipped.
+Run: `./build-tests/ai_file_sorter_tests "recursive scans skip protected project directories"`
+
+#### Test case: protected selected roots produce no scan entries
+Purpose: Protect users who select a project root directly rather than selecting its parent directory.
+Setup: Create a Godot project root with `project.godot` and a nested scene file.
+Procedure: Scan the project root with `Files | Recursive`.
+Expected outcome: No entries are returned because the selected root itself is protected.
+Run: `./build-tests/ai_file_sorter_tests "protected selected roots produce no scan entries"`
+
+#### Test case: project protection can be disabled for raw scanner traversal
+Purpose: Keep the scanner behavior configurable for tests or specialized providers that need raw filesystem traversal.
+Setup: Create a Rust project with `Cargo.toml` and `src/main.rs`, then disable `protect_project_directories` in `FileScannerBehavior`.
+Procedure: Scan with `Files | Recursive`.
+Expected outcome: Both project files are returned because protection was explicitly disabled.
+Run: `./build-tests/ai_file_sorter_tests "project protection can be disabled for raw scanner traversal"`
+
 #### Test case: recursive scans skip unreadable directories and continue
 Purpose: Ensure one inaccessible subdirectory does not abort an otherwise valid recursive scan.
 Setup: Create a readable subtree and a second subtree whose directory permissions are removed (non-Windows only).
 Procedure: Scan with `Files | Recursive`.
 Expected outcome: The readable file is returned, the scan does not throw, and the unreadable subtree is skipped.
 Run: `./build-tests/ai_file_sorter_tests "recursive scans skip unreadable directories and continue"`
+
+### `tests/unit/test_protected_project_detector.cpp`
+
+#### Test case: ProtectedProjectDetector detects strong Unity roots
+Purpose: Verify the built-in protected-project registry recognizes a high-confidence Unity project root.
+Setup: Create `Assets` and `ProjectSettings/ProjectVersion.txt` under a temporary directory.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: The match reports the `unity` rule with strong protection and scanner-skip behavior.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector detects strong Unity roots"`
+
+#### Test case: ProtectedProjectDetector detects conservative Blender project folders
+Purpose: Protect Blender folders only when a `.blend` file appears with companion asset/cache-style folders.
+Setup: Create a `.blend` file and a `textures` directory in the same root.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: The match reports the strong `blender` rule.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector detects conservative Blender project folders"`
+
+#### Test case: ProtectedProjectDetector treats lone Blender files as weak signals
+Purpose: Avoid skipping arbitrary folders just because they contain one loose `.blend` file.
+Setup: Create a temporary directory containing only a `.blend` file.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: The match reports the weak `blender-file` rule and is not eligible for automatic scan skipping.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector treats lone Blender files as weak signals"`
+
+#### Test case: ProtectedProjectDetector detects common source project roots
+Purpose: Verify the registry handles non-game project roots through declarative marker rules.
+Setup: Create a Node.js-style root with `package.json` and a lockfile.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: The match reports the strong `node` rule.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector detects common source project roots"`
+
+#### Test case: ProtectedProjectDetector covers every built-in project rule
+Purpose: Ensure every built-in protected-project rule has a working positive fixture.
+Setup: Create minimal roots for Unity, Unreal, Godot, Git, Node.js, Python, Rust, Go, Gradle, .NET, Xcode, strong Blender, and weak Blender-file detection.
+Procedure: Run `ProtectedProjectDetector::detect` for each fixture.
+Expected outcome: Each fixture matches its expected rule id and strength; only strong matches are eligible for scanner skipping.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector covers every built-in project rule"`
+
+#### Test case: ProtectedProjectDetector ignores Unicode loose files while checking suffix rules
+Purpose: Ensure suffix-based protected-project checks do not convert filenames through the Windows ANSI code page.
+Setup: Create a temporary directory containing a loose Unicode-named file such as `旅行.txt`.
+Procedure: Run `ProtectedProjectDetector::detect`.
+Expected outcome: Detection returns no match and does not throw a path-conversion exception.
+Run: `./build-tests/ai_file_sorter_tests "ProtectedProjectDetector ignores Unicode loose files while checking suffix rules"`
 
 ### `tests/unit/test_support_prompt.cpp`
 
@@ -1216,6 +1803,13 @@ Procedure: Call the prompt simulation with an increment of `0`.
 Expected outcome: Total counts and thresholds remain unchanged and the callback is not invoked.
 Run: `./build-tests/ai_file_sorter_tests "Zero categorized increments do not change totals or trigger prompts"`
 
+#### Test case: Paid Explorer extension entitlement suppresses future support prompts
+Purpose: Ensure users who own the paid Explorer extension do not see donation reminders.
+Setup: Fresh settings with the test-only paid Explorer extension entitlement override enabled.
+Procedure: Advance categorized files to the support prompt threshold.
+Expected outcome: The support prompt callback is not invoked and the permanent suppression state is written.
+Run: `./build-tests/ai_file_sorter_tests "Paid Explorer extension entitlement suppresses future support prompts"`
+
 ### `tests/unit/test_custom_api_endpoint.cpp`
 
 #### Test case: Custom API endpoints persist across Settings load/save
@@ -1225,7 +1819,81 @@ Procedure: Reload settings and retrieve the endpoint by ID.
 Expected outcome: All fields match the original, and the active endpoint ID is preserved.
 Run: `./build-tests/ai_file_sorter_tests "Custom API endpoints persist across Settings load/save"`
 
-### `tests/unit/test_categorization_dialog.cpp` (non-Windows only)
+### `tests/unit/test_remote_api_error.cpp`
+
+#### Test case: RemoteApiError parses numeric Retry-After headers
+Purpose: Verify retry-after parsing for provider rate-limit headers.
+Setup: Provide integer, fractional, and unsupported HTTP-date header values.
+Procedure: Parse each value through `RemoteApiError::parse_retry_after_seconds`.
+Expected outcome: Numeric values are accepted and rounded up when fractional; unsupported HTTP-date values are ignored.
+Run: `./build-tests/ai_file_sorter_tests "RemoteApiError parses numeric Retry-After headers"`
+
+#### Test case: RemoteApiError turns non-JSON 429 responses into BackoffError
+Purpose: Cover the issue #88 failure mode where a rate-limit response body is not JSON.
+Setup: Provide a plain-text HTTP 429 body and a `Retry-After` header.
+Procedure: Classify the HTTP error through `RemoteApiError::throw_for_http_error`.
+Expected outcome: A retryable `BackoffError` is thrown with the provider message and retry delay instead of a JSON parse error.
+Run: `./build-tests/ai_file_sorter_tests "RemoteApiError turns non-JSON 429 responses into BackoffError"`
+
+#### Test case: RemoteApiError extracts Gemini quota retry delays from JSON
+Purpose: Ensure Gemini quota responses remain retryable after moving HTTP error handling before success parsing.
+Setup: Provide a Gemini `RESOURCE_EXHAUSTED` JSON error containing a textual retry delay.
+Procedure: Classify the HTTP error through `RemoteApiError::throw_for_http_error`.
+Expected outcome: A `BackoffError` is thrown and the retry delay is rounded up from the provider message.
+Run: `./build-tests/ai_file_sorter_tests "RemoteApiError extracts Gemini quota retry delays from JSON"`
+
+#### Test case: RemoteApiError reports non-JSON server errors without JSON parse failures
+Purpose: Ensure non-retryable remote HTTP errors remain actionable when the body is HTML or plain text.
+Setup: Provide an HTTP 503 response body that is not JSON.
+Procedure: Classify the HTTP error through `RemoteApiError::throw_for_http_error`.
+Expected outcome: A `runtime_error` mentions the provider HTTP error and body excerpt without mentioning JSON parsing.
+Run: `./build-tests/ai_file_sorter_tests "RemoteApiError reports non-JSON server errors without JSON parse failures"`
+
+### `tests/unit/test_review_name_validator.cpp`
+
+#### Test case: ReviewNameValidator validates filenames
+Purpose: Verify review-dialog filename validation rules outside the dialog/controller.
+Setup: Prepare valid ASCII/non-ASCII names and invalid empty, reserved, forbidden-character, and trailing-dot names.
+Procedure: Validate each name through `ReviewNameValidator::validate_filename`.
+Expected outcome: Valid names pass and invalid names return the same human-readable errors used by the review dialog.
+Run: `./build-tests/ai_file_sorter_tests "ReviewNameValidator validates filenames"`
+
+#### Test case: ReviewNameValidator validates category labels
+Purpose: Verify review-dialog category/subcategory folder validation in an isolated pure component.
+Setup: Prepare valid labels plus duplicate labels, extension-like labels, and reserved Windows names.
+Procedure: Validate each pair through `ReviewNameValidator::validate_labels`.
+Expected outcome: Valid pairs pass, identical labels only pass when explicitly allowed, and invalid pairs return stable errors.
+Run: `./build-tests/ai_file_sorter_tests "ReviewNameValidator validates category labels"`
+
+#### Test case: ReviewNameValidator normalizes review labels
+Purpose: Verify shared trimming, missing-label detection, and history-description prefix stripping.
+Setup: Provide padded labels, `Uncategorized`, image/document description prefixes, and plain text.
+Procedure: Call `trim_copy`, `is_missing_category_label`, and `strip_history_description_label`.
+Expected outcome: Labels are normalized consistently with the review dialog.
+Run: `./build-tests/ai_file_sorter_tests "ReviewNameValidator normalizes review labels"`
+
+### `tests/unit/test_categorization_dialog.cpp`
+
+#### Test case: CategorizationDialog delegates preview requests to the preview service
+Purpose: Verify that preview actions flow through the injected preview service abstraction.
+Setup: Load a single categorized file into the dialog and replace the preview service with a recording test double.
+Procedure: Trigger preview for the first row through the dialog test hook.
+Expected outcome: The preview service is called once with the resolved file path and the dialog as parent.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog delegates preview requests to the preview service"`
+
+#### Test case: BulkEditDialog enables OK only for meaningful edits
+Purpose: Verify the extracted bulk edit dialog only allows confirmation when at least one edit field contains a value.
+Setup: Create the dialog with category and subcategory editing enabled.
+Procedure: Inspect the OK button state while entering and clearing trimmed category/subcategory values.
+Expected outcome: The OK button starts disabled, enables for either category or subcategory text, and returned values are trimmed.
+Run: `./build-tests/ai_file_sorter_tests "BulkEditDialog enables OK only for meaningful edits"`
+
+#### Test case: BulkEditDialog omits subcategory edits when disabled
+Purpose: Verify the extracted bulk edit dialog respects callers that only allow category edits.
+Setup: Create the dialog with subcategory editing disabled.
+Procedure: Inspect the created line edits and read the returned category/subcategory values.
+Expected outcome: Only one line edit is present, category text is returned, and subcategory remains empty.
+Run: `./build-tests/ai_file_sorter_tests "BulkEditDialog omits subcategory edits when disabled"`
 
 #### Test case: CategorizationDialog uses subcategory toggle when moving files
 Purpose: Ensure the dialog respects the subcategory visibility toggle during file moves.
@@ -1241,12 +1909,40 @@ Procedure: Sort by the file name column ascending, then by category descending.
 Expected outcome: The first sort yields alphabetical file names; the second yields categories in reverse alphabetical order.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog supports sorting by columns"`
 
+#### Test case: CategorizationDialog auto-approves rows by enabled operation
+Purpose: Verify the review dialog preselects rows only when each row action is covered by enabled auto-approval options.
+Setup: Load rename-only, categorization-only, combined rename+categorization, and incomplete rows into the dialog.
+Procedure: Enable filename auto-approval, then categorization auto-approval, then disable filename auto-approval.
+Expected outcome: Rename-only rows require filename auto-approval, categorization-only rows require categorization auto-approval, combined rows require both, and incomplete rows remain unchecked.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog auto-approves rows by enabled operation"`
+
 #### Test case: CategorizationDialog undo restores moved files
 Purpose: Confirm that undo reverses category moves.
 Setup: Create a file on disk with a category and subcategory.
 Procedure: Confirm the dialog to move the file, then trigger undo.
 Expected outcome: The file moves to the category path, then returns to the original location; undo is enabled only when a move exists.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog undo restores moved files"`
+
+#### Test case: CategorizationDialog records applied review history with descriptions
+Purpose: Confirm that applied review decisions are persisted into the user-visible history log.
+Setup: Create a categorized image entry with learning-context description text and attach an isolated review history store.
+Procedure: Confirm the dialog, inspect the persisted history row, then trigger undo.
+Expected outcome: The history row records the category operation, source/destination filenames, category, stripped file description, and is marked undone after undo.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog records applied review history with descriptions"`
+
+#### Test case: CategorizationDialog keeps date category suffixes out of stored canonical categories
+Purpose: Ensure generated date category folders remain reversible display/move-path overlays.
+Setup: Create a temporary document with visible category `Records_2026-06` and canonical category `Records`.
+Procedure: Confirm the review dialog move and inspect the categorization cache.
+Expected outcome: The file moves into the dated visible folder, but the cache stores `Records / Monthly Statements` without the date suffix.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog keeps date category suffixes out of stored canonical categories"`
+
+#### Test case: CategorizationDialog moves Unicode files into French nested subcategory folders
+Purpose: Cover the issue #95 Windows regression path: non-CP1252 filenames, French category labels, review-dialog retranslation while open, subcategory toggling, nested folder creation, and undo.
+Setup: Create a temporary Unicode-named file and load it into the review dialog as `Logiciels` / `Navigateur` with French category-language context.
+Procedure: Verify the preview path, send a language-change event while the dialog is open, sort by file name, hide/show subcategories, confirm the move, inspect created paths for literal `subcategory`, and trigger undo.
+Expected outcome: The file moves to `Logiciels/Navigateur/<unicode filename>`, no preview or created path contains the literal `subcategory`, and undo restores the original Unicode path.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog moves Unicode files into French nested subcategory folders"`
 
 #### Test case: CategorizationDialog undo allows renaming again
 Purpose: Ensure undo resets rename-only operations and allows reapplication.
@@ -1261,6 +1957,13 @@ Setup: Enable the dialog's dry-run checkbox for a categorized file while routing
 Procedure: Confirm the dialog, auto-close the preview popup, and inspect `core.log`.
 Expected outcome: The source file stays in place, no destination file is created, and the log contains the dry-run completion message without the real-move success message.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog dry run logs preview completion without moved success"`
+
+#### Test case: CategorizationDialog preserves cached subcategories when the subcategory column is hidden
+Purpose: Prevent review-only folder-layout toggles from overwriting cached taxonomy subcategories.
+Setup: Seed the cache with a categorized file that has a non-General subcategory, then load the same file into the review dialog.
+Procedure: Hide the subcategory column, close the dialog, and reload the cached categorization entry.
+Expected outcome: The cached category and subcategory remain unchanged instead of being normalized to `General`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog preserves cached subcategories when the subcategory column is hidden"`
 
 #### Test case: UndoManager restores saved plans through the active storage provider
 Purpose: Verify persisted undo plans can be replayed through the storage provider abstraction.
@@ -1325,6 +2028,13 @@ Procedure: Populate the dialog and read the suggested names.
 Expected outcome: Suggestions become `_1` and `_2` variants to avoid collisions.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog deduplicates suggested picture filenames"`
 
+#### Test case: CategorizationDialog deduplicates suggested media filenames
+Purpose: Ensure non-image review rows also receive unique suggested filenames before apply.
+Setup: Provide two video entries with the same suggested filename and category destination.
+Procedure: Populate the dialog and read the suggested names.
+Expected outcome: Suggestions become `_1` and `_2` variants instead of leaving duplicate `.mp4` names.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog deduplicates suggested media filenames"`
+
 #### Test case: CategorizationDialog avoids existing picture filename collisions
 Purpose: Ensure suggested names do not collide with existing files on disk.
 Setup: Create a file on disk that matches the suggested name and add a rename-only entry with that suggestion.
@@ -1352,6 +2062,36 @@ Setup: Create a dialog with a categorization cache, a user-learning store, and a
 Procedure: Trigger confirmation and inspect the learning database.
 Expected outcome: The approved category/subcategory and analysis context are stored as learned behavior with the file example attached.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog records confirmed categories as learned behavior"`
+
+### `tests/unit/test_review_file_naming.cpp`
+
+#### Test case: ReviewFileNaming deduplicates duplicate regular-file suggestions
+Purpose: Verify the extracted review naming helper makes duplicate file suggestions unique, including non-image files.
+Setup: Create two video entries with the same suggested filename.
+Procedure: Run `ensure_unique_suggested_names`.
+Expected outcome: Suggestions are rewritten with `_1` and `_2` suffixes.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming deduplicates duplicate regular-file suggestions"`
+
+#### Test case: ReviewFileNaming deduplicates same-folder renames against the source directory
+Purpose: Ensure rename-only/headless rename operations check collisions where the rename will actually happen.
+Setup: Create a category-folder collision for a suggested video filename while leaving the source folder free.
+Procedure: Run `ensure_unique_suggested_names` with category moves disabled.
+Expected outcome: The suggestion is left unchanged because the category folder is not the active destination.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming deduplicates same-folder renames against the source directory"`
+
+#### Test case: ReviewFileNaming avoids existing on-disk rename suggestions
+Purpose: Ensure review rename suggestions do not collide with files that already exist.
+Setup: Create a target directory containing a file with the desired suggested name.
+Procedure: Build a unique suggested name for that directory.
+Expected outcome: The helper returns an incremented underscore suffix.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming avoids existing on-disk rename suggestions"`
+
+#### Test case: ReviewFileNaming uses parenthetical suffixes for move collisions
+Purpose: Verify category-move destination collisions use Windows-style parenthetical numbering.
+Setup: Create an existing destination file and reuse the same desired move filename twice.
+Procedure: Build unique move names while carrying the allocated-name state forward.
+Expected outcome: The helper returns `report (1).pdf` then `report (2).pdf`.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses parenthetical suffixes for move collisions"`
 
 ### `tests/unit/test_main_app_translation.cpp` (non-Windows only)
 
@@ -1386,11 +2126,18 @@ This now explicitly includes Hindi, Swedish, Icelandic, Norwegian, Finnish, Dani
 Run: `./build-tests/ai_file_sorter_tests "Updater strings are translated for all supported UI languages"`
 
 #### Test case: Quick Start guide content follows the selected app language
-Purpose: Ensure the local Quick Start guide body follows the active app language.
+Purpose: Ensure the local Quick Start guide body follows the active app language and the English guide keeps the safe-first-run onboarding guidance.
 Setup: Set the translation manager to English, French, Korean, Hindi, Swedish, Icelandic, Norwegian, Finnish, Danish, and Simplified Chinese.
 Procedure: Resolve the Quick Start markdown for each selected language.
-Expected outcome: Each language loads the matching localized markdown content instead of the English fallback when a translation exists.
+Expected outcome: Each language loads the matching localized markdown content instead of the English fallback when a translation exists, and the English guide includes the safe-first-run section.
 Run: `./build-tests/ai_file_sorter_tests "Quick Start guide content follows the selected app language"`
+
+#### Test case: What's New content is packaged for the current app version
+Purpose: Ensure the first-run-per-version What's New popup has packaged Markdown content for the active `APP_VERSION`, including localized release notes.
+Setup: Initialize the Qt test app context with embedded resources.
+Procedure: Load What's New markdown for `APP_VERSION` in English and each supported non-English UI language, then load an invalid version string.
+Expected outcome: The current version returns English release notes with expected highlights, each supported non-English language returns localized notes instead of the English fallback, and invalid version strings return no content.
+Run: `./build-tests/ai_file_sorter_tests "What's New content is packaged for the current app version"`
 
 #### Test case: Interface language action labels are translated for the newly added Nordic UI languages
 Purpose: Verify the new interface-language menu entries (`&Swedish`, `&Icelandic`, `&Norwegian`, `&Finnish`, and `&Danish`) are present in the translation catalogs and render localized labels across every supported UI language.
@@ -1435,7 +2182,7 @@ Run: `./tests/run_translation_tests.sh`
 Purpose: Ensure a new whitelist store starts with the built-in presets.
 Setup: Create a temporary settings store without saved whitelists.
 Procedure: Initialize `WhitelistStore` and read the available entries.
-Expected outcome: Built-in presets are present and selectable, and the default categories include `Audio` rather than the legacy `Music` label.
+Expected outcome: Built-in presets are present and selectable, the default categories include `Audio` rather than the legacy `Music` label, and the Documents preset uses a branching `Documents -> document topics` layout.
 Run: `./build-tests/ai_file_sorter_tests "WhitelistStore seeds built-in presets when empty"`
 
 #### Test case: WhitelistStore migrates the Documents preset once for legacy stores
@@ -1459,12 +2206,26 @@ Procedure: Load the whitelist store, then reload it from disk.
 Expected outcome: The stored default categories become `Audio` and `Videos` without duplicate audio-family entries.
 Run: `./build-tests/ai_file_sorter_tests "WhitelistStore migrates legacy Music categories to Audio"`
 
+#### Test case: WhitelistStore migrates legacy Documents preset to branching form
+Purpose: Upgrade the built-in Documents preset from old topic-as-main-category behavior to smart branching.
+Setup: Seed a version-3 Documents preset whose main categories are document topics such as invoices and receipts.
+Procedure: Load the whitelist store, then reload it from disk.
+Expected outcome: The Documents preset becomes `Documents` as the only main category with those topics mapped as category-specific subcategories.
+Run: `./build-tests/ai_file_sorter_tests "WhitelistStore migrates legacy Documents preset to branching form"`
+
 #### Test case: WhitelistStore preserves Unicode labels through save and load
 Purpose: Ensure valid Unicode whitelist labels, including emoji, survive persistence.
 Setup: Save a whitelist entry containing Unicode category/subcategory labels.
 Procedure: Reload the whitelist store from settings.
 Expected outcome: The Unicode labels are unchanged after the round trip.
 Run: `./build-tests/ai_file_sorter_tests "WhitelistStore preserves Unicode labels through save and load"`
+
+#### Test case: WhitelistStore preserves branching subcategories through save and settings initialization
+Purpose: Ensure smart branching whitelist mappings survive persistence and become the active settings constraints.
+Setup: Save a whitelist entry with category-specific subcategories for `Documents` and `Images`.
+Procedure: Reload the store, then initialize settings from the active whitelist.
+Expected outcome: Categories, flat subcategories, and category-specific subcategory mappings round-trip correctly.
+Run: `./build-tests/ai_file_sorter_tests "WhitelistStore preserves branching subcategories through save and settings initialization"`
 
 #### Test case: CategorizationService builds numbered whitelist context
 Purpose: Confirm the whitelist context includes numbered categories and an "any" subcategory fallback.
@@ -1473,6 +2234,13 @@ Procedure: Call the test access method to build the whitelist context string.
 Expected outcome: The context includes numbered category lines and indicates that subcategories are unrestricted.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService builds numbered whitelist context"`
 
+#### Test case: CategorizationService builds branching whitelist context
+Purpose: Confirm category-specific subcategory mappings are included in the prompt instead of a flat subcategory list.
+Setup: Configure a whitelist with `Documents -> Invoices, Receipts` and `Images -> Screenshots, Photos`.
+Procedure: Build the whitelist context string.
+Expected outcome: The prompt contains allowed main categories plus a category-specific subcategory block.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService builds branching whitelist context"`
+
 #### Test case: CategorizationService preserves Unicode whitelist labels in combined context
 Purpose: Ensure Unicode whitelist labels are forwarded into model prompt context.
 Setup: Configure a whitelist containing Unicode labels and build a categorization service.
@@ -1480,12 +2248,26 @@ Procedure: Build the combined whitelist/category-language context.
 Expected outcome: The generated context preserves the Unicode labels exactly.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves Unicode whitelist labels in combined context"`
 
+#### Test case: CategorizationService corrects invalid branching whitelist subcategory pairs
+Purpose: Enforce smart branching whitelist constraints after model output parsing.
+Setup: Configure `Documents -> Invoices, Receipts` and `Images -> Screenshots, Photos`, then return `Documents : Screenshots` from a stub LLM.
+Procedure: Categorize a single file with whitelist mode enabled.
+Expected outcome: The result keeps `Documents` but falls back to the first valid `Documents` subcategory, `Invoices`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService corrects invalid branching whitelist subcategory pairs"`
+
 #### Test case: CategorizationService keeps small whitelists fully injected
 Purpose: Preserve existing predictable prompt behavior for small whitelists.
 Setup: Configure a small whitelist with two categories and build a categorization service.
 Procedure: Build the combined prompt context for a matching file.
 Expected outcome: The full numbered whitelist is included and no large-whitelist candidate block is used.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService keeps small whitelists fully injected"`
+
+#### Test case: CategorizationService retrieves large branching whitelist candidates
+Purpose: Ensure large smart branching whitelists use compact prompt candidates with valid category/subcategory pair guidance.
+Setup: Configure many categories with mapped subcategories and seed a relevant whitelist taxonomy candidate.
+Procedure: Build combined prompt context for a receipt-like filename.
+Expected outcome: The compact large-whitelist block includes the relevant pair and mapped subcategories for shown candidates without dumping unrelated categories.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService retrieves large branching whitelist candidates"`
 
 #### Test case: CategorizationService retrieves candidates instead of injecting large whitelists
 Purpose: Prevent large whitelists from being dumped into the LLM prompt.
@@ -1505,14 +2287,14 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService ranks large whit
 Purpose: Ensure learned behavior produces a small prompt candidate block before LLM categorization.
 Setup: Record a review-confirmed manual mapping, import an unrelated spreadsheet candidate, and build a categorization service with the learning store attached.
 Procedure: Build combined context for a camera manual file.
-Expected outcome: The context includes the learned candidate normalized into the stable document family as `Documents : Camera Guides`.
+Expected outcome: In `More refined` mode, the context preserves the learned manual taxonomy as `Manuals : Camera Guides` instead of coercing it into the stable document family.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService adds relevant learned taxonomy candidates to context"`
 
 #### Test case: CategorizationService prefers learned candidates over generic model categories
 Purpose: Prefer a strong user-learned category when the model returns a generic category for a semantically matching file.
 Setup: Record a review-confirmed manual mapping and use an LLM stub that returns `Documents : General`.
 Procedure: Categorize a camera manual file through the service.
-Expected outcome: The final category/subcategory uses the learned `Documents : Camera Guides` mapping instead of the generic model output.
+Expected outcome: In `More refined` mode, the final category/subcategory uses the learned `Manuals : Camera Guides` mapping instead of the generic model output.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService prefers learned candidates over generic model categories"`
 
 #### Test case: CategorizationService ignores whitelist-imported candidates when the model already returns a specific document subcategory
@@ -1535,6 +2317,20 @@ Setup: Set the category language to Spanish.
 Procedure: Build the category language context string.
 Expected outcome: The context is non-empty and references "Spanish".
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService builds category language context for Spanish"`
+
+#### Test case: CategorizationService retries remote categorization once after BackoffError
+Purpose: Verify the higher-level remote categorization flow handles provider backoff without surfacing a transient rate-limit failure.
+Setup: Use a remote-mode settings profile, a test LLM that throws `BackoffError` once and then returns `Documents : Reports`, and a test sleep hook that records requested retry delays.
+Procedure: Categorize one file through `CategorizationService::categorize_entries`.
+Expected outcome: The LLM is called twice, retry progress is emitted, two one-second retry waits are requested, and the final categorization succeeds.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService retries remote categorization once after BackoffError"`
+
+#### Test case: CategorizationService resolves remote request pacing from settings and environment
+Purpose: Ensure the configured remote request-per-minute pacing value is resolved consistently.
+Setup: Configure `RemoteRequestsPerMinute` in settings and override it with `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE`.
+Procedure: Query the service's resolved remote request limit through test access.
+Expected outcome: The settings value is used by default, the environment variable overrides it, and `0` disables pacing.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService resolves remote request pacing from settings and environment"`
 
 #### Test case: LocalLLM sanitizer keeps labeled multi-line replies intact
 Purpose: Preserve valid labeled category/subcategory responses while removing unrelated text.
@@ -1577,6 +2373,13 @@ Setup: Provide a response where `Subcategory:` appears inline after the category
 Procedure: Run the sanitizer.
 Expected outcome: The category value excludes the inline subcategory label artifact.
 Run: `./build-tests/ai_file_sorter_tests "LocalLLM sanitizer strips inline subcategory label artifacts from category values"`
+
+#### Test case: LocalLLM sanitizer strips spaced inline subcategory artifacts from category values
+Purpose: Prevent whitespace variants such as `Documents , subcategory ...` from contaminating category values.
+Setup: Provide a local-model response with a space before the comma and an inline `subcategory` label.
+Procedure: Run the sanitizer.
+Expected outcome: The category value is trimmed back to the clean main category.
+Run: `./build-tests/ai_file_sorter_tests "LocalLLM sanitizer strips spaced inline subcategory artifacts from category values"`
 
 #### Test case: CategorizationService parses category output without spaced colon delimiters
 Purpose: Ensure category parsing accepts compact `Category:Subcategory` output.
@@ -1671,17 +2474,31 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves analys
 
 #### Test case: CategorizationService adds stable guidance for supported document prompts
 Purpose: Ensure both analyzable and legacy Office document prompts receive shared document-specific guidance and the bounded document main-category candidate list before the LLM runs.
-Setup: Build a document prompt path for a representative `.pdf` file with a summary and use a plain path for a representative legacy `.doc` file.
+Setup: Enable `More consistent`, build a document prompt path for a representative `.pdf` file with a summary, and use a plain path for a representative legacy `.doc` file.
 Procedure: Generate the combined prompt context through the categorization service test access layer for both files.
 Expected outcome: Both contexts include document guidance that emphasizes stable main categories and subject-focused subcategories, plus the ordered `Documents`/`Presentations`/`Spreadsheets`/`Data Exports`/`Configs` main-category list.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService adds stable guidance for supported document prompts"`
 
+#### Test case: CategorizationService relaxes document family guidance in more refined mode
+Purpose: Ensure `More refined` document prompts stop injecting the fixed stable-document main-category list.
+Setup: Build a summarized `.pdf` document prompt path with default `More refined` settings.
+Procedure: Generate the combined prompt context through the categorization service test access layer.
+Expected outcome: The context includes `Sorting style: More refined`, encourages the most semantically accurate document category, and omits the ordered stable document main-category list.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService relaxes document family guidance in more refined mode"`
+
 #### Test case: CategorizationService normalizes supported document main categories to stable buckets
 Purpose: Prevent supported document files from fragmenting across topical main categories such as `Security`, `Marketing`, or `Computing`.
-Setup: Prepare representative `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.conf`, `.doc`, `.xls`, and `.ppt` prompt overrides with stubbed LLM responses that use unstable topical main categories.
+Setup: Enable `More consistent`, then prepare representative `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.conf`, `.doc`, `.xls`, and `.ppt` prompt overrides with stubbed LLM responses that use unstable topical main categories.
 Procedure: Categorize each entry through the service and inspect the canonical result.
 Expected outcome: The final main categories normalize to the bounded set `Documents`, `Presentations`, `Spreadsheets`, `Data Exports`, and `Configs` while preserving the subject matter in the subcategory.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService normalizes supported document main categories to stable buckets"`
+
+#### Test case: CategorizationService preserves topic-specific document main categories in more refined mode
+Purpose: Let `More refined` keep a semantically specific document main category when the model returns one.
+Setup: Build a summarized `.pdf` prompt override with default `More refined` settings and use a stubbed response such as `Security : PCI DSS`.
+Procedure: Categorize the entry through the service and inspect the canonical result.
+Expected outcome: The final category remains `Security` with subcategory `PCI DSS` instead of being remapped into `Documents`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves topic-specific document main categories in more refined mode"`
 
 #### Test case: CategorizationService preserves explicit whitelist document main categories
 Purpose: Avoid breaking workflows where a document whitelist intentionally uses subject-specific main categories.
@@ -1692,10 +2509,17 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves explic
 
 #### Test case: CategorizationService adds stable guidance for supported image prompts
 Purpose: Ensure supported image files receive shared image-specific guidance and an `Images`-only main-category candidate list before the LLM runs, even without a generated visual description payload.
-Setup: Build a plain prompt path for a representative `.jpg` file.
+Setup: Enable `More consistent` and build a plain prompt path for a representative `.jpg` file.
 Procedure: Generate the combined prompt context through the categorization service test access layer.
 Expected outcome: The context includes image guidance that keeps `Images` as the main category and pushes the depicted subject into the subcategory.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService adds stable guidance for supported image prompts"`
+
+#### Test case: CategorizationService relaxes image family guidance in more refined mode
+Purpose: Ensure `More refined` image prompts stop injecting the fixed `Images`-only main-category list.
+Setup: Build a representative `.jpg` prompt path with default `More refined` settings.
+Procedure: Generate the combined prompt context through the categorization service test access layer.
+Expected outcome: The context includes `Sorting style: More refined`, allows a more semantically specific image main category when useful, and omits the `Images`-only main-category list.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService relaxes image family guidance in more refined mode"`
 
 #### Test case: CategorizationService leaves generic software-like prompts unscaffolded without whitelist
 Purpose: Keep non-document, non-image prompts close to the older minimal prompt style when no whitelist is active.
@@ -1748,17 +2572,24 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService leaves unknown g
 
 #### Test case: CategorizationService uses one-shot categorization prompts for document files
 Purpose: Keep document categorization on the simpler single-pass prompt path while preserving the newer main-category guidance and normalization afterward.
-Setup: Prepare a summarized `.pdf` prompt override and a prompt-capturing LLM stub that returns `Documents : PCI DSS`.
+Setup: Enable `More consistent`, then prepare a summarized `.pdf` prompt override and a prompt-capturing LLM stub that returns `Documents : PCI DSS`.
 Procedure: Categorize the file through the service and inspect the captured categorization path and combined context.
 Expected outcome: The service performs one categorization call, the document summary stays attached to the prompt path, the combined context still includes document guidance plus allowed main categories, and no split-pass-only subcategory prompt text is present.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses one-shot categorization prompts for document files"`
 
 #### Test case: CategorizationService normalizes supported image main categories to Images
 Purpose: Prevent supported image files from fragmenting across topical main categories such as `Wildlife`, `Paris_Skyline`, or screenshot subject headings.
-Setup: Prepare representative `.png` and `.jpg` prompt overrides, with and without generated image descriptions, and stub LLM responses that use unstable topical main categories.
+Setup: Enable `More consistent`, then prepare representative `.png` and `.jpg` prompt overrides, with and without generated image descriptions, and stub LLM responses that use unstable topical main categories.
 Procedure: Categorize each entry through the service and inspect the canonical result.
 Expected outcome: The final main category normalizes to `Images` while preserving the depicted subject in the subcategory.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService normalizes supported image main categories to Images"`
+
+#### Test case: CategorizationService preserves content-specific image main categories in more refined mode
+Purpose: Let `More refined` keep a semantically specific image main category when the model returns one.
+Setup: Build a rich `.jpg` image prompt override with default `More refined` settings and use a stubbed response such as `Wildlife : Lions`.
+Procedure: Categorize the entry through the service and inspect the canonical result.
+Expected outcome: The final category remains `Wildlife` with subcategory `Lions` instead of being remapped into `Images`.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService preserves content-specific image main categories in more refined mode"`
 
 #### Test case: CategorizationService preserves explicit whitelist image main categories when Images is disallowed
 Purpose: Avoid breaking image whitelists that intentionally exclude `Images` as an allowed main category.
@@ -1787,6 +2618,13 @@ Setup: Categorize with a non-English category language.
 Procedure: Store and reload the categorization result.
 Expected outcome: Canonical English labels are stored, and translated taxonomy labels are persisted for display.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService stores canonical English labels and persists translated taxonomy labels"`
+
+#### Test case: CategorizationService strips inline subcategory artifacts from translated category labels
+Purpose: Ensure translated category labels do not keep malformed inline `subcategory` artifacts returned by the LLM.
+Setup: Categorize canonically in English, then return a French translation JSON object whose category value contains `, subcategory ...`.
+Procedure: Categorize and inspect the persisted category translation.
+Expected outcome: The displayed and persisted translated category is clean, while the translated subcategory remains specific.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService strips inline subcategory artifacts from translated category labels"`
 
 #### Test case: CategorizationService strips inline subcategory label artifacts when parsing service output
 Purpose: Ensure service-level parsing removes inline `Subcategory:` artifacts from category text.
@@ -1831,6 +2669,13 @@ Setup: Prepare multiple file entries and callbacks that count queued/completed e
 Procedure: Run `categorize_entries` and capture callback counters.
 Expected outcome: Queue and completion callbacks are each invoked once per processed entry.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService invokes completion callback per entry"`
+
+#### Test case: DocumentTextAnalyzer handles UTF-8 filenames
+Purpose: Verify document-analysis prompts and rename suggestions preserve UTF-8 content.
+Setup: Create a text document whose source filename contains mixed Japanese and Korean text, and use a prompt-capturing LLM stub that returns a Korean filename suggestion.
+Procedure: Analyze the document and inspect both the captured prompt text and the suggested filename.
+Expected outcome: The prompt includes the UTF-8 source filename intact, and the suggested filename preserves the UTF-8 rename result with its original extension.
+Run: `./build-tests/ai_file_sorter_tests "DocumentTextAnalyzer handles UTF-8 filenames"`
 
 #### Test case: StoragePluginManager refreshes available plugins from a remote catalog
 Purpose: Confirm remote catalog refresh merges plugin metadata for the current runtime.

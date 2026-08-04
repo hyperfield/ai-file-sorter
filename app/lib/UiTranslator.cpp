@@ -2,6 +2,7 @@
 
 #include "Language.hpp"
 #include "CategoryLanguage.hpp"
+#include "MenuMnemonicController.hpp"
 #include "Settings.hpp"
 
 #include <QAction>
@@ -32,6 +33,9 @@ constexpr auto kMenuTitleFile = QT_TRANSLATE_NOOP("UiTranslator", "&File");
 constexpr auto kMenuTitleEdit = QT_TRANSLATE_NOOP("UiTranslator", "&Edit");
 constexpr auto kMenuTitleView = QT_TRANSLATE_NOOP("UiTranslator", "&View");
 constexpr auto kMenuTitleSettings = QT_TRANSLATE_NOOP("UiTranslator", "&Settings");
+constexpr auto kMenuTitleExtensions = QT_TRANSLATE_NOOP("UiTranslator", "E&xtensions");
+constexpr auto kMenuTitleWindowsExplorerExtension =
+    QT_TRANSLATE_NOOP("UiTranslator", "Windows Explorer Extension");
 constexpr auto kMenuTitlePlugins = QT_TRANSLATE_NOOP("UiTranslator", "&Plugins");
 constexpr auto kMenuTitleDevelopment = QT_TRANSLATE_NOOP("UiTranslator", "&Development");
 constexpr auto kMenuTitleTests = QT_TRANSLATE_NOOP("UiTranslator", "&Tests");
@@ -45,6 +49,8 @@ constexpr auto kActionSystemCompatibilityCheck =
 constexpr auto kActionCopy = QT_TRANSLATE_NOOP("UiTranslator", "&Copy");
 constexpr auto kActionCut = QT_TRANSLATE_NOOP("UiTranslator", "Cu&t");
 constexpr auto kActionUndoLastRun = QT_TRANSLATE_NOOP("UiTranslator", "Undo last run");
+constexpr auto kActionReviewHistory =
+    QT_TRANSLATE_NOOP("UiTranslator", "Rename and categorization history…");
 constexpr auto kActionPaste = QT_TRANSLATE_NOOP("UiTranslator", "&Paste");
 constexpr auto kActionDelete = QT_TRANSLATE_NOOP("UiTranslator", "&Delete");
 constexpr auto kActionFileExplorer = QT_TRANSLATE_NOOP("UiTranslator", "File &Explorer");
@@ -53,6 +59,12 @@ constexpr auto kActionManageStoragePlugins =
     QT_TRANSLATE_NOOP("UiTranslator", "Manage storage plugins…");
 constexpr auto kActionManageCategoryWhitelists =
     QT_TRANSLATE_NOOP("UiTranslator", "Manage category whitelists…");
+constexpr auto kActionInstallWindowsExplorerExtension =
+    QT_TRANSLATE_NOOP("UiTranslator", "Install Windows Explorer Extension...");
+constexpr auto kActionWindowsExplorerExtensionSettings =
+    QT_TRANSLATE_NOOP("UiTranslator", "Settings...");
+constexpr auto kActionWindowsExplorerExtensionActivity =
+    QT_TRANSLATE_NOOP("UiTranslator", "Activity Window");
 constexpr auto kActionResetLearnedBehavior =
     QT_TRANSLATE_NOOP("UiTranslator", "Reset learned behavior…");
 constexpr auto kActionClearCache = QT_TRANSLATE_NOOP("UiTranslator", "Clear cache…");
@@ -96,30 +108,12 @@ Widget* raw_ptr(const QPointer<Widget>& pointer)
     return pointer.data();
 }
 
-QString strip_mnemonic_markers(const QString& value)
-{
-    QString result;
-    result.reserve(value.size());
-    for (int i = 0; i < value.size(); ++i) {
-        const QChar ch = value.at(i);
-        if (ch != QChar('&')) {
-            result.push_back(ch);
-            continue;
-        }
-        if (i + 1 < value.size() && value.at(i + 1) == QChar('&')) {
-            result.push_back(QChar('&'));
-            ++i;
-        }
-    }
-    return result;
-}
-
 QString menu_action_sort_key(const QAction* action)
 {
     if (!action) {
         return QString();
     }
-    return strip_mnemonic_markers(action->text()).trimmed();
+    return MenuMnemonicController::strip_mnemonic_markers(action->text()).trimmed();
 }
 
 void sort_menu_actions_by_label(QMenu* menu)
@@ -334,24 +328,32 @@ void UiTranslator::translate_menus_and_actions() const
     struct MenuEntry {
         QMenu* menu{nullptr};
         const char* text{nullptr};
+        bool top_level{false};
     };
 
     const MenuEntry menu_entries[] = {
-        {deps_.menus.file_menu, kMenuTitleFile},
-        {deps_.menus.edit_menu, kMenuTitleEdit},
-        {deps_.menus.view_menu, kMenuTitleView},
-        {deps_.menus.settings_menu, kMenuTitleSettings},
-        {deps_.menus.plugins_menu, kMenuTitlePlugins},
-        {deps_.menus.development_menu, kMenuTitleDevelopment},
-        {deps_.menus.development_settings_menu, kMenuTitleSettings},
-        {deps_.menus.test_menu, kMenuTitleTests},
-        {deps_.menus.language_menu, kMenuTitleInterfaceLanguage},
-        {deps_.menus.category_language_menu, kMenuTitleCategoryLanguage}
+        {deps_.menus.file_menu, kMenuTitleFile, true},
+        {deps_.menus.edit_menu, kMenuTitleEdit, true},
+        {deps_.menus.view_menu, kMenuTitleView, true},
+        {deps_.menus.settings_menu, kMenuTitleSettings, true},
+        {deps_.menus.extensions_menu, kMenuTitleExtensions, true},
+        {deps_.menus.windows_explorer_extension_menu, kMenuTitleWindowsExplorerExtension, false},
+        {deps_.menus.plugins_menu, kMenuTitlePlugins, true},
+        {deps_.menus.development_menu, kMenuTitleDevelopment, true},
+        {deps_.menus.development_settings_menu, kMenuTitleSettings, false},
+        {deps_.menus.test_menu, kMenuTitleTests, true},
+        {deps_.menus.language_menu, kMenuTitleInterfaceLanguage, false},
+        {deps_.menus.category_language_menu, kMenuTitleCategoryLanguage, false}
     };
 
     for (const MenuEntry& entry : menu_entries) {
         if (entry.menu && entry.text) {
-            entry.menu->setTitle(tr(entry.text));
+            const QString translated = tr(entry.text);
+            if (entry.top_level) {
+                MenuMnemonicController::set_mnemonic_title(entry.menu, translated);
+            } else {
+                entry.menu->setTitle(translated);
+            }
         }
     }
 
@@ -366,11 +368,15 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.copy_action, kActionCopy},
         {deps_.actions.cut_action, kActionCut},
         {deps_.actions.undo_last_run_action, kActionUndoLastRun},
+        {deps_.actions.review_history_action, kActionReviewHistory},
         {deps_.actions.paste_action, kActionPaste},
         {deps_.actions.delete_action, kActionDelete},
         {deps_.actions.toggle_explorer_action, kActionFileExplorer},
         {deps_.actions.toggle_llm_action, kActionSelectLlm},
         {deps_.actions.manage_storage_plugins_action, kActionManageStoragePlugins},
+        {deps_.actions.windows_explorer_extension_install_action, kActionInstallWindowsExplorerExtension},
+        {deps_.actions.windows_explorer_extension_settings_action, kActionWindowsExplorerExtensionSettings},
+        {deps_.actions.windows_explorer_extension_activity_action, kActionWindowsExplorerExtensionActivity},
         {deps_.actions.manage_whitelists_action, kActionManageCategoryWhitelists},
         {deps_.actions.reset_learning_action, kActionResetLearnedBehavior},
         {deps_.actions.clear_cache_action, kActionClearCache},
@@ -417,7 +423,7 @@ void UiTranslator::translate_menus_and_actions() const
             const auto language = static_cast<CategoryLanguage>(idx);
             if (QAction* const shared_action =
                     shared_interface_language_action(deps_, language)) {
-                action->setText(strip_mnemonic_markers(shared_action->text()));
+                action->setText(MenuMnemonicController::strip_mnemonic_markers(shared_action->text()));
                 continue;
             }
             const QByteArray label_bytes = categoryLanguageToString(language).toUtf8();
@@ -427,10 +433,7 @@ void UiTranslator::translate_menus_and_actions() const
 
     if (auto* menu = deps_.menus.help_menu) {
         const QString help_title = QString(QChar(0x200B)) + tr(kMenuTitleHelp);
-        menu->setTitle(help_title);
-        if (QAction* help_action = menu->menuAction()) {
-            help_action->setText(help_title);
-        }
+        MenuMnemonicController::set_mnemonic_title(menu, help_title);
     }
 
     if (auto* dock = raw_ptr(deps_.file_explorer_dock)) {

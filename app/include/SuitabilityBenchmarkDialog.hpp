@@ -55,6 +55,10 @@ private:
      */
     void setup_ui();
     /**
+     * @brief Apply platform-specific presentation tweaks after widgets exist.
+     */
+    void apply_platform_styling();
+    /**
      * @brief Update translated strings for the dialog.
      */
     void retranslate_ui();

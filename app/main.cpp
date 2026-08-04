@@ -2,6 +2,7 @@
 #include "AppTestRunner.hpp"
 #include "EmbeddedEnv.hpp"
 #include "GgmlRuntimePaths.hpp"
+#include "HeadlessAnalysisCommand.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "ImageAnalyzer.hpp"
 #include "Logger.hpp"
@@ -74,8 +75,12 @@ struct ParsedArguments {
     bool test_mode{false};
     bool console_log{false};
     bool force_direct_run{false};
+    bool show_review_history{false};
+    bool show_llm_selection{false};
+    bool show_cache_maintenance{false};
     std::optional<std::string> self_test_suite;
     std::optional<std::string> visual_gpu_probe_backend;
+    HeadlessAnalysisCommand::ParseResult headless;
     UpdaterLiveTestConfig updater_live_test;
     std::vector<char*> qt_args;
 };
@@ -144,9 +149,15 @@ void apply_updater_live_test_environment(const UpdaterLiveTestConfig& args)
 ParsedArguments parse_command_line(int argc, char** argv)
 {
     ParsedArguments parsed;
+    parsed.headless = HeadlessAnalysisCommand::parse(argc, argv);
     parsed.qt_args.reserve(static_cast<size_t>(argc) + 1);
 
     for (int i = 0; i < argc; ++i) {
+        if (i > 0 &&
+            static_cast<std::size_t>(i) < parsed.headless.consumed_arguments.size() &&
+            parsed.headless.consumed_arguments[static_cast<std::size_t>(i)]) {
+            continue;
+        }
         const bool is_flag = (i > 0);
         if (is_flag && std::strcmp(argv[i], "--development") == 0) {
             parsed.development_mode = true;
@@ -165,6 +176,28 @@ ParsedArguments parse_command_line(int argc, char** argv)
         }
         if (is_flag && std::strcmp(argv[i], "--force-direct-run") == 0) {
             parsed.force_direct_run = true;
+            continue;
+        }
+        if (is_flag &&
+            (std::strcmp(argv[i], "--show-review-history") == 0 ||
+             std::strcmp(argv[i], "--review-history") == 0 ||
+             std::strcmp(argv[i], "--action-history") == 0)) {
+            parsed.show_review_history = true;
+            continue;
+        }
+        if (is_flag &&
+            (std::strcmp(argv[i], "--show-llm-selection") == 0 ||
+             std::strcmp(argv[i], "--select-llm") == 0 ||
+             std::strcmp(argv[i], "--llm-selection") == 0)) {
+            parsed.show_llm_selection = true;
+            continue;
+        }
+        if (is_flag &&
+            (std::strcmp(argv[i], "--show-cache-maintenance") == 0 ||
+             std::strcmp(argv[i], "--cache-maintenance") == 0 ||
+             std::strcmp(argv[i], "--clear-cache") == 0 ||
+             std::strcmp(argv[i], "--clean-cache") == 0)) {
+            parsed.show_cache_maintenance = true;
             continue;
         }
         if (is_flag && std::strcmp(argv[i], "--self-test") == 0) {
@@ -364,7 +397,7 @@ void attach_console_if_requested(bool enable)
 
 [[maybe_unused]] QPixmap build_splash_pixmap()
 {
-    QPixmap splash_pix(QStringLiteral(":/net/quicknode/AIFileSorter/images/icon_512x512.png"));
+    QPixmap splash_pix(QStringLiteral(":/dev/hfstudio/AIFileSorter/images/icon_512x512.png"));
     if (splash_pix.isNull()) {
         splash_pix = QPixmap(256, 256);
         splash_pix.fill(Qt::black);
@@ -485,6 +518,8 @@ bool ensure_llm_choice(Settings& settings, const std::function<void()>& finish_s
     settings.set_gemini_model(llm_dialog.get_gemini_model());
     settings.set_llm_choice(llm_dialog.get_selected_llm_choice());
     settings.set_llm_downloads_expanded(llm_dialog.get_llm_downloads_expanded());
+    settings.set_llm_storage_dir(llm_dialog.get_llm_storage_dir());
+    settings.set_visual_model_id(llm_dialog.get_selected_visual_model_id());
     if (llm_dialog.get_selected_llm_choice() == LLMChoice::Custom) {
         settings.set_active_custom_llm_id(llm_dialog.get_selected_custom_llm_id());
     } else {
@@ -538,6 +573,59 @@ void activate_widget(QWidget* widget)
         SetForegroundWindow(hwnd);
     }
 #endif
+}
+
+bool startup_command_opens_review_history(const QString& command)
+{
+    return command == QStringLiteral("show-review-history");
+}
+
+bool startup_command_opens_llm_selection(const QString& command)
+{
+    return command == QStringLiteral("show-llm-selection");
+}
+
+bool startup_command_opens_cache_maintenance(const QString& command)
+{
+    return command == QStringLiteral("show-cache-maintenance");
+}
+
+QString startup_command_from_arguments(const ParsedArguments& parsed_args)
+{
+    if (parsed_args.show_llm_selection) {
+        return QStringLiteral("show-llm-selection");
+    }
+    if (parsed_args.show_cache_maintenance) {
+        return QStringLiteral("show-cache-maintenance");
+    }
+    if (parsed_args.show_review_history) {
+        return QStringLiteral("show-review-history");
+    }
+    return {};
+}
+
+void open_review_history_later(MainApp& main_app)
+{
+    QTimer::singleShot(0, &main_app, [&main_app]() {
+        activate_widget(&main_app);
+        main_app.open_review_history_dialog();
+    });
+}
+
+void open_llm_selection_later(MainApp& main_app)
+{
+    QTimer::singleShot(0, &main_app, [&main_app]() {
+        activate_widget(&main_app);
+        main_app.show_llm_selection_dialog();
+    });
+}
+
+void open_cache_maintenance_later(MainApp& main_app)
+{
+    QTimer::singleShot(0, &main_app, [&main_app]() {
+        activate_widget(&main_app);
+        main_app.open_cache_cleanup_dialog();
+    });
 }
 
 void print_app_test_result(const AppTestRunner::Result& result)
@@ -605,9 +693,34 @@ int run_visual_gpu_probe_mode(const ParsedArguments& parsed_args)
     }
 }
 
+int run_headless_mode(const ParsedArguments& parsed_args)
+{
+    int qt_argc = static_cast<int>(parsed_args.qt_args.size()) - 1;
+    char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());
+    QCoreApplication app(qt_argc, qt_argv);
+
+    if (parsed_args.headless.help_requested) {
+        std::cout << HeadlessAnalysisCommand::usage_text();
+        return EXIT_SUCCESS;
+    }
+    if (!parsed_args.headless.error.empty()) {
+        std::cerr << parsed_args.headless.error << "\n"
+                  << HeadlessAnalysisCommand::usage_text();
+        return HeadlessAnalysisCommand::Usage;
+    }
+
+    Settings settings;
+    settings.load();
+    const auto runtime_dir = Utils::utf8_to_path(settings.get_config_dir()) / "runtime";
+    return HeadlessAnalysisCommand::run(parsed_args.headless.options,
+                                        runtime_dir,
+                                        std::cout,
+                                        std::cerr);
+}
+
 int run_application(const ParsedArguments& parsed_args)
 {
-    EmbeddedEnv env_loader(":/net/quicknode/AIFileSorter/.env");
+    EmbeddedEnv env_loader(":/dev/hfstudio/AIFileSorter/.env");
     env_loader.load_env();
 #if defined(__APPLE__)
     ensure_ggml_backend_dir();
@@ -616,7 +729,7 @@ int run_application(const ParsedArguments& parsed_args)
 #endif
     setlocale(LC_ALL, "");
     const std::string locale_path = Utils::get_executable_path() + "/locale";
-    bindtextdomain("net.quicknode.AIFileSorter", locale_path.c_str());
+    bindtextdomain("dev.hfstudio.AIFileSorter", locale_path.c_str());
 
     const QString display_name = app_display_name();
     QCoreApplication::setApplicationName(display_name);
@@ -627,6 +740,9 @@ int run_application(const ParsedArguments& parsed_args)
     }
     if (parsed_args.visual_gpu_probe_backend.has_value()) {
         return run_visual_gpu_probe_mode(parsed_args);
+    }
+    if (parsed_args.headless.requested) {
+        return run_headless_mode(parsed_args);
     }
 
     auto updater_live_test = parsed_args.updater_live_test;
@@ -641,9 +757,11 @@ int run_application(const ParsedArguments& parsed_args)
     char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());
     QApplication app(qt_argc, qt_argv);
     const QString instance_id = parsed_args.test_mode
-        ? QStringLiteral("net.quicknode.AIFileSorter.Test")
-        : QStringLiteral("net.quicknode.AIFileSorter");
+        ? QStringLiteral("dev.hfstudio.AIFileSorter.Test")
+        : QStringLiteral("dev.hfstudio.AIFileSorter");
     SingleInstanceCoordinator instance_guard(instance_id);
+    const QString startup_command = startup_command_from_arguments(parsed_args);
+    instance_guard.set_activation_message(startup_command);
     instance_guard.set_activation_callback([]() {
         activate_widget(preferred_activation_target());
     });
@@ -662,15 +780,41 @@ int run_application(const ParsedArguments& parsed_args)
 
     const auto finish_splash = [&]() {};
 
+    const bool llm_selection_needed_at_startup = !llm_choice_is_ready(settings);
     if (!ensure_llm_choice(settings, finish_splash)) {
         return EXIT_SUCCESS;
     }
+    const bool open_llm_selection_after_startup =
+        startup_command_opens_llm_selection(startup_command) && !llm_selection_needed_at_startup;
 
     MainApp main_app(settings,
                      parsed_args.development_mode || parsed_args.test_mode,
                      parsed_args.test_mode,
                      app_data_dir);
+    instance_guard.set_activation_callback([&main_app](const QString& command) {
+        activate_widget(preferred_activation_target());
+        if (startup_command_opens_llm_selection(command)) {
+            open_llm_selection_later(main_app);
+            return;
+        }
+        if (startup_command_opens_review_history(command)) {
+            open_review_history_later(main_app);
+            return;
+        }
+        if (startup_command_opens_cache_maintenance(command)) {
+            open_cache_maintenance_later(main_app);
+        }
+    });
     main_app.run();
+    if (open_llm_selection_after_startup) {
+        open_llm_selection_later(main_app);
+    }
+    if (startup_command_opens_review_history(startup_command)) {
+        open_review_history_later(main_app);
+    }
+    if (startup_command_opens_cache_maintenance(startup_command)) {
+        open_cache_maintenance_later(main_app);
+    }
 
     const int result = app.exec();
     main_app.shutdown();
