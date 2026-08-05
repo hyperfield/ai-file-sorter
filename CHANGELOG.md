@@ -1,6 +1,6 @@
 ﻿# Changelog
 
-## [1.9.0] - 2026-07-03
+## [1.9.0] - 2026-08-05
 
 - Added smart branching category whitelists: each main category can now define its own allowed subcategories, large/smart whitelists are reduced to relevant prompt candidates when needed, and invalid category/subcategory pairs are corrected after parsing.
 - Improved the whitelist editor with clearer top-level category, global subcategory, and category-specific subcategory sections. Global and category-specific subcategory modes are mutually exclusive so a whitelist has one clear constraint style.
