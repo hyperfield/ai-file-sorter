@@ -786,6 +786,21 @@ set(AIFS_HELP_RESOURCE_FILES
 )
 
 set(AIFS_WHATS_NEW_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_zh_cn.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_da.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.0_de.md"
