@@ -48,6 +48,7 @@ class QComboBox;
 class QLabel;
 class QDockWidget;
 class QFileSystemModel;
+class QFrame;
 class QLineEdit;
 class QString;
 class QPushButton;
@@ -218,6 +219,10 @@ private:
     void connect_checkbox_signals();
     void connect_whitelist_signals();
     void connect_edit_actions();
+    /**
+     * @brief Reapplies palette-aware styles to the main window panels.
+     */
+    void apply_theme_styles();
     void start_updater();
     void set_app_icon();
 
@@ -497,6 +502,7 @@ private:
     QPointer<QStackedWidget> results_stack;
     QPointer<QTreeView> folder_contents_view;
     QPointer<QFileSystemModel> folder_contents_model;
+    QPointer<QFrame> file_listing_panel;
     int tree_view_page_index_{-1};
     int folder_view_page_index_{-1};
 

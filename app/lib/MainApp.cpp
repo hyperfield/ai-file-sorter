@@ -1,5 +1,6 @@
 #include "MainApp.hpp"
 #include "AnalysisCoordinator.hpp"
+#include "AppTheme.hpp"
 #include "AppIconResources.hpp"
 #include "AppInfo.hpp"
 
@@ -164,30 +165,6 @@ QString strip_mnemonic_markers(const QString& value)
         }
     }
     return result;
-}
-
-QString file_explorer_panel_style_sheet()
-{
-    return QStringLiteral(R"(
-        QFrame#aifsFileExplorerPanel {
-            background-color: #fbfcfe;
-            border: 1px solid #c8d0d8;
-            border-radius: 6px;
-        }
-        QTreeWidget#aifsNetworkLocationsView,
-        QTreeView#aifsFileExplorerView {
-            background-color: #ffffff;
-            alternate-background-color: #f4f6f8;
-            border: 1px solid #d6dde5;
-            border-radius: 4px;
-            outline: 0;
-        }
-        QTreeWidget#aifsNetworkLocationsView::item:selected,
-        QTreeView#aifsFileExplorerView::item:selected {
-            background-color: #d7e8f7;
-            color: #111827;
-        }
-    )");
 }
 
 QString category_language_sort_key(CategoryLanguage language)
@@ -661,6 +638,7 @@ MainApp::MainApp(Settings& settings,
     retranslate_ui();
     update_settings_action_states();
     setup_file_explorer();
+    apply_theme_styles();
     connect_signals();
     connect_edit_actions();
 #if !defined(AI_FILE_SORTER_TEST_BUILD)
@@ -701,6 +679,28 @@ void MainApp::shutdown()
     }
     stop_running_analysis();
     save_settings();
+}
+
+void MainApp::apply_theme_styles()
+{
+    const QPalette current_palette = palette();
+
+#if defined(Q_OS_WIN)
+    if (file_explorer_container) {
+        file_explorer_container->setStyleSheet(
+            AppTheme::file_explorer_panel_style_sheet(current_palette));
+    }
+#else
+    if (file_explorer_view) {
+        file_explorer_view->setStyleSheet(
+            AppTheme::file_explorer_panel_style_sheet(current_palette));
+    }
+#endif
+
+    if (file_listing_panel) {
+        file_listing_panel->setStyleSheet(
+            AppTheme::file_listing_panel_style_sheet(current_palette));
+    }
 }
 
 
@@ -745,7 +745,6 @@ void MainApp::setup_file_explorer_view()
 #if defined(Q_OS_WIN)
     auto* explorer_frame = new QFrame(file_explorer_dock);
     explorer_frame->setObjectName(QStringLiteral("aifsFileExplorerPanel"));
-    explorer_frame->setStyleSheet(file_explorer_panel_style_sheet());
     file_explorer_container = explorer_frame;
     auto* explorer_layout = new QVBoxLayout(file_explorer_container);
     explorer_layout->setContentsMargins(4, 4, 4, 4);
@@ -769,9 +768,6 @@ void MainApp::setup_file_explorer_view()
     file_explorer_view = new QTreeView(file_explorer_dock);
 #endif
     file_explorer_view->setObjectName(QStringLiteral("aifsFileExplorerView"));
-#if !defined(Q_OS_WIN)
-    file_explorer_view->setStyleSheet(file_explorer_panel_style_sheet());
-#endif
     file_explorer_view->setModel(file_system_model);
 #if defined(Q_OS_WIN)
     file_explorer_view->setRootIndex(QModelIndex());
@@ -3594,8 +3590,18 @@ void MainApp::post_analysis_failure(std::string message)
 void MainApp::changeEvent(QEvent* event)
 {
     QMainWindow::changeEvent(event);
-    if (event && event->type() == QEvent::LanguageChange) {
+    if (!event) {
+        return;
+    }
+
+    if (event->type() == QEvent::LanguageChange) {
         retranslate_ui();
+        return;
+    }
+
+    if (event->type() == QEvent::PaletteChange ||
+        event->type() == QEvent::ApplicationPaletteChange) {
+        apply_theme_styles();
     }
 }
 

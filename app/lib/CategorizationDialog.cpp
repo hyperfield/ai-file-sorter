@@ -1,5 +1,6 @@
 #include "CategorizationDialog.hpp"
 
+#include "AppTheme.hpp"
 #include "BulkEditDialog.hpp"
 #include "DatabaseManager.hpp"
 #include "LocalFsProvider.hpp"
@@ -84,67 +85,6 @@ struct ScopedFlag {
 };
 
 QString edit_icon_html(int size = 16);
-
-QString review_dialog_style_sheet()
-{
-    return QStringLiteral(R"(
-        QFrame#aifsReviewTablePanel {
-            background-color: #fbfcfe;
-            border: 1px solid #c8d0d8;
-            border-radius: 6px;
-        }
-        QTableView#aifsReviewTable {
-            background-color: #ffffff;
-            alternate-background-color: #f4f6f8;
-            border: none;
-            gridline-color: #d8e0e8;
-            outline: 0;
-            selection-background-color: #d7e8f7;
-            selection-color: #111827;
-        }
-        QTableView#aifsReviewTable QHeaderView::section {
-            background-color: #f3f6f9;
-            border: none;
-            border-right: 1px solid #d8e0e8;
-            border-bottom: 1px solid #c8d0d8;
-            padding: 4px 6px;
-        }
-        QPushButton[aifsReviewActionButton="true"] {
-            background-color: #ffffff;
-            border: 1px solid #b7c3cf;
-            border-radius: 6px;
-            padding: 5px 13px;
-            min-height: 24px;
-        }
-        QPushButton[aifsReviewActionButton="true"]:hover {
-            background-color: #eef5fb;
-            border-color: #8ca9c3;
-        }
-        QPushButton[aifsReviewActionButton="true"]:pressed {
-            background-color: #dceaf5;
-            border-color: #6f92af;
-        }
-        QPushButton[aifsReviewActionButton="true"]:disabled {
-            background-color: #f4f6f8;
-            border-color: #d7dde4;
-            color: #9aa3ad;
-        }
-        QPushButton#aifsReviewPrimaryButton {
-            background-color: #1f6fb2;
-            border: 1px solid #155a94;
-            color: #ffffff;
-            font-weight: 600;
-        }
-        QPushButton#aifsReviewPrimaryButton:hover {
-            background-color: #287fc8;
-            border-color: #1b669f;
-        }
-        QPushButton#aifsReviewPrimaryButton:pressed {
-            background-color: #185c95;
-            border-color: #124d80;
-        }
-    )");
-}
 
 using ReviewNameValidator::is_missing_category_label;
 using ReviewNameValidator::strip_history_description_label;
@@ -361,7 +301,7 @@ void CategorizationDialog::show_results(const std::vector<CategorizedFile>& file
 
 void CategorizationDialog::setup_ui()
 {
-    setStyleSheet(review_dialog_style_sheet());
+    apply_theme_styles();
 
     auto* layout = new QVBoxLayout(this);
 
@@ -529,6 +469,11 @@ void CategorizationDialog::setup_ui()
                 this,
                 [this]() { update_preview_button_state(); });
     }
+}
+
+void CategorizationDialog::apply_theme_styles()
+{
+    setStyleSheet(AppTheme::review_dialog_style_sheet(palette()));
 }
 
 
@@ -1716,9 +1661,13 @@ void CategorizationDialog::update_status_column(int row,
 {
     if (auto* status_item = model->item(row, ColumnStatus)) {
         RowStatus status = RowStatus::None;
+        const QPalette current_palette = palette();
+        const QColor pending_color = current_palette.color(QPalette::Disabled, QPalette::Text);
+        const QColor success_color = QColor(QStringLiteral("#2e9d57"));
+        const QColor failure_color = QColor(QStringLiteral("#d64545"));
         if (!attempted) {
             status = RowStatus::NotSelected;
-            status_item->setForeground(QBrush(Qt::gray));
+            status_item->setForeground(QBrush(pending_color));
         } else if (success) {
             if (renamed && moved) {
                 status = RowStatus::RenamedAndMoved;
@@ -1727,10 +1676,10 @@ void CategorizationDialog::update_status_column(int row,
             } else {
                 status = RowStatus::Moved;
             }
-            status_item->setForeground(QBrush(Qt::darkGreen));
+            status_item->setForeground(QBrush(success_color));
         } else {
             status = RowStatus::Skipped;
-            status_item->setForeground(QBrush(Qt::red));
+            status_item->setForeground(QBrush(failure_color));
         }
 
         if (status == RowStatus::None) {
@@ -2791,7 +2740,7 @@ void CategorizationDialog::set_preview_status(int row, const std::string& destin
     if (auto* status_item = model->item(row, ColumnStatus)) {
         status_item->setData(static_cast<int>(RowStatus::Preview), kStatusRole);
         status_item->setText(tr("Preview"));
-        status_item->setForeground(QBrush(Qt::blue));
+        status_item->setForeground(QBrush(palette().color(QPalette::Link)));
         std::string display = destination;
 #ifdef _WIN32
         std::replace(display.begin(), display.end(), '/', '\\');
@@ -3012,11 +2961,21 @@ void CategorizationDialog::update_select_all_state()
 void CategorizationDialog::changeEvent(QEvent* event)
 {
     QDialog::changeEvent(event);
-    if (event && event->type() == QEvent::LanguageChange) {
+    if (!event) {
+        return;
+    }
+
+    if (event->type() == QEvent::LanguageChange) {
         retranslate_ui();
         for (int row = 0; row < model->rowCount(); ++row) {
             update_preview_column(row);
         }
+        return;
+    }
+
+    if (event->type() == QEvent::PaletteChange ||
+        event->type() == QEvent::ApplicationPaletteChange) {
+        apply_theme_styles();
     }
 }
 

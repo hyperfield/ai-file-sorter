@@ -1,5 +1,6 @@
 #include "CategorizationProgressDialog.hpp"
 
+#include "AppTheme.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "Logger.hpp"
@@ -28,67 +29,6 @@
 
 namespace {
 
-QString progress_dialog_style_sheet()
-{
-    return QStringLiteral(R"(
-        QDialog#analysisProgressDialog {
-            background-color: #f4f6f8;
-        }
-        QFrame#analysisStatusPanel,
-        QFrame#analysisLogPanel {
-            background-color: #fbfcfe;
-            border: 1px solid #c8d0d8;
-            border-radius: 6px;
-        }
-        QTableWidget#analysisStatusTable {
-            background-color: #ffffff;
-            alternate-background-color: #f4f6f8;
-            border: none;
-            gridline-color: #d8e0e8;
-            outline: 0;
-            selection-background-color: #d7e8f7;
-            selection-color: #111827;
-        }
-        QTableWidget#analysisStatusTable QHeaderView::section {
-            background-color: #f3f6f9;
-            border: none;
-            border-right: 1px solid #d8e0e8;
-            border-bottom: 1px solid #c8d0d8;
-            padding: 4px 6px;
-        }
-        QLabel#analysisLogLabel {
-            color: #111827;
-            font-weight: 600;
-        }
-        QPlainTextEdit#analysisLogView {
-            background-color: #ffffff;
-            border: none;
-            border-radius: 4px;
-            padding: 6px;
-        }
-        QPushButton#stopAnalysisButton {
-            background-color: #ffffff;
-            border: 1px solid #b7c3cf;
-            border-radius: 6px;
-            padding: 5px 13px;
-            min-height: 24px;
-        }
-        QPushButton#stopAnalysisButton:hover {
-            background-color: #fff4f2;
-            border-color: #d58a7f;
-        }
-        QPushButton#stopAnalysisButton:pressed {
-            background-color: #f8ddd9;
-            border-color: #b96c62;
-        }
-        QPushButton#stopAnalysisButton:disabled {
-            background-color: #f4f6f8;
-            border-color: #d7dde4;
-            color: #9aa3ad;
-        }
-    )");
-}
-
 } // namespace
 
 CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
@@ -106,7 +46,7 @@ CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
 void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
 {
     setObjectName(QStringLiteral("analysisProgressDialog"));
-    setStyleSheet(progress_dialog_style_sheet());
+    apply_theme_styles();
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(12, 12, 12, 12);
@@ -176,6 +116,11 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
     spinner_timer = new QTimer(this);
     spinner_timer->setInterval(140);
     connect(spinner_timer, &QTimer::timeout, this, &CategorizationProgressDialog::refresh_spinner);
+}
+
+void CategorizationProgressDialog::apply_theme_styles()
+{
+    setStyleSheet(AppTheme::progress_dialog_style_sheet(palette()));
 }
 
 
@@ -728,6 +673,13 @@ void CategorizationProgressDialog::refresh_row(int row)
     type_item->setText(display_type_label(state->display_type));
     type_item->setTextAlignment(Qt::AlignCenter);
 
+    const QPalette current_palette = status_table->palette();
+    const QColor not_applicable_color = current_palette.color(QPalette::Disabled, QPalette::Text);
+    const QColor pending_color = current_palette.color(QPalette::PlaceholderText);
+    const QColor in_progress_color = current_palette.color(QPalette::Link);
+    const QColor completed_color = QColor(QStringLiteral("#2e9d57"));
+    const QColor skipped_color = QColor(QStringLiteral("#ff9f43"));
+
     static const QString kSpinnerFrames[] = {
         QStringLiteral("◐"),
         QStringLiteral("◓"),
@@ -751,24 +703,24 @@ void CategorizationProgressDialog::refresh_row(int row)
         switch (status) {
             case ItemStatus::NotApplicable:
                 stage_item->setText(QStringLiteral("—"));
-                stage_item->setForeground(QColor(150, 150, 150));
+                stage_item->setForeground(not_applicable_color);
                 break;
             case ItemStatus::Pending:
                 stage_item->setText(QStringLiteral("○ %1").arg(tr("Pending")));
-                stage_item->setForeground(QColor(120, 120, 120));
+                stage_item->setForeground(pending_color);
                 break;
             case ItemStatus::InProgress:
                 stage_item->setText(QStringLiteral("%1 %2")
                                         .arg(kSpinnerFrames[spinner_frame_index_ % 4], tr("In progress")));
-                stage_item->setForeground(QColor(33, 150, 243));
+                stage_item->setForeground(in_progress_color);
                 break;
             case ItemStatus::Completed:
                 stage_item->setText(QStringLiteral("✓ %1").arg(tr("Complete")));
-                stage_item->setForeground(QColor(46, 125, 50));
+                stage_item->setForeground(completed_color);
                 break;
             case ItemStatus::Skipped:
                 stage_item->setText(QStringLiteral("! %1").arg(tr("Skipped")));
-                stage_item->setForeground(QColor(245, 124, 0));
+                stage_item->setForeground(skipped_color);
                 break;
         }
 
@@ -872,8 +824,18 @@ bool CategorizationProgressDialog::has_in_progress_item() const
 void CategorizationProgressDialog::changeEvent(QEvent* event)
 {
     QDialog::changeEvent(event);
-    if (event && event->type() == QEvent::LanguageChange) {
+    if (!event) {
+        return;
+    }
+
+    if (event->type() == QEvent::LanguageChange) {
         retranslate_ui();
+        return;
+    }
+
+    if (event->type() == QEvent::PaletteChange ||
+        event->type() == QEvent::ApplicationPaletteChange) {
+        apply_theme_styles();
     }
 }
 

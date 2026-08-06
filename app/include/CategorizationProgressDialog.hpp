@@ -78,6 +78,10 @@ private:
 
     static constexpr int kStageCount = 3;
 
+    /**
+     * @brief Reapplies palette-aware styles after theme changes.
+     */
+    void apply_theme_styles();
     void setup_ui(bool show_subcategory_col);
     void retranslate_ui();
     void request_stop();

@@ -187,6 +187,10 @@ private:
         bool rename_only{false};
     };
 
+    /**
+     * @brief Reapplies palette-aware styles after theme changes.
+     */
+    void apply_theme_styles();
     void setup_ui();
     void populate_model();
     void ensure_unique_suggested_names_in_model();
