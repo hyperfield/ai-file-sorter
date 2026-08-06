@@ -50,6 +50,29 @@ Procedure: Run the suite and inspect the aggregate result.
 Expected outcome: The runner returns an error, no cases are executed, and the aggregate result fails.
 Run: `./build-tests/ai_file_sorter_tests "AppTestRunner rejects unknown self-test suite"`
 
+### `tests/unit/test_app_theme.cpp`
+
+#### Test case: AppTheme appends Windows dark-mode opt-in only when appropriate
+Purpose: Ensure the Windows Qt platform string enables dark mode without clobbering unrelated or already-explicit platform settings.
+Setup: Provide empty, Windows, Windows-with-options, Windows-with-existing-darkmode, and non-Windows platform strings.
+Procedure: Call `AppTheme::windows_platform_dark_mode_spec()` for each input.
+Expected outcome: Empty or plain Windows inputs gain `darkmode=2`, existing `darkmode=` values stay unchanged, and non-Windows platforms are preserved.
+Run: `./build-tests/ai_file_sorter_tests "AppTheme appends Windows dark-mode opt-in only when appropriate"`
+
+#### Test case: AppTheme review stylesheet follows the active palette
+Purpose: Prevent the review dialog from hardcoding light-only colors when the app palette is dark.
+Setup: Create a dark `QPalette` with explicit base, text, button, and highlight colors.
+Procedure: Build the review-dialog stylesheet through `AppTheme::review_dialog_style_sheet()`.
+Expected outcome: The stylesheet contains the dark palette colors and no longer includes the old light hardcoded tokens.
+Run: `./build-tests/ai_file_sorter_tests "AppTheme review stylesheet follows the active palette"`
+
+#### Test case: AppTheme ignores broken light-mode alternate row colors
+Purpose: Prevent light-mode lists from inheriting pathological black alternate-row colors from the native Windows palette.
+Setup: Create a light `QPalette` whose `AlternateBase` is black even though the main base color is white.
+Procedure: Build the file-listing stylesheet through `AppTheme::file_listing_panel_style_sheet()`.
+Expected outcome: The stylesheet uses a derived near-white alternate row color instead of the broken black `AlternateBase`.
+Run: `./build-tests/ai_file_sorter_tests "AppTheme ignores broken light-mode alternate row colors"`
+
 ### `tests/unit/test_category_date_suffix.cpp`
 
 #### Test case: CategoryDateSuffix appends generated date suffixes once
