@@ -920,6 +920,13 @@ Procedure: Call `Utils::make_default_path_to_file_from_download_url()` for a GGU
 Expected outcome: The resolved path points inside the override directory with the URL filename appended.
 Run: `./build-tests/ai_file_sorter_tests "LLM storage override changes default download destination"`
 
+#### Test case: ensure_ca_bundle stages embedded certificate under writable app data
+Purpose: Prevent Store/MSIX builds from trying to create runtime certificate files under the read-only package install directory.
+Setup: Reset the CA bundle cache and point `AI_FILE_SORTER_CONFIG_DIR` at a temporary directory.
+Procedure: Call `Utils::ensure_ca_bundle()`.
+Expected outcome: The embedded `cacert.pem` is staged under the writable app config directory, exists, is non-empty, and does not point inside `WindowsApps`.
+Run: `./build-tests/ai_file_sorter_tests "ensure_ca_bundle stages embedded certificate under writable app data"`
+
 #### Test case: is_cuda_available honors probe overrides
 Purpose: Verify that CUDA availability probes are honored.
 Setup: Install a test hook that returns `true`, then one that returns `false`.

@@ -17,6 +17,18 @@ struct LlmStorageOverrideGuard {
     }
 };
 
+struct CaBundleCacheGuard {
+    CaBundleCacheGuard()
+    {
+        TestHooks::reset_ca_bundle_cache();
+    }
+
+    ~CaBundleCacheGuard()
+    {
+        TestHooks::reset_ca_bundle_cache();
+    }
+};
+
 } // namespace
 
 TEST_CASE("get_file_name_from_url extracts filename") {
@@ -37,6 +49,19 @@ TEST_CASE("LLM storage override changes default download destination") {
     const std::filesystem::path resolved =
         Utils::make_default_path_to_file_from_download_url("https://example.com/models/custom.gguf");
     CHECK(resolved == temp_dir.path() / "custom.gguf");
+}
+
+TEST_CASE("ensure_ca_bundle stages embedded certificate under writable app data") {
+    CaBundleCacheGuard cache_guard;
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+
+    const std::filesystem::path cert_path = Utils::ensure_ca_bundle();
+
+    CHECK(cert_path == config_dir.path() / "AIFileSorter" / "certs" / "cacert.pem");
+    REQUIRE(std::filesystem::exists(cert_path));
+    CHECK(std::filesystem::file_size(cert_path) > 0);
+    CHECK_FALSE(cert_path.string().find("WindowsApps") != std::string::npos);
 }
 
 TEST_CASE("is_cuda_available honors probe overrides") {

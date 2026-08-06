@@ -50,6 +50,11 @@ void set_llm_download_probe(LLMDownloadProbe probe);
 void reset_llm_download_probe();
 
 /**
+ * @brief Clears the cached staged CA bundle path so tests can isolate environment setup.
+ */
+void reset_ca_bundle_cache();
+
+/**
  * @brief Test hook used to observe or bypass categorization sleeps.
  */
 using CategorizationSleepProbe = std::function<void(std::chrono::milliseconds duration)>;
