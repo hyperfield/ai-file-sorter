@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.9.0-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.9.1-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -130,6 +130,11 @@ the main entry page, use these technical references:
 ---
 
 ## Changelog
+
+## [1.9.1] - 2026-08-06
+
+- Fixed bundled Windows local-LLM runtime builds so the packaged GGML libraries run on generic SSE4.2-capable x64 CPUs instead of requiring AVX2.
+- Fixed embedded CA bundle staging for packaged and Microsoft Store builds by writing the certificate bundle under writable app data instead of the read-only install directory.
 
 ## [1.9.0] - 2026-07-03
 

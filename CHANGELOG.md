@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## [1.9.1] - 2026-08-06
+
+- Fixed bundled Windows local-LLM runtime builds so the packaged GGML libraries run on generic SSE4.2-capable x64 CPUs instead of requiring AVX2.
+- Fixed embedded CA bundle staging for packaged and Microsoft Store builds by writing the certificate bundle under writable app data instead of the read-only install directory.
+
 ## [1.9.0] - 2026-08-05
 
 - Added smart branching category whitelists: each main category can now define its own allowed subcategories, large/smart whitelists are reduced to relevant prompt candidates when needed, and invalid category/subcategory pairs are corrected after parsing.
