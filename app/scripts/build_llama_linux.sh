@@ -13,6 +13,7 @@ fi
 
 PRECOMPILED_ROOT_DIR="$SCRIPT_DIR/../lib/precompiled"
 HEADERS_DIR="$SCRIPT_DIR/../include/llama"
+HOST_ARCH="$(uname -m)"
 
 # Parse optional arguments (cuda=on/off, vulkan=on/off, blas=on/off/auto).
 # Accept both bare key=value and GNU-style --key=value forms.
@@ -310,6 +311,25 @@ build_variant() {
 
     cd "$LLAMA_DIR"
 
+    local -a ggml_cpu_feature_args=()
+    if [[ "$HOST_ARCH" == "x86_64" || "$HOST_ARCH" == "amd64" ]]; then
+        # Keep x64 Linux runtimes compatible with older SSE4.2-capable CPUs instead
+        # of forcing AVX/F16C/FMA/AVX2/BMI2 across every packaged backend.
+        ggml_cpu_feature_args=(
+            -DGGML_SSE42=ON
+            -DGGML_F16C=OFF
+            -DGGML_FMA=OFF
+            -DGGML_AVX=OFF
+            -DGGML_AVX_VNNI=OFF
+            -DGGML_AVX2=OFF
+            -DGGML_BMI2=OFF
+            -DGGML_AVX512=OFF
+            -DGGML_AVX512_VBMI=OFF
+            -DGGML_AVX512_VNNI=OFF
+            -DGGML_AVX512_BF16=OFF
+        )
+    fi
+
     local cmake_args=(
         -DGGML_CUDA="$cuda_flag"
         -DGGML_VULKAN="$vulkan_flag"
@@ -318,11 +338,10 @@ build_variant() {
         -DBUILD_SHARED_LIBS=ON
         -DGGML_BACKEND_DL=ON
         -DGGML_NATIVE=OFF
-        -DCMAKE_C_FLAGS="-mavx2 -mfma"
-        -DCMAKE_CXX_FLAGS="-mavx2 -mfma"
         -S .
         -B "$build_dir"
     )
+    cmake_args+=( "${ggml_cpu_feature_args[@]}" )
 
     if [[ "$blas_flag" == "ON" ]]; then
         cmake_args+=( -DGGML_BLAS_VENDOR=OpenBLAS )

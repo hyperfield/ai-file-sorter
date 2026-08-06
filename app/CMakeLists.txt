@@ -962,6 +962,22 @@ else()
     # Build llama.cpp from the included submodule for non-Windows platforms
     set(LLAMA_BUILD_COMMON ON CACHE BOOL "llama: build common utils library" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libs" FORCE)
+    if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|X86_64|amd64|AMD64)$")
+        # Keep x64 Linux builds compatible with older SSE4.2-capable CPUs instead of
+        # auto-targeting AVX/F16C/FMA/AVX2/BMI2 based on the build host.
+        set(GGML_NATIVE OFF CACHE BOOL "ggml: optimize the build for the current system" FORCE)
+        set(GGML_SSE42 ON CACHE BOOL "ggml: enable SSE 4.2" FORCE)
+        set(GGML_F16C OFF CACHE BOOL "ggml: enable F16C" FORCE)
+        set(GGML_FMA OFF CACHE BOOL "ggml: enable FMA" FORCE)
+        set(GGML_AVX OFF CACHE BOOL "ggml: enable AVX" FORCE)
+        set(GGML_AVX_VNNI OFF CACHE BOOL "ggml: enable AVX-VNNI" FORCE)
+        set(GGML_AVX2 OFF CACHE BOOL "ggml: enable AVX2" FORCE)
+        set(GGML_BMI2 OFF CACHE BOOL "ggml: enable BMI2" FORCE)
+        set(GGML_AVX512 OFF CACHE BOOL "ggml: enable AVX512F" FORCE)
+        set(GGML_AVX512_VBMI OFF CACHE BOOL "ggml: enable AVX512-VBMI" FORCE)
+        set(GGML_AVX512_VNNI OFF CACHE BOOL "ggml: enable AVX512-VNNI" FORCE)
+        set(GGML_AVX512_BF16 OFF CACHE BOOL "ggml: enable AVX512-BF16" FORCE)
+    endif()
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp" "${CMAKE_CURRENT_BINARY_DIR}/llama-build")
     get_directory_property(_llama_install_version DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/llama-build" DEFINITION LLAMA_INSTALL_VERSION)
     if (NOT _llama_install_version OR _llama_install_version STREQUAL "LLAMA_INSTALL_VERSION-NOTFOUND")
@@ -1516,6 +1532,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_custom_llm.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_category_date_suffix.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_app_theme.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_category_language_support.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_local.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_update_feed.cpp"

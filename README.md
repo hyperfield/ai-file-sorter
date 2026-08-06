@@ -523,7 +523,7 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    ./app/scripts/build_llama_linux.sh cuda=off vulkan=on
    ```
 
-   Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick CUDA when available, then Vulkan, and otherwise stay on CPU. If you only ship the Vulkan payload, the Linux launcher can reuse its bundled CPU/OpenBLAS libraries as the CPU fallback, matching the Windows launcher behavior.
+   Each invocation stages the corresponding `llama`/`ggml` libraries under `app/lib/precompiled/<variant>` and the runtime DLL/SO copies under `app/lib/ggml/w<variant>`. On x64 Linux, the helper now keeps the shared ggml runtime generic and SSE4.2-safe instead of forcing AVX, F16C, FMA, AVX2, or BMI2 across every packaged backend. The script refuses to enable CUDA and Vulkan simultaneously, so run it separately for each backend. Shipping both directories lets the launcher pick CUDA when available, then Vulkan, and otherwise stay on CPU. If you only ship the Vulkan payload, the Linux launcher can reuse its bundled CPU/OpenBLAS libraries as the CPU fallback, matching the Windows launcher behavior.
 
 5. **Compile the application**
 
