@@ -23,6 +23,7 @@ obj/
 # .env
 encryption.ini
 msstore.env
+sourceforge.env
 msstore-api/
 localize.env
 localize.env.example
