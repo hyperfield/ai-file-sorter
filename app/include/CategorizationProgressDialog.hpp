@@ -78,6 +78,10 @@ private:
 
     static constexpr int kStageCount = 3;
 
+    /**
+     * @brief Reapplies dialog styles while guarding against recursive palette events.
+     */
+    void apply_theme_styles();
     void setup_ui(bool show_subcategory_col);
     void retranslate_ui();
     void request_stop();
@@ -131,6 +135,7 @@ private:
     std::unordered_map<std::string, ItemState> item_states_;
     int spinner_frame_index_{0};
     QString last_announced_message_;
+    bool applying_theme_styles_{false};
 };
 
 #endif // CATEGORIZATIONPROGRESSDIALOG_HPP

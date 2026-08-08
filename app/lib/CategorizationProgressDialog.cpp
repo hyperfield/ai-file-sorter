@@ -89,6 +89,17 @@ QString progress_dialog_style_sheet()
     )");
 }
 
+bool should_emit_manual_accessibility_events()
+{
+#if defined(Q_OS_WIN)
+    // Keep accessible names/descriptions available, but avoid manual UIA events
+    // after Windows crash reports showed Qt GUI stack overflow during analysis.
+    return false;
+#else
+    return QAccessible::isActive();
+#endif
+}
+
 } // namespace
 
 CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
@@ -106,7 +117,7 @@ CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
 void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
 {
     setObjectName(QStringLiteral("analysisProgressDialog"));
-    setStyleSheet(progress_dialog_style_sheet());
+    apply_theme_styles();
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(12, 12, 12, 12);
@@ -178,6 +189,19 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
     connect(spinner_timer, &QTimer::timeout, this, &CategorizationProgressDialog::refresh_spinner);
 }
 
+void CategorizationProgressDialog::apply_theme_styles()
+{
+    if (applying_theme_styles_) {
+        return;
+    }
+
+    applying_theme_styles_ = true;
+    const QString style_sheet = progress_dialog_style_sheet();
+    if (styleSheet() != style_sheet) {
+        setStyleSheet(style_sheet);
+    }
+    applying_theme_styles_ = false;
+}
 
 void CategorizationProgressDialog::show()
 {
@@ -187,8 +211,10 @@ void CategorizationProgressDialog::show()
     apply_accessibility_metadata();
     if (stop_button) {
         stop_button->setFocus(Qt::OtherFocusReason);
-        QAccessibleEvent focus_event(stop_button, QAccessible::Focus);
-        QAccessible::updateAccessibility(&focus_event);
+        if (should_emit_manual_accessibility_events()) {
+            QAccessibleEvent focus_event(stop_button, QAccessible::Focus);
+            QAccessible::updateAccessibility(&focus_event);
+        }
     }
     if (text_view) {
         text_view->moveCursor(QTextCursor::End);
@@ -946,7 +972,7 @@ void CategorizationProgressDialog::announce_accessibility_message(const QString&
     last_announced_message_ = trimmed_message;
     setAccessibleDescription(trimmed_message);
 
-    if (!isVisible()) {
+    if (!isVisible() || !should_emit_manual_accessibility_events()) {
         return;
     }
 
@@ -961,7 +987,7 @@ void CategorizationProgressDialog::announce_accessibility_message(const QString&
 
 void CategorizationProgressDialog::notify_accessible_text_insert(const QString& text) const
 {
-    if (!text_view || text.isEmpty()) {
+    if (!text_view || text.isEmpty() || !should_emit_manual_accessibility_events()) {
         return;
     }
 

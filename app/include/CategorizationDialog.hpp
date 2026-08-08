@@ -187,6 +187,10 @@ private:
         bool rename_only{false};
     };
 
+    /**
+     * @brief Reapplies dialog styles while guarding against recursive palette events.
+     */
+    void apply_theme_styles();
     void setup_ui();
     void populate_model();
     void ensure_unique_suggested_names_in_model();
@@ -420,6 +424,7 @@ private:
     bool suppress_item_changed_{false};
     bool auto_approve_filename_changes_{false};
     bool auto_approve_categorization_{false};
+    bool applying_theme_styles_{false};
     std::string undo_dir_;
     std::string base_dir_;
     std::unique_ptr<IFilePreviewService> preview_service_;

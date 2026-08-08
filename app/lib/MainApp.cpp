@@ -190,6 +190,17 @@ QString file_explorer_panel_style_sheet()
     )");
 }
 
+bool should_emit_manual_accessibility_events()
+{
+#if defined(Q_OS_WIN)
+    // Qt's Windows UIA bridge can re-enter QWidget accessibility queries while
+    // analysis startup is rebuilding UI state; keep metadata, skip manual events.
+    return false;
+#else
+    return QAccessible::isActive();
+#endif
+}
+
 QString category_language_sort_key(CategoryLanguage language)
 {
     return categoryLanguageToString(language);
@@ -1566,13 +1577,22 @@ void MainApp::on_analyze_clicked()
     text_cpu_fallback_choice_.reset();
     visual_cpu_fallback_choice_.reset();
     continue_without_visual_analysis_choice_.reset();
+    if (core_logger) {
+        core_logger->info("Starting GUI analysis UI for '{}'.", folder_path);
+    }
     update_analyze_button_state(true);
+    if (core_logger) {
+        core_logger->info("GUI analysis button state updated for '{}'.", folder_path);
+    }
 
     try {
         const bool show_subcategory = use_subcategories_checkbox->isChecked();
         progress_dialog = std::make_unique<CategorizationProgressDialog>(this, this, show_subcategory);
         progress_controller_.set_dialog(progress_dialog.get());
         progress_dialog->show();
+        if (core_logger) {
+            core_logger->info("GUI analysis progress dialog shown for '{}'.", folder_path);
+        }
 
         analyze_thread = std::thread([this]() {
             try {
@@ -1582,6 +1602,9 @@ void MainApp::on_analyze_clicked()
                 post_analysis_failure(std::string("Analysis error: ") + ex.what());
             }
         });
+        if (core_logger) {
+            core_logger->info("GUI analysis worker thread started for '{}'.", folder_path);
+        }
     } catch (const std::exception& ex) {
         release_analysis_runtime_lock();
         update_analyze_button_state(false);
@@ -1843,7 +1866,7 @@ void MainApp::update_analyze_button_state(bool analyzing)
         }
     }
     apply_accessibility_metadata();
-    if (analyze_button) {
+    if (analyze_button && should_emit_manual_accessibility_events()) {
         QAccessibleEvent button_name_changed(analyze_button, QAccessible::NameChanged);
         QAccessible::updateAccessibility(&button_name_changed);
     }

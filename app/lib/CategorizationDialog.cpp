@@ -361,7 +361,7 @@ void CategorizationDialog::show_results(const std::vector<CategorizedFile>& file
 
 void CategorizationDialog::setup_ui()
 {
-    setStyleSheet(review_dialog_style_sheet());
+    apply_theme_styles();
 
     auto* layout = new QVBoxLayout(this);
 
@@ -531,6 +531,19 @@ void CategorizationDialog::setup_ui()
     }
 }
 
+void CategorizationDialog::apply_theme_styles()
+{
+    if (applying_theme_styles_) {
+        return;
+    }
+
+    applying_theme_styles_ = true;
+    const QString style_sheet = review_dialog_style_sheet();
+    if (styleSheet() != style_sheet) {
+        setStyleSheet(style_sheet);
+    }
+    applying_theme_styles_ = false;
+}
 
 namespace {
 QFileIconProvider& file_icon_provider()
