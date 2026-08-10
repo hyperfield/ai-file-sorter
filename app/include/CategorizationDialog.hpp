@@ -188,7 +188,7 @@ private:
     };
 
     /**
-     * @brief Reapplies dialog styles while guarding against recursive palette events.
+     * @brief Reapplies palette-aware styles while guarding against recursive palette events.
      */
     void apply_theme_styles();
     void setup_ui();

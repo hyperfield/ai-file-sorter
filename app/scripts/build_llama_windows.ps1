@@ -1144,6 +1144,20 @@ $llamaBuildDir = Get-LlamaBuildDirectory -LlamaRoot $llamaDir
 $uiDistState = Ensure-LlamaUiDist -LlamaRoot $llamaDir -CMakeExecutable $cmakeExe
 $gitSafeDirectoryState = $null
 
+# Build Windows ggml runtimes so they remain compatible with older x64 CPUs
+# that support SSE4.2 but not AVX/AVX2/BMI2.
+$ggmlWindowsCpuFeatureArgs = @(
+    "-DGGML_SSE42=ON",
+    "-DGGML_AVX=OFF",
+    "-DGGML_AVX_VNNI=OFF",
+    "-DGGML_AVX2=OFF",
+    "-DGGML_BMI2=OFF",
+    "-DGGML_AVX512=OFF",
+    "-DGGML_AVX512_VBMI=OFF",
+    "-DGGML_AVX512_VNNI=OFF",
+    "-DGGML_AVX512_BF16=OFF"
+)
+
 $cmakeArgs = @(
     (New-CMakeCacheArg -Name "CMAKE_C_COMPILER" -Type "FILEPATH" -Value (Convert-ToCMakePath $msvcCompiler)),
     (New-CMakeCacheArg -Name "CMAKE_CXX_COMPILER" -Type "FILEPATH" -Value (Convert-ToCMakePath $msvcCompiler)),
@@ -1160,9 +1174,9 @@ $cmakeArgs = @(
     "-DGGML_HIP=OFF",
     "-DGGML_KLEIDIAI=OFF",
     "-DGGML_NATIVE=OFF",
-    "-DCMAKE_C_FLAGS=/arch:AVX2",
-    "-DCMAKE_CXX_FLAGS=/arch:AVX2 /EHsc"
+    "-DCMAKE_CXX_FLAGS=/EHsc"
 )
+$cmakeArgs += $ggmlWindowsCpuFeatureArgs
 
 if ($enableBlas) {
     if (-not $openBlasInclude -or -not $openBlasLib) {

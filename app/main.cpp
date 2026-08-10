@@ -1,4 +1,5 @@
 #include "AppInfo.hpp"
+#include "AppTheme.hpp"
 #include "AppTestRunner.hpp"
 #include "EmbeddedEnv.hpp"
 #include "GgmlRuntimePaths.hpp"
@@ -24,6 +25,7 @@
 #include <QSplashScreen>
 #include <QPixmap>
 #include <QSize>
+#include <QStyleHints>
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QWidget>
@@ -755,7 +757,17 @@ int run_application(const ParsedArguments& parsed_args)
 
     int qt_argc = static_cast<int>(parsed_args.qt_args.size()) - 1;
     char** qt_argv = const_cast<char**>(parsed_args.qt_args.data());
+#ifdef _WIN32
+    AppTheme::configure_windows_platform_dark_mode();
+#endif
     QApplication app(qt_argc, qt_argv);
+#ifdef _WIN32
+    AppTheme::apply_windows_runtime_theme(app);
+    QObject::connect(app.styleHints(),
+                     &QStyleHints::colorSchemeChanged,
+                     &app,
+                     [&app]() { AppTheme::apply_windows_runtime_theme(app); });
+#endif
     const QString instance_id = parsed_args.test_mode
         ? QStringLiteral("dev.hfstudio.AIFileSorter.Test")
         : QStringLiteral("dev.hfstudio.AIFileSorter");
