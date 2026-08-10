@@ -532,7 +532,7 @@ std::string detect_loaded_backend_key()
     if (status_backend_available("Vulkan")) {
         return "vulkan";
     }
-    if (status_backend_available("Metal")) {
+    if (status_backend_available("Metal") || status_backend_available("MTL")) {
         return "metal";
     }
 
