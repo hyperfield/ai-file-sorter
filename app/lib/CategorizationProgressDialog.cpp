@@ -91,13 +91,9 @@ QString progress_dialog_style_sheet()
 
 bool should_emit_manual_accessibility_events()
 {
-#if defined(Q_OS_WIN)
-    // Keep accessible names/descriptions available, but avoid manual UIA events
-    // after Windows crash reports showed Qt GUI stack overflow during analysis.
+    // Keep accessible names/descriptions available, but avoid manual events after
+    // crash reports showed Qt GUI stack overflow during analysis startup.
     return false;
-#else
-    return QAccessible::isActive();
-#endif
 }
 
 } // namespace

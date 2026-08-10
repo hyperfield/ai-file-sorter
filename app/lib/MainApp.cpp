@@ -192,13 +192,9 @@ QString file_explorer_panel_style_sheet()
 
 bool should_emit_manual_accessibility_events()
 {
-#if defined(Q_OS_WIN)
-    // Qt's Windows UIA bridge can re-enter QWidget accessibility queries while
+    // Qt accessibility bridges can re-enter QWidget style/layout code while
     // analysis startup is rebuilding UI state; keep metadata, skip manual events.
     return false;
-#else
-    return QAccessible::isActive();
-#endif
 }
 
 QString category_language_sort_key(CategoryLanguage language)
