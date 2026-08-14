@@ -73,6 +73,13 @@ Procedure: Build the file-listing stylesheet through `AppTheme::file_listing_pan
 Expected outcome: The stylesheet uses a derived near-white alternate row color instead of the broken black `AlternateBase`.
 Run: `./build-tests/ai_file_sorter_tests "AppTheme ignores broken light-mode alternate row colors"`
 
+#### Test case: Progress dialog palette changes do not recursively rewrite styles
+Purpose: Prevent Qt palette-change notifications from repeatedly reapplying the same progress-dialog stylesheet.
+Setup: Create a headless Qt application context and construct a progress dialog.
+Procedure: Send repeated `QEvent::PaletteChange` events to the dialog.
+Expected outcome: The dialog keeps its initial stylesheet and does not recursively rewrite it.
+Run: `./build-tests/ai_file_sorter_tests "Progress dialog palette changes do not recursively rewrite styles"`
+
 ### `tests/unit/test_category_date_suffix.cpp`
 
 #### Test case: CategoryDateSuffix appends generated date suffixes once
