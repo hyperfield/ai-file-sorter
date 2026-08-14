@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.9.1-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.9.2-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -130,6 +130,10 @@ the main entry page, use these technical references:
 ---
 
 ## Changelog
+
+## [1.9.2] - 2026-08-14
+
+- Fixed a Windows startup crash in Qt GUI theme refresh handling.
 
 ## [1.9.1] - 2026-08-06
 

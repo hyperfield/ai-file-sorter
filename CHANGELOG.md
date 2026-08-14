@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## [1.9.2] - 2026-08-14
+
+- Fixed a Windows startup crash in Qt GUI theme refresh handling by preventing recursive palette-triggered stylesheet updates.
+
 ## [1.9.1] - 2026-08-06
 
 - Fixed bundled Windows local-LLM runtime builds so the packaged GGML libraries run on generic SSE4.2-capable x64 CPUs instead of requiring AVX2.
