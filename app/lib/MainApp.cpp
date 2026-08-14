@@ -75,6 +75,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QComboBox>
+#include <QScopedValueRollback>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QCoreApplication>
@@ -683,24 +684,28 @@ void MainApp::shutdown()
 
 void MainApp::apply_theme_styles()
 {
-    const QPalette current_palette = palette();
+    if (applying_theme_styles_) {
+        return;
+    }
+
+    QScopedValueRollback<bool> rollback(applying_theme_styles_, true);
+    const QPalette current_palette = QApplication::palette();
+    const auto apply_if_changed = [](QWidget* widget, const QString& style_sheet) {
+        if (widget && widget->styleSheet() != style_sheet) {
+            widget->setStyleSheet(style_sheet);
+        }
+    };
 
 #if defined(Q_OS_WIN)
-    if (file_explorer_container) {
-        file_explorer_container->setStyleSheet(
-            AppTheme::file_explorer_panel_style_sheet(current_palette));
-    }
+    apply_if_changed(file_explorer_container,
+                     AppTheme::file_explorer_panel_style_sheet(current_palette));
 #else
-    if (file_explorer_view) {
-        file_explorer_view->setStyleSheet(
-            AppTheme::file_explorer_panel_style_sheet(current_palette));
-    }
+    apply_if_changed(file_explorer_view,
+                     AppTheme::file_explorer_panel_style_sheet(current_palette));
 #endif
 
-    if (file_listing_panel) {
-        file_listing_panel->setStyleSheet(
-            AppTheme::file_listing_panel_style_sheet(current_palette));
-    }
+    apply_if_changed(file_listing_panel,
+                     AppTheme::file_listing_panel_style_sheet(current_palette));
 }
 
 

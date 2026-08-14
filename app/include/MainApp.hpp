@@ -610,6 +610,7 @@ private:
     bool category_language_refresh_pending_{false};
     bool donation_prompt_active_{false};
     bool windows_explorer_extension_prompt_active_{false};
+    bool applying_theme_styles_{false};
     std::string last_storage_support_warning_key_;
     std::string last_storage_provider_notice_key_;
     std::optional<std::string> backend_status_probe_backend_key_;

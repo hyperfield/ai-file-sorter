@@ -135,6 +135,7 @@ private:
     std::unordered_map<std::string, ItemState> item_states_;
     int spinner_frame_index_{0};
     QString last_announced_message_;
+    bool applying_theme_styles_{false};
 };
 
 #endif // CATEGORIZATIONPROGRESSDIALOG_HPP

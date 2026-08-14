@@ -8,6 +8,7 @@
 #include "Utils.hpp"
 
 #include <QAbstractItemView>
+#include <QApplication>
 #include <QColor>
 #include <QEvent>
 #include <QFrame>
@@ -17,6 +18,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QScopedValueRollback>
 #include <QStyle>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -120,7 +122,15 @@ void CategorizationProgressDialog::setup_ui(bool /*show_subcategory_col*/)
 
 void CategorizationProgressDialog::apply_theme_styles()
 {
-    setStyleSheet(AppTheme::progress_dialog_style_sheet(palette()));
+    if (applying_theme_styles_) {
+        return;
+    }
+
+    QScopedValueRollback<bool> rollback(applying_theme_styles_, true);
+    const QString style_sheet = AppTheme::progress_dialog_style_sheet(QApplication::palette());
+    if (styleSheet() != style_sheet) {
+        setStyleSheet(style_sheet);
+    }
 }
 
 
