@@ -1312,7 +1312,7 @@ Suggested support levels:
 - **$30**: Help fund release maintenance, signing/listing costs, and user support.
 - **$100+**: Sponsor heavier development work or commercial/organizational use.
 
-You can still choose any amount from **$1 and up**. Donation codes are supporter markers that hide the periodic support reminder; they are not used to take away the free local core.
+You can still choose any amount from **$1 and up**. Donation codes are supporter markers that hide the periodic support reminder; they are not used to take away the free local core. On Windows, installing the File Explorer extension also hides that reminder.
 
 - **[Donate](https://filesorter.app/donate/)**
 

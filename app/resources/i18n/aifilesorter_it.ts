@@ -1527,7 +1527,38 @@ Categorie generali previste:
         <source>Image analysis failed to start with the GPU backend.</source>
         <translation>L&apos;analisi delle immagini non è riuscita ad avviarsi con il backend GPU.</translation>
     </message>
-</context>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2417"/>
+        <source>You have categorized %1 files with AI File Sorter.</source>
+        <translation>You have categorized %1 files with AI File Sorter.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2419"/>
+        <source>You can support continued development by buying the File Explorer extension, or by making a donation. The extension adds AI File Sorter actions to File Explorer's right-click menu.</source>
+        <translation>You can support continued development by buying the File Explorer extension, or by making a donation. The extension adds AI File Sorter actions to File Explorer's right-click menu.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2421"/>
+        <source>Already donated? Click &quot;I have already donated&quot; to enter your donation code. This reminder will not be shown again after you donate or while the File Explorer extension is installed.</source>
+        <translation>Already donated? Click &quot;I have already donated&quot; to enter your donation code. This reminder will not be shown again after you donate or while the File Explorer extension is installed.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2435"/>
+        <source>Buy File Explorer Extension</source>
+        <translation>Buy File Explorer Extension</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2436"/>
+        <source>Donate instead</source>
+        <translation>Donate instead</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2566"/>
+        <source>Enter the donation code generated after your donation.
+A valid code will permanently hide this support reminder.</source>
+        <translation>Enter the donation code generated after your donation.
+A valid code will permanently hide this support reminder.</translation>
+    </message></context>
 <context>
     <name>MainWindowStateBinder</name>
     <message>

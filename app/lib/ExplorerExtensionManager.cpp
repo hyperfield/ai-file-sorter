@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
+#include <cstdlib>
 #include <cwchar>
 #include <cwctype>
 #include <filesystem>
@@ -18,6 +20,35 @@
 namespace {
 
 constexpr std::wstring_view kDownloadUrl = L"https://filesorter.app/windows-explorer-extension/";
+
+#ifdef AI_FILE_SORTER_TEST_BUILD
+std::optional<ExplorerExtensionManager::State> test_state_override()
+{
+    const char* value = std::getenv("AI_FILE_SORTER_TEST_EXPLORER_EXTENSION_STATE");
+    if (!value) {
+        return std::nullopt;
+    }
+
+    std::string normalized(value);
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+
+    if (normalized == "unsupported") {
+        return ExplorerExtensionManager::State::UnsupportedPlatform;
+    }
+    if (normalized == "not-installed") {
+        return ExplorerExtensionManager::State::NotInstalled;
+    }
+    if (normalized == "installed") {
+        return ExplorerExtensionManager::State::Installed;
+    }
+    if (normalized == "installed-needs-repair") {
+        return ExplorerExtensionManager::State::InstalledNeedsRepair;
+    }
+    return std::nullopt;
+}
+#endif
 
 #ifdef _WIN32
 
@@ -159,6 +190,14 @@ bool launch_progress_executable(const std::filesystem::path& executable,
 
 ExplorerExtensionManager::Status ExplorerExtensionManager::inspect() const
 {
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    if (const auto override_state = test_state_override()) {
+        Status status;
+        status.state = *override_state;
+        return status;
+    }
+#endif
+
 #ifdef _WIN32
     Status status;
     if (const auto progress = read_registry_string(kProgressPathValue)) {

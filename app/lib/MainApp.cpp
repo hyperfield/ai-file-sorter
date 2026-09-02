@@ -64,7 +64,6 @@
 #include <QInputDialog>
 #include <QKeySequence>
 #include <QByteArray>
-#include <QDateTime>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -278,38 +277,6 @@ void schedule_next_support_prompt(Settings& settings, int total_files) {
     settings.save();
 }
 
-std::string current_utc_iso_timestamp()
-{
-    return QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs).toStdString();
-}
-
-bool explorer_extension_prompt_cooldown_elapsed(const Settings& settings)
-{
-    const std::string last_shown = settings.get_windows_explorer_extension_prompt_last_shown_utc();
-    if (last_shown.empty()) {
-        return true;
-    }
-
-    QDateTime parsed = QDateTime::fromString(QString::fromStdString(last_shown), Qt::ISODateWithMs);
-    if (!parsed.isValid()) {
-        parsed = QDateTime::fromString(QString::fromStdString(last_shown), Qt::ISODate);
-    }
-    if (!parsed.isValid()) {
-        return true;
-    }
-    return parsed.toUTC().daysTo(QDateTime::currentDateTimeUtc()) >= 14;
-}
-
-bool paid_explorer_extension_suppresses_support_prompt(Settings& settings) {
-    if (!ExplorerExtensionEntitlement::has_paid_entitlement()) {
-        return false;
-    }
-
-    (void)SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
-        .disable_prompt_for_paid_product("explorer-extension");
-    return true;
-}
-
 void maybe_show_support_prompt(Settings& settings,
                                bool& prompt_active,
                                std::function<MainApp::SupportPromptResult(int)> show_prompt) {
@@ -320,7 +287,14 @@ void maybe_show_support_prompt(Settings& settings,
     if (SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir())).is_prompt_permanently_disabled()) {
         return;
     }
-    if (paid_explorer_extension_suppresses_support_prompt(settings)) {
+    if (ExplorerExtensionEntitlement::has_paid_entitlement()) {
+        (void)SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
+            .disable_prompt_for_paid_product("explorer-extension");
+        return;
+    }
+    const ExplorerExtensionManager::State extension_state = ExplorerExtensionManager().state();
+    if (extension_state == ExplorerExtensionManager::State::Installed ||
+        extension_state == ExplorerExtensionManager::State::InstalledNeedsRepair) {
         return;
     }
 
@@ -2360,47 +2334,6 @@ void MainApp::record_categorized_metrics(int count)
         [this](int total) { return show_support_prompt_dialog(total); });
 }
 
-void MainApp::maybe_show_windows_explorer_extension_install_prompt()
-{
-    if (test_mode_ || windows_explorer_extension_prompt_active_) {
-        return;
-    }
-    if (settings.get_windows_explorer_extension_prompt_dismissed()) {
-        return;
-    }
-    if (!explorer_extension_prompt_cooldown_elapsed(settings)) {
-        return;
-    }
-    if (explorer_extension_manager_.state() != ExplorerExtensionManager::State::NotInstalled) {
-        return;
-    }
-
-    windows_explorer_extension_prompt_active_ = true;
-    QMessageBox box(this);
-    box.setIcon(QMessageBox::Information);
-    box.setWindowTitle(tr("Install Windows Explorer Extension?"));
-    box.setText(tr("Add AI File Sorter actions to the Windows Explorer right-click menu?"));
-    box.setInformativeText(tr("The Windows Explorer Extension lets you categorize and rename files directly from File Explorer."));
-    QPushButton* install_button = box.addButton(tr("Install Windows Explorer Extension"),
-                                                QMessageBox::AcceptRole);
-    QPushButton* later_button = box.addButton(tr("Maybe Later"), QMessageBox::RejectRole);
-    QPushButton* never_button = box.addButton(tr("Don't Show Again"), QMessageBox::DestructiveRole);
-    box.setDefaultButton(later_button);
-    box.setEscapeButton(later_button);
-    box.exec();
-
-    settings.set_windows_explorer_extension_prompt_last_shown_utc(current_utc_iso_timestamp());
-    if (box.clickedButton() == never_button) {
-        settings.set_windows_explorer_extension_prompt_dismissed(true);
-    }
-    settings.save();
-
-    if (box.clickedButton() == install_button) {
-        open_windows_explorer_extension_install_page();
-    }
-    windows_explorer_extension_prompt_active_ = false;
-}
-
 void MainApp::undo_last_run()
 {
     const auto latest = undo_manager_.latest_plan_path();
@@ -2478,16 +2411,30 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
     box.setIcon(QMessageBox::Information);
     box.setWindowTitle(QObject::tr("Support %1").arg(app_display_name()));
 
+#ifdef _WIN32
+    const QString headline = tr("You have categorized %1 files with AI File Sorter.")
+                                 .arg(total_files);
+    const QString details = tr("You can support continued development by buying the File Explorer extension, or by making a donation. "
+                               "The extension adds AI File Sorter actions to File Explorer's right-click menu.");
+    const QString code_note = tr("Already donated? Click \"I have already donated\" to enter your donation code. "
+                                 "This reminder will not be shown again after you donate or while the File Explorer extension is installed.");
+#else
     const QString headline = tr("Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app has been useful for you.")
                                  .arg(total_files);
     const QString details = tr("AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs. "
                                "If the app saves you time or brings value, please consider supporting it so it can keep improving.");
     const QString code_note = tr("Already donated? Click \"I have already donated\" to enter your donation code and permanently disable this reminder.");
+#endif
 
     box.setText(headline);
     box.setInformativeText(details + QStringLiteral("\n\n") + code_note);
 
-    auto* support_btn = box.addButton(tr("Donate to permanently hide the donation dialog"), QMessageBox::ActionRole);
+#ifdef _WIN32
+    auto* extension_btn = box.addButton(tr("Buy File Explorer Extension"), QMessageBox::ActionRole);
+    auto* donate_btn = box.addButton(tr("Donate instead"), QMessageBox::ActionRole);
+#else
+    auto* donate_btn = box.addButton(tr("Donate to permanently hide the donation dialog"), QMessageBox::ActionRole);
+#endif
     auto* later_btn = box.addButton(tr("I'm not yet sure"), QMessageBox::ActionRole);
     auto* donated_btn = box.addButton(tr("I have already donated"), QMessageBox::ActionRole);
 
@@ -2523,7 +2470,8 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
               border));
     };
 
-    apply_button_style(support_btn,
+#ifdef _WIN32
+    apply_button_style(extension_btn,
                        QStringLiteral("#007aff"),
                        QStringLiteral("#005ec7"),
                        QStringLiteral("white"),
@@ -2531,6 +2479,22 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
                        QStringLiteral("2px solid #005ec7"));
     const QString neutral_bg = QStringLiteral("#bdc3c7");
     const QString neutral_hover = QStringLiteral("#95a5a6");
+    apply_button_style(donate_btn,
+                       neutral_bg,
+                       neutral_hover,
+                       QStringLiteral("#1f1f1f"),
+                       500,
+                       QStringLiteral("none"));
+#else
+    apply_button_style(donate_btn,
+                       QStringLiteral("#007aff"),
+                       QStringLiteral("#005ec7"),
+                       QStringLiteral("white"),
+                       800,
+                       QStringLiteral("2px solid #005ec7"));
+    const QString neutral_bg = QStringLiteral("#bdc3c7");
+    const QString neutral_hover = QStringLiteral("#95a5a6");
+#endif
     apply_button_style(later_btn,
                        neutral_bg,
                        neutral_hover,
@@ -2557,22 +2521,36 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
                 }
             }
 
-            layout->removeWidget(support_btn);
+#ifdef _WIN32
+            layout->removeWidget(extension_btn);
+#endif
+            layout->removeWidget(donate_btn);
             layout->removeWidget(later_btn);
             layout->removeWidget(donated_btn);
 
-            layout->insertWidget(insert_index++, support_btn);
+#ifdef _WIN32
+            layout->insertWidget(insert_index++, extension_btn);
+#endif
+            layout->insertWidget(insert_index++, donate_btn);
             layout->insertWidget(insert_index++, donated_btn);
             layout->insertWidget(insert_index, later_btn);
         }
     }
 
-    support_btn->setAutoDefault(true);
-    support_btn->setDefault(true);
+#ifdef _WIN32
+    extension_btn->setAutoDefault(true);
+    extension_btn->setDefault(true);
+    donate_btn->setAutoDefault(false);
+    extension_btn->setFocus();
+    box.setDefaultButton(extension_btn);
+#else
+    donate_btn->setAutoDefault(true);
+    donate_btn->setDefault(true);
+    donate_btn->setFocus();
+    box.setDefaultButton(donate_btn);
+#endif
     later_btn->setAutoDefault(false);
     donated_btn->setAutoDefault(false);
-    support_btn->setFocus();
-    box.setDefaultButton(support_btn);
     box.exec();
 
     const QAbstractButton* clicked = box.clickedButton();
@@ -2584,7 +2562,7 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
                 this,
                 tr("Donation code"),
                 tr("Enter the donation code generated after your donation.\n"
-                   "A valid code will permanently hide the donation dialog."),
+                   "A valid code will permanently hide this support reminder."),
                 QLineEdit::Normal,
                 QString(),
                 &accepted);
@@ -2603,7 +2581,13 @@ MainApp::SupportPromptResult MainApp::show_support_prompt_dialog(int total_files
         }
     };
 
-    if (clicked == support_btn) {
+#ifdef _WIN32
+    if (clicked == extension_btn) {
+        open_windows_explorer_extension_install_page();
+        return SupportPromptResult::NotSure;
+    }
+#endif
+    if (clicked == donate_btn) {
         if (!MainAppHelpActions::open_support_page()) {
             QMessageBox::information(
                 this,
@@ -3522,7 +3506,6 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
             [](const CategorizedFile& file) { return !file.from_cache; }));
         if (newly_analyzed > 0) {
             record_categorized_metrics(newly_analyzed);
-            maybe_show_windows_explorer_extension_install_prompt();
         }
     } catch (const std::exception& ex) {
         if (ui_logger) {

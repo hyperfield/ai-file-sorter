@@ -5,6 +5,7 @@
 #include "AnalysisCoordinator.hpp"
 #include "AnalysisEntryRouter.hpp"
 #include "ExplorerExtensionEntitlement.hpp"
+#include "ExplorerExtensionManager.hpp"
 #include "MainApp.hpp"
 #include "SupportCodeManager.hpp"
 #include "Utils.hpp"
@@ -297,6 +298,11 @@ void MainAppTestAccess::simulate_support_prompt(Settings& settings,
     if (ExplorerExtensionEntitlement::has_paid_entitlement()) {
         (void)SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
             .disable_prompt_for_paid_product("explorer-extension");
+        return;
+    }
+    const ExplorerExtensionManager::State extension_state = ExplorerExtensionManager().state();
+    if (extension_state == ExplorerExtensionManager::State::Installed ||
+        extension_state == ExplorerExtensionManager::State::InstalledNeedsRepair) {
         return;
     }
 

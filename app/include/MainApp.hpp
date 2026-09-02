@@ -370,10 +370,6 @@ private:
     void run_large_whitelist_llm_test();
     void record_categorized_metrics(int count);
     SupportPromptResult show_support_prompt_dialog(int categorized_files);
-    /**
-     * @brief Shows the post-success Windows Explorer extension install prompt when eligible.
-     */
-    void maybe_show_windows_explorer_extension_install_prompt();
     void undo_last_run();
     /**
      * @brief Opens the searchable rename/categorization history dialog.
@@ -609,7 +605,6 @@ private:
     bool backend_status_probe_completed_{false};
     bool category_language_refresh_pending_{false};
     bool donation_prompt_active_{false};
-    bool windows_explorer_extension_prompt_active_{false};
     bool applying_theme_styles_{false};
     std::string last_storage_support_warning_key_;
     std::string last_storage_provider_notice_key_;

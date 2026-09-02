@@ -606,26 +606,6 @@ public:
      */
     void set_next_support_prompt_threshold(int threshold);
     /**
-     * @brief Returns whether the Windows Explorer extension install prompt is suppressed.
-     * @return True when the prompt should no longer be shown.
-     */
-    bool get_windows_explorer_extension_prompt_dismissed() const;
-    /**
-     * @brief Sets whether the Windows Explorer extension install prompt is suppressed.
-     * @param value True to suppress future prompts.
-     */
-    void set_windows_explorer_extension_prompt_dismissed(bool value);
-    /**
-     * @brief Returns the last UTC timestamp when the Windows Explorer extension prompt was shown.
-     * @return ISO timestamp string, or empty when never shown.
-     */
-    std::string get_windows_explorer_extension_prompt_last_shown_utc() const;
-    /**
-     * @brief Stores the last UTC timestamp when the Windows Explorer extension prompt was shown.
-     * @param value ISO timestamp string, or empty to clear.
-     */
-    void set_windows_explorer_extension_prompt_last_shown_utc(const std::string& value);
-    /**
      * @brief Returns the configured allowed category whitelist.
      * @return Copy of the allowed category list.
      */
@@ -729,8 +709,6 @@ private:
     bool review_auto_approve_categorization{false};
     int categorized_file_count{0};
     int next_support_prompt_threshold{50};
-    bool windows_explorer_extension_prompt_dismissed{false};
-    std::string windows_explorer_extension_prompt_last_shown_utc;
     std::vector<std::string> allowed_categories;
     std::vector<std::string> allowed_subcategories;
     std::unordered_map<std::string, std::vector<std::string>> allowed_subcategories_by_category;
