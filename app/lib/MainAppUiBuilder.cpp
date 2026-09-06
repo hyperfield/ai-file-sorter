@@ -360,6 +360,18 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     path_layout->addWidget(app.browse_button);
     main_layout->addLayout(path_layout);
 
+    auto* destination_layout = new QHBoxLayout();
+    app.destination_path_label = new QLabel(central);
+    app.destination_path_entry = new QLineEdit(central);
+    app.destination_browse_button = new QPushButton(central);
+    app.use_analyzed_folder_as_destination_checkbox = new QCheckBox(central);
+    app.use_analyzed_folder_as_destination_checkbox->setChecked(true);
+    destination_layout->addWidget(app.destination_path_label);
+    destination_layout->addWidget(app.destination_path_entry, 1);
+    destination_layout->addWidget(app.destination_browse_button);
+    destination_layout->addWidget(app.use_analyzed_folder_as_destination_checkbox);
+    main_layout->addLayout(destination_layout);
+
     auto* options_layout = new QHBoxLayout();
     app.use_subcategories_checkbox = new QCheckBox(central);
     app.categorize_files_checkbox = new QCheckBox(central);
@@ -474,6 +486,19 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     categorization_layout->addWidget(app.categorization_style_heading);
     categorization_layout->addLayout(toggle_row);
 
+    app.sorting_mode_selector = new QComboBox(central);
+    app.sorting_mode_selector->addItem(QString(), static_cast<int>(SortingMode::GeneratedCategories));
+    app.sorting_mode_selector->addItem(QString(), static_cast<int>(SortingMode::ExistingFolderTree));
+    app.sorting_mode_selector->setMinimumContentsLength(22);
+    app.sorting_mode_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    app.suggest_new_folders_checkbox = new QCheckBox(central);
+    auto* sorting_mode_row = new QHBoxLayout();
+    sorting_mode_row->addWidget(app.sorting_mode_selector);
+    sorting_mode_row->addWidget(app.suggest_new_folders_checkbox);
+    sorting_mode_row->addStretch();
+    categorization_layout->addSpacing(4);
+    categorization_layout->addLayout(sorting_mode_row);
+
     auto* whitelist_row = new QHBoxLayout();
     whitelist_row->addWidget(app.use_whitelist_checkbox);
     whitelist_row->addWidget(app.whitelist_selector);
@@ -542,11 +567,17 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
         .primary = UiTranslator::PrimaryControls{
             app.path_label,
             app.browse_button,
+            app.destination_path_label,
+            app.destination_path_entry,
+            app.destination_browse_button,
+            app.use_analyzed_folder_as_destination_checkbox,
             app.analyze_button,
             app.use_subcategories_checkbox,
             app.categorization_style_heading,
             app.categorization_style_refined_radio,
             app.categorization_style_consistent_radio,
+            app.sorting_mode_selector,
+            app.suggest_new_folders_checkbox,
             app.use_whitelist_checkbox,
             app.whitelist_selector,
             app.categorize_files_checkbox,

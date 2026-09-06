@@ -16,6 +16,7 @@
 #include <QDockWidget>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
@@ -41,11 +42,17 @@ struct UiTranslatorTestHarness {
 
     QPointer<QLabel> path_label{new QLabel(&window)};
     QPointer<QPushButton> browse_button{new QPushButton(&window)};
+    QPointer<QLabel> destination_path_label{new QLabel(&window)};
+    QPointer<QLineEdit> destination_path_entry{new QLineEdit(&window)};
+    QPointer<QPushButton> destination_browse_button{new QPushButton(&window)};
+    QPointer<QCheckBox> use_analyzed_folder_as_destination_checkbox{new QCheckBox(&window)};
     QPointer<QPushButton> analyze_button{new QPushButton(&window)};
     QPointer<QCheckBox> subcategories_checkbox{new QCheckBox(&window)};
     QPointer<QLabel> style_heading{new QLabel(&window)};
     QPointer<QRadioButton> style_refined{new QRadioButton(&window)};
     QPointer<QRadioButton> style_consistent{new QRadioButton(&window)};
+    QPointer<QComboBox> sorting_mode_selector{new QComboBox(&window)};
+    QPointer<QCheckBox> suggest_new_folders_checkbox{new QCheckBox(&window)};
     QPointer<QCheckBox> use_whitelist{new QCheckBox(&window)};
     QPointer<QComboBox> whitelist_selector{new QComboBox(&window)};
     QPointer<QCheckBox> files_checkbox{new QCheckBox(&window)};
@@ -238,16 +245,24 @@ struct UiTranslatorTestHarness {
 
     UiTranslator::Dependencies build_deps()
     {
+        sorting_mode_selector->addItem(QString());
+        sorting_mode_selector->addItem(QString());
         return UiTranslator::Dependencies{
             .window = window,
             .primary = UiTranslator::PrimaryControls{
                 path_label,
                 browse_button,
+                destination_path_label,
+                destination_path_entry,
+                destination_browse_button,
+                use_analyzed_folder_as_destination_checkbox,
                 analyze_button,
                 subcategories_checkbox,
                 style_heading,
                 style_refined,
                 style_consistent,
+                sorting_mode_selector,
+                suggest_new_folders_checkbox,
                 use_whitelist,
                 whitelist_selector,
                 files_checkbox,
@@ -357,11 +372,20 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
 {
     REQUIRE(h.path_label->text() == QStringLiteral("Folder:"));
     REQUIRE(h.browse_button->text() == QStringLiteral("Browse…"));
+    REQUIRE(h.destination_path_label->text() == QStringLiteral("Destination:"));
+    REQUIRE(h.destination_path_entry->toolTip() ==
+            QStringLiteral("Choose where categorized items will be placed."));
+    REQUIRE(h.destination_browse_button->text() == QStringLiteral("Browse…"));
+    REQUIRE(h.use_analyzed_folder_as_destination_checkbox->text() ==
+            QStringLiteral("Use analyzed folder"));
     REQUIRE(h.analyze_button->text() == QStringLiteral("Analyze folder"));
     REQUIRE(h.subcategories_checkbox->text() == QStringLiteral("Use subcategories"));
     REQUIRE(h.style_heading->text() == QStringLiteral("Categorization type"));
     REQUIRE(h.style_refined->text() == QStringLiteral("More refined"));
     REQUIRE(h.style_consistent->text() == QStringLiteral("More consistent"));
+    REQUIRE(h.sorting_mode_selector->itemText(0) == QStringLiteral("Create category folders"));
+    REQUIRE(h.sorting_mode_selector->itemText(1) == QStringLiteral("Use existing folder structure"));
+    REQUIRE(h.suggest_new_folders_checkbox->text() == QStringLiteral("Suggest new folders when needed"));
     REQUIRE(h.use_whitelist->text() == QStringLiteral("Use a whitelist"));
     REQUIRE(h.files_checkbox->text() == QStringLiteral("Categorize files"));
     REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize folders"));

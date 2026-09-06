@@ -412,6 +412,27 @@ Procedure: Apply the headless review plan with recursive cache updates enabled, 
 Expected outcome: The file is moved into the display category/subcategory path, an undo plan is saved, and the cache row stores the canonical category.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService uses display folders and canonical storage"`
 
+#### Test case: HeadlessReviewApplyService moves folder-tree entries into existing targets
+Purpose: Verify headless apply supports the existing-folder-structure sorting mode without creating new directories.
+Setup: Create a target root with a pre-existing nested destination and one source file.
+Procedure: Apply a folder-tree review entry whose target folder matches the existing destination.
+Expected outcome: The file moves into the requested existing folder, no skip is reported, and compatibility category labels are derived from the folder path.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService moves folder-tree entries into existing targets"`
+
+#### Test case: HeadlessReviewApplyService creates suggested folder-tree targets when allowed
+Purpose: Ensure headless apply can create model-suggested folder-tree destinations only when that mode is explicitly allowed.
+Setup: Create a target root with one source file and no matching destination folder.
+Procedure: Apply a folder-tree review entry with new-folder creation enabled.
+Expected outcome: The missing destination folder is created, the file moves into it, and the result marks the target folder as suggested/new.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService creates suggested folder-tree targets when allowed"`
+
+#### Test case: HeadlessReviewApplyService moves generated categories into custom destination root
+Purpose: Verify generated-category apply can move files from an analyzed folder into a separate destination root.
+Setup: Create separate source and destination folders, seed a cached source entry, and prepare a generated category/subcategory result.
+Procedure: Apply the headless review plan with the destination root as `base_dir`.
+Expected outcome: The file moves under the destination category/subcategory path, the old source cache row is removed, and the destination cache row is written.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService moves generated categories into custom destination root"`
+
 #### Test case: HeadlessReviewApplyService deduplicates duplicate suggested filenames
 Purpose: Ensure headless apply does not skip later files when several review entries suggest the same new filename.
 Setup: Create two video files with the same suggested filename and the same destination category.
@@ -429,19 +450,19 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-
 ### `tests/unit/test_headless_settings_overrides_json.cpp`
 
 #### Test case: HeadlessSettingsOverridesJson parses direct whitelist lists
-Purpose: Verify headless settings override JSON can carry explicit whitelist categories and subcategories for deterministic integrations and tests.
-Setup: Build a JSON object with `useWhitelist`, `activeWhitelist`, `allowedCategories`, and `allowedSubcategories`, including whitespace, an empty string, and a non-string value.
+Purpose: Verify headless settings override JSON can carry explicit whitelist categories, subcategories, sorting-mode options, and destination roots for deterministic integrations and tests.
+Setup: Build a JSON object with `useWhitelist`, `activeWhitelist`, `allowedCategories`, `allowedSubcategories`, `sortingMode`, `destinationFolder`, and `suggestNewFolders`, including whitespace, an empty string, and a non-string value.
 Procedure: Parse the object through `HeadlessSettingsOverridesJson`.
-Expected outcome: The parser preserves the whitelist activation/name and returns trimmed category/subcategory lists with empty and non-string entries ignored.
+Expected outcome: The parser preserves the whitelist activation/name, returns trimmed category/subcategory lists with empty and non-string entries ignored, maps existing-folder sorting fields, and trims the destination folder.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson parses direct whitelist lists"`
 
 ### `tests/unit/test_headless_status_json.cpp`
 
 #### Test case: HeadlessStatusJson round-trips UTF-8 review plans
-Purpose: Verify the extracted headless status/review JSON serializer preserves non-ASCII paths and filenames.
+Purpose: Verify the extracted headless status/review JSON serializer preserves non-ASCII paths, filenames, and folder-tree target metadata.
 Setup: Build a review plan containing accented Latin, Chinese, and Hindi text in file names and paths.
 Procedure: Write the review plan with `HeadlessStatusJson`, read it back, and compare operation, paths, apply options, and entries.
-Expected outcome: UTF-8 file names, suggested names, paths, and apply options round-trip exactly.
+Expected outcome: UTF-8 file names, suggested names, paths, folder-tree target fields, and apply options round-trip exactly.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessStatusJson round-trips UTF-8 review plans"`
 
 ### `tests/unit/test_single_instance_coordinator.cpp`
@@ -1240,6 +1261,20 @@ Procedure: Reload settings from disk.
 Expected outcome: `Settings::load()` succeeds and `get_use_subcategories()` returns `true`.
 Run: `./build-tests/ai_file_sorter_tests "Settings defaults use subcategories on when config key is missing"`
 
+#### Test case: Settings persists existing folder-tree sorting mode
+Purpose: Ensure the selected sorting mode and new-folder suggestion toggle survive a settings round-trip.
+Setup: Use a temporary config directory and enable existing-folder sorting plus suggested new folders.
+Procedure: Save settings, reload into a new `Settings` instance, and read the sorting fields.
+Expected outcome: The reloaded settings report `ExistingFolderTree` and keep new-folder suggestions enabled.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists existing folder-tree sorting mode"`
+
+#### Test case: Settings persists destination folder separately from analyzed folder
+Purpose: Ensure users can store a category destination root independently from the folder being analyzed.
+Setup: Use a temporary config directory and set different analyzed and destination folders.
+Procedure: Save settings, reload them, and clear the destination override.
+Expected outcome: The analyzed folder and destination folder persist separately, and the effective destination falls back to the analyzed folder when the override is empty.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists destination folder separately from analyzed folder"`
+
 #### Test case: Settings enforces rename-only implies offer rename
 Purpose: Ensure rename-only cannot be enabled without offer-rename.
 Setup: Save settings with analyze on, offer-rename off, and rename-only on.
@@ -1787,6 +1822,43 @@ Procedure: Scan with `Files | Recursive`.
 Expected outcome: The readable file is returned, the scan does not throw, and the unreadable subtree is skipped.
 Run: `./build-tests/ai_file_sorter_tests "recursive scans skip unreadable directories and continue"`
 
+### `tests/unit/test_folder_tree_catalog.cpp`
+
+#### Test case: FolderTreeCatalog scans relative destination folders
+Purpose: Verify existing-folder sorting can enumerate safe relative destination folders under a selected root.
+Setup: Create a temporary Johnny.Decimal-like folder tree.
+Procedure: Scan the root and look up top-level and nested destination paths.
+Expected outcome: Existing folders are returned with normalized forward-slash relative paths.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog scans relative destination folders"`
+
+#### Test case: FolderTreeCatalog validates safe relative folder paths
+Purpose: Ensure existing-folder targets cannot escape the selected root or contain unsafe path syntax.
+Setup: Prepare valid and invalid relative folder path strings.
+Procedure: Validate each path.
+Expected outcome: Backslash separators normalize to `/`, while parent traversal, absolute drive paths, forbidden characters, and Windows reserved device names are rejected.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog validates safe relative folder paths"`
+
+#### Test case: FolderTreeCatalog parses existing-only model responses
+Purpose: Verify model responses are mapped back to existing folder names in strict mode.
+Setup: Build a small in-memory folder catalog.
+Procedure: Parse a JSON response with different casing and another response requesting a missing folder.
+Expected outcome: The existing folder resolves to its catalog spelling, while the missing folder is rejected when new folders are disabled.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog parses existing-only model responses"`
+
+#### Test case: FolderTreeCatalog accepts new folders only when enabled
+Purpose: Ensure suggested folders are accepted only under the explicit new-folder mode.
+Setup: Build a catalog that lacks the model-selected nested destination.
+Procedure: Parse a plain-text target response with new-folder suggestions enabled.
+Expected outcome: The relative path is accepted, marked as non-existing, and flagged as a suggested new folder.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog accepts new folders only when enabled"`
+
+#### Test case: FolderTreeCatalog derives compatibility labels from target path
+Purpose: Preserve category/subcategory compatibility for cache, history, and status fields while using explicit target folders.
+Setup: Provide a nested Johnny.Decimal-like target path.
+Procedure: Derive display labels from the relative folder path.
+Expected outcome: The top-level folder becomes the compatibility category and the deepest folder becomes the compatibility subcategory.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog derives compatibility labels from target path"`
+
 ### `tests/unit/test_protected_project_detector.cpp`
 
 #### Test case: ProtectedProjectDetector detects strong Unity roots
@@ -2016,6 +2088,27 @@ Procedure: Confirm the dialog, auto-close the preview popup, and inspect `core.l
 Expected outcome: The source file stays in place, no destination file is created, and the log contains the dry-run completion message without the real-move success message.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog dry run logs preview completion without moved success"`
 
+#### Test case: CategorizationDialog does not create suggested folder-tree targets before confirm
+Purpose: Ensure existing-folder-tree review suggestions do not mutate the destination tree while the review dialog is only being populated.
+Setup: Create a source file and a folder-tree result pointing at a non-existing suggested target folder.
+Procedure: Load the result into the review dialog without confirming.
+Expected outcome: The source file remains in place and the suggested target folder is not created.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog does not create suggested folder-tree targets before confirm"`
+
+#### Test case: CategorizationDialog dry run does not create suggested folder-tree targets
+Purpose: Ensure dry-run preview mode remains non-mutating for suggested folder-tree destinations.
+Setup: Create a source file and a folder-tree result pointing at a non-existing suggested target folder with new-folder creation enabled.
+Procedure: Enable dry run, confirm the dialog, and auto-close the preview popup.
+Expected outcome: The source file remains in place and neither the suggested folder nor destination file is created.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog dry run does not create suggested folder-tree targets"`
+
+#### Test case: CategorizationDialog does not create folder-tree targets when new folders are disabled
+Purpose: Ensure unchecked new-folder creation prevents both folder creation and moves into non-existing folder-tree targets.
+Setup: Create a source file and a folder-tree result pointing at a non-existing target folder with new-folder creation disabled.
+Procedure: Confirm the dialog.
+Expected outcome: The source file remains in place and neither the suggested folder nor destination file is created.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog does not create folder-tree targets when new folders are disabled"`
+
 #### Test case: CategorizationDialog preserves cached subcategories when the subcategory column is hidden
 Purpose: Prevent review-only folder-layout toggles from overwriting cached taxonomy subcategories.
 Setup: Seed the cache with a categorized file that has a non-General subcategory, then load the same file into the review dialog.
@@ -2150,6 +2243,20 @@ Setup: Create an existing destination file and reuse the same desired move filen
 Procedure: Build unique move names while carrying the allocated-name state forward.
 Expected outcome: The helper returns `report (1).pdf` then `report (2).pdf`.
 Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses parenthetical suffixes for move collisions"`
+
+#### Test case: ReviewFileNaming uses explicit folder-tree target directories
+Purpose: Ensure existing-folder sorting destinations override generated category/subcategory folder construction.
+Setup: Create a nested target folder and a categorized file with folder-tree metadata.
+Procedure: Build the suggested target directory for the review entry.
+Expected outcome: The returned path uses the explicit target folder path under the selected root.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses explicit folder-tree target directories"`
+
+#### Test case: ReviewFileNaming uses the destination root for generated category folders
+Purpose: Ensure regular generated-category review paths honor a user-selected destination root.
+Setup: Create a categorized file whose source folder differs from the destination root.
+Procedure: Build the suggested target directory with subcategories enabled.
+Expected outcome: The returned path is under the destination root rather than the source folder.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses the destination root for generated category folders"`
 
 ### `tests/unit/test_main_app_translation.cpp` (non-Windows only)
 
@@ -2494,6 +2601,20 @@ Setup: Run categorization with a progress callback.
 Procedure: Capture progress messages emitted for a file.
 Expected outcome: The messages include the current file path and categorization path context.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService progress shows current and categorization paths"`
+
+#### Test case: CategorizationService routes into existing folder-tree targets
+Purpose: Verify the service-level existing-folder sorting mode returns explicit target-folder metadata instead of legacy category-only output.
+Setup: Create a target root with an existing nested destination folder and configure `ExistingFolderTree` mode.
+Procedure: Categorize one file using an LLM stub that returns target-folder JSON.
+Expected outcome: The categorized result records folder-tree mode, resolves the existing target path with catalog casing, derives compatibility category labels, and includes folder candidates in the prompt context.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService routes into existing folder-tree targets"`
+
+#### Test case: CategorizationService scans destination root for existing folder-tree targets
+Purpose: Ensure existing-folder sorting catalogs are built from the selected destination root, not necessarily the analyzed folder.
+Setup: Create separate source and destination folders, with the folder tree only under the destination root.
+Procedure: Categorize one source file using an LLM stub that returns a folder from the destination tree.
+Expected outcome: The categorized result resolves the destination-tree folder and the prompt context includes that destination folder candidate.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService scans destination root for existing folder-tree targets"`
 
 #### Test case: Document prompt helpers use the suggested filename for categorization
 Purpose: Ensure document prompts prefer the AI-suggested filename when present.

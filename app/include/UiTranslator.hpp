@@ -19,6 +19,7 @@ class QMainWindow;
 class QMenu;
 class QPushButton;
 class QComboBox;
+class QLineEdit;
 class QStandardItemModel;
 class QToolButton;
 
@@ -41,11 +42,17 @@ public:
     struct PrimaryControls {
         QPointer<QLabel>& path_label;
         QPointer<QPushButton>& browse_button;
+        QPointer<QLabel>& destination_path_label;
+        QPointer<QLineEdit>& destination_path_entry;
+        QPointer<QPushButton>& destination_browse_button;
+        QPointer<QCheckBox>& use_analyzed_folder_as_destination_checkbox;
         QPointer<QPushButton>& analyze_button;
         QPointer<QCheckBox>& use_subcategories_checkbox;
         QPointer<QLabel>& categorization_style_heading;
         QPointer<QRadioButton>& categorization_style_refined_radio;
         QPointer<QRadioButton>& categorization_style_consistent_radio;
+        QPointer<QComboBox>& sorting_mode_selector;
+        QPointer<QCheckBox>& suggest_new_folders_checkbox;
         QPointer<QCheckBox>& use_whitelist_checkbox;
         QPointer<QComboBox>& whitelist_selector;
         QPointer<QCheckBox>& categorize_files_checkbox;

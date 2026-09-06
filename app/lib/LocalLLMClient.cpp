@@ -1,4 +1,5 @@
 #include "LocalLLMClient.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "GgmlRuntimePaths.hpp"
 #include "LocalLLMPromptBuilder.hpp"
 #include "LocalLLMResponseSanitizer.hpp"
@@ -2398,7 +2399,10 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
                   << "[system]\n" << system_prompt << "\n"
                   << "[user]\n" << prompt << "\n";
     }
-    std::string response = generate_response(prompt, 64, true, system_prompt);
+    const bool folder_tree_mode =
+        consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos;
+    const int max_tokens = folder_tree_mode ? 128 : 64;
+    std::string response = generate_response(prompt, max_tokens, !folder_tree_mode, system_prompt);
     if (prompt_logging_enabled) {
         std::cout << "[DEV][RESPONSE] Categorization reply\n" << response << "\n";
     }

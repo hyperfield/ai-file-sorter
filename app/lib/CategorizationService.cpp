@@ -3,6 +3,7 @@
 #include "ArtifactCategoryPolicy.hpp"
 #include "CategorizationResponseParser.hpp"
 #include "FileCategoryPolicy.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "Settings.hpp"
 #include "CategoryLanguage.hpp"
 #include "DatabaseManager.hpp"
@@ -1215,6 +1216,42 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
     try {
         const std::string category_subcategory =
             run_llm_with_timeout(llm, prompt_name, prompt_path, file_type, is_local_llm, consistency_context);
+        if (settings.get_sorting_mode() == SortingMode::ExistingFolderTree) {
+            const auto catalog = FolderTreeCatalog::Catalog::scan(
+                Utils::utf8_to_path(
+                    settings.get_effective_destination_folder(settings.get_sort_folder())));
+            const bool allow_new = settings.get_suggest_new_folders();
+            const auto selection =
+                FolderTreeCatalog::parse_selection(category_subcategory, catalog, allow_new);
+            if (!selection) {
+                if (progress_callback) {
+                    progress_callback(fmt::format("[LLM-ERROR] {} (invalid target folder)", display_name));
+                }
+                if (core_logger) {
+                    core_logger->warn("Invalid folder-tree output for '{}': {}",
+                                      display_name,
+                                      category_subcategory);
+                }
+                return DatabaseManager::ResolvedCategory{-1, "", ""};
+            }
+
+            auto [category, subcategory] =
+                FolderTreeCatalog::derive_category_pair(selection->relative_path);
+            auto resolved = db_manager.resolve_category(category, subcategory);
+            resolved.target_folder_relative_path = selection->relative_path;
+            resolved.folder_tree_mode = true;
+            resolved.target_folder_suggested_new = selection->suggested_new;
+            resolved.target_folder_exists = selection->exists;
+            resolved.folder_tree_allow_new_folders = allow_new;
+            emit_progress_message(progress_callback,
+                                  "AI",
+                                  display_name,
+                                  resolved,
+                                  display_path,
+                                  prompt_path);
+            return resolved;
+        }
+
         auto [category, subcategory] =
             CategorizationResponseParser::split_category_subcategory(category_subcategory);
 
@@ -1341,6 +1378,22 @@ void CategorizationService::emit_progress_message(const ProgressCallback& progre
     if (!progress_callback) {
         return;
     }
+    if (resolved.folder_tree_mode) {
+        const std::string current_path_display = current_path.empty() ? "-" : current_path;
+        const std::string target =
+            resolved.target_folder_relative_path.empty() ? "-" : resolved.target_folder_relative_path;
+        progress_callback(fmt::format(
+            "[{}] {}\n"
+            "    Target folder       : {}\n"
+            "    New folder          : {}\n"
+            "    Current Path        : {}",
+            source,
+            item_name,
+            target,
+            resolved.target_folder_suggested_new ? "yes" : "no",
+            current_path_display));
+        return;
+    }
     const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
     const std::string current_path_display = current_path.empty() ? "-" : current_path;
     const std::string categorization_path_display =
@@ -1368,15 +1421,17 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     const std::string& consistency_context,
     const RemoteThrottleCallback& remote_throttle_callback) const
 {
-    if (auto cached = try_cached_categorization(display_name,
-                                                display_path,
-                                                prompt_path,
-                                                dir_path,
-                                                file_type,
-                                                progress_callback)) {
-        const auto display_resolved = localize_resolved_category(llm, *cached);
-        emit_progress_message(progress_callback, "CACHE", display_name, display_resolved, display_path, prompt_path);
-        return *cached;
+    if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree) {
+        if (auto cached = try_cached_categorization(display_name,
+                                                    display_path,
+                                                    prompt_path,
+                                                    dir_path,
+                                                    file_type,
+                                                    progress_callback)) {
+            const auto display_resolved = localize_resolved_category(llm, *cached);
+            emit_progress_message(progress_callback, "CACHE", display_name, display_resolved, display_path, prompt_path);
+            return *cached;
+        }
     }
 
     if (!is_local_llm && !ensure_remote_credentials_for_request(display_name, progress_callback)) {
@@ -1496,6 +1551,11 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     result.canonical_category = resolved.category;
     result.canonical_subcategory = resolved.subcategory;
     result.learning_context = extract_learning_context_text(prompt_path);
+    result.target_folder_relative_path = resolved.target_folder_relative_path;
+    result.folder_tree_mode = resolved.folder_tree_mode;
+    result.target_folder_suggested_new = resolved.target_folder_suggested_new;
+    result.target_folder_exists = resolved.target_folder_exists;
+    result.folder_tree_allow_new_folders = resolved.folder_tree_allow_new_folders;
     return result;
 }
 
@@ -1504,6 +1564,18 @@ std::string CategorizationService::build_combined_context(const std::string& hin
                                                           const std::string& prompt_path,
                                                           FileType file_type) const
 {
+    if (settings.get_sorting_mode() == SortingMode::ExistingFolderTree) {
+        (void)hint_block;
+        (void)file_type;
+        const auto catalog = FolderTreeCatalog::Catalog::scan(
+            Utils::utf8_to_path(
+                settings.get_effective_destination_folder(settings.get_sort_folder())));
+        return FolderTreeCatalog::build_prompt_context(catalog,
+                                                       prompt_name,
+                                                       prompt_path,
+                                                       settings.get_suggest_new_folders());
+    }
+
     std::string combined_context;
     const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
     const auto allowed_categories = settings.get_allowed_categories();

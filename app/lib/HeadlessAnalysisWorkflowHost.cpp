@@ -75,6 +75,9 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
     : options_(std::move(options))
 {
     settings_.load();
+    settings_.set_sort_folder(normalize_folder_path(options_.folder_path));
+    // Headless callers default to the analyzed root unless they explicitly override it.
+    settings_.set_destination_folder(std::string());
     if (options_.include_subdirectories) {
         settings_.set_include_subdirectories(*options_.include_subdirectories);
     }
@@ -173,6 +176,11 @@ std::string HeadlessAnalysisWorkflowHost::folder_path() const
     return normalize_folder_path(options_.folder_path);
 }
 
+std::string HeadlessAnalysisWorkflowHost::destination_folder() const
+{
+    return settings_.get_effective_destination_folder(folder_path());
+}
+
 bool HeadlessAnalysisWorkflowHost::use_subcategories() const
 {
     return settings_.get_use_subcategories();
@@ -181,6 +189,11 @@ bool HeadlessAnalysisWorkflowHost::use_subcategories() const
 bool HeadlessAnalysisWorkflowHost::include_subdirectories() const
 {
     return settings_.get_include_subdirectories();
+}
+
+bool HeadlessAnalysisWorkflowHost::suggest_new_folders() const
+{
+    return settings_.get_suggest_new_folders();
 }
 
 CategoryLanguage HeadlessAnalysisWorkflowHost::category_language() const
@@ -479,6 +492,18 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     const HeadlessSettingsOverrides& overrides = options_.settings_overrides;
     if (overrides.use_subcategories) {
         settings_.set_use_subcategories(*overrides.use_subcategories);
+    }
+    if (overrides.sorting_mode) {
+        settings_.set_sorting_mode(*overrides.sorting_mode);
+    }
+    if (overrides.destination_folder) {
+        settings_.set_destination_folder(overrides.destination_folder->empty()
+                                             ? std::string()
+                                             : normalize_folder_path(
+                                                   Utils::utf8_to_path(*overrides.destination_folder)));
+    }
+    if (overrides.suggest_new_folders) {
+        settings_.set_suggest_new_folders(*overrides.suggest_new_folders);
     }
     if (overrides.use_consistency_hints) {
         settings_.set_use_consistency_hints(*overrides.use_consistency_hints);

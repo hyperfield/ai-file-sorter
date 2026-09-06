@@ -276,7 +276,11 @@ AnalysisRunResult AnalysisCoordinator::execute()
             analyze_documents && app_.settings.get_add_document_date_to_category();
         const bool use_full_path_keys = app_.settings.get_include_subdirectories();
 
-        const auto cached_entries = app_.categorization_service.load_cached_entries(directory_path);
+        const bool folder_tree_sorting =
+            app_.settings.get_sorting_mode() == SortingMode::ExistingFolderTree;
+        const auto cached_entries = folder_tree_sorting
+            ? std::vector<CategorizedFile>{}
+            : app_.categorization_service.load_cached_entries(directory_path);
         std::vector<CategorizedFile> pending_renames;
         pending_renames.reserve(cached_entries.size());
         std::unordered_set<std::string> renamed_files;

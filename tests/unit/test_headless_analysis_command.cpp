@@ -1098,6 +1098,154 @@ TEST_CASE("HeadlessReviewApplyService uses display folders and canonical storage
     CHECK(cached->subcategory == "Monthly Statements");
 }
 
+TEST_CASE("HeadlessReviewApplyService moves folder-tree entries into existing targets")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    const std::filesystem::path destination_dir =
+        target / "10-19 Admin" / "11 Reports";
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(destination_dir))));
+    const std::filesystem::path source = make_file_at(target / "statement.txt");
+    const std::filesystem::path destination = destination_dir / "statement.txt";
+
+    CategorizedFile entry;
+    entry.file_path = Utils::path_to_utf8(target);
+    entry.file_name = "statement.txt";
+    entry.type = FileType::File;
+    entry.folder_tree_mode = true;
+    entry.target_folder_relative_path = "10-19 Admin/11 Reports";
+    entry.target_folder_exists = true;
+
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService service(nullptr, storage_provider, nullptr);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = normalized_path_key(target);
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+
+    const auto result = service.apply({entry}, options);
+
+    CHECK(result.planned_count == 1);
+    CHECK(result.moved_count == 1);
+    CHECK(result.skipped_count == 0);
+    CHECK(result.undo_plan_saved);
+    REQUIRE(result.entries.size() == 1);
+    CHECK(result.entries.at(0).target_folder == "10-19 Admin/11 Reports");
+    CHECK(result.entries.at(0).target_folder_exists);
+    CHECK_FALSE(result.entries.at(0).target_folder_suggested_new);
+    CHECK(result.entries.at(0).category == "10-19 Admin");
+    CHECK(result.entries.at(0).subcategory == "11 Reports");
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+}
+
+TEST_CASE("HeadlessReviewApplyService creates suggested folder-tree targets when allowed")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "receipt.pdf");
+    const std::filesystem::path destination =
+        target / "10-19 Admin" / "12 Receipts" / "receipt.pdf";
+
+    CategorizedFile entry;
+    entry.file_path = Utils::path_to_utf8(target);
+    entry.file_name = "receipt.pdf";
+    entry.type = FileType::File;
+    entry.folder_tree_mode = true;
+    entry.target_folder_relative_path = "10-19 Admin/12 Receipts";
+    entry.target_folder_suggested_new = true;
+    entry.folder_tree_allow_new_folders = true;
+
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService service(nullptr, storage_provider, nullptr);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = normalized_path_key(target);
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+    options.allow_new_folder_targets = true;
+
+    const auto result = service.apply({entry}, options);
+
+    CHECK(result.planned_count == 1);
+    CHECK(result.moved_count == 1);
+    CHECK(result.skipped_count == 0);
+    CHECK(result.undo_plan_saved);
+    REQUIRE(result.entries.size() == 1);
+    CHECK(result.entries.at(0).target_folder == "10-19 Admin/12 Receipts");
+    CHECK_FALSE(result.entries.at(0).target_folder_exists);
+    CHECK(result.entries.at(0).target_folder_suggested_new);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+}
+
+TEST_CASE("HeadlessReviewApplyService moves generated categories into custom destination root")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path source_root =
+        std::filesystem::path(dir.filePath(QStringLiteral("incoming")).toStdString());
+    const std::filesystem::path destination_root =
+        std::filesystem::path(dir.filePath(QStringLiteral("sorted")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(source_root))));
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(destination_root))));
+
+    const std::filesystem::path source = make_file_at(source_root / "statement.txt");
+    const std::filesystem::path destination =
+        destination_root / "Documents" / "Reports" / "statement.txt";
+
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, source_root, "statement.txt", "Inbox", "Inbox");
+
+    CategorizedFile entry;
+    entry.file_path = normalized_path_key(source_root);
+    entry.file_name = "statement.txt";
+    entry.type = FileType::File;
+    entry.category = "Documents";
+    entry.subcategory = "Reports";
+
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService service(&db, storage_provider, nullptr);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = normalized_path_key(destination_root);
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+    options.use_subcategories = true;
+
+    const auto result = service.apply({entry}, options);
+
+    CHECK(result.planned_count == 1);
+    CHECK(result.moved_count == 1);
+    CHECK(result.skipped_count == 0);
+    CHECK(result.undo_plan_saved);
+    REQUIRE(result.entries.size() == 1);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+    CHECK_FALSE(db.get_categorized_file(normalized_path_key(source_root),
+                                        entry.file_name,
+                                        FileType::File)
+                    .has_value());
+
+    const auto cached = db.get_categorized_file(normalized_path_key(destination.parent_path()),
+                                                entry.file_name,
+                                                FileType::File);
+    REQUIRE(cached.has_value());
+    CHECK(cached->category == "Documents");
+    CHECK(cached->subcategory == "Reports");
+}
+
 TEST_CASE("HeadlessReviewApplyService deduplicates duplicate suggested filenames")
 {
     QTemporaryDir dir;

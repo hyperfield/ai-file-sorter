@@ -995,6 +995,11 @@ Compatible con: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <translation>Seleccionar carpeta</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="958"/>
+        <source>Select Destination Directory</source>
+        <translation>Seleccionar carpeta de destino</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1530"/>
         <location filename="../../lib/MainApp.cpp" line="2656"/>
         <source>Analysis cancelled</source>
@@ -1004,6 +1009,11 @@ Compatible con: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <location filename="../../lib/MainApp.cpp" line="1601"/>
         <source>Folder selected: %1</source>
         <translation>Carpeta seleccionada: %1</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="1657"/>
+        <source>Destination selected: %1</source>
+        <translation>Destino seleccionado: %1</translation>
     </message>
     <message>
         <location filename="../../lib/MainApp.cpp" line="1322"/>
@@ -2738,6 +2748,26 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
         <location filename="../../lib/UiTranslator.cpp" line="194"/>
         <source>Folder:</source>
         <translation>Carpeta:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="202"/>
+        <source>Destination:</source>
+        <translation>Destino:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="205"/>
+        <source>Choose where categorized items will be placed.</source>
+        <translation>Elige dónde se colocarán los elementos categorizados.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="211"/>
+        <source>Use analyzed folder</source>
+        <translation>Usar carpeta analizada</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="212"/>
+        <source>Use the folder being analyzed as the destination root.</source>
+        <translation>Usar la carpeta que se está analizando como raíz de destino.</translation>
     </message>
     <message>
         <location filename="../../lib/UiTranslator.cpp" line="197"/>

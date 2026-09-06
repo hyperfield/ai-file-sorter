@@ -995,6 +995,11 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <translation>Select Directory</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="958"/>
+        <source>Select Destination Directory</source>
+        <translation>गंतव्य निर्देशिका चुनें</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1308"/>
         <source>Loaded backend: OpenAI API</source>
         <translation>Loaded backend: OpenAI API</translation>
@@ -1039,6 +1044,11 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <location filename="../../lib/MainApp.cpp" line="1601"/>
         <source>Folder selected: %1</source>
         <translation>Folder selected: %1</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="1657"/>
+        <source>Destination selected: %1</source>
+        <translation>गंतव्य चुना गया: %1</translation>
     </message>
     <message>
         <location filename="../../lib/MainApp.cpp" line="1322"/>
@@ -2573,6 +2583,26 @@ Please update to continue. If you choose to quit, the application will close.</s
         <location filename="../../lib/UiTranslator.cpp" line="194"/>
         <source>Folder:</source>
         <translation>फ़ोल्डर:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="202"/>
+        <source>Destination:</source>
+        <translation>गंतव्य:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="205"/>
+        <source>Choose where categorized items will be placed.</source>
+        <translation>चुनें कि वर्गीकृत आइटम कहाँ रखे जाएंगे।</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="211"/>
+        <source>Use analyzed folder</source>
+        <translation>विश्लेषित फ़ोल्डर का उपयोग करें</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="212"/>
+        <source>Use the folder being analyzed as the destination root.</source>
+        <translation>विश्लेषण किए जा रहे फ़ोल्डर को गंतव्य रूट के रूप में उपयोग करें।</translation>
     </message>
     <message>
         <location filename="../../lib/UiTranslator.cpp" line="197"/>

@@ -20,6 +20,11 @@ public:
         int taxonomy_id;
         std::string category;
         std::string subcategory;
+        std::string target_folder_relative_path;
+        bool folder_tree_mode{false};
+        bool target_folder_suggested_new{false};
+        bool target_folder_exists{false};
+        bool folder_tree_allow_new_folders{false};
     };
 
     ResolvedCategory resolve_category(const std::string& category,

@@ -77,6 +77,30 @@ std::string join_list(const std::vector<std::string>& items) {
     return oss.str();
 }
 
+SortingMode sorting_mode_from_string(std::string value)
+{
+    value = trim_copy(std::move(value));
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    if (value == "existingfoldertree" || value == "existing-folder-tree" ||
+        value == "existing_folder_tree" || value == "foldertree" || value == "folder-tree") {
+        return SortingMode::ExistingFolderTree;
+    }
+    return SortingMode::GeneratedCategories;
+}
+
+std::string sorting_mode_to_string(SortingMode mode)
+{
+    switch (mode) {
+    case SortingMode::ExistingFolderTree:
+        return "ExistingFolderTree";
+    case SortingMode::GeneratedCategories:
+    default:
+        return "GeneratedCategories";
+    }
+}
+
 std::string escape_map_token(const std::string& value)
 {
     std::string escaped;
@@ -503,6 +527,9 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     visual_model_id = normalize_visual_model_id(
         config.getValue("Settings", "VisualModelId", default_visual_model_descriptor().id));
     use_subcategories = load_bool("UseSubcategories", true);
+    sorting_mode = sorting_mode_from_string(
+        config.getValue("Settings", "SortingMode", "GeneratedCategories"));
+    suggest_new_folders = load_bool("SuggestNewFolders", false);
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
@@ -548,6 +575,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
         categorize_directories = false;
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
+    destination_folder = config.getValue("Settings", "DestinationFolder", "");
     show_file_explorer = load_bool("ShowFileExplorer", true);
     recent_network_locations = parse_multiline_list(
         config.getValue("Settings", "RecentNetworkLocations", ""));
@@ -660,6 +688,8 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "LlmStorageDir", llm_storage_dir);
     config.setValue(settings_section, "VisualModelId", normalize_visual_model_id(visual_model_id));
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
+    config.setValue(settings_section, "SortingMode", sorting_mode_to_string(sorting_mode));
+    set_bool_setting(config, settings_section, "SuggestNewFolders", suggest_new_folders);
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
     set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
     set_bool_setting(config, settings_section, "CategorizeDirectories", categorize_directories);
@@ -685,6 +715,7 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "ProcessDocumentsOnly", process_documents_only);
     set_bool_setting(config, settings_section, "AddDocumentDateToCategory", add_document_date_to_category);
     config.setValue(settings_section, "SortFolder", this->sort_folder);
+    config.setValue(settings_section, "DestinationFolder", destination_folder);
 
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
     set_optional_setting(config, settings_section, "WhatsNewVersionShown", whats_new_version_shown);
@@ -1092,6 +1123,26 @@ void Settings::set_use_subcategories(bool value)
     use_subcategories = value;
 }
 
+SortingMode Settings::get_sorting_mode() const
+{
+    return sorting_mode;
+}
+
+void Settings::set_sorting_mode(SortingMode mode)
+{
+    sorting_mode = mode;
+}
+
+bool Settings::get_suggest_new_folders() const
+{
+    return suggest_new_folders;
+}
+
+void Settings::set_suggest_new_folders(bool value)
+{
+    suggest_new_folders = value;
+}
+
 bool Settings::get_use_consistency_hints() const
 {
     return use_consistency_hints;
@@ -1286,6 +1337,22 @@ std::string Settings::get_sort_folder() const
 void Settings::set_sort_folder(const std::string &path)
 {
     this->sort_folder = path;
+}
+
+std::string Settings::get_destination_folder() const
+{
+    return destination_folder;
+}
+
+void Settings::set_destination_folder(const std::string& path)
+{
+    destination_folder = trim_copy(path);
+}
+
+std::string Settings::get_effective_destination_folder(const std::string& analysis_folder) const
+{
+    const std::string destination = trim_copy(destination_folder);
+    return destination.empty() ? analysis_folder : destination;
 }
 
 bool Settings::get_consistency_pass_enabled() const

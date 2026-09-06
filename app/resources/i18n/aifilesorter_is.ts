@@ -995,6 +995,11 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <translation>Veldu Skrá</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="958"/>
+        <source>Select Destination Directory</source>
+        <translation>Velja áfangamöppu</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1530"/>
         <location filename="../../lib/MainApp.cpp" line="2656"/>
         <source>Analysis cancelled</source>
@@ -1004,6 +1009,11 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <location filename="../../lib/MainApp.cpp" line="1601"/>
         <source>Folder selected: %1</source>
         <translation>Mappa valin: %1</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="1657"/>
+        <source>Destination selected: %1</source>
+        <translation>Áfangastaður valinn: %1</translation>
     </message>
     <message>
         <location filename="../../lib/MainApp.cpp" line="1322"/>
@@ -2706,6 +2716,26 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
         <location filename="../../lib/UiTranslator.cpp" line="194"/>
         <source>Folder:</source>
         <translation>Mappa:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="202"/>
+        <source>Destination:</source>
+        <translation>Áfangastaður:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="205"/>
+        <source>Choose where categorized items will be placed.</source>
+        <translation>Veldu hvar flokkuð atriði verða sett.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="211"/>
+        <source>Use analyzed folder</source>
+        <translation>Nota greindu möppuna</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="212"/>
+        <source>Use the folder being analyzed as the destination root.</source>
+        <translation>Nota möppuna sem verið er að greina sem rót áfangastaðar.</translation>
     </message>
     <message>
         <location filename="../../lib/UiTranslator.cpp" line="197"/>

@@ -995,6 +995,11 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <translation>폴더 선택</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="958"/>
+        <source>Select Destination Directory</source>
+        <translation>대상 디렉터리 선택</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1530"/>
         <location filename="../../lib/MainApp.cpp" line="2656"/>
         <source>Analysis cancelled</source>
@@ -1004,6 +1009,11 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <location filename="../../lib/MainApp.cpp" line="1601"/>
         <source>Folder selected: %1</source>
         <translation>선택한 폴더: %1</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="1657"/>
+        <source>Destination selected: %1</source>
+        <translation>대상이 선택됨: %1</translation>
     </message>
     <message>
         <location filename="../../lib/MainApp.cpp" line="1322"/>
@@ -2738,6 +2748,26 @@ Please update to continue. If you choose to quit, the application will close.</s
         <location filename="../../lib/UiTranslator.cpp" line="194"/>
         <source>Folder:</source>
         <translation>폴더:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="202"/>
+        <source>Destination:</source>
+        <translation>대상:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="205"/>
+        <source>Choose where categorized items will be placed.</source>
+        <translation>분류된 항목을 배치할 위치를 선택하세요.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="211"/>
+        <source>Use analyzed folder</source>
+        <translation>분석한 폴더 사용</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="212"/>
+        <source>Use the folder being analyzed as the destination root.</source>
+        <translation>분석 중인 폴더를 대상 루트로 사용합니다.</translation>
     </message>
     <message>
         <location filename="../../lib/UiTranslator.cpp" line="197"/>

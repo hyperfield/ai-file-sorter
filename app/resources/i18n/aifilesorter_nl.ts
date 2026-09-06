@@ -995,6 +995,11 @@ Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <translation>Map selecteren</translation>
     </message>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="958"/>
+        <source>Select Destination Directory</source>
+        <translation>Doelmap selecteren</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="1530"/>
         <location filename="../../lib/MainApp.cpp" line="2656"/>
         <source>Analysis cancelled</source>
@@ -1004,6 +1009,11 @@ Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <location filename="../../lib/MainApp.cpp" line="1601"/>
         <source>Folder selected: %1</source>
         <translation>Map geselecteerd: %1</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="1657"/>
+        <source>Destination selected: %1</source>
+        <translation>Bestemming geselecteerd: %1</translation>
     </message>
     <message>
         <location filename="../../lib/MainApp.cpp" line="1322"/>
@@ -2738,6 +2748,26 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
         <location filename="../../lib/UiTranslator.cpp" line="194"/>
         <source>Folder:</source>
         <translation>Map:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="202"/>
+        <source>Destination:</source>
+        <translation>Bestemming:</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="205"/>
+        <source>Choose where categorized items will be placed.</source>
+        <translation>Kies waar gecategoriseerde items worden geplaatst.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="211"/>
+        <source>Use analyzed folder</source>
+        <translation>Geanalyseerde map gebruiken</translation>
+    </message>
+    <message>
+        <location filename="../../lib/UiTranslator.cpp" line="212"/>
+        <source>Use the folder being analyzed as the destination root.</source>
+        <translation>Gebruik de map die wordt geanalyseerd als doelhoofdmap.</translation>
     </message>
     <message>
         <location filename="../../lib/UiTranslator.cpp" line="197"/>

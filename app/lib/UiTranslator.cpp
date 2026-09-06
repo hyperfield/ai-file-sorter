@@ -13,6 +13,7 @@
 #include <QComboBox>
 #include <QDockWidget>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMainWindow>
 #include <QMenu>
 #include <QObject>
@@ -190,11 +191,25 @@ void UiTranslator::translate_window_title() const
 
 void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
 {
+    const QString browse_text = tr("Browse…");
     if (auto* label = raw_ptr(deps_.primary.path_label)) {
         label->setText(tr("Folder:"));
     }
     if (auto* button = raw_ptr(deps_.primary.browse_button)) {
-        button->setText(tr("Browse…"));
+        button->setText(browse_text);
+    }
+    if (auto* label = raw_ptr(deps_.primary.destination_path_label)) {
+        label->setText(tr("Destination:"));
+    }
+    if (auto* edit = raw_ptr(deps_.primary.destination_path_entry)) {
+        edit->setToolTip(tr("Choose where categorized items will be placed."));
+    }
+    if (auto* button = raw_ptr(deps_.primary.destination_browse_button)) {
+        button->setText(browse_text);
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.use_analyzed_folder_as_destination_checkbox)) {
+        checkbox->setText(tr("Use analyzed folder"));
+        checkbox->setToolTip(tr("Use the folder being analyzed as the destination root."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_subcategories_checkbox)) {
         checkbox->setText(tr("Use subcategories"));
@@ -211,6 +226,17 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* consistent_radio = raw_ptr(deps_.primary.categorization_style_consistent_radio)) {
         consistent_radio->setText(tr("More consistent"));
         consistent_radio->setToolTip(tr("Favor consistent labels across similar items."));
+    }
+    if (auto* selector = raw_ptr(deps_.primary.sorting_mode_selector)) {
+        if (selector->count() >= 2) {
+            selector->setItemText(0, tr("Create category folders"));
+            selector->setItemText(1, tr("Use existing folder structure"));
+        }
+        selector->setToolTip(tr("Choose whether AI creates category folders or sorts into the current folder tree."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.suggest_new_folders_checkbox)) {
+        checkbox->setText(tr("Suggest new folders when needed"));
+        checkbox->setToolTip(tr("Allow AI to propose new destination folders when no existing folder fits well."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_whitelist_checkbox)) {
         checkbox->setText(tr("Use a whitelist"));

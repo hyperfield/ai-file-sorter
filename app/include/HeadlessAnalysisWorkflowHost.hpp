@@ -114,6 +114,12 @@ public:
     std::string folder_path() const;
 
     /**
+     * @brief Return the normalized destination root for category moves.
+     * @return UTF-8 destination folder path, falling back to the analyzed folder.
+     */
+    std::string destination_folder() const;
+
+    /**
      * @brief Return whether subcategory folders should be created.
      * @return True when subcategory folders are enabled.
      */
@@ -124,6 +130,12 @@ public:
      * @return True when recursive scanning is enabled.
      */
     bool include_subdirectories() const;
+
+    /**
+     * @brief Return whether existing-folder sorting may suggest new folders.
+     * @return True when new target folders may be created after review approval.
+     */
+    bool suggest_new_folders() const;
 
     /**
      * @brief Return the category language configured for the run.

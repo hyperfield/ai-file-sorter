@@ -23,6 +23,14 @@ inline bool is_remote_choice(LLMChoice choice) {
 
 enum class FileType {File, Directory};
 
+/**
+ * @brief Selects how categorization results map to destination folders.
+ */
+enum class SortingMode {
+    GeneratedCategories,
+    ExistingFolderTree
+};
+
 struct CategorizedFile {
     std::string file_path;
     std::string file_name;
@@ -38,6 +46,11 @@ struct CategorizedFile {
     std::string canonical_category;
     std::string canonical_subcategory;
     std::string learning_context;
+    std::string target_folder_relative_path;
+    bool folder_tree_mode{false};
+    bool target_folder_suggested_new{false};
+    bool target_folder_exists{false};
+    bool folder_tree_allow_new_folders{false};
 };
 
 inline std::string to_string(FileType type) {

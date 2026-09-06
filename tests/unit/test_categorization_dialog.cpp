@@ -160,6 +160,23 @@ CategorizedFile sample_file() {
     return file;
 }
 
+CategorizedFile suggested_folder_tree_file(const std::filesystem::path& base,
+                                           const std::string& file_name)
+{
+    CategorizedFile file;
+    file.file_path = Utils::path_to_utf8(base);
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "40-49 Media";
+    file.subcategory = "41 Photos";
+    file.target_folder_relative_path = "40-49 Media/41 Photos";
+    file.folder_tree_mode = true;
+    file.target_folder_suggested_new = true;
+    file.target_folder_exists = false;
+    file.folder_tree_allow_new_folders = true;
+    return file;
+}
+
 } // namespace
 
 TEST_CASE("CategorizationDialog uses subcategory toggle when moving files") {
@@ -478,7 +495,7 @@ TEST_CASE("CategorizationDialog moves Unicode files into French nested subcatego
         base / Utils::utf8_to_path("Logiciels") / Utils::utf8_to_path("Navigateur") /
         Utils::utf8_to_path(file_name);
     const std::string expected_preview = normalized_path_text(Utils::path_to_utf8(expected_destination));
-    auto* preview_item = model->item(0, 7);
+    auto* preview_item = model->item(0, 8);
     REQUIRE(preview_item != nullptr);
     const std::string preview =
         normalized_path_text(preview_item->text().toStdString());
@@ -615,6 +632,98 @@ TEST_CASE("CategorizationDialog dry run logs preview completion without moved su
 
     CHECK(log_text.find("Dry run completed. No files were moved.") != std::string::npos);
     CHECK(log_text.find("All files have been sorted and moved successfully.") == std::string::npos);
+}
+
+TEST_CASE("CategorizationDialog does not create suggested folder-tree targets before confirm") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "earth_space.jpg";
+    const std::filesystem::path source = base / file_name;
+    const std::filesystem::path suggested_dir = base / "40-49 Media" / "41 Photos";
+    std::ofstream(source).put('x');
+
+    const CategorizedFile file = suggested_folder_tree_file(base, file_name);
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+    REQUIRE(model->rowCount() == 1);
+    REQUIRE(model->item(0, 6) != nullptr);
+    CHECK(model->item(0, 6)->text() == QStringLiteral("40-49 Media/41 Photos"));
+    CHECK(std::filesystem::exists(source));
+    CHECK_FALSE(std::filesystem::exists(suggested_dir));
+}
+
+TEST_CASE("CategorizationDialog dry run does not create suggested folder-tree targets") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "earth_space.jpg";
+    const std::filesystem::path source = base / file_name;
+    const std::filesystem::path suggested_dir = base / "40-49 Media" / "41 Photos";
+    const std::filesystem::path destination = suggested_dir / file_name;
+    std::ofstream(source).put('x');
+
+    const CategorizedFile file = suggested_folder_tree_file(base, file_name);
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    auto* dry_run_checkbox = [&dialog]() -> QCheckBox* {
+        const auto checkboxes = dialog.findChildren<QCheckBox*>();
+        for (auto* checkbox : checkboxes) {
+            if (checkbox && checkbox->text().contains(QStringLiteral("Dry run"))) {
+                return checkbox;
+            }
+        }
+        return nullptr;
+    }();
+    REQUIRE(dry_run_checkbox != nullptr);
+    dry_run_checkbox->setChecked(true);
+
+    schedule_active_modal_accept();
+    dialog.test_trigger_confirm();
+
+    CHECK(std::filesystem::exists(source));
+    CHECK_FALSE(std::filesystem::exists(suggested_dir));
+    CHECK_FALSE(std::filesystem::exists(destination));
+}
+
+TEST_CASE("CategorizationDialog does not create folder-tree targets when new folders are disabled") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "earth_space.jpg";
+    const std::filesystem::path source = base / file_name;
+    const std::filesystem::path suggested_dir = base / "40-49 Media" / "41 Photos";
+    const std::filesystem::path destination = suggested_dir / file_name;
+    std::ofstream(source).put('x');
+
+    CategorizedFile file = suggested_folder_tree_file(base, file_name);
+    file.folder_tree_allow_new_folders = false;
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+
+    CHECK(std::filesystem::exists(source));
+    CHECK_FALSE(std::filesystem::exists(suggested_dir));
+    CHECK_FALSE(std::filesystem::exists(destination));
 }
 
 TEST_CASE("UndoManager restores saved plans through the active storage provider") {

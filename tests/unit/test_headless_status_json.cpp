@@ -64,6 +64,11 @@ TEST_CASE("HeadlessStatusJson round-trips UTF-8 review plans")
     entry.canonical_category = "Documents";
     entry.canonical_subcategory = "Reports";
     entry.learning_context = "unicode review plan";
+    entry.target_folder_relative_path = "10-19 Admin/11 Reports";
+    entry.folder_tree_mode = true;
+    entry.target_folder_suggested_new = true;
+    entry.target_folder_exists = false;
+    entry.folder_tree_allow_new_folders = true;
 
     HeadlessReviewApplyService::Options apply_options;
     apply_options.base_dir = Utils::path_to_utf8(root);
@@ -72,6 +77,7 @@ TEST_CASE("HeadlessStatusJson round-trips UTF-8 review plans")
     apply_options.include_subdirectories = true;
     apply_options.apply_suggested_names = true;
     apply_options.move_categorized_entries = false;
+    apply_options.allow_new_folder_targets = true;
     apply_options.category_language = CategoryLanguage::French;
 
     HeadlessAnalysisCommand::Options options;
@@ -98,6 +104,7 @@ TEST_CASE("HeadlessStatusJson round-trips UTF-8 review plans")
     CHECK(plan.apply_options.include_subdirectories);
     CHECK(plan.apply_options.apply_suggested_names);
     CHECK_FALSE(plan.apply_options.move_categorized_entries);
+    CHECK(plan.apply_options.allow_new_folder_targets);
     CHECK(plan.apply_options.category_language == CategoryLanguage::French);
 
     REQUIRE(plan.entries.size() == 1);
@@ -107,5 +114,10 @@ TEST_CASE("HeadlessStatusJson round-trips UTF-8 review plans")
     CHECK(loaded.suggested_name == suggested_name);
     CHECK(loaded.category == entry.category);
     CHECK(loaded.subcategory == entry.subcategory);
+    CHECK(loaded.target_folder_relative_path == entry.target_folder_relative_path);
+    CHECK(loaded.folder_tree_mode);
+    CHECK(loaded.target_folder_suggested_new);
+    CHECK_FALSE(loaded.target_folder_exists);
+    CHECK(loaded.folder_tree_allow_new_folders);
     CHECK(loaded.rename_only);
 }

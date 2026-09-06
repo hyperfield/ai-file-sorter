@@ -165,6 +165,11 @@ public:
      */
     std::string get_folder_path() const;
     /**
+     * @brief Returns the destination root selected for categorization moves.
+     * @return Destination folder path as UTF-8 text.
+     */
+    std::string get_destination_folder_path() const;
+    /**
      * @brief Returns whether the window is running in development mode.
      * @return True when development-only features are enabled.
      */
@@ -250,6 +255,15 @@ private:
     void on_analyze_clicked();
     void on_directory_selected(const QString& path,
         bool user_initiated = false);
+    /**
+     * @brief Selects a custom destination root from the UI.
+     * @param path Destination folder selected by the user.
+     */
+    void on_destination_directory_selected(const QString& path);
+    /**
+     * @brief Enables and synchronizes destination-folder controls.
+     */
+    void update_destination_folder_controls();
     void ensure_one_checkbox_active(QCheckBox* changed_checkbox);
     void update_file_scan_option(FileScanOptions option, bool enabled);
     bool visual_llm_files_available() const;
@@ -468,10 +482,16 @@ private:
     QPointer<QPushButton> browse_button;
     QPointer<QLabel> backend_status_label;
     QPointer<QLabel> path_label;
+    QPointer<QLabel> destination_path_label;
+    QPointer<QLineEdit> destination_path_entry;
+    QPointer<QPushButton> destination_browse_button;
+    QPointer<QCheckBox> use_analyzed_folder_as_destination_checkbox;
     QPointer<QCheckBox> use_subcategories_checkbox;
     QPointer<QLabel> categorization_style_heading;
     QPointer<QRadioButton> categorization_style_refined_radio;
     QPointer<QRadioButton> categorization_style_consistent_radio;
+    QPointer<QComboBox> sorting_mode_selector;
+    QPointer<QCheckBox> suggest_new_folders_checkbox;
     QPointer<QCheckBox> use_whitelist_checkbox;
     QPointer<QComboBox> whitelist_selector;
     QPointer<QCheckBox> categorize_files_checkbox;

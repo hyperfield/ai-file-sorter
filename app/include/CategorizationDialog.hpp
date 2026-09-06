@@ -154,6 +154,10 @@ private:
     static constexpr int kCanonicalCategoryRole = Qt::UserRole + 12;
     static constexpr int kCanonicalSubcategoryRole = Qt::UserRole + 13;
     static constexpr int kLearningContextRole = Qt::UserRole + 14;
+    static constexpr int kTargetFolderRole = Qt::UserRole + 15;
+    static constexpr int kTargetFolderSuggestedNewRole = Qt::UserRole + 16;
+    static constexpr int kTargetFolderExistsRole = Qt::UserRole + 17;
+    static constexpr int kFolderTreeAllowNewFoldersRole = Qt::UserRole + 18;
 
     enum Column {
         ColumnSelect = 0,
@@ -162,8 +166,9 @@ private:
         ColumnSuggestedName = 3,
         ColumnCategory = 4,
         ColumnSubcategory = 5,
-        ColumnStatus = 6,
-        ColumnPreview = 7
+        ColumnTargetFolder = 6,
+        ColumnStatus = 7,
+        ColumnPreview = 8
     };
 
     struct MoveRecord {
@@ -183,6 +188,8 @@ private:
         std::string destination_file_name;
         std::string category;
         std::string subcategory;
+        std::string target_folder_relative_path;
+        bool target_folder_suggested_new{false};
         bool use_subcategory{false};
         bool rename_only{false};
     };
@@ -391,6 +398,8 @@ private:
     CategoryLanguage category_language_{CategoryLanguage::English};
     bool show_subcategory_column;
     bool include_subdirectories_{false};
+    bool folder_tree_mode_{false};
+    bool folder_tree_allow_new_folders_{false};
     bool allow_image_renames_{true};
     bool allow_document_renames_{true};
     bool show_rename_column{false};

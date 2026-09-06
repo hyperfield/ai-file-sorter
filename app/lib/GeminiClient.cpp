@@ -1,5 +1,7 @@
 #include "GeminiClient.hpp"
 
+#include "FolderTreeCatalog.hpp"
+
 #include "Logger.hpp"
 #include "RemoteApiError.hpp"
 #include "Utils.hpp"
@@ -340,13 +342,19 @@ std::string GeminiClient::make_categorization_payload(const std::string& file_na
     }
 
     last_prompt_ = prompt;
-    const std::string system_prompt =
-        "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
-        "Consider the filename, extension, and any directory context provided. If the user prompt includes an "
-        "'Allowed main categories' list, choose the main category from that list only. Use Other only when it is "
-        "listed and none of the other listed main categories clearly fits. Always reply with one line in the "
-        "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). "
-        "Subcategory must be specific, relevant, and must not repeat the main category.";
+    const bool folder_tree_mode =
+        consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos;
+    const std::string system_prompt = folder_tree_mode
+        ? "You are a file organization assistant. The user prompt contains an existing folder tree. "
+          "Choose the best destination folder under that tree. Always reply with only one JSON object "
+          "in the format {\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}. "
+          "Do not return category/subcategory text and do not explain your answer."
+        : "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
+          "Consider the filename, extension, and any directory context provided. If the user prompt includes an "
+          "'Allowed main categories' list, choose the main category from that list only. Use Other only when it is "
+          "listed and none of the other listed main categories clearly fits. Always reply with one line in the "
+          "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). "
+          "Subcategory must be specific, relevant, and must not repeat the main category.";
 
     std::ostringstream payload;
     const std::string merged_prompt = system_prompt + "\n\n" + prompt;

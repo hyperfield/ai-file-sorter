@@ -5,6 +5,7 @@
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
 #include "LLMErrors.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "MainAppTestAccess.hpp"
 #include "CategoryLanguage.hpp"
 #include "LocalLLMTestAccess.hpp"
@@ -21,6 +22,7 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
+#include <filesystem>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -1184,6 +1186,105 @@ TEST_CASE("CategorizationService progress shows current and categorization paths
                                          Utils::abbreviate_user_path(full_path)) != std::string::npos);
     CHECK(progress_messages.front().find("Categorization Path : " +
                                          Utils::abbreviate_user_path(prompt_path)) != std::string::npos);
+}
+
+TEST_CASE("CategorizationService routes into existing folder-tree targets") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir data_dir;
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "10-19 Admin" / "11 Reports"));
+
+    Settings settings;
+    settings.set_sort_folder(data_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(false);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "statement.txt";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            "{\"targetFolder\":\"10-19 admin/11 reports\",\"createFolder\":false}");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 1);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "10-19 Admin/11 Reports");
+    CHECK(categorized.front().target_folder_exists);
+    CHECK_FALSE(categorized.front().target_folder_suggested_new);
+    CHECK(categorized.front().category == "10-19 Admin");
+    CHECK(categorized.front().subcategory == "11 Reports");
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
+    CHECK(captured_context->find("10-19 Admin/11 Reports") != std::string::npos);
+}
+
+TEST_CASE("CategorizationService scans destination root for existing folder-tree targets") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir source_dir;
+    TempDir destination_dir;
+    REQUIRE(std::filesystem::create_directories(destination_dir.path() / "20-29 Work" / "21 Clients"));
+
+    Settings settings;
+    settings.set_sort_folder(source_dir.path().string());
+    settings.set_destination_folder(destination_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(false);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "proposal.txt";
+    const std::string full_path = (source_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            "{\"targetFolder\":\"20-29 Work/21 Clients\",\"createFolder\":false}");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 1);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "20-29 Work/21 Clients");
+    CHECK(categorized.front().target_folder_exists);
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
+    CHECK(captured_context->find("20-29 Work/21 Clients") != std::string::npos);
 }
 
 TEST_CASE("Document prompt helpers use the suggested filename for categorization") {

@@ -2,6 +2,7 @@
 
 #include "CategoryLanguage.hpp"
 #include "Language.hpp"
+#include "Types.hpp"
 
 #include <optional>
 #include <string>
@@ -16,6 +17,12 @@
 struct HeadlessSettingsOverrides {
     /** @brief Override whether category moves create subcategory folders. */
     std::optional<bool> use_subcategories;
+    /** @brief Override destination-folder sorting mode. */
+    std::optional<SortingMode> sorting_mode;
+    /** @brief Override the destination root for category moves. Empty uses the analyzed folder. */
+    std::optional<std::string> destination_folder;
+    /** @brief Override whether existing-folder sorting may propose new folders. */
+    std::optional<bool> suggest_new_folders;
     /** @brief Override whether consistency hints should favor stable labels. */
     std::optional<bool> use_consistency_hints;
     /** @brief Override whether category whitelists are active. */

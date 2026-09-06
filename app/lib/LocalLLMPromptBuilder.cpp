@@ -1,6 +1,7 @@
 #include "LocalLLMPromptBuilder.hpp"
 
 #include "FileCategoryPolicy.hpp"
+#include "FolderTreeCatalog.hpp"
 
 #include <algorithm>
 #include <array>
@@ -83,6 +84,20 @@ std::string extract_prompt_file_name(std::string_view payload)
 bool is_refined_sorting_mode(std::string_view consistency_context)
 {
     return consistency_context.find(kRefinedSortingStyleMarker) != std::string_view::npos;
+}
+
+bool is_folder_tree_mode(std::string_view consistency_context)
+{
+    return consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string_view::npos;
+}
+
+std::string folder_tree_system_prompt()
+{
+    return "You are a file organization assistant. The prompt contains an "
+           "existing destination folder tree. Choose the best target folder for "
+           "the item. Reply with exactly one JSON object in the format "
+           "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}. "
+           "Do not return category/subcategory text, explanations, or extra lines.";
 }
 
 std::string generic_file_categorization_system_prompt()
@@ -209,7 +224,12 @@ std::string build_generic_categorization_user_prompt(const std::string& file_nam
         prompt << "\n" << consistency_context << "\n";
     }
 
-    prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    if (is_folder_tree_mode(consistency_context)) {
+        prompt << "\nAnswer with exactly one JSON object:\n"
+               << "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}";
+    } else {
+        prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    }
     return prompt.str();
 }
 
@@ -233,7 +253,10 @@ std::string build_image_categorization_user_prompt(const std::string& file_name,
     if (!extra_context.empty()) {
         prompt << "\n" << extra_context << "\n";
     }
-    if (prefer_stable_taxonomy) {
+    if (is_folder_tree_mode(consistency_context)) {
+        prompt << "\nAnswer with exactly one JSON object:\n"
+               << "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}";
+    } else if (prefer_stable_taxonomy) {
         prompt << "\nAnswer with exactly one line:\nImages : <Subcategory>";
     } else {
         prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
@@ -259,7 +282,12 @@ std::string build_document_categorization_user_prompt(const std::string& file_na
     if (!consistency_context.empty()) {
         prompt << "\n" << consistency_context << "\n";
     }
-    prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    if (is_folder_tree_mode(consistency_context)) {
+        prompt << "\nAnswer with exactly one JSON object:\n"
+               << "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}";
+    } else {
+        prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    }
     return prompt.str();
 }
 
@@ -286,6 +314,9 @@ std::string build_system_prompt(std::string_view file_path,
                                 std::string_view consistency_context)
 {
     const bool prefer_stable_taxonomy = !is_refined_sorting_mode(consistency_context);
+    if (is_folder_tree_mode(consistency_context)) {
+        return folder_tree_system_prompt();
+    }
     if (file_type == FileType::Directory) {
         return directory_categorization_system_prompt();
     }

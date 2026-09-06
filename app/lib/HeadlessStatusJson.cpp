@@ -186,6 +186,11 @@ QJsonObject categorized_file_to_json(const CategorizedFile& entry)
     object.insert(QStringLiteral("canonicalCategory"), from_utf8(entry.canonical_category));
     object.insert(QStringLiteral("canonicalSubcategory"), from_utf8(entry.canonical_subcategory));
     object.insert(QStringLiteral("learningContext"), from_utf8(entry.learning_context));
+    object.insert(QStringLiteral("targetFolder"), from_utf8(entry.target_folder_relative_path));
+    object.insert(QStringLiteral("folderTreeMode"), entry.folder_tree_mode);
+    object.insert(QStringLiteral("targetFolderSuggestedNew"), entry.target_folder_suggested_new);
+    object.insert(QStringLiteral("targetFolderExists"), entry.target_folder_exists);
+    object.insert(QStringLiteral("folderTreeAllowNewFolders"), entry.folder_tree_allow_new_folders);
     return object;
 }
 
@@ -206,6 +211,13 @@ CategorizedFile categorized_file_from_json(const QJsonObject& object)
     entry.canonical_category = to_utf8(object.value(QStringLiteral("canonicalCategory")).toString());
     entry.canonical_subcategory = to_utf8(object.value(QStringLiteral("canonicalSubcategory")).toString());
     entry.learning_context = to_utf8(object.value(QStringLiteral("learningContext")).toString());
+    entry.target_folder_relative_path = to_utf8(object.value(QStringLiteral("targetFolder")).toString());
+    entry.folder_tree_mode = object.value(QStringLiteral("folderTreeMode")).toBool(false);
+    entry.target_folder_suggested_new =
+        object.value(QStringLiteral("targetFolderSuggestedNew")).toBool(false);
+    entry.target_folder_exists = object.value(QStringLiteral("targetFolderExists")).toBool(false);
+    entry.folder_tree_allow_new_folders =
+        object.value(QStringLiteral("folderTreeAllowNewFolders")).toBool(false);
     return entry;
 }
 
@@ -218,6 +230,7 @@ QJsonObject apply_options_to_json(const HeadlessReviewApplyService::Options& opt
     object.insert(QStringLiteral("includeSubdirectories"), options.include_subdirectories);
     object.insert(QStringLiteral("applySuggestedNames"), options.apply_suggested_names);
     object.insert(QStringLiteral("moveCategorizedEntries"), options.move_categorized_entries);
+    object.insert(QStringLiteral("allowNewFolderTargets"), options.allow_new_folder_targets);
     object.insert(QStringLiteral("categoryLanguage"), categoryLanguageToString(options.category_language));
     return object;
 }
@@ -231,6 +244,7 @@ HeadlessReviewApplyService::Options apply_options_from_json(const QJsonObject& o
     options.include_subdirectories = object.value(QStringLiteral("includeSubdirectories")).toBool(false);
     options.apply_suggested_names = object.value(QStringLiteral("applySuggestedNames")).toBool(false);
     options.move_categorized_entries = object.value(QStringLiteral("moveCategorizedEntries")).toBool(true);
+    options.allow_new_folder_targets = object.value(QStringLiteral("allowNewFolderTargets")).toBool(false);
     options.category_language =
         categoryLanguageFromString(object.value(QStringLiteral("categoryLanguage")).toString());
     options.apply_changes = true;
@@ -283,6 +297,9 @@ QJsonObject HeadlessStatusJson::apply_result_to_json(
         object.insert(QStringLiteral("destinationName"), from_utf8(entry.destination_name));
         object.insert(QStringLiteral("category"), from_utf8(entry.category));
         object.insert(QStringLiteral("subcategory"), from_utf8(entry.subcategory));
+        object.insert(QStringLiteral("targetFolder"), from_utf8(entry.target_folder));
+        object.insert(QStringLiteral("targetFolderSuggestedNew"), entry.target_folder_suggested_new);
+        object.insert(QStringLiteral("targetFolderExists"), entry.target_folder_exists);
         object.insert(QStringLiteral("message"), from_utf8(entry.message));
         object.insert(QStringLiteral("renameOnly"), entry.rename_only);
         object.insert(QStringLiteral("moved"), entry.moved);

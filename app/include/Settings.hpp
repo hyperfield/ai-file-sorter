@@ -215,6 +215,28 @@ public:
     void set_use_subcategories(bool value);
 
     /**
+     * @brief Returns how categorization results should map to destination folders.
+     * @return Current sorting mode.
+     */
+    SortingMode get_sorting_mode() const;
+    /**
+     * @brief Sets how categorization results should map to destination folders.
+     * @param mode Sorting mode to use for future analysis runs.
+     */
+    void set_sorting_mode(SortingMode mode);
+
+    /**
+     * @brief Returns whether existing-folder mode may propose new target folders.
+     * @return True when new folder suggestions are allowed.
+     */
+    bool get_suggest_new_folders() const;
+    /**
+     * @brief Sets whether existing-folder mode may propose new target folders.
+     * @param value True to allow new folder suggestions.
+     */
+    void set_suggest_new_folders(bool value);
+
+    /**
      * @brief Returns whether consistency hints are enabled.
      * @return True when consistency hints should be used.
      */
@@ -400,15 +422,32 @@ public:
     void set_add_document_date_to_category(bool value);
 
     /**
-     * @brief Returns the current target sort folder path.
+     * @brief Returns the current folder selected for analysis.
      * @return Sort folder path as UTF-8 text.
      */
     std::string get_sort_folder() const;
     /**
-     * @brief Sets the target sort folder path.
+     * @brief Sets the folder selected for analysis.
      * @param path Sort folder path to store.
      */
     void set_sort_folder(const std::string &path);
+
+    /**
+     * @brief Returns the optional destination root for categorized files.
+     * @return Destination folder path, or empty to use the analyzed folder.
+     */
+    std::string get_destination_folder() const;
+    /**
+     * @brief Sets the optional destination root for categorized files.
+     * @param path Destination folder path, or empty to use the analyzed folder.
+     */
+    void set_destination_folder(const std::string& path);
+    /**
+     * @brief Resolves the destination root for a given analysis folder.
+     * @param analysis_folder Folder currently being analyzed.
+     * @return Destination folder when configured; otherwise analysis_folder.
+     */
+    std::string get_effective_destination_folder(const std::string& analysis_folder) const;
 
     /**
      * @brief Returns whether the consistency-pass feature is enabled.
@@ -671,6 +710,8 @@ private:
     std::string llm_storage_dir;
     std::string visual_model_id;
     bool use_subcategories;
+    SortingMode sorting_mode{SortingMode::GeneratedCategories};
+    bool suggest_new_folders{false};
     bool categorize_files;
     bool categorize_directories;
     bool include_subdirectories{false};
@@ -692,6 +733,7 @@ private:
     bool use_whitelist{false};
     std::string default_sort_folder;
     std::string sort_folder;
+    std::string destination_folder;
     std::string skipped_version;
     std::string whats_new_version_shown;
     bool show_file_explorer{true};

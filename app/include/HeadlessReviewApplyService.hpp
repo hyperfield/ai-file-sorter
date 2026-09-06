@@ -37,6 +37,8 @@ public:
         bool apply_suggested_names{false};
         /** @brief Whether categorized entries should be moved into category folders. */
         bool move_categorized_entries{true};
+        /** @brief Whether existing-folder sorting may create approved new target folders. */
+        bool allow_new_folder_targets{false};
         /** @brief Language used by display labels when canonical labels are absent. */
         CategoryLanguage category_language{CategoryLanguage::English};
         /** @brief Whether planned changes should be committed to storage and cache. */
@@ -53,6 +55,9 @@ public:
         std::string destination_name;
         std::string category;
         std::string subcategory;
+        std::string target_folder;
+        bool target_folder_suggested_new{false};
+        bool target_folder_exists{false};
         std::string message;
         bool rename_only{false};
         bool moved{false};

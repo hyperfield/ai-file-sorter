@@ -1,6 +1,7 @@
 #include "ReviewFileNaming.hpp"
 
 #include "DocumentTextAnalyzer.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "Utils.hpp"
 
@@ -169,11 +170,21 @@ std::filesystem::path build_suggested_target_dir(const CategorizedFile& file,
     const auto base_dir = base_dir_override.empty()
         ? source_dir
         : Utils::utf8_to_path(base_dir_override);
-    const std::string category = file.category.empty() ? file.canonical_category : file.category;
-    if (file.rename_only || category.empty() || !move_categorized_entries) {
+    if (file.rename_only || !move_categorized_entries) {
         return source_dir;
     }
+    if (file.folder_tree_mode && !file.target_folder_relative_path.empty()) {
+        const auto validation =
+            FolderTreeCatalog::validate_relative_folder_path(file.target_folder_relative_path);
+        if (validation.valid) {
+            return base_dir / Utils::utf8_to_path(validation.normalized_path);
+        }
+    }
 
+    const std::string category = file.category.empty() ? file.canonical_category : file.category;
+    if (category.empty()) {
+        return source_dir;
+    }
     const auto category_path = Utils::utf8_to_path(category);
     const std::string subcategory = file.subcategory.empty()
         ? file.canonical_subcategory

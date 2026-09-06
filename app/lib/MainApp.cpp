@@ -948,6 +948,19 @@ void MainApp::connect_signals()
             on_directory_selected(directory);
         }
     });
+    if (destination_browse_button) {
+        connect(destination_browse_button, &QPushButton::clicked, this, [this]() {
+            const QString start_directory =
+                destination_path_entry && !destination_path_entry->text().trimmed().isEmpty()
+                    ? destination_path_entry->text()
+                    : (path_entry ? path_entry->text() : QDir::homePath());
+            const QString directory =
+                QFileDialog::getExistingDirectory(this, tr("Select Destination Directory"), start_directory);
+            if (!directory.isEmpty()) {
+                on_destination_directory_selected(directory);
+            }
+        });
+    }
 
     connect(path_entry, &QLineEdit::returnPressed, this, [this]() {
         const QString folder = path_entry->text();
@@ -957,6 +970,16 @@ void MainApp::connect_signals()
             show_error_dialog(ERR_INVALID_PATH);
         }
     });
+    if (destination_path_entry) {
+        connect(destination_path_entry, &QLineEdit::returnPressed, this, [this]() {
+            const QString folder = destination_path_entry->text();
+            if (QDir(folder).exists()) {
+                on_destination_directory_selected(folder);
+            } else {
+                show_error_dialog(ERR_INVALID_PATH);
+            }
+        });
+    }
 
     connect_folder_contents_signals();
     connect_checkbox_signals();
@@ -1147,8 +1170,23 @@ void MainApp::apply_accessibility_metadata()
         path_label->setBuddy(path_entry);
         apply_named_control(path_entry, path_label->text(), path_entry->toolTip());
     }
+    if (destination_path_label && destination_path_entry) {
+        destination_path_label->setBuddy(destination_path_entry);
+        apply_named_control(destination_path_entry,
+                            destination_path_label->text(),
+                            destination_path_entry->toolTip());
+    }
 
     apply_named_control(browse_button, browse_button ? browse_button->text() : QString());
+    apply_named_control(destination_browse_button,
+                        destination_browse_button ? destination_browse_button->text() : QString());
+    apply_named_control(use_analyzed_folder_as_destination_checkbox,
+                        use_analyzed_folder_as_destination_checkbox
+                            ? use_analyzed_folder_as_destination_checkbox->text()
+                            : QString(),
+                        use_analyzed_folder_as_destination_checkbox
+                            ? use_analyzed_folder_as_destination_checkbox->toolTip()
+                            : QString());
     apply_named_control(use_subcategories_checkbox,
                         use_subcategories_checkbox ? use_subcategories_checkbox->text() : QString(),
                         use_subcategories_checkbox ? use_subcategories_checkbox->toolTip() : QString());
@@ -1173,6 +1211,12 @@ void MainApp::apply_accessibility_metadata()
                         categorization_style_consistent_radio
                             ? categorization_style_consistent_radio->toolTip()
                             : QString());
+    apply_named_control(sorting_mode_selector,
+                        sorting_mode_selector ? sorting_mode_selector->currentText() : QString(),
+                        sorting_mode_selector ? sorting_mode_selector->toolTip() : QString());
+    apply_named_control(suggest_new_folders_checkbox,
+                        suggest_new_folders_checkbox ? suggest_new_folders_checkbox->text() : QString(),
+                        suggest_new_folders_checkbox ? suggest_new_folders_checkbox->toolTip() : QString());
     apply_named_control(use_whitelist_checkbox,
                         use_whitelist_checkbox ? use_whitelist_checkbox->text() : QString(),
                         use_whitelist_checkbox ? use_whitelist_checkbox->toolTip() : QString());
@@ -1513,6 +1557,16 @@ void MainApp::on_analyze_clicked()
         core_logger->warn("User supplied invalid directory '{}'", folder_path);
         return;
     }
+    settings.set_sort_folder(folder_path);
+    const std::string destination_folder = get_destination_folder_path();
+    if (!Utils::is_valid_directory(destination_folder.c_str())) {
+        show_error_dialog(ERR_INVALID_PATH);
+        core_logger->warn("User supplied invalid destination directory '{}'", destination_folder);
+        return;
+    }
+    settings.set_destination_folder(destination_folder == folder_path
+                                        ? std::string()
+                                        : destination_folder);
 
     if (!using_local_llm) {
         if (!Utils::is_network_available()) {
@@ -1573,6 +1627,12 @@ void MainApp::on_directory_selected(const QString& path, bool user_initiated)
     remember_recent_network_location(path);
 #endif
     path_entry->setText(path);
+    settings.set_sort_folder(to_utf8(path));
+    if (use_analyzed_folder_as_destination_checkbox &&
+        use_analyzed_folder_as_destination_checkbox->isChecked()) {
+        settings.set_destination_folder(std::string());
+    }
+    update_destination_folder_controls();
     statusBar()->showMessage(tr("Folder selected: %1").arg(path), 3000);
     status_is_ready_ = false;
     refresh_active_storage_provider(to_utf8(path), user_initiated);
@@ -1582,6 +1642,39 @@ void MainApp::on_directory_selected(const QString& path, bool user_initiated)
     }
 
     update_folder_contents(path);
+}
+
+void MainApp::on_destination_directory_selected(const QString& path)
+{
+    if (use_analyzed_folder_as_destination_checkbox) {
+        use_analyzed_folder_as_destination_checkbox->setChecked(false);
+    }
+    if (destination_path_entry) {
+        destination_path_entry->setText(path);
+    }
+    settings.set_destination_folder(get_destination_folder_path());
+    update_destination_folder_controls();
+    statusBar()->showMessage(tr("Destination selected: %1").arg(path), 3000);
+    status_is_ready_ = false;
+}
+
+void MainApp::update_destination_folder_controls()
+{
+    const bool use_analyzed_folder =
+        !use_analyzed_folder_as_destination_checkbox ||
+        use_analyzed_folder_as_destination_checkbox->isChecked();
+    if (destination_path_entry) {
+        if (use_analyzed_folder && path_entry) {
+            destination_path_entry->setText(path_entry->text());
+        }
+        destination_path_entry->setEnabled(!use_analyzed_folder);
+    }
+    if (destination_path_label) {
+        destination_path_label->setEnabled(!use_analyzed_folder);
+    }
+    if (destination_browse_button) {
+        destination_browse_button->setEnabled(!use_analyzed_folder);
+    }
 }
 
 void MainApp::set_categorization_style(bool use_consistency)
@@ -2990,6 +3083,7 @@ void MainApp::run_large_whitelist_llm_test()
     settings.set_offer_rename_documents(false);
     settings.set_rename_documents_only(false);
     settings.set_sort_folder(Utils::path_to_utf8(sample_dir));
+    settings.set_destination_folder(std::string());
 
     const std::string sample_dir_text = Utils::path_to_utf8(sample_dir);
     if (!db_manager.clear_directory_categorizations(sample_dir_text, true)) {
@@ -3489,7 +3583,7 @@ void MainApp::show_results_dialog(const std::vector<CategorizedFile>& results)
                                                                        &user_learning_store_,
                                                                        &review_history_store_);
         categorization_dialog->show_results(results,
-                                            get_folder_path(),
+                                            get_destination_folder_path(),
                                             settings.get_include_subdirectories(),
                                             settings.get_offer_rename_images(),
                                             settings.get_offer_rename_documents(),
@@ -3533,6 +3627,23 @@ std::string MainApp::get_folder_path() const
     const QByteArray bytes = path_entry->text().toUtf8();
     return normalize_directory_path(
         std::string(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+}
+
+std::string MainApp::get_destination_folder_path() const
+{
+    if (use_analyzed_folder_as_destination_checkbox &&
+        use_analyzed_folder_as_destination_checkbox->isChecked()) {
+        return get_folder_path();
+    }
+    if (!destination_path_entry) {
+        return normalize_directory_path(
+            settings.get_effective_destination_folder(get_folder_path()));
+    }
+    const QByteArray bytes = destination_path_entry->text().toUtf8();
+    const std::string destination =
+        normalize_directory_path(
+            std::string(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+    return destination.empty() ? get_folder_path() : destination;
 }
 
 
