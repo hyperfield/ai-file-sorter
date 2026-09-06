@@ -141,6 +141,44 @@ void apply_download_toggle_style(QToolButton* button)
         .arg(normal, hover, pressed));
 }
 
+void apply_visual_backend_combo_style(QComboBox* combo)
+{
+    if (!combo) {
+        return;
+    }
+
+    combo->setObjectName(QStringLiteral("visualBackendCombo"));
+    combo->setMinimumHeight(std::max(32, combo->sizeHint().height() + 6));
+    combo->setMinimumContentsLength(28);
+    combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    combo->setStyleSheet(QStringLiteral(
+        "QComboBox#visualBackendCombo {"
+        " border: 2px solid #1f6feb;"
+        " border-radius: 4px;"
+        " padding: 5px 30px 5px 10px;"
+        " background-color: #eef6ff;"
+        " color: #111827;"
+        " font-weight: 600;"
+        " }"
+        "QComboBox#visualBackendCombo:hover {"
+        " border-color: #0f5bd2;"
+        " background-color: #e3f0ff;"
+        " }"
+        "QComboBox#visualBackendCombo:focus {"
+        " border-color: #084fb5;"
+        " background-color: #ffffff;"
+        " }"
+        "QComboBox#visualBackendCombo:disabled {"
+        " border-color: #c8d3df;"
+        " background-color: #f3f5f7;"
+        " color: #6b7280;"
+        " }"
+        "QComboBox#visualBackendCombo QAbstractItemView {"
+        " selection-background-color: #1f6feb;"
+        " selection-color: #ffffff;"
+        " }"));
+}
+
 } // namespace
 
 
@@ -590,7 +628,7 @@ void LLMSelectionDialog::setup_ui()
     visual_backend_label->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     visual_backend_combo = new QComboBox(visual_backend_row);
     visual_backend_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    visual_backend_combo->setMinimumContentsLength(18);
+    apply_visual_backend_combo_style(visual_backend_combo);
     visual_backend_layout->addWidget(visual_backend_label);
     visual_backend_layout->addWidget(visual_backend_combo, 1);
     visual_layout->addWidget(visual_backend_row);
@@ -2307,6 +2345,11 @@ std::string LLMSelectionDialogTestAccess::selected_visual_model_label(const LLMS
         return {};
     }
     return dialog.visual_backend_combo->currentText().toStdString();
+}
+
+QComboBox* LLMSelectionDialogTestAccess::visual_model_combo(LLMSelectionDialog& dialog)
+{
+    return dialog.visual_backend_combo;
 }
 
 LLMDownloader* LLMSelectionDialogTestAccess::local_downloader(LLMSelectionDialog& dialog)

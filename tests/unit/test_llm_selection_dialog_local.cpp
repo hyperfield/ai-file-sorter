@@ -9,6 +9,8 @@
 #include "Utils.hpp"
 #include "VisualModelCatalog.hpp"
 
+#include <QComboBox>
+
 #include <filesystem>
 #include <fstream>
 
@@ -59,6 +61,28 @@ TEST_CASE("LLM selection dialog defaults to the Gemma 4B local model") {
 
     LLMSelectionDialog dialog(settings);
     CHECK(dialog.get_selected_llm_choice() == LLMChoice::Local_4b_Gemma);
+}
+
+TEST_CASE("LLM selection dialog emphasizes the visual model selector") {
+    QtAppContext qt;
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+
+    Settings settings;
+    settings.load();
+
+    LLMSelectionDialog dialog(settings);
+    auto* combo = LLMSelectionDialogTestAccess::visual_model_combo(dialog);
+    REQUIRE(combo != nullptr);
+
+    CHECK(combo->objectName() == QStringLiteral("visualBackendCombo"));
+    CHECK(combo->minimumHeight() >= 32);
+    CHECK(combo->minimumContentsLength() >= 28);
+    CHECK(combo->sizePolicy().horizontalPolicy() == QSizePolicy::Expanding);
+    CHECK(combo->sizePolicy().verticalPolicy() == QSizePolicy::Fixed);
+    CHECK(combo->styleSheet().contains(QStringLiteral("border: 2px solid #1f6feb")));
+    CHECK(combo->styleSheet().contains(QStringLiteral("background-color: #eef6ff")));
+    CHECK(combo->styleSheet().contains(QStringLiteral("font-weight: 600")));
 }
 
 TEST_CASE("LLM selection dialog keeps the legacy LLaMa choice when the previous Q4 artifact exists") {

@@ -1057,6 +1057,13 @@ Procedure: Read the selected LLM choice from the dialog.
 Expected outcome: The selected built-in choice is `Local_4b_Gemma`.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog defaults to the Gemma 4B local model"`
 
+#### Test case: LLM selection dialog emphasizes the visual model selector
+Purpose: Keep the image-analysis visual model selector visually discoverable.
+Setup: Construct the LLM selection dialog on a clean config directory.
+Procedure: Inspect the visual model combo box through test access.
+Expected outcome: The combo has the emphasized object name, larger minimum footprint, fixed vertical sizing, and accent border/background/font styling.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog emphasizes the visual model selector"`
+
 #### Test case: LLM selection dialog keeps the legacy LLaMa choice when the previous Q4 artifact exists
 Purpose: Ensure the legacy built-in LLaMa option still appears for users who only have the older pre-Gemma Q4 artifact on disk.
 Setup: Write the historical `Llama-3.2-3B-Instruct-bf16-q4_k.gguf` file into the default local LLM cache and preselect `Local_3b_legacy`.

@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include <QComboBox>
 #include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>
@@ -29,6 +30,12 @@ public:
     static VisualEntryRefs visual_entry_for_env_var(LLMSelectionDialog& dialog, const std::string& env_var);
     static std::string selected_visual_model_id(const LLMSelectionDialog& dialog);
     static std::string selected_visual_model_label(const LLMSelectionDialog& dialog);
+    /**
+     * @brief Returns the visual model selector widget.
+     * @param dialog Selection dialog instance under test.
+     * @return Visual model combo box, or nullptr when unavailable.
+     */
+    static QComboBox* visual_model_combo(LLMSelectionDialog& dialog);
     /**
      * @brief Returns the active built-in local model downloader.
      * @param dialog Selection dialog instance under test.
