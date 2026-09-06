@@ -148,12 +148,14 @@ TEST_CASE("Vision diagnostics are only shown in the progress dialog for developm
         "[VISION] Timing lion-805084_1920-c62a5582169c4bae82553d9a21c1a0bb.jpg: "
         "load 16.4 ms | describe 2.45 s total (tokenize 16.4 ms, eval 1.85 s, gen 582 ms) | "
         "filename 534 ms total (tokenize 1.0 ms, eval 375 ms, gen 158 ms) | total 3.00 s";
+    const std::string decoding_message = "[VISION] Decoding image batch 1/2 (50.00%)";
     const std::string ordinary_message = "[VISION] Using cached suggestion for lion-805084_1920.jpg";
 
     SECTION("normal mode hides vision diagnostics") {
         MainApp window(settings, /*development_mode=*/false, /*test_mode=*/false);
         CHECK_FALSE(MainAppTestAccess::should_show_progress_message_in_dialog(window, runtime_message));
         CHECK_FALSE(MainAppTestAccess::should_show_progress_message_in_dialog(window, timing_message));
+        CHECK_FALSE(MainAppTestAccess::should_show_progress_message_in_dialog(window, decoding_message));
         CHECK(MainAppTestAccess::should_show_progress_message_in_dialog(window, ordinary_message));
     }
 
@@ -161,11 +163,13 @@ TEST_CASE("Vision diagnostics are only shown in the progress dialog for developm
         MainApp window(settings, /*development_mode=*/true, /*test_mode=*/false);
         CHECK(MainAppTestAccess::should_show_progress_message_in_dialog(window, runtime_message));
         CHECK(MainAppTestAccess::should_show_progress_message_in_dialog(window, timing_message));
+        CHECK(MainAppTestAccess::should_show_progress_message_in_dialog(window, decoding_message));
     }
 
     SECTION("test mode shows vision diagnostics") {
         MainApp window(settings, /*development_mode=*/false, /*test_mode=*/true);
         CHECK(MainAppTestAccess::should_show_progress_message_in_dialog(window, runtime_message));
         CHECK(MainAppTestAccess::should_show_progress_message_in_dialog(window, timing_message));
+        CHECK(MainAppTestAccess::should_show_progress_message_in_dialog(window, decoding_message));
     }
 }

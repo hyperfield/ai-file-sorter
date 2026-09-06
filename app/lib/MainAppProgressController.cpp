@@ -92,7 +92,8 @@ void MainAppProgressController::mark_stage_item_skipped(StageId stage_id,
 
 bool MainAppProgressController::is_vision_diagnostic(const std::string& message)
 {
-    return has_prefix(message, "[VISION] Runtime: ") ||
+    return has_prefix(message, "[VISION] Decoding image batch ") ||
+           has_prefix(message, "[VISION] Runtime: ") ||
            has_prefix(message, "[VISION] Timing ");
 }
 
