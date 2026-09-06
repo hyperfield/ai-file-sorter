@@ -114,8 +114,8 @@
     <name>CategorizationDialog</name>
     <message>
         <location filename="../../lib/CategorizationDialog.cpp" line="453"/>
-        <source>Tip: Click %1 cells to rename them.</source>
-        <translation>提示：单击 %1 单元格可对其进行重命名。</translation>
+        <source>Tip: Double-click %1 cells to edit them.</source>
+        <translation>提示：双击 %1 单元格可进行编辑。</translation>
     </message>
     <message>
         <location filename="../../lib/CategorizationDialog.cpp" line="1999"/>

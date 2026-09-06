@@ -15,6 +15,7 @@
 #include "UndoManager.hpp"
 #include "UserLearningStore.hpp"
 #include "Utils.hpp"
+#include <QAbstractItemView>
 #include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -240,6 +241,23 @@ TEST_CASE("CategorizationDialog supports sorting by columns") {
         REQUIRE(model->item(0, 4)->text() == QStringLiteral("Beta"));
         REQUIRE(model->item(1, 4)->text() == QStringLiteral("Alpha"));
     }
+}
+
+TEST_CASE("CategorizationDialog does not edit cells on selected click") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir undo_dir;
+    CategorizationDialog dialog(nullptr, true, undo_dir.path().string());
+    dialog.test_set_entries({sample_file()});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+
+    const auto triggers = table->editTriggers();
+    CHECK(triggers.testFlag(QAbstractItemView::DoubleClicked));
+    CHECK(triggers.testFlag(QAbstractItemView::EditKeyPressed));
+    CHECK_FALSE(triggers.testFlag(QAbstractItemView::SelectedClicked));
 }
 
 TEST_CASE("CategorizationDialog auto-approves rows by enabled operation") {

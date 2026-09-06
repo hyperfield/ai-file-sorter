@@ -114,8 +114,8 @@
     <name>CategorizationDialog</name>
     <message>
         <location filename="../../lib/CategorizationDialog.cpp" line="453"/>
-        <source>Tip: Click %1 cells to rename them.</source>
-        <translation>Tip: klik op %1-cellen om ze te hernoemen.</translation>
+        <source>Tip: Double-click %1 cells to edit them.</source>
+        <translation>Tip: dubbelklik op %1-cellen om ze te bewerken.</translation>
     </message>
     <message>
         <location filename="../../lib/CategorizationDialog.cpp" line="1999"/>

@@ -1953,6 +1953,13 @@ Procedure: Sort by the file name column ascending, then by category descending.
 Expected outcome: The first sort yields alphabetical file names; the second yields categories in reverse alphabetical order.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog supports sorting by columns"`
 
+#### Test case: CategorizationDialog does not edit cells on selected click
+Purpose: Prevent stale inline editor highlights from appearing when moving row selection between editable cells.
+Setup: Create a review dialog with one categorized file.
+Procedure: Inspect the table edit trigger flags.
+Expected outcome: Double-click and keyboard editing remain enabled, while `SelectedClicked` editing is disabled.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog does not edit cells on selected click"`
+
 #### Test case: CategorizationDialog auto-approves rows by enabled operation
 Purpose: Verify the review dialog preselects rows only when each row action is covered by enabled auto-approval options.
 Setup: Load rename-only, categorization-only, combined rename+categorization, and incomplete rows into the dialog.

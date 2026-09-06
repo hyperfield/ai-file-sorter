@@ -114,8 +114,8 @@
     <name>CategorizationDialog</name>
     <message>
         <location filename="../../lib/CategorizationDialog.cpp" line="453"/>
-        <source>Tip: Click %1 cells to rename them.</source>
-        <translation>सुझाव: नाम बदलने के लिए %1 सेल पर क्लिक करें।</translation>
+        <source>Tip: Double-click %1 cells to edit them.</source>
+        <translation>सुझाव: उन्हें संपादित करने के लिए %1 सेल पर डबल-क्लिक करें।</translation>
     </message>
     <message>
         <location filename="../../lib/CategorizationDialog.cpp" line="1999"/>
