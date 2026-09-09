@@ -351,6 +351,18 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     main_layout->setContentsMargins(12, 12, 12, 12);
     main_layout->setSpacing(8);
 
+    app.sorting_mode_selector = new QComboBox(central);
+    app.sorting_mode_selector->addItem(QString(), static_cast<int>(SortingMode::GeneratedCategories));
+    app.sorting_mode_selector->addItem(QString(), static_cast<int>(SortingMode::ExistingFolderTree));
+    app.sorting_mode_selector->setMinimumContentsLength(22);
+    app.sorting_mode_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    app.suggest_new_folders_checkbox = new QCheckBox(central);
+    auto* sorting_mode_row = new QHBoxLayout();
+    sorting_mode_row->addWidget(app.sorting_mode_selector);
+    sorting_mode_row->addWidget(app.suggest_new_folders_checkbox);
+    sorting_mode_row->addStretch();
+    main_layout->addLayout(sorting_mode_row);
+
     auto* path_layout = new QHBoxLayout();
     app.path_label = new QLabel(central);
     app.path_entry = new QLineEdit(central);
@@ -485,19 +497,6 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     toggle_row->addStretch();
     categorization_layout->addWidget(app.categorization_style_heading);
     categorization_layout->addLayout(toggle_row);
-
-    app.sorting_mode_selector = new QComboBox(central);
-    app.sorting_mode_selector->addItem(QString(), static_cast<int>(SortingMode::GeneratedCategories));
-    app.sorting_mode_selector->addItem(QString(), static_cast<int>(SortingMode::ExistingFolderTree));
-    app.sorting_mode_selector->setMinimumContentsLength(22);
-    app.sorting_mode_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    app.suggest_new_folders_checkbox = new QCheckBox(central);
-    auto* sorting_mode_row = new QHBoxLayout();
-    sorting_mode_row->addWidget(app.sorting_mode_selector);
-    sorting_mode_row->addWidget(app.suggest_new_folders_checkbox);
-    sorting_mode_row->addStretch();
-    categorization_layout->addSpacing(4);
-    categorization_layout->addLayout(sorting_mode_row);
 
     auto* whitelist_row = new QHBoxLayout();
     whitelist_row->addWidget(app.use_whitelist_checkbox);
