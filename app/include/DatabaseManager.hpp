@@ -51,6 +51,58 @@ public:
                                                    const std::string& suggested_name = "",
                                                    bool rename_only = false,
                                                    bool rename_applied = false);
+    /**
+     * @brief Cached routing decision for an existing destination folder tree.
+     */
+    struct FolderTreeRoutingRecord {
+        std::string destination_root;
+        std::string tree_fingerprint;
+        bool allow_new_folders{false};
+        std::string semantic_category;
+        std::string semantic_subcategory;
+        std::string semantic_target_folder;
+        std::string best_existing_folder;
+        int best_existing_score{0};
+        std::string target_folder_relative_path;
+        bool target_folder_suggested_new{false};
+        bool target_folder_exists{false};
+    };
+
+    /**
+     * @brief Inserts or updates a cached folder-tree routing decision.
+     * @param file_name File name used for cache identity.
+     * @param file_type File type label, "F" or "D".
+     * @param dir_path Directory path used for cache identity.
+     * @param record Routing metadata to persist.
+     * @return True when the routing row was written.
+     */
+    bool insert_or_update_folder_tree_routing(const std::string& file_name,
+                                              const std::string& file_type,
+                                              const std::string& dir_path,
+                                              const FolderTreeRoutingRecord& record);
+
+    /**
+     * @brief Looks up a cached folder-tree routing decision for the current tree and semantic result.
+     * @param file_name File name used for cache identity.
+     * @param file_type File type.
+     * @param dir_path Directory path used for cache identity.
+     * @param destination_root Destination root used to build the folder tree.
+     * @param tree_fingerprint Fingerprint of the current folder tree.
+     * @param allow_new_folders Whether new folder suggestions are enabled.
+     * @param semantic_category Semantic category used for routing.
+     * @param semantic_subcategory Semantic subcategory used for routing.
+     * @return Cached routing record when an exact context match exists.
+     */
+    std::optional<FolderTreeRoutingRecord> get_folder_tree_routing(
+        const std::string& file_name,
+        FileType file_type,
+        const std::string& dir_path,
+        const std::string& destination_root,
+        const std::string& tree_fingerprint,
+        bool allow_new_folders,
+        const std::string& semantic_category,
+        const std::string& semantic_subcategory);
+
     std::vector<std::string> get_dir_contents_from_db(const std::string &dir_path);
     bool remove_file_categorization(const std::string& dir_path,
                                     const std::string& file_name,

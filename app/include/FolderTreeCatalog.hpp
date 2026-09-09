@@ -42,6 +42,14 @@ struct Selection {
 };
 
 /**
+ * @brief Best existing folder candidate for a semantic category.
+ */
+struct SemanticMatch {
+    Entry entry;
+    int score{0};
+};
+
+/**
  * @brief Catalog of existing destination folders under a sorting root.
  */
 class Catalog {
@@ -73,6 +81,12 @@ public:
      * @return Existing folder entries.
      */
     const std::vector<Entry>& entries() const { return entries_; }
+
+    /**
+     * @brief Build a stable fingerprint for the catalog contents.
+     * @return Fingerprint that changes when included folder paths change.
+     */
+    std::string fingerprint() const;
 
     /**
      * @brief Return whether the catalog has no existing folder targets.
@@ -121,6 +135,55 @@ std::optional<Selection> parse_selection(const std::string& response,
                                          bool allow_new_folders);
 
 /**
+ * @brief Resolve a stored target folder path against the current catalog.
+ * @param relative_path Cached or user-entered relative folder path.
+ * @param catalog Existing destination folders.
+ * @param allow_new_folders True to accept safe paths not present in the catalog.
+ * @return Resolved selection with current existence metadata.
+ */
+std::optional<Selection> resolve_target_path(std::string_view relative_path,
+                                             const Catalog& catalog,
+                                             bool allow_new_folders);
+
+/**
+ * @brief Build the default new folder path for a semantic category/subcategory.
+ * @param category Semantic category.
+ * @param subcategory Semantic subcategory.
+ * @return Safe relative folder path, or empty when labels cannot form one.
+ */
+std::string semantic_target_path(std::string_view category,
+                                 std::string_view subcategory);
+
+/**
+ * @brief Score how well an existing folder path matches a semantic category.
+ * @param relative_path Existing folder path.
+ * @param category Semantic category.
+ * @param subcategory Semantic subcategory.
+ * @return Higher score means stronger semantic fit.
+ */
+int semantic_match_score(std::string_view relative_path,
+                         std::string_view category,
+                         std::string_view subcategory);
+
+/**
+ * @brief Return the strongest existing folder match for a semantic category.
+ * @param catalog Existing folder catalog.
+ * @param category Semantic category.
+ * @param subcategory Semantic subcategory.
+ * @return Best match with score, or empty when no folders are available.
+ */
+std::optional<SemanticMatch> best_semantic_match(const Catalog& catalog,
+                                                 std::string_view category,
+                                                 std::string_view subcategory);
+
+/**
+ * @brief Return whether a semantic match score is strong enough to prefer existing structure.
+ * @param score Semantic match score.
+ * @return True when the score indicates a clear existing folder fit.
+ */
+bool is_strong_semantic_match(int score);
+
+/**
  * @brief Build the prompt context used to route files into an existing folder tree.
  * @param catalog Existing folder catalog.
  * @param item_name File or folder name being routed.
@@ -131,7 +194,10 @@ std::optional<Selection> parse_selection(const std::string& response,
 std::string build_prompt_context(const Catalog& catalog,
                                  const std::string& item_name,
                                  const std::string& item_path,
-                                 bool allow_new_folders);
+                                 bool allow_new_folders,
+                                 std::string_view semantic_category = {},
+                                 std::string_view semantic_subcategory = {},
+                                 std::string_view semantic_target = {});
 
 /**
  * @brief Derive compatibility category labels from a relative target folder path.

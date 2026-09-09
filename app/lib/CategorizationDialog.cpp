@@ -945,6 +945,83 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
                                                         subcategory,
                                                         category_language_);
     };
+    auto attach_folder_tree_metadata =
+        [this](DatabaseManager::ResolvedCategory& resolved, QStandardItem* target_item) {
+            if (!folder_tree_mode_ || !target_item) {
+                return;
+            }
+
+            const std::string target_folder = target_item->text().toStdString();
+            const auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
+            if (!validation.valid) {
+                return;
+            }
+
+            resolved.target_folder_relative_path = validation.normalized_path;
+            resolved.folder_tree_mode = true;
+            resolved.target_folder_suggested_new =
+                target_item->data(kTargetFolderSuggestedNewRole).toBool();
+            resolved.target_folder_exists = target_item->data(kTargetFolderExistsRole).toBool();
+            resolved.folder_tree_allow_new_folders =
+                target_item->data(kFolderTreeAllowNewFoldersRole).toBool() ||
+                folder_tree_allow_new_folders_;
+        };
+    const auto folder_tree_catalog = (folder_tree_mode_ && !base_dir_.empty())
+        ? FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(base_dir_))
+        : FolderTreeCatalog::Catalog{};
+    const std::string folder_tree_fingerprint = folder_tree_catalog.fingerprint();
+    auto persist_folder_tree_route =
+        [this, &folder_tree_catalog, &folder_tree_fingerprint](
+            const std::string& file_name,
+            const std::string& file_type_label,
+            const std::string& file_path,
+            const DatabaseManager::ResolvedCategory& resolved,
+            QStandardItem* target_item) {
+            if (!folder_tree_mode_ || !db_manager || !target_item || base_dir_.empty() ||
+                resolved.category.empty() || resolved.subcategory.empty()) {
+                return;
+            }
+
+            const std::string target_folder = target_item->text().toStdString();
+            const auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
+            if (!validation.valid) {
+                return;
+            }
+
+            const bool allow_new = target_item->data(kFolderTreeAllowNewFoldersRole).toBool() ||
+                                   folder_tree_allow_new_folders_;
+            const auto target_dir =
+                Utils::utf8_to_path(base_dir_) / Utils::utf8_to_path(validation.normalized_path);
+            const std::string target_dir_text = Utils::path_to_utf8(target_dir);
+            const bool target_exists =
+                storage_provider_ ? storage_provider_->path_exists(target_dir_text)
+                                  : std::filesystem::exists(target_dir);
+            const std::string semantic_target =
+                FolderTreeCatalog::semantic_target_path(resolved.category, resolved.subcategory);
+            const auto best_existing =
+                FolderTreeCatalog::best_semantic_match(folder_tree_catalog,
+                                                       resolved.category,
+                                                       resolved.subcategory);
+
+            DatabaseManager::FolderTreeRoutingRecord record;
+            record.destination_root = base_dir_;
+            record.tree_fingerprint = folder_tree_fingerprint;
+            record.allow_new_folders = allow_new;
+            record.semantic_category = resolved.category;
+            record.semantic_subcategory = resolved.subcategory;
+            record.semantic_target_folder = semantic_target;
+            if (best_existing) {
+                record.best_existing_folder = best_existing->entry.relative_path;
+                record.best_existing_score = best_existing->score;
+            }
+            record.target_folder_relative_path = validation.normalized_path;
+            record.target_folder_suggested_new = !target_exists;
+            record.target_folder_exists = target_exists;
+            db_manager->insert_or_update_folder_tree_routing(file_name,
+                                                             file_type_label,
+                                                             file_path,
+                                                             record);
+        };
 
     for (int row = 0; row < model->rowCount(); ++row) {
         auto* file_item = model->item(row, ColumnFile);
@@ -957,19 +1034,9 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
         bool rename_only = file_item->data(kRenameOnlyRole).toBool();
         auto* category_item = model->item(row, ColumnCategory);
         auto* subcategory_item = model->item(row, ColumnSubcategory);
+        auto* target_folder_item = model->item(row, ColumnTargetFolder);
         std::string category = read_item_or_hidden_text(category_item, kHiddenCategoryRole);
         std::string subcategory = read_item_or_hidden_text(subcategory_item, kHiddenSubcategoryRole);
-        if (folder_tree_mode_) {
-            if (auto* target_item = model->item(row, ColumnTargetFolder)) {
-                const std::string target_folder = target_item->text().toStdString();
-                const auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
-                if (validation.valid) {
-                    auto derived = FolderTreeCatalog::derive_category_pair(validation.normalized_path);
-                    category = std::move(derived.first);
-                    subcategory = std::move(derived.second);
-                }
-            }
-        }
         const bool is_image = row_is_supported_image(row);
         const bool is_document = row_is_supported_document(row);
         if (is_image || is_document) {
@@ -1034,7 +1101,9 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
                 resolved.category = cached_entry->category;
                 resolved.subcategory = cached_entry->subcategory;
             }
+            attach_folder_tree_metadata(resolved, target_folder_item);
             const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
+            persist_folder_tree_route(file_name, file_type_label, file_path, resolved, target_folder_item);
             if (cached_entry &&
                 entry_is_unchanged(*cached_entry, resolved, suggested_name, rename_only, used_consistency)) {
                 continue;
@@ -1051,6 +1120,9 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
         const bool preserve_display_labels =
             display_uses_canonical_storage(category_item, subcategory_item, category, subcategory);
         auto resolved = resolve_for_storage(category_item, subcategory_item, category, subcategory);
+        attach_folder_tree_metadata(resolved, target_folder_item);
+        const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
+        persist_folder_tree_route(file_name, file_type_label, file_path, resolved, target_folder_item);
         if (learn_approved_mappings && selected_for_processing && learning_store_ &&
             !resolved.category.empty()) {
             std::string learning_error;
@@ -1070,7 +1142,6 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
             }
         }
 
-        const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
         if (cached_entry &&
             entry_is_unchanged(*cached_entry, resolved, suggested_name, rename_only, used_consistency)) {
             continue;
@@ -1692,17 +1763,33 @@ void CategorizationDialog::handle_selected_row(int row_index,
             const std::string original_subcategory = read_role_text(subcategory_item_ref, kOriginalSubcategoryRole);
             const std::string canonical_category = read_role_text(category_item_ref, kCanonicalCategoryRole);
             const std::string canonical_subcategory = read_role_text(subcategory_item_ref, kCanonicalSubcategoryRole);
+            std::string storage_category = read_item_or_hidden_text(category_item_ref, kHiddenCategoryRole);
+            std::string storage_subcategory =
+                read_item_or_hidden_text(subcategory_item_ref, kHiddenSubcategoryRole);
+            if (storage_category.empty()) {
+                storage_category = folder_category;
+            }
+            if (storage_subcategory.empty()) {
+                storage_subcategory = folder_subcategory;
+            }
             const std::string original_effective_subcategory =
                 original_subcategory.empty() ? original_category : original_subcategory;
+            const std::string storage_effective_subcategory =
+                storage_subcategory.empty() ? storage_category : storage_subcategory;
             const bool unchanged_display =
-                folder_category == original_category &&
-                folder_subcategory == original_effective_subcategory &&
+                storage_category == original_category &&
+                storage_effective_subcategory == original_effective_subcategory &&
                 !canonical_category.empty();
             auto resolved = unchanged_display
                 ? db_manager->resolve_category(canonical_category, canonical_subcategory)
-                : db_manager->resolve_category_for_language(folder_category,
-                                                            folder_subcategory,
+                : db_manager->resolve_category_for_language(storage_category,
+                                                            storage_effective_subcategory,
                                                             category_language_);
+            resolved.target_folder_relative_path = validation.normalized_path;
+            resolved.folder_tree_mode = true;
+            resolved.target_folder_suggested_new = false;
+            resolved.target_folder_exists = true;
+            resolved.folder_tree_allow_new_folders = allow_new;
             const std::string source_db_dir = source_dir;
             std::string suggested_name;
             bool rename_applied = rename_active;
@@ -1722,6 +1809,30 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 suggested_name,
                 false,
                 rename_applied);
+            const auto updated_catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(base_dir));
+            const auto best_existing =
+                FolderTreeCatalog::best_semantic_match(updated_catalog,
+                                                       resolved.category,
+                                                       resolved.subcategory);
+            DatabaseManager::FolderTreeRoutingRecord route;
+            route.destination_root = base_dir;
+            route.tree_fingerprint = updated_catalog.fingerprint();
+            route.allow_new_folders = allow_new;
+            route.semantic_category = resolved.category;
+            route.semantic_subcategory = resolved.subcategory;
+            route.semantic_target_folder =
+                FolderTreeCatalog::semantic_target_path(resolved.category, resolved.subcategory);
+            if (best_existing) {
+                route.best_existing_folder = best_existing->entry.relative_path;
+                route.best_existing_score = best_existing->score;
+            }
+            route.target_folder_relative_path = validation.normalized_path;
+            route.target_folder_suggested_new = false;
+            route.target_folder_exists = true;
+            db_manager->insert_or_update_folder_tree_routing(destination_name,
+                                                             file_type == FileType::Directory ? "D" : "F",
+                                                             target_dir_text,
+                                                             route);
         }
         if (rename_active) {
             apply_successful_rename();

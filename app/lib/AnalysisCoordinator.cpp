@@ -7,6 +7,7 @@
 #include "DatabaseManager.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "FilenameLocalizationService.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "ImageRenameMetadataService.hpp"
@@ -66,6 +67,264 @@ std::string trim_copy(const std::string& value)
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     return trimmed;
+}
+
+std::string file_type_cache_label(FileType file_type)
+{
+    return file_type == FileType::Directory ? "D" : "F";
+}
+
+std::string routing_category(const CategorizedFile& entry)
+{
+    return entry.canonical_category.empty() ? entry.category : entry.canonical_category;
+}
+
+std::string routing_subcategory(const CategorizedFile& entry)
+{
+    return entry.canonical_subcategory.empty() ? entry.subcategory : entry.canonical_subcategory;
+}
+
+bool cached_entry_is_supported_image(const CategorizedFile& entry)
+{
+    if (entry.type != FileType::File) {
+        return false;
+    }
+    const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                           Utils::utf8_to_path(entry.file_name);
+    return LlavaImageAnalyzer::is_supported_image(full_path);
+}
+
+bool cached_entry_is_supported_document(const CategorizedFile& entry)
+{
+    if (entry.type != FileType::File) {
+        return false;
+    }
+    const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                           Utils::utf8_to_path(entry.file_name);
+    return DocumentTextAnalyzer::is_supported_document(full_path);
+}
+
+void strip_cached_date_category_for_routing(CategorizedFile& entry,
+                                            bool is_image_entry,
+                                            bool is_document_entry)
+{
+    auto strip_kind = [](std::string& value, CategoryDateSuffix::Kind kind) {
+        if (auto stripped = CategoryDateSuffix::strip_generated_suffix(value, kind)) {
+            value = *stripped;
+        }
+    };
+
+    if (is_image_entry) {
+        strip_kind(entry.category, CategoryDateSuffix::Kind::Image);
+        strip_kind(entry.canonical_category, CategoryDateSuffix::Kind::Image);
+    }
+    if (is_document_entry) {
+        strip_kind(entry.category, CategoryDateSuffix::Kind::Document);
+        strip_kind(entry.canonical_category, CategoryDateSuffix::Kind::Document);
+    }
+    if (entry.canonical_category.empty()) {
+        entry.canonical_category = entry.category;
+    }
+}
+
+std::optional<FolderTreeCatalog::Selection> existing_semantic_selection(
+    const FolderTreeCatalog::Catalog& catalog,
+    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing)
+{
+    if (!best_existing) {
+        return std::nullopt;
+    }
+    return FolderTreeCatalog::resolve_target_path(best_existing->entry.relative_path, catalog, false);
+}
+
+std::optional<FolderTreeCatalog::Selection> semantic_new_folder_selection(
+    const FolderTreeCatalog::Catalog& catalog,
+    const std::string& semantic_target,
+    bool allow_new_folders)
+{
+    if (!allow_new_folders || semantic_target.empty()) {
+        return std::nullopt;
+    }
+    return FolderTreeCatalog::resolve_target_path(semantic_target, catalog, true);
+}
+
+FolderTreeCatalog::Selection prefer_semantic_route_when_existing_match_is_weak(
+    const FolderTreeCatalog::Catalog& catalog,
+    const FolderTreeCatalog::Selection& selection,
+    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing,
+    const std::string& semantic_category,
+    const std::string& semantic_subcategory,
+    const std::string& semantic_target,
+    bool allow_new_folders)
+{
+    if (!allow_new_folders || selection.suggested_new) {
+        return selection;
+    }
+
+    const int selected_score = FolderTreeCatalog::semantic_match_score(selection.relative_path,
+                                                                       semantic_category,
+                                                                       semantic_subcategory);
+    if (FolderTreeCatalog::is_strong_semantic_match(selected_score)) {
+        return selection;
+    }
+    if (best_existing && FolderTreeCatalog::is_strong_semantic_match(best_existing->score)) {
+        if (auto existing = existing_semantic_selection(catalog, best_existing)) {
+            return *existing;
+        }
+    }
+    if (auto semantic_selection = semantic_new_folder_selection(catalog, semantic_target, true)) {
+        return *semantic_selection;
+    }
+    return selection;
+}
+
+void persist_cached_folder_tree_route(
+    DatabaseManager& db_manager,
+    const CategorizedFile& entry,
+    const std::string& destination_root,
+    const std::string& fingerprint,
+    bool allow_new_folders,
+    const std::string& semantic_category,
+    const std::string& semantic_subcategory,
+    const std::string& semantic_target,
+    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing,
+    const FolderTreeCatalog::Selection& selection)
+{
+    DatabaseManager::FolderTreeRoutingRecord record;
+    record.destination_root = destination_root;
+    record.tree_fingerprint = fingerprint;
+    record.allow_new_folders = allow_new_folders;
+    record.semantic_category = semantic_category;
+    record.semantic_subcategory = semantic_subcategory;
+    record.semantic_target_folder = semantic_target;
+    if (best_existing) {
+        record.best_existing_folder = best_existing->entry.relative_path;
+        record.best_existing_score = best_existing->score;
+    }
+    record.target_folder_relative_path = selection.relative_path;
+    record.target_folder_suggested_new = selection.suggested_new;
+    record.target_folder_exists = selection.exists;
+    db_manager.insert_or_update_folder_tree_routing(entry.file_name,
+                                                    file_type_cache_label(entry.type),
+                                                    entry.file_path,
+                                                    record);
+}
+
+std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
+    DatabaseManager& db_manager,
+    const CategorizedFile& entry,
+    const FolderTreeCatalog::Catalog& catalog,
+    const std::string& destination_root,
+    const std::string& fingerprint,
+    bool allow_new_folders,
+    const std::string& semantic_category,
+    const std::string& semantic_subcategory,
+    const std::string& semantic_target,
+    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing)
+{
+    if (auto cached = db_manager.get_folder_tree_routing(entry.file_name,
+                                                         entry.type,
+                                                         entry.file_path,
+                                                         destination_root,
+                                                         fingerprint,
+                                                         allow_new_folders,
+                                                         semantic_category,
+                                                         semantic_subcategory)) {
+        if (auto selection = FolderTreeCatalog::resolve_target_path(cached->target_folder_relative_path,
+                                                                    catalog,
+                                                                    allow_new_folders)) {
+            return prefer_semantic_route_when_existing_match_is_weak(catalog,
+                                                                     *selection,
+                                                                     best_existing,
+                                                                     semantic_category,
+                                                                     semantic_subcategory,
+                                                                     semantic_target,
+                                                                     allow_new_folders);
+        }
+    }
+
+    if (allow_new_folders &&
+        (!best_existing || !FolderTreeCatalog::is_strong_semantic_match(best_existing->score))) {
+        if (auto selection = semantic_new_folder_selection(catalog, semantic_target, true)) {
+            return selection;
+        }
+    }
+
+    if (auto selection = existing_semantic_selection(catalog, best_existing)) {
+        return selection;
+    }
+    return semantic_new_folder_selection(catalog, semantic_target, allow_new_folders);
+}
+
+std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
+    DatabaseManager& db_manager,
+    std::vector<CategorizedFile> entries,
+    bool folder_tree_sorting,
+    const std::string& destination_root,
+    bool allow_new_folders)
+{
+    if (!folder_tree_sorting) {
+        for (auto& entry : entries) {
+            entry.target_folder_relative_path.clear();
+            entry.folder_tree_mode = false;
+            entry.target_folder_suggested_new = false;
+            entry.target_folder_exists = false;
+            entry.folder_tree_allow_new_folders = false;
+        }
+        return entries;
+    }
+
+    const auto catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(destination_root));
+    const std::string fingerprint = catalog.fingerprint();
+    std::vector<CategorizedFile> filtered;
+    filtered.reserve(entries.size());
+    for (auto& entry : entries) {
+        auto semantic_entry = entry;
+        strip_cached_date_category_for_routing(semantic_entry,
+                                               cached_entry_is_supported_image(entry),
+                                               cached_entry_is_supported_document(entry));
+        const std::string semantic_category = routing_category(semantic_entry);
+        const std::string semantic_subcategory = routing_subcategory(semantic_entry);
+        if (semantic_category.empty() || semantic_subcategory.empty()) {
+            continue;
+        }
+
+        const std::string semantic_target =
+            FolderTreeCatalog::semantic_target_path(semantic_category, semantic_subcategory);
+        const auto best_existing =
+            FolderTreeCatalog::best_semantic_match(catalog, semantic_category, semantic_subcategory);
+        auto selection = choose_cached_folder_tree_route(db_manager,
+                                                         entry,
+                                                         catalog,
+                                                         destination_root,
+                                                         fingerprint,
+                                                         allow_new_folders,
+                                                         semantic_category,
+                                                         semantic_subcategory,
+                                                         semantic_target,
+                                                         best_existing);
+        if (!selection) {
+            continue;
+        }
+
+        persist_cached_folder_tree_route(db_manager,
+                                         entry,
+                                         destination_root,
+                                         fingerprint,
+                                         allow_new_folders,
+                                         semantic_category,
+                                         semantic_subcategory,
+                                         semantic_target,
+                                         best_existing,
+                                         *selection);
+        entry.target_folder_relative_path = selection->relative_path;
+        entry.folder_tree_mode = true;
+        entry.target_folder_suggested_new = selection->suggested_new;
+        entry.target_folder_exists = selection->exists;
+        entry.folder_tree_allow_new_folders = allow_new_folders;
+        filtered.push_back(std::move(entry));
+    }
+    return filtered;
 }
 
 std::string collapse_spaces_copy(const std::string& value)
@@ -278,9 +537,12 @@ AnalysisRunResult AnalysisCoordinator::execute()
 
         const bool folder_tree_sorting =
             app_.settings.get_sorting_mode() == SortingMode::ExistingFolderTree;
-        const auto cached_entries = folder_tree_sorting
-            ? std::vector<CategorizedFile>{}
-            : app_.categorization_service.load_cached_entries(directory_path);
+        auto cached_entries = prepare_cached_entries_for_sorting_mode(
+            app_.db_manager,
+            app_.categorization_service.load_cached_entries(directory_path),
+            folder_tree_sorting,
+            app_.settings.get_effective_destination_folder(directory_path),
+            app_.settings.get_suggest_new_folders());
         std::vector<CategorizedFile> pending_renames;
         pending_renames.reserve(cached_entries.size());
         std::unordered_set<std::string> renamed_files;
@@ -353,12 +615,23 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 entry.canonical_category.empty() ? entry.category : entry.canonical_category;
             const std::string canonical_subcategory =
                 entry.canonical_subcategory.empty() ? entry.subcategory : entry.canonical_subcategory;
+            auto attach_folder_tree_metadata = [&entry](DatabaseManager::ResolvedCategory& resolved) {
+                resolved.target_folder_relative_path = entry.target_folder_relative_path;
+                resolved.folder_tree_mode = entry.folder_tree_mode;
+                resolved.target_folder_suggested_new = entry.target_folder_suggested_new;
+                resolved.target_folder_exists = entry.target_folder_exists;
+                resolved.folder_tree_allow_new_folders = entry.folder_tree_allow_new_folders;
+                return resolved;
+            };
             if (!canonical_category.empty()) {
-                return app_.db_manager.resolve_category(canonical_category, canonical_subcategory);
+                auto resolved = app_.db_manager.resolve_category(canonical_category, canonical_subcategory);
+                return attach_folder_tree_metadata(resolved);
             }
-            return app_.db_manager.resolve_category_for_language(entry.category,
-                                                                 entry.subcategory,
-                                                                 app_.settings.get_category_language());
+            auto resolved = app_.db_manager.resolve_category_for_language(
+                entry.category,
+                entry.subcategory,
+                app_.settings.get_category_language());
+            return attach_folder_tree_metadata(resolved);
         };
         auto persist_rename_only_progress =
             [this, &is_missing_category_label](const FileEntry& entry, const std::string& suggested_name) {
@@ -386,6 +659,11 @@ AnalysisRunResult AnalysisCoordinator::execute()
                         resolved.subcategory = subcategory;
                         resolved.taxonomy_id = cached_entry->taxonomy_id;
                     }
+                    resolved.target_folder_relative_path = cached_entry->target_folder_relative_path;
+                    resolved.folder_tree_mode = cached_entry->folder_tree_mode;
+                    resolved.target_folder_suggested_new = cached_entry->target_folder_suggested_new;
+                    resolved.target_folder_exists = cached_entry->target_folder_exists;
+                    resolved.folder_tree_allow_new_folders = cached_entry->folder_tree_allow_new_folders;
                     used_consistency = cached_entry->used_consistency_hints;
                 }
 
@@ -428,6 +706,11 @@ AnalysisRunResult AnalysisCoordinator::execute()
                         resolved.subcategory = subcategory;
                         resolved.taxonomy_id = cached_entry->taxonomy_id;
                     }
+                    resolved.target_folder_relative_path = cached_entry->target_folder_relative_path;
+                    resolved.folder_tree_mode = cached_entry->folder_tree_mode;
+                    resolved.target_folder_suggested_new = cached_entry->target_folder_suggested_new;
+                    resolved.target_folder_exists = cached_entry->target_folder_exists;
+                    resolved.folder_tree_allow_new_folders = cached_entry->folder_tree_allow_new_folders;
                     used_consistency = cached_entry->used_consistency_hints;
                     rename_applied = cached_entry->rename_applied;
                 }

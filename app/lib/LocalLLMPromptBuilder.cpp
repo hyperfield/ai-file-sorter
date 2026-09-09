@@ -96,8 +96,25 @@ std::string folder_tree_system_prompt()
     return "You are a file organization assistant. The prompt contains an "
            "existing destination folder tree. Choose the best target folder for "
            "the item. Reply with exactly one JSON object in the format "
-           "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}. "
+           "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}, "
+           "where createFolder is a boolean. Use createFolder:false for a strong "
+           "existing folder match. When the user prompt allows new folders and "
+           "the existing folders are only weak, generic, or unrelated matches, "
+           "use createFolder:true with a concise new relative folder path. "
+           "Do not treat listed candidates as exhaustive when new folders are "
+           "allowed. "
+           "Do not force catch-all folders merely to avoid creating a missing "
+           "semantic folder. "
            "Do not return category/subcategory text, explanations, or extra lines.";
+}
+
+std::string folder_tree_response_instruction()
+{
+    return "Answer with exactly one JSON object containing targetFolder and createFolder.\n"
+           "Use {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false} "
+           "for an existing folder.\n"
+           "Use {\"targetFolder\":\"new/folder/path\",\"createFolder\":true} only "
+           "when the folder-tree instructions allow a new folder.";
 }
 
 std::string generic_file_categorization_system_prompt()
@@ -225,8 +242,7 @@ std::string build_generic_categorization_user_prompt(const std::string& file_nam
     }
 
     if (is_folder_tree_mode(consistency_context)) {
-        prompt << "\nAnswer with exactly one JSON object:\n"
-               << "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}";
+        prompt << "\n" << folder_tree_response_instruction();
     } else {
         prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
     }
@@ -254,8 +270,7 @@ std::string build_image_categorization_user_prompt(const std::string& file_name,
         prompt << "\n" << extra_context << "\n";
     }
     if (is_folder_tree_mode(consistency_context)) {
-        prompt << "\nAnswer with exactly one JSON object:\n"
-               << "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}";
+        prompt << "\n" << folder_tree_response_instruction();
     } else if (prefer_stable_taxonomy) {
         prompt << "\nAnswer with exactly one line:\nImages : <Subcategory>";
     } else {
@@ -283,8 +298,7 @@ std::string build_document_categorization_user_prompt(const std::string& file_na
         prompt << "\n" << consistency_context << "\n";
     }
     if (is_folder_tree_mode(consistency_context)) {
-        prompt << "\nAnswer with exactly one JSON object:\n"
-               << "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}";
+        prompt << "\n" << folder_tree_response_instruction();
     } else {
         prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
     }

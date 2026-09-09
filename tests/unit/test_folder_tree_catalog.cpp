@@ -94,6 +94,33 @@ TEST_CASE("FolderTreeCatalog accepts new folders only when enabled")
     CHECK(selection->suggested_new);
 }
 
+TEST_CASE("FolderTreeCatalog prompt guides new folders over weak fallbacks")
+{
+    FolderTreeCatalog::Catalog catalog({
+        {"Images", 1},
+        {"Images/Work Screenshots", 2},
+        {"Data and Archives", 1},
+        {"Data and Archives/Compressed Archives", 2},
+        {"Other", 1},
+        {"Other/Unsorted Review", 2},
+    });
+
+    const std::string prompt = FolderTreeCatalog::build_prompt_context(
+        catalog,
+        "invoice_q2_2026.pdf",
+        "D:/Incoming/invoice_q2_2026.pdf",
+        true);
+
+    CHECK(prompt.find("{\"targetFolder\":\"existing/folder/path\",\"createFolder\":false}") !=
+          std::string::npos);
+    CHECK(prompt.find("{\"targetFolder\":\"new/folder/path\",\"createFolder\":true}") !=
+          std::string::npos);
+    CHECK(prompt.find("listed candidates are not exhaustive") != std::string::npos);
+    CHECK(prompt.find("weak, generic, or unrelated matches") != std::string::npos);
+    CHECK(prompt.find("Do not choose fallback folders") != std::string::npos);
+    CHECK(prompt.find("Other/Unsorted Review") != std::string::npos);
+}
+
 TEST_CASE("FolderTreeCatalog derives compatibility labels from target path")
 {
     const auto labels =

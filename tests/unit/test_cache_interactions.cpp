@@ -3,6 +3,7 @@
 #include "CategorizationService.hpp"
 #include "DatabaseManager.hpp"
 #include "DocumentTextAnalyzer.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
 #include "OneDriveStorageProvider.hpp"
@@ -222,6 +223,122 @@ TEST_CASE("CategorizationService uses cached categorization without calling LLM"
     REQUIRE(categorized.size() == 1);
     CHECK(categorized.front().category == "Images");
     CHECK(categorized.front().subcategory == "Photos");
+    CHECK(*calls == 0);
+}
+
+TEST_CASE("CategorizationService uses cached folder-tree target without calling LLM") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    Settings settings;
+
+    TempDir data_dir;
+    const std::string dir_path = data_dir.path().string();
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "Documents" / "Invoices"));
+    settings.set_sort_folder(dir_path);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(false);
+
+    DatabaseManager db(settings.get_config_dir());
+    const std::string file_name = "invoice_q2_2026.pdf";
+    const auto resolved = db.resolve_category("Documents", "Invoices");
+    REQUIRE(resolved.taxonomy_id > 0);
+    REQUIRE(db.insert_or_update_file_with_categorization(
+        file_name, "F", dir_path, resolved, false, std::string(), false));
+    const auto catalog = FolderTreeCatalog::Catalog::scan(data_dir.path());
+    DatabaseManager::FolderTreeRoutingRecord route;
+    route.destination_root = dir_path;
+    route.tree_fingerprint = catalog.fingerprint();
+    route.allow_new_folders = false;
+    route.semantic_category = "Documents";
+    route.semantic_subcategory = "Invoices";
+    route.semantic_target_folder = "Documents/Invoices";
+    route.best_existing_folder = "Documents/Invoices";
+    route.best_existing_score = 20;
+    route.target_folder_relative_path = "Documents/Invoices";
+    route.target_folder_exists = true;
+    REQUIRE(db.insert_or_update_folder_tree_routing(file_name, "F", dir_path, route));
+
+    CategorizationService service(settings, db, nullptr);
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<CountingLLM>(
+            calls,
+            "{\"targetFolder\":\"Other/Unsorted Review\",\"createFolder\":false}");
+    };
+
+    const auto full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    const auto categorized = service.categorize_entries(
+        files,
+        true,
+        stop_flag,
+        {},
+        {},
+        {},
+        {},
+        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "Documents/Invoices");
+    CHECK(categorized.front().target_folder_exists);
+    CHECK_FALSE(categorized.front().target_folder_suggested_new);
+    CHECK(categorized.front().category == "Documents");
+    CHECK(categorized.front().subcategory == "Invoices");
+    CHECK(*calls == 0);
+}
+
+TEST_CASE("CategorizationService derives new folder route from semantic cache without LLM") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    Settings settings;
+
+    TempDir data_dir;
+    const std::string dir_path = data_dir.path().string();
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "Images" / "Screenshots"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "Other" / "Unsorted Review"));
+    settings.set_sort_folder(dir_path);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+
+    DatabaseManager db(settings.get_config_dir());
+    const std::string file_name = "invoice_q3_2026.pdf";
+    const auto resolved = db.resolve_category("Documents", "Invoices");
+    REQUIRE(resolved.taxonomy_id > 0);
+    REQUIRE(db.insert_or_update_file_with_categorization(
+        file_name, "F", dir_path, resolved, false, std::string(), false));
+
+    CategorizationService service(settings, db, nullptr);
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() {
+        return std::make_unique<CountingLLM>(
+            calls,
+            "{\"targetFolder\":\"Other/Unsorted Review\",\"createFolder\":false}");
+    };
+
+    const auto full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    const auto categorized = service.categorize_entries(
+        files,
+        true,
+        stop_flag,
+        {},
+        {},
+        {},
+        {},
+        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "Documents/Invoices");
+    CHECK(categorized.front().target_folder_suggested_new);
+    CHECK_FALSE(categorized.front().target_folder_exists);
+    CHECK(categorized.front().category == "Documents");
+    CHECK(categorized.front().subcategory == "Invoices");
     CHECK(*calls == 0);
 }
 

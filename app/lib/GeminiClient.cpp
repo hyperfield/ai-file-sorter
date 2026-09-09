@@ -347,7 +347,12 @@ std::string GeminiClient::make_categorization_payload(const std::string& file_na
     const std::string system_prompt = folder_tree_mode
         ? "You are a file organization assistant. The user prompt contains an existing folder tree. "
           "Choose the best destination folder under that tree. Always reply with only one JSON object "
-          "in the format {\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}. "
+          "in the format {\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}, where "
+          "createFolder is a boolean. Use createFolder:false for a strong existing folder match. "
+          "When the user prompt allows new folders and the existing folders are only weak, generic, "
+          "or unrelated matches, use createFolder:true with a concise new relative folder path. "
+          "Do not treat listed candidates as exhaustive when new folders are allowed. "
+          "Do not force catch-all folders merely to avoid creating a missing semantic folder. "
           "Do not return category/subcategory text and do not explain your answer."
         : "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
           "Consider the filename, extension, and any directory context provided. If the user prompt includes an "

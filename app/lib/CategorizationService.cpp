@@ -182,6 +182,11 @@ bool has_image_description_context(const std::string& prompt_path) {
     return prompt_path.find(kImageDescriptionMarker) != std::string::npos;
 }
 
+std::string file_type_cache_label(FileType file_type)
+{
+    return file_type == FileType::Directory ? "D" : "F";
+}
+
 bool is_image_prompt_context(const std::string& prompt_name,
                              FileType file_type) {
     return file_type == FileType::File &&
@@ -1126,13 +1131,13 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     FileType file_type,
     const ProgressCallback& progress_callback) const
 {
-    const auto cached = db_manager.get_categorization_from_db(dir_path, item_name, file_type);
-    if (cached.size() < 2) {
+    const auto cached = db_manager.get_categorized_file(dir_path, item_name, file_type);
+    if (!cached) {
         return std::nullopt;
     }
 
-    const std::string sanitized_category = Utils::sanitize_path_label(cached[0]);
-    const std::string sanitized_subcategory = Utils::sanitize_path_label(cached[1]);
+    const std::string sanitized_category = Utils::sanitize_path_label(cached->category);
+    const std::string sanitized_subcategory = Utils::sanitize_path_label(cached->subcategory);
     if (sanitized_category.empty() || sanitized_subcategory.empty()) {
         if (core_logger) {
             core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
@@ -1157,6 +1162,178 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     (void)categorization_path;
     (void)progress_callback;
     return db_manager.resolve_category(sanitized_category, sanitized_subcategory);
+}
+
+DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category_to_folder_tree(
+    ILLMClient& llm,
+    bool is_local_llm,
+    const std::string& display_name,
+    const std::string& display_path,
+    const std::string& dir_path,
+    const std::string& prompt_name,
+    const std::string& prompt_path,
+    FileType file_type,
+    const DatabaseManager::ResolvedCategory& semantic,
+    const ProgressCallback& progress_callback,
+    const RemoteThrottleCallback& remote_throttle_callback) const
+{
+    const bool allow_new = settings.get_suggest_new_folders();
+    const std::string analysis_root =
+        settings.get_sort_folder().empty() ? dir_path : settings.get_sort_folder();
+    const std::string destination_root =
+        settings.get_effective_destination_folder(analysis_root);
+    const auto catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(destination_root));
+    const std::string fingerprint = catalog.fingerprint();
+    const std::string semantic_target =
+        FolderTreeCatalog::semantic_target_path(semantic.category, semantic.subcategory);
+    const auto best_existing =
+        FolderTreeCatalog::best_semantic_match(catalog, semantic.category, semantic.subcategory);
+
+    auto attach_selection = [&](const FolderTreeCatalog::Selection& selection) {
+        auto routed = semantic;
+        routed.target_folder_relative_path = selection.relative_path;
+        routed.folder_tree_mode = true;
+        routed.target_folder_suggested_new = selection.suggested_new;
+        routed.target_folder_exists = selection.exists;
+        routed.folder_tree_allow_new_folders = allow_new;
+        return routed;
+    };
+
+    auto persist_route = [&](const FolderTreeCatalog::Selection& selection) {
+        DatabaseManager::FolderTreeRoutingRecord record;
+        record.destination_root = destination_root;
+        record.tree_fingerprint = fingerprint;
+        record.allow_new_folders = allow_new;
+        record.semantic_category = semantic.category;
+        record.semantic_subcategory = semantic.subcategory;
+        record.semantic_target_folder = semantic_target;
+        if (best_existing) {
+            record.best_existing_folder = best_existing->entry.relative_path;
+            record.best_existing_score = best_existing->score;
+        }
+        record.target_folder_relative_path = selection.relative_path;
+        record.target_folder_suggested_new = selection.suggested_new;
+        record.target_folder_exists = selection.exists;
+        db_manager.insert_or_update_folder_tree_routing(display_name,
+                                                        file_type_cache_label(file_type),
+                                                        dir_path,
+                                                        record);
+    };
+
+    auto resolve_semantic_target = [&]() -> std::optional<FolderTreeCatalog::Selection> {
+        if (semantic_target.empty()) {
+            return std::nullopt;
+        }
+        return FolderTreeCatalog::resolve_target_path(semantic_target, catalog, allow_new);
+    };
+
+    auto resolve_existing_match = [&]() -> std::optional<FolderTreeCatalog::Selection> {
+        if (!best_existing) {
+            return std::nullopt;
+        }
+        return FolderTreeCatalog::resolve_target_path(best_existing->entry.relative_path, catalog, false);
+    };
+
+    auto choose_against_semantic = [&](FolderTreeCatalog::Selection selection) {
+        if (allow_new && !selection.suggested_new) {
+            const int selected_score = FolderTreeCatalog::semantic_match_score(
+                selection.relative_path,
+                semantic.category,
+                semantic.subcategory);
+            if (!FolderTreeCatalog::is_strong_semantic_match(selected_score)) {
+                if (best_existing && FolderTreeCatalog::is_strong_semantic_match(best_existing->score)) {
+                    if (auto existing = resolve_existing_match()) {
+                        selection = *existing;
+                    }
+                } else if (auto semantic_selection = resolve_semantic_target()) {
+                    selection = *semantic_selection;
+                }
+            }
+        }
+        return selection;
+    };
+
+    if (auto cached = db_manager.get_folder_tree_routing(display_name,
+                                                         file_type,
+                                                         dir_path,
+                                                         destination_root,
+                                                         fingerprint,
+                                                         allow_new,
+                                                         semantic.category,
+                                                         semantic.subcategory)) {
+        if (auto selection = FolderTreeCatalog::resolve_target_path(cached->target_folder_relative_path,
+                                                                    catalog,
+                                                                    allow_new)) {
+            const auto selected = choose_against_semantic(*selection);
+            if (selected.relative_path != selection->relative_path ||
+                selected.suggested_new != selection->suggested_new ||
+                selected.exists != selection->exists) {
+                persist_route(selected);
+            }
+            auto routed = attach_selection(selected);
+            emit_progress_message(progress_callback, "ROUTE-CACHE", display_name, routed, display_path, prompt_path);
+            return routed;
+        }
+    }
+
+    std::optional<FolderTreeCatalog::Selection> selection;
+    if (allow_new && (!best_existing ||
+                      !FolderTreeCatalog::is_strong_semantic_match(best_existing->score))) {
+        selection = resolve_semantic_target();
+    }
+
+    if (!selection) {
+        const std::string routing_context =
+            FolderTreeCatalog::build_prompt_context(catalog,
+                                                    prompt_name,
+                                                    prompt_path,
+                                                    allow_new,
+                                                    semantic.category,
+                                                    semantic.subcategory,
+                                                    semantic_target);
+        if (!is_local_llm && !ensure_remote_credentials_for_request(display_name, progress_callback)) {
+            selection = allow_new ? resolve_semantic_target() : resolve_existing_match();
+        } else if (!is_local_llm && remote_throttle_callback && !remote_throttle_callback(display_name)) {
+            selection = allow_new ? resolve_semantic_target() : resolve_existing_match();
+        } else {
+            try {
+                const std::string routing_response =
+                    run_llm_with_timeout(llm,
+                                         prompt_name,
+                                         prompt_path,
+                                         file_type,
+                                         is_local_llm,
+                                         routing_context);
+                if (auto parsed = FolderTreeCatalog::parse_selection(routing_response, catalog, allow_new)) {
+                    selection = choose_against_semantic(*parsed);
+                }
+            } catch (const std::exception& ex) {
+                if (core_logger) {
+                    core_logger->warn("Folder-tree routing LLM failed for '{}': {}", display_name, ex.what());
+                }
+            }
+        }
+    }
+
+    if (!selection) {
+        if (best_existing) {
+            selection = resolve_existing_match();
+        }
+    }
+    if (!selection && allow_new) {
+        selection = resolve_semantic_target();
+    }
+    if (!selection) {
+        if (progress_callback) {
+            progress_callback(fmt::format("[LLM-ERROR] {} (no valid target folder)", display_name));
+        }
+        return DatabaseManager::ResolvedCategory{-1, "", ""};
+    }
+
+    persist_route(*selection);
+    auto routed = attach_selection(*selection);
+    emit_progress_message(progress_callback, "ROUTE", display_name, routed, display_path, prompt_path);
+    return routed;
 }
 
 bool CategorizationService::ensure_remote_credentials_for_request(
@@ -1216,42 +1393,6 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
     try {
         const std::string category_subcategory =
             run_llm_with_timeout(llm, prompt_name, prompt_path, file_type, is_local_llm, consistency_context);
-        if (settings.get_sorting_mode() == SortingMode::ExistingFolderTree) {
-            const auto catalog = FolderTreeCatalog::Catalog::scan(
-                Utils::utf8_to_path(
-                    settings.get_effective_destination_folder(settings.get_sort_folder())));
-            const bool allow_new = settings.get_suggest_new_folders();
-            const auto selection =
-                FolderTreeCatalog::parse_selection(category_subcategory, catalog, allow_new);
-            if (!selection) {
-                if (progress_callback) {
-                    progress_callback(fmt::format("[LLM-ERROR] {} (invalid target folder)", display_name));
-                }
-                if (core_logger) {
-                    core_logger->warn("Invalid folder-tree output for '{}': {}",
-                                      display_name,
-                                      category_subcategory);
-                }
-                return DatabaseManager::ResolvedCategory{-1, "", ""};
-            }
-
-            auto [category, subcategory] =
-                FolderTreeCatalog::derive_category_pair(selection->relative_path);
-            auto resolved = db_manager.resolve_category(category, subcategory);
-            resolved.target_folder_relative_path = selection->relative_path;
-            resolved.folder_tree_mode = true;
-            resolved.target_folder_suggested_new = selection->suggested_new;
-            resolved.target_folder_exists = selection->exists;
-            resolved.folder_tree_allow_new_folders = allow_new;
-            emit_progress_message(progress_callback,
-                                  "AI",
-                                  display_name,
-                                  resolved,
-                                  display_path,
-                                  prompt_path);
-            return resolved;
-        }
-
         auto [category, subcategory] =
             CategorizationResponseParser::split_category_subcategory(category_subcategory);
 
@@ -1421,17 +1562,29 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     const std::string& consistency_context,
     const RemoteThrottleCallback& remote_throttle_callback) const
 {
-    if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree) {
-        if (auto cached = try_cached_categorization(display_name,
-                                                    display_path,
-                                                    prompt_path,
-                                                    dir_path,
-                                                    file_type,
-                                                    progress_callback)) {
-            const auto display_resolved = localize_resolved_category(llm, *cached);
-            emit_progress_message(progress_callback, "CACHE", display_name, display_resolved, display_path, prompt_path);
-            return *cached;
+    const bool folder_tree_sorting = settings.get_sorting_mode() == SortingMode::ExistingFolderTree;
+    if (auto cached = try_cached_categorization(display_name,
+                                                display_path,
+                                                prompt_path,
+                                                dir_path,
+                                                file_type,
+                                                progress_callback)) {
+        const auto display_resolved = localize_resolved_category(llm, *cached);
+        emit_progress_message(progress_callback, "CACHE", display_name, display_resolved, display_path, prompt_path);
+        if (folder_tree_sorting) {
+            return route_semantic_category_to_folder_tree(llm,
+                                                          is_local_llm,
+                                                          display_name,
+                                                          display_path,
+                                                          dir_path,
+                                                          prompt_name,
+                                                          prompt_path,
+                                                          file_type,
+                                                          *cached,
+                                                          progress_callback,
+                                                          remote_throttle_callback);
         }
+        return *cached;
     }
 
     if (!is_local_llm && !ensure_remote_credentials_for_request(display_name, progress_callback)) {
@@ -1442,15 +1595,30 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
         return DatabaseManager::ResolvedCategory{-1, "", ""};
     }
 
-    return categorize_via_llm(llm,
-                              is_local_llm,
-                              display_name,
-                              display_path,
-                              prompt_name,
-                              prompt_path,
-                              file_type,
-                              progress_callback,
-                              consistency_context);
+    auto semantic = categorize_via_llm(llm,
+                                       is_local_llm,
+                                       display_name,
+                                       display_path,
+                                       prompt_name,
+                                       prompt_path,
+                                       file_type,
+                                       progress_callback,
+                                       consistency_context);
+    if (folder_tree_sorting && semantic.taxonomy_id != -1 &&
+        !semantic.category.empty() && !semantic.subcategory.empty()) {
+        return route_semantic_category_to_folder_tree(llm,
+                                                      is_local_llm,
+                                                      display_name,
+                                                      display_path,
+                                                      dir_path,
+                                                      prompt_name,
+                                                      prompt_path,
+                                                      file_type,
+                                                      semantic,
+                                                      progress_callback,
+                                                      remote_throttle_callback);
+    }
+    return semantic;
 }
 
 std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
@@ -1564,18 +1732,6 @@ std::string CategorizationService::build_combined_context(const std::string& hin
                                                           const std::string& prompt_path,
                                                           FileType file_type) const
 {
-    if (settings.get_sorting_mode() == SortingMode::ExistingFolderTree) {
-        (void)hint_block;
-        (void)file_type;
-        const auto catalog = FolderTreeCatalog::Catalog::scan(
-            Utils::utf8_to_path(
-                settings.get_effective_destination_folder(settings.get_sort_folder())));
-        return FolderTreeCatalog::build_prompt_context(catalog,
-                                                       prompt_name,
-                                                       prompt_path,
-                                                       settings.get_suggest_new_folders());
-    }
-
     std::string combined_context;
     const bool prefer_stable_taxonomy = settings.get_use_consistency_hints();
     const auto allowed_categories = settings.get_allowed_categories();

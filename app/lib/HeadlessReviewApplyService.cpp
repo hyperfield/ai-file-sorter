@@ -253,6 +253,52 @@ DatabaseManager::ResolvedCategory resolve_category_for_storage(DatabaseManager& 
     return db_manager.resolve_category_for_language(category, subcategory, language);
 }
 
+void persist_folder_tree_route(DatabaseManager& db_manager,
+                               const CategorizedFile& entry,
+                               const std::string& cache_file_name,
+                               const std::string& cache_dir,
+                               const std::string& destination_root,
+                               const std::string& target_folder,
+                               bool allow_new_folders,
+                               bool target_exists,
+                               bool target_suggested_new,
+                               const DatabaseManager::ResolvedCategory& resolved)
+{
+    if (destination_root.empty() || target_folder.empty() ||
+        resolved.category.empty() || resolved.subcategory.empty()) {
+        return;
+    }
+
+    const auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
+    if (!validation.valid) {
+        return;
+    }
+
+    const auto catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(destination_root));
+    const auto best_existing =
+        FolderTreeCatalog::best_semantic_match(catalog, resolved.category, resolved.subcategory);
+
+    DatabaseManager::FolderTreeRoutingRecord route;
+    route.destination_root = destination_root;
+    route.tree_fingerprint = catalog.fingerprint();
+    route.allow_new_folders = allow_new_folders;
+    route.semantic_category = resolved.category;
+    route.semantic_subcategory = resolved.subcategory;
+    route.semantic_target_folder =
+        FolderTreeCatalog::semantic_target_path(resolved.category, resolved.subcategory);
+    if (best_existing) {
+        route.best_existing_folder = best_existing->entry.relative_path;
+        route.best_existing_score = best_existing->score;
+    }
+    route.target_folder_relative_path = validation.normalized_path;
+    route.target_folder_suggested_new = target_suggested_new;
+    route.target_folder_exists = target_exists;
+    db_manager.insert_or_update_folder_tree_routing(cache_file_name,
+                                                    entry.type == FileType::Directory ? "D" : "F",
+                                                    cache_dir,
+                                                    route);
+}
+
 void append_skipped(HeadlessReviewApplyService::Result& result,
                     HeadlessReviewApplyService::EntryResult entry_result)
 {
@@ -390,6 +436,11 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                                         effective_subcategory,
                                                         options.category_language);
             }
+            resolved.target_folder_relative_path = entry.target_folder_relative_path;
+            resolved.folder_tree_mode = entry.folder_tree_mode;
+            resolved.target_folder_suggested_new = entry.target_folder_suggested_new;
+            resolved.target_folder_exists = entry.target_folder_exists;
+            resolved.folder_tree_allow_new_folders = entry.folder_tree_allow_new_folders;
             const std::string type_label = entry.type == FileType::Directory ? "D" : "F";
             db_manager_->remove_file_categorization(entry.file_path, entry.file_name, entry.type);
             db_manager_->insert_or_update_file_with_categorization(destination_name,
@@ -400,6 +451,19 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                                                    destination_name,
                                                                    entry.rename_only || resolved.category.empty(),
                                                                    true);
+            if (entry.folder_tree_mode) {
+                persist_folder_tree_route(*db_manager_,
+                                          entry,
+                                          destination_name,
+                                          entry.file_path,
+                                          options.base_dir,
+                                          entry.target_folder_relative_path,
+                                          options.allow_new_folder_targets ||
+                                              entry.folder_tree_allow_new_folders,
+                                          entry.target_folder_exists,
+                                          entry.target_folder_suggested_new,
+                                          resolved);
+            }
         }
         result.entries.push_back(std::move(entry_result));
         return;
@@ -479,8 +543,20 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                              move_result.metadata);
 
         if (db_manager_) {
-            auto resolved = db_manager_->resolve_category(entry_result.category,
-                                                          entry_result.subcategory);
+            const std::string category = display_category(entry);
+            const std::string subcategory = display_subcategory(entry);
+            const std::string effective_subcategory =
+                is_missing_category_label(subcategory) ? category : subcategory;
+            auto resolved = resolve_category_for_storage(*db_manager_,
+                                                         entry,
+                                                         category,
+                                                         effective_subcategory,
+                                                         options.category_language);
+            resolved.target_folder_relative_path = validation.normalized_path;
+            resolved.folder_tree_mode = true;
+            resolved.target_folder_suggested_new = false;
+            resolved.target_folder_exists = true;
+            resolved.folder_tree_allow_new_folders = allow_new;
             const std::string source_db_dir = source_directory_for_database(entry);
             std::string suggested_name = rename_active ? destination_name : entry.suggested_name;
             const bool rename_applied = rename_active ? true : entry.rename_applied;
@@ -493,6 +569,16 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                                                    suggested_name,
                                                                    false,
                                                                    rename_applied);
+            persist_folder_tree_route(*db_manager_,
+                                      entry,
+                                      destination_name,
+                                      target_dir_text,
+                                      options.base_dir,
+                                      validation.normalized_path,
+                                      allow_new,
+                                      true,
+                                      false,
+                                      resolved);
         }
         result.entries.push_back(std::move(entry_result));
         return;

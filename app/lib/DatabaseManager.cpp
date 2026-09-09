@@ -195,7 +195,6 @@ std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
     if (sqlite3_column_count(stmt) > 5) {
         suggested_name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
     }
-
     std::string dir_path = file_dir_path ? file_dir_path : "";
     std::string name = file_name ? file_name : "";
     std::string type_str = file_type ? file_type : "";
@@ -361,6 +360,41 @@ void DatabaseManager::initialize_schema() {
         "CREATE INDEX IF NOT EXISTS idx_file_categorization_taxonomy ON file_categorization(taxonomy_id);";
     if (sqlite3_exec(db, create_index_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         db_log(spdlog::level::err, "Failed to create taxonomy index: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
+
+    const char *create_routing_table_sql = R"(
+        CREATE TABLE IF NOT EXISTS folder_tree_routing (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_name TEXT NOT NULL,
+            file_type TEXT NOT NULL,
+            dir_path TEXT NOT NULL,
+            destination_root TEXT NOT NULL,
+            tree_fingerprint TEXT NOT NULL,
+            allow_new_folders INTEGER NOT NULL DEFAULT 0,
+            semantic_category TEXT NOT NULL,
+            semantic_subcategory TEXT NOT NULL,
+            semantic_target_folder TEXT,
+            best_existing_folder TEXT,
+            best_existing_score INTEGER DEFAULT 0,
+            target_folder_relative_path TEXT NOT NULL,
+            target_folder_suggested_new INTEGER DEFAULT 0,
+            target_folder_exists INTEGER DEFAULT 0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(file_name, file_type, dir_path, destination_root, tree_fingerprint,
+                   allow_new_folders, semantic_category, semantic_subcategory)
+        );
+    )";
+    if (sqlite3_exec(db, create_routing_table_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create folder_tree_routing table: {}", error_msg);
+        sqlite3_free(error_msg);
+    }
+
+    const char *create_routing_lookup_index_sql =
+        "CREATE INDEX IF NOT EXISTS idx_folder_tree_routing_lookup "
+        "ON folder_tree_routing(file_name, file_type, dir_path, destination_root, tree_fingerprint);";
+    if (sqlite3_exec(db, create_routing_lookup_index_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        db_log(spdlog::level::err, "Failed to create folder_tree_routing lookup index: {}", error_msg);
         sqlite3_free(error_msg);
     }
 }
@@ -1256,6 +1290,134 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     return success;
 }
 
+bool DatabaseManager::insert_or_update_folder_tree_routing(
+    const std::string& file_name,
+    const std::string& file_type,
+    const std::string& dir_path,
+    const FolderTreeRoutingRecord& record)
+{
+    if (!db) {
+        return false;
+    }
+
+    const char* sql = R"(
+        INSERT INTO folder_tree_routing
+            (file_name, file_type, dir_path, destination_root, tree_fingerprint,
+             allow_new_folders, semantic_category, semantic_subcategory,
+             semantic_target_folder, best_existing_folder, best_existing_score,
+             target_folder_relative_path, target_folder_suggested_new, target_folder_exists,
+             updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(file_name, file_type, dir_path, destination_root, tree_fingerprint,
+                    allow_new_folders, semantic_category, semantic_subcategory)
+        DO UPDATE SET
+            semantic_target_folder = excluded.semantic_target_folder,
+            best_existing_folder = excluded.best_existing_folder,
+            best_existing_score = excluded.best_existing_score,
+            target_folder_relative_path = excluded.target_folder_relative_path,
+            target_folder_suggested_new = excluded.target_folder_suggested_new,
+            target_folder_exists = excluded.target_folder_exists,
+            updated_at = CURRENT_TIMESTAMP;
+    )";
+
+    StatementPtr stmt = prepare_statement(db, sql);
+    if (!stmt) {
+        db_log(spdlog::level::err, "Failed to prepare folder-tree routing upsert: {}", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_text(stmt.get(), 1, file_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 2, file_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 3, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 4, record.destination_root.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 5, record.tree_fingerprint.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt.get(), 6, record.allow_new_folders ? 1 : 0);
+    sqlite3_bind_text(stmt.get(), 7, record.semantic_category.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 8, record.semantic_subcategory.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 9, record.semantic_target_folder.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 10, record.best_existing_folder.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt.get(), 11, record.best_existing_score);
+    sqlite3_bind_text(stmt.get(), 12, record.target_folder_relative_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt.get(), 13, record.target_folder_suggested_new ? 1 : 0);
+    sqlite3_bind_int(stmt.get(), 14, record.target_folder_exists ? 1 : 0);
+
+    if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
+        db_log(spdlog::level::err, "Failed to upsert folder-tree routing for '{}': {}",
+               file_name, sqlite3_errmsg(db));
+        return false;
+    }
+
+    return true;
+}
+
+std::optional<DatabaseManager::FolderTreeRoutingRecord>
+DatabaseManager::get_folder_tree_routing(
+    const std::string& file_name,
+    FileType file_type,
+    const std::string& dir_path,
+    const std::string& destination_root,
+    const std::string& tree_fingerprint,
+    bool allow_new_folders,
+    const std::string& semantic_category,
+    const std::string& semantic_subcategory)
+{
+    if (!db) {
+        return std::nullopt;
+    }
+
+    const char* sql = R"(
+        SELECT destination_root, tree_fingerprint, allow_new_folders,
+               semantic_category, semantic_subcategory, semantic_target_folder,
+               best_existing_folder, best_existing_score, target_folder_relative_path,
+               target_folder_suggested_new, target_folder_exists
+        FROM folder_tree_routing
+        WHERE file_name = ? AND file_type = ? AND dir_path = ?
+          AND destination_root = ? AND tree_fingerprint = ?
+          AND allow_new_folders = ?
+          AND semantic_category = ? AND semantic_subcategory = ?
+        LIMIT 1;
+    )";
+
+    StatementPtr stmt = prepare_statement(db, sql);
+    if (!stmt) {
+        db_log(spdlog::level::err, "Failed to prepare folder-tree routing lookup: {}", sqlite3_errmsg(db));
+        return std::nullopt;
+    }
+
+    const std::string type_label = file_type == FileType::Directory ? "D" : "F";
+    sqlite3_bind_text(stmt.get(), 1, file_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 2, type_label.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 3, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 4, destination_root.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 5, tree_fingerprint.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt.get(), 6, allow_new_folders ? 1 : 0);
+    sqlite3_bind_text(stmt.get(), 7, semantic_category.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt.get(), 8, semantic_subcategory.c_str(), -1, SQLITE_TRANSIENT);
+
+    if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
+        return std::nullopt;
+    }
+
+    auto text_at = [raw = stmt.get()](int column) -> std::string {
+        const char* text = reinterpret_cast<const char*>(sqlite3_column_text(raw, column));
+        return text ? text : "";
+    };
+
+    FolderTreeRoutingRecord record;
+    record.destination_root = text_at(0);
+    record.tree_fingerprint = text_at(1);
+    record.allow_new_folders = sqlite3_column_int(stmt.get(), 2) != 0;
+    record.semantic_category = text_at(3);
+    record.semantic_subcategory = text_at(4);
+    record.semantic_target_folder = text_at(5);
+    record.best_existing_folder = text_at(6);
+    record.best_existing_score = sqlite3_column_int(stmt.get(), 7);
+    record.target_folder_relative_path = text_at(8);
+    record.target_folder_suggested_new = sqlite3_column_int(stmt.get(), 9) != 0;
+    record.target_folder_exists = sqlite3_column_int(stmt.get(), 10) != 0;
+    return record;
+}
+
 bool DatabaseManager::remove_file_categorization(const std::string& dir_path,
                                                  const std::string& file_name,
                                                  const FileType file_type) {
@@ -1284,6 +1446,27 @@ bool DatabaseManager::remove_file_categorization(const std::string& dir_path,
     }
 
     sqlite3_finalize(stmt);
+    if (success) {
+        const char* routing_sql =
+            "DELETE FROM folder_tree_routing WHERE dir_path = ? AND file_name = ? AND file_type = ?;";
+        sqlite3_stmt* routing_stmt = nullptr;
+        if (sqlite3_prepare_v2(db, routing_sql, -1, &routing_stmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_text(routing_stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(routing_stmt, 2, file_name.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(routing_stmt, 3, type_str.c_str(), -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(routing_stmt) != SQLITE_DONE) {
+                db_log(spdlog::level::warn,
+                       "Failed to delete cached folder-tree routing for '{}': {}",
+                       file_name,
+                       sqlite3_errmsg(db));
+            }
+            sqlite3_finalize(routing_stmt);
+        } else {
+            db_log(spdlog::level::warn,
+                   "Failed to prepare cached folder-tree routing delete: {}",
+                   sqlite3_errmsg(db));
+        }
+    }
     return success;
 }
 
@@ -1312,6 +1495,30 @@ bool DatabaseManager::clear_directory_categorizations(const std::string& dir_pat
         db_log(spdlog::level::err, "Failed to clear cached categorizations for '{}': {}", dir_path, sqlite3_errmsg(db));
     }
     sqlite3_finalize(stmt);
+    if (success) {
+        const char* routing_sql = recursive
+            ? "DELETE FROM folder_tree_routing WHERE dir_path = ? OR dir_path LIKE ? ESCAPE '\\';"
+            : "DELETE FROM folder_tree_routing WHERE dir_path = ?;";
+        sqlite3_stmt* routing_stmt = nullptr;
+        if (sqlite3_prepare_v2(db, routing_sql, -1, &routing_stmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_text(routing_stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+            if (recursive) {
+                const std::string pattern = build_recursive_dir_pattern(dir_path);
+                sqlite3_bind_text(routing_stmt, 2, pattern.c_str(), -1, SQLITE_TRANSIENT);
+            }
+            if (sqlite3_step(routing_stmt) != SQLITE_DONE) {
+                db_log(spdlog::level::warn,
+                       "Failed to clear cached folder-tree routings for '{}': {}",
+                       dir_path,
+                       sqlite3_errmsg(db));
+            }
+            sqlite3_finalize(routing_stmt);
+        } else {
+            db_log(spdlog::level::warn,
+                   "Failed to prepare folder-tree routing clear statement: {}",
+                   sqlite3_errmsg(db));
+        }
+    }
     cached_results.clear();
     return success;
 }
@@ -1324,11 +1531,13 @@ bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
 
     char* error_msg = nullptr;
     const char* delete_sql = clear_taxonomy
-        ? "DELETE FROM category_translation;"
+        ? "DELETE FROM folder_tree_routing;"
+          "DELETE FROM category_translation;"
           "DELETE FROM category_alias;"
           "DELETE FROM category_taxonomy;"
           "DELETE FROM file_categorization;"
-        : "DELETE FROM file_categorization;";
+        : "DELETE FROM folder_tree_routing;"
+          "DELETE FROM file_categorization;";
     if (sqlite3_exec(db, delete_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         db_log(spdlog::level::err,
                clear_taxonomy
@@ -1342,8 +1551,8 @@ bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
     }
 
     const char* reset_sequence_sql = clear_taxonomy
-        ? "DELETE FROM sqlite_sequence WHERE name IN ('file_categorization', 'category_taxonomy');"
-        : "DELETE FROM sqlite_sequence WHERE name = 'file_categorization';";
+        ? "DELETE FROM sqlite_sequence WHERE name IN ('file_categorization', 'category_taxonomy', 'folder_tree_routing');"
+        : "DELETE FROM sqlite_sequence WHERE name IN ('file_categorization', 'folder_tree_routing');";
     if (sqlite3_exec(db, reset_sequence_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         db_log(spdlog::level::warn,
                clear_taxonomy

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
@@ -20,6 +21,7 @@ namespace {
 constexpr std::size_t kPromptCandidateLimit = 160;
 constexpr std::size_t kMaxRelativePathLength = 240;
 constexpr std::size_t kMaxSegmentLength = 100;
+constexpr int kStrongSemanticMatchScore = 8;
 
 std::string trim_copy(std::string value)
 {
@@ -197,6 +199,71 @@ int candidate_score(const FolderTreeCatalog::Entry& entry,
         }
     }
     return score - entry.depth;
+}
+
+bool is_generic_semantic_token(const std::string& token)
+{
+    static const std::unordered_set<std::string> generic = {
+        "file", "files", "general", "misc", "miscellaneous"};
+    return generic.contains(token);
+}
+
+bool is_fallback_path_token(const std::string& token)
+{
+    static const std::unordered_set<std::string> fallback = {
+        "other", "unsorted", "review", "misc", "miscellaneous",
+        "temporary", "temp", "archive", "archives", "compressed"};
+    return fallback.contains(token);
+}
+
+std::unordered_set<std::string> semantic_tokens(std::string_view value)
+{
+    auto tokens = tokenize(std::string(value));
+    for (auto it = tokens.begin(); it != tokens.end();) {
+        if (is_generic_semantic_token(*it)) {
+            it = tokens.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    return tokens;
+}
+
+int score_token_overlap(const std::unordered_set<std::string>& path_tokens,
+                        const std::unordered_set<std::string>& semantic,
+                        int exact_score,
+                        int partial_score)
+{
+    int score = 0;
+    for (const auto& token : semantic) {
+        if (path_tokens.contains(token)) {
+            score += exact_score;
+            continue;
+        }
+        for (const auto& path_token : path_tokens) {
+            if (token.size() >= 4 && path_token.find(token) != std::string::npos) {
+                score += partial_score;
+                break;
+            }
+            if (path_token.size() >= 4 && token.find(path_token) != std::string::npos) {
+                score += partial_score;
+                break;
+            }
+        }
+    }
+    return score;
+}
+
+bool has_fallback_path_token(const std::unordered_set<std::string>& path_tokens)
+{
+    return std::any_of(path_tokens.begin(), path_tokens.end(), is_fallback_path_token);
+}
+
+std::string hex_u64(std::uint64_t value)
+{
+    std::ostringstream out;
+    out << std::hex << std::setw(16) << std::setfill('0') << value;
+    return out.str();
 }
 
 std::string json_string_value(const Json::Value& object,
@@ -468,6 +535,24 @@ Catalog::Catalog(std::vector<Entry> entries)
     });
 }
 
+std::string Catalog::fingerprint() const
+{
+    std::uint64_t hash = 1469598103934665603ull;
+    auto mix_byte = [&hash](unsigned char byte) {
+        hash ^= byte;
+        hash *= 1099511628211ull;
+    };
+    for (const Entry& entry : entries_) {
+        for (unsigned char ch : entry.relative_path) {
+            mix_byte(ch);
+        }
+        mix_byte(0xffu);
+        mix_byte(static_cast<unsigned char>(entry.depth & 0xff));
+        mix_byte(0x00u);
+    }
+    return hex_u64(hash) + ":" + std::to_string(entries_.size());
+}
+
 std::optional<std::string> Catalog::find_existing(std::string_view relative_path) const
 {
     const auto validation = validate_relative_folder_path(relative_path);
@@ -567,28 +652,141 @@ std::optional<Selection> parse_selection(const std::string& response,
     return build_selection_from_path(extract_text_selection(cleaned), catalog, allow_new_folders, false);
 }
 
+std::optional<Selection> resolve_target_path(std::string_view relative_path,
+                                             const Catalog& catalog,
+                                             bool allow_new_folders)
+{
+    return build_selection_from_path(std::string(relative_path), catalog, allow_new_folders, false);
+}
+
+std::string semantic_target_path(std::string_view category,
+                                 std::string_view subcategory)
+{
+    std::string sanitized_category = Utils::sanitize_path_label(std::string(category));
+    std::string sanitized_subcategory = Utils::sanitize_path_label(std::string(subcategory));
+    if (sanitized_category.empty()) {
+        return {};
+    }
+
+    const std::string category_lower = lower_copy(sanitized_category);
+    const std::string subcategory_lower = lower_copy(sanitized_subcategory);
+    std::string target = sanitized_category;
+    if (!sanitized_subcategory.empty() &&
+        subcategory_lower != "general" &&
+        subcategory_lower != category_lower) {
+        target += "/";
+        target += sanitized_subcategory;
+    }
+
+    auto validation = validate_relative_folder_path(target);
+    return validation.valid ? validation.normalized_path : std::string();
+}
+
+int semantic_match_score(std::string_view relative_path,
+                         std::string_view category,
+                         std::string_view subcategory)
+{
+    const auto validation = validate_relative_folder_path(relative_path);
+    if (!validation.valid) {
+        return 0;
+    }
+
+    int score = 0;
+    const std::string semantic_target = semantic_target_path(category, subcategory);
+    if (!semantic_target.empty() &&
+        lower_copy(validation.normalized_path) == lower_copy(semantic_target)) {
+        score += 20;
+    }
+
+    const auto path_tokens = tokenize(validation.normalized_path);
+    const auto category_tokens = semantic_tokens(category);
+    const auto subcategory_tokens = semantic_tokens(subcategory);
+    score += score_token_overlap(path_tokens, category_tokens, 5, 2);
+    score += score_token_overlap(path_tokens, subcategory_tokens, 10, 4);
+
+    const std::string category_label = Utils::sanitize_path_label(std::string(category));
+    if (!category_label.empty()) {
+        const std::string normalized_path = lower_copy(validation.normalized_path);
+        const std::string category_prefix = lower_copy(category_label) + "/";
+        if (normalized_path == lower_copy(category_label) ||
+            normalized_path.rfind(category_prefix, 0) == 0) {
+            score += 4;
+        }
+    }
+
+    if (has_fallback_path_token(path_tokens) && score < kStrongSemanticMatchScore) {
+        score -= 6;
+    }
+    return score;
+}
+
+std::optional<SemanticMatch> best_semantic_match(const Catalog& catalog,
+                                                 std::string_view category,
+                                                 std::string_view subcategory)
+{
+    std::optional<SemanticMatch> best;
+    for (const Entry& entry : catalog.entries()) {
+        const int score = semantic_match_score(entry.relative_path, category, subcategory);
+        if (!best || score > best->score ||
+            (score == best->score && entry.depth > best->entry.depth) ||
+            (score == best->score && entry.depth == best->entry.depth &&
+             entry.relative_path < best->entry.relative_path)) {
+            best = SemanticMatch{entry, score};
+        }
+    }
+    return best;
+}
+
+bool is_strong_semantic_match(int score)
+{
+    return score >= kStrongSemanticMatchScore;
+}
+
 std::string build_prompt_context(const Catalog& catalog,
                                  const std::string& item_name,
                                  const std::string& item_path,
-                                 bool allow_new_folders)
+                                 bool allow_new_folders,
+                                 std::string_view semantic_category,
+                                 std::string_view semantic_subcategory,
+                                 std::string_view semantic_target)
 {
     std::ostringstream prompt;
     prompt << kPromptMarker << "\n";
     prompt << "Existing folder structure sorting mode:\n";
     prompt << "- Choose the destination folder for this item under the selected sorting root.\n";
-    prompt << "- Return only JSON in this exact shape: {\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}\n";
+    prompt << "- Return only JSON with targetFolder and createFolder fields.\n";
     prompt << "- Use forward slashes in targetFolder and do not include the file name.\n";
     prompt << "- Folder names are literal. Do not translate, rename, or simplify existing folder names.\n";
+    if (!semantic_category.empty()) {
+        prompt << "- The semantic category already inferred for this item is: "
+               << semantic_category << " / "
+               << (semantic_subcategory.empty() ? std::string_view("General") : semantic_subcategory)
+               << ".\n";
+    }
+    if (!semantic_target.empty()) {
+        prompt << "- The default folder path from that semantic category is: "
+               << semantic_target << ".\n";
+    }
     if (allow_new_folders) {
-        prompt << "- Prefer an existing folder. Set createFolder to true only when no existing folder fits well.\n";
-        prompt << "- When suggesting a new folder, use a concise safe relative folder path under the sorting root.\n";
+        prompt << "- Compare the semantic destination with the listed folders before deciding whether to create a new folder.\n";
+        prompt << "- The listed candidates are not exhaustive when new folders are allowed; you may return a folder path that is not listed.\n";
+        prompt << "- For a strong existing semantic match, return {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false}.\n";
+        prompt << "- If the listed folders are only weak, generic, or unrelated matches, suggest a concise new folder and return {\"targetFolder\":\"new/folder/path\",\"createFolder\":true}.\n";
+        prompt << "- Do not choose fallback folders such as Other, Unsorted Review, Temporary, Misc, Data and Archives, or Compressed Archives just to avoid creating a missing semantic folder, unless that fallback is truly the best content match.\n";
+        prompt << "- Suggested folders may be new top-level groups or nested paths under an existing group.\n";
     } else {
         prompt << "- Use an existing folder only. targetFolder must exactly match one of the listed candidates.\n";
         prompt << "- Never suggest or invent a new folder.\n";
+        prompt << "- Return {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false}.\n";
     }
 
     const std::vector<Entry> candidates =
-        catalog.ranked_candidates(item_name, item_path, kPromptCandidateLimit);
+        catalog.ranked_candidates(item_name,
+                                  item_path + " " +
+                                      std::string(semantic_category) + " " +
+                                      std::string(semantic_subcategory) + " " +
+                                      std::string(semantic_target),
+                                  kPromptCandidateLimit);
     prompt << "\nExisting destination folder candidates:\n";
     if (candidates.empty()) {
         prompt << "(none)\n";

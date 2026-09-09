@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "FolderTreeCatalog.hpp"
 #include "LocalLLMPromptBuilder.hpp"
 
 #include <string>
@@ -23,6 +24,27 @@ TEST_CASE("LocalLLMPromptBuilder preserves specialized prompt routing")
     const std::string directory_prompt =
         LocalLLMPromptBuilder::build_system_prompt("home/theuser/Downloads/Invoices", FileType::Directory);
     CHECK(directory_prompt.find("directory categorization assistant") != std::string::npos);
+
+    const std::string folder_tree_context =
+        std::string(FolderTreeCatalog::kPromptMarker) +
+        "\n- If the listed folders are only weak, generic, or unrelated matches, "
+        "suggest a concise new folder.";
+    const std::string folder_tree_system_prompt =
+        LocalLLMPromptBuilder::build_system_prompt("home/theuser/Downloads/report.pdf",
+                                                   FileType::File,
+                                                   folder_tree_context);
+    CHECK(folder_tree_system_prompt.find("createFolder:true") != std::string::npos);
+    CHECK(folder_tree_system_prompt.find("Do not treat listed candidates as exhaustive") !=
+          std::string::npos);
+    CHECK(folder_tree_system_prompt.find("weak, generic, or unrelated matches") != std::string::npos);
+
+    const std::string folder_tree_user_prompt =
+        LocalLLMPromptBuilder::build_user_prompt("report.pdf",
+                                                 "home/theuser/Downloads/report.pdf",
+                                                 FileType::File,
+                                                 folder_tree_context);
+    CHECK(folder_tree_user_prompt.find("\"createFolder\":false") != std::string::npos);
+    CHECK(folder_tree_user_prompt.find("\"createFolder\":true") != std::string::npos);
 }
 
 TEST_CASE("LocalLLMPromptBuilder strips image guidance from image prompts only")

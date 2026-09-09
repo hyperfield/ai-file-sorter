@@ -372,6 +372,33 @@ private:
         const std::string& dir_path,
         FileType file_type,
         const ProgressCallback& progress_callback) const;
+    /**
+     * @brief Routes a semantic category into the current existing destination folder tree.
+     * @param llm LLM client used when an existing-folder decision needs model help.
+     * @param is_local_llm True when using a local LLM backend.
+     * @param display_name Display name for logging.
+     * @param display_path Display path for logging.
+     * @param dir_path Directory path used for cache identity.
+     * @param prompt_name Name used in prompts.
+     * @param prompt_path Path/context payload used in prompts.
+     * @param file_type File or directory.
+     * @param semantic Semantic category result to route.
+     * @param progress_callback Progress updates callback.
+     * @param remote_throttle_callback Optional callback invoked before remote route requests.
+     * @return Semantic category with folder-tree target metadata attached.
+     */
+    DatabaseManager::ResolvedCategory route_semantic_category_to_folder_tree(
+        ILLMClient& llm,
+        bool is_local_llm,
+        const std::string& display_name,
+        const std::string& display_path,
+        const std::string& dir_path,
+        const std::string& prompt_name,
+        const std::string& prompt_path,
+        FileType file_type,
+        const DatabaseManager::ResolvedCategory& semantic,
+        const ProgressCallback& progress_callback,
+        const RemoteThrottleCallback& remote_throttle_callback) const;
 
     /**
      * @brief Ensures remote credentials are present and reports errors via progress callback.

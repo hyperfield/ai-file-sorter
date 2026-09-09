@@ -234,10 +234,10 @@ Run: `./build-tests/ai_file_sorter_tests "Vulkan backend reports low GPU memory 
 ### `tests/unit/test_local_llm_prompt_builder.cpp`
 
 #### Test case: LocalLLMPromptBuilder preserves specialized prompt routing
-Purpose: Verify the extracted prompt builder still selects image, document, and directory system prompts from the target context.
-Setup: Provide representative image-description, document, and directory prompt paths.
-Procedure: Build system prompts through `LocalLLMPromptBuilder`.
-Expected outcome: Each target gets its specialized prompt text.
+Purpose: Verify the extracted prompt builder still selects image, document, directory, and folder-tree system prompts from the target context.
+Setup: Provide representative image-description, document, directory, and folder-tree prompt contexts.
+Procedure: Build system and user prompts through `LocalLLMPromptBuilder`.
+Expected outcome: Each target gets its specialized prompt text, and folder-tree prompts include both existing-folder and allowed-new-folder JSON examples.
 Run: `./build-tests/ai_file_sorter_tests "LocalLLMPromptBuilder preserves specialized prompt routing"`
 
 #### Test case: LocalLLMPromptBuilder strips image guidance from image prompts only
@@ -1859,6 +1859,13 @@ Procedure: Parse a plain-text target response with new-folder suggestions enable
 Expected outcome: The relative path is accepted, marked as non-existing, and flagged as a suggested new folder.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog accepts new folders only when enabled"`
 
+#### Test case: FolderTreeCatalog prompt guides new folders over weak fallbacks
+Purpose: Ensure suggested-folder mode tells the model to propose a new semantic folder instead of forcing weak generic destinations.
+Setup: Build a catalog with images, archives, and catch-all folders but no document folder.
+Procedure: Build folder-tree prompt context for a PDF invoice with new-folder suggestions enabled.
+Expected outcome: The prompt includes existing-folder and new-folder JSON examples, says candidates are not exhaustive when suggestions are allowed, and explicitly discourages weak fallback folders.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog prompt guides new folders over weak fallbacks"`
+
 #### Test case: FolderTreeCatalog derives compatibility labels from target path
 Purpose: Preserve category/subcategory compatibility for cache, history, and status fields while using explicit target folders.
 Setup: Provide a nested Johnny.Decimal-like target path.
@@ -2610,17 +2617,24 @@ Expected outcome: The messages include the current file path and categorization 
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService progress shows current and categorization paths"`
 
 #### Test case: CategorizationService routes into existing folder-tree targets
-Purpose: Verify the service-level existing-folder sorting mode returns explicit target-folder metadata instead of legacy category-only output.
+Purpose: Verify the service-level existing-folder sorting mode first resolves semantic labels, then attaches explicit target-folder metadata.
 Setup: Create a target root with an existing nested destination folder and configure `ExistingFolderTree` mode.
-Procedure: Categorize one file using an LLM stub that returns target-folder JSON.
-Expected outcome: The categorized result records folder-tree mode, resolves the existing target path with catalog casing, derives compatibility category labels, and includes folder candidates in the prompt context.
+Procedure: Categorize one file using an LLM stub that returns semantic labels followed by target-folder JSON.
+Expected outcome: The categorized result preserves semantic category labels, records folder-tree mode, resolves the existing target path with catalog casing, and includes semantic labels plus folder candidates in the routing prompt context.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService routes into existing folder-tree targets"`
+
+#### Test case: CategorizationService accepts suggested folder-tree targets when enabled
+Purpose: Ensure the existing-folder sorting mode can accept a newly suggested semantic folder instead of forcing a generic fallback.
+Setup: Create a target root with image, archive, and unsorted fallback folders but no document destination, then enable `SuggestNewFolders`.
+Procedure: Categorize one document using an LLM stub that returns semantic document labels.
+Expected outcome: The categorized result records `Documents/Invoices` as a deterministic suggested new folder, marks the target as not existing yet, and persists the routing decision separately from the semantic cache.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService accepts suggested folder-tree targets when enabled"`
 
 #### Test case: CategorizationService scans destination root for existing folder-tree targets
 Purpose: Ensure existing-folder sorting catalogs are built from the selected destination root, not necessarily the analyzed folder.
 Setup: Create separate source and destination folders, with the folder tree only under the destination root.
-Procedure: Categorize one source file using an LLM stub that returns a folder from the destination tree.
-Expected outcome: The categorized result resolves the destination-tree folder and the prompt context includes that destination folder candidate.
+Procedure: Categorize one source file using an LLM stub that returns semantic labels followed by a folder from the destination tree.
+Expected outcome: The categorized result preserves semantic labels, resolves the destination-tree folder, and the routing prompt context includes that destination folder candidate.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService scans destination root for existing folder-tree targets"`
 
 #### Test case: Document prompt helpers use the suggested filename for categorization
@@ -2827,6 +2841,20 @@ Setup: Seed the database with a resolved category for a file entry and prepare a
 Procedure: Call `categorize_entries` for that file.
 Expected outcome: The cached category is returned and the LLM call counter stays at zero.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses cached categorization without calling LLM"`
+
+#### Test case: CategorizationService uses cached folder-tree target without calling LLM
+Purpose: Ensure existing-folder sorting mode can reuse cached semantic labels and a cached routing decision without invoking the LLM.
+Setup: Seed the database with semantic labels plus a matching `folder_tree_routing` row and create the corresponding destination folder.
+Procedure: Call `categorize_entries` in `ExistingFolderTree` mode for that file.
+Expected outcome: The cached target folder is returned with folder-tree metadata intact and the LLM call counter stays at zero.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses cached folder-tree target without calling LLM"`
+
+#### Test case: CategorizationService derives new folder route from semantic cache without LLM
+Purpose: Ensure an existing semantic cache row can produce a new-folder suggestion when the destination tree lacks a strong match.
+Setup: Seed semantic `Documents / Invoices` labels, configure existing-folder sorting with new-folder suggestions enabled, and create only unrelated fallback folders.
+Procedure: Call `categorize_entries` for the cached file.
+Expected outcome: The result targets `Documents/Invoices` as a suggested new folder without invoking the LLM.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService derives new folder route from semantic cache without LLM"`
 
 #### Test case: CategorizationService falls back to LLM when cache is empty
 Purpose: Validate cache fallback to LLM and persistence of returned category values.
