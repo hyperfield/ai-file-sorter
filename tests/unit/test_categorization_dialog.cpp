@@ -260,7 +260,7 @@ TEST_CASE("CategorizationDialog supports sorting by columns") {
     }
 }
 
-TEST_CASE("CategorizationDialog does not edit cells on selected click") {
+TEST_CASE("CategorizationDialog edits cells on selected click") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
 
@@ -274,7 +274,7 @@ TEST_CASE("CategorizationDialog does not edit cells on selected click") {
     const auto triggers = table->editTriggers();
     CHECK(triggers.testFlag(QAbstractItemView::DoubleClicked));
     CHECK(triggers.testFlag(QAbstractItemView::EditKeyPressed));
-    CHECK_FALSE(triggers.testFlag(QAbstractItemView::SelectedClicked));
+    CHECK(triggers.testFlag(QAbstractItemView::SelectedClicked));
 }
 
 TEST_CASE("CategorizationDialog auto-approves rows by enabled operation") {

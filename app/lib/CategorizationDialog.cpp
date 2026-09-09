@@ -391,7 +391,9 @@ void CategorizationDialog::setup_ui()
     table_view->setModel(model);
     table_view->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_view->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    table_view->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    table_view->setEditTriggers(QAbstractItemView::DoubleClicked |
+                                QAbstractItemView::SelectedClicked |
+                                QAbstractItemView::EditKeyPressed);
     table_view->horizontalHeader()->setStretchLastSection(true);
     table_view->verticalHeader()->setVisible(false);
     table_view->horizontalHeader()->setSectionsClickable(true);
@@ -422,7 +424,7 @@ void CategorizationDialog::setup_ui()
     tip_font.setItalic(true);
     tip_label->setFont(tip_font);
     tip_label->setTextFormat(Qt::RichText);
-    tip_label->setText(tr("Tip: Double-click %1 cells to edit them.")
+    tip_label->setText(tr("Tip: Click %1 cells to rename them.")
                            .arg(edit_icon_html()));
     scroll_layout->addWidget(tip_label);
 
