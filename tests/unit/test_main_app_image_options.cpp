@@ -20,6 +20,84 @@
 #include <unordered_set>
 #include <vector>
 
+TEST_CASE("Processing documents only disables image analysis controls") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_analyze_images_by_content(true);
+    settings.set_process_images_only(false);
+    settings.set_offer_rename_images(true);
+    settings.set_rename_images_only(false);
+    settings.set_add_image_date_to_category(true);
+    settings.set_add_image_date_place_to_filename(true);
+    settings.set_analyze_documents_by_content(true);
+    settings.set_process_documents_only(false);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    QCheckBox* analyze_images = MainAppTestAccess::analyze_images_checkbox(window);
+    QCheckBox* process_images_only = MainAppTestAccess::process_images_only_checkbox(window);
+    QCheckBox* offer_rename_images = MainAppTestAccess::offer_rename_images_checkbox(window);
+    QCheckBox* rename_images_only = MainAppTestAccess::rename_images_only_checkbox(window);
+    QCheckBox* add_image_date =
+        MainAppTestAccess::add_image_date_to_category_checkbox(window);
+    QCheckBox* add_image_date_place =
+        MainAppTestAccess::add_image_date_place_to_filename_checkbox(window);
+    QCheckBox* analyze_documents = MainAppTestAccess::analyze_documents_checkbox(window);
+    QCheckBox* process_documents_only = MainAppTestAccess::process_documents_only_checkbox(window);
+    QToolButton* image_toggle = MainAppTestAccess::image_options_toggle_button(window);
+
+    REQUIRE(analyze_images != nullptr);
+    REQUIRE(process_images_only != nullptr);
+    REQUIRE(offer_rename_images != nullptr);
+    REQUIRE(rename_images_only != nullptr);
+    REQUIRE(add_image_date != nullptr);
+    REQUIRE(add_image_date_place != nullptr);
+    REQUIRE(analyze_documents != nullptr);
+    REQUIRE(process_documents_only != nullptr);
+    REQUIRE(image_toggle != nullptr);
+
+    REQUIRE(analyze_images->isChecked());
+    REQUIRE(analyze_documents->isChecked());
+    REQUIRE(analyze_images->isEnabled());
+    REQUIRE(process_images_only->isEnabled());
+    REQUIRE(offer_rename_images->isEnabled());
+    REQUIRE(rename_images_only->isEnabled());
+    REQUIRE(add_image_date->isEnabled());
+    REQUIRE(add_image_date_place->isEnabled());
+    REQUIRE(image_toggle->isEnabled());
+
+    process_documents_only->setChecked(true);
+
+    REQUIRE_FALSE(analyze_images->isEnabled());
+    REQUIRE_FALSE(process_images_only->isEnabled());
+    REQUIRE_FALSE(offer_rename_images->isEnabled());
+    REQUIRE_FALSE(rename_images_only->isEnabled());
+    REQUIRE_FALSE(add_image_date->isEnabled());
+    REQUIRE_FALSE(add_image_date_place->isEnabled());
+    REQUIRE_FALSE(image_toggle->isEnabled());
+    REQUIRE(settings.get_analyze_images_by_content());
+    REQUIRE(settings.get_offer_rename_images());
+    REQUIRE(settings.get_add_image_date_to_category());
+    REQUIRE(settings.get_add_image_date_place_to_filename());
+
+    process_documents_only->setChecked(false);
+
+    REQUIRE(analyze_images->isEnabled());
+    REQUIRE(process_images_only->isEnabled());
+    REQUIRE(offer_rename_images->isEnabled());
+    REQUIRE(rename_images_only->isEnabled());
+    REQUIRE(add_image_date->isEnabled());
+    REQUIRE(add_image_date_place->isEnabled());
+    REQUIRE(image_toggle->isEnabled());
+}
+
 #ifndef _WIN32
 namespace {
 

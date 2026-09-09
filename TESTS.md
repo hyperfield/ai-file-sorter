@@ -488,7 +488,7 @@ Procedure: Acquire the primary-instance lock for both coordinators.
 Expected outcome: Both coordinators become primary because they represent different logical applications.
 Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator allows different instance ids to coexist"`
 
-### `tests/unit/test_main_app_image_options.cpp` (non-Windows only)
+### `tests/unit/test_main_app_image_options.cpp`
 
 #### Test case: Image analysis checkboxes enable and enforce rename-only behavior
 Purpose: Ensure the image analysis options enable correctly and enforce the rename-only rule.
@@ -538,6 +538,13 @@ Setup: Enable image analysis, document analysis, and audio/video metadata in set
 Procedure: Enable "Process picture files only", inspect dependent controls, then disable it again.
 Expected outcome: Document analysis controls and audio/video metadata are disabled while image-only mode is active, but the underlying saved settings are preserved and controls re-enable afterward.
 Run: `./build-tests/ai_file_sorter_tests "Processing images only disables document analysis controls and audio-video metadata"`
+
+#### Test case: Processing documents only disables image analysis controls
+Purpose: Confirm document-only processing temporarily disables controls that would analyze picture content.
+Setup: Enable image analysis, image rename options, and document analysis in settings, then build `MainApp` with the preferred Qt test platform.
+Procedure: Enable "Process document files only", inspect dependent image controls, then disable it again.
+Expected outcome: Image analysis controls are disabled while document-only mode is active, but the underlying saved settings are preserved and controls re-enable afterward.
+Run: `./build-tests/ai_file_sorter_tests "Processing documents only disables image analysis controls"`
 
 #### Test case: Processing images only preserves recursive scanning when scan subfolders is enabled
 Purpose: Ensure image-only processing does not accidentally clear recursive scanning.

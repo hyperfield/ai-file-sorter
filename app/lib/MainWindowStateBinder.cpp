@@ -702,6 +702,8 @@ void MainWindowStateBinder::update_image_only_controls()
     const bool allow_other_files = !restrict_types;
     const bool images_rename_only = allow_images ? rename_images_active : true;
     const bool documents_rename_only = allow_documents ? rename_documents_active : true;
+    const bool image_group_locked = documents_only_active;
+    const bool image_analysis_enabled = analyze_images && !image_group_locked;
     const bool document_group_locked = images_only_active;
     const bool document_analysis_enabled = analyze_documents && !document_group_locked;
     const bool disable_files_categorization =
@@ -748,6 +750,40 @@ void MainWindowStateBinder::update_image_only_controls()
     }
     if (app_.add_audio_video_metadata_to_filename_checkbox) {
         app_.add_audio_video_metadata_to_filename_checkbox->setEnabled(allow_other_files);
+    }
+    if (app_.analyze_images_checkbox) {
+        app_.analyze_images_checkbox->setEnabled(!image_group_locked);
+    }
+    if (app_.process_images_only_checkbox) {
+        app_.process_images_only_checkbox->setEnabled(image_analysis_enabled);
+    }
+    if (app_.offer_rename_images_checkbox) {
+        app_.offer_rename_images_checkbox->setEnabled(image_analysis_enabled);
+    }
+    if (app_.rename_images_only_checkbox) {
+        app_.rename_images_only_checkbox->setEnabled(image_analysis_enabled);
+    }
+    if (app_.add_image_date_to_category_checkbox) {
+        app_.add_image_date_to_category_checkbox->setEnabled(
+            image_analysis_enabled && !images_rename_only);
+    }
+    if (app_.add_image_date_place_to_filename_checkbox) {
+        const bool offer_image_rename = app_.offer_rename_images_checkbox &&
+                                        app_.offer_rename_images_checkbox->isChecked();
+        app_.add_image_date_place_to_filename_checkbox->setEnabled(
+            image_analysis_enabled && offer_image_rename);
+    }
+    if (app_.image_options_toggle_button) {
+        app_.image_options_toggle_button->setEnabled(image_analysis_enabled);
+        sync_disclosure_button(app_.image_options_toggle_button,
+                               app_.image_options_toggle_button->isChecked());
+    }
+    if (app_.image_options_container) {
+        const bool expanded = app_.image_options_toggle_button
+            ? app_.image_options_toggle_button->isChecked()
+            : true;
+        app_.image_options_container->setEnabled(!image_group_locked);
+        app_.image_options_container->setVisible(image_analysis_enabled && expanded);
     }
     if (app_.analyze_documents_checkbox) {
         app_.analyze_documents_checkbox->setEnabled(!document_group_locked);
