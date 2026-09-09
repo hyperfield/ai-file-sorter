@@ -422,9 +422,16 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService moves folde
 #### Test case: HeadlessReviewApplyService creates suggested folder-tree targets when allowed
 Purpose: Ensure headless apply can create model-suggested folder-tree destinations only when that mode is explicitly allowed.
 Setup: Create a target root with one source file and no matching destination folder.
-Procedure: Apply a folder-tree review entry with new-folder creation enabled.
-Expected outcome: The missing destination folder is created, the file moves into it, and the result marks the target folder as suggested/new.
+Procedure: Apply a folder-tree review entry with new-folder creation enabled, then replay the saved undo plan.
+Expected outcome: The missing destination folder is created, the file moves into it, the result marks the target folder as suggested/new, and undo removes the app-created folder chain.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService creates suggested folder-tree targets when allowed"`
+
+#### Test case: HeadlessReviewApplyService records shared suggested target ownership
+Purpose: Ensure every file moved into a folder created earlier in the same apply run carries the created-folder metadata.
+Setup: Create two source files routed to the same non-existing suggested folder-tree target with new-folder creation enabled.
+Procedure: Apply both entries and inspect the review-history rows.
+Expected outcome: Both history rows record the same created destination folder chain, supporting selective undo in either order.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService records shared suggested target ownership"`
 
 #### Test case: HeadlessReviewApplyService moves generated categories into custom destination root
 Purpose: Verify generated-category apply can move files from an analyzed folder into a separate destination root.
@@ -855,9 +862,9 @@ Run: `./build-tests/ai_file_sorter_tests "CacheMaintenanceService reports zero s
 
 #### Test case: ReviewHistoryStore persists, searches, and marks history entries undone
 Purpose: Verify the user-visible review history database persists applied rename/categorization records.
-Setup: Create an isolated config directory and record a combined rename/categorization history row with filename, category, and description data.
+Setup: Create an isolated config directory and record a combined rename/categorization history row with filename, category, description, and app-created directory data.
 Procedure: Search the store by filename, category, and description, mark the row undone, then reopen the store.
-Expected outcome: The row is found by each searchable field, undo state persists, and the history survives reopening the database.
+Expected outcome: The row is found by each searchable field, undo state and created-directory metadata persist, and the history survives reopening the database.
 Run: `./build-tests/ai_file_sorter_tests "ReviewHistoryStore persists, searches, and marks history entries undone"`
 
 ### `tests/unit/test_user_learning_store.cpp`
@@ -2123,6 +2130,20 @@ Procedure: Confirm the dialog.
 Expected outcome: The source file remains in place and neither the suggested folder nor destination file is created.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog does not create folder-tree targets when new folders are disabled"`
 
+#### Test case: CategorizationDialog undo preserves pre-existing folder-tree targets
+Purpose: Prevent undo in existing-folder-structure mode from deleting empty folders that existed before the app moved files into them.
+Setup: Create a pre-existing nested target folder and a source file routed to that folder.
+Procedure: Confirm the move, then trigger the dialog undo action.
+Expected outcome: The file is restored to its original location, but the now-empty pre-existing target folder remains.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog undo preserves pre-existing folder-tree targets"`
+
+#### Test case: CategorizationDialog undo removes suggested folder-tree targets it created
+Purpose: Ensure undo still cleans up folder-tree targets that were explicitly created by the app for approved suggestions.
+Setup: Create a source file routed to a non-existing suggested folder-tree target with new-folder creation enabled.
+Procedure: Confirm the move, then trigger the dialog undo action.
+Expected outcome: The file is restored and the app-created target folder chain is removed once empty.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog undo removes suggested folder-tree targets it created"`
+
 #### Test case: CategorizationDialog preserves cached subcategories when the subcategory column is hidden
 Purpose: Prevent review-only folder-layout toggles from overwriting cached taxonomy subcategories.
 Setup: Seed the cache with a categorized file that has a non-General subcategory, then load the same file into the review dialog.
@@ -2136,6 +2157,13 @@ Setup: Create a saved move plan and attach a storage provider that records undo 
 Procedure: Load and execute the undo plan.
 Expected outcome: The provider receives the expected restore request and the plan is consumed successfully.
 Run: `./build-tests/ai_file_sorter_tests "UndoManager restores saved plans through the active storage provider"`
+
+#### Test case: UndoManager removes only recorded app-created folders
+Purpose: Verify persisted undo plans delete empty folders only when they are listed as app-created by the move.
+Setup: Move a file into a newly created nested destination and save an undo plan with that directory chain.
+Procedure: Replay the undo plan through the storage provider registry.
+Expected outcome: The file is restored and only the recorded empty destination directories are removed.
+Run: `./build-tests/ai_file_sorter_tests "UndoManager removes only recorded app-created folders"`
 
 #### Test case: UndoManager relaxes timestamp validation for cloud providers
 Purpose: Allow cloud-backed providers to restore moves when timestamp metadata is less reliable.

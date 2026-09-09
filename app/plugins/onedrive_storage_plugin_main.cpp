@@ -8,6 +8,7 @@
 #include <iostream>
 #include <iterator>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -110,6 +111,18 @@ QJsonArray entries_to_json(const std::vector<FileEntry>& entries)
         array.append(object);
     }
     return array;
+}
+
+std::vector<std::string> string_array_from_json(const QJsonArray& array)
+{
+    std::vector<std::string> values;
+    values.reserve(array.size());
+    for (const auto& value : array) {
+        if (value.isString()) {
+            values.push_back(value.toString().toStdString());
+        }
+    }
+    return values;
 }
 
 void merge_json_object(QJsonObject& target, const QJsonObject& source)
@@ -219,9 +232,12 @@ QJsonObject handle_request(const QJsonObject& request)
     }
 
     if (action == QStringLiteral("undo_move")) {
+        const auto created_directories =
+            string_array_from_json(request.value("created_directories").toArray());
         const auto result =
             provider.undo_move(request.value("source").toString().toStdString(),
-                               request.value("destination").toString().toStdString());
+                               request.value("destination").toString().toStdString(),
+                               created_directories);
         merge_json_object(response, mutation_to_json(result));
         return response;
     }

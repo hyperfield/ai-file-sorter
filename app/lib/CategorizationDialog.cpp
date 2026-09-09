@@ -16,6 +16,7 @@
 #include "IFilePreviewService.hpp"
 #include "ReviewFileNaming.hpp"
 #include "ReviewHistoryStore.hpp"
+#include "StorageUndoCleanup.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -66,6 +67,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 namespace {
 
@@ -1207,6 +1209,7 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
         core_logger->info("Dry run enabled; will not move files.");
     }
 
+    std::vector<std::string> run_created_directories;
     std::vector<std::string> files_not_moved;
     ScopedFlag guard(suppress_item_changed_);
     if (include_subdirectories_) {
@@ -1341,7 +1344,8 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
                             file_type,
                             rename_only,
                             used_consistency_hints,
-                            dry_run);
+                            dry_run,
+                            run_created_directories);
     }
 
     if (dry_run) {
@@ -1464,7 +1468,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
                                                FileType file_type,
                                                bool rename_only,
                                                bool used_consistency_hints,
-                                               bool dry_run)
+                                               bool dry_run,
+                                               std::vector<std::string>& run_created_directories)
 {
     const std::string destination_name = resolve_destination_name(file_name, rename_candidate);
     const bool rename_active = destination_name != file_name;
@@ -1699,9 +1704,18 @@ void CategorizationDialog::handle_selected_row(int row_index,
             return;
         }
 
+        if (!storage_provider_) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            return;
+        }
+
+        std::vector<std::string> created_directories;
         if (!target_exists) {
+            const auto missing_directories =
+                StorageUndoCleanup::missing_directories_for_target(*storage_provider_, target_dir_text);
             std::string ensure_error;
-            if (!storage_provider_ || !storage_provider_->ensure_directory(target_dir_text, &ensure_error)) {
+            if (!storage_provider_->ensure_directory(target_dir_text, &ensure_error)) {
                 update_status_column(row_index, false);
                 files_not_moved.push_back(file_name);
                 if (core_logger) {
@@ -1712,13 +1726,12 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 }
                 return;
             }
+            run_created_directories.insert(run_created_directories.end(),
+                                           missing_directories.begin(),
+                                           missing_directories.end());
         }
-
-        if (!storage_provider_) {
-            update_status_column(row_index, false);
-            files_not_moved.push_back(file_name);
-            return;
-        }
+        created_directories =
+            StorageUndoCleanup::recorded_directories_for_target(run_created_directories, target_dir_text);
 
         const auto move_result = storage_provider_->move_entry(source_text, destination_text);
         update_status_column(row_index,
@@ -1748,7 +1761,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
             move_result.metadata.size_bytes,
             move_result.metadata.mtime,
             move_result.metadata.stable_identity,
-            move_result.metadata.revision_token);
+            move_result.metadata.revision_token,
+            created_directories);
         record_move_for_undo(row_index,
                              source_text,
                              destination_text,
@@ -1756,7 +1770,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
                              move_result.metadata.mtime,
                              move_result.metadata.stable_identity,
                              move_result.metadata.revision_token,
-                             history_id);
+                             history_id,
+                             created_directories);
 
         if (db_manager) {
             const std::string original_category = read_role_text(category_item_ref, kOriginalCategoryRole);
@@ -1883,7 +1898,19 @@ void CategorizationDialog::handle_selected_row(int row_index,
             return;
         }
 
+        const std::string target_directory =
+            Utils::path_to_utf8(Utils::utf8_to_path(preview_paths.destination).parent_path());
+        const auto missing_directories =
+            storage_provider_
+                ? StorageUndoCleanup::missing_directories_for_target(*storage_provider_, target_directory)
+                : std::vector<std::string>{};
+
         categorized_file.create_cat_dirs(show_subcategory_column);
+        run_created_directories.insert(run_created_directories.end(),
+                                       missing_directories.begin(),
+                                       missing_directories.end());
+        const auto created_directories =
+            StorageUndoCleanup::recorded_directories_for_target(run_created_directories, target_directory);
         const auto move_result = categorized_file.move_file(show_subcategory_column);
         update_status_column(row_index,
                              move_result.success,
@@ -1911,7 +1938,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 move_result.metadata.size_bytes,
                 move_result.metadata.mtime,
                 move_result.metadata.stable_identity,
-                move_result.metadata.revision_token);
+                move_result.metadata.revision_token,
+                created_directories);
             record_move_for_undo(row_index,
                                  preview_paths.source,
                                  preview_paths.destination,
@@ -1919,7 +1947,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
                                  move_result.metadata.mtime,
                                  move_result.metadata.stable_identity,
                                  move_result.metadata.revision_token,
-                                 history_id);
+                                 history_id,
+                                 created_directories);
 
             const bool destination_root_differs = !same_directory_path(source_dir, base_dir);
             if (db_manager && (rename_active || include_subdirectories_ || destination_root_differs)) {
@@ -2275,7 +2304,8 @@ void CategorizationDialog::record_move_for_undo(int row,
                                                 std::time_t mtime,
                                                 const std::string& stable_identity,
                                                 const std::string& revision_token,
-                                                long long history_id)
+                                                long long history_id,
+                                                std::vector<std::string> created_directories)
 {
     move_history_.push_back(MoveRecord{
         row,
@@ -2285,30 +2315,13 @@ void CategorizationDialog::record_move_for_undo(int row,
         mtime,
         stable_identity,
         revision_token,
+        std::move(created_directories),
         history_id});
 }
 
-void CategorizationDialog::remove_empty_parent_directories(const std::string& destination)
-{
-    std::filesystem::path dest_path = Utils::utf8_to_path(destination);
-    auto parent = dest_path.parent_path();
-    while (!parent.empty()) {
-        std::error_code ec;
-        if (!std::filesystem::exists(parent)) {
-            parent = parent.parent_path();
-            continue;
-        }
-        if (std::filesystem::is_directory(parent) &&
-            std::filesystem::is_empty(parent, ec) && !ec) {
-            std::filesystem::remove(parent, ec);
-            parent = parent.parent_path();
-        } else {
-            break;
-        }
-    }
-}
-
-bool CategorizationDialog::move_file_back(const std::string& source, const std::string& destination)
+bool CategorizationDialog::move_file_back(const std::string& source,
+                                          const std::string& destination,
+                                          const std::vector<std::string>& created_directories)
 {
     if (!storage_provider_) {
         if (core_logger) {
@@ -2319,7 +2332,7 @@ bool CategorizationDialog::move_file_back(const std::string& source, const std::
         return false;
     }
 
-    const auto undo_result = storage_provider_->undo_move(source, destination);
+    const auto undo_result = storage_provider_->undo_move(source, destination, created_directories);
     if (!undo_result.success && core_logger) {
         core_logger->error("Undo move failed '{}' -> '{}': {}",
                            destination,
@@ -2337,10 +2350,11 @@ long long CategorizationDialog::record_review_history(int row,
                                                       const std::string& final_file_name,
                                                       const std::string& category,
                                                       const std::string& subcategory,
-                                                      std::uintmax_t size_bytes,
-                                                      std::time_t mtime,
-                                                      const std::string& stable_identity,
-                                                      const std::string& revision_token)
+                                    std::uintmax_t size_bytes,
+                                    std::time_t mtime,
+                                    const std::string& stable_identity,
+                                    const std::string& revision_token,
+                                    const std::vector<std::string>& created_directories)
 {
     if (!history_store_ || !history_store_->is_open()) {
         return 0;
@@ -2360,6 +2374,7 @@ long long CategorizationDialog::record_review_history(int row,
     entry.mtime = mtime;
     entry.stable_identity = stable_identity;
     entry.revision_token = revision_token;
+    entry.created_directories = created_directories;
 
     std::string error;
     const auto id = history_store_->record_entry(entry, &error);
@@ -2395,7 +2410,7 @@ bool CategorizationDialog::undo_move_history()
 
     bool any_success = false;
     for (auto it = move_history_.rbegin(); it != move_history_.rend(); ++it) {
-        if (move_file_back(it->source_path, it->destination_path)) {
+        if (move_file_back(it->source_path, it->destination_path, it->created_directories)) {
             if (history_store_ && it->history_id > 0) {
                 std::string history_error;
                 if (!history_store_->mark_undone(it->history_id, &history_error) && core_logger) {
@@ -3200,7 +3215,8 @@ void CategorizationDialog::persist_move_plan()
             rec.size_bytes,
             rec.mtime,
             rec.stable_identity,
-            rec.revision_token});
+            rec.revision_token,
+            rec.created_directories});
     }
 
     UndoManager manager(undo_dir_);

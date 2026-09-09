@@ -9,6 +9,7 @@
 #include "LocalFsProvider.hpp"
 #include "ReviewHistoryStore.hpp"
 #include "StorageProviderRegistry.hpp"
+#include "StorageUndoCleanup.hpp"
 #include "TestHooks.hpp"
 #include "TestHelpers.hpp"
 #include "TranslationManager.hpp"
@@ -726,6 +727,78 @@ TEST_CASE("CategorizationDialog does not create folder-tree targets when new fol
     CHECK_FALSE(std::filesystem::exists(destination));
 }
 
+TEST_CASE("CategorizationDialog undo preserves pre-existing folder-tree targets") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::filesystem::path existing_dir = base / "Documents" / "Invoices";
+    REQUIRE(std::filesystem::create_directories(existing_dir));
+
+    const std::string file_name = "invoice.txt";
+    const std::filesystem::path source = base / file_name;
+    const std::filesystem::path destination = existing_dir / file_name;
+    std::ofstream(source).put('x');
+
+    CategorizedFile file;
+    file.file_path = Utils::path_to_utf8(base);
+    file.file_name = file_name;
+    file.type = FileType::File;
+    file.category = "Documents";
+    file.subcategory = "Invoices";
+    file.target_folder_relative_path = "Documents/Invoices";
+    file.folder_tree_mode = true;
+    file.target_folder_exists = true;
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    dialog.test_trigger_undo();
+
+    CHECK(std::filesystem::exists(source));
+    CHECK_FALSE(std::filesystem::exists(destination));
+    CHECK(std::filesystem::exists(existing_dir));
+}
+
+TEST_CASE("CategorizationDialog undo removes suggested folder-tree targets it created") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "earth_space.jpg";
+    const std::filesystem::path source = base / file_name;
+    const std::filesystem::path suggested_parent = base / "40-49 Media";
+    const std::filesystem::path suggested_dir = suggested_parent / "41 Photos";
+    const std::filesystem::path destination = suggested_dir / file_name;
+    std::ofstream(source).put('x');
+
+    const CategorizedFile file = suggested_folder_tree_file(base, file_name);
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    dialog.test_trigger_confirm();
+
+    REQUIRE_FALSE(std::filesystem::exists(source));
+    REQUIRE(std::filesystem::exists(destination));
+
+    dialog.test_trigger_undo();
+
+    CHECK(std::filesystem::exists(source));
+    CHECK_FALSE(std::filesystem::exists(destination));
+    CHECK_FALSE(std::filesystem::exists(suggested_dir));
+    CHECK_FALSE(std::filesystem::exists(suggested_parent));
+}
+
 TEST_CASE("UndoManager restores saved plans through the active storage provider") {
     TempDir undo_dir;
     TempDir data_dir;
@@ -762,6 +835,54 @@ TEST_CASE("UndoManager restores saved plans through the active storage provider"
     CHECK(undo_result.skipped == 0);
     REQUIRE(std::filesystem::exists(source));
     REQUIRE_FALSE(std::filesystem::exists(destination));
+}
+
+TEST_CASE("UndoManager removes only recorded app-created folders") {
+    TempDir undo_dir;
+    TempDir data_dir;
+
+    StorageProviderRegistry registry;
+    auto local_provider = std::make_shared<LocalFsProvider>();
+    registry.register_builtin(local_provider);
+
+    const std::filesystem::path source = data_dir.path() / "receipt.txt";
+    const std::filesystem::path destination_parent = data_dir.path() / "New Documents";
+    const std::filesystem::path destination_child = destination_parent / "Receipts";
+    const std::filesystem::path destination = destination_child / "receipt.txt";
+    std::ofstream(source).put('x');
+
+    const auto created_directories =
+        StorageUndoCleanup::missing_directories_for_target(*local_provider,
+                                                           Utils::path_to_utf8(destination_child));
+    REQUIRE(created_directories.size() == 2);
+
+    const auto move_result = local_provider->move_entry(source.string(), destination.string());
+    REQUIRE(move_result.success);
+
+    UndoManager writer(undo_dir.path().string());
+    REQUIRE(writer.save_plan(data_dir.path().string(),
+                             local_provider->id(),
+                             {UndoManager::Entry{
+                                 source.string(),
+                                 destination.string(),
+                                 move_result.metadata.size_bytes,
+                                 move_result.metadata.mtime,
+                                 move_result.metadata.stable_identity,
+                                 move_result.metadata.revision_token,
+                                 created_directories}},
+                             nullptr));
+
+    UndoManager reader(undo_dir.path().string(), &registry);
+    const auto plan_path = reader.latest_plan_path();
+    REQUIRE(plan_path.has_value());
+
+    const auto undo_result = reader.undo_plan(*plan_path);
+    CHECK(undo_result.restored == 1);
+    CHECK(undo_result.skipped == 0);
+    CHECK(std::filesystem::exists(source));
+    CHECK_FALSE(std::filesystem::exists(destination));
+    CHECK_FALSE(std::filesystem::exists(destination_child));
+    CHECK_FALSE(std::filesystem::exists(destination_parent));
 }
 
 TEST_CASE("UndoManager relaxes timestamp validation for cloud providers") {

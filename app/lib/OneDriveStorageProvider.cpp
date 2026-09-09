@@ -1,6 +1,7 @@
 #include "OneDriveStorageProvider.hpp"
 
 #include "CloudPathSupport.hpp"
+#include "StorageUndoCleanup.hpp"
 #include "Utils.hpp"
 
 #include <QJsonDocument>
@@ -308,24 +309,6 @@ std::uintmax_t read_size(const std::filesystem::path& path)
     std::error_code ec;
     const auto size = std::filesystem::file_size(path, ec);
     return ec ? 0 : size;
-}
-
-void remove_empty_parent_directories(const std::filesystem::path& moved_from)
-{
-    std::error_code ec;
-    auto parent = moved_from.parent_path();
-    while (!parent.empty()) {
-        if (!std::filesystem::exists(parent, ec) || ec) {
-            break;
-        }
-        if (std::filesystem::is_directory(parent, ec) &&
-            std::filesystem::is_empty(parent, ec) && !ec) {
-            std::filesystem::remove(parent, ec);
-            parent = parent.parent_path();
-            continue;
-        }
-        break;
-    }
 }
 
 #ifdef _WIN32
@@ -790,6 +773,29 @@ StorageMutationResult OneDriveStorageProvider::move_entry(const std::string& sou
 StorageMutationResult OneDriveStorageProvider::undo_move(const std::string& source,
                                                          const std::string& destination) const
 {
+    auto result = restore_moved_entry(source, destination);
+    if (result.success) {
+        StorageUndoCleanup::remove_empty_parent_directories(destination);
+    }
+    return result;
+}
+
+StorageMutationResult OneDriveStorageProvider::undo_move(
+    const std::string& source,
+    const std::string& destination,
+    const std::vector<std::string>& created_directories) const
+{
+    auto result = restore_moved_entry(source, destination);
+    if (result.success) {
+        StorageUndoCleanup::remove_empty_created_directories(created_directories);
+    }
+    return result;
+}
+
+StorageMutationResult OneDriveStorageProvider::restore_moved_entry(
+    const std::string& source,
+    const std::string& destination) const
+{
     StorageMutationResult result;
     const auto source_path = Utils::utf8_to_path(source);
     const auto destination_path = Utils::utf8_to_path(destination);
@@ -832,7 +838,6 @@ StorageMutationResult OneDriveStorageProvider::undo_move(const std::string& sour
         return result;
     }
 
-    remove_empty_parent_directories(destination_path);
     result.success = true;
     result.metadata = build_metadata(source_path, inspect_local_path(source));
     return result;

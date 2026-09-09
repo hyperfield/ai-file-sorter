@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -109,6 +110,30 @@ QJsonObject mutation_result(bool success,
     }
     result["metadata"] = metadata;
     return result;
+}
+
+std::vector<std::filesystem::path> created_directories_from_json(const QJsonArray& array)
+{
+    std::vector<std::filesystem::path> directories;
+    directories.reserve(array.size());
+    for (const auto& value : array) {
+        if (value.isString()) {
+            directories.emplace_back(value.toString().toStdString());
+        }
+    }
+    return directories;
+}
+
+void remove_empty_created_directories(const std::vector<std::filesystem::path>& directories)
+{
+    for (auto it = directories.rbegin(); it != directories.rend(); ++it) {
+        std::error_code ec;
+        if (std::filesystem::exists(*it, ec) && !ec &&
+            std::filesystem::is_directory(*it, ec) && !ec &&
+            std::filesystem::is_empty(*it, ec) && !ec) {
+            std::filesystem::remove(*it, ec);
+        }
+    }
 }
 
 QJsonObject path_status(const std::filesystem::path& path)
@@ -249,6 +274,11 @@ int main(int argc, char* argv[])
                     response["success"] = false;
                     response["error"] = QString::fromStdString(ec.message());
                 } else {
+                    if (action == QStringLiteral("undo_move")) {
+                        remove_empty_created_directories(
+                            created_directories_from_json(
+                                request.value("created_directories").toArray()));
+                    }
                     response = mutation_result(true, false, std::string(), destination);
                 }
             }

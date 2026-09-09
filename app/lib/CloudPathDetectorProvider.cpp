@@ -86,3 +86,11 @@ StorageMutationResult CloudPathDetectorProvider::undo_move(const std::string& so
 {
     return fallback_provider_.undo_move(source, destination);
 }
+
+StorageMutationResult CloudPathDetectorProvider::undo_move(
+    const std::string& source,
+    const std::string& destination,
+    const std::vector<std::string>& created_directories) const
+{
+    return fallback_provider_.undo_move(source, destination, created_directories);
+}

@@ -121,12 +121,22 @@ public:
                                      const std::string& destination) const override;
     /**
      * @brief Undoes a OneDrive-owned move.
-     * @param source Current path of the moved entry.
-     * @param destination Original destination to restore.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
      * @return Mutation result describing the undo outcome.
      */
     StorageMutationResult undo_move(const std::string& source,
                                     const std::string& destination) const override;
+    /**
+     * @brief Restores a move and removes only directories recorded as app-created.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
+     * @param created_directories Directories the app created for the move.
+     * @return Mutation result describing the undo outcome.
+     */
+    StorageMutationResult undo_move(const std::string& source,
+                                    const std::string& destination,
+                                    const std::vector<std::string>& created_directories) const override;
 
 private:
     /**
@@ -150,6 +160,14 @@ private:
      */
     StorageEntryMetadata build_metadata(const std::filesystem::path& path,
                                         const StoragePathStatus& status) const;
+    /**
+     * @brief Restores a moved OneDrive entry without removing parent directories.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
+     * @return Mutation result describing the restore outcome.
+     */
+    StorageMutationResult restore_moved_entry(const std::string& source,
+                                              const std::string& destination) const;
     /**
      * @brief Implements path existence using the underlying filesystem.
      * @param path Filesystem path to check.

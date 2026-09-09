@@ -105,6 +105,7 @@ private:
         std::time_t mtime{0};
         std::string stable_identity;
         std::string revision_token;
+        std::vector<std::string> created_directories;
     };
 
     /**
@@ -113,11 +114,13 @@ private:
      * @param options Apply options.
      * @param result Aggregate result to update.
      * @param move_history Successful move records for undo.
+     * @param run_created_directories Directories created earlier in this apply run.
      */
     void apply_entry(const CategorizedFile& entry,
                      const Options& options,
                      Result& result,
-                     std::vector<MoveRecord>& move_history) const;
+                     std::vector<MoveRecord>& move_history,
+                     std::vector<std::string>& run_created_directories) const;
 
     /**
      * @brief Persist an undo plan for successful moves.
@@ -138,6 +141,7 @@ private:
      * @param category Category label.
      * @param subcategory Subcategory label.
      * @param metadata Provider metadata captured after the move.
+     * @param created_directories Directories created by this apply action.
      */
     void record_history_entry(const CategorizedFile& entry,
                               ReviewHistoryStore::Operation operation,
@@ -146,7 +150,8 @@ private:
                               const std::string& destination_name,
                               const std::string& category,
                               const std::string& subcategory,
-                              const StorageEntryMetadata& metadata) const;
+                              const StorageEntryMetadata& metadata,
+                              const std::vector<std::string>& created_directories = {}) const;
 
     DatabaseManager* db_manager_{nullptr};
     IStorageProvider& storage_provider_;

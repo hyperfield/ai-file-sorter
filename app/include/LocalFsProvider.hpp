@@ -22,7 +22,26 @@ public:
                                      const std::string& destination) const override;
     StorageMutationResult undo_move(const std::string& source,
                                     const std::string& destination) const override;
+    /**
+     * @brief Restores a move and removes only directories recorded as app-created.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
+     * @param created_directories Directories the app created for the move.
+     * @return Mutation result describing the undo outcome.
+     */
+    StorageMutationResult undo_move(const std::string& source,
+                                    const std::string& destination,
+                                    const std::vector<std::string>& created_directories) const override;
 
 private:
+    /**
+     * @brief Restores a moved local filesystem entry without directory cleanup.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
+     * @return Mutation result describing the restore outcome.
+     */
+    StorageMutationResult restore_moved_entry(const std::string& source,
+                                              const std::string& destination) const;
+
     FileScanner scanner_;
 };

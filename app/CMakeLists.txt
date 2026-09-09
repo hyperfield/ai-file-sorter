@@ -1495,6 +1495,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/OneDriveStorageProvider.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/ProtectedProjectDetector.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/StorageUndoCleanup.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
     )

@@ -6,6 +6,7 @@
 #include "ReviewFileNaming.hpp"
 #include "ReviewHistoryStore.hpp"
 #include "StorageProvider.hpp"
+#include "StorageUndoCleanup.hpp"
 #include "UndoManager.hpp"
 #include "Utils.hpp"
 
@@ -338,8 +339,9 @@ HeadlessReviewApplyService::apply(const std::vector<CategorizedFile>& entries,
 
     std::vector<MoveRecord> move_history;
     move_history.reserve(entries.size());
+    std::vector<std::string> run_created_directories;
     for (const auto& entry : entries_to_apply) {
-        apply_entry(entry, options, result, move_history);
+        apply_entry(entry, options, result, move_history, run_created_directories);
     }
 
     result.undo_plan_saved = persist_undo_plan(options, move_history);
@@ -349,7 +351,8 @@ HeadlessReviewApplyService::apply(const std::vector<CategorizedFile>& entries,
 void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                              const Options& options,
                                              Result& result,
-                                             std::vector<MoveRecord>& move_history) const
+                                             std::vector<MoveRecord>& move_history,
+                                             std::vector<std::string>& run_created_directories) const
 {
     const std::string destination_name =
         resolve_destination_name(entry, options.apply_suggested_names && !entry.rename_applied);
@@ -500,14 +503,22 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
             return;
         }
 
+        std::vector<std::string> created_directories;
         if (!target_exists) {
+            const auto missing_directories =
+                StorageUndoCleanup::missing_directories_for_target(storage_provider_, target_dir_text);
             std::string ensure_error;
             if (!storage_provider_.ensure_directory(target_dir_text, &ensure_error)) {
                 entry_result.message = ensure_error.empty() ? "Could not create target folder." : ensure_error;
                 append_skipped(result, std::move(entry_result));
                 return;
             }
+            run_created_directories.insert(run_created_directories.end(),
+                                           missing_directories.begin(),
+                                           missing_directories.end());
         }
+        created_directories =
+            StorageUndoCleanup::recorded_directories_for_target(run_created_directories, target_dir_text);
 
         const auto move_result = storage_provider_.move_entry(entry_result.source,
                                                               entry_result.destination);
@@ -531,7 +542,8 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                           move_result.metadata.size_bytes,
                                           move_result.metadata.mtime,
                                           move_result.metadata.stable_identity,
-                                          move_result.metadata.revision_token});
+                                          move_result.metadata.revision_token,
+                                          created_directories});
         record_history_entry(entry,
                              rename_active ? ReviewHistoryStore::Operation::RenameAndCategorize
                                            : ReviewHistoryStore::Operation::Categorize,
@@ -540,7 +552,8 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                              destination_name,
                              entry_result.category,
                              entry_result.subcategory,
-                             move_result.metadata);
+                             move_result.metadata,
+                             created_directories);
 
         if (db_manager_) {
             const std::string category = display_category(entry);
@@ -621,7 +634,17 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
             return;
         }
 
+        const std::string target_directory =
+            Utils::path_to_utf8(Utils::utf8_to_path(preview.destination).parent_path());
+        const auto missing_directories =
+            StorageUndoCleanup::missing_directories_for_target(storage_provider_, target_directory);
+
         movable.create_cat_dirs(options.use_subcategories);
+        run_created_directories.insert(run_created_directories.end(),
+                                       missing_directories.begin(),
+                                       missing_directories.end());
+        const auto created_directories =
+            StorageUndoCleanup::recorded_directories_for_target(run_created_directories, target_directory);
         const auto move_result = movable.move_file(options.use_subcategories);
         if (!move_result.success) {
             entry_result.message = move_result.message.empty() ? "Move failed." : move_result.message;
@@ -640,7 +663,8 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                           move_result.metadata.size_bytes,
                                           move_result.metadata.mtime,
                                           move_result.metadata.stable_identity,
-                                          move_result.metadata.revision_token});
+                                          move_result.metadata.revision_token,
+                                          created_directories});
         record_history_entry(entry,
                              rename_active ? ReviewHistoryStore::Operation::RenameAndCategorize
                                            : ReviewHistoryStore::Operation::Categorize,
@@ -649,7 +673,8 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                              destination_name,
                              category,
                              effective_subcategory,
-                             move_result.metadata);
+                             move_result.metadata,
+                             created_directories);
 
         const bool destination_root_differs = !same_directory_path(entry.file_path, options.base_dir);
         if (db_manager_ && (rename_active || options.include_subdirectories || destination_root_differs)) {
@@ -702,7 +727,8 @@ bool HeadlessReviewApplyService::persist_undo_plan(const Options& options,
             record.size_bytes,
             record.mtime,
             record.stable_identity,
-            record.revision_token});
+            record.revision_token,
+            record.created_directories});
     }
 
     UndoManager manager(options.undo_dir);
@@ -719,7 +745,8 @@ void HeadlessReviewApplyService::record_history_entry(const CategorizedFile& ent
                                                       const std::string& destination_name,
                                                       const std::string& category,
                                                       const std::string& subcategory,
-                                                      const StorageEntryMetadata& metadata) const
+                                                      const StorageEntryMetadata& metadata,
+                                                      const std::vector<std::string>& created_directories) const
 {
     if (!history_store_ || !history_store_->is_open()) {
         return;
@@ -739,6 +766,7 @@ void HeadlessReviewApplyService::record_history_entry(const CategorizedFile& ent
     history_entry.mtime = metadata.mtime;
     history_entry.stable_identity = metadata.stable_identity;
     history_entry.revision_token = metadata.revision_token;
+    history_entry.created_directories = created_directories;
 
     std::string error;
     if (!history_store_->record_entry(history_entry, &error) && logger_) {
