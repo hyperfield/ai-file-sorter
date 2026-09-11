@@ -13,6 +13,7 @@
 
 #include <QLabel>
 #include <QLineEdit>
+#include <QComboBox>
 #include <QPushButton>
 #include <QToolButton>
 
@@ -36,9 +37,29 @@ QPushButton* MainAppTestAccess::browse_button(MainApp& app)
     return app.browse_button;
 }
 
+QPushButton* MainAppTestAccess::destination_browse_button(MainApp& app)
+{
+    return app.destination_browse_button;
+}
+
+QCheckBox* MainAppTestAccess::use_analyzed_folder_as_destination_checkbox(MainApp& app)
+{
+    return app.use_analyzed_folder_as_destination_checkbox;
+}
+
 QPushButton* MainAppTestAccess::analyze_button(MainApp& app)
 {
     return app.analyze_button;
+}
+
+QComboBox* MainAppTestAccess::sorting_mode_selector(MainApp& app)
+{
+    return app.sorting_mode_selector;
+}
+
+QPushButton* MainAppTestAccess::create_folder_structure_button(MainApp& app)
+{
+    return app.create_folder_structure_button;
 }
 
 QAction* MainAppTestAccess::clear_cache_action(MainApp& app)

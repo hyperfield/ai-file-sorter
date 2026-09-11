@@ -47,6 +47,8 @@ constexpr auto kMenuTitleCategoryLanguage =
 constexpr auto kActionQuit = QT_TRANSLATE_NOOP("UiTranslator", "&Quit");
 constexpr auto kActionSystemCompatibilityCheck =
     QT_TRANSLATE_NOOP("UiTranslator", "System compatibility check…");
+constexpr auto kActionCreateFolderStructure =
+    QT_TRANSLATE_NOOP("UiTranslator", "Create folder structure...");
 constexpr auto kActionCopy = QT_TRANSLATE_NOOP("UiTranslator", "&Copy");
 constexpr auto kActionCut = QT_TRANSLATE_NOOP("UiTranslator", "Cu&t");
 constexpr auto kActionUndoLastRun = QT_TRANSLATE_NOOP("UiTranslator", "Undo last run");
@@ -238,6 +240,10 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
         checkbox->setText(tr("Suggest new folders when needed"));
         checkbox->setToolTip(tr("Allow AI to propose new destination folders when no existing folder fits well."));
     }
+    if (auto* button = raw_ptr(deps_.primary.create_folder_structure_button)) {
+        button->setText(tr("Create folder structure..."));
+        button->setToolTip(tr("Create a starter folder structure at a location you choose."));
+    }
     if (auto* checkbox = raw_ptr(deps_.primary.use_whitelist_checkbox)) {
         checkbox->setText(tr("Use a whitelist"));
         checkbox->setToolTip(tr("Restrict categories and subcategories to the selected whitelist."));
@@ -391,6 +397,7 @@ void UiTranslator::translate_menus_and_actions() const
     const ActionEntry action_entries[] = {
         {deps_.actions.file_quit_action, kActionQuit},
         {deps_.actions.run_benchmark_action, kActionSystemCompatibilityCheck},
+        {deps_.actions.create_folder_structure_action, kActionCreateFolderStructure},
         {deps_.actions.copy_action, kActionCopy},
         {deps_.actions.cut_action, kActionCut},
         {deps_.actions.undo_last_run_action, kActionUndoLastRun},

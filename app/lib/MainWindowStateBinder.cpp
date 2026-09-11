@@ -424,6 +424,20 @@ void MainWindowStateBinder::restore_sort_folder_state()
             app_.core_logger->warn("Destination folder path is invalid: {}",
                                    stored_destination.toStdString());
         }
+    } else if (app_.destination_path_entry) {
+        const QString stored_destination =
+            QString::fromStdString(app_.settings.get_destination_folder());
+        if (stored_destination.trimmed().isEmpty()) {
+            app_.destination_path_entry->setText(effective_folder);
+        } else if (QDir(stored_destination).exists()) {
+            app_.destination_path_entry->setText(stored_destination);
+        } else {
+            app_.core_logger->warn("Destination folder path is invalid: {}",
+                                   stored_destination.toStdString());
+            app_.settings.set_destination_folder(std::string());
+            app_.destination_path_entry->setText(effective_folder);
+        }
+        app_.update_destination_folder_controls();
     }
 
     if (!effective_folder.isEmpty() && QDir(effective_folder).exists()) {
@@ -737,6 +751,10 @@ void MainWindowStateBinder::update_image_only_controls()
     }
     if (app_.suggest_new_folders_checkbox) {
         app_.suggest_new_folders_checkbox->setEnabled(!disable_files_categorization && existing_folder_mode);
+    }
+    if (app_.create_folder_structure_button) {
+        app_.create_folder_structure_button->setVisible(existing_folder_mode);
+        app_.create_folder_structure_button->setEnabled(existing_folder_mode && !app_.analysis_in_progress_);
     }
     if (app_.use_whitelist_checkbox) {
         app_.use_whitelist_checkbox->setEnabled(!disable_files_categorization && !existing_folder_mode);

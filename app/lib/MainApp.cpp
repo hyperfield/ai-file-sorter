@@ -10,6 +10,7 @@
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
 #include "ExplorerExtensionEntitlement.hpp"
+#include "FolderStructureInitializerDialog.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "GeminiClient.hpp"
@@ -961,6 +962,12 @@ void MainApp::connect_signals()
             }
         });
     }
+    if (create_folder_structure_button) {
+        connect(create_folder_structure_button,
+                &QPushButton::clicked,
+                this,
+                &MainApp::show_folder_structure_initializer_dialog);
+    }
 
     connect(path_entry, &QLineEdit::returnPressed, this, [this]() {
         const QString folder = path_entry->text();
@@ -1217,6 +1224,9 @@ void MainApp::apply_accessibility_metadata()
     apply_named_control(suggest_new_folders_checkbox,
                         suggest_new_folders_checkbox ? suggest_new_folders_checkbox->text() : QString(),
                         suggest_new_folders_checkbox ? suggest_new_folders_checkbox->toolTip() : QString());
+    apply_named_control(create_folder_structure_button,
+                        create_folder_structure_button ? create_folder_structure_button->text() : QString(),
+                        create_folder_structure_button ? create_folder_structure_button->toolTip() : QString());
     apply_named_control(use_whitelist_checkbox,
                         use_whitelist_checkbox ? use_whitelist_checkbox->text() : QString(),
                         use_whitelist_checkbox ? use_whitelist_checkbox->toolTip() : QString());
@@ -1308,6 +1318,15 @@ void MainApp::apply_accessibility_metadata()
 
 void MainApp::update_settings_action_states()
 {
+    if (create_folder_structure_action) {
+        create_folder_structure_action->setEnabled(!analysis_in_progress_);
+    }
+    if (create_folder_structure_button) {
+        const bool existing_folder_mode =
+            settings.get_sorting_mode() == SortingMode::ExistingFolderTree;
+        create_folder_structure_button->setVisible(existing_folder_mode);
+        create_folder_structure_button->setEnabled(!analysis_in_progress_ && existing_folder_mode);
+    }
     if (reset_learning_action) {
         reset_learning_action->setEnabled(!analysis_in_progress_);
     }
@@ -1652,7 +1671,11 @@ void MainApp::on_destination_directory_selected(const QString& path)
     if (destination_path_entry) {
         destination_path_entry->setText(path);
     }
-    settings.set_destination_folder(get_destination_folder_path());
+    const std::string destination_folder = get_destination_folder_path();
+    const std::string analysis_folder = get_folder_path();
+    settings.set_destination_folder(destination_folder == analysis_folder
+                                        ? std::string()
+                                        : destination_folder);
     update_destination_folder_controls();
     statusBar()->showMessage(tr("Destination selected: %1").arg(path), 3000);
     status_is_ready_ = false;
@@ -1660,20 +1683,22 @@ void MainApp::on_destination_directory_selected(const QString& path)
 
 void MainApp::update_destination_folder_controls()
 {
-    const bool use_analyzed_folder =
-        !use_analyzed_folder_as_destination_checkbox ||
-        use_analyzed_folder_as_destination_checkbox->isChecked();
+    const bool has_legacy_default_toggle = use_analyzed_folder_as_destination_checkbox != nullptr;
+    const bool use_analyzed_folder = has_legacy_default_toggle
+                                         ? use_analyzed_folder_as_destination_checkbox->isChecked()
+                                         : settings.get_destination_folder().empty();
+    const bool destination_controls_enabled = !has_legacy_default_toggle || !use_analyzed_folder;
     if (destination_path_entry) {
         if (use_analyzed_folder && path_entry) {
             destination_path_entry->setText(path_entry->text());
         }
-        destination_path_entry->setEnabled(!use_analyzed_folder);
+        destination_path_entry->setEnabled(destination_controls_enabled);
     }
     if (destination_path_label) {
-        destination_path_label->setEnabled(!use_analyzed_folder);
+        destination_path_label->setEnabled(destination_controls_enabled);
     }
     if (destination_browse_button) {
-        destination_browse_button->setEnabled(!use_analyzed_folder);
+        destination_browse_button->setEnabled(destination_controls_enabled);
     }
 }
 
@@ -3366,6 +3391,40 @@ void MainApp::show_suitability_benchmark_dialog(bool /*auto_start*/)
         benchmark_dialog.reset();
     });
     benchmark_dialog->show();
+}
+
+void MainApp::show_folder_structure_initializer_dialog()
+{
+    if (analysis_in_progress_) {
+        return;
+    }
+
+    QString start_directory = QDir::homePath();
+    if (destination_path_entry && !destination_path_entry->text().trimmed().isEmpty()) {
+        start_directory = destination_path_entry->text().trimmed();
+    } else if (path_entry && !path_entry->text().trimmed().isEmpty()) {
+        start_directory = path_entry->text().trimmed();
+    }
+
+    FolderStructureInitializerDialog dialog(Utils::utf8_to_path(to_utf8(start_directory)), this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    const std::string destination_text = Utils::path_to_utf8(dialog.destination_root());
+    const QString destination = QString::fromUtf8(destination_text.c_str(),
+                                                  static_cast<int>(destination_text.size()));
+    if (destination_path_entry) {
+        on_destination_directory_selected(destination);
+    }
+    statusBar()->showMessage(
+        tr("Folder structure created: %1 new, %2 already existed.")
+            .arg(static_cast<qulonglong>(dialog.created_count()))
+            .arg(static_cast<qulonglong>(dialog.existing_count())),
+        5000);
+    if (path_entry && QDir(path_entry->text()).absolutePath() == QDir(destination).absolutePath()) {
+        update_folder_contents(destination);
+    }
 }
 
 void MainApp::maybe_show_suitability_benchmark()

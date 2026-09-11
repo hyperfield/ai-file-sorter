@@ -53,6 +53,7 @@ struct UiTranslatorTestHarness {
     QPointer<QRadioButton> style_consistent{new QRadioButton(&window)};
     QPointer<QComboBox> sorting_mode_selector{new QComboBox(&window)};
     QPointer<QCheckBox> suggest_new_folders_checkbox{new QCheckBox(&window)};
+    QPointer<QPushButton> create_folder_structure_button{new QPushButton(&window)};
     QPointer<QCheckBox> use_whitelist{new QCheckBox(&window)};
     QPointer<QComboBox> whitelist_selector{new QComboBox(&window)};
     QPointer<QCheckBox> files_checkbox{new QCheckBox(&window)};
@@ -90,6 +91,7 @@ struct UiTranslatorTestHarness {
 
     QAction* file_quit_action = new QAction(&window);
     QAction* run_benchmark_action = new QAction(&window);
+    QAction* create_folder_structure_action = new QAction(&window);
     QAction* copy_action = new QAction(&window);
     QAction* cut_action = new QAction(&window);
     QAction* undo_last_run_action = new QAction(&window);
@@ -263,6 +265,7 @@ struct UiTranslatorTestHarness {
                 style_consistent,
                 sorting_mode_selector,
                 suggest_new_folders_checkbox,
+                create_folder_structure_button,
                 use_whitelist,
                 whitelist_selector,
                 files_checkbox,
@@ -300,6 +303,7 @@ struct UiTranslatorTestHarness {
             .actions = UiTranslator::ActionControls{
                 file_quit_action,
                 run_benchmark_action,
+                create_folder_structure_action,
                 copy_action,
                 cut_action,
                 undo_last_run_action,
@@ -386,6 +390,9 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.sorting_mode_selector->itemText(0) == QStringLiteral("Create category folders"));
     REQUIRE(h.sorting_mode_selector->itemText(1) == QStringLiteral("Use existing folder structure"));
     REQUIRE(h.suggest_new_folders_checkbox->text() == QStringLiteral("Suggest new folders when needed"));
+    REQUIRE(h.create_folder_structure_button->text() == QStringLiteral("Create folder structure..."));
+    REQUIRE(h.create_folder_structure_button->toolTip() ==
+            QStringLiteral("Create a starter folder structure at a location you choose."));
     REQUIRE(h.use_whitelist->text() == QStringLiteral("Use a whitelist"));
     REQUIRE(h.files_checkbox->text() == QStringLiteral("Categorize files"));
     REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize folders"));
@@ -446,6 +453,7 @@ void verify_menus_and_actions(const UiTranslatorTestHarness& h)
     REQUIRE(MenuMnemonicController::mnemonic_title(h.test_menu) == QStringLiteral("&Tests"));
     REQUIRE(h.language_menu->title() == QStringLiteral("Interface &language"));
     REQUIRE(h.category_language_menu->title() == QStringLiteral("Category &language"));
+    REQUIRE(h.create_folder_structure_action->text() == QStringLiteral("Create folder structure..."));
     REQUIRE(h.run_benchmark_action->text() == QStringLiteral("System compatibility check…"));
     REQUIRE(h.review_history_action->text() ==
             QStringLiteral("Rename and categorization history…"));

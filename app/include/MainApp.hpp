@@ -391,6 +391,10 @@ private:
     void show_review_history_dialog();
     bool perform_undo_from_plan(const QString& plan_path);
     void show_suitability_benchmark_dialog(bool auto_start);
+    /**
+     * @brief Opens the built-in starter folder structure creation dialog.
+     */
+    void show_folder_structure_initializer_dialog();
     void maybe_show_suitability_benchmark();
     /**
      * @brief Shows the What's New popup once per app version when packaged notes exist.
@@ -492,6 +496,7 @@ private:
     QPointer<QRadioButton> categorization_style_consistent_radio;
     QPointer<QComboBox> sorting_mode_selector;
     QPointer<QCheckBox> suggest_new_folders_checkbox;
+    QPointer<QPushButton> create_folder_structure_button;
     QPointer<QCheckBox> use_whitelist_checkbox;
     QPointer<QComboBox> whitelist_selector;
     QPointer<QCheckBox> categorize_files_checkbox;
@@ -543,6 +548,7 @@ private:
     QMenu* help_menu{nullptr};
     QAction* file_quit_action{nullptr};
     QAction* run_benchmark_action{nullptr};
+    QAction* create_folder_structure_action{nullptr};
     QAction* copy_action{nullptr};
     QAction* cut_action{nullptr};
     QAction* paste_action{nullptr};

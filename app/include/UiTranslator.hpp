@@ -53,6 +53,7 @@ public:
         QPointer<QRadioButton>& categorization_style_consistent_radio;
         QPointer<QComboBox>& sorting_mode_selector;
         QPointer<QCheckBox>& suggest_new_folders_checkbox;
+        QPointer<QPushButton>& create_folder_structure_button;
         QPointer<QCheckBox>& use_whitelist_checkbox;
         QPointer<QComboBox>& whitelist_selector;
         QPointer<QCheckBox>& categorize_files_checkbox;
@@ -99,6 +100,7 @@ public:
     struct ActionControls {
         QAction*& file_quit_action;
         QAction*& run_benchmark_action;
+        QAction*& create_folder_structure_action;
         QAction*& copy_action;
         QAction*& cut_action;
         QAction*& undo_last_run_action;

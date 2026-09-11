@@ -376,12 +376,12 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.destination_path_label = new QLabel(central);
     app.destination_path_entry = new QLineEdit(central);
     app.destination_browse_button = new QPushButton(central);
-    app.use_analyzed_folder_as_destination_checkbox = new QCheckBox(central);
-    app.use_analyzed_folder_as_destination_checkbox->setChecked(true);
+    app.create_folder_structure_button = new QPushButton(central);
+    app.create_folder_structure_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     destination_layout->addWidget(app.destination_path_label);
     destination_layout->addWidget(app.destination_path_entry, 1);
     destination_layout->addWidget(app.destination_browse_button);
-    destination_layout->addWidget(app.use_analyzed_folder_as_destination_checkbox);
+    destination_layout->addWidget(app.create_folder_structure_button);
     main_layout->addLayout(destination_layout);
 
     auto* options_layout = new QHBoxLayout();
@@ -577,6 +577,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.categorization_style_consistent_radio,
             app.sorting_mode_selector,
             app.suggest_new_folders_checkbox,
+            app.create_folder_structure_button,
             app.use_whitelist_checkbox,
             app.whitelist_selector,
             app.categorize_files_checkbox,
@@ -614,6 +615,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
         .actions = UiTranslator::ActionControls{
             app.file_quit_action,
             app.run_benchmark_action,
+            app.create_folder_structure_action,
             app.copy_action,
             app.cut_action,
             app.undo_last_run_action,
@@ -700,6 +702,14 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
 
 void MainAppUiBuilder::build_file_menu(MainApp& app) {
     app.file_menu = app.menuBar()->addMenu(QString());
+    app.create_folder_structure_action =
+        app.file_menu->addAction(icon_for(app, "folder-new", QStyle::SP_DirIcon), QString());
+    QObject::connect(app.create_folder_structure_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::show_folder_structure_initializer_dialog);
+    app.file_menu->addSeparator();
+
     app.run_benchmark_action = app.file_menu->addAction(icon_for(app, "view-statistics", QStyle::SP_MediaPlay), QString());
     QObject::connect(app.run_benchmark_action, &QAction::triggered, &app, [&app]() {
         app.show_suitability_benchmark_dialog(false);

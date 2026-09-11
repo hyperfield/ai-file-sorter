@@ -9,12 +9,14 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QToolButton>
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <unordered_set>
@@ -96,6 +98,62 @@ TEST_CASE("Processing documents only disables image analysis controls") {
     REQUIRE(add_image_date->isEnabled());
     REQUIRE(add_image_date_place->isEnabled());
     REQUIRE(image_toggle->isEnabled());
+}
+
+TEST_CASE("Existing folder mode places folder structure creator in destination row") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    QComboBox* sorting_mode = MainAppTestAccess::sorting_mode_selector(window);
+    QPushButton* create_button = MainAppTestAccess::create_folder_structure_button(window);
+    QPushButton* destination_browse = MainAppTestAccess::destination_browse_button(window);
+    REQUIRE(sorting_mode != nullptr);
+    REQUIRE(create_button != nullptr);
+    REQUIRE(destination_browse != nullptr);
+    CHECK(MainAppTestAccess::use_analyzed_folder_as_destination_checkbox(window) == nullptr);
+
+    CHECK(create_button->isHidden());
+    window.show();
+    QApplication::processEvents();
+    CHECK_FALSE(create_button->isVisible());
+
+    const int existing_mode_index =
+        sorting_mode->findData(static_cast<int>(SortingMode::ExistingFolderTree));
+    REQUIRE(existing_mode_index >= 0);
+    sorting_mode->setCurrentIndex(existing_mode_index);
+    QApplication::processEvents();
+
+    CHECK(create_button->isVisible());
+    CHECK(create_button->isEnabled());
+    CHECK(create_button->geometry().left() >= destination_browse->geometry().right());
+    CHECK(std::abs(create_button->geometry().center().y() -
+                   destination_browse->geometry().center().y()) <= 3);
+
+    MainAppTestAccess::set_analysis_in_progress(window, true);
+    CHECK(create_button->isVisible());
+    CHECK_FALSE(create_button->isEnabled());
+
+    MainAppTestAccess::set_analysis_in_progress(window, false);
+    CHECK(create_button->isVisible());
+    CHECK(create_button->isEnabled());
+
+    const int generated_mode_index =
+        sorting_mode->findData(static_cast<int>(SortingMode::GeneratedCategories));
+    REQUIRE(generated_mode_index >= 0);
+    sorting_mode->setCurrentIndex(generated_mode_index);
+    QApplication::processEvents();
+
+    CHECK_FALSE(create_button->isVisible());
 }
 
 #ifndef _WIN32

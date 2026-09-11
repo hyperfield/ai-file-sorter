@@ -20,6 +20,7 @@
 class MainApp;
 class Settings;
 class QAction;
+class QComboBox;
 class QMenu;
 class QLineEdit;
 class QPushButton;
@@ -65,11 +66,35 @@ public:
      */
     static QPushButton* browse_button(MainApp& app);
     /**
+     * @brief Access the destination folder browse button.
+     * @param app MainApp instance.
+     * @return Pointer to the button, or nullptr if unavailable.
+     */
+    static QPushButton* destination_browse_button(MainApp& app);
+    /**
+     * @brief Access the legacy analyzed-folder destination checkbox.
+     * @param app MainApp instance.
+     * @return Pointer to the checkbox, or nullptr if unavailable.
+     */
+    static QCheckBox* use_analyzed_folder_as_destination_checkbox(MainApp& app);
+    /**
      * @brief Access the main analyze button.
      * @param app MainApp instance.
      * @return Pointer to the button, or nullptr if unavailable.
      */
     static QPushButton* analyze_button(MainApp& app);
+    /**
+     * @brief Access the sorting mode selector.
+     * @param app MainApp instance.
+     * @return Pointer to the selector, or nullptr if unavailable.
+     */
+    static QComboBox* sorting_mode_selector(MainApp& app);
+    /**
+     * @brief Access the starter folder structure creation button.
+     * @param app MainApp instance.
+     * @return Pointer to the button, or nullptr if unavailable.
+     */
+    static QPushButton* create_folder_structure_button(MainApp& app);
     /**
      * @brief Access the Settings -> Clear cache action.
      * @param app MainApp instance.

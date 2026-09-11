@@ -553,6 +553,13 @@ Procedure: Enable "Process document files only", inspect dependent image control
 Expected outcome: Image analysis controls are disabled while document-only mode is active, but the underlying saved settings are preserved and controls re-enable afterward.
 Run: `./build-tests/ai_file_sorter_tests "Processing documents only disables image analysis controls"`
 
+#### Test case: Existing folder mode places folder structure creator in destination row
+Purpose: Verify the main window shows the starter-structure utility beside the destination Browse button in the sorting mode where it is most relevant.
+Setup: Build `MainApp` with generated-category sorting mode selected.
+Procedure: Switch to existing-folder mode, inspect the destination row, toggle analysis state, then switch back to generated-category mode.
+Expected outcome: The old analyzed-folder destination checkbox is absent; the creator button is hidden in generated-category mode, visible beside destination Browse in existing-folder mode, and disabled while analysis is active.
+Run: `./build-tests/ai_file_sorter_tests "Existing folder mode places folder structure creator in destination row"`
+
 #### Test case: Processing images only preserves recursive scanning when scan subfolders is enabled
 Purpose: Ensure image-only processing does not accidentally clear recursive scanning.
 Setup: Enable image analysis, image-only processing, and include-subdirectories in settings.
@@ -1879,6 +1886,43 @@ Setup: Provide a nested Johnny.Decimal-like target path.
 Procedure: Derive display labels from the relative folder path.
 Expected outcome: The top-level folder becomes the compatibility category and the deepest folder becomes the compatibility subcategory.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog derives compatibility labels from target path"`
+
+### `tests/unit/test_folder_structure_templates.cpp`
+
+#### Test case: FolderStructureTemplates exposes requested starter structures
+Purpose: Ensure the built-in initializer lists every requested starter structure and marks future templates unavailable.
+Setup: Read the static folder-structure descriptors.
+Procedure: Look up every supported and planned template by identifier.
+Expected outcome: All requested descriptors exist, available templates include folder paths, and the Chronological and Client/Project/Deliverable templates are disabled.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates exposes requested starter structures"`
+
+#### Test case: FolderStructureTemplates creates starter structure without overwriting existing folders
+Purpose: Verify the initializer can add a starter structure into a destination that already contains matching folders.
+Setup: Create a temporary destination with an existing `Projects` folder.
+Procedure: Create the PARA structure twice.
+Expected outcome: Missing folders are created on the first run, existing folders are reported separately, and the second run creates nothing new.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates creates starter structure without overwriting existing folders"`
+
+#### Test case: FolderStructureTemplates creates Johnny Decimal starter folders
+Purpose: Confirm the Johnny.Decimal starter creates representative numbered area/category folders.
+Setup: Use an empty temporary destination folder.
+Procedure: Create the Johnny.Decimal starter structure.
+Expected outcome: Representative Admin, Personal, Media, and Archive nested folders exist after creation.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates creates Johnny Decimal starter folders"`
+
+#### Test case: FolderStructureTemplates rejects unavailable starter structures
+Purpose: Prevent disabled future templates from creating partial folder trees.
+Setup: Use an empty temporary destination folder.
+Procedure: Attempt to create the Chronological template.
+Expected outcome: Creation fails with an error, no folders are created, and the destination remains empty.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates rejects unavailable starter structures"`
+
+#### Test case: FolderStructureTemplates rejects relative destination paths
+Purpose: Prevent typed relative destinations from creating starter structures under the app working directory.
+Setup: Provide a relative destination path.
+Procedure: Attempt to create the media-type starter structure.
+Expected outcome: Creation fails with an error and no folder paths are reported as created.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates rejects relative destination paths"`
 
 ### `tests/unit/test_protected_project_detector.cpp`
 
