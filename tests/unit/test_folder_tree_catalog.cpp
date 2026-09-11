@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "TestHelpers.hpp"
 
@@ -119,6 +120,97 @@ TEST_CASE("FolderTreeCatalog prompt guides new folders over weak fallbacks")
     CHECK(prompt.find("weak, generic, or unrelated matches") != std::string::npos);
     CHECK(prompt.find("Do not choose fallback folders") != std::string::npos);
     CHECK(prompt.find("Other/Unsorted Review") != std::string::npos);
+}
+
+TEST_CASE("FolderTreeCatalog scores prefixed folders by human labels")
+{
+    CHECK(FolderTreeCatalog::semantic_match_score("10-19 Admin/11 Reports",
+                                                  "Admin",
+                                                  "Reports") >= 20);
+    CHECK(FolderTreeCatalog::semantic_match_score("AC Documents",
+                                                  "Documents",
+                                                  "Invoices") >= 8);
+}
+
+TEST_CASE("FolderStructurePattern suggests missing child inside numbered parent")
+{
+    FolderTreeCatalog::Catalog catalog({
+        {"20-29 Work", 1},
+        {"20-29 Work/21 Clients", 2},
+        {"20-29 Work/23 Meeting Notes", 2},
+    });
+
+    const auto suggestion =
+        FolderStructurePattern::suggest_new_folder(catalog, "Work", "Proposals");
+
+    REQUIRE(suggestion.has_value());
+    CHECK(suggestion->relative_path == "20-29 Work/22 Proposals");
+    CHECK(suggestion->high_confidence);
+}
+
+TEST_CASE("FolderStructurePattern suggests new Johnny Decimal-like area")
+{
+    FolderTreeCatalog::Catalog catalog({
+        {"10-19 Admin", 1},
+        {"10-19 Admin/11 Reports", 2},
+        {"20-29 Work", 1},
+        {"20-29 Work/21 Clients", 2},
+        {"30-39 Personal", 1},
+        {"30-39 Personal/31 Travel", 2},
+    });
+
+    const auto suggestion =
+        FolderStructurePattern::suggest_new_folder(catalog, "Finance", "Invoices");
+
+    REQUIRE(suggestion.has_value());
+    CHECK(suggestion->relative_path == "40-49 Finance/41 Invoices");
+    CHECK(suggestion->high_confidence);
+}
+
+TEST_CASE("FolderStructurePattern nests under matching custom code folders")
+{
+    FolderTreeCatalog::Catalog catalog({
+        {"AA Images", 1},
+        {"AB Photos", 1},
+        {"AC Documents", 1},
+        {"DG Office Apps", 1},
+    });
+
+    const auto documents =
+        FolderStructurePattern::suggest_new_folder(catalog, "Documents", "Invoices");
+    REQUIRE(documents.has_value());
+    CHECK(documents->relative_path == "AC Documents/Invoices");
+    CHECK(documents->high_confidence);
+
+    const auto programs =
+        FolderStructurePattern::suggest_new_folder(catalog, "Programs", "Installers");
+    REQUIRE(programs.has_value());
+    CHECK(programs->relative_path == "DG Office Apps/Installers");
+    CHECK(programs->high_confidence);
+}
+
+TEST_CASE("FolderTreeCatalog prompt includes detected structure conventions")
+{
+    FolderTreeCatalog::Catalog catalog({
+        {"10-19 Admin", 1},
+        {"10-19 Admin/11 Reports", 2},
+        {"20-29 Work", 1},
+        {"20-29 Work/21 Clients", 2},
+    });
+
+    const std::string prompt = FolderTreeCatalog::build_prompt_context(
+        catalog,
+        "budget.xlsx",
+        "D:/Incoming/budget.xlsx",
+        true,
+        "Finance",
+        "Budgets",
+        "Finance/Budgets");
+
+    CHECK(prompt.find("Detected folder structure conventions") != std::string::npos);
+    CHECK(prompt.find("Johnny.Decimal-like") != std::string::npos);
+    CHECK(prompt.find("Convention-aware deterministic new-folder candidate: 30-39 Finance/31 Budgets") !=
+          std::string::npos);
 }
 
 TEST_CASE("FolderTreeCatalog derives compatibility labels from target path")

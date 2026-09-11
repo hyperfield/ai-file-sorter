@@ -1,5 +1,6 @@
 #include "FolderTreeCatalog.hpp"
 
+#include "FolderStructurePattern.hpp"
 #include "ReviewFileNaming.hpp"
 #include "Utils.hpp"
 
@@ -21,7 +22,7 @@ namespace {
 constexpr std::size_t kPromptCandidateLimit = 160;
 constexpr std::size_t kMaxRelativePathLength = 240;
 constexpr std::size_t kMaxSegmentLength = 100;
-constexpr int kStrongSemanticMatchScore = 8;
+constexpr int kStrongSemanticMatchScore = 12;
 
 std::string trim_copy(std::string value)
 {
@@ -698,7 +699,16 @@ int semantic_match_score(std::string_view relative_path,
         score += 20;
     }
 
-    const auto path_tokens = tokenize(validation.normalized_path);
+    const std::string human_label_path =
+        FolderStructurePattern::human_label_path(validation.normalized_path);
+    if (!semantic_target.empty() &&
+        lower_copy(human_label_path) == lower_copy(semantic_target)) {
+        score += 18;
+    }
+
+    const auto path_tokens = tokenize(human_label_path.empty()
+                                          ? validation.normalized_path
+                                          : human_label_path);
     const auto category_tokens = semantic_tokens(category);
     const auto subcategory_tokens = semantic_tokens(subcategory);
     score += score_token_overlap(path_tokens, category_tokens, 5, 2);
@@ -706,7 +716,9 @@ int semantic_match_score(std::string_view relative_path,
 
     const std::string category_label = Utils::sanitize_path_label(std::string(category));
     if (!category_label.empty()) {
-        const std::string normalized_path = lower_copy(validation.normalized_path);
+        const std::string normalized_path = lower_copy(human_label_path.empty()
+                                                           ? validation.normalized_path
+                                                           : human_label_path);
         const std::string category_prefix = lower_copy(category_label) + "/";
         if (normalized_path == lower_copy(category_label) ||
             normalized_path.rfind(category_prefix, 0) == 0) {
@@ -774,10 +786,25 @@ std::string build_prompt_context(const Catalog& catalog,
         prompt << "- If the listed folders are only weak, generic, or unrelated matches, suggest a concise new folder and return {\"targetFolder\":\"new/folder/path\",\"createFolder\":true}.\n";
         prompt << "- Do not choose fallback folders such as Other, Unsorted Review, Temporary, Misc, Data and Archives, or Compressed Archives just to avoid creating a missing semantic folder, unless that fallback is truly the best content match.\n";
         prompt << "- Suggested folders may be new top-level groups or nested paths under an existing group.\n";
+        prompt << "- When the tree shows naming conventions such as numeric ranges, numeric prefixes, or short code prefixes, mirror those conventions in any new folder path.\n";
     } else {
         prompt << "- Use an existing folder only. targetFolder must exactly match one of the listed candidates.\n";
         prompt << "- Never suggest or invent a new folder.\n";
         prompt << "- Return {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false}.\n";
+    }
+
+    const auto profile = FolderStructurePattern::infer_profile(catalog);
+    if (!profile.prompt_guidance.empty()) {
+        prompt << profile.prompt_guidance;
+    }
+    if (allow_new_folders && !semantic_category.empty()) {
+        if (const auto suggestion =
+                FolderStructurePattern::suggest_new_folder(catalog,
+                                                           semantic_category,
+                                                           semantic_subcategory)) {
+            prompt << "- Convention-aware deterministic new-folder candidate: "
+                   << suggestion->relative_path << ". Compare it with existing folders before deciding.\n";
+        }
     }
 
     const std::vector<Entry> candidates =

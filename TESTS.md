@@ -1880,6 +1880,41 @@ Procedure: Build folder-tree prompt context for a PDF invoice with new-folder su
 Expected outcome: The prompt includes existing-folder and new-folder JSON examples, says candidates are not exhaustive when suggestions are allowed, and explicitly discourages weak fallback folders.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog prompt guides new folders over weak fallbacks"`
 
+#### Test case: FolderTreeCatalog scores prefixed folders by human labels
+Purpose: Ensure leading folder codes do not prevent semantic matching.
+Setup: Provide Johnny.Decimal-like and custom-code folder paths.
+Procedure: Score each path against semantic category/subcategory labels.
+Expected outcome: Matching uses the human folder labels after prefixes, so coded paths still receive useful semantic scores.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog scores prefixed folders by human labels"`
+
+#### Test case: FolderStructurePattern suggests missing child inside numbered parent
+Purpose: Verify deterministic recognition can create coherent child suggestions inside a numbered range.
+Setup: Build a catalog with a `20-29 Work` parent and numbered child folders with a gap.
+Procedure: Ask for a `Work / Proposals` new-folder suggestion.
+Expected outcome: The suggestion uses the matching parent and the first available child number in the range.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests missing child inside numbered parent"`
+
+#### Test case: FolderStructurePattern suggests new Johnny Decimal-like area
+Purpose: Verify deterministic recognition can continue a Johnny.Decimal-like top-level range scheme.
+Setup: Build a catalog with multiple numbered top-level ranges and child numeric folders.
+Procedure: Ask for a `Finance / Invoices` new-folder suggestion.
+Expected outcome: The suggestion creates the next top-level range and the first child number inside that range.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests new Johnny Decimal-like area"`
+
+#### Test case: FolderStructurePattern nests under matching custom code folders
+Purpose: Verify deterministic recognition can match custom prefix folders by their human labels.
+Setup: Build a catalog with alphabetic-code folders such as `AC Documents` and `DG Office Apps`.
+Procedure: Ask for document and program new-folder suggestions.
+Expected outcome: Suggestions preserve the existing coded parent folder names and add semantic child folders beneath them.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern nests under matching custom code folders"`
+
+#### Test case: FolderTreeCatalog prompt includes detected structure conventions
+Purpose: Ensure LLM folder-routing prompts receive compact guidance about inferred tree conventions.
+Setup: Build a Johnny.Decimal-like catalog and provide semantic labels.
+Procedure: Build folder-tree prompt context with new-folder suggestions enabled.
+Expected outcome: The prompt describes the detected convention and includes a convention-aware deterministic candidate for comparison.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog prompt includes detected structure conventions"`
+
 #### Test case: FolderTreeCatalog derives compatibility labels from target path
 Purpose: Preserve category/subcategory compatibility for cache, history, and status fields while using explicit target folders.
 Setup: Provide a nested Johnny.Decimal-like target path.
@@ -2701,6 +2736,20 @@ Setup: Create a target root with image, archive, and unsorted fallback folders b
 Procedure: Categorize one document using an LLM stub that returns semantic document labels.
 Expected outcome: The categorized result records `Documents/Invoices` as a deterministic suggested new folder, marks the target as not existing yet, and persists the routing decision separately from the semantic cache.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService accepts suggested folder-tree targets when enabled"`
+
+#### Test case: CategorizationService uses deterministic structure pattern for new folder routes
+Purpose: Ensure existing-folder sorting can create coherent new-folder suggestions without a second LLM call when a clear pattern is present.
+Setup: Create a Johnny.Decimal-like tree with a numbered `20-29 Work` parent and enable new-folder suggestions.
+Procedure: Categorize one file using an LLM stub that returns `Work / Proposals` semantic labels.
+Expected outcome: The categorized result suggests the first available numbered child folder under `20-29 Work` and only calls the LLM for semantic categorization.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses deterministic structure pattern for new folder routes"`
+
+#### Test case: CategorizationService sends detected custom folder conventions to routing LLM
+Purpose: Ensure weaker custom prefix conventions are passed to the LLM instead of blindly creating plain semantic folders.
+Setup: Create a destination tree with alphabetic-code top-level folders and enable new-folder suggestions.
+Procedure: Categorize one file using an LLM stub that returns semantic labels, then a convention-preserving target-folder JSON response.
+Expected outcome: The service performs a routing LLM call, includes detected convention guidance in the routing prompt, and accepts the suggested coded target path.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService sends detected custom folder conventions to routing LLM"`
 
 #### Test case: CategorizationService scans destination root for existing folder-tree targets
 Purpose: Ensure existing-folder sorting catalogs are built from the selected destination root, not necessarily the analyzed folder.

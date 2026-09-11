@@ -7,6 +7,7 @@
 #include "DatabaseManager.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "FilenameLocalizationService.hpp"
+#include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "ImageAnalyzerFactory.hpp"
@@ -139,10 +140,23 @@ std::optional<FolderTreeCatalog::Selection> existing_semantic_selection(
 
 std::optional<FolderTreeCatalog::Selection> semantic_new_folder_selection(
     const FolderTreeCatalog::Catalog& catalog,
+    const std::string& semantic_category,
+    const std::string& semantic_subcategory,
     const std::string& semantic_target,
-    bool allow_new_folders)
+    bool allow_new_folders,
+    bool require_high_confidence = false)
 {
-    if (!allow_new_folders || semantic_target.empty()) {
+    if (!allow_new_folders) {
+        return std::nullopt;
+    }
+    if (auto suggestion = FolderStructurePattern::suggest_new_folder(catalog,
+                                                                     semantic_category,
+                                                                     semantic_subcategory)) {
+        if (!require_high_confidence || suggestion->high_confidence) {
+            return FolderTreeCatalog::resolve_target_path(suggestion->relative_path, catalog, true);
+        }
+    }
+    if (require_high_confidence || semantic_target.empty()) {
         return std::nullopt;
     }
     return FolderTreeCatalog::resolve_target_path(semantic_target, catalog, true);
@@ -172,7 +186,11 @@ FolderTreeCatalog::Selection prefer_semantic_route_when_existing_match_is_weak(
             return *existing;
         }
     }
-    if (auto semantic_selection = semantic_new_folder_selection(catalog, semantic_target, true)) {
+    if (auto semantic_selection = semantic_new_folder_selection(catalog,
+                                                               semantic_category,
+                                                               semantic_subcategory,
+                                                               semantic_target,
+                                                               true)) {
         return *semantic_selection;
     }
     return selection;
@@ -243,9 +261,22 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
         }
     }
 
+    if (auto selection = semantic_new_folder_selection(catalog,
+                                                       semantic_category,
+                                                       semantic_subcategory,
+                                                       semantic_target,
+                                                       allow_new_folders,
+                                                       true)) {
+        return selection;
+    }
+
     if (allow_new_folders &&
         (!best_existing || !FolderTreeCatalog::is_strong_semantic_match(best_existing->score))) {
-        if (auto selection = semantic_new_folder_selection(catalog, semantic_target, true)) {
+        if (auto selection = semantic_new_folder_selection(catalog,
+                                                          semantic_category,
+                                                          semantic_subcategory,
+                                                          semantic_target,
+                                                          true)) {
             return selection;
         }
     }
@@ -253,7 +284,11 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
     if (auto selection = existing_semantic_selection(catalog, best_existing)) {
         return selection;
     }
-    return semantic_new_folder_selection(catalog, semantic_target, allow_new_folders);
+    return semantic_new_folder_selection(catalog,
+                                         semantic_category,
+                                         semantic_subcategory,
+                                         semantic_target,
+                                         allow_new_folders);
 }
 
 std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(

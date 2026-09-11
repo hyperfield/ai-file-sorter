@@ -1326,6 +1326,111 @@ TEST_CASE("CategorizationService accepts suggested folder-tree targets when enab
     CHECK(route->target_folder_suggested_new);
 }
 
+TEST_CASE("CategorizationService uses deterministic structure pattern for new folder routes") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir data_dir;
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "20-29 Work" / "21 Clients"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "20-29 Work" / "23 Meeting Notes"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "30-39 Personal" / "31 Travel"));
+
+    Settings settings;
+    settings.set_sort_folder(data_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "migration_plan.txt";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            "Work : Proposals");
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 1);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "20-29 Work/22 Proposals");
+    CHECK(categorized.front().target_folder_suggested_new);
+    CHECK_FALSE(categorized.front().target_folder_exists);
+    CHECK(categorized.front().category == "Work");
+    CHECK(categorized.front().subcategory == "Proposals");
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) == std::string::npos);
+}
+
+TEST_CASE("CategorizationService sends detected custom folder conventions to routing LLM") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir data_dir;
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "AA Images"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "AB Photos"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "AC Documents"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "DG Office Apps"));
+
+    Settings settings;
+    settings.set_sort_folder(data_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "nginx_access_logs.zip";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            std::vector<std::string>{
+                "Archives : Logs",
+                "{\"targetFolder\":\"DH Archives/Logs\",\"createFolder\":true}"});
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 2);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "DH Archives/Logs");
+    CHECK(categorized.front().target_folder_suggested_new);
+    CHECK_FALSE(categorized.front().target_folder_exists);
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
+    CHECK(captured_context->find("Detected folder structure conventions") != std::string::npos);
+    CHECK(captured_context->find("leading alphabetic code prefixes") != std::string::npos);
+}
+
 TEST_CASE("CategorizationService scans destination root for existing folder-tree targets") {
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
