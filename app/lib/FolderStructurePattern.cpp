@@ -1,5 +1,6 @@
 #include "FolderStructurePattern.hpp"
 
+#include "FolderStructurePluginProfile.hpp"
 #include "Utils.hpp"
 
 #include <algorithm>
@@ -583,6 +584,63 @@ bool validate_suggested_path(const std::string& path,
     return validation.valid && !catalog.find_existing(validation.normalized_path).has_value();
 }
 
+bool contains_token(const std::vector<std::string>& values, std::string_view expected)
+{
+    const std::string lowered_expected = lower_copy(std::string(expected));
+    return std::any_of(values.begin(), values.end(), [&](const std::string& value) {
+        return lower_copy(value) == lowered_expected;
+    });
+}
+
+bool profile_matches_tree(const FolderStructurePluginProfile& profile,
+                          const FolderStructurePattern::Profile& inferred)
+{
+    const std::string kind = lower_copy(profile.structure_kind);
+    if ((kind == "johnny_decimal" || kind == "johnny.decimal" ||
+         contains_token(profile.detectors, "johnny_decimal_like")) &&
+        inferred.has_johnny_decimal_like_ranges) {
+        return true;
+    }
+    if ((kind == "numbered_prefix" || contains_token(profile.detectors, "numbered_prefix")) &&
+        inferred.has_numbered_prefixes) {
+        return true;
+    }
+    if ((kind == "alphabetic_prefix" || contains_token(profile.detectors, "alphabetic_prefix")) &&
+        inferred.has_alphabetic_prefixes) {
+        return true;
+    }
+    return false;
+}
+
+void append_plugin_profile_guidance(FolderStructurePattern::Profile& inferred,
+                                    std::span<const FolderStructurePluginProfile> plugin_profiles)
+{
+    std::ostringstream prompt;
+    bool appended_header = false;
+    for (const auto& plugin_profile : plugin_profiles) {
+        if (!profile_matches_tree(plugin_profile, inferred)) {
+            continue;
+        }
+        inferred.has_recognized_conventions = true;
+        inferred.matched_plugin_profile_ids.push_back(plugin_profile.id);
+        if (!appended_header) {
+            prompt << "\nInstalled folder-structure plugin guidance:\n";
+            appended_header = true;
+        }
+        prompt << "- Matched profile: " << plugin_profile.name << ".\n";
+        if (!plugin_profile.prompt_guidance.empty()) {
+            prompt << plugin_profile.prompt_guidance;
+        }
+        if (!plugin_profile.new_folder_guidance.empty()) {
+            prompt << plugin_profile.new_folder_guidance;
+        }
+    }
+
+    if (appended_header) {
+        inferred.prompt_guidance += prompt.str();
+    }
+}
+
 std::vector<std::string> examples_for_kind(const std::vector<PathInfo>& infos,
                                            PrefixKind kind,
                                            std::size_t limit)
@@ -615,7 +673,8 @@ std::string join_examples(const std::vector<std::string>& examples)
 
 namespace FolderStructurePattern {
 
-Profile infer_profile(const FolderTreeCatalog::Catalog& catalog)
+Profile infer_profile(const FolderTreeCatalog::Catalog& catalog,
+                      std::span<const FolderStructurePluginProfile> plugin_profiles)
 {
     const auto infos = make_path_infos(catalog);
     const auto top_level = top_level_infos(infos);
@@ -647,6 +706,7 @@ Profile infer_profile(const FolderTreeCatalog::Catalog& catalog)
         profile.has_alphabetic_prefixes;
 
     if (!profile.has_recognized_conventions) {
+        append_plugin_profile_guidance(profile, plugin_profiles);
         return profile;
     }
 
@@ -678,13 +738,15 @@ Profile infer_profile(const FolderTreeCatalog::Catalog& catalog)
     }
     prompt << "- Match content against the human label after any leading code/range prefix, but return the full literal folder path including prefixes.\n";
     profile.prompt_guidance = prompt.str();
+    append_plugin_profile_guidance(profile, plugin_profiles);
     return profile;
 }
 
 std::optional<SuggestedPath> suggest_new_folder(
     const FolderTreeCatalog::Catalog& catalog,
     std::string_view semantic_category,
-    std::string_view semantic_subcategory)
+    std::string_view semantic_subcategory,
+    std::span<const FolderStructurePluginProfile> plugin_profiles)
 {
     const std::string category_label =
         Utils::sanitize_path_label(std::string(semantic_category));
@@ -715,7 +777,7 @@ std::optional<SuggestedPath> suggest_new_folder(
     }
 
     const auto top_level = top_level_infos(infos);
-    const auto profile = infer_profile(catalog);
+    const auto profile = infer_profile(catalog, plugin_profiles);
     if (profile.has_johnny_decimal_like_ranges) {
         const auto range_pattern = infer_top_range_pattern(top_level);
         if (!range_pattern) {

@@ -38,8 +38,10 @@ QString path_to_qstring(const std::filesystem::path& path) {
 }  // namespace
 
 FolderStructureInitializerDialog::FolderStructureInitializerDialog(const std::filesystem::path& start_directory,
+                                                                   const std::vector<FolderStructurePluginProfile>& plugin_profiles,
                                                                    QWidget* parent)
-    : QDialog(parent) {
+    : QDialog(parent),
+      descriptors_(FolderStructureTemplates::all_with_plugins(plugin_profiles)) {
     setWindowTitle(tr("Create folder structure"));
     setMinimumSize(760, 520);
 
@@ -109,14 +111,18 @@ void FolderStructureInitializerDialog::populate_templates() {
 
     template_list_->clear();
     QListWidgetItem* first_available_item = nullptr;
-    for (const auto& descriptor : FolderStructureTemplates::all()) {
+    for (std::size_t index = 0; index < descriptors_.size(); ++index) {
+        const auto& descriptor = descriptors_[index];
         QString label = from_utf8(descriptor.name);
+        if (!descriptor.plugin_profile_id.empty()) {
+            label += tr(" (plugin)");
+        }
         if (!descriptor.available) {
             label += tr(" (coming later)");
         }
 
         auto* item = new QListWidgetItem(label, template_list_);
-        item->setData(Qt::UserRole, static_cast<int>(descriptor.id));
+        item->setData(Qt::UserRole, static_cast<int>(index));
         item->setToolTip(from_utf8(descriptor.description));
         if (!descriptor.available) {
             item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
@@ -170,7 +176,7 @@ void FolderStructureInitializerDialog::create_selected_structure() {
     }
 
     const std::filesystem::path root = destination_root();
-    const auto result = FolderStructureTemplates::create(root, descriptor->id);
+    const auto result = FolderStructureTemplates::create(root, *descriptor);
     if (!result.success) {
         QMessageBox::warning(this, tr("Create folder structure"), from_utf8(result.error));
         return;
@@ -192,8 +198,8 @@ const FolderStructureTemplates::Descriptor* FolderStructureInitializerDialog::se
 
     bool ok = false;
     const int value = template_list_->currentItem()->data(Qt::UserRole).toInt(&ok);
-    if (!ok) {
+    if (!ok || value < 0 || static_cast<std::size_t>(value) >= descriptors_.size()) {
         return nullptr;
     }
-    return FolderStructureTemplates::find(static_cast<FolderStructureTemplates::Id>(value));
+    return &descriptors_[static_cast<std::size_t>(value)];
 }

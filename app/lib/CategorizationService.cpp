@@ -1165,6 +1165,14 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     return db_manager.resolve_category(sanitized_category, sanitized_subcategory);
 }
 
+std::vector<FolderStructurePluginProfile> CategorizationService::folder_structure_profiles() const
+{
+    if (!folder_structure_profile_provider_) {
+        return {};
+    }
+    return folder_structure_profile_provider_();
+}
+
 DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category_to_folder_tree(
     ILLMClient& llm,
     bool is_local_llm,
@@ -1189,7 +1197,8 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
         FolderTreeCatalog::semantic_target_path(semantic.category, semantic.subcategory);
     const auto best_existing =
         FolderTreeCatalog::best_semantic_match(catalog, semantic.category, semantic.subcategory);
-    const auto structure_profile = FolderStructurePattern::infer_profile(catalog);
+    const auto plugin_profiles = folder_structure_profiles();
+    const auto structure_profile = FolderStructurePattern::infer_profile(catalog, plugin_profiles);
 
     auto attach_selection = [&](const FolderTreeCatalog::Selection& selection) {
         auto routed = semantic;
@@ -1236,7 +1245,8 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
         }
         if (auto suggestion = FolderStructurePattern::suggest_new_folder(catalog,
                                                                          semantic.category,
-                                                                         semantic.subcategory)) {
+                                                                         semantic.subcategory,
+                                                                         plugin_profiles)) {
             if (!require_high_confidence || suggestion->high_confidence) {
                 return FolderTreeCatalog::resolve_target_path(suggestion->relative_path, catalog, true);
             }
@@ -1325,7 +1335,8 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
                                                     allow_new,
                                                     semantic.category,
                                                     semantic.subcategory,
-                                                    semantic_target);
+                                                    semantic_target,
+                                                    plugin_profiles);
         if (!is_local_llm && !ensure_remote_credentials_for_request(display_name, progress_callback)) {
             selection = resolve_new_folder_fallback();
         } else if (!is_local_llm && remote_throttle_callback && !remote_throttle_callback(display_name)) {

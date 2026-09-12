@@ -3,6 +3,7 @@
 
 #include "Types.hpp"
 #include "DatabaseManager.hpp"
+#include "FolderStructurePluginProfile.hpp"
 
 #include <atomic>
 #include <deque>
@@ -13,6 +14,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 class Settings;
@@ -40,6 +42,8 @@ public:
     using PromptOverrideProvider = std::function<std::optional<PromptOverride>(const FileEntry&)>;
     /** Supplies an optional suggested rename for an entry during categorization. */
     using SuggestedNameProvider = std::function<std::string(const FileEntry&)>;
+    /** Supplies verified folder-structure plugin profiles. */
+    using FolderStructureProfileProvider = std::function<std::vector<FolderStructurePluginProfile>()>;
 
     /**
      * @brief Constructs the service with settings, database access, and logging.
@@ -57,6 +61,21 @@ public:
      * @param store User-learning store, or nullptr to disable retrieval.
      */
     void set_user_learning_store(UserLearningStore* store) { user_learning_store_ = store; }
+
+    /**
+     * @brief Updates the optional provider for installed folder-structure plugin profiles.
+     * @param provider Callback returning verified installed profiles.
+     */
+    void set_folder_structure_profile_provider(FolderStructureProfileProvider provider)
+    {
+        folder_structure_profile_provider_ = std::move(provider);
+    }
+
+    /**
+     * @brief Returns currently available folder-structure plugin profiles.
+     * @return Verified profiles, or an empty vector when no provider is configured.
+     */
+    std::vector<FolderStructurePluginProfile> folder_structure_profiles() const;
 
     /**
      * @brief Verifies that required remote credentials are configured.
@@ -491,6 +510,7 @@ private:
     DatabaseManager& db_manager;
     std::shared_ptr<spdlog::logger> core_logger;
     UserLearningStore* user_learning_store_{nullptr};
+    FolderStructureProfileProvider folder_structure_profile_provider_;
 };
 
 #endif

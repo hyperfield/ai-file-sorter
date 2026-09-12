@@ -2,9 +2,12 @@
 
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
+
+struct FolderStructurePluginProfile;
 
 namespace FolderTreeCatalog {
 
@@ -197,7 +200,8 @@ std::string build_prompt_context(const Catalog& catalog,
                                  bool allow_new_folders,
                                  std::string_view semantic_category = {},
                                  std::string_view semantic_subcategory = {},
-                                 std::string_view semantic_target = {});
+                                 std::string_view semantic_target = {},
+                                 std::span<const FolderStructurePluginProfile> plugin_profiles = {});
 
 /**
  * @brief Derive compatibility category labels from a relative target folder path.

@@ -11,6 +11,8 @@
 #include "ErrorMessages.hpp"
 #include "ExplorerExtensionEntitlement.hpp"
 #include "FolderStructureInitializerDialog.hpp"
+#include "FolderStructurePluginDialog.hpp"
+#include "FolderStructurePluginManager.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "GeminiClient.hpp"
@@ -579,6 +581,7 @@ MainApp::MainApp(Settings& settings,
       core_logger(Logger::get_logger("core_logger")),
       ui_logger(Logger::get_logger("ui_logger")),
       whitelist_store(runtime_data_dir_),
+      folder_structure_plugin_manager_(std::make_shared<FolderStructurePluginManager>(runtime_data_dir_)),
       storage_plugin_manager_(std::make_shared<StoragePluginManager>(runtime_data_dir_)),
       storage_plugin_loader_(StoragePluginManager::manifest_directory_for_config_dir(runtime_data_dir_)),
       categorization_service(settings, db_manager, core_logger, &user_learning_store_),
@@ -596,6 +599,10 @@ MainApp::MainApp(Settings& settings,
       development_prompt_logging_enabled_(development_mode ? settings.get_development_prompt_logging() : false),
       main_window_state_binder_(std::make_unique<MainWindowStateBinder>(*this))
 {
+    categorization_service.set_folder_structure_profile_provider(
+        [manager = folder_structure_plugin_manager_]() {
+            return manager ? manager->installed_profiles() : std::vector<FolderStructurePluginProfile>{};
+        });
     rebuild_storage_provider_registry();
     progress_controller_.set_show_vision_diagnostics(is_development_mode() || is_test_mode());
     TranslationManager::instance().initialize_for_app(qApp, settings.get_language());
@@ -2368,6 +2375,16 @@ void MainApp::show_storage_plugin_dialog()
     }
 }
 
+void MainApp::show_folder_structure_plugin_dialog()
+{
+    if (!folder_structure_plugin_manager_) {
+        return;
+    }
+
+    FolderStructurePluginDialog dialog(folder_structure_plugin_manager_, this);
+    dialog.exec();
+}
+
 void MainApp::open_windows_explorer_extension_install_page()
 {
     std::string error;
@@ -3406,7 +3423,12 @@ void MainApp::show_folder_structure_initializer_dialog()
         start_directory = path_entry->text().trimmed();
     }
 
-    FolderStructureInitializerDialog dialog(Utils::utf8_to_path(to_utf8(start_directory)), this);
+    const auto plugin_profiles = folder_structure_plugin_manager_
+        ? folder_structure_plugin_manager_->installed_profiles()
+        : std::vector<FolderStructurePluginProfile>{};
+    FolderStructureInitializerDialog dialog(Utils::utf8_to_path(to_utf8(start_directory)),
+                                            plugin_profiles,
+                                            this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }

@@ -3,8 +3,12 @@
 #include "FolderTreeCatalog.hpp"
 
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
+
+struct FolderStructurePluginProfile;
 
 namespace FolderStructurePattern {
 
@@ -22,6 +26,8 @@ struct Profile {
     bool has_alphabetic_prefixes{false};
     /** @brief Compact prompt guidance describing the inferred conventions. */
     std::string prompt_guidance;
+    /** @brief Matching installed folder-structure profile ids. */
+    std::vector<std::string> matched_plugin_profile_ids;
 };
 
 /**
@@ -41,7 +47,9 @@ struct SuggestedPath {
  * @param catalog Existing destination folder catalog.
  * @return Recognized conventions and optional LLM prompt guidance.
  */
-Profile infer_profile(const FolderTreeCatalog::Catalog& catalog);
+Profile infer_profile(
+    const FolderTreeCatalog::Catalog& catalog,
+    std::span<const FolderStructurePluginProfile> plugin_profiles = {});
 
 /**
  * @brief Suggest a new relative folder path while preserving recognized tree conventions.
@@ -53,7 +61,8 @@ Profile infer_profile(const FolderTreeCatalog::Catalog& catalog);
 std::optional<SuggestedPath> suggest_new_folder(
     const FolderTreeCatalog::Catalog& catalog,
     std::string_view semantic_category,
-    std::string_view semantic_subcategory);
+    std::string_view semantic_subcategory,
+    std::span<const FolderStructurePluginProfile> plugin_profiles = {});
 
 /**
  * @brief Return folder path text with leading numeric/range/code prefixes removed from each segment.

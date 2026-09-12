@@ -760,7 +760,8 @@ std::string build_prompt_context(const Catalog& catalog,
                                  bool allow_new_folders,
                                  std::string_view semantic_category,
                                  std::string_view semantic_subcategory,
-                                 std::string_view semantic_target)
+                                 std::string_view semantic_target,
+                                 std::span<const FolderStructurePluginProfile> plugin_profiles)
 {
     std::ostringstream prompt;
     prompt << kPromptMarker << "\n";
@@ -793,7 +794,7 @@ std::string build_prompt_context(const Catalog& catalog,
         prompt << "- Return {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false}.\n";
     }
 
-    const auto profile = FolderStructurePattern::infer_profile(catalog);
+    const auto profile = FolderStructurePattern::infer_profile(catalog, plugin_profiles);
     if (!profile.prompt_guidance.empty()) {
         prompt << profile.prompt_guidance;
     }
@@ -801,7 +802,8 @@ std::string build_prompt_context(const Catalog& catalog,
         if (const auto suggestion =
                 FolderStructurePattern::suggest_new_folder(catalog,
                                                            semantic_category,
-                                                           semantic_subcategory)) {
+                                                           semantic_subcategory,
+                                                           plugin_profiles)) {
             prompt << "- Convention-aware deterministic new-folder candidate: "
                    << suggestion->relative_path << ". Compare it with existing folders before deciding.\n";
         }
