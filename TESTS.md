@@ -724,12 +724,12 @@ Procedure: Read the Settings menu action order, then toggle the analysis-in-prog
 Expected outcome: `Reset learned behavior…` appears before `Clear cache…`, both actions start enabled, both become disabled during analysis, and both re-enable afterward.
 Run: `./build-tests/ai_file_sorter_tests "Settings maintenance actions stay separate and follow analysis state"`
 
-#### Test case: Plugins menu is only available in development mode
-Purpose: Ensure unfinished plugin UI is hidden for public builds while remaining available for developer testing.
+#### Test case: Folder-structure plugins are public and storage plugins stay development-only
+Purpose: Ensure signed folder-structure plugin management is visible in public builds while storage plugin management remains developer-only.
 Setup: Build one `MainApp` with development mode disabled and one with development mode enabled.
-Procedure: Inspect the Plugins menu and Manage Storage Plugins action through the test access layer.
-Expected outcome: Public mode exposes neither item; development mode exposes both and the Plugins menu is visible.
-Run: `./build-tests/ai_file_sorter_tests "Plugins menu is only available in development mode"`
+Procedure: Inspect the Plugins menu, folder-structure plugin action, and storage plugin action through the test access layer.
+Expected outcome: Public mode exposes the Plugins menu and folder-structure plugin action only; development mode also exposes storage plugin management.
+Run: `./build-tests/ai_file_sorter_tests "Folder-structure plugins are public and storage plugins stay development-only"`
 
 #### Test case: Tests menu is only available in test mode
 Purpose: Ensure real-runtime test presets are hidden unless the app is launched in test mode.
@@ -1921,6 +1921,29 @@ Setup: Provide a nested Johnny.Decimal-like target path.
 Procedure: Derive display labels from the relative folder path.
 Expected outcome: The top-level folder becomes the compatibility category and the deepest folder becomes the compatibility subcategory.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog derives compatibility labels from target path"`
+
+### `tests/unit/test_folder_structure_plugins.cpp`
+
+#### Test case: FolderStructurePluginManager installs signed declarative plugins
+Purpose: Verify signed `.aifsplugin` packages can contribute folder-structure templates and recognition guidance.
+Setup: Build a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key.
+Procedure: Install the archive, load verified profiles, create plugin-provided folders, and infer conventions from a matching tree.
+Expected outcome: The package installs, the signer id is recorded, the profile appears in template descriptors, and matched plugin guidance is added to routing prompts.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs signed declarative plugins"`
+
+#### Test case: FolderStructurePluginManager rejects tampered plugin payloads
+Purpose: Ensure package payloads cannot be changed after signing.
+Setup: Sign a profile hash manifest, then alter the archived profile payload.
+Procedure: Attempt to install the tampered archive.
+Expected outcome: Installation fails with a hash verification error and no plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects tampered plugin payloads"`
+
+#### Test case: FolderStructurePluginManager rejects executable payload files
+Purpose: Keep folder-structure plugins declarative instead of executable.
+Setup: Build a signed archive that also contains an `.exe` payload.
+Procedure: Attempt to install the archive.
+Expected outcome: Installation fails because executable payload files are forbidden.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects executable payload files"`
 
 ### `tests/unit/test_folder_structure_templates.cpp`
 

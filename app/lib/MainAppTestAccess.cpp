@@ -87,6 +87,11 @@ QMenu* MainAppTestAccess::plugins_menu(MainApp& app)
     return app.plugins_menu;
 }
 
+QAction* MainAppTestAccess::manage_folder_structure_plugins_action(MainApp& app)
+{
+    return app.manage_folder_structure_plugins_action;
+}
+
 QAction* MainAppTestAccess::manage_storage_plugins_action(MainApp& app)
 {
     return app.manage_storage_plugins_action;

@@ -120,11 +120,17 @@ public:
      */
     static QMenu* settings_menu(MainApp& app);
     /**
-     * @brief Access the development-only Plugins menu.
+     * @brief Access the Plugins menu.
      * @param app MainApp instance.
      * @return Pointer to the Plugins menu, or nullptr if hidden.
      */
     static QMenu* plugins_menu(MainApp& app);
+    /**
+     * @brief Access the folder-structure plugin management action.
+     * @param app MainApp instance.
+     * @return Pointer to the action, or nullptr if hidden.
+     */
+    static QAction* manage_folder_structure_plugins_action(MainApp& app);
     /**
      * @brief Access the development-only storage plugin management action.
      * @param app MainApp instance.
