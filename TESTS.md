@@ -1083,6 +1083,36 @@ Procedure: Call `Utils::format_size()` for both values.
 Expected outcome: `999` formats as `999.00 B` and `1024` formats as `1.00 KB`.
 Run: `./build-tests/ai_file_sorter_tests "format_size keeps byte values in bytes below one kilobyte"`
 
+### `tests/unit/test_windows_cuda_probe.cpp`
+
+#### Test case: WindowsCudaProbe normalizes mixed-era runtime suffixes
+Purpose: Ensure CUDA runtime DLL suffixes from legacy and modern CUDA versions are ranked by toolkit era rather than raw integer value.
+Setup: Compare representative runtime names such as `cudart64_13.dll`, `cudart64_65.dll`, `cudart64_121.dll`, and `cudart64_110.dll`.
+Procedure: Call the runtime-version rank helper for each runtime name.
+Expected outcome: Modern CUDA 13 ranks above legacy CUDA 6.5, and CUDA 12.1 ranks above CUDA 11.0.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe normalizes mixed-era runtime suffixes"`
+
+#### Test case: WindowsCudaProbe prefers toolkit runtimes over legacy PhysX runtimes
+Purpose: Avoid selecting obsolete CUDA runtime DLLs shipped with old NVIDIA PhysX installs when a real CUDA Toolkit runtime is available.
+Setup: Provide one PhysX runtime path and one CUDA Toolkit runtime path.
+Procedure: Rank both paths through the Windows CUDA probe test access layer.
+Expected outcome: The CUDA Toolkit runtime is first and the PhysX runtime is last.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe prefers toolkit runtimes over legacy PhysX runtimes"`
+
+#### Test case: WindowsCudaProbe prefers x64 toolkit bin directories over generic toolkit copies
+Purpose: Ensure the launcher prefers the architecture-specific CUDA Toolkit runtime directory when duplicate runtime versions exist.
+Setup: Provide matching runtime DLL names under a toolkit root and under `bin/x64`.
+Procedure: Rank both paths through the Windows CUDA probe test access layer.
+Expected outcome: The `bin/x64` runtime path is selected before the generic toolkit-root copy.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe prefers x64 toolkit bin directories over generic toolkit copies"`
+
+#### Test case: WindowsCudaProbe requires the packaged CUDA backend to be loadable
+Purpose: Prevent the Windows launcher from selecting CUDA when the driver/runtime exists but `ggml-cuda.dll` cannot load because a dependency such as cuBLAS is missing.
+Setup: Build synthetic probe results with a usable CUDA driver/runtime and vary packaged-payload and backend-loadable flags.
+Procedure: Call `WindowsCudaProbe::can_select_cuda_backend()`.
+Expected outcome: CUDA is accepted only when the packaged payload is present and the backend load test passes.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe requires the packaged CUDA backend to be loadable"`
+
 ### `tests/unit/test_llm_selection_dialog_local.cpp`
 
 #### Test case: LLM selection dialog lists built-in local models in Gemma Mistral Gemma order

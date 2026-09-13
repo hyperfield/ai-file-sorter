@@ -40,3 +40,27 @@ TEST_CASE("WindowsCudaProbe prefers x64 toolkit bin directories over generic too
     CHECK(ranked.front() == toolkit_x64_runtime);
     CHECK(ranked.back() == toolkit_root_copy);
 }
+
+TEST_CASE("WindowsCudaProbe requires the packaged CUDA backend to be loadable") {
+    WindowsCudaProbe::ProbeResult result;
+    result.driver_present = true;
+    result.driver_initialized = true;
+    result.device_count = 1;
+    result.runtime_present = true;
+    result.runtime_usable = true;
+
+    SECTION("rejects an otherwise usable runtime when the backend DLL cannot load") {
+        result.backend_loadable = false;
+        CHECK_FALSE(WindowsCudaProbe::can_select_cuda_backend(result, true));
+    }
+
+    SECTION("rejects a missing packaged CUDA payload") {
+        result.backend_loadable = true;
+        CHECK_FALSE(WindowsCudaProbe::can_select_cuda_backend(result, false));
+    }
+
+    SECTION("accepts CUDA only when driver, runtime, payload, and backend load checks pass") {
+        result.backend_loadable = true;
+        CHECK(WindowsCudaProbe::can_select_cuda_backend(result, true));
+    }
+}
