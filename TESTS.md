@@ -2472,10 +2472,10 @@ Expected outcome: Each language loads the matching localized markdown content in
 Run: `./build-tests/ai_file_sorter_tests "Quick Start guide content follows the selected app language"`
 
 #### Test case: What's New content is packaged for the current app version
-Purpose: Ensure the first-run-per-version What's New popup has packaged Markdown content for the active `APP_VERSION`, including localized release notes.
+Purpose: Ensure the first-run-per-version What's New popup has packaged Markdown content for the active `APP_VERSION`, and that localized What's New resources still load when a version ships them.
 Setup: Initialize the Qt test app context with embedded resources.
-Procedure: Load What's New markdown for `APP_VERSION` in English and each supported non-English UI language, then load an invalid version string.
-Expected outcome: The current version returns English release notes with expected highlights, each supported non-English language returns localized notes instead of the English fallback, and invalid version strings return no content.
+Procedure: Load What's New markdown for `APP_VERSION` in English, verify a non-English language still returns content for the current version, load localized markdown for a known translated version, then load an invalid version string.
+Expected outcome: The current version returns English release notes with expected highlights, localized resources for the translated fixture version differ from the English fallback, and invalid version strings return no content.
 Run: `./build-tests/ai_file_sorter_tests "What's New content is packaged for the current app version"`
 
 #### Test case: Interface language action labels are translated for the newly added Nordic UI languages
