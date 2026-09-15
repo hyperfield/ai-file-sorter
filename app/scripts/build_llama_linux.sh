@@ -177,6 +177,18 @@ resolve_cuda_host_compiler() {
             /usr/bin/g++-15
             /usr/bin/g++
         )
+    elif [[ "$cuda_version" =~ ^13\.[01]($|[^0-9]) ]]; then
+        max_major=14
+        compiler_candidates=(
+            /usr/bin/g++-14
+            /usr/bin/g++-13
+            /usr/bin/g++-12
+            /usr/bin/g++-11
+            /usr/bin/g++-10
+            /usr/bin/g++-9
+            /usr/bin/g++-15
+            /usr/bin/g++
+        )
     else
         compiler_candidates=(
             /usr/bin/g++-15

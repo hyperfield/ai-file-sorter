@@ -36,7 +36,7 @@ jobs:
                 qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
                 libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
-                gettext glslc spirv-headers g++-15 cuda-toolkit-13-1
+                gettext glslc spirv-headers g++-14 g++-15 cuda-toolkit-13-1
 
           - name: debian-stable
             image: debian:stable
@@ -63,6 +63,23 @@ jobs:
               dnf clean expire-cache
               dnf install -y \
                 cmake gcc-c++ gcc15-c++ git make ninja-build patchelf pkgconf-pkg-config python3 rpm-build \
+                qt6-qtbase-devel qt6-qttools-devel \
+                libcurl-devel jsoncpp-devel sqlite-devel openssl-devel \
+                fmt-devel spdlog-devel libmediainfo-devel openblas-devel zlib-devel \
+                gettext-devel glslc spirv-headers-devel cuda-toolkit
+
+          - name: rocky-latest
+            image: quay.io/rockylinux/rockylinux:10
+            artifact_kind: rpm
+            install: |
+              dnf install -y ca-certificates dnf-plugins-core epel-release
+              dnf config-manager --set-enabled crb
+              distro="rhel$(rpm -E %rhel)"
+              dnf config-manager \
+                --add-repo="https://developer.download.nvidia.com/compute/cuda/repos/${distro}/x86_64/cuda-${distro}.repo"
+              dnf clean expire-cache
+              dnf install -y \
+                cmake gcc-c++ git make ninja-build patchelf pkgconf-pkg-config python3 rpm-build \
                 qt6-qtbase-devel qt6-qttools-devel \
                 libcurl-devel jsoncpp-devel sqlite-devel openssl-devel \
                 fmt-devel spdlog-devel libmediainfo-devel openblas-devel zlib-devel \
@@ -101,7 +118,7 @@ jobs:
           cat /etc/os-release
           cmake --version
           c++ --version
-          export PATH="/usr/local/cuda-13.1/bin:/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
+          export PATH="/usr/local/cuda-13.4/bin:/usr/local/cuda-13.3/bin:/usr/local/cuda-13.2/bin:/usr/local/cuda-13.1/bin:/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
           nvcc --version
           pkg-config --modversion Qt6Core
           pkg-config --modversion libmediainfo
@@ -112,7 +129,7 @@ jobs:
 
       - name: Build llama runtime variants
         run: |
-          export PATH="/usr/local/cuda-13.1/bin:/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
+          export PATH="/usr/local/cuda-13.4/bin:/usr/local/cuda-13.3/bin:/usr/local/cuda-13.2/bin:/usr/local/cuda-13.1/bin:/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
           ./app/scripts/build_llama_linux.sh cuda=off vulkan=on blas=on
           ./app/scripts/build_llama_linux.sh cuda=on vulkan=off blas=on cuda-arch="$CUDAARCHS"
 
