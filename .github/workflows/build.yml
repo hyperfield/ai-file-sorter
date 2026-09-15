@@ -36,7 +36,7 @@ jobs:
                 qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
                 libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
-                gettext glslc g++-15 nvidia-cuda-toolkit
+                gettext glslc spirv-headers g++-15 nvidia-cuda-toolkit
 
           - name: debian-stable
             image: debian:stable
@@ -50,7 +50,7 @@ jobs:
                 qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
                 libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
-                gettext glslc g++-14 nvidia-cuda-toolkit
+                gettext glslc spirv-headers g++-14 nvidia-cuda-toolkit
 
           - name: fedora-latest
             image: fedora:latest
@@ -66,7 +66,7 @@ jobs:
                 qt6-qtbase-devel qt6-qttools-devel \
                 libcurl-devel jsoncpp-devel sqlite-devel openssl-devel \
                 fmt-devel spdlog-devel libmediainfo-devel openblas-devel zlib-devel \
-                gettext-devel glslc cuda-toolkit
+                gettext-devel glslc spirv-headers-devel cuda-toolkit
 
           - name: arch-latest
             image: archlinux:latest
@@ -78,7 +78,7 @@ jobs:
                 base-devel ca-certificates cmake git ninja patchelf pkgconf python zstd \
                 qt6-base qt6-tools curl jsoncpp sqlite openssl \
                 fmt spdlog libmediainfo openblas zlib gettext \
-                shaderc cuda gcc15
+                shaderc spirv-headers cuda gcc15
     defaults:
       run:
         shell: bash
