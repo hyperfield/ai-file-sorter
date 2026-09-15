@@ -78,7 +78,7 @@ jobs:
               dnf config-manager \
                 --add-repo="https://developer.download.nvidia.com/compute/cuda/repos/${distro}/x86_64/cuda-${distro}.repo"
               dnf clean expire-cache
-              dnf install -y \
+              dnf install --nobest -y \
                 cmake gcc-c++ git make ninja-build patchelf pkgconf-pkg-config python3 rpm-build \
                 qt6-qtbase-devel qt6-qttools-devel \
                 libcurl-devel jsoncpp-devel sqlite-devel openssl-devel \
