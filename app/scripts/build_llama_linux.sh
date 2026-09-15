@@ -140,6 +140,7 @@ resolve_cuda_host_compiler() {
     local candidate=""
     local version=""
     local major=""
+    local max_major=15
 
     if [[ -n "${CUDAHOSTCXX:-}" && -x "${CUDAHOSTCXX}" ]]; then
         echo "${CUDAHOSTCXX}"
@@ -153,12 +154,25 @@ resolve_cuda_host_compiler() {
 
     local -a compiler_candidates=()
     if [[ "$cuda_version" =~ ^11\.([0-5])($|[^0-9]) ]]; then
+        max_major=10
         compiler_candidates=(
             /usr/bin/g++-10
             /usr/bin/g++-9
             /usr/bin/g++-11
             /usr/bin/g++-12
             /usr/bin/g++-13
+            /usr/bin/g++-14
+            /usr/bin/g++-15
+            /usr/bin/g++
+        )
+    elif [[ "$cuda_version" =~ ^12\. ]]; then
+        max_major=13
+        compiler_candidates=(
+            /usr/bin/g++-13
+            /usr/bin/g++-12
+            /usr/bin/g++-11
+            /usr/bin/g++-10
+            /usr/bin/g++-9
             /usr/bin/g++-14
             /usr/bin/g++-15
             /usr/bin/g++
@@ -180,7 +194,7 @@ resolve_cuda_host_compiler() {
         [ -x "$candidate" ] || continue
         version="$("$candidate" -dumpfullversion -dumpversion 2>/dev/null || true)"
         major="${version%%.*}"
-        if [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 6 && major <= 15 )); then
+        if [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 6 && major <= max_major )); then
             echo "$candidate"
             return 0
         fi
