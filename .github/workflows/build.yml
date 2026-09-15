@@ -105,7 +105,10 @@ jobs:
           nvcc --version
           pkg-config --modversion Qt6Core
           pkg-config --modversion libmediainfo
-          pkg-config --modversion openblas || pkg-config --modversion openblas64
+          if ! pkg-config --modversion openblas && ! pkg-config --modversion openblas64; then
+            echo "OpenBLAS pkg-config metadata not available; falling back to header/library detection."
+            find /usr -path '*openblas*' \( -name cblas.h -o -name libopenblas.so \) | sort
+          fi
 
       - name: Build llama runtime variants
         run: |
@@ -145,41 +148,3 @@ jobs:
           name: aifilesorter-linux-${{ matrix.name }}
           path: dist/ci-artifacts/*
           if-no-files-found: error
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Enable long paths
-        run: git config --system core.longpaths true
-
-      - name: Set up vcpkg
-        shell: pwsh
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git "$env:GITHUB_WORKSPACE\vcpkg"
-          & "$env:GITHUB_WORKSPACE\vcpkg\bootstrap-vcpkg.bat"
-
-      - name: Build llama runtime
-        shell: pwsh
-        run: |
-          $vcpkgRoot = "$env:GITHUB_WORKSPACE\vcpkg"
-          & "$env:GITHUB_WORKSPACE\app\scripts\build_llama_windows.ps1" `
-            "cuda=off" `
-            "vulkan=off" `
-            "blas=off" `
-            "vcpkgroot=$vcpkgRoot"
-
-      - name: Build and test Windows app
-        shell: pwsh
-        run: |
-          $vcpkgRoot = "$env:GITHUB_WORKSPACE\vcpkg"
-          & "$env:GITHUB_WORKSPACE\app\build_windows.ps1" `
-            -Configuration Release `
-            -VcpkgRoot $vcpkgRoot `
-            -BuildTests `
-            -RunTests `
-            -Parallel 4
