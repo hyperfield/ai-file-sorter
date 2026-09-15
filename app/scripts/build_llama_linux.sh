@@ -14,6 +14,11 @@ fi
 PRECOMPILED_ROOT_DIR="$SCRIPT_DIR/../lib/precompiled"
 HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 HOST_ARCH="$(uname -m)"
+BUILD_JOBS="${AI_FILE_SORTER_LINUX_RUNTIME_JOBS:-$(nproc)}"
+if ! [[ "$BUILD_JOBS" =~ ^[0-9]+$ ]] || (( BUILD_JOBS < 1 )); then
+    echo "Invalid AI_FILE_SORTER_LINUX_RUNTIME_JOBS='$BUILD_JOBS'. Expected a positive integer." >&2
+    exit 1
+fi
 
 # Parse optional arguments (cuda=on/off, vulkan=on/off, blas=on/off/auto).
 # Accept both bare key=value and GNU-style --key=value forms.
@@ -52,6 +57,7 @@ fi
 echo "CUDA support: $CUDASWITCH"
 echo "VULKAN support: $VULKANSWITCH"
 echo "BLAS support: $BLASSWITCH (auto prefers OpenBLAS for CPU baseline)"
+echo "Build parallelism: $BUILD_JOBS"
 
 resolve_cuda_architectures() {
     if [[ -n "$CUDA_ARCHITECTURES_OVERRIDE" ]]; then
@@ -243,6 +249,9 @@ resolve_cuda_driver_library() {
         /usr/lib/aarch64-linux-gnu/stubs/libcuda.so \
         /usr/lib/*-linux-gnu/stubs/libcuda.so \
         /usr/lib/wsl/lib/libcuda.so.1 \
+        /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so \
+        /opt/cuda/targets/aarch64-linux/lib/stubs/libcuda.so \
+        /opt/cuda/lib64/stubs/libcuda.so \
         /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so \
         /usr/local/cuda-*/targets/x86_64-linux/lib/stubs/libcuda.so; do
         if [[ -f "$candidate" ]]; then
@@ -384,7 +393,7 @@ build_variant() {
     fi
 
     "${build_env[@]}" cmake "${cmake_args[@]}"
-    "${build_env[@]}" cmake --build "$build_dir" --config Release --target "${build_targets[@]}" -- -j"$(nproc)"
+    "${build_env[@]}" cmake --build "$build_dir" --config Release --target "${build_targets[@]}" -- -j"$BUILD_JOBS"
 
     local variant_root="$PRECOMPILED_ROOT_DIR/$variant"
     local variant_bin="$variant_root/bin"
