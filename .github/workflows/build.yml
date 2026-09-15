@@ -34,7 +34,7 @@ jobs:
               apt-get install -y --no-install-recommends \
                 build-essential ca-certificates cmake git make ninja-build patchelf pkg-config python3 \
                 qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
-                libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
+                libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
                 gettext glslc g++-15 nvidia-cuda-toolkit
 
@@ -48,7 +48,7 @@ jobs:
               apt-get install -y --no-install-recommends \
                 build-essential ca-certificates cmake git make ninja-build patchelf pkg-config python3 \
                 qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
-                libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
+                libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
                 gettext glslc g++-14 nvidia-cuda-toolkit
 
