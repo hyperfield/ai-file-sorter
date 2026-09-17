@@ -36,7 +36,7 @@ jobs:
                 qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
                 libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
-                gettext glslc spirv-headers g++-14 g++-15 cuda-toolkit-13-1
+                gettext glslc spirv-headers g++-13 nvidia-cuda-toolkit
 
           - name: debian-stable
             image: debian:stable
@@ -95,7 +95,7 @@ jobs:
                 base-devel ca-certificates cmake git ninja patchelf pkgconf python zstd \
                 qt6-base qt6-tools curl jsoncpp sqlite openssl \
                 fmt spdlog libmediainfo openblas zlib gettext \
-                shaderc spirv-headers cuda gcc15
+                shaderc spirv-headers vulkan-headers vulkan-icd-loader cuda gcc15
     defaults:
       run:
         shell: bash
