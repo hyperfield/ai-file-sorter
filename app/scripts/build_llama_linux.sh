@@ -14,6 +14,11 @@ fi
 PRECOMPILED_ROOT_DIR="$SCRIPT_DIR/../lib/precompiled"
 HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 HOST_ARCH="$(uname -m)"
+BUILD_JOBS="${AI_FILE_SORTER_LINUX_RUNTIME_JOBS:-$(nproc)}"
+if ! [[ "$BUILD_JOBS" =~ ^[0-9]+$ ]] || (( BUILD_JOBS < 1 )); then
+    echo "Invalid AI_FILE_SORTER_LINUX_RUNTIME_JOBS='$BUILD_JOBS'. Expected a positive integer." >&2
+    exit 1
+fi
 
 # Parse optional arguments (cuda=on/off, vulkan=on/off, blas=on/off/auto).
 # Accept both bare key=value and GNU-style --key=value forms.
@@ -52,6 +57,7 @@ fi
 echo "CUDA support: $CUDASWITCH"
 echo "VULKAN support: $VULKANSWITCH"
 echo "BLAS support: $BLASSWITCH (auto prefers OpenBLAS for CPU baseline)"
+echo "Build parallelism: $BUILD_JOBS"
 
 resolve_cuda_architectures() {
     if [[ -n "$CUDA_ARCHITECTURES_OVERRIDE" ]]; then
@@ -134,6 +140,7 @@ resolve_cuda_host_compiler() {
     local candidate=""
     local version=""
     local major=""
+    local max_major=15
 
     if [[ -n "${CUDAHOSTCXX:-}" && -x "${CUDAHOSTCXX}" ]]; then
         echo "${CUDAHOSTCXX}"
@@ -147,6 +154,7 @@ resolve_cuda_host_compiler() {
 
     local -a compiler_candidates=()
     if [[ "$cuda_version" =~ ^11\.([0-5])($|[^0-9]) ]]; then
+        max_major=10
         compiler_candidates=(
             /usr/bin/g++-10
             /usr/bin/g++-9
@@ -154,6 +162,30 @@ resolve_cuda_host_compiler() {
             /usr/bin/g++-12
             /usr/bin/g++-13
             /usr/bin/g++-14
+            /usr/bin/g++-15
+            /usr/bin/g++
+        )
+    elif [[ "$cuda_version" =~ ^12\. ]]; then
+        max_major=13
+        compiler_candidates=(
+            /usr/bin/g++-13
+            /usr/bin/g++-12
+            /usr/bin/g++-11
+            /usr/bin/g++-10
+            /usr/bin/g++-9
+            /usr/bin/g++-14
+            /usr/bin/g++-15
+            /usr/bin/g++
+        )
+    elif [[ "$cuda_version" =~ ^13\.[01]($|[^0-9]) ]]; then
+        max_major=14
+        compiler_candidates=(
+            /usr/bin/g++-14
+            /usr/bin/g++-13
+            /usr/bin/g++-12
+            /usr/bin/g++-11
+            /usr/bin/g++-10
+            /usr/bin/g++-9
             /usr/bin/g++-15
             /usr/bin/g++
         )
@@ -174,7 +206,7 @@ resolve_cuda_host_compiler() {
         [ -x "$candidate" ] || continue
         version="$("$candidate" -dumpfullversion -dumpversion 2>/dev/null || true)"
         major="${version%%.*}"
-        if [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 6 && major <= 15 )); then
+        if [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 6 && major <= max_major )); then
             echo "$candidate"
             return 0
         fi
@@ -243,6 +275,9 @@ resolve_cuda_driver_library() {
         /usr/lib/aarch64-linux-gnu/stubs/libcuda.so \
         /usr/lib/*-linux-gnu/stubs/libcuda.so \
         /usr/lib/wsl/lib/libcuda.so.1 \
+        /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so \
+        /opt/cuda/targets/aarch64-linux/lib/stubs/libcuda.so \
+        /opt/cuda/lib64/stubs/libcuda.so \
         /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so \
         /usr/local/cuda-*/targets/x86_64-linux/lib/stubs/libcuda.so; do
         if [[ -f "$candidate" ]]; then
@@ -384,7 +419,7 @@ build_variant() {
     fi
 
     "${build_env[@]}" cmake "${cmake_args[@]}"
-    "${build_env[@]}" cmake --build "$build_dir" --config Release --target "${build_targets[@]}" -- -j"$(nproc)"
+    "${build_env[@]}" cmake --build "$build_dir" --config Release --target "${build_targets[@]}" -- -j"$BUILD_JOBS"
 
     local variant_root="$PRECOMPILED_ROOT_DIR/$variant"
     local variant_bin="$variant_root/bin"

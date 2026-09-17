@@ -435,6 +435,12 @@ ifeq ($(strip $(RCC)),)
 RCC := $(wildcard /usr/lib/qt6/libexec/rcc)
 endif
 ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /usr/lib64/qt6/rcc)
+endif
+ifeq ($(strip $(RCC)),)
+RCC := $(wildcard /usr/lib/qt6/rcc)
+endif
+ifeq ($(strip $(RCC)),)
 RCC := $(shell command -v rcc 2>/dev/null)
 endif
 ifeq ($(strip $(RCC)),)
