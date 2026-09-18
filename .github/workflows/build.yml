@@ -124,7 +124,7 @@ jobs:
 
       - name: Check out repository
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -180,7 +180,7 @@ jobs:
 
       - name: Upload artifact
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aifilesorter-linux-${{ matrix.name }}
           path: dist/ci-artifacts/*
