@@ -12,6 +12,8 @@ option(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS
     "Register opt-in headless tests that run real local LLM models against real files." OFF)
 option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
     "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
+option(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS
+    "Enable an environment-variable development bypass for commercial plugin entitlement checks." OFF)
 set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
     "Updater behavior for this build: PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED")
 set_property(CACHE AI_FILE_SORTER_UPDATE_MODE PROPERTY STRINGS
@@ -28,6 +30,10 @@ set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
     ""
     CACHE STRING
     "Trusted folder-structure plugin Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+set(AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS
+    ""
+    CACHE STRING
+    "Trusted commercial plugin entitlement Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
 
 set(_aifs_effective_update_mode "${AI_FILE_SORTER_UPDATE_MODE}")
 if(_aifs_effective_update_mode STREQUAL "PLATFORM_DEFAULT")
@@ -1034,11 +1040,23 @@ string(REPLACE "\"" "\\\"" _aifs_folder_structure_plugin_public_keys_define
     "${_aifs_folder_structure_plugin_public_keys_define}")
 string(REPLACE ";" "\\;" _aifs_folder_structure_plugin_public_keys_define
     "${_aifs_folder_structure_plugin_public_keys_define}")
+set(_aifs_plugin_entitlement_public_keys_define
+    "${AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS}")
+string(REPLACE "\\" "\\\\" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
+string(REPLACE "\"" "\\\"" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
+string(REPLACE ";" "\\;" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
 
 target_compile_definitions(aifilesorter PRIVATE
     AIFS_STORAGE_PLUGIN_CATALOG_URL="${AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL}"
     AIFS_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS="${_aifs_folder_structure_plugin_public_keys_define}"
+    AIFS_PLUGIN_ENTITLEMENT_PUBLIC_KEYS="${_aifs_plugin_entitlement_public_keys_define}"
 )
+if(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
+    target_compile_definitions(aifilesorter PRIVATE AIFS_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
+endif()
 
 if(WIN32)
     target_link_libraries(aifilesorter PRIVATE ggml ggml_base ggml_cpu)

@@ -1954,12 +1954,40 @@ Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog derives compatibilit
 
 ### `tests/unit/test_folder_structure_plugins.cpp`
 
+#### Test case: PluginEntitlementService verifies signed device receipts
+Purpose: Ensure a server-style signed receipt can unlock a commercial plugin product for the current device.
+Setup: Create a temporary entitlement receipt signed by the trusted Ed25519 test key and bound to the test device id.
+Procedure: Store the receipt and query matching and non-matching product entitlements.
+Expected outcome: The matching Johnny.Decimal product is entitled, while unrelated products remain locked.
+Run: `./build-tests/ai_file_sorter_tests "PluginEntitlementService verifies signed device receipts"`
+
+#### Test case: PluginEntitlementService rejects invalid receipts
+Purpose: Ensure cached entitlement receipts are not accepted when tampered, expired, or bound to another device.
+Setup: Build signed test receipts with an altered payload, an expired offline window, and a mismatched device id.
+Procedure: Attempt to store each invalid receipt and query the Johnny.Decimal entitlement state.
+Expected outcome: Every invalid receipt is rejected and no local entitlement is granted.
+Run: `./build-tests/ai_file_sorter_tests "PluginEntitlementService rejects invalid receipts"`
+
 #### Test case: FolderStructurePluginManager installs signed declarative plugins
 Purpose: Verify signed `.aifsplugin` packages can contribute folder-structure templates and recognition guidance.
 Setup: Build a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key.
 Procedure: Install the archive, load verified profiles, create plugin-provided folders, and infer conventions from a matching tree.
 Expected outcome: The package installs, the signer id is recorded, the profile appears in template descriptors, and matched plugin guidance is added to routing prompts.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs signed declarative plugins"`
+
+#### Test case: FolderStructurePluginManager requires entitlement for licensed plugins
+Purpose: Ensure commercial folder-structure plugins cannot be imported with package signature alone.
+Setup: Build a signed Johnny.Decimal archive whose manifest has `license_required: true` and no matching local receipt.
+Procedure: Attempt to install the licensed archive.
+Expected outcome: Installation fails with an entitlement error and no plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager requires entitlement for licensed plugins"`
+
+#### Test case: FolderStructurePluginManager installs licensed plugins with entitlement receipts
+Purpose: Ensure commercial folder-structure plugins install and load when a valid local entitlement receipt exists.
+Setup: Store a signed Johnny.Decimal entitlement receipt, then build a signed licensed Johnny.Decimal archive.
+Procedure: Install the archive and query installed plugins/profiles.
+Expected outcome: Installation succeeds and the licensed profile is available through the plugin manager.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs licensed plugins with entitlement receipts"`
 
 #### Test case: FolderStructurePluginManager rejects tampered plugin payloads
 Purpose: Ensure package payloads cannot be changed after signing.

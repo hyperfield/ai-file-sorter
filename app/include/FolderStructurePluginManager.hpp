@@ -1,24 +1,29 @@
 #pragma once
 
-#include "FolderStructurePluginProfile.hpp"
-
 #include <filesystem>
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
+
+#include "FolderStructurePluginProfile.hpp"
+
+class PluginEntitlementService;
 
 /**
  * @brief Installs and loads signed declarative folder-structure plugins.
  */
 class FolderStructurePluginManager {
-public:
+   public:
     /**
      * @brief Constructs a manager rooted at an application config directory.
      * @param config_dir Application config directory.
      * @param trusted_keys Trusted public keys. Empty uses compiled-in defaults.
+     * @param entitlement_service Service used to validate premium plugin entitlements.
      */
     explicit FolderStructurePluginManager(
-        std::string config_dir,
-        std::vector<FolderStructurePluginPublicKey> trusted_keys = {});
+        std::string config_dir, std::vector<FolderStructurePluginPublicKey> trusted_keys = {},
+        std::shared_ptr<const PluginEntitlementService> entitlement_service = nullptr);
 
     /**
      * @brief Returns the managed package directory for a config directory.
@@ -60,8 +65,7 @@ public:
      * @param error Optional output for a user-facing failure reason.
      * @return True when installation succeeds.
      */
-    bool install_from_archive(const std::filesystem::path& archive_path,
-                              std::string* installed_plugin_id = nullptr,
+    bool install_from_archive(const std::filesystem::path& archive_path, std::string* installed_plugin_id = nullptr,
                               std::string* error = nullptr) const;
 
     /**
@@ -72,14 +76,15 @@ public:
      */
     bool uninstall(const std::string& plugin_id, std::string* error = nullptr) const;
 
-private:
+   private:
     std::filesystem::path package_root() const;
     std::filesystem::path staging_root() const;
     std::vector<FolderStructurePluginPublicKey> trusted_keys() const;
-    std::optional<FolderStructurePluginManifest> load_verified_manifest(
-        const std::filesystem::path& package_dir,
-        std::string* error = nullptr) const;
+    bool has_required_entitlement(const FolderStructurePluginManifest& manifest, std::string* error = nullptr) const;
+    std::optional<FolderStructurePluginManifest> load_verified_manifest(const std::filesystem::path& package_dir,
+                                                                        std::string* error = nullptr) const;
 
     std::string config_dir_;
     std::vector<FolderStructurePluginPublicKey> trusted_keys_;
+    std::shared_ptr<const PluginEntitlementService> entitlement_service_;
 };

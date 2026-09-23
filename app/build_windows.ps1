@@ -11,7 +11,10 @@ param(
     [ValidateRange(1, 512)]
     [int]$Parallel = [System.Environment]::ProcessorCount,
     [ValidateSet("Standard", "MsStore", "Standalone")]
-    [string[]]$Variants = @("Standard", "MsStore", "Standalone")
+    [string[]]$Variants = @("Standard", "MsStore", "Standalone"),
+    [string]$FolderStructurePluginPublicKeys = $env:AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS,
+    [string]$PluginEntitlementPublicKeys = $env:AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS,
+    [switch]$EnablePluginEntitlementDevBypass
 )
 
 $ErrorActionPreference = "Stop"
@@ -547,12 +550,21 @@ function Get-ConfigureArguments {
     $configureArgs += "-DVCPKG_INSTALLED_DIR=$sharedVcpkgInstalledDir"
     $configureArgs += "-DAI_FILE_SORTER_UPDATE_MODE=$($Variant.UpdateMode)"
     $configureArgs += "-DAI_FILE_SORTER_WINDOWS_PACKAGE_KIND=$($Variant.PackageKind)"
+    if (-not [string]::IsNullOrWhiteSpace($FolderStructurePluginPublicKeys)) {
+        $configureArgs += "-DAI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS=$FolderStructurePluginPublicKeys"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PluginEntitlementPublicKeys)) {
+        $configureArgs += "-DAI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS=$PluginEntitlementPublicKeys"
+    }
 
     if ($EnableTests) {
         $configureArgs += "-DAI_FILE_SORTER_BUILD_TESTS=ON"
     }
     if ($EnableLiveLlmTests) {
         $configureArgs += "-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON"
+    }
+    if ($EnablePluginEntitlementDevBypass) {
+        $configureArgs += "-DAI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS=ON"
     }
 
     if ($env:AI_FILE_SORTER_STARTER_CONSOLE) {

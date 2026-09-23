@@ -1,11 +1,7 @@
 #include "FolderStructurePluginManager.hpp"
 
-#include "PluginArchiveExtractor.hpp"
-#include "Utils.hpp"
-
 #include <QDir>
 #include <QTemporaryDir>
-
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
@@ -13,12 +9,14 @@
 #include <system_error>
 #include <utility>
 
+#include "PluginArchiveExtractor.hpp"
+#include "PluginEntitlementService.hpp"
+#include "Utils.hpp"
+
 namespace {
 
-bool copy_package_tree(const std::filesystem::path& source,
-                       const std::filesystem::path& destination,
-                       std::string* error)
-{
+bool copy_package_tree(const std::filesystem::path& source, const std::filesystem::path& destination,
+                       std::string* error) {
     std::error_code ec;
     std::filesystem::remove_all(destination, ec);
     ec.clear();
@@ -30,10 +28,8 @@ bool copy_package_tree(const std::filesystem::path& source,
         return false;
     }
 
-    std::filesystem::copy(source,
-                          destination,
-                          std::filesystem::copy_options::recursive |
-                              std::filesystem::copy_options::overwrite_existing,
+    std::filesystem::copy(source, destination,
+                          std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing,
                           ec);
     if (ec) {
         if (error) {
@@ -44,23 +40,20 @@ bool copy_package_tree(const std::filesystem::path& source,
     return true;
 }
 
-std::vector<std::filesystem::path> candidate_manifest_paths(const std::filesystem::path& package_root)
-{
+std::vector<std::filesystem::path> candidate_manifest_paths(const std::filesystem::path& package_root) {
     std::vector<std::filesystem::path> paths;
     std::error_code ec;
     if (!std::filesystem::is_directory(package_root, ec) || ec) {
         return paths;
     }
 
-    for (std::filesystem::directory_iterator plugin_it(package_root, ec), plugin_end;
-         plugin_it != plugin_end && !ec;
+    for (std::filesystem::directory_iterator plugin_it(package_root, ec), plugin_end; plugin_it != plugin_end && !ec;
          plugin_it.increment(ec)) {
         if (!plugin_it->is_directory(ec) || ec) {
             continue;
         }
         for (std::filesystem::directory_iterator version_it(plugin_it->path(), ec), version_end;
-             version_it != version_end && !ec;
-             version_it.increment(ec)) {
+             version_it != version_end && !ec; version_it.increment(ec)) {
             if (!version_it->is_directory(ec) || ec) {
                 continue;
             }
@@ -74,30 +67,28 @@ std::vector<std::filesystem::path> candidate_manifest_paths(const std::filesyste
     return paths;
 }
 
-} // namespace
+}  // namespace
 
 FolderStructurePluginManager::FolderStructurePluginManager(
-    std::string config_dir,
-    std::vector<FolderStructurePluginPublicKey> trusted_keys)
+    std::string config_dir, std::vector<FolderStructurePluginPublicKey> trusted_keys,
+    std::shared_ptr<const PluginEntitlementService> entitlement_service)
     : config_dir_(std::move(config_dir)),
-      trusted_keys_(std::move(trusted_keys))
-{
+      trusted_keys_(std::move(trusted_keys)),
+      entitlement_service_(std::move(entitlement_service)) {
+    if (!entitlement_service_) {
+        entitlement_service_ = std::make_shared<PluginEntitlementService>(std::filesystem::path(config_dir_));
+    }
 }
 
-std::filesystem::path FolderStructurePluginManager::package_directory_for_config_dir(
-    const std::string& config_dir)
-{
+std::filesystem::path FolderStructurePluginManager::package_directory_for_config_dir(const std::string& config_dir) {
     return std::filesystem::path(config_dir) / "plugins" / "folder-structures" / "packages";
 }
 
-std::filesystem::path FolderStructurePluginManager::staging_directory_for_config_dir(
-    const std::string& config_dir)
-{
+std::filesystem::path FolderStructurePluginManager::staging_directory_for_config_dir(const std::string& config_dir) {
     return std::filesystem::path(config_dir) / "plugins" / "folder-structures" / "staging";
 }
 
-std::vector<FolderStructurePluginManifest> FolderStructurePluginManager::installed_plugins() const
-{
+std::vector<FolderStructurePluginManifest> FolderStructurePluginManager::installed_plugins() const {
     std::vector<FolderStructurePluginManifest> manifests;
     for (const auto& manifest_path : candidate_manifest_paths(package_root())) {
         std::string error;
@@ -109,33 +100,25 @@ std::vector<FolderStructurePluginManifest> FolderStructurePluginManager::install
     return manifests;
 }
 
-std::vector<FolderStructurePluginProfile> FolderStructurePluginManager::installed_profiles() const
-{
+std::vector<FolderStructurePluginProfile> FolderStructurePluginManager::installed_profiles() const {
     std::vector<FolderStructurePluginProfile> profiles;
     for (const auto& manifest : installed_plugins()) {
         std::string error;
         auto package_profiles = load_folder_structure_plugin_profiles(manifest, &error);
-        profiles.insert(profiles.end(),
-                        std::make_move_iterator(package_profiles.begin()),
+        profiles.insert(profiles.end(), std::make_move_iterator(package_profiles.begin()),
                         std::make_move_iterator(package_profiles.end()));
     }
     return profiles;
 }
 
-bool FolderStructurePluginManager::is_installed(const std::string& plugin_id) const
-{
+bool FolderStructurePluginManager::is_installed(const std::string& plugin_id) const {
     const auto manifests = installed_plugins();
-    return std::any_of(manifests.begin(),
-                       manifests.end(),
-                       [&](const FolderStructurePluginManifest& manifest) {
-                           return manifest.id == plugin_id;
-                       });
+    return std::any_of(manifests.begin(), manifests.end(),
+                       [&](const FolderStructurePluginManifest& manifest) { return manifest.id == plugin_id; });
 }
 
 bool FolderStructurePluginManager::install_from_archive(const std::filesystem::path& archive_path,
-                                                        std::string* installed_plugin_id,
-                                                        std::string* error) const
-{
+                                                        std::string* installed_plugin_id, std::string* error) const {
     if (!PluginArchiveExtractor::supports_archive(archive_path)) {
         if (error) {
             *error = "Only .aifsplugin and .zip plugin packages are supported.";
@@ -151,8 +134,7 @@ bool FolderStructurePluginManager::install_from_archive(const std::filesystem::p
         return false;
     }
 
-    QTemporaryDir temp_dir(QString::fromStdString(
-        Utils::path_to_utf8(staging_root() / "archive-XXXXXX")));
+    QTemporaryDir temp_dir(QString::fromStdString(Utils::path_to_utf8(staging_root() / "archive-XXXXXX")));
     if (!temp_dir.isValid()) {
         if (error) {
             *error = "Failed to create a temporary folder-structure plugin extraction directory.";
@@ -161,8 +143,7 @@ bool FolderStructurePluginManager::install_from_archive(const std::filesystem::p
     }
 
     auto extraction =
-        PluginArchiveExtractor::extract_archive(archive_path,
-                                                Utils::utf8_to_path(temp_dir.path().toStdString()));
+        PluginArchiveExtractor::extract_archive(archive_path, Utils::utf8_to_path(temp_dir.path().toStdString()));
     if (!extraction.ok()) {
         if (error) {
             *error = extraction.message;
@@ -172,10 +153,7 @@ bool FolderStructurePluginManager::install_from_archive(const std::filesystem::p
 
     std::string signer_key_id;
     const std::filesystem::path extracted_package_root = extraction.manifest_path.parent_path();
-    if (!verify_folder_structure_plugin_package(extracted_package_root,
-                                                trusted_keys(),
-                                                &signer_key_id,
-                                                error)) {
+    if (!verify_folder_structure_plugin_package(extracted_package_root, trusted_keys(), &signer_key_id, error)) {
         return false;
     }
 
@@ -184,6 +162,10 @@ bool FolderStructurePluginManager::install_from_archive(const std::filesystem::p
         return false;
     }
     manifest->verified_signer_key_id = signer_key_id;
+    if (!has_required_entitlement(*manifest, error)) {
+        return false;
+    }
+
     const auto profiles = load_folder_structure_plugin_profiles(*manifest, error);
     if (profiles.empty()) {
         if (error && error->empty()) {
@@ -206,8 +188,7 @@ bool FolderStructurePluginManager::install_from_archive(const std::filesystem::p
     return true;
 }
 
-bool FolderStructurePluginManager::uninstall(const std::string& plugin_id, std::string* error) const
-{
+bool FolderStructurePluginManager::uninstall(const std::string& plugin_id, std::string* error) const {
     if (plugin_id.empty()) {
         if (error) {
             *error = "No folder-structure plugin id was provided.";
@@ -226,28 +207,40 @@ bool FolderStructurePluginManager::uninstall(const std::string& plugin_id, std::
     return true;
 }
 
-std::filesystem::path FolderStructurePluginManager::package_root() const
-{
+std::filesystem::path FolderStructurePluginManager::package_root() const {
     return package_directory_for_config_dir(config_dir_);
 }
 
-std::filesystem::path FolderStructurePluginManager::staging_root() const
-{
+std::filesystem::path FolderStructurePluginManager::staging_root() const {
     return staging_directory_for_config_dir(config_dir_);
 }
 
-std::vector<FolderStructurePluginPublicKey> FolderStructurePluginManager::trusted_keys() const
-{
+std::vector<FolderStructurePluginPublicKey> FolderStructurePluginManager::trusted_keys() const {
     if (!trusted_keys_.empty()) {
         return trusted_keys_;
     }
     return default_folder_structure_plugin_public_keys();
 }
 
+bool FolderStructurePluginManager::has_required_entitlement(const FolderStructurePluginManifest& manifest,
+                                                            std::string* error) const {
+    if (!manifest.license_required) {
+        return true;
+    }
+
+    const std::string product_id = manifest.product_id.empty() ? manifest.id : manifest.product_id;
+    if (entitlement_service_ && entitlement_service_->has_entitlement(product_id, manifest.id)) {
+        return true;
+    }
+
+    if (error) {
+        *error = "This folder-structure plugin requires an active entitlement for product '" + product_id + "'.";
+    }
+    return false;
+}
+
 std::optional<FolderStructurePluginManifest> FolderStructurePluginManager::load_verified_manifest(
-    const std::filesystem::path& package_dir,
-    std::string* error) const
-{
+    const std::filesystem::path& package_dir, std::string* error) const {
     std::string signer_key_id;
     if (!verify_folder_structure_plugin_package(package_dir, trusted_keys(), &signer_key_id, error)) {
         return std::nullopt;
@@ -258,5 +251,8 @@ std::optional<FolderStructurePluginManifest> FolderStructurePluginManager::load_
         return std::nullopt;
     }
     manifest->verified_signer_key_id = signer_key_id;
+    if (!has_required_entitlement(*manifest, error)) {
+        return std::nullopt;
+    }
     return manifest;
 }

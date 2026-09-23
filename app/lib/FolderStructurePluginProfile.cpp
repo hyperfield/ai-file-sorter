@@ -1,7 +1,6 @@
 #include "FolderStructurePluginProfile.hpp"
 
-#include "FolderTreeCatalog.hpp"
-#include "Utils.hpp"
+#include <openssl/evp.h>
 
 #include <QByteArray>
 #include <QCryptographicHash>
@@ -9,9 +8,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-
-#include <openssl/evp.h>
-
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -26,6 +22,9 @@
 #include <unordered_set>
 #include <utility>
 
+#include "FolderTreeCatalog.hpp"
+#include "Utils.hpp"
+
 namespace {
 
 #ifndef AIFS_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
@@ -36,24 +35,20 @@ constexpr char kFolderStructureEntryPointKind[] = "folder_structure_profile";
 constexpr char kSignatureManifestName[] = "plugin-signature.json";
 constexpr char kSignatureFileName[] = "plugin-signature.sig";
 
-std::string trim_copy(std::string value)
-{
+std::string trim_copy(std::string value) {
     const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
 }
 
-std::string ascii_lower_copy(std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
+std::string ascii_lower_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return value;
 }
 
-std::string normalize_platform_name(std::string value)
-{
+std::string normalize_platform_name(std::string value) {
     value = ascii_lower_copy(std::move(value));
     if (value == "win" || value == "win32") {
         return "windows";
@@ -67,8 +62,7 @@ std::string normalize_platform_name(std::string value)
     return value;
 }
 
-std::string normalize_architecture_name(std::string value)
-{
+std::string normalize_architecture_name(std::string value) {
     value = ascii_lower_copy(std::move(value));
     if (value == "amd64" || value == "x64") {
         return "x86_64";
@@ -85,18 +79,14 @@ std::string normalize_architecture_name(std::string value)
     return value;
 }
 
-bool list_matches_value(const std::vector<std::string>& values, const std::string& expected)
-{
-    return values.empty() ||
-           std::find(values.begin(), values.end(), std::string("any")) != values.end() ||
+bool list_matches_value(const std::vector<std::string>& values, const std::string& expected) {
+    return values.empty() || std::find(values.begin(), values.end(), std::string("any")) != values.end() ||
            std::find(values.begin(), values.end(), expected) != values.end();
 }
 
-std::vector<std::string> parse_string_list_field(const QJsonObject& object,
-                                                 const char* plural_key,
+std::vector<std::string> parse_string_list_field(const QJsonObject& object, const char* plural_key,
                                                  std::initializer_list<const char*> singular_keys,
-                                                 std::string (*normalize)(std::string) = nullptr)
-{
+                                                 std::string (*normalize)(std::string) = nullptr) {
     std::vector<std::string> values;
     std::unordered_set<std::string> seen;
 
@@ -136,8 +126,7 @@ std::vector<std::string> parse_string_list_field(const QJsonObject& object,
     return values;
 }
 
-std::optional<std::filesystem::path> safe_relative_package_path(std::string value)
-{
+std::optional<std::filesystem::path> safe_relative_package_path(std::string value) {
     std::replace(value.begin(), value.end(), '\\', '/');
     const std::filesystem::path normalized = std::filesystem::path(value).lexically_normal();
     if (normalized.empty() || normalized.has_root_name() || normalized.has_root_directory()) {
@@ -160,15 +149,12 @@ std::optional<std::filesystem::path> safe_relative_package_path(std::string valu
     return sanitized;
 }
 
-std::string generic_relative_path_text(const std::filesystem::path& path)
-{
+std::string generic_relative_path_text(const std::filesystem::path& path) {
     const auto generic = path.generic_u8string();
     return std::string(reinterpret_cast<const char*>(generic.data()), generic.size());
 }
 
-std::string relative_path_text(const std::filesystem::path& root,
-                               const std::filesystem::path& path)
-{
+std::string relative_path_text(const std::filesystem::path& root, const std::filesystem::path& path) {
     std::error_code ec;
     const auto relative = std::filesystem::relative(path, root, ec);
     if (ec || relative.empty() || relative == ".") {
@@ -177,18 +163,15 @@ std::string relative_path_text(const std::filesystem::path& root,
     return generic_relative_path_text(relative);
 }
 
-bool is_executable_like_package_path(const std::string& relative_path)
-{
+bool is_executable_like_package_path(const std::string& relative_path) {
     const std::filesystem::path path(relative_path);
     const std::string ext = ascii_lower_copy(path.extension().string());
-    static const std::unordered_set<std::string> blocked = {
-        ".bat", ".cmd", ".com", ".dll", ".dylib", ".exe", ".js",
-        ".msi", ".ps1", ".py", ".sh", ".so", ".vbs"};
+    static const std::unordered_set<std::string> blocked = {".bat", ".cmd", ".com", ".dll", ".dylib", ".exe", ".js",
+                                                            ".msi", ".ps1", ".py",  ".sh",  ".so",    ".vbs"};
     return blocked.contains(ext);
 }
 
-QByteArray read_file_bytes(const std::filesystem::path& path, std::string* error)
-{
+QByteArray read_file_bytes(const std::filesystem::path& path, std::string* error) {
     QFile file(QString::fromStdString(Utils::path_to_utf8(path)));
     if (!file.open(QIODevice::ReadOnly)) {
         if (error) {
@@ -199,8 +182,7 @@ QByteArray read_file_bytes(const std::filesystem::path& path, std::string* error
     return file.readAll();
 }
 
-std::optional<QJsonObject> read_json_object(const std::filesystem::path& path, std::string* error)
-{
+std::optional<QJsonObject> read_json_object(const std::filesystem::path& path, std::string* error) {
     std::string read_error;
     const QByteArray bytes = read_file_bytes(path, &read_error);
     if (bytes.isEmpty() && !read_error.empty()) {
@@ -219,27 +201,20 @@ std::optional<QJsonObject> read_json_object(const std::filesystem::path& path, s
     return doc.object();
 }
 
-std::string normalize_sha256(std::string value)
-{
-    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
-        return std::isspace(ch) != 0;
-    }), value.end());
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
+std::string normalize_sha256(std::string value) {
+    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }),
+                value.end());
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return value;
 }
 
-bool is_sha256_hex(const std::string& value)
-{
+bool is_sha256_hex(const std::string& value) {
     return value.size() == 64 &&
-           std::all_of(value.begin(), value.end(), [](unsigned char ch) {
-               return std::isxdigit(ch) != 0;
-           });
+           std::all_of(value.begin(), value.end(), [](unsigned char ch) { return std::isxdigit(ch) != 0; });
 }
 
-std::string compute_sha256(const std::filesystem::path& path)
-{
+std::string compute_sha256(const std::filesystem::path& path) {
     QFile file(QString::fromStdString(Utils::path_to_utf8(path)));
     if (!file.open(QIODevice::ReadOnly)) {
         throw std::runtime_error("Failed to open signed plugin file for SHA-256 verification.");
@@ -256,8 +231,7 @@ std::string compute_sha256(const std::filesystem::path& path)
     return hash.result().toHex().toStdString();
 }
 
-QByteArray decode_base64_or_raw_signature(QByteArray signature)
-{
+QByteArray decode_base64_or_raw_signature(QByteArray signature) {
     if (signature.size() == 64) {
         return signature;
     }
@@ -267,27 +241,20 @@ QByteArray decode_base64_or_raw_signature(QByteArray signature)
         return signature;
     }
 
-    QByteArray decoded = QByteArray::fromBase64(
-        signature,
-        QByteArray::Base64Encoding | QByteArray::AbortOnBase64DecodingErrors);
+    QByteArray decoded =
+        QByteArray::fromBase64(signature, QByteArray::Base64Encoding | QByteArray::AbortOnBase64DecodingErrors);
     if (decoded.size() == 64) {
         return decoded;
     }
-    decoded = QByteArray::fromBase64(
-        signature,
-        QByteArray::Base64UrlEncoding | QByteArray::AbortOnBase64DecodingErrors);
+    decoded =
+        QByteArray::fromBase64(signature, QByteArray::Base64UrlEncoding | QByteArray::AbortOnBase64DecodingErrors);
     return decoded.size() == 64 ? decoded : QByteArray();
 }
 
-bool verify_ed25519_signature(const QByteArray& payload,
-                              const QByteArray& signature,
-                              const FolderStructurePluginPublicKey& trusted_key)
-{
-    EVP_PKEY* key = EVP_PKEY_new_raw_public_key(
-        EVP_PKEY_ED25519,
-        nullptr,
-        trusted_key.ed25519_public_key.data(),
-        trusted_key.ed25519_public_key.size());
+bool verify_ed25519_signature(const QByteArray& payload, const QByteArray& signature,
+                              const FolderStructurePluginPublicKey& trusted_key) {
+    EVP_PKEY* key = EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519, nullptr, trusted_key.ed25519_public_key.data(),
+                                                trusted_key.ed25519_public_key.size());
     if (!key) {
         return false;
     }
@@ -298,14 +265,11 @@ bool verify_ed25519_signature(const QByteArray& payload,
         return false;
     }
 
-    const bool verified =
-        EVP_DigestVerifyInit(ctx, nullptr, nullptr, nullptr, key) == 1 &&
-        EVP_DigestVerify(
-            ctx,
-            reinterpret_cast<const unsigned char*>(signature.constData()),
-            static_cast<std::size_t>(signature.size()),
-            reinterpret_cast<const unsigned char*>(payload.constData()),
-            static_cast<std::size_t>(payload.size())) == 1;
+    const bool verified = EVP_DigestVerifyInit(ctx, nullptr, nullptr, nullptr, key) == 1 &&
+                          EVP_DigestVerify(ctx, reinterpret_cast<const unsigned char*>(signature.constData()),
+                                           static_cast<std::size_t>(signature.size()),
+                                           reinterpret_cast<const unsigned char*>(payload.constData()),
+                                           static_cast<std::size_t>(payload.size())) == 1;
 
     EVP_MD_CTX_free(ctx);
     EVP_PKEY_free(key);
@@ -313,29 +277,21 @@ bool verify_ed25519_signature(const QByteArray& payload,
 }
 
 std::optional<FolderStructurePluginPublicKey> trusted_key_for_id(
-    const std::vector<FolderStructurePluginPublicKey>& trusted_keys,
-    const std::string& key_id)
-{
-    const auto match = std::find_if(trusted_keys.begin(),
-                                    trusted_keys.end(),
-                                    [&](const FolderStructurePluginPublicKey& key) {
-                                        return key.key_id == key_id;
-                                    });
+    const std::vector<FolderStructurePluginPublicKey>& trusted_keys, const std::string& key_id) {
+    const auto match = std::find_if(trusted_keys.begin(), trusted_keys.end(),
+                                    [&](const FolderStructurePluginPublicKey& key) { return key.key_id == key_id; });
     if (match == trusted_keys.end()) {
         return std::nullopt;
     }
     return *match;
 }
 
-std::optional<std::array<unsigned char, 32>> decode_public_key_base64(const std::string& encoded)
-{
-    QByteArray decoded = QByteArray::fromBase64(
-        QByteArray::fromStdString(encoded),
-        QByteArray::Base64Encoding | QByteArray::AbortOnBase64DecodingErrors);
+std::optional<std::array<unsigned char, 32>> decode_public_key_base64(const std::string& encoded) {
+    QByteArray decoded = QByteArray::fromBase64(QByteArray::fromStdString(encoded),
+                                                QByteArray::Base64Encoding | QByteArray::AbortOnBase64DecodingErrors);
     if (decoded.size() != 32) {
-        decoded = QByteArray::fromBase64(
-            QByteArray::fromStdString(encoded),
-            QByteArray::Base64UrlEncoding | QByteArray::AbortOnBase64DecodingErrors);
+        decoded = QByteArray::fromBase64(QByteArray::fromStdString(encoded),
+                                         QByteArray::Base64UrlEncoding | QByteArray::AbortOnBase64DecodingErrors);
     }
     if (decoded.size() != 32) {
         return std::nullopt;
@@ -348,8 +304,7 @@ std::optional<std::array<unsigned char, 32>> decode_public_key_base64(const std:
     return key;
 }
 
-std::vector<FolderStructurePluginPublicKey> parse_public_key_list(std::string value)
-{
+std::vector<FolderStructurePluginPublicKey> parse_public_key_list(std::string value) {
     std::vector<FolderStructurePluginPublicKey> keys;
     std::replace(value.begin(), value.end(), ';', ',');
 
@@ -377,8 +332,7 @@ std::vector<FolderStructurePluginPublicKey> parse_public_key_list(std::string va
     return keys;
 }
 
-std::vector<std::string> guidance_lines_from_value(const QJsonValue& value)
-{
+std::vector<std::string> guidance_lines_from_value(const QJsonValue& value) {
     std::vector<std::string> lines;
     if (value.isString()) {
         const std::string line = value.toString().trimmed().toStdString();
@@ -405,8 +359,7 @@ std::vector<std::string> guidance_lines_from_value(const QJsonValue& value)
     return lines;
 }
 
-std::string join_guidance(const std::vector<std::string>& lines)
-{
+std::string join_guidance(const std::vector<std::string>& lines) {
     std::ostringstream out;
     for (const auto& line : lines) {
         if (line.empty()) {
@@ -418,9 +371,7 @@ std::string join_guidance(const std::vector<std::string>& lines)
 }
 
 std::vector<std::string> parse_safe_relative_folder_paths(const QJsonObject& object,
-                                                          std::initializer_list<const char*> keys,
-                                                          std::string* error)
-{
+                                                          std::initializer_list<const char*> keys, std::string* error) {
     std::vector<std::string> paths;
     for (const auto* key : keys) {
         paths = parse_string_list_field(object, key, {});
@@ -444,15 +395,13 @@ std::vector<std::string> parse_safe_relative_folder_paths(const QJsonObject& obj
     return valid_paths;
 }
 
-} // namespace
+}  // namespace
 
-std::vector<FolderStructurePluginPublicKey> default_folder_structure_plugin_public_keys()
-{
+std::vector<FolderStructurePluginPublicKey> default_folder_structure_plugin_public_keys() {
     return parse_public_key_list(AIFS_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS);
 }
 
-std::string folder_structure_plugin_current_platform()
-{
+std::string folder_structure_plugin_current_platform() {
 #if defined(_WIN32)
     return "windows";
 #elif defined(__APPLE__)
@@ -464,8 +413,7 @@ std::string folder_structure_plugin_current_platform()
 #endif
 }
 
-std::string folder_structure_plugin_current_architecture()
-{
+std::string folder_structure_plugin_current_architecture() {
 #if defined(__x86_64__) || defined(_M_X64)
     return "x86_64";
 #elif defined(__aarch64__) || defined(_M_ARM64)
@@ -479,10 +427,8 @@ std::string folder_structure_plugin_current_architecture()
 #endif
 }
 
-bool folder_structure_plugin_manifest_matches_current_runtime(
-    const FolderStructurePluginManifest& manifest,
-    std::string* error)
-{
+bool folder_structure_plugin_manifest_matches_current_runtime(const FolderStructurePluginManifest& manifest,
+                                                              std::string* error) {
     if (!list_matches_value(manifest.platforms, folder_structure_plugin_current_platform())) {
         if (error) {
             *error = "Plugin targets a different platform.";
@@ -499,9 +445,7 @@ bool folder_structure_plugin_manifest_matches_current_runtime(
 }
 
 std::optional<FolderStructurePluginManifest> load_folder_structure_plugin_manifest_from_file(
-    const std::filesystem::path& manifest_path,
-    std::string* error)
-{
+    const std::filesystem::path& manifest_path, std::string* error) {
     auto object = read_json_object(manifest_path, error);
     if (!object) {
         return std::nullopt;
@@ -512,19 +456,18 @@ std::optional<FolderStructurePluginManifest> load_folder_structure_plugin_manife
     manifest.name = object->value("name").toString().trimmed().toStdString();
     manifest.description = object->value("description").toString().trimmed().toStdString();
     manifest.version = object->value("version").toString().trimmed().toStdString();
-    manifest.entry_point_kind =
-        object->value("entry_point_kind").toString().trimmed().toStdString();
-    manifest.profile_paths =
-        parse_string_list_field(*object, "profile_paths", {"profile_path"});
-    manifest.platforms =
-        parse_string_list_field(*object, "platforms", {"platform"}, normalize_platform_name);
+    manifest.entry_point_kind = object->value("entry_point_kind").toString().trimmed().toStdString();
+    manifest.profile_paths = parse_string_list_field(*object, "profile_paths", {"profile_path"});
+    manifest.platforms = parse_string_list_field(*object, "platforms", {"platform"}, normalize_platform_name);
     manifest.architectures =
-        parse_string_list_field(*object, "architectures", {"architecture", "arch"},
-                                normalize_architecture_name);
+        parse_string_list_field(*object, "architectures", {"architecture", "arch"}, normalize_architecture_name);
+    manifest.license_required = object->value("license_required").toBool(false);
+    manifest.product_id = object->value("product_id").toString().trimmed().toStdString();
+    manifest.purchase_url = object->value("purchase_url").toString().trimmed().toStdString();
     manifest.source_path = manifest_path;
 
-    if (manifest.id.empty() || manifest.name.empty() || manifest.version.empty() ||
-        manifest.entry_point_kind.empty() || manifest.profile_paths.empty()) {
+    if (manifest.id.empty() || manifest.name.empty() || manifest.version.empty() || manifest.entry_point_kind.empty() ||
+        manifest.profile_paths.empty()) {
         if (error) {
             *error = "Folder-structure plugin manifest is missing required fields.";
         }
@@ -544,6 +487,9 @@ std::optional<FolderStructurePluginManifest> load_folder_structure_plugin_manife
             return std::nullopt;
         }
     }
+    if (manifest.license_required && manifest.product_id.empty()) {
+        manifest.product_id = manifest.id;
+    }
     if (!folder_structure_plugin_manifest_matches_current_runtime(manifest, error)) {
         return std::nullopt;
     }
@@ -551,10 +497,8 @@ std::optional<FolderStructurePluginManifest> load_folder_structure_plugin_manife
 }
 
 std::optional<FolderStructurePluginProfile> load_folder_structure_plugin_profile_from_file(
-    const std::filesystem::path& profile_path,
-    const FolderStructurePluginManifest& fallback_manifest,
-    std::string* error)
-{
+    const std::filesystem::path& profile_path, const FolderStructurePluginManifest& fallback_manifest,
+    std::string* error) {
     auto object = read_json_object(profile_path, error);
     if (!object) {
         return std::nullopt;
@@ -573,33 +517,22 @@ std::optional<FolderStructurePluginProfile> load_folder_structure_plugin_profile
     if (profile.structure_kind.empty()) {
         profile.structure_kind = recognition.value("kind").toString().trimmed().toStdString();
     }
-    profile.available = !object->contains("available") ||
-                        object->value("available").toBool(true);
+    profile.available = !object->contains("available") || object->value("available").toBool(true);
     profile.detectors = parse_string_list_field(*object, "detectors", {"detector"});
-    const auto recognition_detectors =
-        parse_string_list_field(recognition, "detectors", {"detector"});
-    profile.detectors.insert(profile.detectors.end(),
-                             recognition_detectors.begin(),
-                             recognition_detectors.end());
+    const auto recognition_detectors = parse_string_list_field(recognition, "detectors", {"detector"});
+    profile.detectors.insert(profile.detectors.end(), recognition_detectors.begin(), recognition_detectors.end());
     std::sort(profile.detectors.begin(), profile.detectors.end());
-    profile.detectors.erase(std::unique(profile.detectors.begin(), profile.detectors.end()),
-                            profile.detectors.end());
-    profile.initial_directories =
-        parse_safe_relative_folder_paths(*object,
-                                         {"initial_directories",
-                                          "template_directories",
-                                          "relative_directories"},
-                                         error);
+    profile.detectors.erase(std::unique(profile.detectors.begin(), profile.detectors.end()), profile.detectors.end());
+    profile.initial_directories = parse_safe_relative_folder_paths(
+        *object, {"initial_directories", "template_directories", "relative_directories"}, error);
     if (error && !error->empty() && profile.initial_directories.empty()) {
         return std::nullopt;
     }
 
     profile.prompt_guidance = join_guidance(guidance_lines_from_value(object->value("prompt_guidance")));
-    profile.new_folder_guidance =
-        join_guidance(guidance_lines_from_value(object->value("new_folder_guidance")));
+    profile.new_folder_guidance = join_guidance(guidance_lines_from_value(object->value("new_folder_guidance")));
     if (profile.prompt_guidance.empty()) {
-        profile.prompt_guidance =
-            join_guidance(guidance_lines_from_value(recognition.value("prompt_guidance")));
+        profile.prompt_guidance = join_guidance(guidance_lines_from_value(recognition.value("prompt_guidance")));
     }
     if (profile.new_folder_guidance.empty()) {
         profile.new_folder_guidance =
@@ -638,9 +571,7 @@ std::optional<FolderStructurePluginProfile> load_folder_structure_plugin_profile
 }
 
 std::vector<FolderStructurePluginProfile> load_folder_structure_plugin_profiles(
-    const FolderStructurePluginManifest& manifest,
-    std::string* error)
-{
+    const FolderStructurePluginManifest& manifest, std::string* error) {
     std::vector<FolderStructurePluginProfile> profiles;
     const std::filesystem::path package_root = manifest.source_path.parent_path();
     if (package_root.empty()) {
@@ -662,14 +593,10 @@ std::vector<FolderStructurePluginProfile> load_folder_structure_plugin_profiles(
 
         std::string profile_error;
         auto profile =
-            load_folder_structure_plugin_profile_from_file(package_root / *relative,
-                                                           manifest,
-                                                           &profile_error);
+            load_folder_structure_plugin_profile_from_file(package_root / *relative, manifest, &profile_error);
         if (!profile) {
             if (error) {
-                *error = profile_error.empty()
-                    ? "Failed to load folder-structure plugin profile."
-                    : profile_error;
+                *error = profile_error.empty() ? "Failed to load folder-structure plugin profile." : profile_error;
             }
             return {};
         }
@@ -678,12 +605,9 @@ std::vector<FolderStructurePluginProfile> load_folder_structure_plugin_profiles(
     return profiles;
 }
 
-bool verify_folder_structure_plugin_package(
-    const std::filesystem::path& package_root,
-    const std::vector<FolderStructurePluginPublicKey>& trusted_keys,
-    std::string* signer_key_id,
-    std::string* error)
-{
+bool verify_folder_structure_plugin_package(const std::filesystem::path& package_root,
+                                            const std::vector<FolderStructurePluginPublicKey>& trusted_keys,
+                                            std::string* signer_key_id, std::string* error) {
     if (trusted_keys.empty()) {
         if (error) {
             *error = "No trusted folder-structure plugin signing keys are configured.";
@@ -701,8 +625,7 @@ bool verify_folder_structure_plugin_package(
         }
         return false;
     }
-    const QByteArray signature =
-        decode_base64_or_raw_signature(read_file_bytes(signature_path, &read_error));
+    const QByteArray signature = decode_base64_or_raw_signature(read_file_bytes(signature_path, &read_error));
     if (signature.size() != 64) {
         if (error) {
             *error = "Folder-structure plugin signature is missing or invalid.";
@@ -787,9 +710,7 @@ bool verify_folder_structure_plugin_package(
 
     std::set<std::string> actual_payload_paths;
     std::error_code ec;
-    for (std::filesystem::recursive_directory_iterator it(package_root, ec), end;
-         it != end && !ec;
-         it.increment(ec)) {
+    for (std::filesystem::recursive_directory_iterator it(package_root, ec), end; it != end && !ec; it.increment(ec)) {
         if (!it->is_regular_file(ec) || ec) {
             continue;
         }
