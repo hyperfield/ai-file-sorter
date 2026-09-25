@@ -131,6 +131,24 @@ TEST_CASE("Settings persists existing folder-tree sorting mode") {
     REQUIRE(reloaded.get_suggest_new_folders());
 }
 
+TEST_CASE("Settings persists Johnny.Decimal plugin suggestion suppression") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE_FALSE(settings.get_hide_johnny_decimal_plugin_suggestion());
+    settings.set_hide_johnny_decimal_plugin_suggestion(true);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_hide_johnny_decimal_plugin_suggestion());
+}
+
 TEST_CASE("Settings persists destination folder separately from analyzed folder") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());

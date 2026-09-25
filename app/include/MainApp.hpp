@@ -400,6 +400,10 @@ private:
      * @brief Opens the signed folder-structure plugin management dialog.
      */
     void show_folder_structure_plugin_dialog();
+    /**
+     * @brief Offers the Johnny.Decimal folder-structure plugin for compatible folder trees.
+     */
+    void maybe_show_johnny_decimal_plugin_suggestion();
     void maybe_show_suitability_benchmark();
     /**
      * @brief Shows the What's New popup once per app version when packaged notes exist.

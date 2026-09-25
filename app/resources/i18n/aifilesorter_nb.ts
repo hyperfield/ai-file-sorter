@@ -1035,6 +1035,36 @@ Støtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
 <context>
     <name>MainApp</name>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="2407"/>
+        <source>Johnny.Decimal support available</source>
+        <translation>Johnny.Decimal-støtte tilgjengelig</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2409"/>
+        <source>This folder looks like a Johnny.Decimal archive.</source>
+        <translation>Denne mappen ser ut som et Johnny.Decimal-arkiv.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2411"/>
+        <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
+        <translation>Johnny.Decimal Support-tillegget kan legge til egne startmapper og rutingveiledning.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2413"/>
+        <source>Obtain</source>
+        <translation>Hent</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2414"/>
+        <source>Later</source>
+        <translation>Senere</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2416"/>
+        <source>Not interested</source>
+        <translation>Ikke interessert</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="698"/>
         <source>File Explorer</source>
         <translation>Filutforsker</translation>

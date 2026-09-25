@@ -81,9 +81,11 @@
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QStatusBar>
 #include <QToolButton>
 #include <QTreeView>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QSizePolicy>
 #include <QDialog>
@@ -127,6 +129,7 @@ namespace {
 
 const QEvent::Type kAnalysisFailureEventType =
     static_cast<QEvent::Type>(QEvent::registerEventType());
+constexpr char kJohnnyDecimalPluginId[] = "johnny_decimal_support";
 
 class AnalysisFailureEvent final : public QEvent {
 public:
@@ -2385,6 +2388,51 @@ void MainApp::show_folder_structure_plugin_dialog()
     dialog.exec();
 }
 
+void MainApp::maybe_show_johnny_decimal_plugin_suggestion()
+{
+    if (settings.get_hide_johnny_decimal_plugin_suggestion() ||
+        (folder_structure_plugin_manager_ &&
+         folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
+        return;
+    }
+
+    run_on_ui_blocking([this]() {
+        if (settings.get_hide_johnny_decimal_plugin_suggestion() ||
+            (folder_structure_plugin_manager_ &&
+             folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
+            return;
+        }
+
+        QMessageBox dialog(this);
+        dialog.setWindowTitle(tr("Johnny.Decimal support available"));
+        dialog.setIcon(QMessageBox::Information);
+        dialog.setText(tr("This folder looks like a Johnny.Decimal archive."));
+        dialog.setInformativeText(
+            tr("The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance."));
+
+        QPushButton* obtain_button = dialog.addButton(tr("Obtain"), QMessageBox::AcceptRole);
+        dialog.addButton(tr("Later"), QMessageBox::RejectRole);
+        QPushButton* not_interested_button =
+            dialog.addButton(tr("Not interested"), QMessageBox::DestructiveRole);
+        dialog.setDefaultButton(obtain_button);
+
+        dialog.exec();
+
+        if (dialog.clickedButton() == obtain_button) {
+            QDesktopServices::openUrl(
+                QUrl(QStringLiteral("https://filesorter.app/plugins/johnny-decimal-support")));
+            return;
+        }
+
+        if (dialog.clickedButton() == not_interested_button) {
+            settings.set_hide_johnny_decimal_plugin_suggestion(true);
+            if (!settings.save() && core_logger) {
+                core_logger->warn("Failed to save Johnny.Decimal plugin suggestion suppression setting");
+            }
+        }
+    });
+}
+
 void MainApp::open_windows_explorer_extension_install_page()
 {
     std::string error;
@@ -2963,6 +3011,7 @@ AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
         [this]() { return effective_scan_options(); },
         [](std::vector<FileEntry>&) {},
         []() {},
+        [this]() { maybe_show_johnny_decimal_plugin_suggestion(); },
         [this](const std::vector<AnalysisWorkflowContext::StagePlan>& stages) {
             configure_progress_stages(stages);
         },

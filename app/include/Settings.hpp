@@ -645,6 +645,16 @@ public:
      */
     void set_next_support_prompt_threshold(int threshold);
     /**
+     * @brief Returns whether the Johnny.Decimal plugin suggestion is permanently hidden.
+     * @return True when the user chose not to see the suggestion again.
+     */
+    bool get_hide_johnny_decimal_plugin_suggestion() const;
+    /**
+     * @brief Sets whether the Johnny.Decimal plugin suggestion is permanently hidden.
+     * @param value True to hide future Johnny.Decimal plugin suggestions.
+     */
+    void set_hide_johnny_decimal_plugin_suggestion(bool value);
+    /**
      * @brief Returns the configured allowed category whitelist.
      * @return Copy of the allowed category list.
      */
@@ -751,6 +761,7 @@ private:
     bool review_auto_approve_categorization{false};
     int categorized_file_count{0};
     int next_support_prompt_threshold{50};
+    bool hide_johnny_decimal_plugin_suggestion{false};
     std::vector<std::string> allowed_categories;
     std::vector<std::string> allowed_subcategories;
     std::unordered_map<std::string, std::vector<std::string>> allowed_subcategories_by_category;

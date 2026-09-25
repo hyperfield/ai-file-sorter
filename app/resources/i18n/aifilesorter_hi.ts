@@ -1035,6 +1035,36 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
 <context>
     <name>MainApp</name>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="2407"/>
+        <source>Johnny.Decimal support available</source>
+        <translation>Johnny.Decimal समर्थन उपलब्ध है</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2409"/>
+        <source>This folder looks like a Johnny.Decimal archive.</source>
+        <translation>यह फ़ोल्डर Johnny.Decimal संग्रह जैसा दिखता है।</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2411"/>
+        <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
+        <translation>Johnny.Decimal Support प्लगइन समर्पित प्रारंभिक फ़ोल्डर और रूटिंग मार्गदर्शन जोड़ सकता है।</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2413"/>
+        <source>Obtain</source>
+        <translation>प्राप्त करें</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2414"/>
+        <source>Later</source>
+        <translation>बाद में</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2416"/>
+        <source>Not interested</source>
+        <translation>रुचि नहीं</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="698"/>
         <source>File Explorer</source>
         <translation>फ़ाइल एक्सप्लोरर</translation>

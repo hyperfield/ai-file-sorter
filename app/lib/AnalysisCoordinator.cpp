@@ -29,6 +29,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -306,7 +307,8 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
     bool folder_tree_sorting,
     const std::string& destination_root,
     bool allow_new_folders,
-    const std::vector<FolderStructurePluginProfile>& plugin_profiles)
+    const std::vector<FolderStructurePluginProfile>& plugin_profiles,
+    const std::function<void()>& on_johnny_decimal_like_tree)
 {
     if (!folder_tree_sorting) {
         for (auto& entry : entries) {
@@ -320,6 +322,12 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
     }
 
     const auto catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(destination_root));
+    if (on_johnny_decimal_like_tree) {
+        const auto profile = FolderStructurePattern::infer_profile(catalog);
+        if (profile.has_johnny_decimal_like_ranges) {
+            on_johnny_decimal_like_tree();
+        }
+    }
     const std::string fingerprint = catalog.fingerprint();
     std::vector<CategorizedFile> filtered;
     filtered.reserve(entries.size());
@@ -589,7 +597,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
             folder_tree_sorting,
             app_.settings.get_effective_destination_folder(directory_path),
             app_.settings.get_suggest_new_folders(),
-            app_.categorization_service.folder_structure_profiles());
+            app_.categorization_service.folder_structure_profiles(),
+            app_.suggest_johnny_decimal_plugin);
         std::vector<CategorizedFile> pending_renames;
         pending_renames.reserve(cached_entries.size());
         std::unordered_set<std::string> renamed_files;

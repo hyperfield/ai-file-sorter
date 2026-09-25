@@ -600,6 +600,8 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
     categorized_file_count = load_int("CategorizedFileCount", 0, 0);
     next_support_prompt_threshold = load_int("SupportPromptThreshold", 50, 50);
+    hide_johnny_decimal_plugin_suggestion =
+        load_bool("HideJohnnyDecimalPluginSuggestion", false);
 }
 
 void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)
@@ -744,6 +746,10 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "CategoryLanguage", categoryLanguageToString(category_language).toStdString());
     config.setValue(settings_section, "CategorizedFileCount", std::to_string(categorized_file_count));
     config.setValue(settings_section, "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
+    set_bool_setting(config,
+                     settings_section,
+                     "HideJohnnyDecimalPluginSuggestion",
+                     hide_johnny_decimal_plugin_suggestion);
 }
 
 void Settings::save_whitelist_settings()
@@ -1560,6 +1566,16 @@ void Settings::set_next_support_prompt_threshold(int threshold)
         threshold = 50;
     }
     next_support_prompt_threshold = threshold;
+}
+
+bool Settings::get_hide_johnny_decimal_plugin_suggestion() const
+{
+    return hide_johnny_decimal_plugin_suggestion;
+}
+
+void Settings::set_hide_johnny_decimal_plugin_suggestion(bool value)
+{
+    hide_johnny_decimal_plugin_suggestion = value;
 }
 
 std::vector<std::string> Settings::get_allowed_categories() const

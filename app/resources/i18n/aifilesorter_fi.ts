@@ -1035,6 +1035,36 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
 <context>
     <name>MainApp</name>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="2407"/>
+        <source>Johnny.Decimal support available</source>
+        <translation>Johnny.Decimal-tuki saatavilla</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2409"/>
+        <source>This folder looks like a Johnny.Decimal archive.</source>
+        <translation>Tämä kansio näyttää Johnny.Decimal-arkistolta.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2411"/>
+        <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
+        <translation>Johnny.Decimal Support -lisäosa voi lisätä omat aloituskansiot ja reititysohjeet.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2413"/>
+        <source>Obtain</source>
+        <translation>Hanki</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2414"/>
+        <source>Later</source>
+        <translation>Myöhemmin</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2416"/>
+        <source>Not interested</source>
+        <translation>Ei kiinnosta</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="698"/>
         <source>File Explorer</source>
         <translation>Tiedostonhallinta</translation>

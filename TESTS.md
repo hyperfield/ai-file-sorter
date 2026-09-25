@@ -1319,6 +1319,13 @@ Procedure: Save settings, reload into a new `Settings` instance, and read the so
 Expected outcome: The reloaded settings report `ExistingFolderTree` and keep new-folder suggestions enabled.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists existing folder-tree sorting mode"`
 
+#### Test case: Settings persists Johnny.Decimal plugin suggestion suppression
+Purpose: Ensure the permanent opt-out for the Johnny.Decimal plugin suggestion survives a settings round-trip.
+Setup: Use a temporary config directory and enable the suppression setting.
+Procedure: Save settings, reload into a new `Settings` instance, and read the suppression flag.
+Expected outcome: The reloaded settings keep the Johnny.Decimal plugin suggestion hidden.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists Johnny.Decimal plugin suggestion suppression"`
+
 #### Test case: Settings persists destination folder separately from analyzed folder
 Purpose: Ensure users can store a category destination root independently from the folder being analyzed.
 Setup: Use a temporary config directory and set different analyzed and destination folders.

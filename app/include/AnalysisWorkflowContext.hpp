@@ -56,6 +56,8 @@ struct AnalysisWorkflowContext {
     std::function<void(std::vector<FileEntry>&)> filter_file_entries;
     /** @brief Optional callback when the in-progress review preview has changed. */
     std::function<void()> notify_review_preview_changed;
+    /** @brief Optional host callback when existing-folder sorting recognizes a Johnny.Decimal-like tree. */
+    std::function<void()> suggest_johnny_decimal_plugin;
     std::function<void(const std::vector<StagePlan>&)> configure_progress_stages;
     std::function<void(StageId, const std::vector<FileEntry>&)> set_progress_stage_items;
     std::function<void(StageId)> set_progress_active_stage;

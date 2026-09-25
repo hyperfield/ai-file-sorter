@@ -1035,6 +1035,36 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
 <context>
     <name>MainApp</name>
     <message>
+        <location filename="../../lib/MainApp.cpp" line="2407"/>
+        <source>Johnny.Decimal support available</source>
+        <translation>Johnny.Decimal 지원 사용 가능</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2409"/>
+        <source>This folder looks like a Johnny.Decimal archive.</source>
+        <translation>이 폴더는 Johnny.Decimal 아카이브처럼 보입니다.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2411"/>
+        <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
+        <translation>Johnny.Decimal Support 플러그인은 전용 시작 폴더와 라우팅 지침을 추가할 수 있습니다.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2413"/>
+        <source>Obtain</source>
+        <translation>받기</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2414"/>
+        <source>Later</source>
+        <translation>나중에</translation>
+    </message>
+    <message>
+        <location filename="../../lib/MainApp.cpp" line="2416"/>
+        <source>Not interested</source>
+        <translation>관심 없음</translation>
+    </message>
+    <message>
         <location filename="../../lib/MainApp.cpp" line="698"/>
         <source>File Explorer</source>
         <translation>파일 탐색기</translation>
