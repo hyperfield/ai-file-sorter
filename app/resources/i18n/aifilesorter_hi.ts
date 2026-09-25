@@ -3205,4 +3205,115 @@ Please update to continue. If you choose to quit, the application will close.</s
         <translation>The default list cannot be removed.</translation>
     </message>
 </context>
+<context>
+    <name>FolderStructurePluginDialog</name>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="45"/>
+        <source>Manage Folder Structure Plugins</source>
+        <translation>फ़ोल्डर संरचना प्लगइन प्रबंधित करें</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="51"/>
+        <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
+        <translation>हस्ताक्षरित फ़ोल्डर-संरचना प्लगइन इंस्टॉल करें जो टेम्पलेट और रूटिंग मार्गदर्शन जोड़ते हैं। चुने गए प्लगइन अपने आप लोड होते हैं।</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="59"/>
+        <source>Enabled</source>
+        <translation>सक्षम</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="60"/>
+        <source>Plugin</source>
+        <translation>प्लगइन</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"/>
+        <source>Version</source>
+        <translation>संस्करण</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="62"/>
+        <source>Signer</source>
+        <translation>हस्ताक्षरकर्ता</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="81"/>
+        <source>Install from File...</source>
+        <translation>फ़ाइल से इंस्टॉल करें...</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="82"/>
+        <source>Uninstall</source>
+        <translation>अनइंस्टॉल करें</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="153"/>
+        <source>No verified folder-structure plugins are installed. Use the Enabled checkbox to choose which installed plugins are loaded.</source>
+        <translation>कोई सत्यापित फ़ोल्डर-संरचना प्लगइन इंस्टॉल नहीं है। कौन से इंस्टॉल किए गए प्लगइन लोड हों, यह चुनने के लिए सक्षम चेकबॉक्स का उपयोग करें।</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="162"/>
+        <source>Enabled (loaded automatically)</source>
+        <translation>सक्षम (अपने आप लोड होता है)</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="163"/>
+        <source>Disabled</source>
+        <translation>अक्षम</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="166"/>
+        <source>%1 %2
+Verified signer: %3
+Status: %4
+
+%5</source>
+        <translation>%1 %2
+सत्यापित हस्ताक्षरकर्ता: %3
+स्थिति: %4
+
+%5</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="187"/>
+        <source>Update failed</source>
+        <translation>अपडेट विफल</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="189"/>
+        <source>Failed to update folder-structure plugin state.</source>
+        <translation>फ़ोल्डर-संरचना प्लगइन स्थिति अपडेट नहीं हो सकी।</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="199"/>
+        <source>Install Folder Structure Plugin</source>
+        <translation>फ़ोल्डर संरचना प्लगइन इंस्टॉल करें</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="201"/>
+        <source>AI File Sorter plugins (*.aifsplugin *.zip);;All files (*)</source>
+        <translation>AI File Sorter प्लगइन (*.aifsplugin *.zip);;सभी फ़ाइलें (*)</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="213"/>
+        <source>Install failed</source>
+        <translation>इंस्टॉल विफल</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="215"/>
+        <source>Failed to install folder-structure plugin.</source>
+        <translation>फ़ोल्डर-संरचना प्लगइन इंस्टॉल नहीं हो सका।</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"/>
+        <source>Uninstall failed</source>
+        <translation>अनइंस्टॉल विफल</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="245"/>
+        <source>Failed to uninstall folder-structure plugin.</source>
+        <translation>फ़ोल्डर-संरचना प्लगइन अनइंस्टॉल नहीं हो सका।</translation>
+    </message>
+</context>
 </TS>

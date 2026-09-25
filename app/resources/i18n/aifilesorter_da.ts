@@ -3203,4 +3203,115 @@ Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikat
         <translation>Standardlisten kan ikke fjernes.</translation>
     </message>
 </context>
+<context>
+    <name>FolderStructurePluginDialog</name>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="45"/>
+        <source>Manage Folder Structure Plugins</source>
+        <translation>Administrer plugins for mappestruktur</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="51"/>
+        <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
+        <translation>Installer signerede plugins til mappestruktur, der tilføjer skabeloner og rutingsvejledning. Markerede plugins indlæses automatisk.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="59"/>
+        <source>Enabled</source>
+        <translation>Aktiveret</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="60"/>
+        <source>Plugin</source>
+        <translation>Plugin</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"/>
+        <source>Version</source>
+        <translation>Version</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="62"/>
+        <source>Signer</source>
+        <translation>Underskriver</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="81"/>
+        <source>Install from File...</source>
+        <translation>Installer fra fil...</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="82"/>
+        <source>Uninstall</source>
+        <translation>Afinstaller</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="153"/>
+        <source>No verified folder-structure plugins are installed. Use the Enabled checkbox to choose which installed plugins are loaded.</source>
+        <translation>Ingen verificerede plugins til mappestruktur er installeret. Brug afkrydsningsfeltet Aktiveret til at vælge, hvilke installerede plugins der indlæses.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="162"/>
+        <source>Enabled (loaded automatically)</source>
+        <translation>Aktiveret (indlæses automatisk)</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="163"/>
+        <source>Disabled</source>
+        <translation>Deaktiveret</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="166"/>
+        <source>%1 %2
+Verified signer: %3
+Status: %4
+
+%5</source>
+        <translation>%1 %2
+Verificeret underskriver: %3
+Status: %4
+
+%5</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="187"/>
+        <source>Update failed</source>
+        <translation>Opdatering mislykkedes</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="189"/>
+        <source>Failed to update folder-structure plugin state.</source>
+        <translation>Kunne ikke opdatere tilstanden for plugin til mappestruktur.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="199"/>
+        <source>Install Folder Structure Plugin</source>
+        <translation>Installer plugin til mappestruktur</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="201"/>
+        <source>AI File Sorter plugins (*.aifsplugin *.zip);;All files (*)</source>
+        <translation>AI File Sorter-plugins (*.aifsplugin *.zip);;Alle filer (*)</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="213"/>
+        <source>Install failed</source>
+        <translation>Installation mislykkedes</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="215"/>
+        <source>Failed to install folder-structure plugin.</source>
+        <translation>Kunne ikke installere plugin til mappestruktur.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"/>
+        <source>Uninstall failed</source>
+        <translation>Afinstallation mislykkedes</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="245"/>
+        <source>Failed to uninstall folder-structure plugin.</source>
+        <translation>Kunne ikke afinstallere plugin til mappestruktur.</translation>
+    </message>
+</context>
 </TS>

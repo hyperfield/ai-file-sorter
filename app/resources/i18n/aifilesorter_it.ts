@@ -3205,4 +3205,115 @@ Aggiorna per continuare. Se scegli di uscire, l&apos;applicazione verrà chiusa.
         <translation>L&apos;elenco predefinito non può essere rimosso.</translation>
     </message>
 </context>
+<context>
+    <name>FolderStructurePluginDialog</name>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="45"/>
+        <source>Manage Folder Structure Plugins</source>
+        <translation>Gestisci plugin struttura cartelle</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="51"/>
+        <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
+        <translation>Installa plugin firmati per la struttura delle cartelle che aggiungono modelli e indicazioni di instradamento. I plugin selezionati vengono caricati automaticamente.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="59"/>
+        <source>Enabled</source>
+        <translation>Abilitato</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="60"/>
+        <source>Plugin</source>
+        <translation>Plugin</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"/>
+        <source>Version</source>
+        <translation>Versione</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="62"/>
+        <source>Signer</source>
+        <translation>Firmatario</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="81"/>
+        <source>Install from File...</source>
+        <translation>Installa da file...</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="82"/>
+        <source>Uninstall</source>
+        <translation>Disinstalla</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="153"/>
+        <source>No verified folder-structure plugins are installed. Use the Enabled checkbox to choose which installed plugins are loaded.</source>
+        <translation>Non sono installati plugin verificati per la struttura delle cartelle. Usa la casella Abilitato per scegliere quali plugin installati caricare.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="162"/>
+        <source>Enabled (loaded automatically)</source>
+        <translation>Abilitato (caricato automaticamente)</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="163"/>
+        <source>Disabled</source>
+        <translation>Disabilitato</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="166"/>
+        <source>%1 %2
+Verified signer: %3
+Status: %4
+
+%5</source>
+        <translation>%1 %2
+Firmatario verificato: %3
+Stato: %4
+
+%5</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="187"/>
+        <source>Update failed</source>
+        <translation>Aggiornamento non riuscito</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="189"/>
+        <source>Failed to update folder-structure plugin state.</source>
+        <translation>Impossibile aggiornare lo stato del plugin per la struttura delle cartelle.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="199"/>
+        <source>Install Folder Structure Plugin</source>
+        <translation>Installa plugin struttura cartelle</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="201"/>
+        <source>AI File Sorter plugins (*.aifsplugin *.zip);;All files (*)</source>
+        <translation>Plugin AI File Sorter (*.aifsplugin *.zip);;Tutti i file (*)</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="213"/>
+        <source>Install failed</source>
+        <translation>Installazione non riuscita</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="215"/>
+        <source>Failed to install folder-structure plugin.</source>
+        <translation>Impossibile installare il plugin per la struttura delle cartelle.</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"/>
+        <source>Uninstall failed</source>
+        <translation>Disinstallazione non riuscita</translation>
+    </message>
+    <message>
+        <location filename="../../lib/FolderStructurePluginDialog.cpp" line="245"/>
+        <source>Failed to uninstall folder-structure plugin.</source>
+        <translation>Impossibile disinstallare il plugin per la struttura delle cartelle.</translation>
+    </message>
+</context>
 </TS>

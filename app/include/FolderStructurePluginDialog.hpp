@@ -1,13 +1,13 @@
 #pragma once
 
 #include <QDialog>
-
 #include <memory>
 #include <string>
 
 class QLabel;
 class QPushButton;
 class QTreeWidget;
+class QTreeWidgetItem;
 
 class FolderStructurePluginManager;
 
@@ -15,7 +15,7 @@ class FolderStructurePluginManager;
  * @brief Dialog for installing and removing signed folder-structure plugins.
  */
 class FolderStructurePluginDialog : public QDialog {
-public:
+   public:
     /**
      * @brief Constructs the folder-structure plugin management dialog.
      * @param plugin_manager Shared manager used to query, install, and uninstall plugins.
@@ -24,7 +24,7 @@ public:
     explicit FolderStructurePluginDialog(std::shared_ptr<FolderStructurePluginManager> plugin_manager,
                                          QWidget* parent = nullptr);
 
-private:
+   private:
     /**
      * @brief Rebuilds the installed plugin list from verified package data.
      */
@@ -33,6 +33,12 @@ private:
      * @brief Updates details and button enabled state for the current selection.
      */
     void update_selection_state();
+    /**
+     * @brief Persists an enablement checkbox change for an installed plugin.
+     * @param item Changed plugin row.
+     * @param column Changed column index.
+     */
+    void update_plugin_enabled_state(QTreeWidgetItem* item, int column);
     /**
      * @brief Imports and installs a signed plugin archive chosen by the user.
      */

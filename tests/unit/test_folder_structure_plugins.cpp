@@ -1,11 +1,15 @@
 #include <openssl/evp.h>
 #include <zip.h>
 
+#include <QAbstractItemView>
 #include <QByteArray>
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
+#include <QTreeWidget>
 #include <algorithm>
 #include <array>
 #include <catch2/catch_test_macros.hpp>
@@ -17,6 +21,7 @@
 #include <vector>
 
 #include "FolderStructurePattern.hpp"
+#include "FolderStructurePluginDialog.hpp"
 #include "FolderStructurePluginManager.hpp"
 #include "FolderStructurePluginProfile.hpp"
 #include "FolderStructureTemplates.hpp"
@@ -287,6 +292,33 @@ TEST_CASE("FolderStructurePluginManager installs signed declarative plugins") {
     CHECK(inferred.prompt_guidance.find("Matched profile: Johnny.Decimal Complete") != std::string::npos);
 }
 
+TEST_CASE("FolderStructurePluginManager persists disabled plugin profiles") {
+    TempDir config_dir;
+    TempDir archive_dir;
+    const auto archive_path = archive_dir.path() / "johnny-decimal.aifsplugin";
+    create_zip_archive(archive_path, signed_plugin_entries(plugin_manifest(), plugin_profile()));
+
+    FolderStructurePluginManager manager(config_dir.path().string(), {test_public_key()});
+
+    std::string error;
+    REQUIRE(manager.install_from_archive(archive_path, nullptr, &error));
+    REQUIRE(manager.is_enabled("johnny_decimal_support"));
+    REQUIRE(manager.installed_profiles().size() == 1);
+
+    REQUIRE(manager.set_enabled("johnny_decimal_support", false, &error));
+    CHECK_FALSE(manager.is_enabled("johnny_decimal_support"));
+    CHECK(manager.installed_plugins().size() == 1);
+    CHECK(manager.installed_profiles().empty());
+
+    FolderStructurePluginManager reloaded(config_dir.path().string(), {test_public_key()});
+    CHECK_FALSE(reloaded.is_enabled("johnny_decimal_support"));
+    CHECK(reloaded.installed_profiles().empty());
+
+    REQUIRE(reloaded.set_enabled("johnny_decimal_support", true, &error));
+    CHECK(reloaded.is_enabled("johnny_decimal_support"));
+    CHECK(reloaded.installed_profiles().size() == 1);
+}
+
 TEST_CASE("FolderStructurePluginManager requires entitlement for licensed plugins") {
     TempDir config_dir;
     TempDir archive_dir;
@@ -323,6 +355,42 @@ TEST_CASE("FolderStructurePluginManager installs licensed plugins with entitleme
     CHECK(installed_plugin_id == "johnny_decimal_support");
     CHECK(manager.installed_plugins().size() == 1);
     CHECK(manager.installed_profiles().size() == 1);
+}
+
+TEST_CASE("FolderStructurePluginDialog controls plugin enablement") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir config_dir;
+    TempDir archive_dir;
+    const auto archive_path = archive_dir.path() / "johnny-decimal.aifsplugin";
+    create_zip_archive(archive_path, signed_plugin_entries(plugin_manifest(), plugin_profile()));
+
+    auto manager = std::make_shared<FolderStructurePluginManager>(
+        config_dir.path().string(), std::vector<FolderStructurePluginPublicKey>{test_public_key()});
+    std::string error;
+    REQUIRE(manager->install_from_archive(archive_path, nullptr, &error));
+
+    FolderStructurePluginDialog dialog(manager);
+
+    auto* plugin_list = dialog.findChild<QTreeWidget*>();
+    REQUIRE(plugin_list != nullptr);
+    CHECK(plugin_list->selectionBehavior() == QAbstractItemView::SelectRows);
+    REQUIRE(plugin_list->topLevelItemCount() == 1);
+    auto* item = plugin_list->topLevelItem(0);
+    REQUIRE(item != nullptr);
+    CHECK(item->checkState(0) == Qt::Checked);
+
+    QString combined_label_text;
+    for (const auto* label : dialog.findChildren<QLabel*>()) {
+        combined_label_text += label->text();
+        combined_label_text += QLatin1Char('\n');
+    }
+    CHECK(combined_label_text.contains(QStringLiteral("Status: Enabled")));
+
+    item->setCheckState(0, Qt::Unchecked);
+    QCoreApplication::processEvents();
+    CHECK_FALSE(manager->is_enabled("johnny_decimal_support"));
+    CHECK(manager->installed_profiles().empty());
 }
 
 TEST_CASE("FolderStructurePluginManager rejects tampered plugin payloads") {

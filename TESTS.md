@@ -1982,6 +1982,13 @@ Procedure: Install the archive, load verified profiles, create plugin-provided f
 Expected outcome: The package installs, the signer id is recorded, the profile appears in template descriptors, and matched plugin guidance is added to routing prompts.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs signed declarative plugins"`
 
+#### Test case: FolderStructurePluginManager persists disabled plugin profiles
+Purpose: Ensure disabled folder-structure plugins remain installed but stop contributing templates and routing guidance.
+Setup: Build and install a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key.
+Procedure: Disable the plugin, query installed plugins/profiles, reload the manager, then re-enable the plugin.
+Expected outcome: Installed manifests remain available, disabled profiles are filtered out, and the disabled state persists until re-enabled.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager persists disabled plugin profiles"`
+
 #### Test case: FolderStructurePluginManager requires entitlement for licensed plugins
 Purpose: Ensure commercial folder-structure plugins cannot be imported with package signature alone.
 Setup: Build a signed Johnny.Decimal archive whose manifest has `license_required: true` and no matching local receipt.
@@ -1995,6 +2002,13 @@ Setup: Store a signed Johnny.Decimal entitlement receipt, then build a signed li
 Procedure: Install the archive and query installed plugins/profiles.
 Expected outcome: Installation succeeds and the licensed profile is available through the plugin manager.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs licensed plugins with entitlement receipts"`
+
+#### Test case: FolderStructurePluginDialog controls plugin enablement
+Purpose: Ensure the folder-structure plugin manager dialog exposes per-plugin enable controls.
+Setup: Install a signed Johnny.Decimal profile archive and create the dialog with the verified plugin manager.
+Procedure: Inspect row selection, read the status details, and clear the plugin's Enabled checkbox.
+Expected outcome: Selection is row-based, the installed plugin starts enabled, and clearing the checkbox persists a disabled state that removes plugin profiles from loading.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog controls plugin enablement"`
 
 #### Test case: FolderStructurePluginManager rejects tampered plugin payloads
 Purpose: Ensure package payloads cannot be changed after signing.

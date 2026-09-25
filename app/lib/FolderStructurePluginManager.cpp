@@ -1,6 +1,10 @@
 #include "FolderStructurePluginManager.hpp"
 
 #include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <algorithm>
 #include <filesystem>
@@ -14,6 +18,8 @@
 #include "Utils.hpp"
 
 namespace {
+
+constexpr char kDisabledPluginIdsKey[] = "disabled_plugin_ids";
 
 bool copy_package_tree(const std::filesystem::path& source, const std::filesystem::path& destination,
                        std::string* error) {
@@ -102,7 +108,11 @@ std::vector<FolderStructurePluginManifest> FolderStructurePluginManager::install
 
 std::vector<FolderStructurePluginProfile> FolderStructurePluginManager::installed_profiles() const {
     std::vector<FolderStructurePluginProfile> profiles;
+    const auto disabled_ids = disabled_plugin_ids();
     for (const auto& manifest : installed_plugins()) {
+        if (std::find(disabled_ids.begin(), disabled_ids.end(), manifest.id) != disabled_ids.end()) {
+            continue;
+        }
         std::string error;
         auto package_profiles = load_folder_structure_plugin_profiles(manifest, &error);
         profiles.insert(profiles.end(), std::make_move_iterator(package_profiles.begin()),
@@ -115,6 +125,34 @@ bool FolderStructurePluginManager::is_installed(const std::string& plugin_id) co
     const auto manifests = installed_plugins();
     return std::any_of(manifests.begin(), manifests.end(),
                        [&](const FolderStructurePluginManifest& manifest) { return manifest.id == plugin_id; });
+}
+
+bool FolderStructurePluginManager::is_enabled(const std::string& plugin_id) const {
+    if (plugin_id.empty()) {
+        return false;
+    }
+    const auto disabled_ids = disabled_plugin_ids();
+    return std::find(disabled_ids.begin(), disabled_ids.end(), plugin_id) == disabled_ids.end();
+}
+
+bool FolderStructurePluginManager::set_enabled(const std::string& plugin_id, bool enabled, std::string* error) const {
+    if (plugin_id.empty()) {
+        if (error) {
+            *error = "No folder-structure plugin id was provided.";
+        }
+        return false;
+    }
+
+    auto disabled_ids = disabled_plugin_ids();
+    const auto it = std::find(disabled_ids.begin(), disabled_ids.end(), plugin_id);
+    if (enabled) {
+        if (it != disabled_ids.end()) {
+            disabled_ids.erase(it);
+        }
+    } else if (it == disabled_ids.end()) {
+        disabled_ids.push_back(plugin_id);
+    }
+    return save_disabled_plugin_ids(std::move(disabled_ids), error);
 }
 
 bool FolderStructurePluginManager::install_from_archive(const std::filesystem::path& archive_path,
@@ -204,6 +242,7 @@ bool FolderStructurePluginManager::uninstall(const std::string& plugin_id, std::
         }
         return false;
     }
+    set_enabled(plugin_id, true);
     return true;
 }
 
@@ -215,11 +254,73 @@ std::filesystem::path FolderStructurePluginManager::staging_root() const {
     return staging_directory_for_config_dir(config_dir_);
 }
 
+std::filesystem::path FolderStructurePluginManager::state_file() const {
+    return std::filesystem::path(config_dir_) / "plugins" / "folder-structures" / "state.json";
+}
+
 std::vector<FolderStructurePluginPublicKey> FolderStructurePluginManager::trusted_keys() const {
     if (!trusted_keys_.empty()) {
         return trusted_keys_;
     }
     return default_folder_structure_plugin_public_keys();
+}
+
+std::vector<std::string> FolderStructurePluginManager::disabled_plugin_ids() const {
+    const auto path = state_file();
+    QFile file(QString::fromStdString(Utils::path_to_utf8(path)));
+    if (!file.exists() || !file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    if (!document.isObject()) {
+        return {};
+    }
+
+    std::vector<std::string> ids;
+    const QJsonArray values = document.object().value(QString::fromLatin1(kDisabledPluginIdsKey)).toArray();
+    ids.reserve(static_cast<std::size_t>(values.size()));
+    for (const auto& value : values) {
+        const QString id = value.toString().trimmed();
+        if (!id.isEmpty()) {
+            ids.push_back(id.toStdString());
+        }
+    }
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    return ids;
+}
+
+bool FolderStructurePluginManager::save_disabled_plugin_ids(std::vector<std::string> plugin_ids,
+                                                            std::string* error) const {
+    std::sort(plugin_ids.begin(), plugin_ids.end());
+    plugin_ids.erase(std::unique(plugin_ids.begin(), plugin_ids.end()), plugin_ids.end());
+
+    std::error_code ec;
+    std::filesystem::create_directories(state_file().parent_path(), ec);
+    if (ec) {
+        if (error) {
+            *error = "Failed to create folder-structure plugin state directory: " + ec.message();
+        }
+        return false;
+    }
+
+    QJsonArray values;
+    for (const auto& plugin_id : plugin_ids) {
+        values.append(QString::fromStdString(plugin_id));
+    }
+    QJsonObject object;
+    object.insert(QString::fromLatin1(kDisabledPluginIdsKey), values);
+
+    QFile file(QString::fromStdString(Utils::path_to_utf8(state_file())));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        if (error) {
+            *error = "Failed to save folder-structure plugin state.";
+        }
+        return false;
+    }
+    file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
+    return true;
 }
 
 bool FolderStructurePluginManager::has_required_entitlement(const FolderStructurePluginManifest& manifest,

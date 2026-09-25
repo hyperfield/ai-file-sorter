@@ -57,6 +57,20 @@ class FolderStructurePluginManager {
      * @return True when a valid installed package exists.
      */
     bool is_installed(const std::string& plugin_id) const;
+    /**
+     * @brief Checks whether an installed plugin is enabled for templates and routing guidance.
+     * @param plugin_id Plugin id to query.
+     * @return True when the plugin is not explicitly disabled.
+     */
+    bool is_enabled(const std::string& plugin_id) const;
+    /**
+     * @brief Enables or disables an installed plugin.
+     * @param plugin_id Plugin id to update.
+     * @param enabled True to load the plugin, false to keep it installed but inactive.
+     * @param error Optional output for a user-facing failure reason.
+     * @return True when the preference was saved.
+     */
+    bool set_enabled(const std::string& plugin_id, bool enabled, std::string* error = nullptr) const;
 
     /**
      * @brief Installs a signed folder-structure plugin archive.
@@ -79,7 +93,10 @@ class FolderStructurePluginManager {
    private:
     std::filesystem::path package_root() const;
     std::filesystem::path staging_root() const;
+    std::filesystem::path state_file() const;
     std::vector<FolderStructurePluginPublicKey> trusted_keys() const;
+    std::vector<std::string> disabled_plugin_ids() const;
+    bool save_disabled_plugin_ids(std::vector<std::string> plugin_ids, std::string* error = nullptr) const;
     bool has_required_entitlement(const FolderStructurePluginManifest& manifest, std::string* error = nullptr) const;
     std::optional<FolderStructurePluginManifest> load_verified_manifest(const std::filesystem::path& package_dir,
                                                                         std::string* error = nullptr) const;
