@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QDialog>
 #include <memory>
 #include <string>
@@ -10,11 +11,14 @@ class QTreeWidget;
 class QTreeWidgetItem;
 
 class FolderStructurePluginManager;
+struct FolderStructurePluginInstallError;
 
 /**
  * @brief Dialog for installing and removing signed folder-structure plugins.
  */
 class FolderStructurePluginDialog : public QDialog {
+    Q_DECLARE_TR_FUNCTIONS(FolderStructurePluginDialog)
+
    public:
     /**
      * @brief Constructs the folder-structure plugin management dialog.
@@ -43,6 +47,12 @@ class FolderStructurePluginDialog : public QDialog {
      * @brief Imports and installs a signed plugin archive chosen by the user.
      */
     void import_plugin_archive();
+    /**
+     * @brief Offers license activation for an entitlement-gated plugin installation.
+     * @param install_error Structured missing-entitlement failure from the manager.
+     * @return True when activation completed and installation should be retried.
+     */
+    bool activate_missing_entitlement(const FolderStructurePluginInstallError& install_error);
     /**
      * @brief Uninstalls the currently selected folder-structure plugin.
      */

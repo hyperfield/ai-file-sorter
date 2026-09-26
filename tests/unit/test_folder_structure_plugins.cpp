@@ -329,9 +329,13 @@ TEST_CASE("FolderStructurePluginManager requires entitlement for licensed plugin
         config_dir.path(), std::vector<PluginEntitlementPublicKey>{test_entitlement_public_key()});
     FolderStructurePluginManager manager(config_dir.path().string(), {test_public_key()}, entitlement_service);
 
-    std::string error;
+    FolderStructurePluginInstallError error;
     CHECK_FALSE(manager.install_from_archive(archive_path, nullptr, &error));
-    CHECK(error.find("entitlement") != std::string::npos);
+    CHECK(error.message.find("entitlement") != std::string::npos);
+    CHECK(error.missing_entitlement);
+    CHECK(error.product_id == "johnny_decimal_support");
+    CHECK(error.plugin_id == "johnny_decimal_support");
+    CHECK(error.plugin_name == "Johnny.Decimal Support");
     CHECK(manager.installed_plugins().empty());
 }
 

@@ -11,6 +11,24 @@
 class PluginEntitlementService;
 
 /**
+ * @brief Detailed result data for a failed folder-structure plugin installation.
+ */
+struct FolderStructurePluginInstallError {
+    /** @brief User-facing failure message. */
+    std::string message;
+    /** @brief True when installation failed only because a commercial entitlement is missing. */
+    bool missing_entitlement{false};
+    /** @brief Product id that must be activated before installation can continue. */
+    std::string product_id;
+    /** @brief Plugin id from the signed manifest, when known. */
+    std::string plugin_id;
+    /** @brief User-facing plugin name from the signed manifest, when known. */
+    std::string plugin_name;
+    /** @brief Optional purchase or account-management URL from the signed manifest. */
+    std::string purchase_url;
+};
+
+/**
  * @brief Installs and loads signed declarative folder-structure plugins.
  */
 class FolderStructurePluginManager {
@@ -73,6 +91,16 @@ class FolderStructurePluginManager {
     bool set_enabled(const std::string& plugin_id, bool enabled, std::string* error = nullptr) const;
 
     /**
+     * @brief Activates a commercial plugin license through the configured activation endpoint.
+     * @param product_id Product id requested by a plugin manifest.
+     * @param license_key User-provided license key.
+     * @param error Optional output for a user-facing failure reason.
+     * @return True when activation succeeded and a signed receipt was cached.
+     */
+    bool activate_license(const std::string& product_id, const std::string& license_key,
+                          std::string* error = nullptr) const;
+
+    /**
      * @brief Installs a signed folder-structure plugin archive.
      * @param archive_path Archive path to import.
      * @param installed_plugin_id Optional output for the installed plugin id.
@@ -81,6 +109,16 @@ class FolderStructurePluginManager {
      */
     bool install_from_archive(const std::filesystem::path& archive_path, std::string* installed_plugin_id = nullptr,
                               std::string* error = nullptr) const;
+
+    /**
+     * @brief Installs a signed folder-structure plugin archive with structured failure details.
+     * @param archive_path Archive path to import.
+     * @param installed_plugin_id Optional output for the installed plugin id.
+     * @param error Optional output for structured failure details.
+     * @return True when installation succeeds.
+     */
+    bool install_from_archive(const std::filesystem::path& archive_path, std::string* installed_plugin_id,
+                              FolderStructurePluginInstallError* error) const;
 
     /**
      * @brief Removes an installed folder-structure plugin package.
@@ -97,6 +135,8 @@ class FolderStructurePluginManager {
     std::vector<FolderStructurePluginPublicKey> trusted_keys() const;
     std::vector<std::string> disabled_plugin_ids() const;
     bool save_disabled_plugin_ids(std::vector<std::string> plugin_ids, std::string* error = nullptr) const;
+    bool has_required_entitlement(const FolderStructurePluginManifest& manifest,
+                                  FolderStructurePluginInstallError* error) const;
     bool has_required_entitlement(const FolderStructurePluginManifest& manifest, std::string* error = nullptr) const;
     std::optional<FolderStructurePluginManifest> load_verified_manifest(const std::filesystem::path& package_dir,
                                                                         std::string* error = nullptr) const;

@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include <algorithm>
+#include <app_version.hpp>
 #include <filesystem>
 #include <iterator>
 #include <optional>
@@ -15,6 +16,7 @@
 
 #include "PluginArchiveExtractor.hpp"
 #include "PluginEntitlementService.hpp"
+#include "PluginLicenseActivator.hpp"
 #include "Utils.hpp"
 
 namespace {
@@ -44,6 +46,14 @@ bool copy_package_tree(const std::filesystem::path& source, const std::filesyste
         return false;
     }
     return true;
+}
+
+bool fail_install(FolderStructurePluginInstallError* error, std::string message) {
+    if (error) {
+        *error = FolderStructurePluginInstallError{};
+        error->message = std::move(message);
+    }
+    return false;
 }
 
 std::vector<std::filesystem::path> candidate_manifest_paths(const std::filesystem::path& package_root) {
@@ -155,69 +165,93 @@ bool FolderStructurePluginManager::set_enabled(const std::string& plugin_id, boo
     return save_disabled_plugin_ids(std::move(disabled_ids), error);
 }
 
+bool FolderStructurePluginManager::activate_license(const std::string& product_id, const std::string& license_key,
+                                                    std::string* error) const {
+    PluginLicenseActivationRequest request;
+    request.activation_url = PluginLicenseActivator::default_activation_url();
+    request.license_key = license_key;
+    request.product_id = product_id;
+    request.app_version = APP_VERSION.to_numeric_string();
+    request.platform = PluginLicenseActivator::default_platform();
+
+    const PluginLicenseActivationResult result =
+        PluginLicenseActivator::activate(std::filesystem::path(config_dir_), request);
+    if (result.activated) {
+        return true;
+    }
+
+    if (error) {
+        *error = result.message.empty() ? "Failed to activate plugin license." : result.message;
+    }
+    return false;
+}
+
 bool FolderStructurePluginManager::install_from_archive(const std::filesystem::path& archive_path,
                                                         std::string* installed_plugin_id, std::string* error) const {
+    FolderStructurePluginInstallError detailed_error;
+    const bool installed = install_from_archive(archive_path, installed_plugin_id, &detailed_error);
+    if (!installed && error) {
+        *error = detailed_error.message;
+    }
+    return installed;
+}
+
+bool FolderStructurePluginManager::install_from_archive(const std::filesystem::path& archive_path,
+                                                        std::string* installed_plugin_id,
+                                                        FolderStructurePluginInstallError* error) const {
     if (!PluginArchiveExtractor::supports_archive(archive_path)) {
-        if (error) {
-            *error = "Only .aifsplugin and .zip plugin packages are supported.";
-        }
-        return false;
+        return fail_install(error, "Only .aifsplugin and .zip plugin packages are supported.");
     }
 
     QDir staging_dir(QString::fromStdString(Utils::path_to_utf8(staging_root())));
     if (!staging_dir.exists() && !staging_dir.mkpath(QStringLiteral("."))) {
-        if (error) {
-            *error = "Failed to create folder-structure plugin staging directory.";
-        }
-        return false;
+        return fail_install(error, "Failed to create folder-structure plugin staging directory.");
     }
 
     QTemporaryDir temp_dir(QString::fromStdString(Utils::path_to_utf8(staging_root() / "archive-XXXXXX")));
     if (!temp_dir.isValid()) {
-        if (error) {
-            *error = "Failed to create a temporary folder-structure plugin extraction directory.";
-        }
-        return false;
+        return fail_install(error, "Failed to create a temporary folder-structure plugin extraction directory.");
     }
 
     auto extraction =
         PluginArchiveExtractor::extract_archive(archive_path, Utils::utf8_to_path(temp_dir.path().toStdString()));
     if (!extraction.ok()) {
-        if (error) {
-            *error = extraction.message;
-        }
-        return false;
+        return fail_install(error, extraction.message);
     }
 
     std::string signer_key_id;
     const std::filesystem::path extracted_package_root = extraction.manifest_path.parent_path();
-    if (!verify_folder_structure_plugin_package(extracted_package_root, trusted_keys(), &signer_key_id, error)) {
-        return false;
+    std::string failure_message;
+    if (!verify_folder_structure_plugin_package(extracted_package_root, trusted_keys(), &signer_key_id,
+                                                &failure_message)) {
+        return fail_install(error, failure_message);
     }
 
-    auto manifest = load_folder_structure_plugin_manifest_from_file(extraction.manifest_path, error);
+    failure_message.clear();
+    auto manifest = load_folder_structure_plugin_manifest_from_file(extraction.manifest_path, &failure_message);
     if (!manifest) {
-        return false;
+        return fail_install(error, failure_message);
     }
     manifest->verified_signer_key_id = signer_key_id;
     if (!has_required_entitlement(*manifest, error)) {
         return false;
     }
 
-    const auto profiles = load_folder_structure_plugin_profiles(*manifest, error);
+    failure_message.clear();
+    const auto profiles = load_folder_structure_plugin_profiles(*manifest, &failure_message);
     if (profiles.empty()) {
-        if (error && error->empty()) {
-            *error = "Folder-structure plugin package contains no usable profiles.";
-        }
-        return false;
+        return fail_install(error, failure_message.empty()
+                                       ? "Folder-structure plugin package contains no usable profiles."
+                                       : failure_message);
     }
 
     const auto install_dir = package_root() / manifest->id / manifest->version;
     std::error_code ec;
     std::filesystem::remove_all(package_root() / manifest->id, ec);
     ec.clear();
-    if (!copy_package_tree(extracted_package_root, install_dir, error)) {
-        return false;
+    failure_message.clear();
+    if (!copy_package_tree(extracted_package_root, install_dir, &failure_message)) {
+        return fail_install(error, failure_message);
     }
 
     if (installed_plugin_id) {
@@ -324,7 +358,7 @@ bool FolderStructurePluginManager::save_disabled_plugin_ids(std::vector<std::str
 }
 
 bool FolderStructurePluginManager::has_required_entitlement(const FolderStructurePluginManifest& manifest,
-                                                            std::string* error) const {
+                                                            FolderStructurePluginInstallError* error) const {
     if (!manifest.license_required) {
         return true;
     }
@@ -335,9 +369,26 @@ bool FolderStructurePluginManager::has_required_entitlement(const FolderStructur
     }
 
     if (error) {
-        *error = "This folder-structure plugin requires an active entitlement for product '" + product_id + "'.";
+        *error = FolderStructurePluginInstallError{};
+        error->message =
+            "This folder-structure plugin requires an active entitlement for product '" + product_id + "'.";
+        error->missing_entitlement = true;
+        error->product_id = product_id;
+        error->plugin_id = manifest.id;
+        error->plugin_name = manifest.name.empty() ? manifest.id : manifest.name;
+        error->purchase_url = manifest.purchase_url;
     }
     return false;
+}
+
+bool FolderStructurePluginManager::has_required_entitlement(const FolderStructurePluginManifest& manifest,
+                                                            std::string* error) const {
+    FolderStructurePluginInstallError detailed_error;
+    const bool has_entitlement = has_required_entitlement(manifest, &detailed_error);
+    if (!has_entitlement && error) {
+        *error = detailed_error.message;
+    }
+    return has_entitlement;
 }
 
 std::optional<FolderStructurePluginManifest> FolderStructurePluginManager::load_verified_manifest(
