@@ -14,10 +14,12 @@
 #include <QMessageBox>
 #include <QPalette>
 #include <QPushButton>
+#include <QTabWidget>
 #include <QVBoxLayout>
 #include <filesystem>
 #include <string>
 
+#include "JohnnyDecimalFolderSuggester.hpp"
 #include "Utils.hpp"
 
 namespace {
@@ -37,32 +39,16 @@ QString path_to_qstring(const std::filesystem::path& path) {
 
 }  // namespace
 
-FolderStructureInitializerDialog::FolderStructureInitializerDialog(const std::filesystem::path& start_directory,
-                                                                   const std::vector<FolderStructurePluginProfile>& plugin_profiles,
-                                                                   QWidget* parent)
+FolderStructureInitializerDialog::FolderStructureInitializerDialog(
+    const std::filesystem::path& start_directory, const std::vector<FolderStructurePluginProfile>& plugin_profiles,
+    QWidget* parent)
     : QDialog(parent),
+      plugin_profiles_(plugin_profiles),
       descriptors_(FolderStructureTemplates::all_with_plugins(plugin_profiles)) {
     setWindowTitle(tr("Create folder structure"));
     setMinimumSize(760, 520);
 
     auto* root_layout = new QVBoxLayout(this);
-
-    auto* content_layout = new QHBoxLayout();
-    root_layout->addLayout(content_layout, 1);
-
-    template_list_ = new QListWidget(this);
-    template_list_->setSelectionMode(QAbstractItemView::SingleSelection);
-    template_list_->setMinimumWidth(260);
-    template_list_->setObjectName(QStringLiteral("folderStructureTemplateList"));
-    content_layout->addWidget(template_list_);
-
-    auto* detail_layout = new QVBoxLayout();
-    content_layout->addLayout(detail_layout, 1);
-
-    description_label_ = new QLabel(this);
-    description_label_->setWordWrap(true);
-    description_label_->setObjectName(QStringLiteral("folderStructureDescriptionLabel"));
-    detail_layout->addWidget(description_label_);
 
     auto* destination_row = new QHBoxLayout();
     destination_edit_ = new QLineEdit(this);
@@ -75,7 +61,28 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(const std::fi
 
     auto* form_layout = new QFormLayout();
     form_layout->addRow(tr("Destination:"), destination_row);
-    detail_layout->addLayout(form_layout);
+    root_layout->addLayout(form_layout);
+
+    tab_widget_ = new QTabWidget(this);
+    tab_widget_->setObjectName(QStringLiteral("folderStructureTabWidget"));
+    root_layout->addWidget(tab_widget_, 1);
+
+    starter_tab_ = new QWidget(tab_widget_);
+    auto* starter_layout = new QHBoxLayout(starter_tab_);
+
+    template_list_ = new QListWidget(this);
+    template_list_->setSelectionMode(QAbstractItemView::SingleSelection);
+    template_list_->setMinimumWidth(260);
+    template_list_->setObjectName(QStringLiteral("folderStructureTemplateList"));
+    starter_layout->addWidget(template_list_);
+
+    auto* detail_layout = new QVBoxLayout();
+    starter_layout->addLayout(detail_layout, 1);
+
+    description_label_ = new QLabel(this);
+    description_label_->setWordWrap(true);
+    description_label_->setObjectName(QStringLiteral("folderStructureDescriptionLabel"));
+    detail_layout->addWidget(description_label_);
 
     auto* preview_label = new QLabel(tr("Folders to create:"), this);
     detail_layout->addWidget(preview_label);
@@ -84,6 +91,32 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(const std::fi
     preview_list_->setObjectName(QStringLiteral("folderStructurePreviewList"));
     preview_list_->setAlternatingRowColors(true);
     detail_layout->addWidget(preview_list_, 1);
+    tab_widget_->addTab(starter_tab_, tr("Starter structure"));
+
+    next_folder_tab_ = new QWidget(tab_widget_);
+    auto* next_layout = new QVBoxLayout(next_folder_tab_);
+
+    auto* next_form_layout = new QFormLayout();
+    next_area_edit_ = new QLineEdit(this);
+    next_area_edit_->setObjectName(QStringLiteral("johnnyDecimalNextAreaEdit"));
+    next_area_edit_->setPlaceholderText(QStringLiteral("Work"));
+    next_folder_edit_ = new QLineEdit(this);
+    next_folder_edit_->setObjectName(QStringLiteral("johnnyDecimalNextFolderEdit"));
+    next_folder_edit_->setPlaceholderText(QStringLiteral("Proposals"));
+    next_preview_edit_ = new QLineEdit(this);
+    next_preview_edit_->setObjectName(QStringLiteral("johnnyDecimalNextPreviewEdit"));
+    next_preview_edit_->setReadOnly(true);
+    next_form_layout->addRow(tr("Area:"), next_area_edit_);
+    next_form_layout->addRow(tr("Folder:"), next_folder_edit_);
+    next_form_layout->addRow(tr("Preview:"), next_preview_edit_);
+    next_layout->addLayout(next_form_layout);
+
+    next_preview_status_label_ = new QLabel(this);
+    next_preview_status_label_->setWordWrap(true);
+    next_preview_status_label_->setObjectName(QStringLiteral("johnnyDecimalNextPreviewStatusLabel"));
+    next_layout->addWidget(next_preview_status_label_);
+    next_layout->addStretch(1);
+    tab_widget_->addTab(next_folder_tab_, tr("Next folder"));
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     create_button_ = buttons->addButton(tr("Create"), QDialogButtonBox::AcceptRole);
@@ -92,8 +125,17 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(const std::fi
 
     connect(template_list_, &QListWidget::currentItemChanged, this, [this]() { update_selection(); });
     connect(destination_edit_, &QLineEdit::textChanged, this, [this]() { update_selection(); });
+    connect(next_area_edit_, &QLineEdit::textChanged, this, [this]() { update_selection(); });
+    connect(next_folder_edit_, &QLineEdit::textChanged, this, [this]() { update_selection(); });
     connect(browse_button_, &QPushButton::clicked, this, [this]() { browse_destination(); });
-    connect(create_button_, &QPushButton::clicked, this, [this]() { create_selected_structure(); });
+    connect(tab_widget_, &QTabWidget::currentChanged, this, [this]() { update_selection(); });
+    connect(create_button_, &QPushButton::clicked, this, [this]() {
+        if (next_folder_tab_active()) {
+            create_next_johnny_decimal_folder();
+        } else {
+            create_selected_structure();
+        }
+    });
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     populate_templates();
@@ -142,6 +184,10 @@ void FolderStructureInitializerDialog::update_selection() {
     const bool available = descriptor && descriptor->available;
     const bool has_destination = destination_edit_ && !destination_edit_->text().trimmed().isEmpty();
 
+    if (create_button_) {
+        create_button_->setText(next_folder_tab_active() ? tr("Create folder") : tr("Create"));
+    }
+
     if (description_label_) {
         description_label_->setText(descriptor ? from_utf8(descriptor->description) : QString());
     }
@@ -152,6 +198,40 @@ void FolderStructureInitializerDialog::update_selection() {
                 preview_list_->addItem(from_utf8(relative));
             }
         }
+    }
+    if (next_folder_tab_active()) {
+        QString status;
+        QString preview;
+        bool can_create_next_folder = false;
+        if (!has_destination) {
+            status = tr("Choose a destination folder.");
+        } else if (!next_area_edit_ || next_area_edit_->text().trimmed().isEmpty()) {
+            status = tr("Enter an area name.");
+        } else if (!next_folder_edit_ || next_folder_edit_->text().trimmed().isEmpty()) {
+            status = tr("Enter a folder name.");
+        } else {
+            std::string error;
+            const auto suggestion = JohnnyDecimalFolderSuggester::preview_next_folder(
+                destination_root(), to_utf8(next_area_edit_->text().trimmed()),
+                to_utf8(next_folder_edit_->text().trimmed()), plugin_profiles_, &error);
+            if (suggestion) {
+                preview = from_utf8(suggestion->relative_path);
+                status = tr("Ready to create.");
+                can_create_next_folder = true;
+            } else {
+                status = from_utf8(error);
+            }
+        }
+        if (next_preview_edit_) {
+            next_preview_edit_->setText(preview);
+        }
+        if (next_preview_status_label_) {
+            next_preview_status_label_->setText(status);
+        }
+        if (create_button_) {
+            create_button_->setEnabled(can_create_next_folder);
+        }
+        return;
     }
     if (create_button_) {
         create_button_->setEnabled(available && has_destination);
@@ -189,6 +269,31 @@ void FolderStructureInitializerDialog::create_selected_structure() {
                                  .arg(static_cast<qulonglong>(created_count_))
                                  .arg(static_cast<qulonglong>(existing_count_)));
     accept();
+}
+
+void FolderStructureInitializerDialog::create_next_johnny_decimal_folder() {
+    if (!next_area_edit_ || !next_folder_edit_) {
+        return;
+    }
+
+    const auto result = JohnnyDecimalFolderSuggester::create_next_folder(
+        destination_root(), to_utf8(next_area_edit_->text().trimmed()), to_utf8(next_folder_edit_->text().trimmed()),
+        plugin_profiles_);
+    if (!result.success) {
+        QMessageBox::warning(this, tr("Create Johnny.Decimal folder"), from_utf8(result.error));
+        update_selection();
+        return;
+    }
+
+    created_count_ = result.created_directories.size();
+    existing_count_ = 0;
+    QMessageBox::information(this, tr("Johnny.Decimal folder created"),
+                             tr("Created %1.").arg(from_utf8(result.suggestion.relative_path)));
+    accept();
+}
+
+bool FolderStructureInitializerDialog::next_folder_tab_active() const {
+    return tab_widget_ && next_folder_tab_ && tab_widget_->currentWidget() == next_folder_tab_;
 }
 
 const FolderStructureTemplates::Descriptor* FolderStructureInitializerDialog::selected_template() const {
