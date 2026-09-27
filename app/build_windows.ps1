@@ -426,6 +426,93 @@ function Assert-SufficientConfigureDiskSpace {
     }
 }
 
+function Convert-ToExtendedLengthPath {
+    param([string]$Path)
+
+    if (-not [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+            [System.Runtime.InteropServices.OSPlatform]::Windows)) {
+        return $Path
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    if ($fullPath.StartsWith("\\?\")) {
+        return $fullPath
+    }
+    if ($fullPath.StartsWith("\\")) {
+        return "\\?\UNC\" + $fullPath.Substring(2)
+    }
+    return "\\?\" + $fullPath
+}
+
+function Test-PathIsBelowDirectory {
+    param(
+        [string]$Path,
+        [string]$Directory
+    )
+
+    if (-not $Path -or -not $Directory) {
+        return $false
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+    $fullDirectory = [System.IO.Path]::GetFullPath($Directory).TrimEnd('\')
+    if ($fullPath.Equals($fullDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+    return $fullPath.StartsWith($fullDirectory + "\", [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Remove-BuildTree {
+    param(
+        [string]$Path,
+        [string]$Label
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    if (-not (Test-PathIsBelowDirectory -Path $fullPath -Directory $appDir)) {
+        throw "Refusing to remove $Label outside the app workspace: '$fullPath'."
+    }
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 4; ++$attempt) {
+        if (-not (Test-Path -LiteralPath $fullPath)) {
+            return
+        }
+
+        try {
+            Remove-Item -LiteralPath $fullPath -Recurse -Force -ErrorAction Stop
+            return
+        } catch {
+            $lastError = $_
+            if (-not (Test-Path -LiteralPath $fullPath)) {
+                return
+            }
+        }
+
+        try {
+            [System.IO.Directory]::Delete((Convert-ToExtendedLengthPath -Path $fullPath), $true)
+            return
+        } catch [System.IO.DirectoryNotFoundException] {
+            return
+        } catch {
+            $lastError = $_
+            if (-not (Test-Path -LiteralPath $fullPath)) {
+                return
+            }
+        }
+
+        if ($attempt -lt 4) {
+            Start-Sleep -Milliseconds (250 * $attempt)
+        }
+    }
+
+    throw "Failed to remove $Label '$fullPath': $($lastError.Exception.Message)"
+}
+
 function Write-ConfigureFailureDiagnostics {
     param(
         [pscustomobject]$Variant,
@@ -564,7 +651,7 @@ function Reset-StaleVariantBuildDirectory {
         Write-Warning " - $reason"
     }
 
-    Remove-Item -Recurse -Force $Variant.BuildDir
+    Remove-BuildTree -Path $Variant.BuildDir -Label "$($Variant.Name) build directory"
 }
 
 function Copy-VcpkgRuntimeDlls {
@@ -1073,18 +1160,18 @@ if ($Parallel -lt 1) {
 
 if ($Clean) {
     foreach ($variant in $selectedVariants) {
-        if (Test-Path $variant.BuildDir) {
+        if (Test-Path -LiteralPath $variant.BuildDir) {
             Write-Output "Removing existing build directory '$($variant.BuildDir)'..."
-            Remove-Item -Recurse -Force $variant.BuildDir
+            Remove-BuildTree -Path $variant.BuildDir -Label "$($variant.Name) build directory"
         }
     }
-    if (Test-Path $sharedVcpkgInstalledDir) {
+    if (Test-Path -LiteralPath $sharedVcpkgInstalledDir) {
         Write-Output "Removing shared vcpkg install directory '$sharedVcpkgInstalledDir'..."
-        Remove-Item -Recurse -Force $sharedVcpkgInstalledDir
+        Remove-BuildTree -Path $sharedVcpkgInstalledDir -Label "shared vcpkg install directory"
     }
 }
 
-if (-not (Test-Path $sharedVcpkgInstalledDir)) {
+if (-not (Test-Path -LiteralPath $sharedVcpkgInstalledDir)) {
     New-Item -ItemType Directory -Path $sharedVcpkgInstalledDir | Out-Null
 }
 
