@@ -1938,6 +1938,41 @@ Procedure: Ask for a `Finance / Invoices` new-folder suggestion.
 Expected outcome: The suggestion creates the next top-level range and the first child number inside that range.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests new Johnny Decimal-like area"`
 
+#### Test case: JohnnyDecimalFolderSuggester previews the next child number
+Purpose: Verify the manual Johnny.Decimal folder creator previews a safe next child number under an existing area.
+Setup: Create a temporary Johnny.Decimal-like tree with a numbered gap under `20-29 Work`.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview returns `20-29 Work/22 Proposals` and resolves the absolute target path without creating it.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester previews the next child number"`
+
+#### Test case: JohnnyDecimalFolderSuggester creates a new area and first child folder
+Purpose: Ensure the manual Johnny.Decimal folder creator can extend the top-level area range.
+Setup: Create a temporary archive with `10-19`, `20-29`, and `30-39` areas.
+Procedure: Create a `Finance / Invoices` folder.
+Expected outcome: The operation creates `40-49 Finance/41 Invoices` and records both newly created directories.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester creates a new area and first child folder"`
+
+#### Test case: JohnnyDecimalFolderSuggester rejects duplicate sibling labels
+Purpose: Prevent the manual creator from assigning a fresh number to a label that already exists in the target area.
+Setup: Create a temporary archive where `20-29 Work/22 Proposals` already exists.
+Procedure: Preview another `Work / Proposals` folder.
+Expected outcome: The preview is rejected with a message that names the existing duplicate path.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester rejects duplicate sibling labels"`
+
+#### Test case: JohnnyDecimalFolderSuggester rejects occupied next-number file paths
+Purpose: Ensure collision checking catches files that occupy the next numbered path.
+Setup: Create a temporary archive where the next `Work / Proposals` path exists as a file rather than a directory.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview is rejected before any directory creation.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester rejects occupied next-number file paths"`
+
+#### Test case: JohnnyDecimalFolderSuggester requires a Johnny Decimal-like archive
+Purpose: Keep the manual creator scoped to existing Johnny.Decimal-like archives.
+Setup: Create a plain folder tree without numeric ranges.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview is rejected because the destination does not look Johnny.Decimal-like.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester requires a Johnny Decimal-like archive"`
+
 #### Test case: FolderStructurePattern nests under matching custom code folders
 Purpose: Verify deterministic recognition can match custom prefix folders by their human labels.
 Setup: Build a catalog with alphabetic-code folders such as `AC Documents` and `DG Office Apps`.
@@ -1993,7 +2028,7 @@ Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager persists 
 Purpose: Ensure commercial folder-structure plugins cannot be imported with package signature alone.
 Setup: Build a signed Johnny.Decimal archive whose manifest has `license_required: true` and no matching local receipt.
 Procedure: Attempt to install the licensed archive.
-Expected outcome: Installation fails with an entitlement error and no plugin is installed.
+Expected outcome: Installation fails with structured missing-entitlement details and no plugin is installed.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager requires entitlement for licensed plugins"`
 
 #### Test case: FolderStructurePluginManager installs licensed plugins with entitlement receipts
