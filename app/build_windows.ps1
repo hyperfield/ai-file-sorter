@@ -12,8 +12,10 @@ param(
     [int]$Parallel = [System.Environment]::ProcessorCount,
     [ValidateSet("Standard", "MsStore", "Standalone")]
     [string[]]$Variants = @("Standard", "MsStore", "Standalone"),
-    [string]$FolderStructurePluginPublicKeys = $env:AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS,
-    [string]$PluginEntitlementPublicKeys = $env:AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS,
+    [string]$EnvFile,
+    [switch]$SkipLocalEnvFile,
+    [string]$FolderStructurePluginPublicKeys,
+    [string]$PluginEntitlementPublicKeys,
     [switch]$EnablePluginEntitlementDevBypass
 )
 
@@ -51,6 +53,62 @@ $variantDefinitions = @{
         UpdateMode = "NOTIFY_ONLY"
         PackageKind = "STANDALONE"
         Description = "Notification-only updates"
+    }
+}
+
+function Import-LocalBuildEnvFile {
+    param(
+        [string]$Path,
+        [switch]$Required
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        if ($Required) {
+            throw "Local build environment file '$Path' was not found."
+        }
+        return
+    }
+
+    $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
+    $loadedKeys = New-Object System.Collections.Generic.List[string]
+    $lineNumber = 0
+    foreach ($rawLine in Get-Content -LiteralPath $resolvedPath) {
+        ++$lineNumber
+        $line = $rawLine.Trim()
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
+            continue
+        }
+        if ($line.StartsWith("export ")) {
+            $line = $line.Substring(7).Trim()
+        }
+
+        $separator = $line.IndexOf("=")
+        if ($separator -le 0) {
+            throw "Invalid local build env file line $lineNumber in '$resolvedPath'. Expected KEY=VALUE."
+        }
+
+        $key = $line.Substring(0, $separator).Trim()
+        $value = $line.Substring($separator + 1).Trim()
+        if ($key -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+            throw "Invalid environment variable name '$key' on line $lineNumber in '$resolvedPath'."
+        }
+        if (($value.StartsWith('"') -and $value.EndsWith('"')) -or
+            ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+
+        [Environment]::SetEnvironmentVariable($key, $value, "Process")
+        $loadedKeys.Add($key) | Out-Null
+    }
+
+    if ($loadedKeys.Count -gt 0) {
+        Write-Output "Loaded $($loadedKeys.Count) environment variable(s) from '$resolvedPath': $($loadedKeys -join ', ')"
+    } else {
+        Write-Output "Local build environment file '$resolvedPath' did not contain any variables."
     }
 }
 
@@ -846,6 +904,20 @@ function Stage-BuildOutput {
 
 if (-not (Test-Path (Join-Path $llamaDir "CMakeLists.txt"))) {
     throw "llama.cpp submodule not found. Run 'git submodule update --init --recursive' before building."
+}
+
+$localEnvFileWasExplicit = $PSBoundParameters.ContainsKey("EnvFile")
+if ([string]::IsNullOrWhiteSpace($EnvFile) -and -not $localEnvFileWasExplicit) {
+    $EnvFile = Join-Path $appDir "build_windows.local.env"
+}
+if (-not $SkipLocalEnvFile) {
+    Import-LocalBuildEnvFile -Path $EnvFile -Required:$localEnvFileWasExplicit
+}
+if (-not $PSBoundParameters.ContainsKey("FolderStructurePluginPublicKeys")) {
+    $FolderStructurePluginPublicKeys = $env:AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
+}
+if (-not $PSBoundParameters.ContainsKey("PluginEntitlementPublicKeys")) {
+    $PluginEntitlementPublicKeys = $env:AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS
 }
 
 if ($RunTests) {

@@ -34,6 +34,7 @@ app/scripts/git-private.manifest.example
 app/scripts/git-private.ps1
 app/scripts/git-private.README.md
 app/scripts/git_private_sync.py
+app/*.local.env
 
 # Virtual environments
 .venv/
