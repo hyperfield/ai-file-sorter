@@ -150,6 +150,13 @@ public:
      */
     static QAction* run_large_whitelist_llm_test_action(MainApp& app);
     /**
+     * @brief Check whether a folder root would trigger the Johnny.Decimal plugin offer.
+     * @param app MainApp instance.
+     * @param root Folder tree root to inspect.
+     * @return True when the app would offer Johnny.Decimal support for the root.
+     */
+    static bool should_offer_johnny_decimal_plugin_for_root(MainApp& app, const QString& root);
+    /**
      * @brief Access the \"Categorize files\" checkbox.
      * @param app MainApp instance.
      * @return Pointer to the checkbox, or nullptr if unavailable.

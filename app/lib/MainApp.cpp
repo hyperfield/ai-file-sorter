@@ -10,6 +10,8 @@
 #include "DialogUtils.hpp"
 #include "ErrorMessages.hpp"
 #include "ExplorerExtensionEntitlement.hpp"
+#include "FolderStructurePattern.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "FolderStructureInitializerDialog.hpp"
 #include "FolderStructurePluginDialog.hpp"
 #include "FolderStructurePluginManager.hpp"
@@ -348,6 +350,20 @@ std::string to_utf8(const QString& value)
 {
     const QByteArray bytes = value.toUtf8();
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+}
+
+QString normalized_existing_directory_path(const QString& value)
+{
+    const QString trimmed = value.trimmed();
+    if (trimmed.isEmpty()) {
+        return {};
+    }
+
+    const QDir dir(trimmed);
+    if (!dir.exists()) {
+        return {};
+    }
+    return QDir::cleanPath(dir.absolutePath());
 }
 
 constexpr int kNetworkLocationPathRole = Qt::UserRole + 1;
@@ -1671,6 +1687,7 @@ void MainApp::on_directory_selected(const QString& path, bool user_initiated)
     }
 
     update_folder_contents(path);
+    maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
 }
 
 void MainApp::on_destination_directory_selected(const QString& path)
@@ -1689,6 +1706,7 @@ void MainApp::on_destination_directory_selected(const QString& path)
     update_destination_folder_controls();
     statusBar()->showMessage(tr("Destination selected: %1").arg(path), 3000);
     status_is_ready_ = false;
+    maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
 }
 
 void MainApp::update_destination_folder_controls()
@@ -2386,6 +2404,60 @@ void MainApp::show_folder_structure_plugin_dialog()
 
     FolderStructurePluginDialog dialog(folder_structure_plugin_manager_, this);
     dialog.exec();
+}
+
+bool MainApp::should_offer_johnny_decimal_plugin_for_root(const QString& root) const
+{
+    if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree ||
+        settings.get_hide_johnny_decimal_plugin_suggestion() ||
+        (folder_structure_plugin_manager_ &&
+         folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
+        return false;
+    }
+
+    const QString normalized_root = normalized_existing_directory_path(root);
+    if (normalized_root.isEmpty()) {
+        return false;
+    }
+
+    const auto catalog =
+        FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(to_utf8(normalized_root)));
+    const auto profile = FolderStructurePattern::infer_profile(catalog);
+    return profile.has_johnny_decimal_like_ranges;
+}
+
+void MainApp::maybe_suggest_johnny_decimal_plugin_for_current_folder_tree()
+{
+    if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree) {
+        return;
+    }
+
+    const std::vector<QString> candidates = {
+        QString::fromStdString(get_destination_folder_path()),
+        QString::fromStdString(get_folder_path()),
+    };
+    for (const QString& candidate : candidates) {
+        const QString normalized_root = normalized_existing_directory_path(candidate);
+        if (normalized_root.isEmpty()) {
+            continue;
+        }
+
+        const std::string root_key = to_utf8(normalized_root);
+        if (root_key == last_johnny_decimal_plugin_suggestion_root_) {
+            continue;
+        }
+        last_johnny_decimal_plugin_suggestion_root_ = root_key;
+
+        if (!should_offer_johnny_decimal_plugin_for_root(normalized_root)) {
+            continue;
+        }
+
+        if (core_logger) {
+            core_logger->info("Offering Johnny.Decimal folder-structure plugin for '{}'", root_key);
+        }
+        maybe_show_johnny_decimal_plugin_suggestion();
+        return;
+    }
 }
 
 void MainApp::maybe_show_johnny_decimal_plugin_suggestion()

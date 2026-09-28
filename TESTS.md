@@ -561,6 +561,13 @@ Procedure: Switch to existing-folder mode, inspect the destination row, toggle a
 Expected outcome: The old analyzed-folder destination checkbox is absent; the creator button is hidden in generated-category mode, visible beside destination Browse in existing-folder mode, and disabled while analysis is active.
 Run: `./build-tests/ai_file_sorter_tests "Existing folder mode places folder structure creator in destination row"`
 
+#### Test case: Johnny.Decimal plugin offer only triggers for existing-tree archives
+Purpose: Verify the main window only offers the Johnny.Decimal plugin for likely Johnny.Decimal archives in existing-folder mode.
+Setup: Build temporary Johnny.Decimal-like and plain folder trees, configure existing-folder sorting, and construct `MainApp`.
+Procedure: Query the offer decision for the Johnny.Decimal-like tree, the plain tree, generated-category mode, and the persisted "not interested" suppression state.
+Expected outcome: Only the Johnny.Decimal-like tree in existing-folder mode without suppression triggers the offer decision.
+Run: `./build-tests/ai_file_sorter_tests "Johnny.Decimal plugin offer only triggers for existing-tree archives"`
+
 #### Test case: Processing images only preserves recursive scanning when scan subfolders is enabled
 Purpose: Ensure image-only processing does not accidentally clear recursive scanning.
 Setup: Enable image analysis, image-only processing, and include-subdirectories in settings.

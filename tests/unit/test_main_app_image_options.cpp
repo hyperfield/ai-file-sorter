@@ -156,6 +156,48 @@ TEST_CASE("Existing folder mode places folder structure creator in destination r
     CHECK_FALSE(create_button->isVisible());
 }
 
+TEST_CASE("Johnny.Decimal plugin offer only triggers for existing-tree archives") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    const std::filesystem::path archive = temp.path() / "ExistingArchive";
+    std::filesystem::create_directories(archive / "00-09 System" / "01 Inbox");
+    std::filesystem::create_directories(archive / "00-09 System" / "02 Settings");
+    std::filesystem::create_directories(archive / "10-19 Admin" / "11 Finance");
+    std::filesystem::create_directories(archive / "10-19 Admin" / "12 Legal");
+
+    const std::filesystem::path plain = temp.path() / "PlainArchive";
+    std::filesystem::create_directories(plain / "Documents" / "Receipts");
+
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    CHECK(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(
+        window,
+        QString::fromStdString(archive.string())));
+    CHECK_FALSE(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(
+        window,
+        QString::fromStdString(plain.string())));
+
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    CHECK_FALSE(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(
+        window,
+        QString::fromStdString(archive.string())));
+
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_hide_johnny_decimal_plugin_suggestion(true);
+    CHECK_FALSE(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(
+        window,
+        QString::fromStdString(archive.string())));
+}
+
 #ifndef _WIN32
 namespace {
 

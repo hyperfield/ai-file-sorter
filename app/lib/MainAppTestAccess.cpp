@@ -107,6 +107,11 @@ QAction* MainAppTestAccess::run_large_whitelist_llm_test_action(MainApp& app)
     return app.run_large_whitelist_llm_test_action;
 }
 
+bool MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(MainApp& app, const QString& root)
+{
+    return app.should_offer_johnny_decimal_plugin_for_root(root);
+}
+
 QCheckBox* MainAppTestAccess::categorize_files_checkbox(MainApp& app) {
     return app.categorize_files_checkbox;
 }
