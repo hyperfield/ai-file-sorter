@@ -1981,6 +1981,27 @@ Procedure: Preview a `Work / Proposals` folder.
 Expected outcome: The preview is rejected because the destination does not look Johnny.Decimal-like.
 Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester requires a Johnny Decimal-like archive"`
 
+#### Test case: JohnnyDecimalValidator accepts a clean Johnny Decimal archive
+Purpose: Ensure the read-only validation report accepts a well-formed Johnny.Decimal area/category tree.
+Setup: Create temporary `00-09`, `10-19`, and `20-29` areas with direct numbered category folders.
+Procedure: Validate the archive root and format the report.
+Expected outcome: The report is scanned, marks the tree as Johnny.Decimal-like, counts the areas/categories, and has no issues.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator accepts a clean Johnny Decimal archive"`
+
+#### Test case: JohnnyDecimalValidator reports duplicate malformed and outside-range folders
+Purpose: Verify the validation report detects the main Johnny.Decimal structure mistakes.
+Setup: Create duplicate area/category numbers, malformed area/category IDs, an outside-range category, and a root-level category-like folder.
+Procedure: Validate the archive root and collect finding codes.
+Expected outcome: The report contains stable codes for duplicate ranges, duplicate category numbers, malformed IDs, outside-range folders, missing category IDs, and category-like root folders.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator reports duplicate malformed and outside-range folders"`
+
+#### Test case: JohnnyDecimalValidator reports missing area structure
+Purpose: Ensure plain folder trees are reported as missing Johnny.Decimal area structure.
+Setup: Create a non-numbered folder tree such as `Work/Clients`.
+Procedure: Validate the archive root.
+Expected outcome: The report contains an error with code `missing_area_structure`.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator reports missing area structure"`
+
 #### Test case: FolderStructurePattern nests under matching custom code folders
 Purpose: Verify deterministic recognition can match custom prefix folders by their human labels.
 Setup: Build a catalog with alphabetic-code folders such as `AC Documents` and `DG Office Apps`.

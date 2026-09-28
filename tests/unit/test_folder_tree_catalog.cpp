@@ -3,10 +3,12 @@
 #include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "JohnnyDecimalFolderSuggester.hpp"
+#include "JohnnyDecimalValidator.hpp"
 #include "TestHelpers.hpp"
 
 #include <filesystem>
 #include <fstream>
+#include <set>
 
 TEST_CASE("FolderTreeCatalog scans relative destination folders")
 {
@@ -244,6 +246,76 @@ TEST_CASE("JohnnyDecimalFolderSuggester requires a Johnny Decimal-like archive")
 
     CHECK_FALSE(suggestion.has_value());
     CHECK(error.find("Johnny.Decimal-like") != std::string::npos);
+}
+
+TEST_CASE("JohnnyDecimalValidator accepts a clean Johnny Decimal archive")
+{
+    TempDir temp_dir;
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "00-09 System" / "01 Index"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "10-19 Admin" / "11 Finance"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "21 Projects"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "21 Projects" / "21.01 Alpha"));
+
+    const auto report = JohnnyDecimalValidator::validate_archive(temp_dir.path());
+
+    CHECK(report.scanned);
+    CHECK(report.looks_johnny_decimal_like);
+    CHECK(report.area_count == 3);
+    CHECK(report.category_count == 3);
+    CHECK(report.issues.empty());
+    CHECK_FALSE(report.has_errors());
+
+    const std::string text = JohnnyDecimalValidator::format_report(report);
+    CHECK(text.find("No issues found") != std::string::npos);
+}
+
+TEST_CASE("JohnnyDecimalValidator reports duplicate malformed and outside-range folders")
+{
+    TempDir temp_dir;
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "10-19 Admin" / "11 Finance"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "10-19 Admin" / "11 Legal"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "21 Projects"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "37 Marketing"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work Duplicate" / "22 Clients"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "30-39 Personal" / "3 Health"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "30-39 Personal" / "Misc Notes"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-30 Bad Range"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20_29 Bad Syntax"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "11 Loose Category"));
+
+    const auto report = JohnnyDecimalValidator::validate_archive(temp_dir.path());
+
+    std::set<std::string> codes;
+    for (const auto& issue : report.issues) {
+        codes.insert(issue.code);
+    }
+
+    CHECK(report.has_errors());
+    CHECK(codes.contains("duplicate_area_range"));
+    CHECK(codes.contains("duplicate_category_number"));
+    CHECK(codes.contains("category_outside_area_range"));
+    CHECK(codes.contains("category_id_malformed"));
+    CHECK(codes.contains("missing_category_id"));
+    CHECK(codes.contains("area_id_malformed"));
+    CHECK(codes.contains("category_without_area"));
+
+    const std::string text = JohnnyDecimalValidator::format_report(report);
+    CHECK(text.find("ERROR - Duplicate area range") != std::string::npos);
+    CHECK(text.find("20-29 Work/37 Marketing") != std::string::npos);
+}
+
+TEST_CASE("JohnnyDecimalValidator reports missing area structure")
+{
+    TempDir temp_dir;
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "Work" / "Clients"));
+
+    const auto report = JohnnyDecimalValidator::validate_archive(temp_dir.path());
+
+    REQUIRE_FALSE(report.issues.empty());
+    CHECK(report.area_count == 0);
+    CHECK(report.category_count == 0);
+    CHECK(report.has_errors());
+    CHECK(report.issues.front().code == "missing_area_structure");
 }
 
 TEST_CASE("FolderStructurePattern nests under matching custom code folders")

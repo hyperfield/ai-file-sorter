@@ -13,6 +13,7 @@
 #include <QListWidgetItem>
 #include <QMessageBox>
 #include <QPalette>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -20,6 +21,7 @@
 #include <string>
 
 #include "JohnnyDecimalFolderSuggester.hpp"
+#include "JohnnyDecimalValidator.hpp"
 #include "Utils.hpp"
 
 namespace {
@@ -118,6 +120,21 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     next_layout->addStretch(1);
     tab_widget_->addTab(next_folder_tab_, tr("Next folder"));
 
+    validation_tab_ = new QWidget(tab_widget_);
+    auto* validation_layout = new QVBoxLayout(validation_tab_);
+    auto* validation_description = new QLabel(
+        tr("Check an existing Johnny.Decimal archive for duplicate IDs, malformed numbers, folders outside ranges, "
+           "and missing area/category structure."),
+        this);
+    validation_description->setWordWrap(true);
+    validation_layout->addWidget(validation_description);
+    validation_report_edit_ = new QPlainTextEdit(this);
+    validation_report_edit_->setObjectName(QStringLiteral("johnnyDecimalValidationReportEdit"));
+    validation_report_edit_->setReadOnly(true);
+    validation_report_edit_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    validation_layout->addWidget(validation_report_edit_, 1);
+    tab_widget_->addTab(validation_tab_, tr("Validation report"));
+
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     create_button_ = buttons->addButton(tr("Create"), QDialogButtonBox::AcceptRole);
     create_button_->setObjectName(QStringLiteral("folderStructureCreateButton"));
@@ -130,7 +147,9 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     connect(browse_button_, &QPushButton::clicked, this, [this]() { browse_destination(); });
     connect(tab_widget_, &QTabWidget::currentChanged, this, [this]() { update_selection(); });
     connect(create_button_, &QPushButton::clicked, this, [this]() {
-        if (next_folder_tab_active()) {
+        if (validation_tab_active()) {
+            refresh_validation_report();
+        } else if (next_folder_tab_active()) {
             create_next_johnny_decimal_folder();
         } else {
             create_selected_structure();
@@ -185,7 +204,9 @@ void FolderStructureInitializerDialog::update_selection() {
     const bool has_destination = destination_edit_ && !destination_edit_->text().trimmed().isEmpty();
 
     if (create_button_) {
-        create_button_->setText(next_folder_tab_active() ? tr("Create folder") : tr("Create"));
+        create_button_->setText(validation_tab_active()
+                                    ? tr("Refresh report")
+                                    : (next_folder_tab_active() ? tr("Create folder") : tr("Create")));
     }
 
     if (description_label_) {
@@ -230,6 +251,13 @@ void FolderStructureInitializerDialog::update_selection() {
         }
         if (create_button_) {
             create_button_->setEnabled(can_create_next_folder);
+        }
+        return;
+    }
+    if (validation_tab_active()) {
+        refresh_validation_report();
+        if (create_button_) {
+            create_button_->setEnabled(has_destination);
         }
         return;
     }
@@ -292,8 +320,25 @@ void FolderStructureInitializerDialog::create_next_johnny_decimal_folder() {
     accept();
 }
 
+void FolderStructureInitializerDialog::refresh_validation_report() {
+    if (!validation_report_edit_) {
+        return;
+    }
+    if (!destination_edit_ || destination_edit_->text().trimmed().isEmpty()) {
+        validation_report_edit_->setPlainText(tr("Choose a destination folder."));
+        return;
+    }
+
+    const auto report = JohnnyDecimalValidator::validate_archive(destination_root());
+    validation_report_edit_->setPlainText(from_utf8(JohnnyDecimalValidator::format_report(report)));
+}
+
 bool FolderStructureInitializerDialog::next_folder_tab_active() const {
     return tab_widget_ && next_folder_tab_ && tab_widget_->currentWidget() == next_folder_tab_;
+}
+
+bool FolderStructureInitializerDialog::validation_tab_active() const {
+    return tab_widget_ && validation_tab_ && tab_widget_->currentWidget() == validation_tab_;
 }
 
 const FolderStructureTemplates::Descriptor* FolderStructureInitializerDialog::selected_template() const {
