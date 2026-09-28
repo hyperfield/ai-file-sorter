@@ -6,9 +6,10 @@ This document provides a detailed description of every test case in the project.
 - Configure tests on Linux/macOS (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
 - Build and run all tests on Linux/macOS: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
 - On Windows, configure from a Visual Studio Developer PowerShell with the vcpkg toolchain and a Qt 6 MSVC kit, for example: `$env:VCPKG_ROOT="D:\path\to\vcpkg"; $qt="C:\Qt\6.6.3\msvc2019_64"; $toolchain=Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"; cmake -S app -B build-tests -G "Ninja" -DCMAKE_PREFIX_PATH=$qt "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_MANIFEST_DIR=app -DVCPKG_TARGET_TRIPLET=x64-windows -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
-- On Windows, build and run all tests with: `cmake --build build-tests --config Release --target ai_file_sorter_tests ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests --parallel $env:NUMBER_OF_PROCESSORS` then `ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS`
+- On Windows, build and run all tests with: `cmake --build build-tests --config Release --target ai_file_sorter_tests aifs_storage_plugin_conformance ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests --parallel $env:NUMBER_OF_PROCESSORS` then `ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS`
 - Run a single test case by name: `./build-tests/ai_file_sorter_tests "<test case name or pattern>"`
 - On Windows multi-config builds, the direct test executable lives under `./build-tests/tests/<Config>/`, for example: `./build-tests/tests/Release/ai_file_sorter_tests.exe "<test case name or pattern>"`
+- Run storage-plugin conformance directly against a connector executable: `./build-tests/aifs_storage_plugin_conformance --connector <connector-path> --provider-id <provider-id> --plugin-id <plugin-id>`
 - Run GUI test mode: `./build-tests/aifilesorter --test`
 - Run production-binary self-tests: `./build-tests/aifilesorter --self-test` or `./build-tests/aifilesorter --self-test=whitelist`
 - Register optional live LLM headless tests by adding `-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON` when configuring tests, or on Windows by running `.\app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in PowerShell or `app\build_windows.cmd -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in `cmd.exe`. Then either set `AI_FILE_SORTER_LIVE_LLM_MODEL` to a local text GGUF path or rely on the selected local/custom GGUF in AI File Sorter `config.ini`, optionally set `AI_FILE_SORTER_LIVE_BACKEND=cpu|cuda|vulkan|auto` (`cuda` validates CUDA explicitly; `cpu` is for deterministic CPU/OpenBLAS runs), and run `ctest --test-dir build-tests -L live-llm --output-on-failure` for manual CMake builds or `ctest --test-dir app\build-windows -C Release -L live-llm --output-on-failure` for the Windows helper build. Use `ctest -V` for live progress; otherwise tail the work dir from `%TEMP%\aifs-live-llm-latest.txt`. Image rename cases also require `AI_FILE_SORTER_LIVE_VISUAL_MODEL` and `AI_FILE_SORTER_LIVE_VISUAL_MMPROJ`, unless a custom visual model pair is selected in settings.
@@ -3190,6 +3191,15 @@ Setup: Create a source file and destination folder tree in a temporary directory
 Procedure: Move the file through `move_entry`, then restore it with `undo_move`.
 Expected outcome: The file returns to its original location and provider-created empty directories are removed.
 Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider owns undo moves and cleans empty folders"`
+
+### `tests/unit/test_storage_plugin_conformance.cpp`
+
+#### Test case: Storage plugin conformance harness validates the mock connector protocol
+Purpose: Verify the external-process storage-plugin JSON protocol is enforced by a reusable connector harness instead of app-private C++ provider headers.
+Setup: Build the mock storage connector executable and create a temporary fixture tree.
+Procedure: Launch the connector for each v1 fixture request, validate response shape for the corresponding action, and assert basic fixture semantics for detection, listing, preflight, path existence, directory creation, move, and undo.
+Expected outcome: The mock connector exposes `mockcloud`, returns conforming responses for every v1 action, and completes the fixture filesystem operations successfully.
+Run: `./build-tests/ai_file_sorter_tests "Storage plugin conformance harness validates the mock connector protocol"`
 
 ### `tests/unit/test_main_app_storage_support.cpp`
 

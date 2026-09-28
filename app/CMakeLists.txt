@@ -1555,6 +1555,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     add_dependencies(aifilesorter aifs_onedrive_storage_plugin)
 
     aifs_add_windows_test_executable(ai_file_sorter_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/StoragePluginConformanceHarness.cpp"
         ${APP_LIB_SOURCES}
         ${AIFS_TEST_ONLY_APP_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
@@ -1591,6 +1592,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_cache_action.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_conformance.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_file_naming.cpp"
@@ -1630,6 +1632,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     target_include_directories(ai_file_sorter_tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
         ${DOC_DEPS_INCLUDE_DIRS}
     )
@@ -1691,6 +1694,25 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 $<TARGET_FILE:aifs_onedrive_storage_plugin>
                 $<TARGET_FILE:aifs_storage_plugin_stub>
                 $<TARGET_FILE_DIR:ai_file_sorter_tests>
+        )
+    endif()
+
+    aifs_add_windows_test_executable(aifs_storage_plugin_conformance
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/tools/storage_plugin_conformance_main.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/StoragePluginConformanceHarness.cpp"
+    )
+    target_include_directories(aifs_storage_plugin_conformance PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers"
+    )
+    target_link_libraries(aifs_storage_plugin_conformance PRIVATE Qt6::Core)
+    add_dependencies(aifs_storage_plugin_conformance aifs_storage_plugin_stub)
+    aifs_set_windows_test_runtime_output(aifs_storage_plugin_conformance)
+    aifs_stage_test_runtime(aifs_storage_plugin_conformance)
+    if(WIN32)
+        add_custom_command(TARGET aifs_storage_plugin_conformance POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:aifs_storage_plugin_stub>
+                $<TARGET_FILE_DIR:aifs_storage_plugin_conformance>
         )
     endif()
 
@@ -1758,6 +1780,19 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     if(BUILD_TESTING)
         add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)
+        set(_aifs_storage_plugin_stub_for_conformance "$<TARGET_FILE:aifs_storage_plugin_stub>")
+        if(WIN32)
+            set(_aifs_storage_plugin_stub_for_conformance
+                "$<TARGET_FILE_DIR:aifs_storage_plugin_conformance>/$<TARGET_FILE_NAME:aifs_storage_plugin_stub>")
+        endif()
+        add_test(
+            NAME storage_plugin_conformance_stub
+            COMMAND
+                aifs_storage_plugin_conformance
+                --connector "${_aifs_storage_plugin_stub_for_conformance}"
+                --provider-id mockcloud
+                --plugin-id mockcloud_storage_support
+        )
         if(WIN32)
             add_test(NAME ai_file_sorter_updater_notify_only_tests COMMAND ai_file_sorter_updater_notify_only_tests)
             add_test(NAME ai_file_sorter_updater_disabled_tests COMMAND ai_file_sorter_updater_disabled_tests)

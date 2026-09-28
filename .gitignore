@@ -160,6 +160,10 @@ changelog/
 !/docs/testing.md
 !/docs/categorization-behavior.md
 !/docs/updater-contract.md
+!/docs/storage-plugin-protocol.md
+!/docs/schemas/
+!/docs/schemas/storage-plugin-v1/
+!/docs/schemas/storage-plugin-v1/*.schema.json
 
 # Build artifacts
 
