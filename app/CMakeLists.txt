@@ -30,6 +30,10 @@ set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
     ""
     CACHE STRING
     "Trusted folder-structure plugin Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+set(AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS
+    ""
+    CACHE STRING
+    "Trusted storage plugin package Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
 set(AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS
     ""
     CACHE STRING
@@ -1040,6 +1044,14 @@ string(REPLACE "\"" "\\\"" _aifs_folder_structure_plugin_public_keys_define
     "${_aifs_folder_structure_plugin_public_keys_define}")
 string(REPLACE ";" "\\;" _aifs_folder_structure_plugin_public_keys_define
     "${_aifs_folder_structure_plugin_public_keys_define}")
+set(_aifs_storage_plugin_public_keys_define
+    "${AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS}")
+string(REPLACE "\\" "\\\\" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
+string(REPLACE "\"" "\\\"" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
+string(REPLACE ";" "\\;" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
 set(_aifs_plugin_entitlement_public_keys_define
     "${AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS}")
 string(REPLACE "\\" "\\\\" _aifs_plugin_entitlement_public_keys_define
@@ -1052,6 +1064,7 @@ string(REPLACE ";" "\\;" _aifs_plugin_entitlement_public_keys_define
 target_compile_definitions(aifilesorter PRIVATE
     AIFS_STORAGE_PLUGIN_CATALOG_URL="${AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL}"
     AIFS_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS="${_aifs_folder_structure_plugin_public_keys_define}"
+    AIFS_STORAGE_PLUGIN_PUBLIC_KEYS="${_aifs_storage_plugin_public_keys_define}"
     AIFS_PLUGIN_ENTITLEMENT_PUBLIC_KEYS="${_aifs_plugin_entitlement_public_keys_define}"
 )
 if(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)

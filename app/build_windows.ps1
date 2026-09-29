@@ -15,6 +15,7 @@ param(
     [string]$EnvFile,
     [switch]$SkipLocalEnvFile,
     [string]$FolderStructurePluginPublicKeys,
+    [string]$StoragePluginPublicKeys,
     [string]$PluginEntitlementPublicKeys,
     [switch]$EnablePluginEntitlementDevBypass
 )
@@ -698,6 +699,9 @@ function Get-ConfigureArguments {
     if (-not [string]::IsNullOrWhiteSpace($FolderStructurePluginPublicKeys)) {
         $configureArgs += "-DAI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS=$FolderStructurePluginPublicKeys"
     }
+    if (-not [string]::IsNullOrWhiteSpace($StoragePluginPublicKeys)) {
+        $configureArgs += "-DAI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS=$StoragePluginPublicKeys"
+    }
     if (-not [string]::IsNullOrWhiteSpace($PluginEntitlementPublicKeys)) {
         $configureArgs += "-DAI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS=$PluginEntitlementPublicKeys"
     }
@@ -1002,6 +1006,9 @@ if (-not $SkipLocalEnvFile) {
 }
 if (-not $PSBoundParameters.ContainsKey("FolderStructurePluginPublicKeys")) {
     $FolderStructurePluginPublicKeys = $env:AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
+}
+if (-not $PSBoundParameters.ContainsKey("StoragePluginPublicKeys")) {
+    $StoragePluginPublicKeys = $env:AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS
 }
 if (-not $PSBoundParameters.ContainsKey("PluginEntitlementPublicKeys")) {
     $PluginEntitlementPublicKeys = $env:AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS

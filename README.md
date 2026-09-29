@@ -740,6 +740,7 @@ Option A - CMake + vcpkg (recommended)
    - For local commercial plugin test builds, put build-only environment variables in ignored file `app\build_windows.local.env`. The helper loads it automatically before configuring CMake; explicit script parameters still override it:
      ```dotenv
      AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS=key-id:base64-public-key
+     AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS=key-id:base64-public-key
      AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS=key-id:base64-public-key
      ```
    - Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
