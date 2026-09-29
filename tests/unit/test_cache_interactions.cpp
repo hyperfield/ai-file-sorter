@@ -21,7 +21,6 @@
 #include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
-#include "OneDriveStorageProvider.hpp"
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
 #include "StoragePluginLoader.hpp"
@@ -157,18 +156,6 @@ std::filesystem::path storage_plugin_stub_path() {
 #endif
 }
 
-std::string onedrive_plugin_binary_name() {
-#ifdef AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME
-    return AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME;
-#else
-    return "aifs_onedrive_storage_plugin";
-#endif
-}
-
-std::filesystem::path onedrive_plugin_path() {
-    return std::filesystem::path(QApplication::applicationDirPath().toStdString()) / onedrive_plugin_binary_name();
-}
-
 std::string alternate_platform_name() {
     const auto current = storage_plugin_current_platform();
     if (current != "windows") {
@@ -189,6 +176,33 @@ std::string alternate_architecture_name() {
         return "x86_64";
     }
     return "x86";
+}
+
+std::string packaged_stub_entry_point() {
+    return "bin/" + storage_plugin_stub_path().filename().string();
+}
+
+std::filesystem::path create_signed_stub_storage_plugin_archive(const std::filesystem::path& archive_dir,
+                                                                const std::string& plugin_id,
+                                                                const std::string& plugin_name,
+                                                                const std::string& provider_id,
+                                                                const std::string& version) {
+    const auto archive_path = archive_dir / (plugin_id + ".aifsplugin");
+    const auto entry_point = packaged_stub_entry_point();
+    const auto payload = read_binary_file(storage_plugin_stub_path());
+    const std::string manifest = fmt::format(R"json({{
+  "id": "{}",
+  "name": "{}",
+  "description": "Signed test package backed by the external-process storage connector stub.",
+  "version": "{}",
+  "provider_ids": ["{}"],
+  "entry_point_kind": "external_process",
+  "entry_point": "{}",
+  "package_paths": ["{}"]
+}})json",
+                                             plugin_id, plugin_name, version, provider_id, entry_point, entry_point);
+    create_signed_storage_plugin_archive(archive_path, manifest, {{entry_point, payload}});
+    return archive_path;
 }
 
 class CountingLLM : public ILLMClient {
@@ -595,27 +609,31 @@ TEST_CASE("StoragePluginManager persists installed plugins") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
     TempDir config_dir;
+    TempDir archive_dir;
 
-    StoragePluginManager writer(config_dir.path().string());
-    CHECK_FALSE(writer.is_installed("onedrive_storage_support"));
-    REQUIRE(writer.install("onedrive_storage_support"));
-    const auto manifest_path = StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()) /
-                               "onedrive_storage_support.json";
+    const auto archive_path = create_signed_stub_storage_plugin_archive(
+        archive_dir.path(), "mockcloud_compat", "MockCloud Compatibility", "mockcloud", "0.1.0");
+
+    StoragePluginManager writer(config_dir.path().string(), {}, storage_package_test_keys());
+    CHECK_FALSE(writer.is_installed("mockcloud_compat"));
+    REQUIRE(writer.install_from_archive(archive_path));
+    const auto manifest_path =
+        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()) / "mockcloud_compat.json";
     CHECK(std::filesystem::exists(manifest_path));
 
     StoragePluginManager reader(config_dir.path().string());
-    CHECK(reader.is_installed("onedrive_storage_support"));
+    CHECK(reader.is_installed("mockcloud_compat"));
     const auto installed_ids = reader.installed_plugin_ids();
     REQUIRE(installed_ids.size() == 1);
-    CHECK(installed_ids.front() == "onedrive_storage_support");
+    CHECK(installed_ids.front() == "mockcloud_compat");
 
-    const auto plugin = reader.find_plugin_for_provider("onedrive");
+    const auto plugin = reader.find_plugin_for_provider("mockcloud");
     REQUIRE(plugin.has_value());
-    CHECK(plugin->id == "onedrive_storage_support");
-    CHECK(plugin->version == "1.1.0");
+    CHECK(plugin->id == "mockcloud_compat");
+    CHECK(plugin->version == "0.1.0");
     CHECK(plugin->entry_point_kind == "external_process");
     CHECK(std::filesystem::exists(plugin->entry_point));
-    CHECK(plugin->entry_point.find(onedrive_plugin_binary_name()) != std::string::npos);
+    CHECK(plugin->entry_point.find("packages/mockcloud_compat/0.1.0/") != std::string::npos);
 }
 
 TEST_CASE("StoragePluginLoader discovers plugin manifests from disk") {
@@ -1019,7 +1037,8 @@ TEST_CASE("StoragePluginManager installs builtin plugin ids from local archives"
     TempDir archive_dir;
 
     const auto archive_path = archive_dir.path() / "onedrive_storage_support.aifsplugin";
-    const auto plugin_payload = read_binary_file(onedrive_plugin_path());
+    const auto entry_point = packaged_stub_entry_point();
+    const auto plugin_payload = read_binary_file(storage_plugin_stub_path());
     const std::string manifest = R"json({
   "id": "onedrive_storage_support",
   "name": "OneDrive Storage Support",
@@ -1027,10 +1046,12 @@ TEST_CASE("StoragePluginManager installs builtin plugin ids from local archives"
   "version": "9.9.9",
   "provider_ids": ["onedrive"],
   "entry_point_kind": "external_process",
-  "entry_point": "bin/onedrive_plugin",
-  "package_paths": ["bin/onedrive_plugin"]
+  "entry_point": ")json" + entry_point +
+                                 R"json(",
+  "package_paths": [")json" + entry_point +
+                                 R"json("]
 })json";
-    create_signed_storage_plugin_archive(archive_path, manifest, {{"bin/onedrive_plugin", plugin_payload}});
+    create_signed_storage_plugin_archive(archive_path, manifest, {{entry_point, plugin_payload}});
 
     StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
     std::string installed_plugin_id;
@@ -1429,10 +1450,14 @@ TEST_CASE("StoragePluginManager rejects plugin archives without manifest.json") 
 TEST_CASE("StorageProviderRegistry resolves installed cloud provider ahead of local fallback") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
-    StoragePluginLoader loader;
     TempDir config_dir;
-    StoragePluginManager plugin_manager(config_dir.path().string());
-    REQUIRE(plugin_manager.install("onedrive_storage_support"));
+    TempDir archive_dir;
+
+    const auto archive_path = create_signed_stub_storage_plugin_archive(
+        archive_dir.path(), "mockcloud_compat", "MockCloud Compatibility", "mockcloud", "0.1.0");
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+    REQUIRE(plugin_manager.install_from_archive(archive_path));
+    StoragePluginLoader loader(StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
 
     StorageProviderRegistry registry;
     auto local_provider = std::make_shared<LocalFsProvider>();
@@ -1444,212 +1469,50 @@ TEST_CASE("StorageProviderRegistry resolves installed cloud provider ahead of lo
         registry.register_builtin(std::move(provider));
     }
 
-    const std::string folder_path = "/Users/example/OneDrive - Work/Documents";
+    const std::string folder_path = "/Users/example/MockCloud Documents";
     const auto detection = registry.detect(folder_path);
     REQUIRE(detection.matched);
-    CHECK(detection.provider_id == "onedrive");
+    CHECK(detection.provider_id == "mockcloud");
     CHECK_FALSE(detection.needs_additional_support);
     CHECK(detection.detection_source == "path_heuristic");
 
     const auto resolved = registry.resolve_for(folder_path);
     REQUIRE(resolved);
-    CHECK(resolved->id() == "onedrive");
+    CHECK(resolved->id() == "mockcloud");
 }
 
-TEST_CASE("OneDriveStorageProvider marks OneDrive staging folders as sync-locked") {
-    TempDir onedrive_root;
-    EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
+TEST_CASE("UndoManager rejects external-process restores when revision metadata changed") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt;
+    TempDir config_dir;
+    TempDir archive_dir;
+    TempDir data_dir;
 
-    const auto staged_file = onedrive_root.path() / ".tmp.drivedownload" / "draft.docx.partial";
-    write_file(staged_file);
+    const auto archive_path = create_signed_stub_storage_plugin_archive(
+        archive_dir.path(), "mockcloud_compat", "MockCloud Compatibility", "mockcloud", "0.1.0");
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+    REQUIRE(plugin_manager.install_from_archive(archive_path));
 
-    OneDriveStorageProvider provider;
-    const auto status = provider.inspect_path(staged_file.string());
-    CHECK(status.exists);
-    CHECK(status.sync_locked);
-    CHECK(status.should_retry);
-    CHECK(status.retry_after_ms >= 2000);
-}
+    StoragePluginLoader loader(StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
+    StorageProviderRegistry registry;
+    registry.register_builtin(std::make_shared<LocalFsProvider>());
+    for (auto& provider : loader.create_detection_providers()) {
+        registry.register_builtin(std::move(provider));
+    }
+    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_ids())) {
+        registry.register_builtin(std::move(provider));
+    }
 
-TEST_CASE("OneDriveStorageProvider blocks lock and conflict files during preflight") {
-    TempDir onedrive_root;
-    EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
-
-    const auto locked_file = onedrive_root.path() / "~$draft.docx";
-    write_file(locked_file);
-
-    OneDriveStorageProvider provider;
-    const auto status = provider.inspect_path(locked_file.string());
-    CHECK(status.exists);
-    CHECK(status.sync_locked);
-    CHECK(status.should_retry);
-    CHECK(status.stable_identity.starts_with("onedrive:"));
-
-    const auto destination = onedrive_root.path() / "Sorted" / "draft.docx";
-    const auto preflight = provider.preflight_move(locked_file.string(), destination.string());
-    CHECK_FALSE(preflight.allowed);
-    CHECK(preflight.sync_locked);
-    CHECK(preflight.should_retry);
-}
-
-TEST_CASE("OneDriveStorageProvider prefers authoritative sync-root detection when available") {
-    const std::string folder_path = "/tmp/Documents";
-
-    OneDriveStorageProvider provider(
-        OneDriveStorageProvider::RemoteMetadataResolver{},
-        [](const std::string& path, std::string*) -> std::optional<OneDriveStorageProvider::SyncRootInfo> {
-            if (path != "/tmp/Documents") {
-                return std::nullopt;
-            }
-            return OneDriveStorageProvider::SyncRootInfo{.provider_name = "Microsoft OneDrive",
-                                                         .provider_version = "24.030"};
-        });
-
-    const auto detection = provider.detect(folder_path);
-    REQUIRE(detection.matched);
-    CHECK(detection.provider_id == "onedrive");
-    CHECK(detection.confidence >= 160);
-    CHECK(detection.detection_source == "windows_sync_root");
-    CHECK(detection.message.find("Windows identified this folder as a OneDrive sync root.") != std::string::npos);
-}
-
-TEST_CASE(
-    "OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different "
-    "provider") {
-    const std::string folder_path = "/tmp/OneDrive/Shared";
-
-    OneDriveStorageProvider provider(
-        OneDriveStorageProvider::RemoteMetadataResolver{},
-        [](const std::string& path, std::string*) -> std::optional<OneDriveStorageProvider::SyncRootInfo> {
-            if (path != "/tmp/OneDrive/Shared") {
-                return std::nullopt;
-            }
-            return OneDriveStorageProvider::SyncRootInfo{.provider_name = "Dropbox", .provider_version = "210.4"};
-        });
-
-    const auto detection = provider.detect(folder_path);
-    CHECK_FALSE(detection.matched);
-    CHECK(detection.provider_id.empty());
-}
-
-TEST_CASE("OneDriveStorageProvider caches sync-root detection by selected root") {
-    const std::string folder_path = "/tmp/Documents";
-    auto invocation_count = std::make_shared<int>(0);
-
-    OneDriveStorageProvider provider(
-        OneDriveStorageProvider::RemoteMetadataResolver{},
-        [invocation_count](const std::string& path,
-                           std::string*) -> std::optional<OneDriveStorageProvider::SyncRootInfo> {
-            ++(*invocation_count);
-            if (path != "/tmp/Documents") {
-                return std::nullopt;
-            }
-            return OneDriveStorageProvider::SyncRootInfo{.provider_name = "Microsoft OneDrive",
-                                                         .provider_version = "24.030"};
-        });
-
-    const auto first = provider.detect(folder_path);
-    const auto second = provider.detect(folder_path);
-    REQUIRE(first.matched);
-    REQUIRE(second.matched);
-    CHECK(first.detection_source == "windows_sync_root");
-    CHECK(second.detection_source == "windows_sync_root");
-    CHECK(*invocation_count == 1);
-}
-
-TEST_CASE("OneDriveStorageProvider attaches provider identity metadata to moves") {
-    TempDir onedrive_root;
-    EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
-
-    const auto source = onedrive_root.path() / "invoice.pdf";
-    const auto destination = onedrive_root.path() / "Sorted" / "invoice.pdf";
+    const auto cloud_dir = data_dir.path() / "MockCloud Documents";
+    const auto source = cloud_dir / "report.docx";
+    const auto destination = cloud_dir / "Sorted" / "report.docx";
     write_file(source);
 
-    OneDriveStorageProvider provider;
-    const auto before_move_status = provider.inspect_path(source.string());
-    REQUIRE(before_move_status.exists);
-    REQUIRE(before_move_status.stable_identity.starts_with("onedrive:"));
-    const auto result = provider.move_entry(source.string(), destination.string());
-    REQUIRE(result.success);
-    CHECK(result.metadata.stable_identity.starts_with("onedrive:"));
-    CHECK_FALSE(result.metadata.revision_token.empty());
+    auto provider = registry.resolve_for(cloud_dir.string());
+    REQUIRE(provider);
+    REQUIRE(provider->id() == "mockcloud");
 
-    const auto after_move_status = provider.inspect_path(destination.string());
-    REQUIRE(after_move_status.exists);
-    CHECK(result.metadata.stable_identity == before_move_status.stable_identity);
-    CHECK(after_move_status.stable_identity == before_move_status.stable_identity);
-}
-
-TEST_CASE("OneDriveStorageProvider prefers Graph-backed item ids and revision tags when available") {
-    TempDir onedrive_root;
-    EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
-
-    const auto source = onedrive_root.path() / "budget.xlsx";
-    const auto destination = onedrive_root.path() / "Sorted" / "budget.xlsx";
-    write_file(source);
-
-    auto current_etag = std::make_shared<std::string>("etag-v1");
-    auto current_ctag = std::make_shared<std::string>("ctag-v1");
-    OneDriveStorageProvider provider(
-        [current_etag, current_ctag](const std::string& path,
-                                     std::string*) -> std::optional<OneDriveStorageProvider::RemoteMetadata> {
-            if (path.find("budget.xlsx") == std::string::npos) {
-                return std::nullopt;
-            }
-            return OneDriveStorageProvider::RemoteMetadata{
-                .drive_id = "drive-123", .item_id = "item-456", .e_tag = *current_etag, .c_tag = *current_ctag};
-        });
-
-    const auto before_move_status = provider.inspect_path(source.string());
-    REQUIRE(before_move_status.exists);
-    CHECK(before_move_status.stable_identity == "onedrive:item:drive-123:item-456");
-    CHECK(before_move_status.revision_token.find("onedrive:rev:drive-123:item-456:etag-v1:ctag-v1") == 0);
-
-    *current_etag = "etag-v2";
-    const auto move_result = provider.move_entry(source.string(), destination.string());
-    REQUIRE(move_result.success);
-    CHECK(move_result.metadata.stable_identity == "onedrive:item:drive-123:item-456");
-    CHECK(move_result.metadata.revision_token.find("onedrive:rev:drive-123:item-456:etag-v2:ctag-v1") == 0);
-
-    const auto after_move_status = provider.inspect_path(destination.string());
-    REQUIRE(after_move_status.exists);
-    CHECK(after_move_status.stable_identity == "onedrive:item:drive-123:item-456");
-    CHECK(after_move_status.revision_token.find("onedrive:rev:drive-123:item-456:etag-v2:ctag-v1") == 0);
-}
-
-TEST_CASE("OneDriveStorageProvider owns undo moves and cleans empty folders") {
-    TempDir onedrive_root;
-    EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
-
-    const auto source = onedrive_root.path() / "invoice.pdf";
-    const auto destination_dir = onedrive_root.path() / "Sorted";
-    const auto destination = destination_dir / "invoice.pdf";
-    write_file(source);
-
-    OneDriveStorageProvider provider;
-    const auto move_result = provider.move_entry(source.string(), destination.string());
-    REQUIRE(move_result.success);
-    REQUIRE(std::filesystem::exists(destination));
-
-    const auto undo_result = provider.undo_move(source.string(), destination.string());
-    REQUIRE(undo_result.success);
-    CHECK(std::filesystem::exists(source));
-    CHECK_FALSE(std::filesystem::exists(destination));
-    CHECK_FALSE(std::filesystem::exists(destination_dir));
-    CHECK(undo_result.metadata.stable_identity.starts_with("onedrive:"));
-    CHECK_FALSE(undo_result.metadata.revision_token.empty());
-}
-
-TEST_CASE("UndoManager rejects OneDrive restores when revision metadata changed") {
-    TempDir onedrive_root;
-    EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
-
-    const auto source = onedrive_root.path() / "report.docx";
-    const auto destination = onedrive_root.path() / "Sorted" / "report.docx";
-    write_file(source);
-
-    OneDriveStorageProvider provider;
-    const auto move_result = provider.move_entry(source.string(), destination.string());
+    const auto move_result = provider->move_entry(source.string(), destination.string());
     REQUIRE(move_result.success);
 
     {
@@ -1657,62 +1520,13 @@ TEST_CASE("UndoManager rejects OneDrive restores when revision metadata changed"
         out << "changed";
     }
 
-    StorageProviderRegistry registry;
-    registry.register_builtin(std::make_shared<OneDriveStorageProvider>());
-
-    const auto undo_dir = (onedrive_root.path() / ".undo").string();
+    const auto undo_dir = (cloud_dir / ".undo").string();
     UndoManager writer(undo_dir, &registry);
-    REQUIRE(writer.save_plan(onedrive_root.path().string(), provider.id(),
+    REQUIRE(writer.save_plan(cloud_dir.string(), provider->id(),
                              {UndoManager::Entry{source.string(), destination.string(), move_result.metadata.size_bytes,
                                                  move_result.metadata.mtime, move_result.metadata.stable_identity,
                                                  move_result.metadata.revision_token}},
                              nullptr));
-
-    UndoManager reader(undo_dir, &registry);
-    const auto plan_path = reader.latest_plan_path();
-    REQUIRE(plan_path.has_value());
-
-    const auto undo_result = reader.undo_plan(*plan_path);
-    CHECK(undo_result.restored == 0);
-    CHECK(undo_result.skipped == 1);
-    CHECK(std::filesystem::exists(destination));
-}
-
-TEST_CASE("UndoManager rejects OneDrive restores when Graph revision metadata changed") {
-    TempDir onedrive_root;
-    EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
-
-    const auto source = onedrive_root.path() / "graph-report.docx";
-    const auto destination = onedrive_root.path() / "Sorted" / "graph-report.docx";
-    write_file(source);
-
-    auto current_etag = std::make_shared<std::string>("etag-v1");
-    auto current_ctag = std::make_shared<std::string>("ctag-v1");
-    auto provider = std::make_shared<OneDriveStorageProvider>(
-        [current_etag, current_ctag](const std::string& path,
-                                     std::string*) -> std::optional<OneDriveStorageProvider::RemoteMetadata> {
-            if (path.find("graph-report.docx") == std::string::npos) {
-                return std::nullopt;
-            }
-            return OneDriveStorageProvider::RemoteMetadata{
-                .drive_id = "drive-graph", .item_id = "item-graph", .e_tag = *current_etag, .c_tag = *current_ctag};
-        });
-
-    const auto move_result = provider->move_entry(source.string(), destination.string());
-    REQUIRE(move_result.success);
-
-    StorageProviderRegistry registry;
-    registry.register_builtin(provider);
-
-    const auto undo_dir = (onedrive_root.path() / ".undo").string();
-    UndoManager writer(undo_dir, &registry);
-    REQUIRE(writer.save_plan(onedrive_root.path().string(), provider->id(),
-                             {UndoManager::Entry{source.string(), destination.string(), move_result.metadata.size_bytes,
-                                                 move_result.metadata.mtime, move_result.metadata.stable_identity,
-                                                 move_result.metadata.revision_token}},
-                             nullptr));
-
-    *current_etag = "etag-v2";
 
     UndoManager reader(undo_dir, &registry);
     const auto plan_path = reader.latest_plan_path();
@@ -1788,17 +1602,20 @@ TEST_CASE("StorageProviderRegistry resolves installed OneDrive external connecto
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
     TempDir config_dir;
+    TempDir archive_dir;
     TempDir onedrive_root;
     EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
 
-    StoragePluginManager plugin_manager(config_dir.path().string());
-    REQUIRE(plugin_manager.install("onedrive_storage_support"));
+    const auto archive_path = create_signed_stub_storage_plugin_archive(
+        archive_dir.path(), "onedrive_storage_support", "OneDrive Storage Support", "onedrive", "9.9.9");
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+    REQUIRE(plugin_manager.install_from_archive(archive_path));
 
     const auto plugin = plugin_manager.find_plugin("onedrive_storage_support");
     REQUIRE(plugin.has_value());
     CHECK(plugin->entry_point_kind == "external_process");
     CHECK(std::filesystem::exists(plugin->entry_point));
-    CHECK(plugin->entry_point.find("packages/onedrive_storage_support/1.1.0/") != std::string::npos);
+    CHECK(plugin->entry_point.find("packages/onedrive_storage_support/9.9.9/") != std::string::npos);
 
     StoragePluginLoader loader(StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
     StorageProviderRegistry registry;
@@ -1828,80 +1645,6 @@ TEST_CASE("StorageProviderRegistry resolves installed OneDrive external connecto
     CHECK(preflight.sync_locked);
     CHECK(preflight.should_retry);
 }
-
-#ifdef _WIN32
-TEST_CASE("OneDriveStorageProvider verifies a real Windows OneDrive sync root via Cloud Files API") {
-    const char* enabled = std::getenv("AI_FILE_SORTER_RUN_REAL_ONEDRIVE_TESTS");
-    const std::string enabled_value = enabled ? std::string(enabled) : std::string();
-    if (enabled_value != "1" && enabled_value != "true" && enabled_value != "TRUE") {
-        SKIP("Set AI_FILE_SORTER_RUN_REAL_ONEDRIVE_TESTS=1 to run real Windows OneDrive sync-root integration tests.");
-    }
-
-    const char* configured_sync_root = std::getenv("AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT");
-    const std::string sync_root =
-        (configured_sync_root && *configured_sync_root != '\0') ? std::string(configured_sync_root) : std::string();
-
-    if (sync_root.empty()) {
-        SKIP("Set AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT on a Windows machine with a real OneDrive sync root.");
-    }
-    if (!std::filesystem::exists(sync_root)) {
-        SKIP("Configured OneDrive sync root path does not exist on this machine.");
-    }
-
-    OneDriveStorageProvider provider;
-    const auto detection = provider.detect(sync_root);
-    REQUIRE(detection.matched);
-    CHECK(detection.provider_id == "onedrive");
-    CHECK(detection.detection_source == "windows_sync_root");
-    CHECK(detection.confidence >= 160);
-}
-
-TEST_CASE("External OneDrive connector verifies a real Windows OneDrive sync root via Cloud Files API") {
-    const char* enabled = std::getenv("AI_FILE_SORTER_RUN_REAL_ONEDRIVE_TESTS");
-    const std::string enabled_value = enabled ? std::string(enabled) : std::string();
-    if (enabled_value != "1" && enabled_value != "true" && enabled_value != "TRUE") {
-        SKIP("Set AI_FILE_SORTER_RUN_REAL_ONEDRIVE_TESTS=1 to run real Windows OneDrive sync-root integration tests.");
-    }
-
-    const char* configured_sync_root = std::getenv("AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT");
-    const std::string sync_root =
-        (configured_sync_root && *configured_sync_root != '\0') ? std::string(configured_sync_root) : std::string();
-
-    if (sync_root.empty()) {
-        SKIP("Set AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT on a Windows machine with a real OneDrive sync root.");
-    }
-    if (!std::filesystem::exists(sync_root)) {
-        SKIP("Configured OneDrive sync root path does not exist on this machine.");
-    }
-
-    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
-    QtAppContext qt;
-    TempDir config_dir;
-
-    StoragePluginManager plugin_manager(config_dir.path().string());
-    REQUIRE(plugin_manager.install("onedrive_storage_support"));
-
-    StoragePluginLoader loader(StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
-    StorageProviderRegistry registry;
-    registry.register_builtin(std::make_shared<LocalFsProvider>());
-    for (auto& provider : loader.create_detection_providers()) {
-        registry.register_builtin(std::move(provider));
-    }
-    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_ids())) {
-        registry.register_builtin(std::move(provider));
-    }
-
-    const auto detection = registry.detect(sync_root);
-    REQUIRE(detection.matched);
-    CHECK(detection.provider_id == "onedrive");
-    CHECK_FALSE(detection.needs_additional_support);
-    CHECK(detection.detection_source == "windows_sync_root");
-
-    const auto resolved = registry.resolve_for(sync_root);
-    REQUIRE(resolved);
-    CHECK(resolved->id() == "onedrive");
-}
-#endif
 
 TEST_CASE("StoragePluginManager uninstalls packaged external-process plugins") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));

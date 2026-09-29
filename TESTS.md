@@ -3234,26 +3234,19 @@ Procedure: Call `install` for the catalog-delivered plugin id.
 Expected outcome: The plugin installs successfully and its managed manifest/package artifacts are written to disk.
 Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs catalog plugins on demand"`
 
-#### Test case: OneDriveStorageProvider prefers authoritative sync-root detection when available
-Purpose: Ensure OneDrive detection uses authoritative sync-root information ahead of heuristic path matching.
-Setup: Inject a sync-root resolver that reports a OneDrive provider for the selected root.
-Procedure: Call `detect` on a matching root path.
-Expected outcome: Detection succeeds with the authoritative source and the provider resolves as OneDrive.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider prefers authoritative sync-root detection when available"`
+#### Test case: UndoManager rejects external-process restores when revision metadata changed
+Purpose: Verify host undo safety still works when metadata comes from an external-process storage connector.
+Setup: Install a signed mock storage package, move a file through the external connector, then modify the moved file.
+Procedure: Save an undo plan with the connector metadata and attempt to restore it.
+Expected outcome: Undo skips the changed file and leaves the moved file in place.
+Run: `./build-tests/ai_file_sorter_tests "UndoManager rejects external-process restores when revision metadata changed"`
 
-#### Test case: OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider
-Purpose: Prevent false positives when Windows reports a different cloud provider for the selected root.
-Setup: Inject a sync-root resolver that reports a non-OneDrive provider for a path whose name still looks like OneDrive.
-Procedure: Call `detect` on that path.
-Expected outcome: The authoritative non-OneDrive result vetoes the heuristic match.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider"`
-
-#### Test case: OneDriveStorageProvider owns undo moves and cleans empty folders
-Purpose: Verify OneDrive move/undo operations are handled by the provider itself rather than delegated to the local provider.
-Setup: Create a source file and destination folder tree in a temporary directory.
-Procedure: Move the file through `move_entry`, then restore it with `undo_move`.
-Expected outcome: The file returns to its original location and provider-created empty directories are removed.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider owns undo moves and cleans empty folders"`
+#### Test case: StorageProviderRegistry resolves installed OneDrive external connector
+Purpose: Prove the public host can install and invoke a signed package that provides the `onedrive` provider id without bundling OneDrive implementation code.
+Setup: Install a signed test package for `onedrive_storage_support` that points at the generic external-process stub.
+Procedure: Detect a OneDrive-root path, resolve the runtime provider, and run preflight against a locked file.
+Expected outcome: The installed external connector wins over the local fallback and reports the locked-file preflight result through the protocol.
+Run: `./build-tests/ai_file_sorter_tests "StorageProviderRegistry resolves installed OneDrive external connector"`
 
 ### `tests/unit/test_storage_plugin_conformance.cpp`
 
