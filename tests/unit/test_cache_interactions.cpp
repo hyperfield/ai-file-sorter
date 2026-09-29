@@ -1,4 +1,19 @@
+#include <openssl/evp.h>
+#include <spdlog/fmt/fmt.h>
+#include <zip.h>
+
+#include <QCryptographicHash>
+#include <algorithm>
+#include <array>
+#include <atomic>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <string>
+#include <unordered_set>
+#include <utility>
 
 #include "CategorizationService.hpp"
 #include "DatabaseManager.hpp"
@@ -8,100 +23,141 @@
 #include "LocalFsProvider.hpp"
 #include "OneDriveStorageProvider.hpp"
 #include "ResultsCoordinator.hpp"
-#include "StoragePluginLoader.hpp"
 #include "Settings.hpp"
+#include "StoragePluginLoader.hpp"
 #include "StoragePluginManager.hpp"
+#include "StoragePluginPackageSignature.hpp"
 #include "StorageProviderRegistry.hpp"
-#include "UndoManager.hpp"
 #include "TestHelpers.hpp"
+#include "UndoManager.hpp"
 #include "Utils.hpp"
 
-#include <atomic>
-#include <algorithm>
-#include <fstream>
-#include <filesystem>
-#include <memory>
-#include <string>
-#include <unordered_set>
-
-#include <zip.h>
-#include <QCryptographicHash>
-#include <spdlog/fmt/fmt.h>
-
 namespace {
+constexpr std::array<unsigned char, 32> kStoragePackageTestPrivateKey{
+    0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60, 0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec, 0x2c, 0xc4,
+    0x44, 0x49, 0xc5, 0x69, 0x7b, 0x32, 0x69, 0x19, 0x70, 0x3b, 0xac, 0x03, 0x1c, 0xae, 0x7f, 0x60};
+
+constexpr std::array<unsigned char, 32> kStoragePackageTestPublicKey{
+    0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7, 0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64, 0x07, 0x3a,
+    0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25, 0xaf, 0x02, 0x1a, 0x68, 0xf7, 0x07, 0x51, 0x1a};
+
+constexpr char kStoragePackageTestKeyId[] = "test-storage-package-key";
+
 void write_file(const std::filesystem::path& path) {
     std::filesystem::create_directories(path.parent_path());
     std::ofstream out(path);
     out << "data";
 }
 
-void copy_file_with_permissions(const std::filesystem::path& source,
-                                const std::filesystem::path& destination)
-{
+StoragePluginPackagePublicKey storage_package_test_key() {
+    return StoragePluginPackagePublicKey{kStoragePackageTestKeyId, kStoragePackageTestPublicKey};
+}
+
+std::vector<StoragePluginPackagePublicKey> storage_package_test_keys() {
+    return {storage_package_test_key()};
+}
+
+void copy_file_with_permissions(const std::filesystem::path& source, const std::filesystem::path& destination) {
     std::filesystem::create_directories(destination.parent_path());
-    std::filesystem::copy_file(
-        source,
-        destination,
-        std::filesystem::copy_options::overwrite_existing);
-    std::filesystem::permissions(
-        destination,
-        std::filesystem::status(source).permissions(),
-        std::filesystem::perm_options::replace);
+    std::filesystem::copy_file(source, destination, std::filesystem::copy_options::overwrite_existing);
+    std::filesystem::permissions(destination, std::filesystem::status(source).permissions(),
+                                 std::filesystem::perm_options::replace);
 }
 
-std::string read_binary_file(const std::filesystem::path& path)
-{
+std::string read_binary_file(const std::filesystem::path& path) {
     std::ifstream in(path, std::ios::binary);
-    return std::string(std::istreambuf_iterator<char>(in),
-                       std::istreambuf_iterator<char>());
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 }
 
-std::string utf8_string(const char8_t* value)
-{
+std::string utf8_string(const char8_t* value) {
     return std::string(reinterpret_cast<const char*>(value));
 }
 
-std::string sha256_hex(std::string_view payload)
-{
+std::string sha256_hex(std::string_view payload) {
     const QByteArray bytes(payload.data(), static_cast<qsizetype>(payload.size()));
     return QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex().toStdString();
 }
 
 void create_zip_archive(const std::filesystem::path& archive_path,
-                        const std::vector<std::pair<std::string, std::string>>& entries)
-{
+                        const std::vector<std::pair<std::string, std::string>>& entries) {
     int error_code = 0;
     zip_t* archive = zip_open(archive_path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
     REQUIRE(archive != nullptr);
 
     for (const auto& [name, payload] : entries) {
-        zip_source_t* source = zip_source_buffer(archive,
-                                                 payload.data(),
-                                                 static_cast<zip_uint64_t>(payload.size()),
-                                                 0);
+        zip_source_t* source = zip_source_buffer(archive, payload.data(), static_cast<zip_uint64_t>(payload.size()), 0);
         REQUIRE(source != nullptr);
-        const zip_int64_t index = zip_file_add(archive,
-                                               name.c_str(),
-                                               source,
-                                               ZIP_FL_OVERWRITE | ZIP_FL_ENC_UTF_8);
+        const zip_int64_t index = zip_file_add(archive, name.c_str(), source, ZIP_FL_OVERWRITE | ZIP_FL_ENC_UTF_8);
         REQUIRE(index >= 0);
     }
 
     REQUIRE(zip_close(archive) == 0);
 }
 
-std::filesystem::path storage_plugin_stub_path()
-{
+std::string string_from_bytes(const QByteArray& bytes) {
+    return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+}
+
+QByteArray sign_storage_package_payload(const QByteArray& payload) {
+    EVP_PKEY* key = EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519, nullptr, kStoragePackageTestPrivateKey.data(),
+                                                 kStoragePackageTestPrivateKey.size());
+    REQUIRE(key != nullptr);
+
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    REQUIRE(ctx != nullptr);
+
+    QByteArray signature;
+    signature.resize(64);
+    std::size_t signature_size = static_cast<std::size_t>(signature.size());
+    REQUIRE(EVP_DigestSignInit(ctx, nullptr, nullptr, nullptr, key) == 1);
+    REQUIRE(EVP_DigestSign(ctx, reinterpret_cast<unsigned char*>(signature.data()), &signature_size,
+                           reinterpret_cast<const unsigned char*>(payload.constData()),
+                           static_cast<std::size_t>(payload.size())) == 1);
+    signature.resize(static_cast<qsizetype>(signature_size));
+
+    EVP_MD_CTX_free(ctx);
+    EVP_PKEY_free(key);
+    return signature;
+}
+
+std::vector<std::pair<std::string, std::string>> signed_storage_plugin_entries(
+    const std::string& manifest, std::vector<std::pair<std::string, std::string>> payload_entries,
+    const std::string& key_id = kStoragePackageTestKeyId) {
+    std::vector<std::pair<std::string, std::string>> signed_files{{"manifest.json", manifest}};
+    signed_files.insert(signed_files.end(), payload_entries.begin(), payload_entries.end());
+
+    std::string signature_manifest = std::string("{\n") + "  \"schema_version\": 1,\n" +
+                                     "  \"algorithm\": \"ed25519\",\n" + "  \"key_id\": \"" + key_id + "\",\n" +
+                                     "  \"files\": [\n";
+    for (std::size_t index = 0; index < signed_files.size(); ++index) {
+        const auto& [path, payload] = signed_files[index];
+        signature_manifest += "    {\"path\":\"" + path + "\",\"sha256\":\"" + sha256_hex(payload) + "\"}";
+        signature_manifest += index + 1 == signed_files.size() ? "\n" : ",\n";
+    }
+    signature_manifest += "  ]\n}\n";
+
+    const QByteArray signature_payload = QByteArray::fromStdString(signature_manifest);
+    std::vector<std::pair<std::string, std::string>> entries = signed_files;
+    entries.push_back({"plugin-signature.json", signature_manifest});
+    entries.push_back({"plugin-signature.sig", string_from_bytes(sign_storage_package_payload(signature_payload))});
+    return entries;
+}
+
+void create_signed_storage_plugin_archive(const std::filesystem::path& archive_path, const std::string& manifest,
+                                          std::vector<std::pair<std::string, std::string>> payload_entries,
+                                          const std::string& key_id = kStoragePackageTestKeyId) {
+    create_zip_archive(archive_path, signed_storage_plugin_entries(manifest, std::move(payload_entries), key_id));
+}
+
+std::filesystem::path storage_plugin_stub_path() {
 #ifdef AIFS_STORAGE_PLUGIN_STUB_NAME
-    return std::filesystem::path(QApplication::applicationDirPath().toStdString()) /
-        AIFS_STORAGE_PLUGIN_STUB_NAME;
+    return std::filesystem::path(QApplication::applicationDirPath().toStdString()) / AIFS_STORAGE_PLUGIN_STUB_NAME;
 #else
     return {};
 #endif
 }
 
-std::string onedrive_plugin_binary_name()
-{
+std::string onedrive_plugin_binary_name() {
 #ifdef AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME
     return AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME;
 #else
@@ -109,14 +165,11 @@ std::string onedrive_plugin_binary_name()
 #endif
 }
 
-std::filesystem::path onedrive_plugin_path()
-{
-    return std::filesystem::path(QApplication::applicationDirPath().toStdString()) /
-        onedrive_plugin_binary_name();
+std::filesystem::path onedrive_plugin_path() {
+    return std::filesystem::path(QApplication::applicationDirPath().toStdString()) / onedrive_plugin_binary_name();
 }
 
-std::string alternate_platform_name()
-{
+std::string alternate_platform_name() {
     const auto current = storage_plugin_current_platform();
     if (current != "windows") {
         return "windows";
@@ -127,8 +180,7 @@ std::string alternate_platform_name()
     return "macos";
 }
 
-std::string alternate_architecture_name()
-{
+std::string alternate_architecture_name() {
     const auto current = storage_plugin_current_architecture();
     if (current != "arm64") {
         return "arm64";
@@ -140,14 +192,11 @@ std::string alternate_architecture_name()
 }
 
 class CountingLLM : public ILLMClient {
-public:
+   public:
     CountingLLM(std::shared_ptr<int> calls, std::string response)
         : calls_(std::move(calls)), response_(std::move(response)) {}
 
-    std::string categorize_file(const std::string&,
-                                const std::string&,
-                                FileType,
-                                const std::string&) override {
+    std::string categorize_file(const std::string&, const std::string&, FileType, const std::string&) override {
         ++(*calls_);
         return response_;
     }
@@ -157,20 +206,16 @@ public:
         return response_;
     }
 
-    void set_prompt_logging_enabled(bool) override {
-    }
+    void set_prompt_logging_enabled(bool) override {}
 
-private:
+   private:
     std::shared_ptr<int> calls_;
     std::string response_;
 };
 
 class PromptCapturingLLM : public ILLMClient {
-public:
-    std::string categorize_file(const std::string&,
-                                const std::string&,
-                                FileType,
-                                const std::string&) override {
+   public:
+    std::string categorize_file(const std::string&, const std::string&, FileType, const std::string&) override {
         return std::string();
     }
 
@@ -179,12 +224,11 @@ public:
         return utf8_string(u8R"({"summary":"Quarterly summary","filename":"시장 분석"})");
     }
 
-    void set_prompt_logging_enabled(bool) override {
-    }
+    void set_prompt_logging_enabled(bool) override {}
 
     std::string last_prompt;
 };
-} // namespace
+}  // namespace
 
 TEST_CASE("CategorizationService uses cached categorization without calling LLM") {
     TempDir config_dir;
@@ -197,28 +241,18 @@ TEST_CASE("CategorizationService uses cached categorization without calling LLM"
     const std::string file_name = "cached.png";
     const auto resolved = db.resolve_category("Images", "Photos");
     REQUIRE(resolved.taxonomy_id > 0);
-    REQUIRE(db.insert_or_update_file_with_categorization(
-        file_name, "F", dir_path, resolved, false, std::string(), false));
+    REQUIRE(
+        db.insert_or_update_file_with_categorization(file_name, "F", dir_path, resolved, false, std::string(), false));
 
     CategorizationService service(settings, db, nullptr);
     std::atomic<bool> stop_flag{false};
     auto calls = std::make_shared<int>(0);
-    auto factory = [calls]() {
-        return std::make_unique<CountingLLM>(calls, "Documents : Reports");
-    };
+    auto factory = [calls]() { return std::make_unique<CountingLLM>(calls, "Documents : Reports"); };
 
     const auto full_path = (data_dir.path() / file_name).string();
     const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
 
-    const auto categorized = service.categorize_entries(
-        files,
-        true,
-        stop_flag,
-        {},
-        {},
-        {},
-        {},
-        factory);
+    const auto categorized = service.categorize_entries(files, true, stop_flag, {}, {}, {}, {}, factory);
 
     REQUIRE(categorized.size() == 1);
     CHECK(categorized.front().category == "Images");
@@ -242,8 +276,8 @@ TEST_CASE("CategorizationService uses cached folder-tree target without calling 
     const std::string file_name = "invoice_q2_2026.pdf";
     const auto resolved = db.resolve_category("Documents", "Invoices");
     REQUIRE(resolved.taxonomy_id > 0);
-    REQUIRE(db.insert_or_update_file_with_categorization(
-        file_name, "F", dir_path, resolved, false, std::string(), false));
+    REQUIRE(
+        db.insert_or_update_file_with_categorization(file_name, "F", dir_path, resolved, false, std::string(), false));
     const auto catalog = FolderTreeCatalog::Catalog::scan(data_dir.path());
     DatabaseManager::FolderTreeRoutingRecord route;
     route.destination_root = dir_path;
@@ -262,23 +296,14 @@ TEST_CASE("CategorizationService uses cached folder-tree target without calling 
     std::atomic<bool> stop_flag{false};
     auto calls = std::make_shared<int>(0);
     auto factory = [calls]() {
-        return std::make_unique<CountingLLM>(
-            calls,
-            "{\"targetFolder\":\"Other/Unsorted Review\",\"createFolder\":false}");
+        return std::make_unique<CountingLLM>(calls,
+                                             "{\"targetFolder\":\"Other/Unsorted Review\",\"createFolder\":false}");
     };
 
     const auto full_path = (data_dir.path() / file_name).string();
     const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
 
-    const auto categorized = service.categorize_entries(
-        files,
-        true,
-        stop_flag,
-        {},
-        {},
-        {},
-        {},
-        factory);
+    const auto categorized = service.categorize_entries(files, true, stop_flag, {}, {}, {}, {}, factory);
 
     REQUIRE(categorized.size() == 1);
     CHECK(categorized.front().folder_tree_mode);
@@ -307,30 +332,21 @@ TEST_CASE("CategorizationService derives new folder route from semantic cache wi
     const std::string file_name = "invoice_q3_2026.pdf";
     const auto resolved = db.resolve_category("Documents", "Invoices");
     REQUIRE(resolved.taxonomy_id > 0);
-    REQUIRE(db.insert_or_update_file_with_categorization(
-        file_name, "F", dir_path, resolved, false, std::string(), false));
+    REQUIRE(
+        db.insert_or_update_file_with_categorization(file_name, "F", dir_path, resolved, false, std::string(), false));
 
     CategorizationService service(settings, db, nullptr);
     std::atomic<bool> stop_flag{false};
     auto calls = std::make_shared<int>(0);
     auto factory = [calls]() {
-        return std::make_unique<CountingLLM>(
-            calls,
-            "{\"targetFolder\":\"Other/Unsorted Review\",\"createFolder\":false}");
+        return std::make_unique<CountingLLM>(calls,
+                                             "{\"targetFolder\":\"Other/Unsorted Review\",\"createFolder\":false}");
     };
 
     const auto full_path = (data_dir.path() / file_name).string();
     const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
 
-    const auto categorized = service.categorize_entries(
-        files,
-        true,
-        stop_flag,
-        {},
-        {},
-        {},
-        {},
-        factory);
+    const auto categorized = service.categorize_entries(files, true, stop_flag, {}, {}, {}, {}, factory);
 
     REQUIRE(categorized.size() == 1);
     CHECK(categorized.front().folder_tree_mode);
@@ -352,28 +368,17 @@ TEST_CASE("CategorizationService falls back to LLM when cache is empty") {
     const std::string dir_path = data_dir.path().string();
     const std::string file_name = "uncached.pdf";
     DatabaseManager::ResolvedCategory empty{0, "", ""};
-    REQUIRE(db.insert_or_update_file_with_categorization(
-        file_name, "F", dir_path, empty, false, std::string(), false));
+    REQUIRE(db.insert_or_update_file_with_categorization(file_name, "F", dir_path, empty, false, std::string(), false));
 
     CategorizationService service(settings, db, nullptr);
     std::atomic<bool> stop_flag{false};
     auto calls = std::make_shared<int>(0);
-    auto factory = [calls]() {
-        return std::make_unique<CountingLLM>(calls, "Documents : Reports");
-    };
+    auto factory = [calls]() { return std::make_unique<CountingLLM>(calls, "Documents : Reports"); };
 
     const auto full_path = (data_dir.path() / file_name).string();
     const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
 
-    const auto categorized = service.categorize_entries(
-        files,
-        true,
-        stop_flag,
-        {},
-        {},
-        {},
-        {},
-        factory);
+    const auto categorized = service.categorize_entries(files, true, stop_flag, {}, {}, {}, {}, factory);
 
     REQUIRE(categorized.size() == 1);
     CHECK(categorized.front().category == "Documents");
@@ -396,28 +401,18 @@ TEST_CASE("CategorizationService invokes completion callback per entry") {
     TempDir data_dir;
     const auto first_path = (data_dir.path() / "first.txt").string();
     const auto second_path = (data_dir.path() / "second.txt").string();
-    const std::vector<FileEntry> files = {
-        FileEntry{first_path, "first.txt", FileType::File},
-        FileEntry{second_path, "second.txt", FileType::File}
-    };
+    const std::vector<FileEntry> files = {FileEntry{first_path, "first.txt", FileType::File},
+                                          FileEntry{second_path, "second.txt", FileType::File}};
 
     std::atomic<bool> stop_flag{false};
     auto calls = std::make_shared<int>(0);
-    auto factory = [calls]() {
-        return std::make_unique<CountingLLM>(calls, "Documents : Reports");
-    };
+    auto factory = [calls]() { return std::make_unique<CountingLLM>(calls, "Documents : Reports"); };
 
     std::size_t queued_count = 0;
     std::size_t completed_count = 0;
     const auto categorized = service.categorize_entries(
-        files,
-        true,
-        stop_flag,
-        {},
-        [&queued_count](const FileEntry&) { ++queued_count; },
-        [&completed_count](const FileEntry&) { ++completed_count; },
-        {},
-        factory);
+        files, true, stop_flag, {}, [&queued_count](const FileEntry&) { ++queued_count; },
+        [&completed_count](const FileEntry&) { ++completed_count; }, {}, factory);
 
     REQUIRE(categorized.size() == files.size());
     CHECK(queued_count == files.size());
@@ -439,11 +434,11 @@ TEST_CASE("CategorizationService loads cached entries recursively for analysis")
     const auto resolved = db.resolve_category("Images", "Photos");
     REQUIRE(resolved.taxonomy_id > 0);
 
-    REQUIRE(db.insert_or_update_file_with_categorization(
-        "root.png", "F", root_path, resolved, false, std::string(), false));
+    REQUIRE(db.insert_or_update_file_with_categorization("root.png", "F", root_path, resolved, false, std::string(),
+                                                         false));
     DatabaseManager::ResolvedCategory empty{0, "", ""};
-    REQUIRE(db.insert_or_update_file_with_categorization(
-        "suggested.png", "F", child_path, empty, false, "rename_me.png", true));
+    REQUIRE(db.insert_or_update_file_with_categorization("suggested.png", "F", child_path, empty, false,
+                                                         "rename_me.png", true));
 
     settings.set_include_subdirectories(false);
     auto cached_root_only = service.load_cached_entries(root_path);
@@ -454,9 +449,7 @@ TEST_CASE("CategorizationService loads cached entries recursively for analysis")
     auto cached_recursive = service.load_cached_entries(root_path);
     REQUIRE(cached_recursive.size() == 2);
     const auto it = std::find_if(cached_recursive.begin(), cached_recursive.end(),
-                                 [](const CategorizedFile& entry) {
-                                     return entry.file_name == "suggested.png";
-                                 });
+                                 [](const CategorizedFile& entry) { return entry.file_name == "suggested.png"; });
     REQUIRE(it != cached_recursive.end());
     CHECK(it->suggested_name == "rename_me.png");
     CHECK(it->file_path == child_path);
@@ -478,10 +471,10 @@ TEST_CASE("Recursive recategorization clears stale subtree cache entries") {
 
     // Simulate a partially re-categorized subtree: the root entry already uses the
     // new style while a nested entry is still cached with the old style.
-    REQUIRE(db.insert_or_update_file_with_categorization(
-        "root.txt", "F", root_path, resolved, true, std::string(), false));
-    REQUIRE(db.insert_or_update_file_with_categorization(
-        "child.txt", "F", child_path, resolved, false, std::string(), false));
+    REQUIRE(
+        db.insert_or_update_file_with_categorization("root.txt", "F", root_path, resolved, true, std::string(), false));
+    REQUIRE(db.insert_or_update_file_with_categorization("child.txt", "F", child_path, resolved, false, std::string(),
+                                                         false));
 
     CHECK(db.has_categorization_style_conflict(root_path, true, true));
 
@@ -503,19 +496,13 @@ TEST_CASE("ResultsCoordinator respects full-path cache keys for recursive scans"
     const auto options = FileScanOptions::Files | FileScanOptions::Recursive;
 
     std::unordered_set<std::string> cached_by_name{"sample.txt"};
-    auto uncached_by_name = coordinator.find_files_to_categorize(
-        data_dir.path().string(),
-        options,
-        cached_by_name,
-        false);
+    auto uncached_by_name =
+        coordinator.find_files_to_categorize(data_dir.path().string(), options, cached_by_name, false);
     CHECK(uncached_by_name.empty());
 
     std::unordered_set<std::string> cached_by_path{root_file.string()};
-    auto uncached_by_path = coordinator.find_files_to_categorize(
-        data_dir.path().string(),
-        options,
-        cached_by_path,
-        true);
+    auto uncached_by_path =
+        coordinator.find_files_to_categorize(data_dir.path().string(), options, cached_by_path, true);
     REQUIRE(uncached_by_path.size() == 1);
     CHECK(uncached_by_path.front().full_path == nested_file.string());
 }
@@ -535,35 +522,19 @@ TEST_CASE("ResultsCoordinator preserves UTF-8 full paths during recursive matchi
     const std::string root_file_utf8 = Utils::path_to_utf8(root_file);
     const std::string nested_file_utf8 = Utils::path_to_utf8(nested_file);
 
-    const std::vector<CategorizedFile> categorized = {
-        CategorizedFile{
-            Utils::path_to_utf8(root_file.parent_path()),
-            Utils::path_to_utf8(root_file.filename()),
-            FileType::File,
-            "Documents",
-            "Travel",
-            0
-        }
-    };
+    const std::vector<CategorizedFile> categorized = {CategorizedFile{Utils::path_to_utf8(root_file.parent_path()),
+                                                                      Utils::path_to_utf8(root_file.filename()),
+                                                                      FileType::File, "Documents", "Travel", 0}};
 
     const auto cached_paths = coordinator.extract_file_names(categorized, true);
     CHECK(cached_paths.contains(root_file_utf8));
 
-    const auto uncached = coordinator.find_files_to_categorize(
-        root_dir,
-        options,
-        cached_paths,
-        true);
+    const auto uncached = coordinator.find_files_to_categorize(root_dir, options, cached_paths, true);
     REQUIRE(uncached.size() == 1);
     CHECK(uncached.front().full_path == nested_file_utf8);
 
     const auto actual_files = coordinator.list_directory(root_dir, options);
-    const auto files_to_sort = coordinator.compute_files_to_sort(
-        root_dir,
-        options,
-        actual_files,
-        categorized,
-        true);
+    const auto files_to_sort = coordinator.compute_files_to_sort(root_dir, options, actual_files, categorized, true);
     REQUIRE(files_to_sort.size() == 1);
     CHECK(files_to_sort.front().file_path == Utils::path_to_utf8(root_file.parent_path()));
     CHECK(files_to_sort.front().file_name == Utils::path_to_utf8(root_file.filename()));
@@ -628,9 +599,8 @@ TEST_CASE("StoragePluginManager persists installed plugins") {
     StoragePluginManager writer(config_dir.path().string());
     CHECK_FALSE(writer.is_installed("onedrive_storage_support"));
     REQUIRE(writer.install("onedrive_storage_support"));
-    const auto manifest_path =
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()) /
-        "onedrive_storage_support.json";
+    const auto manifest_path = StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()) /
+                               "onedrive_storage_support.json";
     CHECK(std::filesystem::exists(manifest_path));
 
     StoragePluginManager reader(config_dir.path().string());
@@ -651,18 +621,14 @@ TEST_CASE("StoragePluginManager persists installed plugins") {
 TEST_CASE("StoragePluginLoader discovers plugin manifests from disk") {
     TempDir plugin_dir;
 
-    const StoragePluginManifest manifest{
-        .id = "network_drive_compat",
-        .name = "Network Drive Compatibility",
-        .description = "Adds compatibility helpers for mounted SMB and NFS shares.",
-        .version = "0.2.0",
-        .provider_ids = {"smb", "nfs"},
-        .entry_point_kind = "external_process",
-        .entry_point = "network_drive_compat"
-    };
-    REQUIRE(save_storage_plugin_manifest_to_file(
-        manifest,
-        plugin_dir.path() / "network_drive_compat.json"));
+    const StoragePluginManifest manifest{.id = "network_drive_compat",
+                                         .name = "Network Drive Compatibility",
+                                         .description = "Adds compatibility helpers for mounted SMB and NFS shares.",
+                                         .version = "0.2.0",
+                                         .provider_ids = {"smb", "nfs"},
+                                         .entry_point_kind = "external_process",
+                                         .entry_point = "network_drive_compat"};
+    REQUIRE(save_storage_plugin_manifest_to_file(manifest, plugin_dir.path() / "network_drive_compat.json"));
 
     StoragePluginLoader loader(plugin_dir.path());
     const auto discovered = loader.find_plugin("network_drive_compat");
@@ -699,21 +665,16 @@ TEST_CASE("StoragePluginLoader backfills builtin entry points for legacy manifes
 
 TEST_CASE("StoragePluginManager rejects unsupported directory-backed plugin manifests") {
     TempDir config_dir;
-    const auto manifest_dir =
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
+    const auto manifest_dir = StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
 
-    const StoragePluginManifest manifest{
-        .id = "network_drive_compat",
-        .name = "Network Drive Compatibility",
-        .description = "Adds compatibility helpers for mounted SMB and NFS shares.",
-        .version = "0.2.0",
-        .provider_ids = {"smb", "nfs"},
-        .entry_point_kind = "external_process",
-        .entry_point = "network_drive_compat"
-    };
-    REQUIRE(save_storage_plugin_manifest_to_file(
-        manifest,
-        manifest_dir / "network_drive_compat.json"));
+    const StoragePluginManifest manifest{.id = "network_drive_compat",
+                                         .name = "Network Drive Compatibility",
+                                         .description = "Adds compatibility helpers for mounted SMB and NFS shares.",
+                                         .version = "0.2.0",
+                                         .provider_ids = {"smb", "nfs"},
+                                         .entry_point_kind = "external_process",
+                                         .entry_point = "network_drive_compat"};
+    REQUIRE(save_storage_plugin_manifest_to_file(manifest, manifest_dir / "network_drive_compat.json"));
 
     StoragePluginManager plugin_manager(config_dir.path().string());
     const auto discovered = plugin_manager.find_plugin("network_drive_compat");
@@ -731,23 +692,18 @@ TEST_CASE("StoragePluginManager installs supported external-process plugins") {
     QtAppContext qt;
     TempDir config_dir;
     TempDir source_dir;
-    const auto manifest_dir =
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
+    const auto manifest_dir = StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
     const auto staged_binary = source_dir.path() / "mockcloud_compat";
     copy_file_with_permissions(storage_plugin_stub_path(), staged_binary);
 
-    const StoragePluginManifest manifest{
-        .id = "mockcloud_compat",
-        .name = "MockCloud Compatibility",
-        .description = "Test plugin backed by an external process stub.",
-        .version = "0.1.0",
-        .provider_ids = {"mockcloud"},
-        .entry_point_kind = "external_process",
-        .entry_point = staged_binary.string()
-    };
-    REQUIRE(save_storage_plugin_manifest_to_file(
-        manifest,
-        manifest_dir / "mockcloud_compat.json"));
+    const StoragePluginManifest manifest{.id = "mockcloud_compat",
+                                         .name = "MockCloud Compatibility",
+                                         .description = "Test plugin backed by an external process stub.",
+                                         .version = "0.1.0",
+                                         .provider_ids = {"mockcloud"},
+                                         .entry_point_kind = "external_process",
+                                         .entry_point = staged_binary.string()};
+    REQUIRE(save_storage_plugin_manifest_to_file(manifest, manifest_dir / "mockcloud_compat.json"));
 
     StoragePluginManager plugin_manager(config_dir.path().string());
     REQUIRE(plugin_manager.supports_plugin("mockcloud_compat"));
@@ -759,9 +715,8 @@ TEST_CASE("StoragePluginManager installs supported external-process plugins") {
     CHECK(installed_manifest->entry_point != staged_binary.string());
     CHECK(std::filesystem::exists(installed_manifest->entry_point));
 
-    const auto package_dir =
-        StoragePluginManager::package_directory_for_config_dir(config_dir.path().string()) /
-        "mockcloud_compat" / "0.1.0";
+    const auto package_dir = StoragePluginManager::package_directory_for_config_dir(config_dir.path().string()) /
+                             "mockcloud_compat" / "0.1.0";
     CHECK(std::filesystem::exists(package_dir));
     CHECK(std::filesystem::exists(package_dir / staged_binary.filename()));
 }
@@ -784,13 +739,9 @@ TEST_CASE("StoragePluginManager installs .aifsplugin archives with manifest and 
   "entry_point": "bin/mockcloud_plugin",
   "package_paths": ["bin/mockcloud_plugin"]
 })json";
-    create_zip_archive(archive_path,
-                       {
-                           {"manifest.json", manifest},
-                           {"bin/mockcloud_plugin", stub_payload}
-                       });
+    create_signed_storage_plugin_archive(archive_path, manifest, {{"bin/mockcloud_plugin", stub_payload}});
 
-    StoragePluginManager plugin_manager(config_dir.path().string());
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
     std::string installed_plugin_id;
     REQUIRE(plugin_manager.install_from_archive(archive_path, &installed_plugin_id));
     CHECK(installed_plugin_id == "mockcloud_archive");
@@ -800,9 +751,9 @@ TEST_CASE("StoragePluginManager installs .aifsplugin archives with manifest and 
     REQUIRE(plugin.has_value());
     CHECK(std::filesystem::exists(plugin->entry_point));
     CHECK(plugin->entry_point.find("packages/mockcloud_archive/0.2.0/bin/mockcloud_plugin") != std::string::npos);
+    CHECK(plugin->verified_signer_key_id == kStoragePackageTestKeyId);
 
-    StoragePluginLoader loader(
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
+    StoragePluginLoader loader(StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
     StorageProviderRegistry registry;
     registry.register_builtin(std::make_shared<LocalFsProvider>());
     for (auto& provider : loader.create_detection_providers()) {
@@ -820,12 +771,174 @@ TEST_CASE("StoragePluginManager installs .aifsplugin archives with manifest and 
     CHECK(resolved->id() == "mockcloud");
 }
 
+TEST_CASE("StoragePluginManager selects signed runtime-specific storage package paths and entitlement metadata") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt;
+    TempDir config_dir;
+    TempDir archive_dir;
+
+    const auto archive_path = archive_dir.path() / "mockcloud_runtime.aifsplugin";
+    const auto stub_payload = read_binary_file(storage_plugin_stub_path());
+    const auto runtime_entry = std::string("bin/") + storage_plugin_current_platform() + "/" +
+                               storage_plugin_current_architecture() + "/mockcloud_plugin";
+    const std::string manifest = fmt::format(R"json({{
+  "id": "mockcloud_runtime",
+  "name": "MockCloud Runtime Plugin",
+  "description": "Archive-installed plugin with runtime-specific connector paths.",
+  "version": "0.3.0",
+  "provider_ids": ["mockcloud"],
+  "entry_point_kind": "external_process",
+  "license_required": true,
+  "product_id": "mockcloud_storage_support",
+  "purchase_url": "https://plugins.example.invalid/mockcloud/buy",
+  "runtimes": [
+    {{
+      "platforms": ["{}"],
+      "architectures": ["{}"],
+      "entry_point": "{}",
+      "package_paths": ["{}"]
+    }}
+  ]
+}})json",
+                                             storage_plugin_current_platform(), storage_plugin_current_architecture(),
+                                             runtime_entry, runtime_entry);
+    create_signed_storage_plugin_archive(archive_path, manifest, {{runtime_entry, stub_payload}});
+
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+    std::string installed_plugin_id;
+    REQUIRE(plugin_manager.install_from_archive(archive_path, &installed_plugin_id));
+    CHECK(installed_plugin_id == "mockcloud_runtime");
+
+    const auto plugin = plugin_manager.find_plugin("mockcloud_runtime");
+    REQUIRE(plugin.has_value());
+    CHECK(plugin->entry_point.find(runtime_entry) != std::string::npos);
+    CHECK(plugin->license_required);
+    CHECK(plugin->product_id == "mockcloud_storage_support");
+    CHECK(plugin->purchase_url == "https://plugins.example.invalid/mockcloud/buy");
+    CHECK(plugin->verified_signer_key_id == kStoragePackageTestKeyId);
+}
+
+TEST_CASE("StoragePluginManager rejects unsigned and tampered storage plugin archives") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt;
+    TempDir config_dir;
+    TempDir archive_dir;
+
+    const auto archive_path = archive_dir.path() / "mockcloud_invalid.aifsplugin";
+    const auto stub_payload = read_binary_file(storage_plugin_stub_path());
+    const std::string manifest = R"json({
+  "id": "mockcloud_invalid",
+  "name": "MockCloud Invalid Plugin",
+  "description": "Invalid archive-installed plugin.",
+  "version": "0.2.0",
+  "provider_ids": ["mockcloud"],
+  "entry_point_kind": "external_process",
+  "entry_point": "bin/mockcloud_plugin",
+  "package_paths": ["bin/mockcloud_plugin"]
+})json";
+
+    SECTION("unsigned") {
+        create_zip_archive(archive_path, {{"manifest.json", manifest}, {"bin/mockcloud_plugin", stub_payload}});
+        StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+        std::string error;
+        CHECK_FALSE(plugin_manager.install_from_archive(archive_path, nullptr, &error));
+        CHECK(error.find("signature") != std::string::npos);
+    }
+
+    SECTION("tampered manifest") {
+        auto entries = signed_storage_plugin_entries(manifest, {{"bin/mockcloud_plugin", stub_payload}});
+        for (auto& [name, payload] : entries) {
+            if (name == "manifest.json") {
+                payload += "\n ";
+            }
+        }
+        create_zip_archive(archive_path, entries);
+        StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+        std::string error;
+        CHECK_FALSE(plugin_manager.install_from_archive(archive_path, nullptr, &error));
+        CHECK(error.find("hash") != std::string::npos);
+    }
+
+    SECTION("tampered payload") {
+        auto entries = signed_storage_plugin_entries(manifest, {{"bin/mockcloud_plugin", stub_payload}});
+        for (auto& [name, payload] : entries) {
+            if (name == "bin/mockcloud_plugin") {
+                payload += "tampered";
+            }
+        }
+        create_zip_archive(archive_path, entries);
+        StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+        std::string error;
+        CHECK_FALSE(plugin_manager.install_from_archive(archive_path, nullptr, &error));
+        CHECK(error.find("hash") != std::string::npos);
+    }
+
+    SECTION("unknown key id") {
+        create_signed_storage_plugin_archive(archive_path, manifest, {{"bin/mockcloud_plugin", stub_payload}},
+                                             "unknown-storage-package-key");
+        StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+        std::string error;
+        CHECK_FALSE(plugin_manager.install_from_archive(archive_path, nullptr, &error));
+        CHECK(error.find("untrusted") != std::string::npos);
+    }
+}
+
+TEST_CASE("StoragePluginManager rejects unsafe storage plugin archive paths") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt;
+    TempDir config_dir;
+    TempDir archive_dir;
+
+    const auto archive_path = archive_dir.path() / "unsafe_storage_plugin.aifsplugin";
+    const auto stub_payload = read_binary_file(storage_plugin_stub_path());
+    const std::string traversal_manifest = R"json({
+  "id": "unsafe_storage_plugin",
+  "name": "Unsafe Storage Plugin",
+  "description": "Invalid archive path.",
+  "version": "0.1.0",
+  "provider_ids": ["mockcloud"],
+  "entry_point_kind": "external_process",
+  "entry_point": "../bin/mockcloud_plugin",
+  "package_paths": ["bin/mockcloud_plugin"]
+})json";
+    create_signed_storage_plugin_archive(archive_path, traversal_manifest, {{"bin/mockcloud_plugin", stub_payload}});
+
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+    std::string error;
+    CHECK_FALSE(plugin_manager.install_from_archive(archive_path, nullptr, &error));
+    CHECK(error.find("relative path") != std::string::npos);
+}
+
+TEST_CASE("StoragePluginManager rejects signed storage plugin archives with missing entry points") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt;
+    TempDir config_dir;
+    TempDir archive_dir;
+
+    const auto archive_path = archive_dir.path() / "missing_entry_point.aifsplugin";
+    const std::string manifest = R"json({
+  "id": "missing_entry_point",
+  "name": "Missing Entry Point",
+  "description": "Signed manifest without the referenced connector file.",
+  "version": "0.1.0",
+  "provider_ids": ["mockcloud"],
+  "entry_point_kind": "external_process",
+  "entry_point": "bin/missing_connector",
+  "package_paths": ["bin/missing_connector"]
+})json";
+    create_signed_storage_plugin_archive(archive_path, manifest, {});
+
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
+    std::string error;
+    CHECK_FALSE(plugin_manager.install_from_archive(archive_path, nullptr, &error));
+    CHECK(error.find("entry point") != std::string::npos);
+}
+
 TEST_CASE("StoragePluginManager installs plugins from remote manifests and archives") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
     TempDir config_dir;
-    const auto manifest_dir =
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
+    const auto manifest_dir = StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
 
     const auto archive_path = config_dir.path() / "remotecloud_support.aifsplugin";
     const auto stub_payload = read_binary_file(storage_plugin_stub_path());
@@ -853,11 +966,7 @@ TEST_CASE("StoragePluginManager installs plugins from remote manifests and archi
   "entry_point": "bin/remotecloud_plugin",
   "package_paths": ["bin/remotecloud_plugin"]
 })json";
-    create_zip_archive(archive_path,
-                       {
-                           {"manifest.json", package_manifest},
-                           {"bin/remotecloud_plugin", stub_payload}
-                       });
+    create_signed_storage_plugin_archive(archive_path, package_manifest, {{"bin/remotecloud_plugin", stub_payload}});
     const auto archive_payload = read_binary_file(archive_path);
     const auto package_sha = sha256_hex(archive_payload);
     std::string resolved_remote_manifest = remote_manifest;
@@ -865,25 +974,19 @@ TEST_CASE("StoragePluginManager installs plugins from remote manifests and archi
     REQUIRE(sha_marker != std::string::npos);
     resolved_remote_manifest.replace(sha_marker, std::string("__PACKAGE_SHA__").size(), package_sha);
 
-    const StoragePluginManifest seed_manifest{
-        .id = "remotecloud_support",
-        .name = "RemoteCloud Storage Support",
-        .description = "Seed manifest that resolves to a remote package source.",
-        .version = "0.0.0",
-        .provider_ids = {"mockcloud"},
-        .remote_manifest_url = package_manifest_url,
-        .entry_point_kind = "external_process",
-        .entry_point = "remotecloud_plugin"
-    };
-    REQUIRE(save_storage_plugin_manifest_to_file(
-        seed_manifest,
-        manifest_dir / "remotecloud_support.json"));
+    const StoragePluginManifest seed_manifest{.id = "remotecloud_support",
+                                              .name = "RemoteCloud Storage Support",
+                                              .description = "Seed manifest that resolves to a remote package source.",
+                                              .version = "0.0.0",
+                                              .provider_ids = {"mockcloud"},
+                                              .remote_manifest_url = package_manifest_url,
+                                              .entry_point_kind = "external_process",
+                                              .entry_point = "remotecloud_plugin"};
+    REQUIRE(save_storage_plugin_manifest_to_file(seed_manifest, manifest_dir / "remotecloud_support.json"));
 
     auto download_fn = [package_manifest_url, package_archive_url, resolved_remote_manifest, archive_payload](
-                           const std::string& url,
-                           const std::filesystem::path& destination,
-                           StoragePluginPackageFetcher::ProgressCallback,
-                           StoragePluginPackageFetcher::CancelCheck) {
+                           const std::string& url, const std::filesystem::path& destination,
+                           StoragePluginPackageFetcher::ProgressCallback, StoragePluginPackageFetcher::CancelCheck) {
         std::filesystem::create_directories(destination.parent_path());
         std::ofstream out(destination, std::ios::binary | std::ios::trunc);
         if (url == package_manifest_url) {
@@ -897,7 +1000,7 @@ TEST_CASE("StoragePluginManager installs plugins from remote manifests and archi
         throw std::runtime_error("Unexpected remote plugin URL");
     };
 
-    StoragePluginManager plugin_manager(config_dir.path().string(), download_fn);
+    StoragePluginManager plugin_manager(config_dir.path().string(), download_fn, storage_package_test_keys());
     REQUIRE(plugin_manager.supports_plugin("remotecloud_support"));
     REQUIRE(plugin_manager.install("remotecloud_support"));
     CHECK(plugin_manager.is_installed("remotecloud_support"));
@@ -927,13 +1030,9 @@ TEST_CASE("StoragePluginManager installs builtin plugin ids from local archives"
   "entry_point": "bin/onedrive_plugin",
   "package_paths": ["bin/onedrive_plugin"]
 })json";
-    create_zip_archive(archive_path,
-                       {
-                           {"manifest.json", manifest},
-                           {"bin/onedrive_plugin", plugin_payload}
-                       });
+    create_signed_storage_plugin_archive(archive_path, manifest, {{"bin/onedrive_plugin", plugin_payload}});
 
-    StoragePluginManager plugin_manager(config_dir.path().string());
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
     std::string installed_plugin_id;
     REQUIRE(plugin_manager.install_from_archive(archive_path, &installed_plugin_id));
     CHECK(installed_plugin_id == "onedrive_storage_support");
@@ -964,19 +1063,13 @@ TEST_CASE("StoragePluginManager rejects archive plugins for another runtime") {
   "entry_point": "bin/foreign_runtime_plugin",
   "package_paths": ["bin/foreign_runtime_plugin"]
 }})json",
-                                             alternate_platform_name(),
-                                             alternate_architecture_name());
-    create_zip_archive(archive_path,
-                       {
-                           {"manifest.json", manifest},
-                           {"bin/foreign_runtime_plugin", stub_payload}
-                       });
+                                             alternate_platform_name(), alternate_architecture_name());
+    create_signed_storage_plugin_archive(archive_path, manifest, {{"bin/foreign_runtime_plugin", stub_payload}});
 
-    StoragePluginManager plugin_manager(config_dir.path().string());
+    StoragePluginManager plugin_manager(config_dir.path().string(), {}, storage_package_test_keys());
     std::string error;
     CHECK_FALSE(plugin_manager.install_from_archive(archive_path, nullptr, &error));
-    CHECK((error == "Plugin targets a different platform." ||
-           error == "Plugin targets a different CPU architecture."));
+    CHECK((error == "Plugin targets a different platform." || error == "Plugin targets a different CPU architecture."));
 }
 
 TEST_CASE("StoragePluginManager refreshes available plugins from a remote catalog") {
@@ -985,7 +1078,8 @@ TEST_CASE("StoragePluginManager refreshes available plugins from a remote catalo
     EnvVarGuard catalog_guard("AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL", catalog_url);
     const auto current_platform = storage_plugin_current_platform();
     const auto current_architecture = storage_plugin_current_architecture();
-    const std::string catalog_json = fmt::format(R"json({{
+    const std::string catalog_json =
+        fmt::format(R"json({{
   "plugins": [
     {{
       "id": "servercloud_support",
@@ -1023,16 +1117,11 @@ TEST_CASE("StoragePluginManager refreshes available plugins from a remote catalo
     }}
   ]
 }})json",
-                                                 current_platform,
-                                                 current_architecture,
-                                                 alternate_platform_name(),
-                                                 alternate_architecture_name());
+                    current_platform, current_architecture, alternate_platform_name(), alternate_architecture_name());
 
-    auto download_fn = [catalog_url, catalog_json](
-                           const std::string& url,
-                           const std::filesystem::path& destination,
-                           StoragePluginPackageFetcher::ProgressCallback,
-                           StoragePluginPackageFetcher::CancelCheck) {
+    auto download_fn = [catalog_url, catalog_json](const std::string& url, const std::filesystem::path& destination,
+                                                   StoragePluginPackageFetcher::ProgressCallback,
+                                                   StoragePluginPackageFetcher::CancelCheck) {
         if (url != catalog_url) {
             throw std::runtime_error("Unexpected remote catalog URL");
         }
@@ -1078,14 +1167,11 @@ TEST_CASE("StoragePluginManager reports when a remote catalog lacks a matching r
     }}
   ]
 }})json",
-                                                 alternate_platform_name(),
-                                                 alternate_architecture_name());
+                                                 alternate_platform_name(), alternate_architecture_name());
 
-    auto download_fn = [catalog_url, catalog_json](
-                           const std::string& url,
-                           const std::filesystem::path& destination,
-                           StoragePluginPackageFetcher::ProgressCallback,
-                           StoragePluginPackageFetcher::CancelCheck) {
+    auto download_fn = [catalog_url, catalog_json](const std::string& url, const std::filesystem::path& destination,
+                                                   StoragePluginPackageFetcher::ProgressCallback,
+                                                   StoragePluginPackageFetcher::CancelCheck) {
         if (url != catalog_url) {
             throw std::runtime_error("Unexpected remote catalog URL");
         }
@@ -1100,8 +1186,7 @@ TEST_CASE("StoragePluginManager reports when a remote catalog lacks a matching r
     std::string error;
     CHECK_FALSE(manager.refresh_remote_catalog(&error));
     CHECK(error == fmt::format("Plugin catalog does not contain any entries for this runtime ({}/{}).",
-                               storage_plugin_current_platform(),
-                               storage_plugin_current_architecture()));
+                               storage_plugin_current_platform(), storage_plugin_current_architecture()));
 }
 
 TEST_CASE("StoragePluginManager installs catalog plugins on demand") {
@@ -1125,15 +1210,12 @@ TEST_CASE("StoragePluginManager installs catalog plugins on demand") {
   "entry_point": "bin/servercloud_plugin",
   "package_paths": ["bin/servercloud_plugin"]
 })json";
-    create_zip_archive(archive_path,
-                       {
-                           {"manifest.json", archive_manifest},
-                           {"bin/servercloud_plugin", stub_payload}
-                       });
+    create_signed_storage_plugin_archive(archive_path, archive_manifest, {{"bin/servercloud_plugin", stub_payload}});
     const auto archive_payload = read_binary_file(archive_path);
     const auto archive_sha = sha256_hex(archive_payload);
 
-    const std::string catalog_json = fmt::format(R"json({{
+    const std::string catalog_json =
+        fmt::format(R"json({{
   "plugins": [
     {{
       "id": "servercloud_support",
@@ -1161,12 +1243,10 @@ TEST_CASE("StoragePluginManager installs catalog plugins on demand") {
     }}
   ]
 }})json",
-                                                 storage_plugin_current_platform(),
-                                                 storage_plugin_current_architecture(),
-                                                 manifest_url,
-                                                 alternate_platform_name(),
-                                                 alternate_architecture_name());
-    const std::string remote_manifest = fmt::format(R"json({{
+                    storage_plugin_current_platform(), storage_plugin_current_architecture(), manifest_url,
+                    alternate_platform_name(), alternate_architecture_name());
+    const std::string remote_manifest =
+        fmt::format(R"json({{
   "id": "servercloud_support",
   "name": "ServerCloud Storage Support",
   "description": "Delivered from the remote plugin catalog.",
@@ -1181,17 +1261,12 @@ TEST_CASE("StoragePluginManager installs catalog plugins on demand") {
   "entry_point": "bin/servercloud_plugin",
   "package_paths": ["bin/servercloud_plugin"]
 }})json",
-                                                 storage_plugin_current_platform(),
-                                                 storage_plugin_current_architecture(),
-                                                 manifest_url,
-                                                 archive_url,
-                                                 archive_sha);
+                    storage_plugin_current_platform(), storage_plugin_current_architecture(), manifest_url, archive_url,
+                    archive_sha);
 
     auto download_fn = [catalog_url, manifest_url, archive_url, catalog_json, remote_manifest, archive_payload](
-                           const std::string& url,
-                           const std::filesystem::path& destination,
-                           StoragePluginPackageFetcher::ProgressCallback,
-                           StoragePluginPackageFetcher::CancelCheck) {
+                           const std::string& url, const std::filesystem::path& destination,
+                           StoragePluginPackageFetcher::ProgressCallback, StoragePluginPackageFetcher::CancelCheck) {
         std::filesystem::create_directories(destination.parent_path());
         std::ofstream out(destination, std::ios::binary | std::ios::trunc);
         if (url == catalog_url) {
@@ -1209,7 +1284,7 @@ TEST_CASE("StoragePluginManager installs catalog plugins on demand") {
         throw std::runtime_error("Unexpected remote catalog/plugin URL");
     };
 
-    StoragePluginManager manager(config_dir.path().string(), download_fn);
+    StoragePluginManager manager(config_dir.path().string(), download_fn, storage_package_test_keys());
     REQUIRE(manager.refresh_remote_catalog());
     REQUIRE(manager.install("servercloud_support"));
     CHECK(manager.is_installed("servercloud_support"));
@@ -1224,8 +1299,7 @@ TEST_CASE("StoragePluginManager updates installed plugins from remote manifests"
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
     TempDir config_dir;
-    const auto manifest_dir =
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
+    const auto manifest_dir = StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
 
     const std::string package_manifest_url = "https://plugins.example.invalid/remotecloud/manifest.json";
     const std::string archive_v1_url = "https://plugins.example.invalid/remotecloud/package-v1.aifsplugin";
@@ -1234,9 +1308,8 @@ TEST_CASE("StoragePluginManager updates installed plugins from remote manifests"
     const auto archive_v1_path = config_dir.path() / "remotecloud_support-v1.aifsplugin";
     const auto archive_v2_path = config_dir.path() / "remotecloud_support-v2.aifsplugin";
     const auto stub_payload = read_binary_file(storage_plugin_stub_path());
-    create_zip_archive(archive_v1_path,
-                       {
-                           {"manifest.json", R"json({
+    create_signed_storage_plugin_archive(archive_v1_path,
+                                         R"json({
   "id": "remotecloud_support",
   "name": "RemoteCloud Storage Support",
   "description": "Version 1.0.0",
@@ -1245,12 +1318,10 @@ TEST_CASE("StoragePluginManager updates installed plugins from remote manifests"
   "entry_point_kind": "external_process",
   "entry_point": "bin/remotecloud_plugin",
   "package_paths": ["bin/remotecloud_plugin"]
-})json"},
-                           {"bin/remotecloud_plugin", stub_payload}
-                       });
-    create_zip_archive(archive_v2_path,
-                       {
-                           {"manifest.json", R"json({
+})json",
+                                         {{"bin/remotecloud_plugin", stub_payload}});
+    create_signed_storage_plugin_archive(archive_v2_path,
+                                         R"json({
   "id": "remotecloud_support",
   "name": "RemoteCloud Storage Support",
   "description": "Version 1.3.0",
@@ -1259,27 +1330,22 @@ TEST_CASE("StoragePluginManager updates installed plugins from remote manifests"
   "entry_point_kind": "external_process",
   "entry_point": "bin/remotecloud_plugin",
   "package_paths": ["bin/remotecloud_plugin"]
-})json"},
-                           {"bin/remotecloud_plugin", stub_payload + "v2"}
-                       });
+})json",
+                                         {{"bin/remotecloud_plugin", stub_payload + "v2"}});
     const auto archive_v1_payload = read_binary_file(archive_v1_path);
     const auto archive_v2_payload = read_binary_file(archive_v2_path);
     const auto archive_v1_sha = sha256_hex(archive_v1_payload);
     const auto archive_v2_sha = sha256_hex(archive_v2_payload);
 
-    const StoragePluginManifest seed_manifest{
-        .id = "remotecloud_support",
-        .name = "RemoteCloud Storage Support",
-        .description = "Seed manifest that resolves to a remote package source.",
-        .version = "0.0.0",
-        .provider_ids = {"mockcloud"},
-        .remote_manifest_url = package_manifest_url,
-        .entry_point_kind = "external_process",
-        .entry_point = "remotecloud_plugin"
-    };
-    REQUIRE(save_storage_plugin_manifest_to_file(
-        seed_manifest,
-        manifest_dir / "remotecloud_support.json"));
+    const StoragePluginManifest seed_manifest{.id = "remotecloud_support",
+                                              .name = "RemoteCloud Storage Support",
+                                              .description = "Seed manifest that resolves to a remote package source.",
+                                              .version = "0.0.0",
+                                              .provider_ids = {"mockcloud"},
+                                              .remote_manifest_url = package_manifest_url,
+                                              .entry_point_kind = "external_process",
+                                              .entry_point = "remotecloud_plugin"};
+    REQUIRE(save_storage_plugin_manifest_to_file(seed_manifest, manifest_dir / "remotecloud_support.json"));
 
     std::string current_remote_manifest = fmt::format(R"json({{
   "id": "remotecloud_support",
@@ -1293,15 +1359,12 @@ TEST_CASE("StoragePluginManager updates installed plugins from remote manifests"
   "entry_point": "bin/remotecloud_plugin",
   "package_paths": ["bin/remotecloud_plugin"]
 }})json",
-                                                      archive_v1_url,
-                                                      archive_v1_sha);
+                                                      archive_v1_url, archive_v1_sha);
 
     auto download_fn = [&current_remote_manifest, package_manifest_url, archive_v1_url, archive_v2_url,
                         archive_v1_payload, archive_v2_payload](
-                           const std::string& url,
-                           const std::filesystem::path& destination,
-                           StoragePluginPackageFetcher::ProgressCallback,
-                           StoragePluginPackageFetcher::CancelCheck) {
+                           const std::string& url, const std::filesystem::path& destination,
+                           StoragePluginPackageFetcher::ProgressCallback, StoragePluginPackageFetcher::CancelCheck) {
         std::filesystem::create_directories(destination.parent_path());
         std::ofstream out(destination, std::ios::binary | std::ios::trunc);
         if (url == package_manifest_url) {
@@ -1319,7 +1382,7 @@ TEST_CASE("StoragePluginManager updates installed plugins from remote manifests"
         throw std::runtime_error("Unexpected remote plugin URL");
     };
 
-    StoragePluginManager plugin_manager(config_dir.path().string(), download_fn);
+    StoragePluginManager plugin_manager(config_dir.path().string(), download_fn, storage_package_test_keys());
     REQUIRE(plugin_manager.install("remotecloud_support"));
     REQUIRE(plugin_manager.is_installed("remotecloud_support"));
     CHECK(plugin_manager.can_check_for_updates());
@@ -1337,8 +1400,7 @@ TEST_CASE("StoragePluginManager updates installed plugins from remote manifests"
   "entry_point": "bin/remotecloud_plugin",
   "package_paths": ["bin/remotecloud_plugin"]
 }})json",
-                                             archive_v2_url,
-                                             archive_v2_sha);
+                                          archive_v2_url, archive_v2_sha);
 
     REQUIRE(plugin_manager.refresh_remote_catalog());
     CHECK(plugin_manager.can_update("remotecloud_support"));
@@ -1398,8 +1460,7 @@ TEST_CASE("OneDriveStorageProvider marks OneDrive staging folders as sync-locked
     TempDir onedrive_root;
     EnvVarGuard onedrive_guard("OneDrive", onedrive_root.path().string());
 
-    const auto staged_file =
-        onedrive_root.path() / ".tmp.drivedownload" / "draft.docx.partial";
+    const auto staged_file = onedrive_root.path() / ".tmp.drivedownload" / "draft.docx.partial";
     write_file(staged_file);
 
     OneDriveStorageProvider provider;
@@ -1440,10 +1501,8 @@ TEST_CASE("OneDriveStorageProvider prefers authoritative sync-root detection whe
             if (path != "/tmp/Documents") {
                 return std::nullopt;
             }
-            return OneDriveStorageProvider::SyncRootInfo{
-                .provider_name = "Microsoft OneDrive",
-                .provider_version = "24.030"
-            };
+            return OneDriveStorageProvider::SyncRootInfo{.provider_name = "Microsoft OneDrive",
+                                                         .provider_version = "24.030"};
         });
 
     const auto detection = provider.detect(folder_path);
@@ -1454,7 +1513,9 @@ TEST_CASE("OneDriveStorageProvider prefers authoritative sync-root detection whe
     CHECK(detection.message.find("Windows identified this folder as a OneDrive sync root.") != std::string::npos);
 }
 
-TEST_CASE("OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider") {
+TEST_CASE(
+    "OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different "
+    "provider") {
     const std::string folder_path = "/tmp/OneDrive/Shared";
 
     OneDriveStorageProvider provider(
@@ -1463,10 +1524,7 @@ TEST_CASE("OneDriveStorageProvider rejects heuristic matches when authoritative 
             if (path != "/tmp/OneDrive/Shared") {
                 return std::nullopt;
             }
-            return OneDriveStorageProvider::SyncRootInfo{
-                .provider_name = "Dropbox",
-                .provider_version = "210.4"
-            };
+            return OneDriveStorageProvider::SyncRootInfo{.provider_name = "Dropbox", .provider_version = "210.4"};
         });
 
     const auto detection = provider.detect(folder_path);
@@ -1480,15 +1538,14 @@ TEST_CASE("OneDriveStorageProvider caches sync-root detection by selected root")
 
     OneDriveStorageProvider provider(
         OneDriveStorageProvider::RemoteMetadataResolver{},
-        [invocation_count](const std::string& path, std::string*) -> std::optional<OneDriveStorageProvider::SyncRootInfo> {
+        [invocation_count](const std::string& path,
+                           std::string*) -> std::optional<OneDriveStorageProvider::SyncRootInfo> {
             ++(*invocation_count);
             if (path != "/tmp/Documents") {
                 return std::nullopt;
             }
-            return OneDriveStorageProvider::SyncRootInfo{
-                .provider_name = "Microsoft OneDrive",
-                .provider_version = "24.030"
-            };
+            return OneDriveStorageProvider::SyncRootInfo{.provider_name = "Microsoft OneDrive",
+                                                         .provider_version = "24.030"};
         });
 
     const auto first = provider.detect(folder_path);
@@ -1534,16 +1591,13 @@ TEST_CASE("OneDriveStorageProvider prefers Graph-backed item ids and revision ta
     auto current_etag = std::make_shared<std::string>("etag-v1");
     auto current_ctag = std::make_shared<std::string>("ctag-v1");
     OneDriveStorageProvider provider(
-        [current_etag, current_ctag](const std::string& path, std::string*) -> std::optional<OneDriveStorageProvider::RemoteMetadata> {
+        [current_etag, current_ctag](const std::string& path,
+                                     std::string*) -> std::optional<OneDriveStorageProvider::RemoteMetadata> {
             if (path.find("budget.xlsx") == std::string::npos) {
                 return std::nullopt;
             }
             return OneDriveStorageProvider::RemoteMetadata{
-                .drive_id = "drive-123",
-                .item_id = "item-456",
-                .e_tag = *current_etag,
-                .c_tag = *current_ctag
-            };
+                .drive_id = "drive-123", .item_id = "item-456", .e_tag = *current_etag, .c_tag = *current_ctag};
         });
 
     const auto before_move_status = provider.inspect_path(source.string());
@@ -1608,15 +1662,10 @@ TEST_CASE("UndoManager rejects OneDrive restores when revision metadata changed"
 
     const auto undo_dir = (onedrive_root.path() / ".undo").string();
     UndoManager writer(undo_dir, &registry);
-    REQUIRE(writer.save_plan(onedrive_root.path().string(),
-                             provider.id(),
-                             {UndoManager::Entry{
-                                 source.string(),
-                                 destination.string(),
-                                 move_result.metadata.size_bytes,
-                                 move_result.metadata.mtime,
-                                 move_result.metadata.stable_identity,
-                                 move_result.metadata.revision_token}},
+    REQUIRE(writer.save_plan(onedrive_root.path().string(), provider.id(),
+                             {UndoManager::Entry{source.string(), destination.string(), move_result.metadata.size_bytes,
+                                                 move_result.metadata.mtime, move_result.metadata.stable_identity,
+                                                 move_result.metadata.revision_token}},
                              nullptr));
 
     UndoManager reader(undo_dir, &registry);
@@ -1640,16 +1689,13 @@ TEST_CASE("UndoManager rejects OneDrive restores when Graph revision metadata ch
     auto current_etag = std::make_shared<std::string>("etag-v1");
     auto current_ctag = std::make_shared<std::string>("ctag-v1");
     auto provider = std::make_shared<OneDriveStorageProvider>(
-        [current_etag, current_ctag](const std::string& path, std::string*) -> std::optional<OneDriveStorageProvider::RemoteMetadata> {
+        [current_etag, current_ctag](const std::string& path,
+                                     std::string*) -> std::optional<OneDriveStorageProvider::RemoteMetadata> {
             if (path.find("graph-report.docx") == std::string::npos) {
                 return std::nullopt;
             }
             return OneDriveStorageProvider::RemoteMetadata{
-                .drive_id = "drive-graph",
-                .item_id = "item-graph",
-                .e_tag = *current_etag,
-                .c_tag = *current_ctag
-            };
+                .drive_id = "drive-graph", .item_id = "item-graph", .e_tag = *current_etag, .c_tag = *current_ctag};
         });
 
     const auto move_result = provider->move_entry(source.string(), destination.string());
@@ -1660,15 +1706,10 @@ TEST_CASE("UndoManager rejects OneDrive restores when Graph revision metadata ch
 
     const auto undo_dir = (onedrive_root.path() / ".undo").string();
     UndoManager writer(undo_dir, &registry);
-    REQUIRE(writer.save_plan(onedrive_root.path().string(),
-                             provider->id(),
-                             {UndoManager::Entry{
-                                 source.string(),
-                                 destination.string(),
-                                 move_result.metadata.size_bytes,
-                                 move_result.metadata.mtime,
-                                 move_result.metadata.stable_identity,
-                                 move_result.metadata.revision_token}},
+    REQUIRE(writer.save_plan(onedrive_root.path().string(), provider->id(),
+                             {UndoManager::Entry{source.string(), destination.string(), move_result.metadata.size_bytes,
+                                                 move_result.metadata.mtime, move_result.metadata.stable_identity,
+                                                 move_result.metadata.revision_token}},
                              nullptr));
 
     *current_etag = "etag-v2";
@@ -1688,23 +1729,18 @@ TEST_CASE("StorageProviderRegistry resolves installed external process provider"
     QtAppContext qt;
     TempDir config_dir;
     TempDir source_dir;
-    const auto manifest_dir =
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
+    const auto manifest_dir = StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
     const auto staged_binary = source_dir.path() / "mockcloud_compat";
     copy_file_with_permissions(storage_plugin_stub_path(), staged_binary);
 
-    const StoragePluginManifest manifest{
-        .id = "mockcloud_compat",
-        .name = "MockCloud Compatibility",
-        .description = "Test plugin backed by an external process stub.",
-        .version = "0.1.0",
-        .provider_ids = {"mockcloud"},
-        .entry_point_kind = "external_process",
-        .entry_point = staged_binary.string()
-    };
-    REQUIRE(save_storage_plugin_manifest_to_file(
-        manifest,
-        manifest_dir / "mockcloud_compat.json"));
+    const StoragePluginManifest manifest{.id = "mockcloud_compat",
+                                         .name = "MockCloud Compatibility",
+                                         .description = "Test plugin backed by an external process stub.",
+                                         .version = "0.1.0",
+                                         .provider_ids = {"mockcloud"},
+                                         .entry_point_kind = "external_process",
+                                         .entry_point = staged_binary.string()};
+    REQUIRE(save_storage_plugin_manifest_to_file(manifest, manifest_dir / "mockcloud_compat.json"));
 
     StoragePluginLoader loader(manifest_dir);
     StoragePluginManager plugin_manager(config_dir.path().string());
@@ -1764,8 +1800,7 @@ TEST_CASE("StorageProviderRegistry resolves installed OneDrive external connecto
     CHECK(std::filesystem::exists(plugin->entry_point));
     CHECK(plugin->entry_point.find("packages/onedrive_storage_support/1.1.0/") != std::string::npos);
 
-    StoragePluginLoader loader(
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
+    StoragePluginLoader loader(StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
     StorageProviderRegistry registry;
     registry.register_builtin(std::make_shared<LocalFsProvider>());
     for (auto& provider : loader.create_detection_providers()) {
@@ -1788,8 +1823,7 @@ TEST_CASE("StorageProviderRegistry resolves installed OneDrive external connecto
     const auto locked_file = onedrive_root.path() / "~$draft.docx";
     write_file(locked_file);
     const auto preflight =
-        resolved->preflight_move(locked_file.string(),
-                                 (onedrive_root.path() / "Sorted" / "draft.docx").string());
+        resolved->preflight_move(locked_file.string(), (onedrive_root.path() / "Sorted" / "draft.docx").string());
     CHECK_FALSE(preflight.allowed);
     CHECK(preflight.sync_locked);
     CHECK(preflight.should_retry);
@@ -1805,9 +1839,7 @@ TEST_CASE("OneDriveStorageProvider verifies a real Windows OneDrive sync root vi
 
     const char* configured_sync_root = std::getenv("AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT");
     const std::string sync_root =
-        (configured_sync_root && *configured_sync_root != '\0')
-            ? std::string(configured_sync_root)
-            : std::string();
+        (configured_sync_root && *configured_sync_root != '\0') ? std::string(configured_sync_root) : std::string();
 
     if (sync_root.empty()) {
         SKIP("Set AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT on a Windows machine with a real OneDrive sync root.");
@@ -1833,9 +1865,7 @@ TEST_CASE("External OneDrive connector verifies a real Windows OneDrive sync roo
 
     const char* configured_sync_root = std::getenv("AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT");
     const std::string sync_root =
-        (configured_sync_root && *configured_sync_root != '\0')
-            ? std::string(configured_sync_root)
-            : std::string();
+        (configured_sync_root && *configured_sync_root != '\0') ? std::string(configured_sync_root) : std::string();
 
     if (sync_root.empty()) {
         SKIP("Set AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT on a Windows machine with a real OneDrive sync root.");
@@ -1851,8 +1881,7 @@ TEST_CASE("External OneDrive connector verifies a real Windows OneDrive sync roo
     StoragePluginManager plugin_manager(config_dir.path().string());
     REQUIRE(plugin_manager.install("onedrive_storage_support"));
 
-    StoragePluginLoader loader(
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
+    StoragePluginLoader loader(StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string()));
     StorageProviderRegistry registry;
     registry.register_builtin(std::make_shared<LocalFsProvider>());
     for (auto& provider : loader.create_detection_providers()) {
@@ -1879,30 +1908,24 @@ TEST_CASE("StoragePluginManager uninstalls packaged external-process plugins") {
     QtAppContext qt;
     TempDir config_dir;
     TempDir source_dir;
-    const auto manifest_dir =
-        StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
+    const auto manifest_dir = StoragePluginManager::manifest_directory_for_config_dir(config_dir.path().string());
     const auto staged_binary = source_dir.path() / "mockcloud_compat";
     copy_file_with_permissions(storage_plugin_stub_path(), staged_binary);
 
-    const StoragePluginManifest manifest{
-        .id = "mockcloud_compat",
-        .name = "MockCloud Compatibility",
-        .description = "Test plugin backed by an external process stub.",
-        .version = "0.1.0",
-        .provider_ids = {"mockcloud"},
-        .entry_point_kind = "external_process",
-        .entry_point = staged_binary.string()
-    };
-    REQUIRE(save_storage_plugin_manifest_to_file(
-        manifest,
-        manifest_dir / "mockcloud_compat.json"));
+    const StoragePluginManifest manifest{.id = "mockcloud_compat",
+                                         .name = "MockCloud Compatibility",
+                                         .description = "Test plugin backed by an external process stub.",
+                                         .version = "0.1.0",
+                                         .provider_ids = {"mockcloud"},
+                                         .entry_point_kind = "external_process",
+                                         .entry_point = staged_binary.string()};
+    REQUIRE(save_storage_plugin_manifest_to_file(manifest, manifest_dir / "mockcloud_compat.json"));
 
     StoragePluginManager plugin_manager(config_dir.path().string());
     REQUIRE(plugin_manager.install("mockcloud_compat"));
 
     const auto package_root =
-        StoragePluginManager::package_directory_for_config_dir(config_dir.path().string()) /
-        "mockcloud_compat";
+        StoragePluginManager::package_directory_for_config_dir(config_dir.path().string()) / "mockcloud_compat";
     REQUIRE(std::filesystem::exists(manifest_dir / "mockcloud_compat.json"));
     REQUIRE(std::filesystem::exists(package_root));
 

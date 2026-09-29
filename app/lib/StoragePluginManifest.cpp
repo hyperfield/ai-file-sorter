@@ -7,11 +7,11 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcessEnvironment>
-
 #include <algorithm>
 #include <cctype>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 std::string storage_plugin_current_platform();
 std::string storage_plugin_current_architecture();
@@ -26,8 +26,7 @@ namespace {
 #define AIFS_ONEDRIVE_STORAGE_PLUGIN_MANIFEST_URL ""
 #endif
 
-std::string env_or_default(const char* env_name, const char* fallback)
-{
+std::string env_or_default(const char* env_name, const char* fallback) {
     const QByteArray env_value = qgetenv(env_name);
     if (!env_value.isEmpty()) {
         return env_value.toStdString();
@@ -35,16 +34,13 @@ std::string env_or_default(const char* env_name, const char* fallback)
     return fallback ? std::string(fallback) : std::string();
 }
 
-std::string ascii_lower_copy(std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
+std::string ascii_lower_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return value;
 }
 
-std::string normalize_platform_name(std::string value)
-{
+std::string normalize_platform_name(std::string value) {
     value = ascii_lower_copy(std::move(value));
     if (value == "win" || value == "win32") {
         return "windows";
@@ -58,8 +54,7 @@ std::string normalize_platform_name(std::string value)
     return value;
 }
 
-std::string normalize_architecture_name(std::string value)
-{
+std::string normalize_architecture_name(std::string value) {
     value = ascii_lower_copy(std::move(value));
     if (value == "amd64" || value == "x64") {
         return "x86_64";
@@ -76,16 +71,17 @@ std::string normalize_architecture_name(std::string value)
     return value;
 }
 
-std::vector<std::string> parse_string_list_field(const QJsonObject& object,
-                                                 const char* plural_key,
+std::vector<std::string> parse_string_list_field(const QJsonObject& object, const char* plural_key,
                                                  std::initializer_list<const char*> singular_keys,
-                                                 std::string (*normalize)(std::string))
-{
+                                                 std::string (*normalize)(std::string)) {
     std::vector<std::string> values;
     std::unordered_set<std::string> seen;
 
     const auto append_value = [&](const QString& text) {
-        auto value = normalize(text.toStdString());
+        auto value = text.trimmed().toStdString();
+        if (normalize) {
+            value = normalize(std::move(value));
+        }
         if (value.empty()) {
             return;
         }
@@ -120,8 +116,14 @@ std::vector<std::string> parse_string_list_field(const QJsonObject& object,
     return values;
 }
 
-bool list_matches_value(const std::vector<std::string>& values, const std::string& expected)
-{
+struct StoragePluginRuntimeEntry {
+    std::vector<std::string> platforms;
+    std::vector<std::string> architectures;
+    std::string entry_point;
+    std::vector<std::string> package_paths;
+};
+
+bool list_matches_value(const std::vector<std::string>& values, const std::string& expected) {
     if (values.empty()) {
         return true;
     }
@@ -129,27 +131,34 @@ bool list_matches_value(const std::vector<std::string>& values, const std::strin
            std::find(values.begin(), values.end(), expected) != values.end();
 }
 
-int manifest_specificity(const StoragePluginManifest& manifest)
-{
+int manifest_specificity(const StoragePluginManifest& manifest) {
     int score = 0;
-    if (!manifest.platforms.empty() &&
-        std::find(manifest.platforms.begin(), manifest.platforms.end(), std::string("any")) ==
-            manifest.platforms.end()) {
+    if (!manifest.platforms.empty() && std::find(manifest.platforms.begin(), manifest.platforms.end(),
+                                                 std::string("any")) == manifest.platforms.end()) {
         score += 2;
     }
-    if (!manifest.architectures.empty() &&
-        std::find(manifest.architectures.begin(), manifest.architectures.end(), std::string("any")) ==
-            manifest.architectures.end()) {
+    if (!manifest.architectures.empty() && std::find(manifest.architectures.begin(), manifest.architectures.end(),
+                                                     std::string("any")) == manifest.architectures.end()) {
         score += 1;
     }
     return score;
 }
 
-bool manifest_matches_runtime(const StoragePluginManifest& manifest,
-                              const std::string& platform,
-                              const std::string& architecture,
-                              std::string* error)
-{
+int runtime_entry_specificity(const StoragePluginRuntimeEntry& entry) {
+    int score = 0;
+    if (!entry.platforms.empty() &&
+        std::find(entry.platforms.begin(), entry.platforms.end(), std::string("any")) == entry.platforms.end()) {
+        score += 2;
+    }
+    if (!entry.architectures.empty() && std::find(entry.architectures.begin(), entry.architectures.end(),
+                                                  std::string("any")) == entry.architectures.end()) {
+        score += 1;
+    }
+    return score;
+}
+
+bool manifest_matches_runtime(const StoragePluginManifest& manifest, const std::string& platform,
+                              const std::string& architecture, std::string* error) {
     if (!list_matches_value(manifest.platforms, platform)) {
         if (error) {
             *error = "Plugin targets a different platform.";
@@ -165,9 +174,58 @@ bool manifest_matches_runtime(const StoragePluginManifest& manifest,
     return true;
 }
 
-std::vector<StoragePluginManifest> select_best_runtime_manifests(
-    std::vector<StoragePluginManifest> manifests)
-{
+bool runtime_entry_matches_current_runtime(const StoragePluginRuntimeEntry& entry) {
+    return list_matches_value(entry.platforms, storage_plugin_current_platform()) &&
+           list_matches_value(entry.architectures, storage_plugin_current_architecture());
+}
+
+std::vector<StoragePluginRuntimeEntry> parse_runtime_entries(const QJsonObject& object) {
+    std::vector<StoragePluginRuntimeEntry> entries;
+    const QJsonArray runtimes = object.value("runtimes").toArray();
+    entries.reserve(static_cast<std::size_t>(runtimes.size()));
+    for (const auto& value : runtimes) {
+        if (!value.isObject()) {
+            continue;
+        }
+        const QJsonObject runtime = value.toObject();
+        StoragePluginRuntimeEntry entry;
+        entry.platforms = parse_string_list_field(runtime, "platforms", {"platform"}, normalize_platform_name);
+        entry.architectures =
+            parse_string_list_field(runtime, "architectures", {"architecture", "arch"}, normalize_architecture_name);
+        entry.entry_point = runtime.value("entry_point").toString().trimmed().toStdString();
+        entry.package_paths = parse_string_list_field(runtime, "package_paths", {"package_path"}, nullptr);
+        if (!entry.entry_point.empty()) {
+            entries.push_back(std::move(entry));
+        }
+    }
+    return entries;
+}
+
+bool apply_best_runtime_entry(StoragePluginManifest* manifest, const QJsonObject& object) {
+    if (!manifest || manifest->entry_point_kind != "external_process") {
+        return false;
+    }
+
+    const auto entries = parse_runtime_entries(object);
+    const StoragePluginRuntimeEntry* selected = nullptr;
+    for (const auto& entry : entries) {
+        if (!runtime_entry_matches_current_runtime(entry)) {
+            continue;
+        }
+        if (!selected || runtime_entry_specificity(entry) >= runtime_entry_specificity(*selected)) {
+            selected = &entry;
+        }
+    }
+    if (!selected) {
+        return !entries.empty();
+    }
+
+    manifest->entry_point = selected->entry_point;
+    manifest->package_paths = selected->package_paths;
+    return true;
+}
+
+std::vector<StoragePluginManifest> select_best_runtime_manifests(std::vector<StoragePluginManifest> manifests) {
     const auto current_platform = storage_plugin_current_platform();
     const auto current_architecture = storage_plugin_current_architecture();
 
@@ -196,53 +254,44 @@ std::vector<StoragePluginManifest> select_best_runtime_manifests(
     return filtered;
 }
 
-std::vector<StoragePluginManifest> filter_catalog_manifests_for_runtime(
-    std::vector<StoragePluginManifest> manifests,
-    std::string* error)
-{
+std::vector<StoragePluginManifest> filter_catalog_manifests_for_runtime(std::vector<StoragePluginManifest> manifests,
+                                                                        std::string* error) {
     const bool had_entries = !manifests.empty();
     auto filtered = select_best_runtime_manifests(std::move(manifests));
     if (filtered.empty() && had_entries && error && error->empty()) {
-        *error = "Plugin catalog does not contain any entries for this runtime (" +
-                 storage_plugin_current_platform() + "/" +
-                 storage_plugin_current_architecture() + ").";
+        *error = "Plugin catalog does not contain any entries for this runtime (" + storage_plugin_current_platform() +
+                 "/" + storage_plugin_current_architecture() + ").";
     }
     return filtered;
 }
 
-const std::vector<StoragePluginManifest>& manifest_catalog()
-{
+const std::vector<StoragePluginManifest>& manifest_catalog() {
     static const std::vector<StoragePluginManifest> catalog = {
         StoragePluginManifest{
             .id = "onedrive_storage_support",
             .name = "OneDrive Storage Support",
-            .description =
-                "Adds a dedicated OneDrive connector process with stronger sync-state detection, move preflight checks, and richer undo metadata for synced folders.",
+            .description = "Adds a dedicated OneDrive connector process with stronger sync-state detection, move "
+                           "preflight checks, and richer undo metadata for synced folders.",
             .version = "1.1.0",
             .provider_ids = {"onedrive"},
             .remote_manifest_url = env_or_default("AI_FILE_SORTER_ONEDRIVE_PLUGIN_MANIFEST_URL",
                                                   AIFS_ONEDRIVE_STORAGE_PLUGIN_MANIFEST_URL),
             .entry_point_kind = "external_process",
             .entry_point = AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME,
-            .package_paths = {AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME}
-        },
-        StoragePluginManifest{
-            .id = "cloud_storage_compat",
-            .name = "Cloud Storage Compatibility",
-            .description =
-                "Adds compatibility providers for Dropbox and pCloud. "
-                "Installed providers use safer recursive scans and relaxed undo timestamp validation for synced folders.",
-            .version = "1.0.0",
-            .provider_ids = {"dropbox", "pcloud"},
-            .entry_point_kind = "builtin_bundle",
-            .entry_point = "cloud_storage_compat_bundle"
-        }
-    };
+            .package_paths = {AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME}},
+        StoragePluginManifest{.id = "cloud_storage_compat",
+                              .name = "Cloud Storage Compatibility",
+                              .description = "Adds compatibility providers for Dropbox and pCloud. "
+                                             "Installed providers use safer recursive scans and relaxed undo timestamp "
+                                             "validation for synced folders.",
+                              .version = "1.0.0",
+                              .provider_ids = {"dropbox", "pcloud"},
+                              .entry_point_kind = "builtin_bundle",
+                              .entry_point = "cloud_storage_compat_bundle"}};
     return catalog;
 }
 
-QJsonObject to_json_object(const StoragePluginManifest& manifest)
-{
+QJsonObject to_json_object(const StoragePluginManifest& manifest) {
     QJsonArray provider_ids;
     for (const auto& provider_id : manifest.provider_ids) {
         provider_ids.append(QString::fromStdString(provider_id));
@@ -277,11 +326,14 @@ QJsonObject to_json_object(const StoragePluginManifest& manifest)
     object["entry_point_kind"] = QString::fromStdString(manifest.entry_point_kind);
     object["entry_point"] = QString::fromStdString(manifest.entry_point);
     object["package_paths"] = package_paths;
+    object["license_required"] = manifest.license_required;
+    object["product_id"] = QString::fromStdString(manifest.product_id);
+    object["purchase_url"] = QString::fromStdString(manifest.purchase_url);
+    object["verified_signer_key_id"] = QString::fromStdString(manifest.verified_signer_key_id);
     return object;
 }
 
-std::optional<StoragePluginManifest> from_json_object(const QJsonObject& object, std::string* error)
-{
+std::optional<StoragePluginManifest> from_json_object(const QJsonObject& object, std::string* error) {
     StoragePluginManifest manifest;
     manifest.id = object.value("id").toString().toStdString();
     manifest.name = object.value("name").toString().toStdString();
@@ -292,16 +344,13 @@ std::optional<StoragePluginManifest> from_json_object(const QJsonObject& object,
     manifest.package_sha256 = object.value("package_sha256").toString().toStdString();
     manifest.entry_point_kind = object.value("entry_point_kind").toString().toStdString();
     manifest.entry_point = object.value("entry_point").toString().toStdString();
-    manifest.platforms = parse_string_list_field(
-        object,
-        "platforms",
-        {"platform"},
-        normalize_platform_name);
-    manifest.architectures = parse_string_list_field(
-        object,
-        "architectures",
-        {"architecture", "arch"},
-        normalize_architecture_name);
+    manifest.license_required = object.value("license_required").toBool(false);
+    manifest.product_id = object.value("product_id").toString().trimmed().toStdString();
+    manifest.purchase_url = object.value("purchase_url").toString().trimmed().toStdString();
+    manifest.verified_signer_key_id = object.value("verified_signer_key_id").toString().trimmed().toStdString();
+    manifest.platforms = parse_string_list_field(object, "platforms", {"platform"}, normalize_platform_name);
+    manifest.architectures =
+        parse_string_list_field(object, "architectures", {"architecture", "arch"}, normalize_architecture_name);
 
     const QJsonArray provider_ids = object.value("provider_ids").toArray();
     manifest.provider_ids.reserve(static_cast<std::size_t>(provider_ids.size()));
@@ -312,14 +361,9 @@ std::optional<StoragePluginManifest> from_json_object(const QJsonObject& object,
         }
     }
 
-    const QJsonArray package_paths = object.value("package_paths").toArray();
-    manifest.package_paths.reserve(static_cast<std::size_t>(package_paths.size()));
-    for (const auto& value : package_paths) {
-        const auto package_path = value.toString().toStdString();
-        if (!package_path.empty()) {
-            manifest.package_paths.push_back(package_path);
-        }
-    }
+    manifest.package_paths = parse_string_list_field(object, "package_paths", {"package_path"}, nullptr);
+
+    const bool has_runtime_entries = apply_best_runtime_entry(&manifest, object);
 
     if ((manifest.entry_point_kind.empty() || manifest.entry_point.empty()) && !manifest.id.empty()) {
         for (const auto& builtin_manifest : manifest_catalog()) {
@@ -331,19 +375,29 @@ std::optional<StoragePluginManifest> from_json_object(const QJsonObject& object,
         }
     }
 
-    if (manifest.id.empty() || manifest.name.empty() || manifest.version.empty() ||
-        manifest.entry_point_kind.empty() || manifest.entry_point.empty()) {
+    if (manifest.entry_point.empty() && has_runtime_entries) {
+        if (error) {
+            *error = "Plugin package does not contain an entry point for this runtime.";
+        }
+        return std::nullopt;
+    }
+
+    if (manifest.id.empty() || manifest.name.empty() || manifest.version.empty() || manifest.entry_point_kind.empty() ||
+        manifest.entry_point.empty()) {
         if (error) {
             *error = "Manifest is missing required fields.";
         }
         return std::nullopt;
     }
 
+    if (manifest.license_required && manifest.product_id.empty()) {
+        manifest.product_id = manifest.id;
+    }
+
     return manifest;
 }
 
-std::vector<StoragePluginManifest> manifests_from_json_document(const QJsonDocument& doc, std::string* error)
-{
+std::vector<StoragePluginManifest> manifests_from_json_document(const QJsonDocument& doc, std::string* error) {
     std::vector<StoragePluginManifest> manifests;
 
     const auto append_manifest = [&](const QJsonObject& object) {
@@ -400,15 +454,13 @@ std::vector<StoragePluginManifest> manifests_from_json_document(const QJsonDocum
     return manifests;
 }
 
-} // namespace
+}  // namespace
 
-const std::vector<StoragePluginManifest>& builtin_storage_plugin_manifests()
-{
+const std::vector<StoragePluginManifest>& builtin_storage_plugin_manifests() {
     return manifest_catalog();
 }
 
-std::optional<StoragePluginManifest> find_storage_plugin_manifest(const std::string& plugin_id)
-{
+std::optional<StoragePluginManifest> find_storage_plugin_manifest(const std::string& plugin_id) {
     for (const auto& manifest : manifest_catalog()) {
         if (manifest.id == plugin_id) {
             return manifest;
@@ -417,8 +469,7 @@ std::optional<StoragePluginManifest> find_storage_plugin_manifest(const std::str
     return std::nullopt;
 }
 
-std::string storage_plugin_current_platform()
-{
+std::string storage_plugin_current_platform() {
 #if defined(_WIN32)
     return "windows";
 #elif defined(__APPLE__)
@@ -430,8 +481,7 @@ std::string storage_plugin_current_platform()
 #endif
 }
 
-std::string storage_plugin_current_architecture()
-{
+std::string storage_plugin_current_architecture() {
 #if defined(__x86_64__) || defined(_M_X64)
     return "x86_64";
 #elif defined(__aarch64__) || defined(_M_ARM64)
@@ -445,20 +495,13 @@ std::string storage_plugin_current_architecture()
 #endif
 }
 
-bool storage_plugin_manifest_matches_current_runtime(const StoragePluginManifest& manifest,
-                                                     std::string* error)
-{
-    return manifest_matches_runtime(
-        manifest,
-        storage_plugin_current_platform(),
-        storage_plugin_current_architecture(),
-        error);
+bool storage_plugin_manifest_matches_current_runtime(const StoragePluginManifest& manifest, std::string* error) {
+    return manifest_matches_runtime(manifest, storage_plugin_current_platform(), storage_plugin_current_architecture(),
+                                    error);
 }
 
-std::optional<StoragePluginManifest> load_storage_plugin_manifest_from_file(
-    const std::filesystem::path& manifest_path,
-    std::string* error)
-{
+std::optional<StoragePluginManifest> load_storage_plugin_manifest_from_file(const std::filesystem::path& manifest_path,
+                                                                            std::string* error) {
     QFile file(QString::fromStdString(manifest_path.string()));
     if (!file.open(QIODevice::ReadOnly)) {
         if (error) {
@@ -482,10 +525,8 @@ std::optional<StoragePluginManifest> load_storage_plugin_manifest_from_file(
     return manifest;
 }
 
-std::optional<StoragePluginManifest> load_storage_plugin_manifest_from_json(
-    const std::string& json,
-    std::string* error)
-{
+std::optional<StoragePluginManifest> load_storage_plugin_manifest_from_json(const std::string& json,
+                                                                            std::string* error) {
     const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(json));
     if (!doc.isObject()) {
         if (error) {
@@ -497,9 +538,7 @@ std::optional<StoragePluginManifest> load_storage_plugin_manifest_from_json(
 }
 
 std::vector<StoragePluginManifest> load_storage_plugin_manifests_from_directory(
-    const std::filesystem::path& manifest_directory,
-    std::string* error)
-{
+    const std::filesystem::path& manifest_directory, std::string* error) {
     std::vector<StoragePluginManifest> manifests;
     if (manifest_directory.empty()) {
         return manifests;
@@ -510,16 +549,13 @@ std::vector<StoragePluginManifest> load_storage_plugin_manifests_from_directory(
         return manifests;
     }
 
-    const QFileInfoList entries = dir.entryInfoList(
-        QStringList() << QStringLiteral("*.json"),
-        QDir::Files | QDir::Readable,
-        QDir::Name);
+    const QFileInfoList entries =
+        dir.entryInfoList(QStringList() << QStringLiteral("*.json"), QDir::Files | QDir::Readable, QDir::Name);
 
     for (const QFileInfo& entry : entries) {
         std::string manifest_error;
         auto manifest = load_storage_plugin_manifest_from_file(
-            std::filesystem::path(entry.absoluteFilePath().toStdString()),
-            &manifest_error);
+            std::filesystem::path(entry.absoluteFilePath().toStdString()), &manifest_error);
         if (!manifest.has_value()) {
             if (error && error->empty()) {
                 *error = manifest_error;
@@ -532,19 +568,14 @@ std::vector<StoragePluginManifest> load_storage_plugin_manifests_from_directory(
     return select_best_runtime_manifests(std::move(manifests));
 }
 
-std::vector<StoragePluginManifest> load_storage_plugin_manifests_from_json(
-    const std::string& json,
-    std::string* error)
-{
+std::vector<StoragePluginManifest> load_storage_plugin_manifests_from_json(const std::string& json,
+                                                                           std::string* error) {
     const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(json));
     return manifests_from_json_document(doc, error);
 }
 
-bool save_storage_plugin_manifest_to_file(
-    const StoragePluginManifest& manifest,
-    const std::filesystem::path& manifest_path,
-    std::string* error)
-{
+bool save_storage_plugin_manifest_to_file(const StoragePluginManifest& manifest,
+                                          const std::filesystem::path& manifest_path, std::string* error) {
     const auto parent_directory = manifest_path.parent_path();
     if (!parent_directory.empty()) {
         QDir dir(QString::fromStdString(parent_directory.string()));
@@ -575,8 +606,7 @@ bool save_storage_plugin_manifest_to_file(
     return true;
 }
 
-std::optional<StoragePluginManifest> find_storage_plugin_manifest_for_provider(const std::string& provider_id)
-{
+std::optional<StoragePluginManifest> find_storage_plugin_manifest_for_provider(const std::string& provider_id) {
     for (const auto& manifest : manifest_catalog()) {
         for (const auto& supported_provider_id : manifest.provider_ids) {
             if (supported_provider_id == provider_id) {

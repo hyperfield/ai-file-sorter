@@ -3178,6 +3178,41 @@ Procedure: Analyze the document and inspect both the captured prompt text and th
 Expected outcome: The prompt includes the UTF-8 source filename intact, and the suggested filename preserves the UTF-8 rename result with its original extension.
 Run: `./build-tests/ai_file_sorter_tests "DocumentTextAnalyzer handles UTF-8 filenames"`
 
+#### Test case: StoragePluginManager installs .aifsplugin archives with manifest and assets
+Purpose: Verify signed storage `.aifsplugin` archives can install an external-process connector and register its provider.
+Setup: Build a signed mock storage package containing `manifest.json`, signature metadata, and the connector stub.
+Procedure: Install the archive, load the installed manifest, and resolve a mock cloud folder through the plugin-backed provider.
+Expected outcome: Install succeeds, the signer key id is persisted, the connector entry point is materialized under the managed package directory, and the provider handles the mock folder.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs .aifsplugin archives with manifest and assets"`
+
+#### Test case: StoragePluginManager selects signed runtime-specific storage package paths and entitlement metadata
+Purpose: Verify signed storage package manifests can carry runtime-specific connector paths and commercial metadata.
+Setup: Build a signed mock storage package whose manifest uses a `runtimes` entry for the current platform/architecture and includes entitlement metadata.
+Procedure: Install the archive and inspect the installed manifest.
+Expected outcome: The current runtime entry point is selected, the package signer key id is preserved, and `license_required`, `product_id`, and `purchase_url` survive install.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager selects signed runtime-specific storage package paths and entitlement metadata"`
+
+#### Test case: StoragePluginManager rejects unsigned and tampered storage plugin archives
+Purpose: Ensure storage package trust depends on a valid signature and matching signed file hashes.
+Setup: Create unsigned, manifest-tampered, payload-tampered, and unknown-key storage archives.
+Procedure: Attempt to install each archive with only the test public key trusted.
+Expected outcome: Every invalid archive is rejected with a signature, hash, or untrusted-key error.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects unsigned and tampered storage plugin archives"`
+
+#### Test case: StoragePluginManager rejects unsafe storage plugin archive paths
+Purpose: Prevent signed manifests from materializing entry points or package assets outside the archive root.
+Setup: Build a signed archive whose manifest uses a traversal entry point path.
+Procedure: Attempt to install the archive.
+Expected outcome: Install is rejected before any plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects unsafe storage plugin archive paths"`
+
+#### Test case: StoragePluginManager rejects signed storage plugin archives with missing entry points
+Purpose: Verify a signed manifest cannot install if its connector executable is absent.
+Setup: Build a signed storage package containing only the manifest and signature metadata.
+Procedure: Attempt to install the archive.
+Expected outcome: Install fails with a missing entry point error.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects signed storage plugin archives with missing entry points"`
+
 #### Test case: StoragePluginManager refreshes available plugins from a remote catalog
 Purpose: Confirm remote catalog refresh merges plugin metadata for the current runtime.
 Setup: Point the manager at a mock remote catalog URL with a runtime-matching plugin manifest.
