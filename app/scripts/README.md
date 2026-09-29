@@ -8,12 +8,10 @@ automatically redacting common sensitive data, and creating a zipped bundle to s
 - `collect_macos_diagnostics.sh` (macOS)
 - `collect_linux_diagnostics.sh` (Linux)
 - `collect_windows_diagnostics.ps1` (Windows PowerShell)
-- `generate_plugin_payload.sh` (Generate a publishable plugin payload; currently for the OneDrive storage plugin)
 - `build_plugins_linux.sh` (Build Linux plugin targets)
 - `build_plugins_macos.sh` (Build macOS plugin targets)
 - `build_plugins_windows.ps1` (Build Windows plugin targets)
 - `upload_plugins.py` (Upload prepared plugin payloads and merge the remote catalog)
-- `verify_onedrive_windows_sync_root.ps1` (Run real Windows OneDrive sync-root verification tests)
 - `package_deb.sh` (Build a Debian package that bundles the staged Linux runtime payloads)
 - `create_rpm.sh` (Build an RPM package that bundles the staged Linux runtime payloads)
 - `stage_vcpkg_runtime.cmake` (Internal CMake helper used by Windows test targets to copy config-specific vcpkg runtime DLLs beside the test executables)
@@ -121,45 +119,21 @@ Inside, the archive contains a `redacted/` folder with sanitized artifacts.
 
 ## Storage Plugin Payload
 
-To regenerate the local OneDrive storage-plugin publish payload from the current build:
+Storage plugin packages are produced by their own plugin repositories with the
+shared SDK in `D:\projects\aifs-plugin-sdk`. This public app repository keeps
+the host install/update/upload tooling, but it does not build commercial
+connector packages.
 
-```bash
-./app/scripts/generate_plugin_payload.sh \
-  --base-url=https://filesorter.app/download/plugins
-```
+Prepared payloads should still use the upload layout expected by
+`upload_plugins.py`:
 
-Options:
+- `plugins/storage/catalog.json`
+- `plugins/storage/<plugin>/<runtime>/manifest.json`
+- `plugins/storage/<plugin>/<runtime>/*.aifsplugin`
+- `plugins/storage/SHA256SUMS`
 
-- `--base-url=<https-url>` required
-- `--key-id=<id>` required, storage package signing key id
-- `--private-key=<path>` required, Ed25519 private key PEM kept outside the repo
-- `--output-dir=<path>` optional, defaults to `plugins/storage`
-- `--build-dir=<path>` optional, defaults to `build-tests`
-- `--openssl=<path>` optional, defaults to `openssl`
-
-The script writes a ready-to-upload `storage/` category tree under the local `plugins/` root and
-generates URLs under `<base-url>/storage/...`.
-
-Runtime variants are stored in per-OS/per-arch subdirectories so multiple builds can coexist:
-
-- `plugins/storage/onedrive/linux-x86_64/...`
-- `plugins/storage/onedrive/windows-x86_64/...`
-- `plugins/storage/onedrive/macos-arm64/...`
-
-Contents:
-
-- `catalog.json`
-- `onedrive/<platform>-<arch>/manifest.json`
-- `onedrive/<platform>-<arch>/*.aifsplugin`
-- `SHA256SUMS`
-
-Each generated `.aifsplugin` archive contains `plugin-signature.json` and
-`plugin-signature.sig`; the private signing key should never be stored in this
-repository.
-
-A checked-in sample catalog covering Linux, Windows, and macOS runtime variants lives at:
-
-- `app/scripts/examples/storage/catalog.sample.json`
+Each `.aifsplugin` archive must contain `plugin-signature.json` and
+`plugin-signature.sig`; private signing keys must stay outside this repository.
 
 ## Plugin Build Scripts
 
@@ -180,7 +154,7 @@ Examples:
 ```bash
 ./app/scripts/build_plugins_linux.sh --list
 ./app/scripts/build_plugins_linux.sh
-./app/scripts/build_plugins_linux.sh --plugins=onedrive_storage_support
+./app/scripts/build_plugins_linux.sh --plugins=plugin_id
 ./app/scripts/build_plugins_linux.sh --interactive
 
 ./app/scripts/build_plugins_macos.sh --list
@@ -190,7 +164,7 @@ Examples:
 ```powershell
 .\app\scripts\build_plugins_windows.ps1 -List
 .\app\scripts\build_plugins_windows.ps1
-.\app\scripts\build_plugins_windows.ps1 -Plugins onedrive_storage_support
+.\app\scripts\build_plugins_windows.ps1 -Plugins plugin_id
 .\app\scripts\build_plugins_windows.ps1 -Interactive
 ```
 
@@ -222,8 +196,6 @@ Each category is expected to contain its own:
 - `SHA256SUMS`
 - per-plugin runtime subdirectories containing `manifest.json`
 - `.aifsplugin` archives inside those runtime subdirectories
-
-The current OneDrive payload still lives under `plugins/storage`.
 
 For example, if your local payload is generated under `plugins/storage`, you can upload with:
 
@@ -264,37 +236,6 @@ What it updates on the remote:
 - selected plugin `.aifsplugin` archives
 - merged per-category `catalog.json`
 - merged per-category `SHA256SUMS`
-
-## OneDrive Windows Sync-Root Verification
-
-To verify the authoritative Windows Cloud Files detection path against a real
-OneDrive sync root on a Windows machine:
-
-```powershell
-.\app\scripts\verify_onedrive_windows_sync_root.ps1
-```
-
-or explicitly:
-
-```powershell
-.\app\scripts\verify_onedrive_windows_sync_root.ps1 `
-  -BuildDir .\app\build-windows `
-  -Configuration Release `
-  -SyncRoot "$env:OneDrive"
-```
-
-The script:
-
-- finds `ai_file_sorter_tests.exe`
-- resolves a real OneDrive sync root from:
-  - `-SyncRoot`
-  - `AI_FILE_SORTER_TEST_ONEDRIVE_SYNC_ROOT`
-  - `OneDrive`
-- runs the two Windows-only integration tests that verify:
-  - direct `OneDriveStorageProvider` detection uses `CfGetSyncRootInfoByPath`
-  - the external OneDrive plugin process reports the same authoritative detection result
-
-These tests are skipped automatically on non-Windows systems.
 
 ## Redaction notes
 
