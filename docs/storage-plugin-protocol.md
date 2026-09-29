@@ -14,6 +14,22 @@ The machine-readable schemas live in:
 - [`docs/schemas/storage-plugin-v1/request.schema.json`](schemas/storage-plugin-v1/request.schema.json)
 - [`docs/schemas/storage-plugin-v1/response.schema.json`](schemas/storage-plugin-v1/response.schema.json)
 
+## Package Trust
+
+External-process storage connectors are distributed as signed `.aifsplugin`
+archives. Before the host trusts a package manifest, it verifies
+`plugin-signature.sig` over the exact bytes of `plugin-signature.json`, resolves
+the signature `key_id` to a configured storage-package public key, and checks
+the signed SHA-256 hash for every non-signature payload file. `manifest.json`
+must be covered by the signed file list.
+
+Package paths must be relative, use forward slashes, and stay inside the package
+root. Storage manifests may use top-level `entry_point`/`package_paths` for a
+single runtime or a `runtimes` array for platform- and architecture-specific
+connector paths. Commercial metadata such as `license_required`, `product_id`,
+and `purchase_url` lives in the signed manifest; user entitlement receipts are
+checked separately from package trust.
+
 ## Compatibility Rules
 
 - Requests always include `protocol`, `plugin_id`, `provider_id`, and `action`.
