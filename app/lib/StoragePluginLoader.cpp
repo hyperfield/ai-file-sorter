@@ -18,6 +18,15 @@ std::shared_ptr<IStorageProvider> make_dropbox_detector()
         std::vector<std::string>{"dropbox"});
 }
 
+std::shared_ptr<IStorageProvider> make_onedrive_detector()
+{
+    return std::make_shared<CloudPathDetectorProvider>(
+        "onedrive_detector",
+        "onedrive",
+        "OneDrive",
+        std::vector<std::string>{"onedrive"});
+}
+
 std::shared_ptr<IStorageProvider> make_pcloud_detector()
 {
     return std::make_shared<CloudPathDetectorProvider>(
@@ -79,6 +88,10 @@ std::vector<std::shared_ptr<IStorageProvider>> make_cloud_runtime_bundle(const S
 std::vector<std::shared_ptr<IStorageProvider>> make_external_detection_bundle(
     const StoragePluginManifest& manifest)
 {
+    if (manifest.entry_point.empty()) {
+        return {};
+    }
+
     std::vector<std::shared_ptr<IStorageProvider>> providers;
     providers.reserve(manifest.provider_ids.size());
     for (const auto& provider_id : manifest.provider_ids) {
@@ -94,6 +107,10 @@ std::vector<std::shared_ptr<IStorageProvider>> make_external_detection_bundle(
 std::vector<std::shared_ptr<IStorageProvider>> make_external_runtime_bundle(
     const StoragePluginManifest& manifest)
 {
+    if (manifest.entry_point.empty()) {
+        return {};
+    }
+
     std::vector<std::shared_ptr<IStorageProvider>> providers;
     providers.reserve(manifest.provider_ids.size());
     for (const auto& provider_id : manifest.provider_ids) {
@@ -229,6 +246,7 @@ std::vector<std::shared_ptr<IStorageProvider>> StoragePluginLoader::create_detec
     for (const auto& manifest : available_plugins()) {
         append_unique_providers(providers, entry_point_registry_.create_detection_providers(manifest));
     }
+    append_unique_providers(providers, {make_onedrive_detector()});
     return providers;
 }
 

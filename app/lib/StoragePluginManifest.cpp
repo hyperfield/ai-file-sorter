@@ -18,10 +18,6 @@ std::string storage_plugin_current_architecture();
 
 namespace {
 
-#ifndef AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME
-#define AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME "aifs_onedrive_storage_plugin"
-#endif
-
 #ifndef AIFS_ONEDRIVE_STORAGE_PLUGIN_MANIFEST_URL
 #define AIFS_ONEDRIVE_STORAGE_PLUGIN_MANIFEST_URL ""
 #endif
@@ -277,8 +273,9 @@ const std::vector<StoragePluginManifest>& manifest_catalog() {
             .remote_manifest_url = env_or_default("AI_FILE_SORTER_ONEDRIVE_PLUGIN_MANIFEST_URL",
                                                   AIFS_ONEDRIVE_STORAGE_PLUGIN_MANIFEST_URL),
             .entry_point_kind = "external_process",
-            .entry_point = AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME,
-            .package_paths = {AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME}},
+            .license_required = true,
+            .product_id = "onedrive_storage_support",
+            .purchase_url = "https://filesorter.app/plugins/onedrive"},
         StoragePluginManifest{.id = "cloud_storage_compat",
                               .name = "Cloud Storage Compatibility",
                               .description = "Adds compatibility providers for Dropbox and pCloud. "
