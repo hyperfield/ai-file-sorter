@@ -14,6 +14,9 @@ category="storage"
 base_url=""
 output_dir="${default_output_dir}"
 build_dir="${default_build_dir}"
+signing_key_id=""
+private_key_path=""
+openssl_cmd="openssl"
 
 usage() {
     cat <<EOF
@@ -28,6 +31,9 @@ Options:
                          Default: ${default_output_dir}
   --build-dir=<path>     Build directory containing ${plugin_binary_name}.
                          Default: ${default_build_dir}
+  --key-id=<id>          Storage package signing key id.
+  --private-key=<path>   Ed25519 private key PEM used to sign plugin-signature.json.
+  --openssl=<path>       OpenSSL command path. Default: openssl
   -h, --help             Show this help.
 EOF
 }
@@ -106,6 +112,15 @@ for arg in "$@"; do
         --build-dir=*)
             build_dir="${arg#*=}"
             ;;
+        --key-id=*)
+            signing_key_id="${arg#*=}"
+            ;;
+        --private-key=*)
+            private_key_path="${arg#*=}"
+            ;;
+        --openssl=*)
+            openssl_cmd="${arg#*=}"
+            ;;
         -h|--help)
             usage
             exit 0
@@ -121,6 +136,14 @@ done
     usage >&2
     fail "Missing required --base-url argument."
 }
+[[ -n "${signing_key_id}" ]] || {
+    usage >&2
+    fail "Missing required --key-id argument."
+}
+[[ -n "${private_key_path}" ]] || {
+    usage >&2
+    fail "Missing required --private-key argument."
+}
 
 base_url="$(normalize_url "${base_url}")"
 category_base_url="${base_url}/${category}"
@@ -133,6 +156,8 @@ binary_path="${build_dir}/${plugin_binary_name}"
 [[ -x "${binary_path}" ]] || fail "Plugin binary not found or not executable: ${binary_path}"
 command -v zip >/dev/null 2>&1 || fail "The 'zip' command is required."
 command -v sha256sum >/dev/null 2>&1 || fail "The 'sha256sum' command is required."
+command -v "${openssl_cmd}" >/dev/null 2>&1 || fail "OpenSSL was not found: ${openssl_cmd}"
+[[ -f "${private_key_path}" ]] || fail "Private signing key not found: ${private_key_path}"
 
 plugin_dir="${output_dir}/onedrive/${runtime_id}"
 legacy_plugin_dir="${output_dir}/onedrive"
@@ -176,9 +201,33 @@ cat > "${tmp_dir}/manifest.json" <<EOF
 }
 EOF
 
+manifest_sha="$(sha256sum "${tmp_dir}/manifest.json" | awk '{print $1}')"
+binary_sha="$(sha256sum "${tmp_dir}/bin/${plugin_binary_name}" | awk '{print $1}')"
+cat > "${tmp_dir}/plugin-signature.json" <<EOF
+{
+  "schema_version": 1,
+  "algorithm": "ed25519",
+  "key_id": "$(escape_json "${signing_key_id}")",
+  "files": [
+    {
+      "path": "manifest.json",
+      "sha256": "${manifest_sha}"
+    },
+    {
+      "path": "bin/${plugin_binary_name}",
+      "sha256": "${binary_sha}"
+    }
+  ]
+}
+EOF
+
+"${openssl_cmd}" pkeyutl -sign -rawin -inkey "${private_key_path}" \
+    -in "${tmp_dir}/plugin-signature.json" \
+    -out "${tmp_dir}/plugin-signature.sig"
+
 (
     cd "${tmp_dir}"
-    zip -qr "${package_path}" manifest.json bin
+    zip -qr "${package_path}" manifest.json plugin-signature.json plugin-signature.sig bin
 )
 
 package_sha="$(sha256sum "${package_path}" | awk '{print $1}')"
@@ -289,6 +338,7 @@ Generated values
 - Runtime id: ${runtime_id}
 - Plugin version: ${plugin_version}
 - Build directory: ${build_dir}
+- Package signing key id: ${signing_key_id}
 
 Contents
 - catalog.json: merged server-side storage plugin catalog for all runtime variants

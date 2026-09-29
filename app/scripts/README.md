@@ -131,8 +131,11 @@ To regenerate the local OneDrive storage-plugin publish payload from the current
 Options:
 
 - `--base-url=<https-url>` required
+- `--key-id=<id>` required, storage package signing key id
+- `--private-key=<path>` required, Ed25519 private key PEM kept outside the repo
 - `--output-dir=<path>` optional, defaults to `plugins/storage`
 - `--build-dir=<path>` optional, defaults to `build-tests`
+- `--openssl=<path>` optional, defaults to `openssl`
 
 The script writes a ready-to-upload `storage/` category tree under the local `plugins/` root and
 generates URLs under `<base-url>/storage/...`.
@@ -149,6 +152,10 @@ Contents:
 - `onedrive/<platform>-<arch>/manifest.json`
 - `onedrive/<platform>-<arch>/*.aifsplugin`
 - `SHA256SUMS`
+
+Each generated `.aifsplugin` archive contains `plugin-signature.json` and
+`plugin-signature.sig`; the private signing key should never be stored in this
+repository.
 
 A checked-in sample catalog covering Linux, Windows, and macOS runtime variants lives at:
 
@@ -245,7 +252,9 @@ What it verifies before upload:
 
 - local manifest/package presence
 - archive SHA-256 matches the manifest
-- archive contains `manifest.json`, the plugin entry point, and package paths
+- archive contains `manifest.json`, `plugin-signature.json`, `plugin-signature.sig`,
+  the plugin entry point, and package paths
+- signed file-list hashes match every non-signature payload file
 - local build artifact exists for matching current-runtime plugin packages
 - remote public catalog/manifest version and package hash, when available
 
