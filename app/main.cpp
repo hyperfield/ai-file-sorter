@@ -20,6 +20,7 @@
 #include <QWidget>
 #include <algorithm>
 #include <app_version.hpp>
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -122,6 +123,14 @@ void set_process_env(const char* key, const std::string& value) {
     _putenv_s(key, value.c_str());
 #else
     setenv(key, value.c_str(), 1);
+#endif
+}
+
+void clear_process_env(const char* key) {
+#ifdef _WIN32
+    _putenv_s(key, "");
+#else
+    unsetenv(key);
 #endif
 }
 
@@ -330,6 +339,8 @@ bool file_exists(const std::filesystem::path& path) {
     return std::filesystem::exists(path, ec);
 }
 
+constexpr const char* kVulkanRuntimeDllEnv = "AI_FILE_SORTER_VULKAN_RUNTIME_DLL";
+
 void ensure_windows_ggml_backend_env() {
     auto logger = Logger::get_logger("core_logger");
     std::filesystem::path exe_path;
@@ -377,6 +388,147 @@ void ensure_windows_ggml_backend_env() {
         set_process_env("LLAMA_ARG_DEVICE", "cuda");
         if (logger) {
             logger->info("Detected CUDA-only root ggml payload; preferring CUDA backend for direct launch.");
+        }
+    }
+}
+
+struct ScopedThreadErrorMode {
+    DWORD previous_mode{0};
+    bool active{false};
+
+    explicit ScopedThreadErrorMode(DWORD mode) { active = SetThreadErrorMode(mode, &previous_mode) != 0; }
+
+    ~ScopedThreadErrorMode() {
+        if (active) {
+            SetThreadErrorMode(previous_mode, nullptr);
+        }
+    }
+};
+
+bool env_equals(const char* key, const char* expected) {
+    const char* value = std::getenv(key);
+    return value && _stricmp(value, expected) == 0;
+}
+
+bool windows_vulkan_backend_requested() {
+    return env_equals("AI_FILE_SORTER_GPU_BACKEND", "vulkan") || env_equals("LLAMA_ARG_DEVICE", "vulkan");
+}
+
+std::optional<std::filesystem::path> windows_env_path(const char* key) {
+    const char* value = std::getenv(key);
+    if (!value || value[0] == '\0') {
+        return std::nullopt;
+    }
+    return Utils::utf8_to_path(value);
+}
+
+std::optional<std::filesystem::path> windows_vulkan_runtime_candidate() {
+    if (const auto explicit_path = windows_env_path(kVulkanRuntimeDllEnv)) {
+        return explicit_path;
+    }
+
+    const auto ggml_dir = windows_env_path("AI_FILE_SORTER_GGML_DIR");
+    if (!ggml_dir) {
+        return std::nullopt;
+    }
+
+    const std::filesystem::path colocated_loader = *ggml_dir / "vulkan-1.dll";
+    if (file_exists(colocated_loader)) {
+        return colocated_loader;
+    }
+    return std::nullopt;
+}
+
+HMODULE load_windows_vulkan_runtime(const std::optional<std::filesystem::path>& runtime_path) {
+    const ScopedThreadErrorMode suppress_loader_dialogs(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
+    (void) suppress_loader_dialogs;
+
+    if (runtime_path) {
+        return LoadLibraryExW(runtime_path->c_str(), nullptr,
+                              LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+    }
+
+    return LoadLibraryExW(L"vulkan-1.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+}
+
+bool windows_vulkan_runtime_has_required_exports(HMODULE module) {
+    if (!module) {
+        return false;
+    }
+
+    constexpr std::array required_symbols = {
+        "vkGetInstanceProcAddr",
+        "vkGetPhysicalDeviceFeatures2",
+    };
+    for (const char* symbol : required_symbols) {
+        if (!GetProcAddress(module, symbol)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void fallback_windows_vulkan_to_cpu(const std::string& reason) {
+    auto logger = Logger::get_logger("core_logger");
+    if (logger) {
+        logger->warn("Disabling Vulkan backend before ggml load: {}", reason);
+    }
+
+    std::filesystem::path exe_path;
+    try {
+        exe_path = Utils::utf8_to_path(Utils::get_executable_path());
+    } catch (const std::exception&) {
+        exe_path.clear();
+    }
+
+    if (!exe_path.empty()) {
+        if (const auto cpu_runtime = GgmlRuntimePaths::resolve_windows_cpu_runtime_dir(exe_path)) {
+            set_process_env("AI_FILE_SORTER_GGML_DIR", Utils::path_to_utf8(*cpu_runtime));
+            if (logger) {
+                logger->info("Using packaged CPU ggml runtime after Vulkan rejection: '{}'",
+                             Utils::path_to_utf8(*cpu_runtime));
+            }
+        } else {
+            clear_process_env("AI_FILE_SORTER_GGML_DIR");
+            if (logger) {
+                logger->warn("Packaged CPU ggml runtime was not found while rejecting Vulkan.");
+            }
+        }
+    }
+
+    set_process_env("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+    set_process_env("GGML_DISABLE_CUDA", "1");
+    clear_process_env("LLAMA_ARG_DEVICE");
+    clear_process_env(kVulkanRuntimeDllEnv);
+}
+
+void preload_windows_vulkan_runtime_if_requested() {
+    static HMODULE loaded_vulkan_runtime = nullptr;
+    if (loaded_vulkan_runtime || !windows_vulkan_backend_requested()) {
+        return;
+    }
+
+    const auto runtime_path = windows_vulkan_runtime_candidate();
+    if (windows_env_path(kVulkanRuntimeDllEnv) && (!runtime_path || !file_exists(*runtime_path))) {
+        fallback_windows_vulkan_to_cpu("validated Vulkan runtime DLL is no longer present");
+        return;
+    }
+
+    HMODULE module = load_windows_vulkan_runtime(runtime_path);
+    if (!windows_vulkan_runtime_has_required_exports(module)) {
+        if (module) {
+            FreeLibrary(module);
+        }
+        fallback_windows_vulkan_to_cpu("Vulkan loader is missing vkGetPhysicalDeviceFeatures2");
+        return;
+    }
+
+    loaded_vulkan_runtime = module;
+    if (auto logger = Logger::get_logger("core_logger")) {
+        if (runtime_path) {
+            logger->info("Preloaded compatible Vulkan runtime '{}'", Utils::path_to_utf8(*runtime_path));
+        } else {
+            logger->info("Preloaded compatible system Vulkan runtime.");
         }
     }
 }
@@ -798,6 +950,7 @@ int run_application(const ParsedArguments& parsed_args) {
     ensure_ggml_backend_dir();
 #elif defined(_WIN32)
     ensure_windows_ggml_backend_env();
+    preload_windows_vulkan_runtime_if_requested();
 #endif
     setlocale(LC_ALL, "");
     const std::string locale_path = Utils::get_executable_path() + "/locale";
