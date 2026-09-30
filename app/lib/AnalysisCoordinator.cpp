@@ -591,6 +591,16 @@ AnalysisRunResult AnalysisCoordinator::execute()
 
         const bool folder_tree_sorting =
             app_.settings.get_sorting_mode() == SortingMode::ExistingFolderTree;
+        auto suggest_johnny_decimal_plugin = [this]() {
+            if (!app_.suggest_johnny_decimal_plugin) {
+                return;
+            }
+            if (!app_.suggest_johnny_decimal_plugin()) {
+                return;
+            }
+            app_.stop_analysis.store(true);
+            throw AnalysisCancelled("Johnny.Decimal plugin obtain requested.");
+        };
         auto cached_entries = prepare_cached_entries_for_sorting_mode(
             app_.db_manager,
             app_.categorization_service.load_cached_entries(directory_path),
@@ -598,7 +608,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
             app_.settings.get_effective_destination_folder(directory_path),
             app_.settings.get_suggest_new_folders(),
             app_.categorization_service.folder_structure_profiles(),
-            app_.suggest_johnny_decimal_plugin);
+            suggest_johnny_decimal_plugin);
         std::vector<CategorizedFile> pending_renames;
         pending_renames.reserve(cached_entries.size());
         std::unordered_set<std::string> renamed_files;

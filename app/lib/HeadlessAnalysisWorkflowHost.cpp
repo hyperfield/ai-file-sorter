@@ -264,7 +264,7 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
             filter_file_entries_to_selected_paths(entries);
         },
         [this]() { notify_review_preview_changed(); },
-        []() {},
+        []() { return false; },
         [](const std::vector<AnalysisWorkflowContext::StagePlan>&) {},
         [](AnalysisWorkflowContext::StageId, const std::vector<FileEntry>&) {},
         [](AnalysisWorkflowContext::StageId) {},

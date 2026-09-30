@@ -402,8 +402,9 @@ private:
     void show_folder_structure_plugin_dialog();
     /**
      * @brief Offers the Johnny.Decimal folder-structure plugin for compatible folder trees.
+     * @return True when the user chose to obtain the plugin.
      */
-    void maybe_show_johnny_decimal_plugin_suggestion();
+    bool maybe_show_johnny_decimal_plugin_suggestion();
     /**
      * @brief Checks the selected/destination folder tree and offers Johnny.Decimal support when relevant.
      */

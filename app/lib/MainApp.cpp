@@ -2460,15 +2460,16 @@ void MainApp::maybe_suggest_johnny_decimal_plugin_for_current_folder_tree()
     }
 }
 
-void MainApp::maybe_show_johnny_decimal_plugin_suggestion()
+bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
 {
     if (settings.get_hide_johnny_decimal_plugin_suggestion() ||
         (folder_structure_plugin_manager_ &&
          folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
-        return;
+        return false;
     }
 
-    run_on_ui_blocking([this]() {
+    bool obtain_requested = false;
+    run_on_ui_blocking([this, &obtain_requested]() {
         if (settings.get_hide_johnny_decimal_plugin_suggestion() ||
             (folder_structure_plugin_manager_ &&
              folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
@@ -2493,6 +2494,7 @@ void MainApp::maybe_show_johnny_decimal_plugin_suggestion()
         if (dialog.clickedButton() == obtain_button) {
             QDesktopServices::openUrl(
                 QUrl(QStringLiteral("https://filesorter.app/plugins/johnny-decimal-support")));
+            obtain_requested = true;
             return;
         }
 
@@ -2503,6 +2505,7 @@ void MainApp::maybe_show_johnny_decimal_plugin_suggestion()
             }
         }
     });
+    return obtain_requested;
 }
 
 void MainApp::open_windows_explorer_extension_install_page()
@@ -3083,7 +3086,7 @@ AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
         [this]() { return effective_scan_options(); },
         [](std::vector<FileEntry>&) {},
         []() {},
-        [this]() { maybe_show_johnny_decimal_plugin_suggestion(); },
+        [this]() { return maybe_show_johnny_decimal_plugin_suggestion(); },
         [this](const std::vector<AnalysisWorkflowContext::StagePlan>& stages) {
             configure_progress_stages(stages);
         },
