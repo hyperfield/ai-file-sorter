@@ -1,5 +1,7 @@
 #include "FolderStructureTemplates.hpp"
 
+#include "FolderStructurePluginProfile.hpp"
+
 #include <algorithm>
 #include <filesystem>
 #include <system_error>
@@ -117,6 +119,25 @@ const std::vector<Descriptor>& all() {
     return descriptors;
 }
 
+std::vector<Descriptor> all_with_plugins(
+    const std::vector<FolderStructurePluginProfile>& plugin_profiles)
+{
+    std::vector<Descriptor> descriptors = all();
+    for (const auto& profile : plugin_profiles) {
+        if (profile.initial_directories.empty()) {
+            continue;
+        }
+        descriptors.push_back(Descriptor{
+            .id = Id::JohnnyDecimal,
+            .plugin_profile_id = profile.id,
+            .name = profile.name,
+            .description = profile.description,
+            .available = profile.available,
+            .relative_directories = profile.initial_directories});
+    }
+    return descriptors;
+}
+
 const Descriptor* find(Id id) {
     const auto& descriptors = all();
     const auto match = std::find_if(descriptors.begin(), descriptors.end(),
@@ -124,14 +145,9 @@ const Descriptor* find(Id id) {
     return match == descriptors.end() ? nullptr : &(*match);
 }
 
-CreationResult create(const std::filesystem::path& root, Id id) {
+CreationResult create(const std::filesystem::path& root, const Descriptor& descriptor) {
     CreationResult result;
-    const Descriptor* const descriptor = find(id);
-    if (!descriptor) {
-        result.error = "Unknown folder structure.";
-        return result;
-    }
-    if (!descriptor->available) {
+    if (!descriptor.available) {
         result.error = "This folder structure is not available yet.";
         return result;
     }
@@ -161,7 +177,7 @@ CreationResult create(const std::filesystem::path& root, Id id) {
         }
     }
 
-    for (const std::string& relative : descriptor->relative_directories) {
+    for (const std::string& relative : descriptor.relative_directories) {
         const std::filesystem::path relative_path = relative_directory_path(relative);
         if (relative_path.empty()) {
             result.error = "The folder structure contains an invalid folder path.";
@@ -196,6 +212,16 @@ CreationResult create(const std::filesystem::path& root, Id id) {
 
     result.success = true;
     return result;
+}
+
+CreationResult create(const std::filesystem::path& root, Id id) {
+    CreationResult result;
+    const Descriptor* const descriptor = find(id);
+    if (!descriptor) {
+        result.error = "Unknown folder structure.";
+        return result;
+    }
+    return create(root, *descriptor);
 }
 
 }  // namespace FolderStructureTemplates

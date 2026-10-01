@@ -18,6 +18,7 @@
 
 class CategorizationService;
 class DatabaseManager;
+class FolderStructurePluginManager;
 class ILLMClient;
 class IStorageProvider;
 class ResultsCoordinator;
@@ -310,6 +311,7 @@ private:
     std::unique_ptr<DatabaseManager> db_manager_;
     std::unique_ptr<UserLearningStore> user_learning_store_;
     std::unique_ptr<WhitelistStore> whitelist_store_;
+    std::unique_ptr<FolderStructurePluginManager> folder_structure_plugin_manager_;
     std::shared_ptr<spdlog::logger> core_logger_;
     std::unique_ptr<CategorizationService> categorization_service_;
     std::unique_ptr<ResultsCoordinator> results_coordinator_;

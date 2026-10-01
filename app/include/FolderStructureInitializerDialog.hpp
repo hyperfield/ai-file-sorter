@@ -4,7 +4,9 @@
 #include <QDialog>
 #include <cstddef>
 #include <filesystem>
+#include <vector>
 
+#include "FolderStructurePluginProfile.hpp"
 #include "FolderStructureTemplates.hpp"
 
 class QLabel;
@@ -13,7 +15,7 @@ class QListWidget;
 class QPushButton;
 
 /**
- * @brief Dialog for creating a built-in starter folder structure at a user-selected location.
+ * @brief Dialog for creating starter folder structures at a user-selected location.
  */
 class FolderStructureInitializerDialog : public QDialog {
     Q_DECLARE_TR_FUNCTIONS(FolderStructureInitializerDialog)
@@ -22,9 +24,11 @@ class FolderStructureInitializerDialog : public QDialog {
     /**
      * @brief Constructs the folder-structure initializer dialog.
      * @param start_directory Initial destination directory shown in the dialog.
+     * @param plugin_profiles Verified plugin profiles that can provide extra templates.
      * @param parent Optional parent widget.
      */
     explicit FolderStructureInitializerDialog(const std::filesystem::path& start_directory = {},
+                                              const std::vector<FolderStructurePluginProfile>& plugin_profiles = {},
                                               QWidget* parent = nullptr);
 
     /**
@@ -59,6 +63,7 @@ class FolderStructureInitializerDialog : public QDialog {
     QPushButton* browse_button_{nullptr};
     QListWidget* preview_list_{nullptr};
     QPushButton* create_button_{nullptr};
+    std::vector<FolderStructureTemplates::Descriptor> descriptors_;
     std::size_t created_count_{0};
     std::size_t existing_count_{0};
 };

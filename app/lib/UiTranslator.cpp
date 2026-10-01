@@ -58,6 +58,8 @@ constexpr auto kActionPaste = QT_TRANSLATE_NOOP("UiTranslator", "&Paste");
 constexpr auto kActionDelete = QT_TRANSLATE_NOOP("UiTranslator", "&Delete");
 constexpr auto kActionFileExplorer = QT_TRANSLATE_NOOP("UiTranslator", "File &Explorer");
 constexpr auto kActionSelectLlm = QT_TRANSLATE_NOOP("UiTranslator", "Select &LLM…");
+constexpr auto kActionManageFolderStructurePlugins =
+    QT_TRANSLATE_NOOP("UiTranslator", "Manage folder structure plugins...");
 constexpr auto kActionManageStoragePlugins =
     QT_TRANSLATE_NOOP("UiTranslator", "Manage storage plugins…");
 constexpr auto kActionManageCategoryWhitelists =
@@ -406,6 +408,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.delete_action, kActionDelete},
         {deps_.actions.toggle_explorer_action, kActionFileExplorer},
         {deps_.actions.toggle_llm_action, kActionSelectLlm},
+        {deps_.actions.manage_folder_structure_plugins_action, kActionManageFolderStructurePlugins},
         {deps_.actions.manage_storage_plugins_action, kActionManageStoragePlugins},
         {deps_.actions.windows_explorer_extension_install_action, kActionInstallWindowsExplorerExtension},
         {deps_.actions.windows_explorer_extension_settings_action, kActionWindowsExplorerExtensionSettings},

@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+struct FolderStructurePluginProfile;
+
 namespace FolderStructureTemplates {
 
 /**
@@ -27,6 +29,7 @@ enum class Id {
  */
 struct Descriptor {
     Id id{Id::JohnnyDecimal};
+    std::string plugin_profile_id;
     std::string name;
     std::string description;
     bool available{true};
@@ -50,11 +53,27 @@ struct CreationResult {
 const std::vector<Descriptor>& all();
 
 /**
+ * @brief Return built-in templates followed by installed plugin templates.
+ * @param plugin_profiles Declarative profiles loaded from verified plugins.
+ * @return Template descriptors usable by the initializer dialog.
+ */
+std::vector<Descriptor> all_with_plugins(
+    const std::vector<FolderStructurePluginProfile>& plugin_profiles);
+
+/**
  * @brief Find one starter folder structure descriptor.
  * @param id Template identifier to find.
  * @return Pointer to the descriptor, or nullptr when no template matches.
  */
 const Descriptor* find(Id id);
+
+/**
+ * @brief Create a starter folder structure below a destination root from a descriptor.
+ * @param root Destination folder where the structure should be initialized.
+ * @param descriptor Descriptor to create.
+ * @return Creation result with created/existing folder paths or an error.
+ */
+CreationResult create(const std::filesystem::path& root, const Descriptor& descriptor);
 
 /**
  * @brief Create a starter folder structure below a destination root.

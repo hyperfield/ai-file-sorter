@@ -101,6 +101,8 @@ std::string folder_tree_system_prompt()
            "existing folder match. When the user prompt allows new folders and "
            "the existing folders are only weak, generic, or unrelated matches, "
            "use createFolder:true with a concise new relative folder path. "
+           "Follow any detected folder naming conventions in the prompt for "
+           "new folder paths. "
            "Do not treat listed candidates as exhaustive when new folders are "
            "allowed. "
            "Do not force catch-all folders merely to avoid creating a missing "

@@ -7,6 +7,7 @@
 #include "DatabaseManager.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "FilenameLocalizationService.hpp"
+#include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "ImageAnalyzerFactory.hpp"
@@ -139,10 +140,25 @@ std::optional<FolderTreeCatalog::Selection> existing_semantic_selection(
 
 std::optional<FolderTreeCatalog::Selection> semantic_new_folder_selection(
     const FolderTreeCatalog::Catalog& catalog,
+    const std::string& semantic_category,
+    const std::string& semantic_subcategory,
     const std::string& semantic_target,
-    bool allow_new_folders)
+    bool allow_new_folders,
+    const std::vector<FolderStructurePluginProfile>& plugin_profiles,
+    bool require_high_confidence = false)
 {
-    if (!allow_new_folders || semantic_target.empty()) {
+    if (!allow_new_folders) {
+        return std::nullopt;
+    }
+    if (auto suggestion = FolderStructurePattern::suggest_new_folder(catalog,
+                                                                     semantic_category,
+                                                                     semantic_subcategory,
+                                                                     plugin_profiles)) {
+        if (!require_high_confidence || suggestion->high_confidence) {
+            return FolderTreeCatalog::resolve_target_path(suggestion->relative_path, catalog, true);
+        }
+    }
+    if (require_high_confidence || semantic_target.empty()) {
         return std::nullopt;
     }
     return FolderTreeCatalog::resolve_target_path(semantic_target, catalog, true);
@@ -155,7 +171,8 @@ FolderTreeCatalog::Selection prefer_semantic_route_when_existing_match_is_weak(
     const std::string& semantic_category,
     const std::string& semantic_subcategory,
     const std::string& semantic_target,
-    bool allow_new_folders)
+    bool allow_new_folders,
+    const std::vector<FolderStructurePluginProfile>& plugin_profiles)
 {
     if (!allow_new_folders || selection.suggested_new) {
         return selection;
@@ -172,7 +189,12 @@ FolderTreeCatalog::Selection prefer_semantic_route_when_existing_match_is_weak(
             return *existing;
         }
     }
-    if (auto semantic_selection = semantic_new_folder_selection(catalog, semantic_target, true)) {
+    if (auto semantic_selection = semantic_new_folder_selection(catalog,
+                                                               semantic_category,
+                                                               semantic_subcategory,
+                                                               semantic_target,
+                                                               true,
+                                                               plugin_profiles)) {
         return *semantic_selection;
     }
     return selection;
@@ -220,7 +242,8 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
     const std::string& semantic_category,
     const std::string& semantic_subcategory,
     const std::string& semantic_target,
-    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing)
+    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing,
+    const std::vector<FolderStructurePluginProfile>& plugin_profiles)
 {
     if (auto cached = db_manager.get_folder_tree_routing(entry.file_name,
                                                          entry.type,
@@ -239,13 +262,29 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
                                                                      semantic_category,
                                                                      semantic_subcategory,
                                                                      semantic_target,
-                                                                     allow_new_folders);
+                                                                     allow_new_folders,
+                                                                     plugin_profiles);
         }
+    }
+
+    if (auto selection = semantic_new_folder_selection(catalog,
+                                                       semantic_category,
+                                                       semantic_subcategory,
+                                                       semantic_target,
+                                                       allow_new_folders,
+                                                       plugin_profiles,
+                                                       true)) {
+        return selection;
     }
 
     if (allow_new_folders &&
         (!best_existing || !FolderTreeCatalog::is_strong_semantic_match(best_existing->score))) {
-        if (auto selection = semantic_new_folder_selection(catalog, semantic_target, true)) {
+        if (auto selection = semantic_new_folder_selection(catalog,
+                                                          semantic_category,
+                                                          semantic_subcategory,
+                                                          semantic_target,
+                                                          true,
+                                                          plugin_profiles)) {
             return selection;
         }
     }
@@ -253,7 +292,12 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
     if (auto selection = existing_semantic_selection(catalog, best_existing)) {
         return selection;
     }
-    return semantic_new_folder_selection(catalog, semantic_target, allow_new_folders);
+    return semantic_new_folder_selection(catalog,
+                                         semantic_category,
+                                         semantic_subcategory,
+                                         semantic_target,
+                                         allow_new_folders,
+                                         plugin_profiles);
 }
 
 std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
@@ -261,7 +305,8 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
     std::vector<CategorizedFile> entries,
     bool folder_tree_sorting,
     const std::string& destination_root,
-    bool allow_new_folders)
+    bool allow_new_folders,
+    const std::vector<FolderStructurePluginProfile>& plugin_profiles)
 {
     if (!folder_tree_sorting) {
         for (auto& entry : entries) {
@@ -302,7 +347,8 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
                                                          semantic_category,
                                                          semantic_subcategory,
                                                          semantic_target,
-                                                         best_existing);
+                                                         best_existing,
+                                                         plugin_profiles);
         if (!selection) {
             continue;
         }
@@ -542,7 +588,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
             app_.categorization_service.load_cached_entries(directory_path),
             folder_tree_sorting,
             app_.settings.get_effective_destination_folder(directory_path),
-            app_.settings.get_suggest_new_folders());
+            app_.settings.get_suggest_new_folders(),
+            app_.categorization_service.folder_structure_profiles());
         std::vector<CategorizedFile> pending_renames;
         pending_renames.reserve(cached_entries.size());
         std::unordered_set<std::string> renamed_files;

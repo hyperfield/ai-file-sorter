@@ -3,6 +3,7 @@
 #include "ArtifactCategoryPolicy.hpp"
 #include "CategorizationResponseParser.hpp"
 #include "FileCategoryPolicy.hpp"
+#include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "Settings.hpp"
 #include "CategoryLanguage.hpp"
@@ -1164,6 +1165,14 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     return db_manager.resolve_category(sanitized_category, sanitized_subcategory);
 }
 
+std::vector<FolderStructurePluginProfile> CategorizationService::folder_structure_profiles() const
+{
+    if (!folder_structure_profile_provider_) {
+        return {};
+    }
+    return folder_structure_profile_provider_();
+}
+
 DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category_to_folder_tree(
     ILLMClient& llm,
     bool is_local_llm,
@@ -1188,6 +1197,8 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
         FolderTreeCatalog::semantic_target_path(semantic.category, semantic.subcategory);
     const auto best_existing =
         FolderTreeCatalog::best_semantic_match(catalog, semantic.category, semantic.subcategory);
+    const auto plugin_profiles = folder_structure_profiles();
+    const auto structure_profile = FolderStructurePattern::infer_profile(catalog, plugin_profiles);
 
     auto attach_selection = [&](const FolderTreeCatalog::Selection& selection) {
         auto routed = semantic;
@@ -1227,11 +1238,37 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
         return FolderTreeCatalog::resolve_target_path(semantic_target, catalog, allow_new);
     };
 
+    auto resolve_convention_target =
+        [&](bool require_high_confidence) -> std::optional<FolderTreeCatalog::Selection> {
+        if (!allow_new) {
+            return std::nullopt;
+        }
+        if (auto suggestion = FolderStructurePattern::suggest_new_folder(catalog,
+                                                                         semantic.category,
+                                                                         semantic.subcategory,
+                                                                         plugin_profiles)) {
+            if (!require_high_confidence || suggestion->high_confidence) {
+                return FolderTreeCatalog::resolve_target_path(suggestion->relative_path, catalog, true);
+            }
+        }
+        return std::nullopt;
+    };
+
     auto resolve_existing_match = [&]() -> std::optional<FolderTreeCatalog::Selection> {
         if (!best_existing) {
             return std::nullopt;
         }
         return FolderTreeCatalog::resolve_target_path(best_existing->entry.relative_path, catalog, false);
+    };
+
+    auto resolve_new_folder_fallback = [&]() -> std::optional<FolderTreeCatalog::Selection> {
+        if (!allow_new) {
+            return resolve_existing_match();
+        }
+        if (auto convention_selection = resolve_convention_target(false)) {
+            return convention_selection;
+        }
+        return resolve_semantic_target();
     };
 
     auto choose_against_semantic = [&](FolderTreeCatalog::Selection selection) {
@@ -1241,7 +1278,9 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
                 semantic.category,
                 semantic.subcategory);
             if (!FolderTreeCatalog::is_strong_semantic_match(selected_score)) {
-                if (best_existing && FolderTreeCatalog::is_strong_semantic_match(best_existing->score)) {
+                if (auto convention_selection = resolve_convention_target(false)) {
+                    selection = *convention_selection;
+                } else if (best_existing && FolderTreeCatalog::is_strong_semantic_match(best_existing->score)) {
                     if (auto existing = resolve_existing_match()) {
                         selection = *existing;
                     }
@@ -1277,9 +1316,15 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
     }
 
     std::optional<FolderTreeCatalog::Selection> selection;
-    if (allow_new && (!best_existing ||
-                      !FolderTreeCatalog::is_strong_semantic_match(best_existing->score))) {
-        selection = resolve_semantic_target();
+    if (allow_new) {
+        selection = resolve_convention_target(true);
+    }
+    if (!selection &&
+        allow_new &&
+        (!best_existing || !FolderTreeCatalog::is_strong_semantic_match(best_existing->score))) {
+        if (!selection && !structure_profile.has_recognized_conventions) {
+            selection = resolve_semantic_target();
+        }
     }
 
     if (!selection) {
@@ -1290,11 +1335,12 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
                                                     allow_new,
                                                     semantic.category,
                                                     semantic.subcategory,
-                                                    semantic_target);
+                                                    semantic_target,
+                                                    plugin_profiles);
         if (!is_local_llm && !ensure_remote_credentials_for_request(display_name, progress_callback)) {
-            selection = allow_new ? resolve_semantic_target() : resolve_existing_match();
+            selection = resolve_new_folder_fallback();
         } else if (!is_local_llm && remote_throttle_callback && !remote_throttle_callback(display_name)) {
-            selection = allow_new ? resolve_semantic_target() : resolve_existing_match();
+            selection = resolve_new_folder_fallback();
         } else {
             try {
                 const std::string routing_response =
@@ -1319,6 +1365,9 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
         if (best_existing) {
             selection = resolve_existing_match();
         }
+    }
+    if (!selection && allow_new) {
+        selection = resolve_convention_target(false);
     }
     if (!selection && allow_new) {
         selection = resolve_semantic_target();

@@ -100,6 +100,7 @@ struct UiTranslatorTestHarness {
     QAction* delete_action = new QAction(&window);
     QAction* toggle_explorer_action = new QAction(&window);
     QAction* toggle_llm_action = new QAction(&window);
+    QAction* manage_folder_structure_plugins_action = new QAction(&window);
     QAction* manage_storage_plugins_action = new QAction(&window);
     QAction* windows_explorer_extension_install_action = new QAction(&window);
     QAction* windows_explorer_extension_settings_action = new QAction(&window);
@@ -312,6 +313,7 @@ struct UiTranslatorTestHarness {
                 delete_action,
                 toggle_explorer_action,
                 toggle_llm_action,
+                manage_folder_structure_plugins_action,
                 manage_storage_plugins_action,
                 windows_explorer_extension_install_action,
                 windows_explorer_extension_settings_action,
@@ -460,6 +462,8 @@ void verify_menus_and_actions(const UiTranslatorTestHarness& h)
     REQUIRE(h.toggle_llm_action->text() == QStringLiteral("Select &LLM…"));
     REQUIRE(h.manage_storage_plugins_action->text() == QStringLiteral("Manage storage plugins…"));
     REQUIRE(h.manage_whitelists_action->text() == QStringLiteral("Manage category whitelists…"));
+    REQUIRE(h.manage_folder_structure_plugins_action->text() ==
+            QStringLiteral("Manage folder structure plugins..."));
     REQUIRE(h.windows_explorer_extension_install_action->text() ==
             QStringLiteral("Install Windows Explorer Extension..."));
     REQUIRE(h.windows_explorer_extension_settings_action->text() == QStringLiteral("Settings..."));

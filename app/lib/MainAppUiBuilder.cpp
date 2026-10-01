@@ -624,6 +624,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.delete_action,
             app.toggle_explorer_action,
             app.toggle_llm_action,
+            app.manage_folder_structure_plugins_action,
             app.manage_storage_plugins_action,
             app.windows_explorer_extension_install_action,
             app.windows_explorer_extension_settings_action,
@@ -690,8 +691,8 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
 #ifdef _WIN32
     build_extensions_menu(app);
 #endif
+    build_plugins_menu(app);
     if (app.is_development_mode()) {
-        build_plugins_menu(app);
         build_development_menu(app);
     }
     if (app.is_test_mode()) {
@@ -957,6 +958,19 @@ void MainAppUiBuilder::build_extensions_menu(MainApp& app) {
 
 void MainAppUiBuilder::build_plugins_menu(MainApp& app) {
     app.plugins_menu = app.menuBar()->addMenu(QString());
+    app.manage_folder_structure_plugins_action = app.plugins_menu->addAction(
+        icon_for(app, "preferences-plugin", QStyle::SP_DriveFDIcon),
+        QString());
+    QObject::connect(app.manage_folder_structure_plugins_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::show_folder_structure_plugin_dialog);
+
+    if (!app.is_development_mode()) {
+        return;
+    }
+
+    app.plugins_menu->addSeparator();
     app.manage_storage_plugins_action = app.plugins_menu->addAction(
         icon_for(app, "preferences-plugin", QStyle::SP_DriveFDIcon),
         QString());

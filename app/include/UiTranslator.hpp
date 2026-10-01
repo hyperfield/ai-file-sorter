@@ -109,6 +109,7 @@ public:
         QAction*& delete_action;
         QAction*& toggle_explorer_action;
         QAction*& toggle_llm_action;
+        QAction*& manage_folder_structure_plugins_action;
         QAction*& manage_storage_plugins_action;
         QAction*& windows_explorer_extension_install_action;
         QAction*& windows_explorer_extension_settings_action;

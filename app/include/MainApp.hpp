@@ -67,6 +67,7 @@ class MenuMnemonicController;
 class WhitelistManagerDialog;
 class SuitabilityBenchmarkDialog;
 struct AnalysisWorkflowContext;
+class FolderStructurePluginManager;
 class StoragePluginManager;
 
 struct CategorizedFile;
@@ -395,6 +396,10 @@ private:
      * @brief Opens the built-in starter folder structure creation dialog.
      */
     void show_folder_structure_initializer_dialog();
+    /**
+     * @brief Opens the signed folder-structure plugin management dialog.
+     */
+    void show_folder_structure_plugin_dialog();
     void maybe_show_suitability_benchmark();
     /**
      * @brief Shows the What's New popup once per app version when packaged notes exist.
@@ -557,6 +562,7 @@ private:
     QAction* review_history_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
+    QAction* manage_folder_structure_plugins_action{nullptr};
     QAction* manage_storage_plugins_action{nullptr};
     QAction* windows_explorer_extension_install_action{nullptr};
     QAction* windows_explorer_extension_settings_action{nullptr};
@@ -601,6 +607,7 @@ private:
     std::shared_ptr<spdlog::logger> ui_logger;
     WhitelistStore whitelist_store;
     std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
+    std::shared_ptr<FolderStructurePluginManager> folder_structure_plugin_manager_;
     std::shared_ptr<StoragePluginManager> storage_plugin_manager_;
     StoragePluginLoader storage_plugin_loader_;
     ExplorerExtensionManager explorer_extension_manager_;

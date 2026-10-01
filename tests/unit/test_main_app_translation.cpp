@@ -780,12 +780,18 @@ TEST_CASE("What's New content is packaged for the current app version")
     const QString markdown = WhatsNewContent::markdown_for_version(version);
 
     REQUIRE(markdown.contains(QStringLiteral("Highlights")));
-    REQUIRE(markdown.contains(QStringLiteral("SSE4.2-capable x64 CPUs")));
-    REQUIRE(markdown.contains(QStringLiteral("CA bundle staging")));
+    REQUIRE(markdown.contains(QStringLiteral("Fixed a Windows issue")));
+    REQUIRE(markdown.contains(QStringLiteral("close before sorting started")));
 
     REQUIRE(WhatsNewContent::markdown_for_version(version, Language::English) == markdown);
+    REQUIRE_FALSE(WhatsNewContent::markdown_for_version(version, Language::French).isEmpty());
 
-    const QString french = WhatsNewContent::markdown_for_version(version, Language::French);
+    const QString localized_version = QStringLiteral("1.9.1");
+    const QString localized_english = WhatsNewContent::markdown_for_version(localized_version);
+    REQUIRE(localized_english.contains(QStringLiteral("SSE4.2-capable x64 CPUs")));
+    REQUIRE(localized_english.contains(QStringLiteral("CA bundle staging")));
+
+    const QString french = WhatsNewContent::markdown_for_version(localized_version, Language::French);
     REQUIRE(french.contains(QStringLiteral("Points forts")));
     REQUIRE_FALSE(french.contains(QStringLiteral("Highlights")));
 
@@ -808,9 +814,9 @@ TEST_CASE("What's New content is packaged for the current app version")
 
     for (const Language language : localized_languages) {
         INFO("Language enum value: " << static_cast<int>(language));
-        const QString localized = WhatsNewContent::markdown_for_version(version, language);
+        const QString localized = WhatsNewContent::markdown_for_version(localized_version, language);
         REQUIRE_FALSE(localized.isEmpty());
-        REQUIRE(localized != markdown);
+        REQUIRE(localized != localized_english);
     }
 
     REQUIRE(WhatsNewContent::markdown_for_version(QStringLiteral("bad/version")).isEmpty());

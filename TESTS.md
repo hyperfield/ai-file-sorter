@@ -724,12 +724,12 @@ Procedure: Read the Settings menu action order, then toggle the analysis-in-prog
 Expected outcome: `Reset learned behavior…` appears before `Clear cache…`, both actions start enabled, both become disabled during analysis, and both re-enable afterward.
 Run: `./build-tests/ai_file_sorter_tests "Settings maintenance actions stay separate and follow analysis state"`
 
-#### Test case: Plugins menu is only available in development mode
-Purpose: Ensure unfinished plugin UI is hidden for public builds while remaining available for developer testing.
+#### Test case: Folder-structure plugins are public and storage plugins stay development-only
+Purpose: Ensure signed folder-structure plugin management is visible in public builds while storage plugin management remains developer-only.
 Setup: Build one `MainApp` with development mode disabled and one with development mode enabled.
-Procedure: Inspect the Plugins menu and Manage Storage Plugins action through the test access layer.
-Expected outcome: Public mode exposes neither item; development mode exposes both and the Plugins menu is visible.
-Run: `./build-tests/ai_file_sorter_tests "Plugins menu is only available in development mode"`
+Procedure: Inspect the Plugins menu, folder-structure plugin action, and storage plugin action through the test access layer.
+Expected outcome: Public mode exposes the Plugins menu and folder-structure plugin action only; development mode also exposes storage plugin management.
+Run: `./build-tests/ai_file_sorter_tests "Folder-structure plugins are public and storage plugins stay development-only"`
 
 #### Test case: Tests menu is only available in test mode
 Purpose: Ensure real-runtime test presets are hidden unless the app is launched in test mode.
@@ -1082,6 +1082,36 @@ Setup: Use one value below 1024 bytes and one value at the kilobyte boundary.
 Procedure: Call `Utils::format_size()` for both values.
 Expected outcome: `999` formats as `999.00 B` and `1024` formats as `1.00 KB`.
 Run: `./build-tests/ai_file_sorter_tests "format_size keeps byte values in bytes below one kilobyte"`
+
+### `tests/unit/test_windows_cuda_probe.cpp`
+
+#### Test case: WindowsCudaProbe normalizes mixed-era runtime suffixes
+Purpose: Ensure CUDA runtime DLL suffixes from legacy and modern CUDA versions are ranked by toolkit era rather than raw integer value.
+Setup: Compare representative runtime names such as `cudart64_13.dll`, `cudart64_65.dll`, `cudart64_121.dll`, and `cudart64_110.dll`.
+Procedure: Call the runtime-version rank helper for each runtime name.
+Expected outcome: Modern CUDA 13 ranks above legacy CUDA 6.5, and CUDA 12.1 ranks above CUDA 11.0.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe normalizes mixed-era runtime suffixes"`
+
+#### Test case: WindowsCudaProbe prefers toolkit runtimes over legacy PhysX runtimes
+Purpose: Avoid selecting obsolete CUDA runtime DLLs shipped with old NVIDIA PhysX installs when a real CUDA Toolkit runtime is available.
+Setup: Provide one PhysX runtime path and one CUDA Toolkit runtime path.
+Procedure: Rank both paths through the Windows CUDA probe test access layer.
+Expected outcome: The CUDA Toolkit runtime is first and the PhysX runtime is last.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe prefers toolkit runtimes over legacy PhysX runtimes"`
+
+#### Test case: WindowsCudaProbe prefers x64 toolkit bin directories over generic toolkit copies
+Purpose: Ensure the launcher prefers the architecture-specific CUDA Toolkit runtime directory when duplicate runtime versions exist.
+Setup: Provide matching runtime DLL names under a toolkit root and under `bin/x64`.
+Procedure: Rank both paths through the Windows CUDA probe test access layer.
+Expected outcome: The `bin/x64` runtime path is selected before the generic toolkit-root copy.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe prefers x64 toolkit bin directories over generic toolkit copies"`
+
+#### Test case: WindowsCudaProbe requires the packaged CUDA backend to be loadable
+Purpose: Prevent the Windows launcher from selecting CUDA when the driver/runtime exists but `ggml-cuda.dll` cannot load because a dependency such as cuBLAS is missing.
+Setup: Build synthetic probe results with a usable CUDA driver/runtime and vary packaged-payload and backend-loadable flags.
+Procedure: Call `WindowsCudaProbe::can_select_cuda_backend()`.
+Expected outcome: CUDA is accepted only when the packaged payload is present and the backend load test passes.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe requires the packaged CUDA backend to be loadable"`
 
 ### `tests/unit/test_llm_selection_dialog_local.cpp`
 
@@ -1880,12 +1910,70 @@ Procedure: Build folder-tree prompt context for a PDF invoice with new-folder su
 Expected outcome: The prompt includes existing-folder and new-folder JSON examples, says candidates are not exhaustive when suggestions are allowed, and explicitly discourages weak fallback folders.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog prompt guides new folders over weak fallbacks"`
 
+#### Test case: FolderTreeCatalog scores prefixed folders by human labels
+Purpose: Ensure leading folder codes do not prevent semantic matching.
+Setup: Provide Johnny.Decimal-like and custom-code folder paths.
+Procedure: Score each path against semantic category/subcategory labels.
+Expected outcome: Matching uses the human folder labels after prefixes, so coded paths still receive useful semantic scores.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog scores prefixed folders by human labels"`
+
+#### Test case: FolderStructurePattern suggests missing child inside numbered parent
+Purpose: Verify deterministic recognition can create coherent child suggestions inside a numbered range.
+Setup: Build a catalog with a `20-29 Work` parent and numbered child folders with a gap.
+Procedure: Ask for a `Work / Proposals` new-folder suggestion.
+Expected outcome: The suggestion uses the matching parent and the first available child number in the range.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests missing child inside numbered parent"`
+
+#### Test case: FolderStructurePattern suggests new Johnny Decimal-like area
+Purpose: Verify deterministic recognition can continue a Johnny.Decimal-like top-level range scheme.
+Setup: Build a catalog with multiple numbered top-level ranges and child numeric folders.
+Procedure: Ask for a `Finance / Invoices` new-folder suggestion.
+Expected outcome: The suggestion creates the next top-level range and the first child number inside that range.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests new Johnny Decimal-like area"`
+
+#### Test case: FolderStructurePattern nests under matching custom code folders
+Purpose: Verify deterministic recognition can match custom prefix folders by their human labels.
+Setup: Build a catalog with alphabetic-code folders such as `AC Documents` and `DG Office Apps`.
+Procedure: Ask for document and program new-folder suggestions.
+Expected outcome: Suggestions preserve the existing coded parent folder names and add semantic child folders beneath them.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern nests under matching custom code folders"`
+
+#### Test case: FolderTreeCatalog prompt includes detected structure conventions
+Purpose: Ensure LLM folder-routing prompts receive compact guidance about inferred tree conventions.
+Setup: Build a Johnny.Decimal-like catalog and provide semantic labels.
+Procedure: Build folder-tree prompt context with new-folder suggestions enabled.
+Expected outcome: The prompt describes the detected convention and includes a convention-aware deterministic candidate for comparison.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog prompt includes detected structure conventions"`
+
 #### Test case: FolderTreeCatalog derives compatibility labels from target path
 Purpose: Preserve category/subcategory compatibility for cache, history, and status fields while using explicit target folders.
 Setup: Provide a nested Johnny.Decimal-like target path.
 Procedure: Derive display labels from the relative folder path.
 Expected outcome: The top-level folder becomes the compatibility category and the deepest folder becomes the compatibility subcategory.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog derives compatibility labels from target path"`
+
+### `tests/unit/test_folder_structure_plugins.cpp`
+
+#### Test case: FolderStructurePluginManager installs signed declarative plugins
+Purpose: Verify signed `.aifsplugin` packages can contribute folder-structure templates and recognition guidance.
+Setup: Build a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key.
+Procedure: Install the archive, load verified profiles, create plugin-provided folders, and infer conventions from a matching tree.
+Expected outcome: The package installs, the signer id is recorded, the profile appears in template descriptors, and matched plugin guidance is added to routing prompts.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs signed declarative plugins"`
+
+#### Test case: FolderStructurePluginManager rejects tampered plugin payloads
+Purpose: Ensure package payloads cannot be changed after signing.
+Setup: Sign a profile hash manifest, then alter the archived profile payload.
+Procedure: Attempt to install the tampered archive.
+Expected outcome: Installation fails with a hash verification error and no plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects tampered plugin payloads"`
+
+#### Test case: FolderStructurePluginManager rejects executable payload files
+Purpose: Keep folder-structure plugins declarative instead of executable.
+Setup: Build a signed archive that also contains an `.exe` payload.
+Procedure: Attempt to install the archive.
+Expected outcome: Installation fails because executable payload files are forbidden.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects executable payload files"`
 
 ### `tests/unit/test_folder_structure_templates.cpp`
 
@@ -2384,10 +2472,10 @@ Expected outcome: Each language loads the matching localized markdown content in
 Run: `./build-tests/ai_file_sorter_tests "Quick Start guide content follows the selected app language"`
 
 #### Test case: What's New content is packaged for the current app version
-Purpose: Ensure the first-run-per-version What's New popup has packaged Markdown content for the active `APP_VERSION`, including localized release notes.
+Purpose: Ensure the first-run-per-version What's New popup has packaged Markdown content for the active `APP_VERSION`, and that localized What's New resources still load when a version ships them.
 Setup: Initialize the Qt test app context with embedded resources.
-Procedure: Load What's New markdown for `APP_VERSION` in English and each supported non-English UI language, then load an invalid version string.
-Expected outcome: The current version returns English release notes with expected highlights, each supported non-English language returns localized notes instead of the English fallback, and invalid version strings return no content.
+Procedure: Load What's New markdown for `APP_VERSION` in English, verify a non-English language still returns content for the current version, load localized markdown for a known translated version, then load an invalid version string.
+Expected outcome: The current version returns English release notes with expected highlights, localized resources for the translated fixture version differ from the English fallback, and invalid version strings return no content.
 Run: `./build-tests/ai_file_sorter_tests "What's New content is packaged for the current app version"`
 
 #### Test case: Interface language action labels are translated for the newly added Nordic UI languages
@@ -2701,6 +2789,20 @@ Setup: Create a target root with image, archive, and unsorted fallback folders b
 Procedure: Categorize one document using an LLM stub that returns semantic document labels.
 Expected outcome: The categorized result records `Documents/Invoices` as a deterministic suggested new folder, marks the target as not existing yet, and persists the routing decision separately from the semantic cache.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService accepts suggested folder-tree targets when enabled"`
+
+#### Test case: CategorizationService uses deterministic structure pattern for new folder routes
+Purpose: Ensure existing-folder sorting can create coherent new-folder suggestions without a second LLM call when a clear pattern is present.
+Setup: Create a Johnny.Decimal-like tree with a numbered `20-29 Work` parent and enable new-folder suggestions.
+Procedure: Categorize one file using an LLM stub that returns `Work / Proposals` semantic labels.
+Expected outcome: The categorized result suggests the first available numbered child folder under `20-29 Work` and only calls the LLM for semantic categorization.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses deterministic structure pattern for new folder routes"`
+
+#### Test case: CategorizationService sends detected custom folder conventions to routing LLM
+Purpose: Ensure weaker custom prefix conventions are passed to the LLM instead of blindly creating plain semantic folders.
+Setup: Create a destination tree with alphabetic-code top-level folders and enable new-folder suggestions.
+Procedure: Categorize one file using an LLM stub that returns semantic labels, then a convention-preserving target-folder JSON response.
+Expected outcome: The service performs a routing LLM call, includes detected convention guidance in the routing prompt, and accepts the suggested coded target path.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService sends detected custom folder conventions to routing LLM"`
 
 #### Test case: CategorizationService scans destination root for existing folder-tree targets
 Purpose: Ensure existing-folder sorting catalogs are built from the selected destination root, not necessarily the analyzed folder.

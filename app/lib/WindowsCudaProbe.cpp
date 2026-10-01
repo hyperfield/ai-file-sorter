@@ -677,6 +677,17 @@ ProbeResult probe(const std::optional<std::filesystem::path>& ggml_directory)
 #endif
 }
 
+bool can_select_cuda_backend(const ProbeResult& result, bool backend_payload_present)
+{
+    return result.driver_present &&
+           result.driver_initialized &&
+           result.device_count > 0 &&
+           result.runtime_present &&
+           result.runtime_usable &&
+           backend_payload_present &&
+           result.backend_loadable;
+}
+
 std::optional<std::filesystem::path> best_runtime_library_path()
 {
     const ProbeResult result = probe(std::nullopt);

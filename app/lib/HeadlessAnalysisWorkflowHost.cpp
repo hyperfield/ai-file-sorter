@@ -4,6 +4,7 @@
 #include "CategorizationService.hpp"
 #include "CategorizationSession.hpp"
 #include "DatabaseManager.hpp"
+#include "FolderStructurePluginManager.hpp"
 #include "GeminiClient.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
@@ -88,11 +89,18 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
     db_manager_ = std::make_unique<DatabaseManager>(runtime_data_dir_);
     user_learning_store_ = std::make_unique<UserLearningStore>(runtime_data_dir_);
     whitelist_store_ = std::make_unique<WhitelistStore>(runtime_data_dir_);
+    folder_structure_plugin_manager_ =
+        std::make_unique<FolderStructurePluginManager>(runtime_data_dir_);
     categorization_service_ =
         std::make_unique<CategorizationService>(settings_,
                                                 *db_manager_,
                                                 core_logger_,
                                                 user_learning_store_.get());
+    categorization_service_->set_folder_structure_profile_provider([this]() {
+        return folder_structure_plugin_manager_
+            ? folder_structure_plugin_manager_->installed_profiles()
+            : std::vector<FolderStructurePluginProfile>{};
+    });
     results_coordinator_ = std::make_unique<ResultsCoordinator>(storage_provider_);
     using_local_llm_ = !is_remote_choice(settings_.get_llm_choice());
     initialize_whitelists();
