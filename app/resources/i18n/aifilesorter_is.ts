@@ -601,6 +601,16 @@
             <translation>Næsta mappa</translation>
         </message>
         <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="127"></location>
+            <source>View a readable map of Johnny.Decimal areas, categories, and item folders in the selected archive.</source>
+            <translation>View a readable map of Johnny.Decimal areas, categories, and item folders in the selected archive.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="136"></location>
+            <source>Archive index</source>
+            <translation>Archive index</translation>
+        </message>
+        <message>
             <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="126"></location>
             <source>Check an existing Johnny.Decimal archive for duplicate IDs, malformed numbers, folders outside ranges, and missing area/category structure.</source>
             <translation>Check an existing Johnny.Decimal archive for duplicate IDs, malformed numbers, folders outside ranges, and missing area/category structure.</translation>
@@ -625,6 +635,11 @@
             <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="182"></location>
             <source> (coming later)</source>
             <translation> (kemur síðar)</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="225"></location>
+            <source>Refresh index</source>
+            <translation>Refresh index</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="208"></location>

@@ -2002,6 +2002,13 @@ Procedure: Validate the archive root.
 Expected outcome: The report contains an error with code `missing_area_structure`.
 Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator reports missing area structure"`
 
+#### Test case: JohnnyDecimalArchiveIndex maps areas categories and items
+Purpose: Verify the read-only archive index builds a readable Johnny.Decimal map.
+Setup: Create a temporary archive with valid areas, categories, nested item folders, an unnumbered area child, and a loose root folder.
+Procedure: Build the archive index and format it as plain text.
+Expected outcome: The index counts areas/categories/items and the formatted map includes recognized folders plus separate "other" sections.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalArchiveIndex maps areas categories and items"`
+
 #### Test case: FolderStructurePattern nests under matching custom code folders
 Purpose: Verify deterministic recognition can match custom prefix folders by their human labels.
 Setup: Build a catalog with alphabetic-code folders such as `AC Documents` and `DG Office Apps`.

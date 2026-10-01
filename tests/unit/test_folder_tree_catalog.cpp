@@ -2,6 +2,7 @@
 
 #include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
+#include "JohnnyDecimalArchiveIndex.hpp"
 #include "JohnnyDecimalFolderSuggester.hpp"
 #include "JohnnyDecimalValidator.hpp"
 #include "TestHelpers.hpp"
@@ -9,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <set>
+#include <vector>
 
 TEST_CASE("FolderTreeCatalog scans relative destination folders")
 {
@@ -316,6 +318,37 @@ TEST_CASE("JohnnyDecimalValidator reports missing area structure")
     CHECK(report.category_count == 0);
     CHECK(report.has_errors());
     CHECK(report.issues.front().code == "missing_area_structure");
+}
+
+TEST_CASE("JohnnyDecimalArchiveIndex maps areas categories and items")
+{
+    TempDir temp_dir;
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "00-09 System" / "01 Index" / "01.01 Inbox"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "00-09 System" / "01 Index" / "Notes"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "21 Projects" / "21.01 Alpha" / "Drafts"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "22 Reference"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "Misc Unnumbered"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "Loose"));
+
+    const auto index = JohnnyDecimalArchiveIndex::build_index(temp_dir.path());
+
+    CHECK(index.scanned);
+    CHECK(index.areas.size() == 2);
+    CHECK(JohnnyDecimalArchiveIndex::category_count(index) == 3);
+    CHECK(JohnnyDecimalArchiveIndex::item_count(index) == 4);
+    REQUIRE(index.areas.size() >= 2);
+    CHECK(index.areas[1].other_direct_children == std::vector<std::string>{"20-29 Work/Misc Unnumbered"});
+    CHECK(index.other_top_level == std::vector<std::string>{"Loose"});
+
+    const std::string text = JohnnyDecimalArchiveIndex::format_index(index);
+    CHECK(text.find("00-09 System") != std::string::npos);
+    CHECK(text.find("01 Index") != std::string::npos);
+    CHECK(text.find("21.01 Alpha") != std::string::npos);
+    CHECK(text.find("Drafts") != std::string::npos);
+    CHECK(text.find("Other direct folders") != std::string::npos);
+    CHECK(text.find("Misc Unnumbered") != std::string::npos);
+    CHECK(text.find("Other top-level folders") != std::string::npos);
+    CHECK(text.find("Loose") != std::string::npos);
 }
 
 TEST_CASE("FolderStructurePattern nests under matching custom code folders")

@@ -58,8 +58,10 @@ class FolderStructureInitializerDialog : public QDialog {
     void browse_destination();
     void create_selected_structure();
     void create_next_johnny_decimal_folder();
+    void refresh_archive_index();
     void refresh_validation_report();
     bool next_folder_tab_active() const;
+    bool archive_index_tab_active() const;
     bool validation_tab_active() const;
 
     const FolderStructureTemplates::Descriptor* selected_template() const;
@@ -67,6 +69,7 @@ class FolderStructureInitializerDialog : public QDialog {
     QTabWidget* tab_widget_{nullptr};
     QWidget* starter_tab_{nullptr};
     QWidget* next_folder_tab_{nullptr};
+    QWidget* archive_index_tab_{nullptr};
     QWidget* validation_tab_{nullptr};
     QListWidget* template_list_{nullptr};
     QLabel* description_label_{nullptr};
@@ -77,6 +80,7 @@ class FolderStructureInitializerDialog : public QDialog {
     QLineEdit* next_folder_edit_{nullptr};
     QLineEdit* next_preview_edit_{nullptr};
     QLabel* next_preview_status_label_{nullptr};
+    QPlainTextEdit* archive_index_edit_{nullptr};
     QPlainTextEdit* validation_report_edit_{nullptr};
     QPushButton* create_button_{nullptr};
     std::vector<FolderStructurePluginProfile> plugin_profiles_;

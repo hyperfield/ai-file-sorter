@@ -21,6 +21,7 @@
 #include <string>
 
 #include "JohnnyDecimalFolderSuggester.hpp"
+#include "JohnnyDecimalArchiveIndex.hpp"
 #include "JohnnyDecimalValidator.hpp"
 #include "Utils.hpp"
 
@@ -120,6 +121,20 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     next_layout->addStretch(1);
     tab_widget_->addTab(next_folder_tab_, tr("Next folder"));
 
+    archive_index_tab_ = new QWidget(tab_widget_);
+    auto* archive_index_layout = new QVBoxLayout(archive_index_tab_);
+    auto* archive_index_description = new QLabel(
+        tr("View a readable map of Johnny.Decimal areas, categories, and item folders in the selected archive."),
+        this);
+    archive_index_description->setWordWrap(true);
+    archive_index_layout->addWidget(archive_index_description);
+    archive_index_edit_ = new QPlainTextEdit(this);
+    archive_index_edit_->setObjectName(QStringLiteral("johnnyDecimalArchiveIndexEdit"));
+    archive_index_edit_->setReadOnly(true);
+    archive_index_edit_->setLineWrapMode(QPlainTextEdit::NoWrap);
+    archive_index_layout->addWidget(archive_index_edit_, 1);
+    tab_widget_->addTab(archive_index_tab_, tr("Archive index"));
+
     validation_tab_ = new QWidget(tab_widget_);
     auto* validation_layout = new QVBoxLayout(validation_tab_);
     auto* validation_description = new QLabel(
@@ -147,7 +162,9 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     connect(browse_button_, &QPushButton::clicked, this, [this]() { browse_destination(); });
     connect(tab_widget_, &QTabWidget::currentChanged, this, [this]() { update_selection(); });
     connect(create_button_, &QPushButton::clicked, this, [this]() {
-        if (validation_tab_active()) {
+        if (archive_index_tab_active()) {
+            refresh_archive_index();
+        } else if (validation_tab_active()) {
             refresh_validation_report();
         } else if (next_folder_tab_active()) {
             create_next_johnny_decimal_folder();
@@ -204,9 +221,11 @@ void FolderStructureInitializerDialog::update_selection() {
     const bool has_destination = destination_edit_ && !destination_edit_->text().trimmed().isEmpty();
 
     if (create_button_) {
-        create_button_->setText(validation_tab_active()
-                                    ? tr("Refresh report")
-                                    : (next_folder_tab_active() ? tr("Create folder") : tr("Create")));
+        create_button_->setText(archive_index_tab_active()
+                                    ? tr("Refresh index")
+                                    : (validation_tab_active()
+                                           ? tr("Refresh report")
+                                           : (next_folder_tab_active() ? tr("Create folder") : tr("Create"))));
     }
 
     if (description_label_) {
@@ -251,6 +270,13 @@ void FolderStructureInitializerDialog::update_selection() {
         }
         if (create_button_) {
             create_button_->setEnabled(can_create_next_folder);
+        }
+        return;
+    }
+    if (archive_index_tab_active()) {
+        refresh_archive_index();
+        if (create_button_) {
+            create_button_->setEnabled(has_destination);
         }
         return;
     }
@@ -320,6 +346,19 @@ void FolderStructureInitializerDialog::create_next_johnny_decimal_folder() {
     accept();
 }
 
+void FolderStructureInitializerDialog::refresh_archive_index() {
+    if (!archive_index_edit_) {
+        return;
+    }
+    if (!destination_edit_ || destination_edit_->text().trimmed().isEmpty()) {
+        archive_index_edit_->setPlainText(tr("Choose a destination folder."));
+        return;
+    }
+
+    const auto index = JohnnyDecimalArchiveIndex::build_index(destination_root());
+    archive_index_edit_->setPlainText(from_utf8(JohnnyDecimalArchiveIndex::format_index(index)));
+}
+
 void FolderStructureInitializerDialog::refresh_validation_report() {
     if (!validation_report_edit_) {
         return;
@@ -335,6 +374,10 @@ void FolderStructureInitializerDialog::refresh_validation_report() {
 
 bool FolderStructureInitializerDialog::next_folder_tab_active() const {
     return tab_widget_ && next_folder_tab_ && tab_widget_->currentWidget() == next_folder_tab_;
+}
+
+bool FolderStructureInitializerDialog::archive_index_tab_active() const {
+    return tab_widget_ && archive_index_tab_ && tab_widget_->currentWidget() == archive_index_tab_;
 }
 
 bool FolderStructureInitializerDialog::validation_tab_active() const {
