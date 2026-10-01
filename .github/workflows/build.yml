@@ -100,7 +100,7 @@ jobs:
 
           - name: arch-latest
             image: archlinux:latest
-            artifact_kind: tar
+            artifact_kind: arch
             install: |
               pacman -Sy --noconfirm archlinux-keyring
               pacman -Syu --noconfirm
@@ -167,14 +167,9 @@ jobs:
               ./app/scripts/create_rpm.sh --include-all
               cp dist/aifilesorter_rpm/final/*.rpm dist/ci-artifacts/
               ;;
-            tar)
-              tar --zstd -cf "dist/ci-artifacts/aifilesorter-${{ matrix.name }}.tar.zst" \
-                app/bin \
-                app/lib/precompiled \
-                app/lib/ggml \
-                app/resources/certs/cacert.pem \
-                LICENSE \
-                README.md
+            arch)
+              ./app/scripts/package_arch.sh --include-all
+              cp dist/aifilesorter_arch/final/*.pkg.tar.zst dist/ci-artifacts/
               ;;
           esac
 
