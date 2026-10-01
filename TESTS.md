@@ -6,9 +6,10 @@ This document provides a detailed description of every test case in the project.
 - Configure tests on Linux/macOS (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
 - Build and run all tests on Linux/macOS: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
 - On Windows, configure from a Visual Studio Developer PowerShell with the vcpkg toolchain and a Qt 6 MSVC kit, for example: `$env:VCPKG_ROOT="D:\path\to\vcpkg"; $qt="C:\Qt\6.6.3\msvc2019_64"; $toolchain=Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"; cmake -S app -B build-tests -G "Ninja" -DCMAKE_PREFIX_PATH=$qt "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_MANIFEST_DIR=app -DVCPKG_TARGET_TRIPLET=x64-windows -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
-- On Windows, build and run all tests with: `cmake --build build-tests --config Release --target ai_file_sorter_tests ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests --parallel $env:NUMBER_OF_PROCESSORS` then `ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS`
+- On Windows, build and run all tests with: `cmake --build build-tests --config Release --target ai_file_sorter_tests aifs_storage_plugin_conformance ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests --parallel $env:NUMBER_OF_PROCESSORS` then `ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS`
 - Run a single test case by name: `./build-tests/ai_file_sorter_tests "<test case name or pattern>"`
 - On Windows multi-config builds, the direct test executable lives under `./build-tests/tests/<Config>/`, for example: `./build-tests/tests/Release/ai_file_sorter_tests.exe "<test case name or pattern>"`
+- Run storage-plugin conformance directly against a connector executable: `./build-tests/aifs_storage_plugin_conformance --connector <connector-path> --provider-id <provider-id> --plugin-id <plugin-id>`
 - Run GUI test mode: `./build-tests/aifilesorter --test`
 - Run production-binary self-tests: `./build-tests/aifilesorter --self-test` or `./build-tests/aifilesorter --self-test=whitelist`
 - Register optional live LLM headless tests by adding `-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON` when configuring tests, or on Windows by running `.\app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in PowerShell or `app\build_windows.cmd -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in `cmd.exe`. Then either set `AI_FILE_SORTER_LIVE_LLM_MODEL` to a local text GGUF path or rely on the selected local/custom GGUF in AI File Sorter `config.ini`, optionally set `AI_FILE_SORTER_LIVE_BACKEND=cpu|cuda|vulkan|auto` (`cuda` validates CUDA explicitly; `cpu` is for deterministic CPU/OpenBLAS runs), and run `ctest --test-dir build-tests -L live-llm --output-on-failure` for manual CMake builds or `ctest --test-dir app\build-windows -C Release -L live-llm --output-on-failure` for the Windows helper build. Use `ctest -V` for live progress; otherwise tail the work dir from `%TEMP%\aifs-live-llm-latest.txt`. Image rename cases also require `AI_FILE_SORTER_LIVE_VISUAL_MODEL` and `AI_FILE_SORTER_LIVE_VISUAL_MMPROJ`, unless a custom visual model pair is selected in settings.
@@ -559,6 +560,13 @@ Setup: Build `MainApp` with generated-category sorting mode selected.
 Procedure: Switch to existing-folder mode, inspect the destination row, toggle analysis state, then switch back to generated-category mode.
 Expected outcome: The old analyzed-folder destination checkbox is absent; the creator button is hidden in generated-category mode, visible beside destination Browse in existing-folder mode, and disabled while analysis is active.
 Run: `./build-tests/ai_file_sorter_tests "Existing folder mode places folder structure creator in destination row"`
+
+#### Test case: Johnny.Decimal plugin offer only triggers for existing-tree archives
+Purpose: Verify the main window only offers the Johnny.Decimal plugin for likely Johnny.Decimal archives in existing-folder mode.
+Setup: Build temporary Johnny.Decimal-like and plain folder trees, configure existing-folder sorting, and construct `MainApp`.
+Procedure: Query the offer decision for the Johnny.Decimal-like tree, the plain tree, generated-category mode, and the persisted "not interested" suppression state.
+Expected outcome: Only the Johnny.Decimal-like tree in existing-folder mode without suppression triggers the offer decision.
+Run: `./build-tests/ai_file_sorter_tests "Johnny.Decimal plugin offer only triggers for existing-tree archives"`
 
 #### Test case: Processing images only preserves recursive scanning when scan subfolders is enabled
 Purpose: Ensure image-only processing does not accidentally clear recursive scanning.
@@ -1319,6 +1327,13 @@ Procedure: Save settings, reload into a new `Settings` instance, and read the so
 Expected outcome: The reloaded settings report `ExistingFolderTree` and keep new-folder suggestions enabled.
 Run: `./build-tests/ai_file_sorter_tests "Settings persists existing folder-tree sorting mode"`
 
+#### Test case: Settings persists Johnny.Decimal plugin suggestion suppression
+Purpose: Ensure the permanent opt-out for the Johnny.Decimal plugin suggestion survives a settings round-trip.
+Setup: Use a temporary config directory and enable the suppression setting.
+Procedure: Save settings, reload into a new `Settings` instance, and read the suppression flag.
+Expected outcome: The reloaded settings keep the Johnny.Decimal plugin suggestion hidden.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists Johnny.Decimal plugin suggestion suppression"`
+
 #### Test case: Settings persists destination folder separately from analyzed folder
 Purpose: Ensure users can store a category destination root independently from the folder being analyzed.
 Setup: Use a temporary config directory and set different analyzed and destination folders.
@@ -1931,6 +1946,62 @@ Procedure: Ask for a `Finance / Invoices` new-folder suggestion.
 Expected outcome: The suggestion creates the next top-level range and the first child number inside that range.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests new Johnny Decimal-like area"`
 
+#### Test case: JohnnyDecimalFolderSuggester previews the next child number
+Purpose: Verify the manual Johnny.Decimal folder creator previews a safe next child number under an existing area.
+Setup: Create a temporary Johnny.Decimal-like tree with a numbered gap under `20-29 Work`.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview returns `20-29 Work/22 Proposals` and resolves the absolute target path without creating it.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester previews the next child number"`
+
+#### Test case: JohnnyDecimalFolderSuggester creates a new area and first child folder
+Purpose: Ensure the manual Johnny.Decimal folder creator can extend the top-level area range.
+Setup: Create a temporary archive with `10-19`, `20-29`, and `30-39` areas.
+Procedure: Create a `Finance / Invoices` folder.
+Expected outcome: The operation creates `40-49 Finance/41 Invoices` and records both newly created directories.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester creates a new area and first child folder"`
+
+#### Test case: JohnnyDecimalFolderSuggester rejects duplicate sibling labels
+Purpose: Prevent the manual creator from assigning a fresh number to a label that already exists in the target area.
+Setup: Create a temporary archive where `20-29 Work/22 Proposals` already exists.
+Procedure: Preview another `Work / Proposals` folder.
+Expected outcome: The preview is rejected with a message that names the existing duplicate path.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester rejects duplicate sibling labels"`
+
+#### Test case: JohnnyDecimalFolderSuggester rejects occupied next-number file paths
+Purpose: Ensure collision checking catches files that occupy the next numbered path.
+Setup: Create a temporary archive where the next `Work / Proposals` path exists as a file rather than a directory.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview is rejected before any directory creation.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester rejects occupied next-number file paths"`
+
+#### Test case: JohnnyDecimalFolderSuggester requires a Johnny Decimal-like archive
+Purpose: Keep the manual creator scoped to existing Johnny.Decimal-like archives.
+Setup: Create a plain folder tree without numeric ranges.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview is rejected because the destination does not look Johnny.Decimal-like.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester requires a Johnny Decimal-like archive"`
+
+#### Test case: JohnnyDecimalValidator accepts a clean Johnny Decimal archive
+Purpose: Ensure the read-only validation report accepts a well-formed Johnny.Decimal area/category tree.
+Setup: Create temporary `00-09`, `10-19`, and `20-29` areas with direct numbered category folders.
+Procedure: Validate the archive root and format the report.
+Expected outcome: The report is scanned, marks the tree as Johnny.Decimal-like, counts the areas/categories, and has no issues.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator accepts a clean Johnny Decimal archive"`
+
+#### Test case: JohnnyDecimalValidator reports duplicate malformed and outside-range folders
+Purpose: Verify the validation report detects the main Johnny.Decimal structure mistakes.
+Setup: Create duplicate area/category numbers, malformed area/category IDs, an outside-range category, and a root-level category-like folder.
+Procedure: Validate the archive root and collect finding codes.
+Expected outcome: The report contains stable codes for duplicate ranges, duplicate category numbers, malformed IDs, outside-range folders, missing category IDs, and category-like root folders.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator reports duplicate malformed and outside-range folders"`
+
+#### Test case: JohnnyDecimalValidator reports missing area structure
+Purpose: Ensure plain folder trees are reported as missing Johnny.Decimal area structure.
+Setup: Create a non-numbered folder tree such as `Work/Clients`.
+Procedure: Validate the archive root.
+Expected outcome: The report contains an error with code `missing_area_structure`.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator reports missing area structure"`
+
 #### Test case: FolderStructurePattern nests under matching custom code folders
 Purpose: Verify deterministic recognition can match custom prefix folders by their human labels.
 Setup: Build a catalog with alphabetic-code folders such as `AC Documents` and `DG Office Apps`.
@@ -1954,12 +2025,54 @@ Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog derives compatibilit
 
 ### `tests/unit/test_folder_structure_plugins.cpp`
 
+#### Test case: PluginEntitlementService verifies signed device receipts
+Purpose: Ensure a server-style signed receipt can unlock a commercial plugin product for the current device.
+Setup: Create a temporary entitlement receipt signed by the trusted Ed25519 test key and bound to the test device id.
+Procedure: Store the receipt and query matching and non-matching product entitlements.
+Expected outcome: The matching Johnny.Decimal product is entitled, while unrelated products remain locked.
+Run: `./build-tests/ai_file_sorter_tests "PluginEntitlementService verifies signed device receipts"`
+
+#### Test case: PluginEntitlementService rejects invalid receipts
+Purpose: Ensure cached entitlement receipts are not accepted when tampered, expired, or bound to another device.
+Setup: Build signed test receipts with an altered payload, an expired offline window, and a mismatched device id.
+Procedure: Attempt to store each invalid receipt and query the Johnny.Decimal entitlement state.
+Expected outcome: Every invalid receipt is rejected and no local entitlement is granted.
+Run: `./build-tests/ai_file_sorter_tests "PluginEntitlementService rejects invalid receipts"`
+
 #### Test case: FolderStructurePluginManager installs signed declarative plugins
 Purpose: Verify signed `.aifsplugin` packages can contribute folder-structure templates and recognition guidance.
 Setup: Build a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key.
 Procedure: Install the archive, load verified profiles, create plugin-provided folders, and infer conventions from a matching tree.
 Expected outcome: The package installs, the signer id is recorded, the profile appears in template descriptors, and matched plugin guidance is added to routing prompts.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs signed declarative plugins"`
+
+#### Test case: FolderStructurePluginManager persists disabled plugin profiles
+Purpose: Ensure disabled folder-structure plugins remain installed but stop contributing templates and routing guidance.
+Setup: Build and install a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key.
+Procedure: Disable the plugin, query installed plugins/profiles, reload the manager, then re-enable the plugin.
+Expected outcome: Installed manifests remain available, disabled profiles are filtered out, and the disabled state persists until re-enabled.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager persists disabled plugin profiles"`
+
+#### Test case: FolderStructurePluginManager requires entitlement for licensed plugins
+Purpose: Ensure commercial folder-structure plugins cannot be imported with package signature alone.
+Setup: Build a signed Johnny.Decimal archive whose manifest has `license_required: true` and no matching local receipt.
+Procedure: Attempt to install the licensed archive.
+Expected outcome: Installation fails with structured missing-entitlement details and no plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager requires entitlement for licensed plugins"`
+
+#### Test case: FolderStructurePluginManager installs licensed plugins with entitlement receipts
+Purpose: Ensure commercial folder-structure plugins install and load when a valid local entitlement receipt exists.
+Setup: Store a signed Johnny.Decimal entitlement receipt, then build a signed licensed Johnny.Decimal archive.
+Procedure: Install the archive and query installed plugins/profiles.
+Expected outcome: Installation succeeds and the licensed profile is available through the plugin manager.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs licensed plugins with entitlement receipts"`
+
+#### Test case: FolderStructurePluginDialog controls plugin enablement
+Purpose: Ensure the folder-structure plugin manager dialog exposes per-plugin enable controls.
+Setup: Install a signed Johnny.Decimal profile archive and create the dialog with the verified plugin manager.
+Procedure: Inspect row selection, read the status details, and clear the plugin's Enabled checkbox.
+Expected outcome: Selection is row-based, the installed plugin starts enabled, and clearing the checkbox persists a disabled state that removes plugin profiles from loading.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog controls plugin enablement"`
 
 #### Test case: FolderStructurePluginManager rejects tampered plugin payloads
 Purpose: Ensure package payloads cannot be changed after signing.
@@ -3065,6 +3178,41 @@ Procedure: Analyze the document and inspect both the captured prompt text and th
 Expected outcome: The prompt includes the UTF-8 source filename intact, and the suggested filename preserves the UTF-8 rename result with its original extension.
 Run: `./build-tests/ai_file_sorter_tests "DocumentTextAnalyzer handles UTF-8 filenames"`
 
+#### Test case: StoragePluginManager installs .aifsplugin archives with manifest and assets
+Purpose: Verify signed storage `.aifsplugin` archives can install an external-process connector and register its provider.
+Setup: Build a signed mock storage package containing `manifest.json`, signature metadata, and the connector stub.
+Procedure: Install the archive, load the installed manifest, and resolve a mock cloud folder through the plugin-backed provider.
+Expected outcome: Install succeeds, the signer key id is persisted, the connector entry point is materialized under the managed package directory, and the provider handles the mock folder.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs .aifsplugin archives with manifest and assets"`
+
+#### Test case: StoragePluginManager selects signed runtime-specific storage package paths and entitlement metadata
+Purpose: Verify signed storage package manifests can carry runtime-specific connector paths and commercial metadata.
+Setup: Build a signed mock storage package whose manifest uses a `runtimes` entry for the current platform/architecture and includes entitlement metadata.
+Procedure: Install the archive and inspect the installed manifest.
+Expected outcome: The current runtime entry point is selected, the package signer key id is preserved, and `license_required`, `product_id`, and `purchase_url` survive install.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager selects signed runtime-specific storage package paths and entitlement metadata"`
+
+#### Test case: StoragePluginManager rejects unsigned and tampered storage plugin archives
+Purpose: Ensure storage package trust depends on a valid signature and matching signed file hashes.
+Setup: Create unsigned, manifest-tampered, payload-tampered, and unknown-key storage archives.
+Procedure: Attempt to install each archive with only the test public key trusted.
+Expected outcome: Every invalid archive is rejected with a signature, hash, or untrusted-key error.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects unsigned and tampered storage plugin archives"`
+
+#### Test case: StoragePluginManager rejects unsafe storage plugin archive paths
+Purpose: Prevent signed manifests from materializing entry points or package assets outside the archive root.
+Setup: Build a signed archive whose manifest uses a traversal entry point path.
+Procedure: Attempt to install the archive.
+Expected outcome: Install is rejected before any plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects unsafe storage plugin archive paths"`
+
+#### Test case: StoragePluginManager rejects signed storage plugin archives with missing entry points
+Purpose: Verify a signed manifest cannot install if its connector executable is absent.
+Setup: Build a signed storage package containing only the manifest and signature metadata.
+Procedure: Attempt to install the archive.
+Expected outcome: Install fails with a missing entry point error.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects signed storage plugin archives with missing entry points"`
+
 #### Test case: StoragePluginManager refreshes available plugins from a remote catalog
 Purpose: Confirm remote catalog refresh merges plugin metadata for the current runtime.
 Setup: Point the manager at a mock remote catalog URL with a runtime-matching plugin manifest.
@@ -3086,26 +3234,28 @@ Procedure: Call `install` for the catalog-delivered plugin id.
 Expected outcome: The plugin installs successfully and its managed manifest/package artifacts are written to disk.
 Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs catalog plugins on demand"`
 
-#### Test case: OneDriveStorageProvider prefers authoritative sync-root detection when available
-Purpose: Ensure OneDrive detection uses authoritative sync-root information ahead of heuristic path matching.
-Setup: Inject a sync-root resolver that reports a OneDrive provider for the selected root.
-Procedure: Call `detect` on a matching root path.
-Expected outcome: Detection succeeds with the authoritative source and the provider resolves as OneDrive.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider prefers authoritative sync-root detection when available"`
+#### Test case: UndoManager rejects external-process restores when revision metadata changed
+Purpose: Verify host undo safety still works when metadata comes from an external-process storage connector.
+Setup: Install a signed mock storage package, move a file through the external connector, then modify the moved file.
+Procedure: Save an undo plan with the connector metadata and attempt to restore it.
+Expected outcome: Undo skips the changed file and leaves the moved file in place.
+Run: `./build-tests/ai_file_sorter_tests "UndoManager rejects external-process restores when revision metadata changed"`
 
-#### Test case: OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider
-Purpose: Prevent false positives when Windows reports a different cloud provider for the selected root.
-Setup: Inject a sync-root resolver that reports a non-OneDrive provider for a path whose name still looks like OneDrive.
-Procedure: Call `detect` on that path.
-Expected outcome: The authoritative non-OneDrive result vetoes the heuristic match.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider"`
+#### Test case: StorageProviderRegistry resolves installed OneDrive external connector
+Purpose: Prove the public host can install and invoke a signed package that provides the `onedrive` provider id without bundling OneDrive implementation code.
+Setup: Install a signed test package for `onedrive_storage_support` that points at the generic external-process stub.
+Procedure: Detect a OneDrive-root path, resolve the runtime provider, and run preflight against a locked file.
+Expected outcome: The installed external connector wins over the local fallback and reports the locked-file preflight result through the protocol.
+Run: `./build-tests/ai_file_sorter_tests "StorageProviderRegistry resolves installed OneDrive external connector"`
 
-#### Test case: OneDriveStorageProvider owns undo moves and cleans empty folders
-Purpose: Verify OneDrive move/undo operations are handled by the provider itself rather than delegated to the local provider.
-Setup: Create a source file and destination folder tree in a temporary directory.
-Procedure: Move the file through `move_entry`, then restore it with `undo_move`.
-Expected outcome: The file returns to its original location and provider-created empty directories are removed.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider owns undo moves and cleans empty folders"`
+### `tests/unit/test_storage_plugin_conformance.cpp`
+
+#### Test case: Storage plugin conformance harness validates the mock connector protocol
+Purpose: Verify the external-process storage-plugin JSON protocol is enforced by a reusable connector harness instead of app-private C++ provider headers.
+Setup: Build the mock storage connector executable and create a temporary fixture tree.
+Procedure: Launch the connector for each v1 fixture request, validate response shape for the corresponding action, and assert basic fixture semantics for detection, listing, preflight, path existence, directory creation, move, and undo.
+Expected outcome: The mock connector exposes `mockcloud`, returns conforming responses for every v1 action, and completes the fixture filesystem operations successfully.
+Run: `./build-tests/ai_file_sorter_tests "Storage plugin conformance harness validates the mock connector protocol"`
 
 ### `tests/unit/test_main_app_storage_support.cpp`
 

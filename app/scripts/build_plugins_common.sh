@@ -58,7 +58,7 @@ Options:
 Examples:
   ./${program_name}
   ./${program_name} --list
-  ./${program_name} --plugins=onedrive_storage_support
+  ./${program_name} --plugins=plugin_id
   ./${program_name} --interactive
 EOF
 }
@@ -94,13 +94,15 @@ load_plugins() {
         fi
     done < "${manifest_path}"
 
-    if [[ ${#plugin_ids[@]} -eq 0 ]]; then
-        echo "[ERROR] No plugin build targets are registered for ${platform}." >&2
-        exit 1
-    fi
+    return 0
 }
 
 list_plugins() {
+    if [[ ${#plugin_ids[@]} -eq 0 ]]; then
+        echo "No in-repo plugin build targets are registered for ${platform}."
+        return 0
+    fi
+
     echo "Available plugin build targets for ${platform}:"
     local i
     for ((i = 0; i < ${#plugin_ids[@]}; ++i)); do
@@ -288,6 +290,15 @@ load_plugins
 
 if [[ ${list_only} -eq 1 ]]; then
     list_plugins
+    exit 0
+fi
+
+if [[ ${#plugin_ids[@]} -eq 0 ]]; then
+    if [[ -n "${requested_plugins}" ]]; then
+        echo "[ERROR] No in-repo plugin build targets are registered for ${platform}: ${requested_plugins}" >&2
+        exit 1
+    fi
+    echo "[INFO] No in-repo plugin build targets are registered for ${platform}."
     exit 0
 fi
 

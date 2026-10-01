@@ -11,7 +11,13 @@ param(
     [ValidateRange(1, 512)]
     [int]$Parallel = [System.Environment]::ProcessorCount,
     [ValidateSet("Standard", "MsStore", "Standalone")]
-    [string[]]$Variants = @("Standard", "MsStore", "Standalone")
+    [string[]]$Variants = @("Standard", "MsStore", "Standalone"),
+    [string]$EnvFile,
+    [switch]$SkipLocalEnvFile,
+    [string]$FolderStructurePluginPublicKeys,
+    [string]$StoragePluginPublicKeys,
+    [string]$PluginEntitlementPublicKeys,
+    [switch]$EnablePluginEntitlementDevBypass
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,6 +54,62 @@ $variantDefinitions = @{
         UpdateMode = "NOTIFY_ONLY"
         PackageKind = "STANDALONE"
         Description = "Notification-only updates"
+    }
+}
+
+function Import-LocalBuildEnvFile {
+    param(
+        [string]$Path,
+        [switch]$Required
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        if ($Required) {
+            throw "Local build environment file '$Path' was not found."
+        }
+        return
+    }
+
+    $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
+    $loadedKeys = New-Object System.Collections.Generic.List[string]
+    $lineNumber = 0
+    foreach ($rawLine in Get-Content -LiteralPath $resolvedPath) {
+        ++$lineNumber
+        $line = $rawLine.Trim()
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
+            continue
+        }
+        if ($line.StartsWith("export ")) {
+            $line = $line.Substring(7).Trim()
+        }
+
+        $separator = $line.IndexOf("=")
+        if ($separator -le 0) {
+            throw "Invalid local build env file line $lineNumber in '$resolvedPath'. Expected KEY=VALUE."
+        }
+
+        $key = $line.Substring(0, $separator).Trim()
+        $value = $line.Substring($separator + 1).Trim()
+        if ($key -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+            throw "Invalid environment variable name '$key' on line $lineNumber in '$resolvedPath'."
+        }
+        if (($value.StartsWith('"') -and $value.EndsWith('"')) -or
+            ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+
+        [Environment]::SetEnvironmentVariable($key, $value, "Process")
+        $loadedKeys.Add($key) | Out-Null
+    }
+
+    if ($loadedKeys.Count -gt 0) {
+        Write-Output "Loaded $($loadedKeys.Count) environment variable(s) from '$resolvedPath': $($loadedKeys -join ', ')"
+    } else {
+        Write-Output "Local build environment file '$resolvedPath' did not contain any variables."
     }
 }
 
@@ -365,6 +427,93 @@ function Assert-SufficientConfigureDiskSpace {
     }
 }
 
+function Convert-ToExtendedLengthPath {
+    param([string]$Path)
+
+    if (-not [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+            [System.Runtime.InteropServices.OSPlatform]::Windows)) {
+        return $Path
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    if ($fullPath.StartsWith("\\?\")) {
+        return $fullPath
+    }
+    if ($fullPath.StartsWith("\\")) {
+        return "\\?\UNC\" + $fullPath.Substring(2)
+    }
+    return "\\?\" + $fullPath
+}
+
+function Test-PathIsBelowDirectory {
+    param(
+        [string]$Path,
+        [string]$Directory
+    )
+
+    if (-not $Path -or -not $Directory) {
+        return $false
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+    $fullDirectory = [System.IO.Path]::GetFullPath($Directory).TrimEnd('\')
+    if ($fullPath.Equals($fullDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+    return $fullPath.StartsWith($fullDirectory + "\", [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Remove-BuildTree {
+    param(
+        [string]$Path,
+        [string]$Label
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    if (-not (Test-PathIsBelowDirectory -Path $fullPath -Directory $appDir)) {
+        throw "Refusing to remove $Label outside the app workspace: '$fullPath'."
+    }
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 4; ++$attempt) {
+        if (-not (Test-Path -LiteralPath $fullPath)) {
+            return
+        }
+
+        try {
+            Remove-Item -LiteralPath $fullPath -Recurse -Force -ErrorAction Stop
+            return
+        } catch {
+            $lastError = $_
+            if (-not (Test-Path -LiteralPath $fullPath)) {
+                return
+            }
+        }
+
+        try {
+            [System.IO.Directory]::Delete((Convert-ToExtendedLengthPath -Path $fullPath), $true)
+            return
+        } catch [System.IO.DirectoryNotFoundException] {
+            return
+        } catch {
+            $lastError = $_
+            if (-not (Test-Path -LiteralPath $fullPath)) {
+                return
+            }
+        }
+
+        if ($attempt -lt 4) {
+            Start-Sleep -Milliseconds (250 * $attempt)
+        }
+    }
+
+    throw "Failed to remove $Label '$fullPath': $($lastError.Exception.Message)"
+}
+
 function Write-ConfigureFailureDiagnostics {
     param(
         [pscustomobject]$Variant,
@@ -503,7 +652,7 @@ function Reset-StaleVariantBuildDirectory {
         Write-Warning " - $reason"
     }
 
-    Remove-Item -Recurse -Force $Variant.BuildDir
+    Remove-BuildTree -Path $Variant.BuildDir -Label "$($Variant.Name) build directory"
 }
 
 function Copy-VcpkgRuntimeDlls {
@@ -547,12 +696,24 @@ function Get-ConfigureArguments {
     $configureArgs += "-DVCPKG_INSTALLED_DIR=$sharedVcpkgInstalledDir"
     $configureArgs += "-DAI_FILE_SORTER_UPDATE_MODE=$($Variant.UpdateMode)"
     $configureArgs += "-DAI_FILE_SORTER_WINDOWS_PACKAGE_KIND=$($Variant.PackageKind)"
+    if (-not [string]::IsNullOrWhiteSpace($FolderStructurePluginPublicKeys)) {
+        $configureArgs += "-DAI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS=$FolderStructurePluginPublicKeys"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($StoragePluginPublicKeys)) {
+        $configureArgs += "-DAI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS=$StoragePluginPublicKeys"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PluginEntitlementPublicKeys)) {
+        $configureArgs += "-DAI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS=$PluginEntitlementPublicKeys"
+    }
 
     if ($EnableTests) {
         $configureArgs += "-DAI_FILE_SORTER_BUILD_TESTS=ON"
     }
     if ($EnableLiveLlmTests) {
         $configureArgs += "-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON"
+    }
+    if ($EnablePluginEntitlementDevBypass) {
+        $configureArgs += "-DAI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS=ON"
     }
 
     if ($env:AI_FILE_SORTER_STARTER_CONSOLE) {
@@ -836,6 +997,23 @@ if (-not (Test-Path (Join-Path $llamaDir "CMakeLists.txt"))) {
     throw "llama.cpp submodule not found. Run 'git submodule update --init --recursive' before building."
 }
 
+$localEnvFileWasExplicit = $PSBoundParameters.ContainsKey("EnvFile")
+if ([string]::IsNullOrWhiteSpace($EnvFile) -and -not $localEnvFileWasExplicit) {
+    $EnvFile = Join-Path $appDir "build_windows.local.env"
+}
+if (-not $SkipLocalEnvFile) {
+    Import-LocalBuildEnvFile -Path $EnvFile -Required:$localEnvFileWasExplicit
+}
+if (-not $PSBoundParameters.ContainsKey("FolderStructurePluginPublicKeys")) {
+    $FolderStructurePluginPublicKeys = $env:AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
+}
+if (-not $PSBoundParameters.ContainsKey("StoragePluginPublicKeys")) {
+    $StoragePluginPublicKeys = $env:AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS
+}
+if (-not $PSBoundParameters.ContainsKey("PluginEntitlementPublicKeys")) {
+    $PluginEntitlementPublicKeys = $env:AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS
+}
+
 if ($RunTests) {
     $BuildTests = $true
 }
@@ -989,18 +1167,18 @@ if ($Parallel -lt 1) {
 
 if ($Clean) {
     foreach ($variant in $selectedVariants) {
-        if (Test-Path $variant.BuildDir) {
+        if (Test-Path -LiteralPath $variant.BuildDir) {
             Write-Output "Removing existing build directory '$($variant.BuildDir)'..."
-            Remove-Item -Recurse -Force $variant.BuildDir
+            Remove-BuildTree -Path $variant.BuildDir -Label "$($variant.Name) build directory"
         }
     }
-    if (Test-Path $sharedVcpkgInstalledDir) {
+    if (Test-Path -LiteralPath $sharedVcpkgInstalledDir) {
         Write-Output "Removing shared vcpkg install directory '$sharedVcpkgInstalledDir'..."
-        Remove-Item -Recurse -Force $sharedVcpkgInstalledDir
+        Remove-BuildTree -Path $sharedVcpkgInstalledDir -Label "shared vcpkg install directory"
     }
 }
 
-if (-not (Test-Path $sharedVcpkgInstalledDir)) {
+if (-not (Test-Path -LiteralPath $sharedVcpkgInstalledDir)) {
     New-Item -ItemType Directory -Path $sharedVcpkgInstalledDir | Out-Null
 }
 

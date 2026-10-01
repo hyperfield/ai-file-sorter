@@ -12,7 +12,10 @@
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QPlainTextEdit;
 class QPushButton;
+class QTabWidget;
+class QWidget;
 
 /**
  * @brief Dialog for creating starter folder structures at a user-selected location.
@@ -54,15 +57,29 @@ class FolderStructureInitializerDialog : public QDialog {
     void update_selection();
     void browse_destination();
     void create_selected_structure();
+    void create_next_johnny_decimal_folder();
+    void refresh_validation_report();
+    bool next_folder_tab_active() const;
+    bool validation_tab_active() const;
 
     const FolderStructureTemplates::Descriptor* selected_template() const;
 
+    QTabWidget* tab_widget_{nullptr};
+    QWidget* starter_tab_{nullptr};
+    QWidget* next_folder_tab_{nullptr};
+    QWidget* validation_tab_{nullptr};
     QListWidget* template_list_{nullptr};
     QLabel* description_label_{nullptr};
     QLineEdit* destination_edit_{nullptr};
     QPushButton* browse_button_{nullptr};
     QListWidget* preview_list_{nullptr};
+    QLineEdit* next_area_edit_{nullptr};
+    QLineEdit* next_folder_edit_{nullptr};
+    QLineEdit* next_preview_edit_{nullptr};
+    QLabel* next_preview_status_label_{nullptr};
+    QPlainTextEdit* validation_report_edit_{nullptr};
     QPushButton* create_button_{nullptr};
+    std::vector<FolderStructurePluginProfile> plugin_profiles_;
     std::vector<FolderStructureTemplates::Descriptor> descriptors_;
     std::size_t created_count_{0};
     std::size_t existing_count_{0};

@@ -400,6 +400,21 @@ private:
      * @brief Opens the signed folder-structure plugin management dialog.
      */
     void show_folder_structure_plugin_dialog();
+    /**
+     * @brief Offers the Johnny.Decimal folder-structure plugin for compatible folder trees.
+     * @return True when the user chose to obtain the plugin.
+     */
+    bool maybe_show_johnny_decimal_plugin_suggestion();
+    /**
+     * @brief Checks the selected/destination folder tree and offers Johnny.Decimal support when relevant.
+     */
+    void maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
+    /**
+     * @brief Returns whether a folder tree should trigger the Johnny.Decimal plugin offer.
+     * @param root Folder tree root to inspect.
+     * @return True when the root looks Johnny.Decimal-like and no suppression applies.
+     */
+    bool should_offer_johnny_decimal_plugin_for_root(const QString& root) const;
     void maybe_show_suitability_benchmark();
     /**
      * @brief Shows the What's New popup once per app version when packaged notes exist.
@@ -639,6 +654,7 @@ private:
     bool category_language_refresh_pending_{false};
     bool donation_prompt_active_{false};
     bool applying_theme_styles_{false};
+    std::string last_johnny_decimal_plugin_suggestion_root_;
     std::string last_storage_support_warning_key_;
     std::string last_storage_provider_notice_key_;
     std::optional<std::string> backend_status_probe_backend_key_;

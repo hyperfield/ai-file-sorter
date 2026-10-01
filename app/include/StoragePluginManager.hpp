@@ -1,9 +1,5 @@
 #pragma once
 
-#include "StoragePluginPackageFetcher.hpp"
-#include "StoragePluginLoader.hpp"
-#include "StoragePluginManifest.hpp"
-
 #include <filesystem>
 #include <mutex>
 #include <optional>
@@ -11,11 +7,16 @@
 #include <unordered_map>
 #include <vector>
 
+#include "StoragePluginLoader.hpp"
+#include "StoragePluginManifest.hpp"
+#include "StoragePluginPackageFetcher.hpp"
+#include "StoragePluginPackageSignature.hpp"
+
 /**
  * @brief Tracks which optional storage-provider plugins are installed for the app.
  */
 class StoragePluginManager {
-public:
+   public:
     /**
      * @brief Persistent record of an installed plugin version.
      */
@@ -26,12 +27,16 @@ public:
 
     /**
      * @brief Constructs a manager rooted at an application config directory.
-     * @param config_dir Application config directory used for manifests, caches, and install state.
-     * @param download_fn Optional fetch override used primarily by tests.
+     * @param config_dir App config
+     * directory for manifests, caches, and install state.
+     * @param download_fn Optional fetch override used
+     * primarily by tests.
+     * @param trusted_package_keys Trusted public keys for signed storage package archives.
+
      */
-    explicit StoragePluginManager(
-        std::string config_dir,
-        StoragePluginPackageFetcher::DownloadFunction download_fn = {});
+    explicit StoragePluginManager(std::string config_dir,
+                                  StoragePluginPackageFetcher::DownloadFunction download_fn = {},
+                                  std::vector<StoragePluginPackagePublicKey> trusted_package_keys = {});
 
     /**
      * @brief Returns the managed manifest directory for a config directory.
@@ -135,8 +140,7 @@ public:
      * @param error Optional output for a user-facing failure description.
      * @return True when the archive installed successfully.
      */
-    bool install_from_archive(const std::filesystem::path& archive_path,
-                              std::string* installed_plugin_id = nullptr,
+    bool install_from_archive(const std::filesystem::path& archive_path, std::string* installed_plugin_id = nullptr,
                               std::string* error = nullptr);
     /**
      * @brief Uninstalls a plugin and removes its managed artifacts.
@@ -152,7 +156,7 @@ public:
      */
     bool reload(std::string* error = nullptr);
 
-private:
+   private:
     /**
      * @brief Returns the JSON file that persists installed-plugin state.
      * @return Full path to the install-state JSON file.
@@ -185,25 +189,22 @@ private:
      * @param error Optional output for a user-facing failure description.
      * @return True when the catalog cache was saved successfully.
      */
-    bool persist_remote_catalog(std::vector<StoragePluginManifest> manifests,
-                                std::string* error = nullptr);
+    bool persist_remote_catalog(std::vector<StoragePluginManifest> manifests, std::string* error = nullptr);
     /**
      * @brief Resolves the manifest to install after local/remote indirection.
      * @param manifest Candidate manifest selected by the user.
      * @param error Optional output for a user-facing failure description.
      * @return Materialized install manifest when resolution succeeds.
      */
-    std::optional<StoragePluginManifest> resolve_install_manifest(
-        const StoragePluginManifest& manifest,
-        std::string* error = nullptr) const;
+    std::optional<StoragePluginManifest> resolve_install_manifest(const StoragePluginManifest& manifest,
+                                                                  std::string* error = nullptr) const;
     /**
      * @brief Downloads and installs a remote plugin package.
      * @param manifest Remote plugin manifest describing the package source.
      * @param error Optional output for a user-facing failure description.
      * @return True when the remote package installs successfully.
      */
-    bool install_from_remote_package(const StoragePluginManifest& manifest,
-                                     std::string* error = nullptr);
+    bool install_from_remote_package(const StoragePluginManifest& manifest, std::string* error = nullptr);
     /**
      * @brief Installs a plugin from an archive with optional manifest expectations.
      * @param archive_path Local archive path.
@@ -213,8 +214,7 @@ private:
      * @return True when the archive installs successfully.
      */
     bool install_from_archive_internal(const std::filesystem::path& archive_path,
-                                       const StoragePluginManifest* expected_manifest,
-                                       std::string* installed_plugin_id,
+                                       const StoragePluginManifest* expected_manifest, std::string* installed_plugin_id,
                                        std::string* error = nullptr);
     /**
      * @brief Installs a fully materialized manifest into managed state.
@@ -253,10 +253,17 @@ private:
      * @return True when the state file was written successfully.
      */
     bool save(std::string* error = nullptr) const;
+    /**
+     * @brief Returns trusted package signing keys for archive verification.
+     * @return Configured test keys
+     * or compiled-in production defaults.
+     */
+    std::vector<StoragePluginPackagePublicKey> trusted_package_keys() const;
 
     std::string config_dir_;
     StoragePluginLoader loader_;
     StoragePluginPackageFetcher package_fetcher_;
+    std::vector<StoragePluginPackagePublicKey> trusted_package_keys_;
     std::string remote_catalog_url_;
     std::unordered_map<std::string, InstalledPluginRecord> installed_plugins_;
     std::vector<StoragePluginManifest> remote_catalog_manifests_;

@@ -1,21 +1,25 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QDialog>
-
 #include <memory>
 #include <string>
 
 class QLabel;
 class QPushButton;
 class QTreeWidget;
+class QTreeWidgetItem;
 
 class FolderStructurePluginManager;
+struct FolderStructurePluginInstallError;
 
 /**
  * @brief Dialog for installing and removing signed folder-structure plugins.
  */
 class FolderStructurePluginDialog : public QDialog {
-public:
+    Q_DECLARE_TR_FUNCTIONS(FolderStructurePluginDialog)
+
+   public:
     /**
      * @brief Constructs the folder-structure plugin management dialog.
      * @param plugin_manager Shared manager used to query, install, and uninstall plugins.
@@ -24,7 +28,7 @@ public:
     explicit FolderStructurePluginDialog(std::shared_ptr<FolderStructurePluginManager> plugin_manager,
                                          QWidget* parent = nullptr);
 
-private:
+   private:
     /**
      * @brief Rebuilds the installed plugin list from verified package data.
      */
@@ -34,9 +38,21 @@ private:
      */
     void update_selection_state();
     /**
+     * @brief Persists an enablement checkbox change for an installed plugin.
+     * @param item Changed plugin row.
+     * @param column Changed column index.
+     */
+    void update_plugin_enabled_state(QTreeWidgetItem* item, int column);
+    /**
      * @brief Imports and installs a signed plugin archive chosen by the user.
      */
     void import_plugin_archive();
+    /**
+     * @brief Offers license activation for an entitlement-gated plugin installation.
+     * @param install_error Structured missing-entitlement failure from the manager.
+     * @return True when activation completed and installation should be retried.
+     */
+    bool activate_missing_entitlement(const FolderStructurePluginInstallError& install_error);
     /**
      * @brief Uninstalls the currently selected folder-structure plugin.
      */

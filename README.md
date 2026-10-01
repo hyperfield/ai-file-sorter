@@ -737,6 +737,12 @@ Option A - CMake + vcpkg (recommended)
    - The main bundled output is staged under `app\build-windows\Release`.
    - `aifilesorter.exe` is the Windows entry point for the bundled build and launches `aifilesorter-bin.exe`.
    - `-VcpkgRoot` is optional if `VCPKG_ROOT`/`VPKG_ROOT` is set or `vcpkg`/`vpkg` is on `PATH`.
+   - For local commercial plugin test builds, put build-only environment variables in ignored file `app\build_windows.local.env`. The helper loads it automatically before configuring CMake; explicit script parameters still override it:
+     ```dotenv
+     AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS=key-id:base64-public-key
+     AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS=key-id:base64-public-key
+     AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS=key-id:base64-public-key
+     ```
    - Pass `-SkipDeploy` if you only want the binaries without bundling runtime DLLs.
    - Pass `-Parallel <N>` to override the default "all cores" parallel build behaviour (for example, `-Parallel 8`). By default the script invokes `cmake --build ... --parallel <core-count>` and `ctest -j <core-count>` to keep both MSBuild and Ninja fully utilized.
 

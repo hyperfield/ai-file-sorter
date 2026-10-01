@@ -12,6 +12,8 @@ option(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS
     "Register opt-in headless tests that run real local LLM models against real files." OFF)
 option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
     "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
+option(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS
+    "Enable an environment-variable development bypass for commercial plugin entitlement checks." OFF)
 set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
     "Updater behavior for this build: PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED")
 set_property(CACHE AI_FILE_SORTER_UPDATE_MODE PROPERTY STRINGS
@@ -28,6 +30,14 @@ set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
     ""
     CACHE STRING
     "Trusted folder-structure plugin Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+set(AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS
+    ""
+    CACHE STRING
+    "Trusted storage plugin package Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+set(AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS
+    ""
+    CACHE STRING
+    "Trusted commercial plugin entitlement Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
 
 set(_aifs_effective_update_mode "${AI_FILE_SORTER_UPDATE_MODE}")
 if(_aifs_effective_update_mode STREQUAL "PLATFORM_DEFAULT")
@@ -1034,11 +1044,32 @@ string(REPLACE "\"" "\\\"" _aifs_folder_structure_plugin_public_keys_define
     "${_aifs_folder_structure_plugin_public_keys_define}")
 string(REPLACE ";" "\\;" _aifs_folder_structure_plugin_public_keys_define
     "${_aifs_folder_structure_plugin_public_keys_define}")
+set(_aifs_storage_plugin_public_keys_define
+    "${AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS}")
+string(REPLACE "\\" "\\\\" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
+string(REPLACE "\"" "\\\"" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
+string(REPLACE ";" "\\;" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
+set(_aifs_plugin_entitlement_public_keys_define
+    "${AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS}")
+string(REPLACE "\\" "\\\\" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
+string(REPLACE "\"" "\\\"" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
+string(REPLACE ";" "\\;" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
 
 target_compile_definitions(aifilesorter PRIVATE
     AIFS_STORAGE_PLUGIN_CATALOG_URL="${AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL}"
     AIFS_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS="${_aifs_folder_structure_plugin_public_keys_define}"
+    AIFS_STORAGE_PLUGIN_PUBLIC_KEYS="${_aifs_storage_plugin_public_keys_define}"
+    AIFS_PLUGIN_ENTITLEMENT_PUBLIC_KEYS="${_aifs_plugin_entitlement_public_keys_define}"
 )
+if(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
+    target_compile_definitions(aifilesorter PRIVATE AIFS_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
+endif()
 
 if(WIN32)
     target_link_libraries(aifilesorter PRIVATE ggml ggml_base ggml_cpu)
@@ -1501,42 +1532,8 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         endforeach()
     endfunction()
 
-    aifs_add_windows_test_executable(aifs_onedrive_storage_plugin
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/onedrive_storage_plugin_main.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/CloudPathSupport.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/FileScanner.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/LocalFsProvider.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/OneDriveStorageProvider.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/ProtectedProjectDetector.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/StorageUndoCleanup.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
-    )
-    target_include_directories(aifs_onedrive_storage_plugin PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
-    )
-    target_link_libraries(aifs_onedrive_storage_plugin PRIVATE
-        Qt6::Core
-        CURL::libcurl
-        spdlog::spdlog
-        fmt::fmt
-    )
-    if(WIN32)
-        target_compile_definitions(aifs_onedrive_storage_plugin PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-        target_link_libraries(aifs_onedrive_storage_plugin PRIVATE ${WIN_SYSTEM_LIBS})
-    endif()
-    set_target_properties(aifs_onedrive_storage_plugin PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    )
-
-    target_compile_definitions(aifilesorter PRIVATE
-        AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$<TARGET_FILE_NAME:aifs_onedrive_storage_plugin>"
-    )
-    add_dependencies(aifilesorter aifs_onedrive_storage_plugin)
-
     aifs_add_windows_test_executable(ai_file_sorter_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/StoragePluginConformanceHarness.cpp"
         ${APP_LIB_SOURCES}
         ${AIFS_TEST_ONLY_APP_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
@@ -1573,6 +1570,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_cache_action.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_conformance.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_file_naming.cpp"
@@ -1612,6 +1610,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     target_include_directories(ai_file_sorter_tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
         ${DOC_DEPS_INCLUDE_DIRS}
     )
@@ -1642,12 +1641,10 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     target_compile_definitions(ai_file_sorter_tests PRIVATE
         AI_FILE_SORTER_TEST_BUILD=1
-        AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$<TARGET_FILE_NAME:aifs_onedrive_storage_plugin>"
         AIFS_STORAGE_PLUGIN_STUB_NAME="$<TARGET_FILE_NAME:aifs_storage_plugin_stub>"
         WIN32_LEAN_AND_MEAN
         NOMINMAX
     )
-    add_dependencies(ai_file_sorter_tests aifs_onedrive_storage_plugin)
     add_dependencies(ai_file_sorter_tests aifs_storage_plugin_stub)
     aifs_apply_update_mode(ai_file_sorter_tests)
     aifs_apply_expected_update_mode(ai_file_sorter_tests "${_aifs_effective_update_mode}")
@@ -1670,9 +1667,27 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     if(WIN32)
         add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:aifs_onedrive_storage_plugin>
                 $<TARGET_FILE:aifs_storage_plugin_stub>
                 $<TARGET_FILE_DIR:ai_file_sorter_tests>
+        )
+    endif()
+
+    aifs_add_windows_test_executable(aifs_storage_plugin_conformance
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/tools/storage_plugin_conformance_main.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/StoragePluginConformanceHarness.cpp"
+    )
+    target_include_directories(aifs_storage_plugin_conformance PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers"
+    )
+    target_link_libraries(aifs_storage_plugin_conformance PRIVATE Qt6::Core)
+    add_dependencies(aifs_storage_plugin_conformance aifs_storage_plugin_stub)
+    aifs_set_windows_test_runtime_output(aifs_storage_plugin_conformance)
+    aifs_stage_test_runtime(aifs_storage_plugin_conformance)
+    if(WIN32)
+        add_custom_command(TARGET aifs_storage_plugin_conformance POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:aifs_storage_plugin_stub>
+                $<TARGET_FILE_DIR:aifs_storage_plugin_conformance>
         )
     endif()
 
@@ -1740,6 +1755,19 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     if(BUILD_TESTING)
         add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)
+        set(_aifs_storage_plugin_stub_for_conformance "$<TARGET_FILE:aifs_storage_plugin_stub>")
+        if(WIN32)
+            set(_aifs_storage_plugin_stub_for_conformance
+                "$<TARGET_FILE_DIR:aifs_storage_plugin_conformance>/$<TARGET_FILE_NAME:aifs_storage_plugin_stub>")
+        endif()
+        add_test(
+            NAME storage_plugin_conformance_stub
+            COMMAND
+                aifs_storage_plugin_conformance
+                --connector "${_aifs_storage_plugin_stub_for_conformance}"
+                --provider-id mockcloud
+                --plugin-id mockcloud_storage_support
+        )
         if(WIN32)
             add_test(NAME ai_file_sorter_updater_notify_only_tests COMMAND ai_file_sorter_updater_notify_only_tests)
             add_test(NAME ai_file_sorter_updater_disabled_tests COMMAND ai_file_sorter_updater_disabled_tests)

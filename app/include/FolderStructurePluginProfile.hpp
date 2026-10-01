@@ -52,6 +52,12 @@ struct FolderStructurePluginManifest {
     std::vector<std::string> platforms;
     /** @brief Optional architecture constraints. Empty means any architecture. */
     std::vector<std::string> architectures;
+    /** @brief True when the plugin requires a signed entitlement receipt before use. */
+    bool license_required{false};
+    /** @brief Commercial product id checked against local entitlement receipts. */
+    std::string product_id;
+    /** @brief Optional webpage where the user can purchase or manage the entitlement. */
+    std::string purchase_url;
     /** @brief Manifest path inside an extracted or installed package. */
     std::filesystem::path source_path;
     /** @brief Trusted key id that verified the package. */
@@ -92,9 +98,8 @@ std::string folder_structure_plugin_current_architecture();
  * @param error Optional output for a user-facing failure reason.
  * @return True when platform and architecture constraints match.
  */
-bool folder_structure_plugin_manifest_matches_current_runtime(
-    const FolderStructurePluginManifest& manifest,
-    std::string* error = nullptr);
+bool folder_structure_plugin_manifest_matches_current_runtime(const FolderStructurePluginManifest& manifest,
+                                                              std::string* error = nullptr);
 
 /**
  * @brief Loads and validates a folder-structure plugin manifest file.
@@ -103,8 +108,7 @@ bool folder_structure_plugin_manifest_matches_current_runtime(
  * @return Parsed manifest when valid.
  */
 std::optional<FolderStructurePluginManifest> load_folder_structure_plugin_manifest_from_file(
-    const std::filesystem::path& manifest_path,
-    std::string* error = nullptr);
+    const std::filesystem::path& manifest_path, std::string* error = nullptr);
 
 /**
  * @brief Loads and validates a declarative structure profile file.
@@ -114,8 +118,7 @@ std::optional<FolderStructurePluginManifest> load_folder_structure_plugin_manife
  * @return Parsed profile when valid.
  */
 std::optional<FolderStructurePluginProfile> load_folder_structure_plugin_profile_from_file(
-    const std::filesystem::path& profile_path,
-    const FolderStructurePluginManifest& fallback_manifest,
+    const std::filesystem::path& profile_path, const FolderStructurePluginManifest& fallback_manifest,
     std::string* error = nullptr);
 
 /**
@@ -125,8 +128,7 @@ std::optional<FolderStructurePluginProfile> load_folder_structure_plugin_profile
  * @return Valid profiles loaded from the package.
  */
 std::vector<FolderStructurePluginProfile> load_folder_structure_plugin_profiles(
-    const FolderStructurePluginManifest& manifest,
-    std::string* error = nullptr);
+    const FolderStructurePluginManifest& manifest, std::string* error = nullptr);
 
 /**
  * @brief Verifies the detached signature and signed file hashes for a package root.
@@ -136,8 +138,6 @@ std::vector<FolderStructurePluginProfile> load_folder_structure_plugin_profiles(
  * @param error Optional output for a user-facing failure reason.
  * @return True when the package is signed and all payload files match.
  */
-bool verify_folder_structure_plugin_package(
-    const std::filesystem::path& package_root,
-    const std::vector<FolderStructurePluginPublicKey>& trusted_keys,
-    std::string* signer_key_id = nullptr,
-    std::string* error = nullptr);
+bool verify_folder_structure_plugin_package(const std::filesystem::path& package_root,
+                                            const std::vector<FolderStructurePluginPublicKey>& trusted_keys,
+                                            std::string* signer_key_id = nullptr, std::string* error = nullptr);
