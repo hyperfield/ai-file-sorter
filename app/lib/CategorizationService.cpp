@@ -5,6 +5,7 @@
 #include "FileCategoryPolicy.hpp"
 #include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
+#include "FolderTreeRoutingExplanation.hpp"
 #include "Settings.hpp"
 #include "CategoryLanguage.hpp"
 #include "DatabaseManager.hpp"
@@ -1203,6 +1204,14 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
     auto attach_selection = [&](const FolderTreeCatalog::Selection& selection) {
         auto routed = semantic;
         routed.target_folder_relative_path = selection.relative_path;
+        routed.folder_tree_routing_explanation = FolderTreeRoutingExplanation::build({
+            semantic.category,
+            semantic.subcategory,
+            semantic_target,
+            selection,
+            best_existing,
+            structure_profile
+        });
         routed.folder_tree_mode = true;
         routed.target_folder_suggested_new = selection.suggested_new;
         routed.target_folder_exists = selection.exists;
@@ -1576,12 +1585,16 @@ void CategorizationService::emit_progress_message(const ProgressCallback& progre
             "[{}] {}\n"
             "    Target folder       : {}\n"
             "    New folder          : {}\n"
-            "    Current Path        : {}",
+            "    Current Path        : {}{}",
             source,
             item_name,
             target,
             resolved.target_folder_suggested_new ? "yes" : "no",
-            current_path_display));
+            current_path_display,
+            resolved.folder_tree_routing_explanation.empty()
+                ? ""
+                : fmt::format("\n    Why                : {}",
+                              resolved.folder_tree_routing_explanation)));
         return;
     }
     const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
@@ -1769,6 +1782,7 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     result.canonical_subcategory = resolved.subcategory;
     result.learning_context = extract_learning_context_text(prompt_path);
     result.target_folder_relative_path = resolved.target_folder_relative_path;
+    result.folder_tree_routing_explanation = resolved.folder_tree_routing_explanation;
     result.folder_tree_mode = resolved.folder_tree_mode;
     result.target_folder_suggested_new = resolved.target_folder_suggested_new;
     result.target_folder_exists = resolved.target_folder_exists;

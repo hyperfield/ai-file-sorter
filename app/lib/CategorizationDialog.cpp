@@ -813,12 +813,18 @@ void CategorizationDialog::populate_model()
         target_folder_item->setData(file.target_folder_suggested_new, kTargetFolderSuggestedNewRole);
         target_folder_item->setData(file.target_folder_exists, kTargetFolderExistsRole);
         target_folder_item->setData(file.folder_tree_allow_new_folders, kFolderTreeAllowNewFoldersRole);
+        target_folder_item->setData(QString::fromStdString(file.folder_tree_routing_explanation),
+                                    kFolderTreeRoutingExplanationRole);
         target_folder_item->setEditable(file.folder_tree_mode && !file.rename_only);
+        if (file.folder_tree_mode) {
+            const QString explanation = QString::fromStdString(file.folder_tree_routing_explanation);
+            target_folder_item->setToolTip(
+                explanation.isEmpty() && file.target_folder_suggested_new
+                    ? tr("This folder will be created if approved.")
+                    : explanation);
+        }
         if (file.folder_tree_mode && !file.rename_only) {
             target_folder_item->setIcon(edit_icon());
-            if (file.target_folder_suggested_new) {
-                target_folder_item->setToolTip(tr("This folder will be created if approved."));
-            }
         }
 
         auto* status_item = new QStandardItem;
@@ -3375,6 +3381,12 @@ void CategorizationDialog::on_item_changed(QStandardItem* item)
                 ScopedFlag guard(suppress_item_changed_);
                 item->setText(QString());
             }
+        }
+        if (item->column() == ColumnTargetFolder) {
+            item->setData(QString(), kFolderTreeRoutingExplanationRole);
+            item->setToolTip(item->data(kTargetFolderSuggestedNewRole).toBool()
+                                 ? tr("This folder will be created if approved.")
+                                 : QString());
         }
         update_preview_column(item->row());
         update_auto_approval_for_row(item->row());

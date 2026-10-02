@@ -158,6 +158,7 @@ private:
     static constexpr int kTargetFolderSuggestedNewRole = Qt::UserRole + 16;
     static constexpr int kTargetFolderExistsRole = Qt::UserRole + 17;
     static constexpr int kFolderTreeAllowNewFoldersRole = Qt::UserRole + 18;
+    static constexpr int kFolderTreeRoutingExplanationRole = Qt::UserRole + 19;
 
     enum Column {
         ColumnSelect = 0,

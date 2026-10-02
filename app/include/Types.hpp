@@ -47,6 +47,7 @@ struct CategorizedFile {
     std::string canonical_subcategory;
     std::string learning_context;
     std::string target_folder_relative_path;
+    std::string folder_tree_routing_explanation;
     bool folder_tree_mode{false};
     bool target_folder_suggested_new{false};
     bool target_folder_exists{false};

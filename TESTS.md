@@ -2030,6 +2030,13 @@ Procedure: Derive display labels from the relative folder path.
 Expected outcome: The top-level folder becomes the compatibility category and the deepest folder becomes the compatibility subcategory.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog derives compatibility labels from target path"`
 
+#### Test case: FolderTreeRoutingExplanation describes Johnny Decimal destinations
+Purpose: Verify folder-tree routing can explain why a Johnny.Decimal-like destination was selected.
+Setup: Prepare a semantic category, a Johnny.Decimal-like target, and the closest existing folder match.
+Procedure: Build the routing explanation text.
+Expected outcome: The explanation includes the AI category, semantic target, Johnny.Decimal pattern, readable target, closest existing folder, and new-folder decision.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeRoutingExplanation describes Johnny Decimal destinations"`
+
 ### `tests/unit/test_folder_structure_plugins.cpp`
 
 #### Test case: PluginEntitlementService verifies signed device receipts
@@ -2367,6 +2374,13 @@ Setup: Create a source file and a folder-tree result pointing at a non-existing 
 Procedure: Load the result into the review dialog without confirming.
 Expected outcome: The source file remains in place and the suggested target folder is not created.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog does not create suggested folder-tree targets before confirm"`
+
+#### Test case: CategorizationDialog shows folder-tree routing explanations on targets
+Purpose: Ensure the review dialog exposes folder-tree routing reasons where users inspect the chosen destination.
+Setup: Load a folder-tree result with a Johnny.Decimal routing explanation.
+Procedure: Inspect the target-folder table item tooltip.
+Expected outcome: The tooltip includes the AI category and detected Johnny.Decimal-like routing context.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog shows folder-tree routing explanations on targets"`
 
 #### Test case: CategorizationDialog dry run does not create suggested folder-tree targets
 Purpose: Ensure dry-run preview mode remains non-mutating for suggested folder-tree destinations.

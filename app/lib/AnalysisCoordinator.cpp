@@ -9,6 +9,7 @@
 #include "FilenameLocalizationService.hpp"
 #include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
+#include "FolderTreeRoutingExplanation.hpp"
 #include "ILLMClient.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "ImageRenameMetadataService.hpp"
@@ -313,6 +314,7 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
     if (!folder_tree_sorting) {
         for (auto& entry : entries) {
             entry.target_folder_relative_path.clear();
+            entry.folder_tree_routing_explanation.clear();
             entry.folder_tree_mode = false;
             entry.target_folder_suggested_new = false;
             entry.target_folder_exists = false;
@@ -322,9 +324,9 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
     }
 
     const auto catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(destination_root));
+    const auto structure_profile = FolderStructurePattern::infer_profile(catalog, plugin_profiles);
     if (on_johnny_decimal_like_tree) {
-        const auto profile = FolderStructurePattern::infer_profile(catalog);
-        if (profile.has_johnny_decimal_like_ranges) {
+        if (structure_profile.has_johnny_decimal_like_ranges) {
             on_johnny_decimal_like_tree();
         }
     }
@@ -372,6 +374,14 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
                                          best_existing,
                                          *selection);
         entry.target_folder_relative_path = selection->relative_path;
+        entry.folder_tree_routing_explanation = FolderTreeRoutingExplanation::build({
+            semantic_category,
+            semantic_subcategory,
+            semantic_target,
+            *selection,
+            best_existing,
+            structure_profile
+        });
         entry.folder_tree_mode = true;
         entry.target_folder_suggested_new = selection->suggested_new;
         entry.target_folder_exists = selection->exists;

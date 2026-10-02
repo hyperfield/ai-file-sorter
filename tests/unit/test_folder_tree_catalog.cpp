@@ -2,6 +2,7 @@
 
 #include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
+#include "FolderTreeRoutingExplanation.hpp"
 #include "JohnnyDecimalArchiveIndex.hpp"
 #include "JohnnyDecimalFolderSuggester.hpp"
 #include "JohnnyDecimalValidator.hpp"
@@ -404,4 +405,40 @@ TEST_CASE("FolderTreeCatalog derives compatibility labels from target path")
 
     CHECK(labels.first == "10-19 Admin");
     CHECK(labels.second == "11.04 Tax summaries");
+}
+
+TEST_CASE("FolderTreeRoutingExplanation describes Johnny Decimal destinations")
+{
+    FolderStructurePattern::Profile profile;
+    profile.has_recognized_conventions = true;
+    profile.has_johnny_decimal_like_ranges = true;
+    profile.has_numbered_prefixes = true;
+
+    const FolderTreeCatalog::Selection selection{
+        "20-29 Work/22 Proposals",
+        true,
+        false
+    };
+    const FolderTreeCatalog::SemanticMatch best_existing{
+        FolderTreeCatalog::Entry{"20-29 Work/21 Clients", 2},
+        12
+    };
+
+    const std::string explanation = FolderTreeRoutingExplanation::build({
+        "Work",
+        "Proposals",
+        "Work/Proposals",
+        selection,
+        best_existing,
+        profile
+    });
+
+    CHECK(explanation.find("AI category: Work / Proposals.") != std::string::npos);
+    CHECK(explanation.find("Semantic target: Work/Proposals.") != std::string::npos);
+    CHECK(explanation.find("Johnny.Decimal-like") != std::string::npos);
+    CHECK(explanation.find("Readable target: Work/Proposals.") != std::string::npos);
+    CHECK(explanation.find("Closest existing folder: 20-29 Work/21 Clients (score 12).") !=
+          std::string::npos);
+    CHECK(explanation.find("Decision: suggest new target 20-29 Work/22 Proposals") !=
+          std::string::npos);
 }

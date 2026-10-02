@@ -663,6 +663,36 @@ TEST_CASE("CategorizationDialog does not create suggested folder-tree targets be
     CHECK_FALSE(std::filesystem::exists(suggested_dir));
 }
 
+TEST_CASE("CategorizationDialog shows folder-tree routing explanations on targets") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp_dir;
+    const std::filesystem::path base = temp_dir.path();
+    const std::string file_name = "proposal.pdf";
+    CategorizedFile file = suggested_folder_tree_file(base, file_name);
+    file.target_folder_relative_path = "20-29 Work/22 Proposals";
+    file.folder_tree_routing_explanation =
+        "AI category: Work / Proposals.\n"
+        "Archive pattern: Johnny.Decimal-like area/category ranges detected.\n"
+        "Decision: suggest new target 20-29 Work/22 Proposals; it will be created if approved.";
+
+    TempDir undo_dir_for_dialog;
+    CategorizationDialog dialog(nullptr, true, undo_dir_for_dialog.path().string());
+    dialog.test_set_entries({file});
+
+    auto* table = dialog.findChild<QTableView*>();
+    REQUIRE(table != nullptr);
+    auto* model = qobject_cast<QStandardItemModel*>(table->model());
+    REQUIRE(model != nullptr);
+    REQUIRE(model->rowCount() == 1);
+
+    auto* target_item = model->item(0, 6);
+    REQUIRE(target_item != nullptr);
+    CHECK(target_item->toolTip().contains(QStringLiteral("AI category: Work / Proposals.")));
+    CHECK(target_item->toolTip().contains(QStringLiteral("Johnny.Decimal-like")));
+}
+
 TEST_CASE("CategorizationDialog dry run does not create suggested folder-tree targets") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
