@@ -2,10 +2,12 @@
 
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "FolderStructurePluginCatalog.hpp"
 #include "FolderStructurePluginProfile.hpp"
 
 class PluginEntitlementService;
@@ -39,9 +41,10 @@ class FolderStructurePluginManager {
      * @param trusted_keys Trusted public keys. Empty uses compiled-in defaults.
      * @param entitlement_service Service used to validate premium plugin entitlements.
      */
-    explicit FolderStructurePluginManager(
-        std::string config_dir, std::vector<FolderStructurePluginPublicKey> trusted_keys = {},
-        std::shared_ptr<const PluginEntitlementService> entitlement_service = nullptr);
+    explicit FolderStructurePluginManager(std::string config_dir,
+                                          std::vector<FolderStructurePluginPublicKey> trusted_keys = {},
+                                          std::shared_ptr<const PluginEntitlementService> entitlement_service = nullptr,
+                                          FolderStructurePluginCatalogFetcher::DownloadFunction download_fn = {});
 
     /**
      * @brief Returns the managed package directory for a config directory.
@@ -56,6 +59,41 @@ class FolderStructurePluginManager {
      * @return Filesystem path used for temporary archive extraction.
      */
     static std::filesystem::path staging_directory_for_config_dir(const std::string& config_dir);
+    /**
+     * @brief Returns the managed remote-download cache directory for a config directory.
+     * @param config_dir Application config directory.
+     * @return Filesystem path where fetched catalogs and archives are cached.
+     */
+    static std::filesystem::path download_directory_for_config_dir(const std::string& config_dir);
+
+    /**
+     * @brief Returns the merged view of installed and remote-catalog folder-structure plugins.
+     * @return Available folder-structure plugin catalog entries.
+     */
+    std::vector<FolderStructurePluginCatalogEntry> available_plugins() const;
+    /**
+     * @brief Looks up a folder-structure plugin by id across installed and catalog entries.
+     * @param plugin_id Plugin identifier.
+     * @return Matching plugin entry when available.
+     */
+    std::optional<FolderStructurePluginCatalogEntry> find_plugin(const std::string& plugin_id) const;
+    /**
+     * @brief Reports whether a remote folder-structure plugin catalog URL is configured.
+     * @return True when a remote catalog source is available.
+     */
+    bool remote_catalog_configured() const;
+    /**
+     * @brief Refreshes the cached remote folder-structure plugin catalog.
+     * @param error Optional output for a user-facing failure reason.
+     * @return True when the catalog was fetched and parsed.
+     */
+    bool refresh_remote_catalog(std::string* error = nullptr);
+    /**
+     * @brief Reports whether a catalog-delivered package can update an installed plugin.
+     * @param plugin_id Plugin identifier.
+     * @return True when the catalog advertises a newer package.
+     */
+    bool can_update(const std::string& plugin_id) const;
 
     /**
      * @brief Returns verified installed plugin manifests.
@@ -101,6 +139,21 @@ class FolderStructurePluginManager {
                           std::string* error = nullptr) const;
 
     /**
+     * @brief Installs or updates a plugin from the remote catalog.
+     * @param plugin_id Plugin identifier.
+     * @param error Optional output for a user-facing failure reason.
+     * @return True when installation succeeds.
+     */
+    bool install(const std::string& plugin_id, std::string* error = nullptr) const;
+    /**
+     * @brief Installs or updates a plugin from the remote catalog with structured failure details.
+     * @param plugin_id Plugin identifier.
+     * @param error Optional output for structured failure details.
+     * @return True when installation succeeds.
+     */
+    bool install(const std::string& plugin_id, FolderStructurePluginInstallError* error) const;
+
+    /**
      * @brief Installs a signed folder-structure plugin archive.
      * @param archive_path Archive path to import.
      * @param installed_plugin_id Optional output for the installed plugin id.
@@ -135,13 +188,25 @@ class FolderStructurePluginManager {
     std::vector<FolderStructurePluginPublicKey> trusted_keys() const;
     std::vector<std::string> disabled_plugin_ids() const;
     bool save_disabled_plugin_ids(std::vector<std::string> plugin_ids, std::string* error = nullptr) const;
+    void load_cached_remote_catalog();
+    std::optional<FolderStructurePluginCatalogEntry> remote_catalog_entry(const std::string& plugin_id) const;
+    bool has_required_entitlement(const FolderStructurePluginCatalogEntry& entry,
+                                  FolderStructurePluginInstallError* error) const;
     bool has_required_entitlement(const FolderStructurePluginManifest& manifest,
                                   FolderStructurePluginInstallError* error) const;
     bool has_required_entitlement(const FolderStructurePluginManifest& manifest, std::string* error = nullptr) const;
+    bool install_from_archive_internal(const std::filesystem::path& archive_path,
+                                       const FolderStructurePluginCatalogEntry* expected_catalog_entry,
+                                       std::string* installed_plugin_id,
+                                       FolderStructurePluginInstallError* error) const;
     std::optional<FolderStructurePluginManifest> load_verified_manifest(const std::filesystem::path& package_dir,
                                                                         std::string* error = nullptr) const;
 
     std::string config_dir_;
     std::vector<FolderStructurePluginPublicKey> trusted_keys_;
     std::shared_ptr<const PluginEntitlementService> entitlement_service_;
+    FolderStructurePluginCatalogFetcher catalog_fetcher_;
+    std::string remote_catalog_url_;
+    std::vector<FolderStructurePluginCatalogEntry> remote_catalog_entries_;
+    mutable std::recursive_mutex mutex_;
 };

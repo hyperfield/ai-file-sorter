@@ -858,6 +858,70 @@ Status: %4
             <source>Failed to uninstall folder-structure plugin.</source>
             <translation>Det gick inte att avinstallera plugin för mappstruktur.</translation>
         </message>
+        <message>
+            <source>Check for Updates</source>
+            <translation>Check for Updates</translation>
+        </message>
+        <message>
+            <source>Install</source>
+            <translation>Install</translation>
+        </message>
+        <message>
+            <source>Obtain...</source>
+            <translation>Obtain...</translation>
+        </message>
+        <message>
+            <source>Available</source>
+            <translation>Available</translation>
+        </message>
+        <message>
+            <source>Catalog</source>
+            <translation>Catalog</translation>
+        </message>
+        <message>
+            <source>No verified folder-structure plugins are installed or listed. Check for updates or install a signed plugin package from file.</source>
+            <translation>No verified folder-structure plugins are installed or listed. Check for updates or install a signed plugin package from file.</translation>
+        </message>
+        <message>
+            <source>Unknown folder-structure plugin.</source>
+            <translation>Unknown folder-structure plugin.</translation>
+        </message>
+        <message>
+            <source>Available from catalog</source>
+            <translation>Available from catalog</translation>
+        </message>
+        <message>
+            <source>; license required</source>
+            <translation>; license required</translation>
+        </message>
+        <message>
+            <source>This plugin is listed by the server catalog, but the downloadable package is not available from the catalog yet.</source>
+            <translation>This plugin is listed by the server catalog, but the downloadable package is not available from the catalog yet.</translation>
+        </message>
+        <message>
+            <source>%1 %2
+Source: %3
+Status: %4
+
+%5</source>
+            <translation>%1 %2
+Source: %3
+Status: %4
+
+%5</translation>
+        </message>
+        <message>
+            <source>Update</source>
+            <translation>Update</translation>
+        </message>
+        <message>
+            <source>Update check failed</source>
+            <translation>Update check failed</translation>
+        </message>
+        <message>
+            <source>Failed to check for folder-structure plugin updates.</source>
+            <translation>Failed to check for folder-structure plugin updates.</translation>
+        </message>
     </context>
     <context>
         <name>LLMSelectionDialog</name>

@@ -26,6 +26,10 @@ set(AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL
     "https://filesorter.app/download/plugins/storage/catalog.json"
     CACHE STRING
     "Default remote storage plugin catalog URL baked into the application build.")
+set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL
+    "https://filesorter.app/api/plugins/folder-structures/catalog/"
+    CACHE STRING
+    "Default remote folder-structure plugin catalog URL baked into the application build.")
 set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
     ""
     CACHE STRING
@@ -1063,6 +1067,7 @@ string(REPLACE ";" "\\;" _aifs_plugin_entitlement_public_keys_define
 
 target_compile_definitions(aifilesorter PRIVATE
     AIFS_STORAGE_PLUGIN_CATALOG_URL="${AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL}"
+    AIFS_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL="${AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL}"
     AIFS_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS="${_aifs_folder_structure_plugin_public_keys_define}"
     AIFS_STORAGE_PLUGIN_PUBLIC_KEYS="${_aifs_storage_plugin_public_keys_define}"
     AIFS_PLUGIN_ENTITLEMENT_PUBLIC_KEYS="${_aifs_plugin_entitlement_public_keys_define}"

@@ -15,12 +15,16 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "FolderStructurePattern.hpp"
+#include "FolderStructurePluginCatalog.hpp"
 #include "FolderStructurePluginDialog.hpp"
 #include "FolderStructurePluginManager.hpp"
 #include "FolderStructurePluginProfile.hpp"
@@ -56,6 +60,11 @@ PluginEntitlementPublicKey test_entitlement_public_key() {
 
 std::string sha256_hex(const QByteArray& payload) {
     return QCryptographicHash::hash(payload, QCryptographicHash::Sha256).toHex().toStdString();
+}
+
+std::string read_binary_file(const std::filesystem::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 }
 
 QByteArray sign_ed25519(const QByteArray& payload) {
@@ -208,6 +217,207 @@ QByteArray entitlement_payload(const std::string& device_id, const QString& offl
 }
 
 }  // namespace
+
+TEST_CASE("FolderStructurePluginCatalog parses Johnny Decimal catalog entries") {
+    const std::string catalog_json = R"json({
+  "version": "aifs.folder_structure_plugin_catalog.v1",
+  "plugins": [
+    {
+      "id": "johnny_decimal_support",
+      "name": "Johnny.Decimal Support",
+      "description": "Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.",
+      "version": "1.0.0",
+      "license_required": true,
+      "product_id": "johnny_decimal_support",
+      "purchase_url": "https://filesorter.app/plugins/johnny-decimal-support/",
+      "package_download_url": "",
+      "package_sha256": ""
+    }
+  ]
+})json";
+
+    std::string error;
+    const auto entries = load_folder_structure_plugin_catalog_entries_from_json(catalog_json, &error);
+
+    REQUIRE(error.empty());
+    REQUIRE(entries.size() == 1);
+    const auto& entry = entries.front();
+    CHECK(entry.id == "johnny_decimal_support");
+    CHECK(entry.name == "Johnny.Decimal Support");
+    CHECK(entry.version == "1.0.0");
+    CHECK(entry.license_required);
+    CHECK(entry.product_id == "johnny_decimal_support");
+    CHECK(entry.purchase_url == "https://filesorter.app/plugins/johnny-decimal-support/");
+    CHECK_FALSE(entry.has_remote_package());
+}
+
+TEST_CASE("FolderStructurePluginCatalogFetcher downloads catalog entries and packages") {
+    TempDir cache_dir;
+    const std::string catalog_url = "https://plugins.example.invalid/folder-structures/catalog/";
+    const std::string package_url =
+        "https://plugins.example.invalid/folder-structures/johnny-decimal-support-1.0.0.aifsplugin";
+    const std::string package_payload = "signed johnny decimal plugin package";
+    const std::string package_sha = sha256_hex(QByteArray::fromStdString(package_payload));
+    const std::string catalog_json = std::string(R"json({
+  "version": "aifs.folder_structure_plugin_catalog.v1",
+  "plugins": [
+    {
+      "id": "johnny_decimal_support",
+      "name": "Johnny.Decimal Support",
+      "description": "Adds Johnny.Decimal starter folders and routing guidance.",
+      "version": "1.0.0",
+      "license_required": true,
+      "product_id": "johnny_decimal_support",
+      "purchase_url": "https://filesorter.app/plugins/johnny-decimal-support/",
+      "package_download_url": ")json") +
+                                     package_url +
+                                     R"json(",
+      "package_sha256": ")json" + package_sha +
+                                     R"json("
+    }
+  ]
+})json";
+
+    auto download_fn = [catalog_url, package_url, catalog_json, package_payload](
+                           const std::string& url, const std::filesystem::path& destination,
+                           FolderStructurePluginCatalogFetcher::ProgressCallback,
+                           FolderStructurePluginCatalogFetcher::CancelCheck) {
+        std::filesystem::create_directories(destination.parent_path());
+        std::ofstream out(destination, std::ios::binary | std::ios::trunc);
+        if (url == catalog_url) {
+            out << catalog_json;
+            return;
+        }
+        if (url == package_url) {
+            out.write(package_payload.data(), static_cast<std::streamsize>(package_payload.size()));
+            return;
+        }
+        throw std::runtime_error("Unexpected folder-structure plugin URL");
+    };
+
+    FolderStructurePluginCatalogFetcher fetcher(cache_dir.path(), download_fn);
+    std::string error;
+    const auto entries = fetcher.fetch_catalog_entries(catalog_url, &error);
+
+    REQUIRE(error.empty());
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().has_remote_package());
+
+    std::filesystem::path archive_path;
+    REQUIRE(fetcher.fetch_package_archive(entries.front(), &archive_path, &error));
+    CHECK(error.empty());
+    CHECK(archive_path.filename() == "johnny-decimal-support-1.0.0.aifsplugin");
+    CHECK(read_binary_file(archive_path) == package_payload);
+}
+
+TEST_CASE("FolderStructurePluginManager refreshes remote catalog entries") {
+    TempDir config_dir;
+    const std::string catalog_url = "https://plugins.example.invalid/folder-structures/catalog/";
+    EnvVarGuard catalog_guard("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL", catalog_url);
+    const std::string catalog_json = R"json({
+  "version": "aifs.folder_structure_plugin_catalog.v1",
+  "plugins": [
+    {
+      "id": "johnny_decimal_support",
+      "name": "Johnny.Decimal Support",
+      "description": "Adds Johnny.Decimal starter folders and routing guidance.",
+      "version": "1.0.0",
+      "license_required": true,
+      "product_id": "johnny_decimal_support",
+      "purchase_url": "https://filesorter.app/plugins/johnny-decimal-support/",
+      "package_download_url": "",
+      "package_sha256": ""
+    }
+  ]
+})json";
+
+    auto download_fn = [catalog_url, catalog_json](const std::string& url, const std::filesystem::path& destination,
+                                                   FolderStructurePluginCatalogFetcher::ProgressCallback,
+                                                   FolderStructurePluginCatalogFetcher::CancelCheck) {
+        if (url != catalog_url) {
+            throw std::runtime_error("Unexpected folder-structure catalog URL");
+        }
+        std::filesystem::create_directories(destination.parent_path());
+        std::ofstream out(destination, std::ios::binary | std::ios::trunc);
+        out << catalog_json;
+    };
+
+    FolderStructurePluginManager manager(config_dir.path().string(), {test_public_key()}, nullptr, download_fn);
+    REQUIRE(manager.remote_catalog_configured());
+
+    std::string error;
+    REQUIRE(manager.refresh_remote_catalog(&error));
+    CHECK(error.empty());
+
+    const auto plugin = manager.find_plugin("johnny_decimal_support");
+    REQUIRE(plugin.has_value());
+    CHECK(plugin->name == "Johnny.Decimal Support");
+    CHECK(plugin->license_required);
+    CHECK_FALSE(plugin->has_remote_package());
+
+    FolderStructurePluginManager reloaded(config_dir.path().string(), {test_public_key()}, nullptr, download_fn);
+    const auto cached_plugin = reloaded.find_plugin("johnny_decimal_support");
+    REQUIRE(cached_plugin.has_value());
+    CHECK(cached_plugin->purchase_url == "https://filesorter.app/plugins/johnny-decimal-support/");
+}
+
+TEST_CASE("FolderStructurePluginManager installs catalog plugins on demand") {
+    TempDir config_dir;
+    TempDir archive_dir;
+    const std::string catalog_url = "https://plugins.example.invalid/folder-structures/catalog/";
+    const std::string package_url =
+        "https://plugins.example.invalid/folder-structures/johnny-decimal-support-1.0.0.aifsplugin";
+    EnvVarGuard catalog_guard("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL", catalog_url);
+
+    const auto archive_path = archive_dir.path() / "johnny-decimal-support-1.0.0.aifsplugin";
+    create_zip_archive(archive_path, signed_plugin_entries(plugin_manifest(), plugin_profile()));
+    const std::string package_payload = read_binary_file(archive_path);
+    const std::string package_sha = sha256_hex(QByteArray::fromStdString(package_payload));
+    const std::string catalog_json = std::string(R"json({
+  "version": "aifs.folder_structure_plugin_catalog.v1",
+  "plugins": [
+    {
+      "id": "johnny_decimal_support",
+      "name": "Johnny.Decimal Support",
+      "description": "Adds Johnny.Decimal starter folders and routing guidance.",
+      "version": "1.0.0",
+      "license_required": false,
+      "product_id": "johnny_decimal_support",
+      "purchase_url": "https://filesorter.app/plugins/johnny-decimal-support/",
+      "package_download_url": ")json") +
+                                     package_url +
+                                     R"json(",
+      "package_sha256": ")json" + package_sha +
+                                     R"json("
+    }
+  ]
+})json";
+
+    auto download_fn = [catalog_url, package_url, catalog_json, package_payload](
+                           const std::string& url, const std::filesystem::path& destination,
+                           FolderStructurePluginCatalogFetcher::ProgressCallback,
+                           FolderStructurePluginCatalogFetcher::CancelCheck) {
+        std::filesystem::create_directories(destination.parent_path());
+        std::ofstream out(destination, std::ios::binary | std::ios::trunc);
+        if (url == catalog_url) {
+            out << catalog_json;
+            return;
+        }
+        if (url == package_url) {
+            out.write(package_payload.data(), static_cast<std::streamsize>(package_payload.size()));
+            return;
+        }
+        throw std::runtime_error("Unexpected folder-structure plugin URL");
+    };
+
+    FolderStructurePluginManager manager(config_dir.path().string(), {test_public_key()}, nullptr, download_fn);
+    std::string error;
+    REQUIRE(manager.refresh_remote_catalog(&error));
+    REQUIRE(manager.install("johnny_decimal_support", &error));
+    CHECK(error.empty());
+    CHECK(manager.is_installed("johnny_decimal_support"));
+    REQUIRE(manager.installed_profiles().size() == 1);
+}
 
 TEST_CASE("PluginEntitlementService verifies signed device receipts") {
     TempDir config_dir;
@@ -362,6 +572,7 @@ TEST_CASE("FolderStructurePluginManager installs licensed plugins with entitleme
 }
 
 TEST_CASE("FolderStructurePluginDialog controls plugin enablement") {
+    EnvVarGuard catalog_guard("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL", " ");
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
     TempDir config_dir;
@@ -395,6 +606,57 @@ TEST_CASE("FolderStructurePluginDialog controls plugin enablement") {
     QCoreApplication::processEvents();
     CHECK_FALSE(manager->is_enabled("johnny_decimal_support"));
     CHECK(manager->installed_profiles().empty());
+}
+
+TEST_CASE("FolderStructurePluginDialog lists remote catalog plugins") {
+    const std::string catalog_url = "https://plugins.example.invalid/folder-structures/catalog/";
+    EnvVarGuard catalog_guard("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL", catalog_url);
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir config_dir;
+    const std::string catalog_json = R"json({
+  "version": "aifs.folder_structure_plugin_catalog.v1",
+  "plugins": [
+    {
+      "id": "johnny_decimal_support",
+      "name": "Johnny.Decimal Support",
+      "description": "Adds Johnny.Decimal starter folders and routing guidance.",
+      "version": "1.0.0",
+      "license_required": true,
+      "product_id": "johnny_decimal_support",
+      "purchase_url": "https://filesorter.app/plugins/johnny-decimal-support/",
+      "package_download_url": "",
+      "package_sha256": ""
+    }
+  ]
+})json";
+
+    auto download_fn = [catalog_url, catalog_json](const std::string& url, const std::filesystem::path& destination,
+                                                   FolderStructurePluginCatalogFetcher::ProgressCallback,
+                                                   FolderStructurePluginCatalogFetcher::CancelCheck) {
+        if (url != catalog_url) {
+            throw std::runtime_error("Unexpected folder-structure catalog URL");
+        }
+        std::filesystem::create_directories(destination.parent_path());
+        std::ofstream out(destination, std::ios::binary | std::ios::trunc);
+        out << catalog_json;
+    };
+
+    auto manager = std::make_shared<FolderStructurePluginManager>(
+        config_dir.path().string(), std::vector<FolderStructurePluginPublicKey>{test_public_key()}, nullptr,
+        download_fn);
+    std::string error;
+    REQUIRE(manager->refresh_remote_catalog(&error));
+
+    FolderStructurePluginDialog dialog(manager);
+    auto* plugin_list = dialog.findChild<QTreeWidget*>();
+    REQUIRE(plugin_list != nullptr);
+    REQUIRE(plugin_list->topLevelItemCount() == 1);
+    auto* item = plugin_list->topLevelItem(0);
+    REQUIRE(item != nullptr);
+    CHECK(item->text(0) == QStringLiteral("Available"));
+    CHECK(item->text(1) == QStringLiteral("Johnny.Decimal Support"));
+    CHECK(item->text(2) == QStringLiteral("1.0.0"));
 }
 
 TEST_CASE("FolderStructurePluginManager rejects tampered plugin payloads") {

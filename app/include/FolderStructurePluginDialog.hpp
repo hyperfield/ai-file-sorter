@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QDialog>
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -44,9 +45,29 @@ class FolderStructurePluginDialog : public QDialog {
      */
     void update_plugin_enabled_state(QTreeWidgetItem* item, int column);
     /**
+     * @brief Starts a background remote-catalog refresh.
+     * @param interactive True when the refresh was triggered explicitly by the user.
+     */
+    void start_catalog_refresh(bool interactive);
+    /**
+     * @brief Applies the result of a completed background refresh on the UI thread.
+     * @param success True when the refresh succeeded.
+     * @param error Optional user-facing error description from the refresh attempt.
+     * @param interactive True when the refresh was triggered explicitly by the user.
+     */
+    void finish_catalog_refresh(bool success, const std::string& error, bool interactive);
+    /**
      * @brief Imports and installs a signed plugin archive chosen by the user.
      */
     void import_plugin_archive();
+    /**
+     * @brief Installs or updates the currently selected remote-catalog plugin.
+     */
+    void install_selected_plugin();
+    /**
+     * @brief Opens the purchase/info page for the currently selected catalog plugin.
+     */
+    void open_selected_plugin_page();
     /**
      * @brief Offers license activation for an entitlement-gated plugin installation.
      * @param install_error Structured missing-entitlement failure from the manager.
@@ -66,6 +87,10 @@ class FolderStructurePluginDialog : public QDialog {
     std::shared_ptr<FolderStructurePluginManager> plugin_manager_;
     QTreeWidget* plugin_list_{nullptr};
     QLabel* description_label_{nullptr};
+    QPushButton* check_updates_button_{nullptr};
     QPushButton* import_button_{nullptr};
+    QPushButton* install_button_{nullptr};
+    QPushButton* obtain_button_{nullptr};
     QPushButton* uninstall_button_{nullptr};
+    std::atomic<bool> refresh_in_progress_{false};
 };

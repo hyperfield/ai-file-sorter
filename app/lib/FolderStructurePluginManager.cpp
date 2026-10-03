@@ -8,10 +8,12 @@
 #include <QTemporaryDir>
 #include <algorithm>
 #include <app_version.hpp>
+#include <cctype>
 #include <filesystem>
 #include <iterator>
 #include <optional>
 #include <system_error>
+#include <unordered_map>
 #include <utility>
 
 #include "PluginArchiveExtractor.hpp"
@@ -83,17 +85,112 @@ std::vector<std::filesystem::path> candidate_manifest_paths(const std::filesyste
     return paths;
 }
 
+std::vector<int> parse_version_digits(const std::string& version) {
+    std::vector<int> digits;
+    std::string current;
+    for (char ch : version) {
+        if (ch == '.') {
+            if (current.empty()) {
+                return {};
+            }
+            digits.push_back(std::stoi(current));
+            current.clear();
+            continue;
+        }
+        if (!std::isdigit(static_cast<unsigned char>(ch))) {
+            return {};
+        }
+        current.push_back(ch);
+    }
+    if (!current.empty()) {
+        digits.push_back(std::stoi(current));
+    }
+    return digits;
+}
+
+bool version_is_newer(const std::string& candidate, const std::string& installed) {
+    const auto lhs = parse_version_digits(candidate);
+    const auto rhs = parse_version_digits(installed);
+    if (lhs.empty() || rhs.empty()) {
+        return candidate > installed;
+    }
+
+    const auto count = std::max(lhs.size(), rhs.size());
+    for (std::size_t i = 0; i < count; ++i) {
+        const int left = i < lhs.size() ? lhs[i] : 0;
+        const int right = i < rhs.size() ? rhs[i] : 0;
+        if (left > right) {
+            return true;
+        }
+        if (left < right) {
+            return false;
+        }
+    }
+    return false;
+}
+
+FolderStructurePluginCatalogEntry catalog_entry_from_manifest(const FolderStructurePluginManifest& manifest) {
+    return FolderStructurePluginCatalogEntry{
+        .id = manifest.id,
+        .name = manifest.name,
+        .description = manifest.description,
+        .version = manifest.version,
+        .license_required = manifest.license_required,
+        .product_id = manifest.product_id.empty() ? manifest.id : manifest.product_id,
+        .purchase_url = manifest.purchase_url,
+    };
+}
+
+std::vector<FolderStructurePluginCatalogEntry> merge_catalog_entries(
+    std::vector<FolderStructurePluginCatalogEntry> installed_entries,
+    std::vector<FolderStructurePluginCatalogEntry> remote_entries) {
+    std::unordered_map<std::string, std::size_t> index_by_id;
+    std::vector<FolderStructurePluginCatalogEntry> merged;
+    merged.reserve(installed_entries.size() + remote_entries.size());
+
+    for (auto& entry : remote_entries) {
+        if (entry.id.empty()) {
+            continue;
+        }
+        index_by_id[entry.id] = merged.size();
+        merged.push_back(std::move(entry));
+    }
+
+    for (auto& entry : installed_entries) {
+        if (entry.id.empty()) {
+            continue;
+        }
+        if (index_by_id.contains(entry.id)) {
+            continue;
+        }
+        index_by_id[entry.id] = merged.size();
+        merged.push_back(std::move(entry));
+    }
+
+    std::sort(merged.begin(), merged.end(), [](const auto& left, const auto& right) {
+        if (left.name == right.name) {
+            return left.id < right.id;
+        }
+        return left.name < right.name;
+    });
+    return merged;
+}
+
 }  // namespace
 
 FolderStructurePluginManager::FolderStructurePluginManager(
     std::string config_dir, std::vector<FolderStructurePluginPublicKey> trusted_keys,
-    std::shared_ptr<const PluginEntitlementService> entitlement_service)
+    std::shared_ptr<const PluginEntitlementService> entitlement_service,
+    FolderStructurePluginCatalogFetcher::DownloadFunction download_fn)
     : config_dir_(std::move(config_dir)),
       trusted_keys_(std::move(trusted_keys)),
-      entitlement_service_(std::move(entitlement_service)) {
+      entitlement_service_(std::move(entitlement_service)),
+      catalog_fetcher_(download_directory_for_config_dir(config_dir_), std::move(download_fn)),
+      remote_catalog_url_(default_folder_structure_plugin_catalog_url()) {
     if (!entitlement_service_) {
         entitlement_service_ = std::make_shared<PluginEntitlementService>(std::filesystem::path(config_dir_));
     }
+    load_cached_remote_catalog();
 }
 
 std::filesystem::path FolderStructurePluginManager::package_directory_for_config_dir(const std::string& config_dir) {
@@ -104,7 +201,75 @@ std::filesystem::path FolderStructurePluginManager::staging_directory_for_config
     return std::filesystem::path(config_dir) / "plugins" / "folder-structures" / "staging";
 }
 
+std::filesystem::path FolderStructurePluginManager::download_directory_for_config_dir(const std::string& config_dir) {
+    return std::filesystem::path(config_dir) / "plugins" / "folder-structures" / "downloads";
+}
+
+std::vector<FolderStructurePluginCatalogEntry> FolderStructurePluginManager::available_plugins() const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::vector<FolderStructurePluginCatalogEntry> installed_entries;
+    const auto installed = installed_plugins();
+    installed_entries.reserve(installed.size());
+    for (const auto& manifest : installed) {
+        installed_entries.push_back(catalog_entry_from_manifest(manifest));
+    }
+    return merge_catalog_entries(std::move(installed_entries), remote_catalog_entries_);
+}
+
+std::optional<FolderStructurePluginCatalogEntry> FolderStructurePluginManager::find_plugin(
+    const std::string& plugin_id) const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    for (const auto& entry : available_plugins()) {
+        if (entry.id == plugin_id) {
+            return entry;
+        }
+    }
+    return std::nullopt;
+}
+
+bool FolderStructurePluginManager::remote_catalog_configured() const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    return !remote_catalog_url_.empty();
+}
+
+bool FolderStructurePluginManager::refresh_remote_catalog(std::string* error) {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!remote_catalog_configured()) {
+        if (error) {
+            *error = "No folder-structure plugin catalog URL is configured.";
+        }
+        return false;
+    }
+
+    auto entries = catalog_fetcher_.fetch_catalog_entries(remote_catalog_url_, error);
+    if (entries.empty()) {
+        if (error && error->empty()) {
+            *error = "Folder-structure plugin catalog did not contain any plugins.";
+        }
+        return false;
+    }
+
+    remote_catalog_entries_ = std::move(entries);
+    return true;
+}
+
+bool FolderStructurePluginManager::can_update(const std::string& plugin_id) const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    const auto remote = remote_catalog_entry(plugin_id);
+    if (!remote || !remote->has_remote_package()) {
+        return false;
+    }
+
+    for (const auto& manifest : installed_plugins()) {
+        if (manifest.id == plugin_id) {
+            return version_is_newer(remote->version, manifest.version);
+        }
+    }
+    return false;
+}
+
 std::vector<FolderStructurePluginManifest> FolderStructurePluginManager::installed_plugins() const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     std::vector<FolderStructurePluginManifest> manifests;
     for (const auto& manifest_path : candidate_manifest_paths(package_root())) {
         std::string error;
@@ -132,6 +297,7 @@ std::vector<FolderStructurePluginProfile> FolderStructurePluginManager::installe
 }
 
 bool FolderStructurePluginManager::is_installed(const std::string& plugin_id) const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto manifests = installed_plugins();
     return std::any_of(manifests.begin(), manifests.end(),
                        [&](const FolderStructurePluginManifest& manifest) { return manifest.id == plugin_id; });
@@ -186,6 +352,49 @@ bool FolderStructurePluginManager::activate_license(const std::string& product_i
     return false;
 }
 
+bool FolderStructurePluginManager::install(const std::string& plugin_id, std::string* error) const {
+    FolderStructurePluginInstallError detailed_error;
+    const bool installed = install(plugin_id, &detailed_error);
+    if (!installed && error) {
+        *error = detailed_error.message;
+    }
+    return installed;
+}
+
+bool FolderStructurePluginManager::install(const std::string& plugin_id,
+                                           FolderStructurePluginInstallError* error) const {
+    if (plugin_id.empty()) {
+        return fail_install(error, "No folder-structure plugin id was provided.");
+    }
+
+    std::optional<FolderStructurePluginCatalogEntry> entry;
+    {
+        const std::lock_guard<std::recursive_mutex> lock(mutex_);
+        entry = remote_catalog_entry(plugin_id);
+    }
+    if (!entry) {
+        return fail_install(error, "This folder-structure plugin is not available from the remote catalog.");
+    }
+    if (!has_required_entitlement(*entry, error)) {
+        return false;
+    }
+    if (!entry->has_remote_package()) {
+        return fail_install(error,
+                            "This folder-structure plugin is listed in the catalog, but no downloadable package is "
+                            "available yet.");
+    }
+
+    std::filesystem::path archive_path;
+    std::string fetch_error;
+    if (!catalog_fetcher_.fetch_package_archive(*entry, &archive_path, &fetch_error)) {
+        return fail_install(error,
+                            fetch_error.empty() ? "Failed to download folder-structure plugin package." : fetch_error);
+    }
+
+    std::string installed_plugin_id;
+    return install_from_archive_internal(archive_path, &*entry, &installed_plugin_id, error);
+}
+
 bool FolderStructurePluginManager::install_from_archive(const std::filesystem::path& archive_path,
                                                         std::string* installed_plugin_id, std::string* error) const {
     FolderStructurePluginInstallError detailed_error;
@@ -199,6 +408,12 @@ bool FolderStructurePluginManager::install_from_archive(const std::filesystem::p
 bool FolderStructurePluginManager::install_from_archive(const std::filesystem::path& archive_path,
                                                         std::string* installed_plugin_id,
                                                         FolderStructurePluginInstallError* error) const {
+    return install_from_archive_internal(archive_path, nullptr, installed_plugin_id, error);
+}
+
+bool FolderStructurePluginManager::install_from_archive_internal(
+    const std::filesystem::path& archive_path, const FolderStructurePluginCatalogEntry* expected_catalog_entry,
+    std::string* installed_plugin_id, FolderStructurePluginInstallError* error) const {
     if (!PluginArchiveExtractor::supports_archive(archive_path)) {
         return fail_install(error, "Only .aifsplugin and .zip plugin packages are supported.");
     }
@@ -231,6 +446,21 @@ bool FolderStructurePluginManager::install_from_archive(const std::filesystem::p
     auto manifest = load_folder_structure_plugin_manifest_from_file(extraction.manifest_path, &failure_message);
     if (!manifest) {
         return fail_install(error, failure_message);
+    }
+    if (expected_catalog_entry) {
+        if (manifest->id != expected_catalog_entry->id) {
+            return fail_install(error, "The downloaded plugin archive does not match the requested plugin id.");
+        }
+        if (!expected_catalog_entry->version.empty() && manifest->version != expected_catalog_entry->version) {
+            return fail_install(error, "The downloaded plugin archive version does not match the catalog entry.");
+        }
+        if (manifest->purchase_url.empty()) {
+            manifest->purchase_url = expected_catalog_entry->purchase_url;
+        }
+        if (manifest->license_required && manifest->product_id.empty()) {
+            manifest->product_id = expected_catalog_entry->product_id.empty() ? expected_catalog_entry->id
+                                                                              : expected_catalog_entry->product_id;
+        }
     }
     manifest->verified_signer_key_id = signer_key_id;
     if (!has_required_entitlement(*manifest, error)) {
@@ -299,6 +529,31 @@ std::vector<FolderStructurePluginPublicKey> FolderStructurePluginManager::truste
     return default_folder_structure_plugin_public_keys();
 }
 
+void FolderStructurePluginManager::load_cached_remote_catalog() {
+    const auto path =
+        FolderStructurePluginCatalogFetcher::catalog_cache_path(download_directory_for_config_dir(config_dir_));
+    QFile file(QString::fromStdString(Utils::path_to_utf8(path)));
+    if (!file.exists() || !file.open(QIODevice::ReadOnly)) {
+        return;
+    }
+
+    std::string error;
+    auto entries = load_folder_structure_plugin_catalog_entries_from_json(file.readAll().toStdString(), &error);
+    if (!entries.empty()) {
+        remote_catalog_entries_ = std::move(entries);
+    }
+}
+
+std::optional<FolderStructurePluginCatalogEntry> FolderStructurePluginManager::remote_catalog_entry(
+    const std::string& plugin_id) const {
+    for (const auto& entry : remote_catalog_entries_) {
+        if (entry.id == plugin_id) {
+            return entry;
+        }
+    }
+    return std::nullopt;
+}
+
 std::vector<std::string> FolderStructurePluginManager::disabled_plugin_ids() const {
     const auto path = state_file();
     QFile file(QString::fromStdString(Utils::path_to_utf8(path)));
@@ -355,6 +610,30 @@ bool FolderStructurePluginManager::save_disabled_plugin_ids(std::vector<std::str
     }
     file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
     return true;
+}
+
+bool FolderStructurePluginManager::has_required_entitlement(const FolderStructurePluginCatalogEntry& entry,
+                                                            FolderStructurePluginInstallError* error) const {
+    if (!entry.license_required) {
+        return true;
+    }
+
+    const std::string product_id = entry.product_id.empty() ? entry.id : entry.product_id;
+    if (entitlement_service_ && entitlement_service_->has_entitlement(product_id, entry.id)) {
+        return true;
+    }
+
+    if (error) {
+        *error = FolderStructurePluginInstallError{};
+        error->message =
+            "This folder-structure plugin requires an active entitlement for product '" + product_id + "'.";
+        error->missing_entitlement = true;
+        error->product_id = product_id;
+        error->plugin_id = entry.id;
+        error->plugin_name = entry.name.empty() ? entry.id : entry.name;
+        error->purchase_url = entry.purchase_url;
+    }
+    return false;
 }
 
 bool FolderStructurePluginManager::has_required_entitlement(const FolderStructurePluginManifest& manifest,

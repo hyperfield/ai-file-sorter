@@ -2039,6 +2039,34 @@ Run: `./build-tests/ai_file_sorter_tests "FolderTreeRoutingExplanation describes
 
 ### `tests/unit/test_folder_structure_plugins.cpp`
 
+#### Test case: FolderStructurePluginCatalog parses Johnny Decimal catalog entries
+Purpose: Ensure the app can parse the static website catalog shape used for folder-structure plugins.
+Setup: Build an in-memory catalog JSON document with the Johnny.Decimal support entry and no staged package URL.
+Procedure: Parse the catalog entries.
+Expected outcome: The Johnny.Decimal entry is returned with license/product/purchase metadata and no remote package.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginCatalog parses Johnny Decimal catalog entries"`
+
+#### Test case: FolderStructurePluginCatalogFetcher downloads catalog entries and packages
+Purpose: Verify the app-side catalog fetcher downloads catalog JSON and SHA-256 verifies package archives.
+Setup: Provide mock catalog and package URLs through an injected download function.
+Procedure: Fetch the catalog, then fetch the listed package archive.
+Expected outcome: The catalog entry is parsed, the package is cached under its plugin/version path, and its payload matches the expected SHA-256.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginCatalogFetcher downloads catalog entries and packages"`
+
+#### Test case: FolderStructurePluginManager refreshes remote catalog entries
+Purpose: Ensure the folder-structure plugin manager can retrieve and cache remote catalog metadata.
+Setup: Point the manager at a mock catalog URL containing the Johnny.Decimal support entry.
+Procedure: Refresh the remote catalog, inspect the available plugin, then create a new manager over the same config directory.
+Expected outcome: The refreshed entry is available with product and purchase metadata, and a reloaded manager reads it from the cached catalog.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager refreshes remote catalog entries"`
+
+#### Test case: FolderStructurePluginManager installs catalog plugins on demand
+Purpose: Verify a catalog-listed signed folder-structure plugin can be downloaded, verified, and installed.
+Setup: Build a signed Johnny.Decimal archive, publish it through a mock catalog entry with matching SHA-256, and inject a mock downloader.
+Procedure: Refresh the catalog and install the Johnny.Decimal plugin by id.
+Expected outcome: The package downloads from the catalog URL, signature/id/version checks pass, and the plugin profile becomes installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs catalog plugins on demand"`
+
 #### Test case: PluginEntitlementService verifies signed device receipts
 Purpose: Ensure a server-style signed receipt can unlock a commercial plugin product for the current device.
 Setup: Create a temporary entitlement receipt signed by the trusted Ed25519 test key and bound to the test device id.
@@ -2087,6 +2115,13 @@ Setup: Install a signed Johnny.Decimal profile archive and create the dialog wit
 Procedure: Inspect row selection, read the status details, and clear the plugin's Enabled checkbox.
 Expected outcome: Selection is row-based, the installed plugin starts enabled, and clearing the checkbox persists a disabled state that removes plugin profiles from loading.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog controls plugin enablement"`
+
+#### Test case: FolderStructurePluginDialog lists remote catalog plugins
+Purpose: Ensure the folder-structure plugin dialog can show server-catalog plugins that are not installed yet.
+Setup: Refresh a manager from a mock catalog containing the Johnny.Decimal support entry and construct the dialog.
+Procedure: Inspect the plugin list row.
+Expected outcome: The dialog lists Johnny.Decimal Support as an available catalog plugin with the advertised version.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog lists remote catalog plugins"`
 
 #### Test case: FolderStructurePluginManager rejects tampered plugin payloads
 Purpose: Ensure package payloads cannot be changed after signing.
