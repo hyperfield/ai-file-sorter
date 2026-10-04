@@ -2479,13 +2479,44 @@ bool MainApp::install_johnny_decimal_plugin_from_suggestion()
     return true;
 }
 
+bool MainApp::enable_johnny_decimal_plugin_from_suggestion()
+{
+    if (!folder_structure_plugin_manager_) {
+        return false;
+    }
+
+    std::string error;
+    if (!folder_structure_plugin_manager_->set_enabled(kJohnnyDecimalPluginId, true, &error)) {
+        QMessageBox::warning(this,
+                             tr("Enable failed"),
+                             error.empty()
+                                 ? tr("Failed to enable Johnny.Decimal Support.")
+                                 : QString::fromStdString(error));
+        return false;
+    }
+
+    QMessageBox::information(
+        this,
+        tr("Plugin enabled"),
+        tr("Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance."));
+    return true;
+}
+
 bool MainApp::should_offer_johnny_decimal_plugin_for_root(const QString& root) const
 {
     if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree ||
-        settings.get_hide_johnny_decimal_plugin_suggestion() ||
-        (folder_structure_plugin_manager_ &&
-         folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
+        settings.get_hide_johnny_decimal_plugin_suggestion()) {
         return false;
+    }
+
+    bool johnny_decimal_installed = false;
+    if (folder_structure_plugin_manager_) {
+        johnny_decimal_installed =
+            folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId);
+        if (johnny_decimal_installed &&
+            folder_structure_plugin_manager_->is_enabled(kJohnnyDecimalPluginId)) {
+            return false;
+        }
     }
 
     const QString normalized_root = normalized_existing_directory_path(root);
@@ -2535,49 +2566,76 @@ void MainApp::maybe_suggest_johnny_decimal_plugin_for_current_folder_tree()
 
 bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
 {
-    if (settings.get_hide_johnny_decimal_plugin_suggestion() ||
-        (folder_structure_plugin_manager_ &&
-         folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
+    if (settings.get_hide_johnny_decimal_plugin_suggestion()) {
+        return false;
+    }
+
+    const bool johnny_decimal_installed =
+        folder_structure_plugin_manager_ &&
+        folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId);
+    if (johnny_decimal_installed &&
+        folder_structure_plugin_manager_->is_enabled(kJohnnyDecimalPluginId)) {
         return false;
     }
 
     bool handled = false;
     run_on_ui_blocking([this, &handled]() {
-        if (settings.get_hide_johnny_decimal_plugin_suggestion() ||
-            (folder_structure_plugin_manager_ &&
-             folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
+        if (settings.get_hide_johnny_decimal_plugin_suggestion()) {
+            return;
+        }
+
+        const bool installed =
+            folder_structure_plugin_manager_ &&
+            folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId);
+        const bool enabled =
+            installed && folder_structure_plugin_manager_->is_enabled(kJohnnyDecimalPluginId);
+        if (enabled) {
             return;
         }
 
         QMessageBox dialog(this);
-        dialog.setWindowTitle(tr("Johnny.Decimal support available"));
+        dialog.setWindowTitle(installed
+                                  ? tr("Johnny.Decimal support disabled")
+                                  : tr("Johnny.Decimal support available"));
         dialog.setIcon(QMessageBox::Information);
         dialog.setText(tr("This folder looks like a Johnny.Decimal archive."));
-        dialog.setInformativeText(
-            tr("The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance."));
 
-        QPushButton* install_button = dialog.addButton(tr("Activate / Install..."), QMessageBox::AcceptRole);
-        QPushButton* obtain_button = dialog.addButton(tr("Obtain"), QMessageBox::ActionRole);
-        dialog.addButton(tr("Later"), QMessageBox::RejectRole);
-        QPushButton* not_interested_button =
-            dialog.addButton(tr("Not interested"), QMessageBox::DestructiveRole);
-        dialog.setDefaultButton(install_button);
+        QPushButton* primary_button = nullptr;
+        QPushButton* obtain_button = nullptr;
+        QPushButton* suppress_button = nullptr;
+        if (installed) {
+            dialog.setInformativeText(
+                tr("Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance."));
+            primary_button = dialog.addButton(tr("Enable"), QMessageBox::AcceptRole);
+            dialog.addButton(tr("Ignore"), QMessageBox::RejectRole);
+            suppress_button = dialog.addButton(tr("Do not suggest"), QMessageBox::DestructiveRole);
+        } else {
+            dialog.setInformativeText(
+                tr("The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance."));
+            primary_button = dialog.addButton(tr("Activate / Install..."), QMessageBox::AcceptRole);
+            obtain_button = dialog.addButton(tr("Obtain"), QMessageBox::ActionRole);
+            dialog.addButton(tr("Later"), QMessageBox::RejectRole);
+            suppress_button = dialog.addButton(tr("Not interested"), QMessageBox::DestructiveRole);
+        }
+        dialog.setDefaultButton(primary_button);
 
         dialog.exec();
 
-        if (dialog.clickedButton() == install_button) {
-            handled = install_johnny_decimal_plugin_from_suggestion();
+        if (dialog.clickedButton() == primary_button) {
+            handled = installed
+                          ? enable_johnny_decimal_plugin_from_suggestion()
+                          : install_johnny_decimal_plugin_from_suggestion();
             return;
         }
 
-        if (dialog.clickedButton() == obtain_button) {
+        if (obtain_button && dialog.clickedButton() == obtain_button) {
             refresh_johnny_decimal_plugin_catalog_for_suggestion();
             QDesktopServices::openUrl(QUrl(johnny_decimal_plugin_page_url()));
             handled = true;
             return;
         }
 
-        if (dialog.clickedButton() == not_interested_button) {
+        if (dialog.clickedButton() == suppress_button) {
             settings.set_hide_johnny_decimal_plugin_suggestion(true);
             if (!settings.save() && core_logger) {
                 core_logger->warn("Failed to save Johnny.Decimal plugin suggestion suppression setting");

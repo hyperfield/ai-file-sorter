@@ -411,6 +411,11 @@ private:
      */
     bool install_johnny_decimal_plugin_from_suggestion();
     /**
+     * @brief Enables the installed Johnny.Decimal plugin after a disabled-plugin suggestion.
+     * @return True when the plugin was enabled and the current analysis should restart.
+     */
+    bool enable_johnny_decimal_plugin_from_suggestion();
+    /**
      * @brief Refreshes the folder-structure plugin catalog for suggestion actions.
      * @return True when the catalog refresh succeeded.
      */

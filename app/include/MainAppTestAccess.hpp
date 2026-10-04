@@ -12,11 +12,13 @@
 #include <QCheckBox>
 #include <QToolButton>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
+class FolderStructurePluginManager;
 class MainApp;
 class Settings;
 class QAction;
@@ -156,6 +158,13 @@ public:
      * @return True when the app would offer Johnny.Decimal support for the root.
      */
     static bool should_offer_johnny_decimal_plugin_for_root(MainApp& app, const QString& root);
+    /**
+     * @brief Replace the app folder-structure plugin manager for focused tests.
+     * @param app MainApp instance.
+     * @param manager Replacement plugin manager.
+     */
+    static void set_folder_structure_plugin_manager(MainApp& app,
+                                                    std::shared_ptr<FolderStructurePluginManager> manager);
     /**
      * @brief Access the \"Categorize files\" checkbox.
      * @param app MainApp instance.

@@ -1977,6 +1977,51 @@ A valid code will permanently hide this support reminder.</translation>
             <source>Activate / Install...</source>
             <translation>Activate / Install...</translation>
         </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2502"></location>
+            <source>Johnny.Decimal support disabled</source>
+            <translation>Johnny.Decimal support disabled</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2518"></location>
+            <source>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</source>
+            <translation>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2519"></location>
+            <source>Enable</source>
+            <translation>Enable</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2520"></location>
+            <source>Ignore</source>
+            <translation>Ignore</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2521"></location>
+            <source>Do not suggest</source>
+            <translation>Do not suggest</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2499"></location>
+            <source>Enable failed</source>
+            <translation>Enable failed</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2500"></location>
+            <source>Failed to enable Johnny.Decimal Support.</source>
+            <translation>Failed to enable Johnny.Decimal Support.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2507"></location>
+            <source>Plugin enabled</source>
+            <translation>Plugin enabled</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2508"></location>
+            <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
+            <translation>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</translation>
+        </message>
     </context>
     <context>
         <name>MainWindowStateBinder</name>

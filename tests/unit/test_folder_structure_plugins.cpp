@@ -30,7 +30,10 @@
 #include "FolderStructurePluginProfile.hpp"
 #include "FolderStructureTemplates.hpp"
 #include "FolderTreeCatalog.hpp"
+#include "MainApp.hpp"
+#include "MainAppTestAccess.hpp"
 #include "PluginEntitlementService.hpp"
+#include "Settings.hpp"
 #include "TestHelpers.hpp"
 
 namespace {
@@ -527,6 +530,47 @@ TEST_CASE("FolderStructurePluginManager persists disabled plugin profiles") {
     REQUIRE(reloaded.set_enabled("johnny_decimal_support", true, &error));
     CHECK(reloaded.is_enabled("johnny_decimal_support"));
     CHECK(reloaded.installed_profiles().size() == 1);
+}
+
+TEST_CASE("Johnny.Decimal offer still triggers when installed plugin is disabled") {
+    EnvVarGuard catalog_guard("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL", " ");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir config_dir;
+    EnvVarGuard home_guard("HOME", config_dir.path().string());
+    EnvVarGuard app_config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+
+    const std::filesystem::path archive_root = config_dir.path() / "ExistingArchive";
+    std::filesystem::create_directories(archive_root / "00-09 System" / "01 Inbox");
+    std::filesystem::create_directories(archive_root / "00-09 System" / "02 Settings");
+    std::filesystem::create_directories(archive_root / "10-19 Admin" / "11 Finance");
+    std::filesystem::create_directories(archive_root / "10-19 Admin" / "12 Legal");
+
+    const auto package_path = config_dir.path() / "johnny-decimal.aifsplugin";
+    create_zip_archive(package_path, signed_plugin_entries(plugin_manifest(), plugin_profile()));
+
+    auto manager = std::make_shared<FolderStructurePluginManager>(
+        config_dir.path().string(), std::vector<FolderStructurePluginPublicKey>{test_public_key()});
+    std::string error;
+    REQUIRE(manager->install_from_archive(package_path, nullptr, &error));
+    REQUIRE(manager->is_installed("johnny_decimal_support"));
+    REQUIRE(manager->is_enabled("johnny_decimal_support"));
+
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false, /*test_mode=*/true, config_dir.path().string());
+    MainAppTestAccess::set_folder_structure_plugin_manager(window, manager);
+
+    const QString root = QString::fromStdString(archive_root.string());
+    CHECK_FALSE(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(window, root));
+
+    REQUIRE(manager->set_enabled("johnny_decimal_support", false, &error));
+    CHECK(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(window, root));
+
+    settings.set_hide_johnny_decimal_plugin_suggestion(true);
+    CHECK_FALSE(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(window, root));
 }
 
 TEST_CASE("FolderStructurePluginManager requires entitlement for licensed plugins") {

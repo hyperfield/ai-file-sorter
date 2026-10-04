@@ -6,6 +6,7 @@
 #include "AnalysisEntryRouter.hpp"
 #include "ExplorerExtensionEntitlement.hpp"
 #include "ExplorerExtensionManager.hpp"
+#include "FolderStructurePluginManager.hpp"
 #include "MainApp.hpp"
 #include "SupportCodeManager.hpp"
 #include "Utils.hpp"
@@ -110,6 +111,16 @@ QAction* MainAppTestAccess::run_large_whitelist_llm_test_action(MainApp& app)
 bool MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(MainApp& app, const QString& root)
 {
     return app.should_offer_johnny_decimal_plugin_for_root(root);
+}
+
+void MainAppTestAccess::set_folder_structure_plugin_manager(
+    MainApp& app, std::shared_ptr<FolderStructurePluginManager> manager)
+{
+    app.folder_structure_plugin_manager_ = std::move(manager);
+    app.categorization_service.set_folder_structure_profile_provider(
+        [manager = app.folder_structure_plugin_manager_]() {
+            return manager ? manager->installed_profiles() : std::vector<FolderStructurePluginProfile>{};
+        });
 }
 
 QCheckBox* MainAppTestAccess::categorize_files_checkbox(MainApp& app) {
