@@ -1947,6 +1947,34 @@ A valid code will permanently hide this support reminder.</source>
             <translation>Enter the donation code generated after your donation.
 A valid code will permanently hide this support reminder.</translation>
         </message>
+        <message>
+            <source>Plugin package unavailable</source>
+            <translation>Plugin package unavailable</translation>
+        </message>
+        <message>
+            <source>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</source>
+            <translation>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</translation>
+        </message>
+        <message>
+            <source>Open the plugin page instead?</source>
+            <translation>Open the plugin page instead?</translation>
+        </message>
+        <message>
+            <source>Open Plugin Page</source>
+            <translation>Open Plugin Page</translation>
+        </message>
+        <message>
+            <source>Plugin installed</source>
+            <translation>Plugin installed</translation>
+        </message>
+        <message>
+            <source>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</source>
+            <translation>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</translation>
+        </message>
+        <message>
+            <source>Activate / Install...</source>
+            <translation>Activate / Install...</translation>
+        </message>
     </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -3523,6 +3551,49 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="295"></location>
             <source>The default list cannot be removed.</source>
             <translation>Oletusluetteloa ei voi poistaa.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderStructurePluginInstallFlow</name>
+        <message>
+            <source>this plugin</source>
+            <translation>this plugin</translation>
+        </message>
+        <message>
+            <source>Install failed</source>
+            <translation>Install failed</translation>
+        </message>
+        <message>
+            <source>Failed to install folder-structure plugin.</source>
+            <translation>Failed to install folder-structure plugin.</translation>
+        </message>
+        <message>
+            <source>License required</source>
+            <translation>License required</translation>
+        </message>
+        <message>
+            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
+            <translation>Activate a license for %1, then AI File Sorter will retry the installation.</translation>
+        </message>
+        <message>
+            <source>Activate...</source>
+            <translation>Activate...</translation>
+        </message>
+        <message>
+            <source>Activate Plugin License</source>
+            <translation>Activate Plugin License</translation>
+        </message>
+        <message>
+            <source>Paste the license key for %1:</source>
+            <translation>Paste the license key for %1:</translation>
+        </message>
+        <message>
+            <source>Activation failed</source>
+            <translation>Activation failed</translation>
+        </message>
+        <message>
+            <source>Failed to activate the plugin license.</source>
+            <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
 </TS>

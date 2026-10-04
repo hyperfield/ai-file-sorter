@@ -1,15 +1,12 @@
 #include "FolderStructurePluginDialog.hpp"
 
 #include <QAbstractItemView>
-#include <QApplication>
 #include <QByteArray>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QHeaderView>
-#include <QInputDialog>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QPointer>
@@ -27,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "FolderStructurePluginInstallFlow.hpp"
 #include "FolderStructurePluginManager.hpp"
 #include "Utils.hpp"
 
@@ -39,16 +37,6 @@ constexpr int kPurchaseUrlRole = Qt::UserRole + 2;
 std::string to_utf8(const QString& value) {
     const QByteArray bytes = value.toUtf8();
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
-}
-
-QString plugin_display_name(const FolderStructurePluginInstallError& error) {
-    if (!error.plugin_name.empty()) {
-        return QString::fromStdString(error.plugin_name);
-    }
-    if (!error.plugin_id.empty()) {
-        return QString::fromStdString(error.plugin_id);
-    }
-    return FolderStructurePluginDialog::tr("this plugin");
 }
 
 std::unordered_map<std::string, FolderStructurePluginManifest> installed_manifest_map(
@@ -310,7 +298,7 @@ void FolderStructurePluginDialog::import_plugin_archive() {
     const std::filesystem::path archive = Utils::utf8_to_path(to_utf8(archive_path));
     if (!plugin_manager_ || !plugin_manager_->install_from_archive(archive, &installed_plugin_id, &install_error)) {
         if (plugin_manager_ && install_error.missing_entitlement) {
-            if (!activate_missing_entitlement(install_error)) {
+            if (!activate_folder_structure_plugin_entitlement(this, plugin_manager_, install_error)) {
                 return;
             }
             install_error = FolderStructurePluginInstallError{};
@@ -348,71 +336,14 @@ void FolderStructurePluginDialog::import_plugin_archive() {
     update_selection_state();
 }
 
-bool FolderStructurePluginDialog::activate_missing_entitlement(const FolderStructurePluginInstallError& install_error) {
-    if (!plugin_manager_ || !install_error.missing_entitlement || install_error.product_id.empty()) {
-        return false;
-    }
-
-    QMessageBox license_required(this);
-    license_required.setIcon(QMessageBox::Warning);
-    license_required.setWindowTitle(tr("License required"));
-    license_required.setText(QString::fromStdString(install_error.message));
-    license_required.setInformativeText(
-        tr("Activate a license for %1, then AI File Sorter will retry the installation.")
-            .arg(plugin_display_name(install_error)));
-    auto* activate_button = license_required.addButton(tr("Activate..."), QMessageBox::AcceptRole);
-    license_required.addButton(QMessageBox::Cancel);
-    license_required.exec();
-    if (license_required.clickedButton() != activate_button) {
-        return false;
-    }
-
-    bool accepted = false;
-    const QString license_key =
-        QInputDialog::getText(this, tr("Activate Plugin License"),
-                              tr("Paste the license key for %1:").arg(plugin_display_name(install_error)),
-                              QLineEdit::Normal, QString(), &accepted);
-    if (!accepted || license_key.trimmed().isEmpty()) {
-        return false;
-    }
-
-    std::string activation_error;
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    const bool activated =
-        plugin_manager_->activate_license(install_error.product_id, to_utf8(license_key.trimmed()), &activation_error);
-    QApplication::restoreOverrideCursor();
-
-    if (!activated) {
-        QMessageBox::warning(this, tr("Activation failed"),
-                             activation_error.empty() ? tr("Failed to activate the plugin license.")
-                                                      : QString::fromStdString(activation_error));
-        return false;
-    }
-    return true;
-}
-
 void FolderStructurePluginDialog::install_selected_plugin() {
     const std::string plugin_id = selected_plugin_id();
     if (plugin_id.empty()) {
         return;
     }
 
-    FolderStructurePluginInstallError install_error;
-    if (!plugin_manager_ || !plugin_manager_->install(plugin_id, &install_error)) {
-        if (plugin_manager_ && install_error.missing_entitlement) {
-            if (!activate_missing_entitlement(install_error)) {
-                return;
-            }
-            install_error = FolderStructurePluginInstallError{};
-            if (plugin_manager_->install(plugin_id, &install_error)) {
-                populate_plugins();
-                update_selection_state();
-                return;
-            }
-        }
-        QMessageBox::warning(this, tr("Install failed"),
-                             install_error.message.empty() ? tr("Failed to install folder-structure plugin.")
-                                                           : QString::fromStdString(install_error.message));
+    const auto result = install_folder_structure_plugin_from_catalog(this, plugin_manager_, plugin_id);
+    if (result != FolderStructurePluginInstallFlowResult::Installed) {
         return;
     }
 

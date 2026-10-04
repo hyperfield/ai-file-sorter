@@ -12,7 +12,6 @@ class QTreeWidget;
 class QTreeWidgetItem;
 
 class FolderStructurePluginManager;
-struct FolderStructurePluginInstallError;
 
 /**
  * @brief Dialog for installing and removing signed folder-structure plugins.
@@ -68,12 +67,6 @@ class FolderStructurePluginDialog : public QDialog {
      * @brief Opens the purchase/info page for the currently selected catalog plugin.
      */
     void open_selected_plugin_page();
-    /**
-     * @brief Offers license activation for an entitlement-gated plugin installation.
-     * @param install_error Structured missing-entitlement failure from the manager.
-     * @return True when activation completed and installation should be retried.
-     */
-    bool activate_missing_entitlement(const FolderStructurePluginInstallError& install_error);
     /**
      * @brief Uninstalls the currently selected folder-structure plugin.
      */

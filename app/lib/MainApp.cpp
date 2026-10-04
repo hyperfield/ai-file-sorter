@@ -14,6 +14,7 @@
 #include "FolderTreeCatalog.hpp"
 #include "FolderStructureInitializerDialog.hpp"
 #include "FolderStructurePluginDialog.hpp"
+#include "FolderStructurePluginInstallFlow.hpp"
 #include "FolderStructurePluginManager.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
@@ -132,6 +133,7 @@ namespace {
 const QEvent::Type kAnalysisFailureEventType =
     static_cast<QEvent::Type>(QEvent::registerEventType());
 constexpr char kJohnnyDecimalPluginId[] = "johnny_decimal_support";
+constexpr char kJohnnyDecimalPluginFallbackUrl[] = "https://filesorter.app/plugins/johnny-decimal-support/";
 
 class AnalysisFailureEvent final : public QEvent {
 public:
@@ -2406,6 +2408,77 @@ void MainApp::show_folder_structure_plugin_dialog()
     dialog.exec();
 }
 
+QString MainApp::johnny_decimal_plugin_page_url()
+{
+    if (!folder_structure_plugin_manager_) {
+        return QString::fromLatin1(kJohnnyDecimalPluginFallbackUrl);
+    }
+
+    if (const auto plugin = folder_structure_plugin_manager_->find_plugin(kJohnnyDecimalPluginId);
+        plugin && !plugin->purchase_url.empty()) {
+        return QString::fromStdString(plugin->purchase_url);
+    }
+
+    return QString::fromLatin1(kJohnnyDecimalPluginFallbackUrl);
+}
+
+bool MainApp::refresh_johnny_decimal_plugin_catalog_for_suggestion()
+{
+    if (!folder_structure_plugin_manager_) {
+        return false;
+    }
+
+    std::string refresh_error;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const bool refreshed = folder_structure_plugin_manager_->remote_catalog_configured() &&
+                           folder_structure_plugin_manager_->refresh_remote_catalog(&refresh_error);
+    QApplication::restoreOverrideCursor();
+
+    if (!refreshed && !refresh_error.empty() && core_logger) {
+        core_logger->warn("Failed to refresh Johnny.Decimal plugin catalog for suggestion action: {}", refresh_error);
+    }
+    return refreshed;
+}
+
+bool MainApp::install_johnny_decimal_plugin_from_suggestion()
+{
+    if (!folder_structure_plugin_manager_) {
+        return false;
+    }
+
+    refresh_johnny_decimal_plugin_catalog_for_suggestion();
+
+    const auto plugin = folder_structure_plugin_manager_->find_plugin(kJohnnyDecimalPluginId);
+    if (!plugin || !plugin->has_remote_package()) {
+        QMessageBox package_unavailable(this);
+        package_unavailable.setIcon(QMessageBox::Information);
+        package_unavailable.setWindowTitle(tr("Plugin package unavailable"));
+        package_unavailable.setText(
+            tr("The Johnny.Decimal plugin package is not available from the plugin catalog yet."));
+        package_unavailable.setInformativeText(tr("Open the plugin page instead?"));
+        auto* open_page_button = package_unavailable.addButton(tr("Open Plugin Page"), QMessageBox::AcceptRole);
+        package_unavailable.addButton(QMessageBox::Cancel);
+        package_unavailable.exec();
+        if (package_unavailable.clickedButton() == open_page_button) {
+            QDesktopServices::openUrl(QUrl(johnny_decimal_plugin_page_url()));
+            return true;
+        }
+        return false;
+    }
+
+    const auto result =
+        install_folder_structure_plugin_from_catalog(this, folder_structure_plugin_manager_, kJohnnyDecimalPluginId);
+    if (result != FolderStructurePluginInstallFlowResult::Installed) {
+        return false;
+    }
+
+    QMessageBox::information(
+        this,
+        tr("Plugin installed"),
+        tr("Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance."));
+    return true;
+}
+
 bool MainApp::should_offer_johnny_decimal_plugin_for_root(const QString& root) const
 {
     if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree ||
@@ -2468,8 +2541,8 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
         return false;
     }
 
-    bool obtain_requested = false;
-    run_on_ui_blocking([this, &obtain_requested]() {
+    bool handled = false;
+    run_on_ui_blocking([this, &handled]() {
         if (settings.get_hide_johnny_decimal_plugin_suggestion() ||
             (folder_structure_plugin_manager_ &&
              folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId))) {
@@ -2483,18 +2556,24 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
         dialog.setInformativeText(
             tr("The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance."));
 
-        QPushButton* obtain_button = dialog.addButton(tr("Obtain"), QMessageBox::AcceptRole);
+        QPushButton* install_button = dialog.addButton(tr("Activate / Install..."), QMessageBox::AcceptRole);
+        QPushButton* obtain_button = dialog.addButton(tr("Obtain"), QMessageBox::ActionRole);
         dialog.addButton(tr("Later"), QMessageBox::RejectRole);
         QPushButton* not_interested_button =
             dialog.addButton(tr("Not interested"), QMessageBox::DestructiveRole);
-        dialog.setDefaultButton(obtain_button);
+        dialog.setDefaultButton(install_button);
 
         dialog.exec();
 
+        if (dialog.clickedButton() == install_button) {
+            handled = install_johnny_decimal_plugin_from_suggestion();
+            return;
+        }
+
         if (dialog.clickedButton() == obtain_button) {
-            QDesktopServices::openUrl(
-                QUrl(QStringLiteral("https://filesorter.app/plugins/johnny-decimal-support")));
-            obtain_requested = true;
+            refresh_johnny_decimal_plugin_catalog_for_suggestion();
+            QDesktopServices::openUrl(QUrl(johnny_decimal_plugin_page_url()));
+            handled = true;
             return;
         }
 
@@ -2505,7 +2584,7 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
             }
         }
     });
-    return obtain_requested;
+    return handled;
 }
 
 void MainApp::open_windows_explorer_extension_install_page()

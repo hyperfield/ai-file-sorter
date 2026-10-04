@@ -402,9 +402,24 @@ private:
     void show_folder_structure_plugin_dialog();
     /**
      * @brief Offers the Johnny.Decimal folder-structure plugin for compatible folder trees.
-     * @return True when the user chose to obtain the plugin.
+     * @return True when the user chose a flow that should stop the current analysis.
      */
     bool maybe_show_johnny_decimal_plugin_suggestion();
+    /**
+     * @brief Attempts to install Johnny.Decimal support from the configured plugin catalog.
+     * @return True when the plugin was installed and the current analysis should restart.
+     */
+    bool install_johnny_decimal_plugin_from_suggestion();
+    /**
+     * @brief Refreshes the folder-structure plugin catalog for suggestion actions.
+     * @return True when the catalog refresh succeeded.
+     */
+    bool refresh_johnny_decimal_plugin_catalog_for_suggestion();
+    /**
+     * @brief Returns the best known Johnny.Decimal plugin page URL.
+     * @return Catalog-provided purchase/info URL, or the production fallback URL.
+     */
+    QString johnny_decimal_plugin_page_url();
     /**
      * @brief Checks the selected/destination folder tree and offers Johnny.Decimal support when relevant.
      */
