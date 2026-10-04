@@ -21,6 +21,7 @@
 #include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
+#include "PluginBuildConfig.hpp"
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
 #include "StoragePluginLoader.hpp"
@@ -953,6 +954,11 @@ TEST_CASE("StoragePluginManager rejects signed storage plugin archives with miss
 }
 
 TEST_CASE("StoragePluginManager installs plugins from remote manifests and archives") {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        SUCCEED("Remote plugin catalogs are disabled for this build.");
+        return;
+    }
+
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
     TempDir config_dir;
@@ -1094,6 +1100,11 @@ TEST_CASE("StoragePluginManager rejects archive plugins for another runtime") {
 }
 
 TEST_CASE("StoragePluginManager refreshes available plugins from a remote catalog") {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        SUCCEED("Remote plugin catalogs are disabled for this build.");
+        return;
+    }
+
     TempDir config_dir;
     const std::string catalog_url = "https://plugins.example.invalid/storage/catalog.json";
     EnvVarGuard catalog_guard("AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL", catalog_url);
@@ -1169,6 +1180,11 @@ TEST_CASE("StoragePluginManager refreshes available plugins from a remote catalo
 }
 
 TEST_CASE("StoragePluginManager reports when a remote catalog lacks a matching runtime") {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        SUCCEED("Remote plugin catalogs are disabled for this build.");
+        return;
+    }
+
     TempDir config_dir;
     const std::string catalog_url = "https://plugins.example.invalid/storage/catalog.json";
     EnvVarGuard catalog_guard("AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL", catalog_url);
@@ -1211,6 +1227,11 @@ TEST_CASE("StoragePluginManager reports when a remote catalog lacks a matching r
 }
 
 TEST_CASE("StoragePluginManager installs catalog plugins on demand") {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        SUCCEED("Remote plugin catalogs are disabled for this build.");
+        return;
+    }
+
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
     TempDir config_dir;
@@ -1317,6 +1338,11 @@ TEST_CASE("StoragePluginManager installs catalog plugins on demand") {
 }
 
 TEST_CASE("StoragePluginManager updates installed plugins from remote manifests") {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        SUCCEED("Remote plugin catalogs are disabled for this build.");
+        return;
+    }
+
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt;
     TempDir config_dir;

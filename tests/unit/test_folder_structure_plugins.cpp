@@ -32,6 +32,7 @@
 #include "FolderTreeCatalog.hpp"
 #include "MainApp.hpp"
 #include "MainAppTestAccess.hpp"
+#include "PluginBuildConfig.hpp"
 #include "PluginEntitlementService.hpp"
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
@@ -314,6 +315,11 @@ TEST_CASE("FolderStructurePluginCatalogFetcher downloads catalog entries and pac
 }
 
 TEST_CASE("FolderStructurePluginManager refreshes remote catalog entries") {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        SUCCEED("Remote plugin catalogs are disabled for this build.");
+        return;
+    }
+
     TempDir config_dir;
     const std::string catalog_url = "https://plugins.example.invalid/folder-structures/catalog/";
     EnvVarGuard catalog_guard("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL", catalog_url);
@@ -365,6 +371,11 @@ TEST_CASE("FolderStructurePluginManager refreshes remote catalog entries") {
 }
 
 TEST_CASE("FolderStructurePluginManager installs catalog plugins on demand") {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        SUCCEED("Remote plugin catalogs are disabled for this build.");
+        return;
+    }
+
     TempDir config_dir;
     TempDir archive_dir;
     const std::string catalog_url = "https://plugins.example.invalid/folder-structures/catalog/";
@@ -653,6 +664,11 @@ TEST_CASE("FolderStructurePluginDialog controls plugin enablement") {
 }
 
 TEST_CASE("FolderStructurePluginDialog lists remote catalog plugins") {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        SUCCEED("Remote plugin catalogs are disabled for this build.");
+        return;
+    }
+
     const std::string catalog_url = "https://plugins.example.invalid/folder-structures/catalog/";
     EnvVarGuard catalog_guard("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL", catalog_url);
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());

@@ -17,6 +17,7 @@
 #include <utility>
 
 #include "PluginArchiveExtractor.hpp"
+#include "PluginBuildConfig.hpp"
 #include "PluginEntitlementService.hpp"
 #include "PluginLicenseActivator.hpp"
 #include "Utils.hpp"
@@ -333,6 +334,13 @@ bool FolderStructurePluginManager::set_enabled(const std::string& plugin_id, boo
 
 bool FolderStructurePluginManager::activate_license(const std::string& product_id, const std::string& license_key,
                                                     std::string* error) const {
+    if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
+        if (error) {
+            *error = "This build does not support in-app commercial plugin activation.";
+        }
+        return false;
+    }
+
     PluginLicenseActivationRequest request;
     request.activation_url = PluginLicenseActivator::default_activation_url();
     request.license_key = license_key;
@@ -530,6 +538,11 @@ std::vector<FolderStructurePluginPublicKey> FolderStructurePluginManager::truste
 }
 
 void FolderStructurePluginManager::load_cached_remote_catalog() {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        remote_catalog_entries_.clear();
+        return;
+    }
+
     const auto path =
         FolderStructurePluginCatalogFetcher::catalog_cache_path(download_directory_for_config_dir(config_dir_));
     QFile file(QString::fromStdString(Utils::path_to_utf8(path)));

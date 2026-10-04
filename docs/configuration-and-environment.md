@@ -50,6 +50,24 @@ Headless callers can pass `--settings-overrides-file <json-file>` to inject a
 non-persistent settings overlay for one run. This is the preferred way to steer
 integration-specific behavior without rewriting the user's saved settings.
 
+## Linux distro repository build profile
+
+Packagers targeting official Linux repositories can configure a repository-safe
+plugin profile with:
+
+```sh
+cmake -S app -B build-distro \
+  -DAI_FILE_SORTER_DISTRO_REPOSITORY_BUILD=ON \
+  -DAI_FILE_SORTER_UPDATE_MODE=DISABLED
+```
+
+`AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD=ON` preserves local signed plugin
+management, including install-from-file and per-plugin enable/disable controls,
+but disables remote plugin catalogs, catalog-delivered plugin downloads/updates,
+in-app commercial plugin obtain links, Johnny.Decimal purchase/install prompts,
+and plugin license activation. Normal source/download builds leave this option
+off and keep the standard plugin catalog and activation behavior.
+
 ## Windows naming and migration note
 
 New registry/settings/integration paths should use `HFStudio`. Compatibility

@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include "PluginBuildConfig.hpp"
+
 namespace {
 
 #ifndef AIFS_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL
@@ -147,6 +149,10 @@ std::vector<FolderStructurePluginCatalogEntry> entries_from_document(const QJson
 }  // namespace
 
 std::string default_folder_structure_plugin_catalog_url() {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        return {};
+    }
+
     const QByteArray env_value = qgetenv("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL");
     if (!env_value.isEmpty()) {
         return trim_copy(env_value.toStdString());

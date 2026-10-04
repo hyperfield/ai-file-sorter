@@ -37,6 +37,7 @@
 #include "CategoryLanguageSupport.hpp"
 #include "MainAppUiBuilder.hpp"
 #include "MenuMnemonicController.hpp"
+#include "PluginBuildConfig.hpp"
 #include "ReviewHistoryDialog.hpp"
 #include "SuitabilityBenchmarkDialog.hpp"
 #include "UiTranslator.hpp"
@@ -2410,6 +2411,10 @@ void MainApp::show_folder_structure_plugin_dialog()
 
 QString MainApp::johnny_decimal_plugin_page_url()
 {
+    if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
+        return {};
+    }
+
     if (!folder_structure_plugin_manager_) {
         return QString::fromLatin1(kJohnnyDecimalPluginFallbackUrl);
     }
@@ -2424,6 +2429,10 @@ QString MainApp::johnny_decimal_plugin_page_url()
 
 bool MainApp::refresh_johnny_decimal_plugin_catalog_for_suggestion()
 {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        return false;
+    }
+
     if (!folder_structure_plugin_manager_) {
         return false;
     }
@@ -2442,6 +2451,10 @@ bool MainApp::refresh_johnny_decimal_plugin_catalog_for_suggestion()
 
 bool MainApp::install_johnny_decimal_plugin_from_suggestion()
 {
+    if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
+        return false;
+    }
+
     if (!folder_structure_plugin_manager_) {
         return false;
     }
@@ -2519,6 +2532,11 @@ bool MainApp::should_offer_johnny_decimal_plugin_for_root(const QString& root) c
         }
     }
 
+    if (!johnny_decimal_installed &&
+        !PluginBuildConfig::commercial_plugin_actions_enabled()) {
+        return false;
+    }
+
     const QString normalized_root = normalized_existing_directory_path(root);
     if (normalized_root.isEmpty()) {
         return false;
@@ -2573,6 +2591,11 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
     const bool johnny_decimal_installed =
         folder_structure_plugin_manager_ &&
         folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId);
+    if (!johnny_decimal_installed &&
+        !PluginBuildConfig::commercial_plugin_actions_enabled()) {
+        return false;
+    }
+
     if (johnny_decimal_installed &&
         folder_structure_plugin_manager_->is_enabled(kJohnnyDecimalPluginId)) {
         return false;
@@ -2589,6 +2612,9 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
             folder_structure_plugin_manager_->is_installed(kJohnnyDecimalPluginId);
         const bool enabled =
             installed && folder_structure_plugin_manager_->is_enabled(kJohnnyDecimalPluginId);
+        if (!installed && !PluginBuildConfig::commercial_plugin_actions_enabled()) {
+            return;
+        }
         if (enabled) {
             return;
         }
@@ -2613,7 +2639,9 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
             dialog.setInformativeText(
                 tr("The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance."));
             primary_button = dialog.addButton(tr("Activate / Install..."), QMessageBox::AcceptRole);
-            obtain_button = dialog.addButton(tr("Obtain"), QMessageBox::ActionRole);
+            if (PluginBuildConfig::commercial_plugin_actions_enabled()) {
+                obtain_button = dialog.addButton(tr("Obtain"), QMessageBox::ActionRole);
+            }
             dialog.addButton(tr("Later"), QMessageBox::RejectRole);
             suppress_button = dialog.addButton(tr("Not interested"), QMessageBox::DestructiveRole);
         }

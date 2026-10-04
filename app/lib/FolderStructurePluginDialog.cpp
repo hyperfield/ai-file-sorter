@@ -26,6 +26,7 @@
 
 #include "FolderStructurePluginInstallFlow.hpp"
 #include "FolderStructurePluginManager.hpp"
+#include "PluginBuildConfig.hpp"
 #include "Utils.hpp"
 
 namespace {
@@ -91,6 +92,9 @@ FolderStructurePluginDialog::FolderStructurePluginDialog(std::shared_ptr<FolderS
     install_button_ = button_row->addButton(tr("Install"), QDialogButtonBox::ActionRole);
     obtain_button_ = button_row->addButton(tr("Obtain..."), QDialogButtonBox::ActionRole);
     uninstall_button_ = button_row->addButton(tr("Uninstall"), QDialogButtonBox::ActionRole);
+    check_updates_button_->setVisible(PluginBuildConfig::remote_catalogs_enabled());
+    install_button_->setVisible(PluginBuildConfig::remote_catalogs_enabled());
+    obtain_button_->setVisible(PluginBuildConfig::commercial_plugin_actions_enabled());
     button_row->setCenterButtons(true);
     layout->addWidget(button_row);
 
@@ -106,7 +110,9 @@ FolderStructurePluginDialog::FolderStructurePluginDialog(std::shared_ptr<FolderS
 
     populate_plugins();
     update_selection_state();
-    start_catalog_refresh(false);
+    if (PluginBuildConfig::remote_catalogs_enabled()) {
+        start_catalog_refresh(false);
+    }
 }
 
 void FolderStructurePluginDialog::populate_plugins() {
@@ -215,7 +221,8 @@ void FolderStructurePluginDialog::update_selection_state() {
     install_button_->setText(installed ? tr("Update") : tr("Install"));
     install_button_->setEnabled(plugin_manager_ != nullptr && !refresh_active && plugin->has_remote_package() &&
                                 (!installed || can_update));
-    obtain_button_->setEnabled(!refresh_active && !purchase_url.isEmpty());
+    obtain_button_->setEnabled(PluginBuildConfig::commercial_plugin_actions_enabled() && !refresh_active &&
+                               !purchase_url.isEmpty());
     uninstall_button_->setEnabled(plugin_manager_ != nullptr && !refresh_active && installed);
 }
 
@@ -242,6 +249,10 @@ void FolderStructurePluginDialog::update_plugin_enabled_state(QTreeWidgetItem* i
 }
 
 void FolderStructurePluginDialog::start_catalog_refresh(bool interactive) {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        return;
+    }
+
     if (!plugin_manager_ || refresh_in_progress_.exchange(true)) {
         return;
     }
@@ -297,7 +308,8 @@ void FolderStructurePluginDialog::import_plugin_archive() {
     FolderStructurePluginInstallError install_error;
     const std::filesystem::path archive = Utils::utf8_to_path(to_utf8(archive_path));
     if (!plugin_manager_ || !plugin_manager_->install_from_archive(archive, &installed_plugin_id, &install_error)) {
-        if (plugin_manager_ && install_error.missing_entitlement) {
+        if (plugin_manager_ && install_error.missing_entitlement &&
+            PluginBuildConfig::commercial_plugin_actions_enabled()) {
             if (!activate_folder_structure_plugin_entitlement(this, plugin_manager_, install_error)) {
                 return;
             }

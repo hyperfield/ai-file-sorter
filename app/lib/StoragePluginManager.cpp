@@ -14,6 +14,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include "PluginBuildConfig.hpp"
 #include "StoragePluginArchiveExtractor.hpp"
 
 namespace {
@@ -31,6 +32,9 @@ std::string env_or_default(const char* env_name, const char* fallback) {
 }
 
 std::string remote_catalog_url() {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        return {};
+    }
     return env_or_default("AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL", AIFS_STORAGE_PLUGIN_CATALOG_URL);
 }
 
@@ -345,6 +349,9 @@ bool StoragePluginManager::remote_catalog_configured() const {
 
 bool StoragePluginManager::can_check_for_updates() const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        return false;
+    }
     if (remote_catalog_configured()) {
         return true;
     }
@@ -440,6 +447,10 @@ bool StoragePluginManager::is_installed(const std::string& plugin_id) const {
 
 bool StoragePluginManager::can_update(const std::string& plugin_id) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        return false;
+    }
+
     const auto installed = installed_plugins_.find(plugin_id);
     if (installed == installed_plugins_.end()) {
         return false;
@@ -767,6 +778,11 @@ std::vector<StoragePluginManifest> StoragePluginManager::merged_available_plugin
 }
 
 void StoragePluginManager::load_cached_remote_catalog() {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        remote_catalog_manifests_.clear();
+        return;
+    }
+
     std::string error;
     remote_catalog_manifests_ =
         load_storage_plugin_manifests_from_directory(catalog_directory_for_config_dir(config_dir_), &error);
@@ -825,6 +841,13 @@ bool StoragePluginManager::persist_remote_catalog(std::vector<StoragePluginManif
 std::optional<StoragePluginManifest> StoragePluginManager::resolve_install_manifest(
     const StoragePluginManifest& manifest, std::string* error) const {
     if (manifest.has_remote_manifest()) {
+        if (!PluginBuildConfig::remote_catalogs_enabled()) {
+            if (error) {
+                *error = "Remote plugin metadata is disabled in this build.";
+            }
+            return std::nullopt;
+        }
+
         auto remote_manifest = package_fetcher_.fetch_remote_manifest(manifest, error);
         if (!remote_manifest.has_value()) {
             return std::nullopt;
@@ -844,6 +867,13 @@ std::optional<StoragePluginManifest> StoragePluginManager::resolve_install_manif
 }
 
 bool StoragePluginManager::install_from_remote_package(const StoragePluginManifest& manifest, std::string* error) {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        if (error) {
+            *error = "Remote plugin package downloads are disabled in this build.";
+        }
+        return false;
+    }
+
     std::filesystem::path archive_path;
     if (!package_fetcher_.fetch_package_archive(manifest, &archive_path, error)) {
         return false;

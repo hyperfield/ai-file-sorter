@@ -44,6 +44,7 @@
 #include "LlmCatalog.hpp"
 #include "Logger.hpp"
 #include "MainApp.hpp"
+#include "PluginBuildConfig.hpp"
 #include "PluginEntitlementService.hpp"
 #include "PluginLicenseActivator.hpp"
 #include "SingleInstanceCoordinator.hpp"
@@ -820,7 +821,12 @@ QJsonObject plugin_entitlement_info_json(const PluginEntitlementService& entitle
                                            PluginEntitlementService::receipt_directory_for_config_dir(config_dir))));
     object.insert("trusted_entitlement_key_count",
                   static_cast<int>(PluginEntitlementService::default_public_keys().size()));
-    object.insert("activation_url", QString::fromStdString(PluginLicenseActivator::default_activation_url()));
+    object.insert("commercial_plugin_actions_enabled", PluginBuildConfig::commercial_plugin_actions_enabled());
+    object.insert("remote_plugin_catalogs_enabled", PluginBuildConfig::remote_catalogs_enabled());
+    object.insert("distro_repository_build", PluginBuildConfig::distro_repository_build());
+    object.insert("activation_url", PluginBuildConfig::commercial_plugin_actions_enabled()
+                                        ? QString::fromStdString(PluginLicenseActivator::default_activation_url())
+                                        : QString());
     return object;
 }
 
@@ -843,6 +849,11 @@ int run_plugin_entitlement_mode(const ParsedArguments& parsed_args) {
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;
+    }
+
+    if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
+        std::cerr << "Plugin license activation is disabled in this build.\n";
+        return EXIT_FAILURE;
     }
 
     const std::string license_key = command.license_key.value_or("");

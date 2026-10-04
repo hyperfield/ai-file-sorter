@@ -14,6 +14,12 @@ option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
     "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
 option(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS
     "Enable an environment-variable development bypass for commercial plugin entitlement checks." OFF)
+option(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD
+    "Build a Linux repository-friendly profile with local plugins only and no in-app commercial plugin handout." OFF)
+option(AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS
+    "Enable remote plugin catalog checks, downloads, and catalog-delivered plugin updates." ON)
+option(AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS
+    "Enable in-app commercial plugin obtain and license activation actions." ON)
 set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
     "Updater behavior for this build: PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED")
 set_property(CACHE AI_FILE_SORTER_UPDATE_MODE PROPERTY STRINGS
@@ -42,6 +48,18 @@ set(AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS
     ""
     CACHE STRING
     "Trusted commercial plugin entitlement Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+
+if(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(WARNING
+            "AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD is intended for Linux distro packaging, "
+            "but the current target system is '${CMAKE_SYSTEM_NAME}'.")
+    endif()
+    set(AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS OFF CACHE BOOL
+        "Enable remote plugin catalog checks, downloads, and catalog-delivered plugin updates." FORCE)
+    set(AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS OFF CACHE BOOL
+        "Enable in-app commercial plugin obtain and license activation actions." FORCE)
+endif()
 
 set(_aifs_effective_update_mode "${AI_FILE_SORTER_UPDATE_MODE}")
 if(_aifs_effective_update_mode STREQUAL "PLATFORM_DEFAULT")
@@ -75,6 +93,9 @@ else()
 endif()
 
 message(STATUS "AI File Sorter updater mode: ${_aifs_effective_update_mode}")
+message(STATUS "AI File Sorter distro repository build: ${AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD}")
+message(STATUS "AI File Sorter remote plugin catalogs: ${AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS}")
+message(STATUS "AI File Sorter commercial plugin actions: ${AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS}")
 
 set(_aifs_effective_windows_package_kind "")
 set(_aifs_windows_enable_starter FALSE)
@@ -182,6 +203,18 @@ function(aifs_apply_expected_update_mode target_name update_mode)
     else()
         message(FATAL_ERROR
             "Unsupported expected updater mode '${update_mode}' for target '${target_name}'.")
+    endif()
+endfunction()
+
+function(aifs_apply_plugin_build_config target_name)
+    if(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD)
+        target_compile_definitions(${target_name} PRIVATE AIFS_DISTRO_REPOSITORY_BUILD)
+    endif()
+    if(NOT AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS)
+        target_compile_definitions(${target_name} PRIVATE AIFS_REMOTE_PLUGIN_CATALOGS_DISABLED)
+    endif()
+    if(NOT AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS)
+        target_compile_definitions(${target_name} PRIVATE AIFS_COMMERCIAL_PLUGIN_ACTIONS_DISABLED)
     endif()
 endfunction()
 
@@ -1072,6 +1105,7 @@ target_compile_definitions(aifilesorter PRIVATE
     AIFS_STORAGE_PLUGIN_PUBLIC_KEYS="${_aifs_storage_plugin_public_keys_define}"
     AIFS_PLUGIN_ENTITLEMENT_PUBLIC_KEYS="${_aifs_plugin_entitlement_public_keys_define}"
 )
+aifs_apply_plugin_build_config(aifilesorter)
 if(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
     target_compile_definitions(aifilesorter PRIVATE AIFS_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
 endif()
@@ -1650,6 +1684,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         WIN32_LEAN_AND_MEAN
         NOMINMAX
     )
+    aifs_apply_plugin_build_config(ai_file_sorter_tests)
     add_dependencies(ai_file_sorter_tests aifs_storage_plugin_stub)
     aifs_apply_update_mode(ai_file_sorter_tests)
     aifs_apply_expected_update_mode(ai_file_sorter_tests "${_aifs_effective_update_mode}")

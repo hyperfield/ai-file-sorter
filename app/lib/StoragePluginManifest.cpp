@@ -13,6 +13,8 @@
 #include <unordered_set>
 #include <utility>
 
+#include "PluginBuildConfig.hpp"
+
 std::string storage_plugin_current_platform();
 std::string storage_plugin_current_architecture();
 
@@ -262,6 +264,18 @@ std::vector<StoragePluginManifest> filter_catalog_manifests_for_runtime(std::vec
 }
 
 const std::vector<StoragePluginManifest>& manifest_catalog() {
+    static const StoragePluginManifest cloud_storage_compat{
+        .id = "cloud_storage_compat",
+        .name = "Cloud Storage Compatibility",
+        .description =
+            "Adds compatibility providers for Dropbox and pCloud. "
+            "Installed providers use safer recursive scans and relaxed undo timestamp "
+            "validation for synced folders.",
+        .version = "1.0.0",
+        .provider_ids = {"dropbox", "pcloud"},
+        .entry_point_kind = "builtin_bundle",
+        .entry_point = "cloud_storage_compat_bundle"};
+    static const std::vector<StoragePluginManifest> repository_catalog = {cloud_storage_compat};
     static const std::vector<StoragePluginManifest> catalog = {
         StoragePluginManifest{
             .id = "onedrive_storage_support",
@@ -276,16 +290,9 @@ const std::vector<StoragePluginManifest>& manifest_catalog() {
             .license_required = true,
             .product_id = "onedrive_storage_support",
             .purchase_url = "https://filesorter.app/plugins/onedrive"},
-        StoragePluginManifest{.id = "cloud_storage_compat",
-                              .name = "Cloud Storage Compatibility",
-                              .description = "Adds compatibility providers for Dropbox and pCloud. "
-                                             "Installed providers use safer recursive scans and relaxed undo timestamp "
-                                             "validation for synced folders.",
-                              .version = "1.0.0",
-                              .provider_ids = {"dropbox", "pcloud"},
-                              .entry_point_kind = "builtin_bundle",
-                              .entry_point = "cloud_storage_compat_bundle"}};
-    return catalog;
+        cloud_storage_compat};
+
+    return PluginBuildConfig::commercial_plugin_actions_enabled() ? catalog : repository_catalog;
 }
 
 QJsonObject to_json_object(const StoragePluginManifest& manifest) {

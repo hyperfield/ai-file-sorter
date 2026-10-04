@@ -11,6 +11,7 @@
 #include <cstddef>
 
 #include "FolderStructurePluginManager.hpp"
+#include "PluginBuildConfig.hpp"
 
 namespace {
 
@@ -45,6 +46,9 @@ bool activate_folder_structure_plugin_entitlement(QWidget* parent,
                                                   const std::shared_ptr<FolderStructurePluginManager>& plugin_manager,
                                                   const FolderStructurePluginInstallError& install_error) {
     if (!plugin_manager || !install_error.missing_entitlement || install_error.product_id.empty()) {
+        return false;
+    }
+    if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
         return false;
     }
 
@@ -100,7 +104,7 @@ FolderStructurePluginInstallFlowResult install_folder_structure_plugin_from_cata
         return FolderStructurePluginInstallFlowResult::Installed;
     }
 
-    if (install_error.missing_entitlement) {
+    if (install_error.missing_entitlement && PluginBuildConfig::commercial_plugin_actions_enabled()) {
         if (!activate_folder_structure_plugin_entitlement(parent, plugin_manager, install_error)) {
             return FolderStructurePluginInstallFlowResult::Cancelled;
         }
