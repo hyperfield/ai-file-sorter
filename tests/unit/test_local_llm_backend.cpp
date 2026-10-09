@@ -237,6 +237,24 @@ TEST_CASE("LocalLLMClient deduplicates matching retry estimates before reducing 
     REQUIRE(candidates == std::vector<int>{15, 11, 8, 6, 4, 3, 2, 1});
 }
 
+TEST_CASE("Metal layer estimator honors constrained device memory metrics") {
+    TempModelFile model(48, 80ULL * 1024ULL * 1024ULL);
+
+    const auto constrained = LocalLLMTestAccess::estimate_metal_layers_for_testing(
+        model.path().string(),
+        40ULL * 1024ULL * 1024ULL,
+        30ULL * 1024ULL * 1024ULL);
+    const auto abundant = LocalLLMTestAccess::estimate_metal_layers_for_testing(
+        model.path().string(),
+        320ULL * 1024ULL * 1024ULL,
+        240ULL * 1024ULL * 1024ULL);
+
+    REQUIRE(constrained.layers > 0);
+    CHECK(constrained.layers < abundant.layers);
+    CHECK(abundant.layers == 48);
+    CHECK(constrained.reason == "estimated from GPU memory headroom");
+}
+
 TEST_CASE("CUDA override is applied when backend is available") {
     TempModelFile model;
     EnvVarGuard backend("AI_FILE_SORTER_GPU_BACKEND", "cuda");

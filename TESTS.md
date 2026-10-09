@@ -176,6 +176,13 @@ Procedure: Build the retry ladder through the LocalLLM test access helper.
 Expected outcome: The ladder starts at `15` once and then descends to `11, 8, 6, 4, 3, 2, 1` without duplicate entries.
 Run: `./build-tests/ai_file_sorter_tests "LocalLLMClient deduplicates matching retry estimates before reducing GPU layers"`
 
+#### Test case: Metal layer estimator honors constrained device memory metrics
+Purpose: Ensure Metal layer estimation uses reported device memory headroom instead of assuming abundant system memory.
+Setup: Create a temporary GGUF model and estimate layers once with tight Metal memory metrics and once with larger metrics.
+Procedure: Call `estimate_metal_layers_for_testing()` for both memory snapshots.
+Expected outcome: The constrained estimate is positive but lower than the abundant estimate, while the abundant estimate reaches all model layers.
+Run: `./build-tests/ai_file_sorter_tests "Metal layer estimator honors constrained device memory metrics"`
+
 #### Test case: CUDA backend reports low GPU memory before load
 Purpose: Ensure CUDA preflight checks fall back to CPU before model load when the ggml CUDA backend reports too little available VRAM.
 Setup: Set `AI_FILE_SORTER_GPU_BACKEND=cuda`, leave the layer override unset, inject a backend-availability probe for CUDA, and inject backend memory with extremely low free memory.

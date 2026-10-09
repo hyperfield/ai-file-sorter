@@ -244,14 +244,87 @@ struct MetalDeviceInfo {
     size_t total_bytes = 0;
     size_t free_bytes = 0;
     std::string name;
+    bool backend_reported = false;
 
     bool valid() const {
         return total_bytes > 0;
     }
 };
 
+[[maybe_unused]] bool has_explicit_gpu_layer_override() {
+    return resolve_gpu_layer_override() != INT_MIN;
+}
+
+#if defined(__APPLE__) && (defined(__x86_64__) || defined(__i386__))
+bool process_is_rosetta_translated() {
+    int translated = 0;
+    size_t size = sizeof(translated);
+    return sysctlbyname("sysctl.proc_translated", &translated, &size, nullptr, 0) == 0 &&
+           translated == 1;
+}
+
+[[maybe_unused]] bool is_native_intel_macos_process() {
+    return !process_is_rosetta_translated();
+}
+#else
+[[maybe_unused]] bool is_native_intel_macos_process() {
+    return false;
+}
+#endif
+
 #if defined(GGML_USE_METAL)
-MetalDeviceInfo query_primary_gpu_device() {
+ggml_backend_reg_t resolve_metal_backend_reg() {
+    ggml_backend_reg_t metal = ggml_backend_reg_by_name("Metal");
+    if (!metal) {
+        metal = ggml_backend_reg_by_name("MTL");
+    }
+    return metal;
+}
+
+std::optional<MetalDeviceInfo> query_metal_backend_device(ggml_backend_reg_t metal) {
+    if (!metal) {
+        return std::nullopt;
+    }
+
+    const size_t dev_count = ggml_backend_reg_dev_count(metal);
+    MetalDeviceInfo best;
+    bool found = false;
+    for (size_t i = 0; i < dev_count; ++i) {
+        ggml_backend_dev_t device = ggml_backend_reg_dev_get(metal, i);
+        if (!device) {
+            continue;
+        }
+
+        size_t free_bytes = 0;
+        size_t total_bytes = 0;
+        ggml_backend_dev_memory(device, &free_bytes, &total_bytes);
+        if (free_bytes == 0 && total_bytes == 0) {
+            continue;
+        }
+
+        MetalDeviceInfo info;
+        info.free_bytes = free_bytes;
+        info.total_bytes = (total_bytes != 0) ? total_bytes : free_bytes;
+        info.backend_reported = true;
+        const char* device_name = ggml_backend_dev_name(device);
+        info.name = (device_name && device_name[0] != '\0') ? device_name : "Metal GPU";
+        if (!found || info.total_bytes > best.total_bytes) {
+            best = std::move(info);
+            found = true;
+        }
+    }
+
+    if (!found) {
+        return std::nullopt;
+    }
+    return best;
+}
+
+MetalDeviceInfo query_primary_gpu_device(ggml_backend_reg_t metal) {
+    if (const auto backend_device = query_metal_backend_device(metal)) {
+        return *backend_device;
+    }
+
     MetalDeviceInfo info;
 
 #if defined(__APPLE__)
@@ -275,16 +348,15 @@ MetalDeviceInfo query_primary_gpu_device() {
     }
 
     info.name = "Metal (system memory)";
+#else
+    info.name = "Metal GPU";
 #endif
 
     return info;
 }
 
 bool metal_backend_available(const std::shared_ptr<spdlog::logger>& logger) {
-    ggml_backend_reg_t metal = ggml_backend_reg_by_name("Metal");
-    if (!metal) {
-        metal = ggml_backend_reg_by_name("MTL");
-    }
+    ggml_backend_reg_t metal = resolve_metal_backend_reg();
     if (!metal) {
         if (logger) {
             logger->warn("Metal backend not registered under aliases Metal/MTL; falling back to CPU");
@@ -914,7 +986,6 @@ struct AutoGpuLayerEstimation {
     std::string reason;
 };
 
-#if defined(GGML_USE_METAL)
 AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_path,
                                                      const MetalDeviceInfo & device_info) {
     AutoGpuLayerEstimation result;
@@ -977,7 +1048,6 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
 
     return result;
 }
-#endif // defined(GGML_USE_METAL)
 
 namespace {
 
@@ -1209,7 +1279,7 @@ int determine_metal_layers(const std::string& model_path,
                            const std::shared_ptr<spdlog::logger>& logger) {
     int gpu_layers = resolve_gpu_layer_override();
     if (gpu_layers == INT_MIN) {
-        const MetalDeviceInfo device_info = query_primary_gpu_device();
+        const MetalDeviceInfo device_info = query_primary_gpu_device(resolve_metal_backend_reg());
         const auto estimation = estimate_gpu_layers_for_metal(model_path, device_info);
 
         gpu_layers = (estimation.layers >= 0) ? estimation.layers : -1;
@@ -1217,12 +1287,13 @@ int determine_metal_layers(const std::string& model_path,
         if (logger) {
             const double to_mib = kBytesPerMiB;
             logger->info(
-                "Metal device '{}' total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
+                "Metal device '{}' total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({}, metrics={})",
                 device_info.name.empty() ? "GPU" : device_info.name,
                 device_info.total_bytes / to_mib,
                 device_info.free_bytes / to_mib,
                 gpu_layers_to_string(gpu_layers),
-                estimation.reason
+                estimation.reason,
+                device_info.backend_reported ? "backend" : "system"
             );
         }
     } else if (logger) {
@@ -1837,23 +1908,29 @@ ModelPreparationResult build_model_preparation_result_for_path(
     result.params = llama_model_default_params();
 
 #ifdef GGML_USE_METAL
-    const char* backend_env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
-    if (backend_env) {
-        std::string value(backend_env);
-        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-            return static_cast<char>(std::tolower(c));
-        });
-        if (value == "cpu") {
-            if (logger) {
-                logger->info("AI_FILE_SORTER_GPU_BACKEND=cpu set; disabling Metal and using CPU backend.");
-            }
-            result.params.n_gpu_layers = 0;
-            return result;
+    if (is_cpu_backend_requested()) {
+        if (logger) {
+            logger->info("CPU backend requested; disabling Metal for local LLM.");
         }
+        result.params.n_gpu_layers = 0;
+        return result;
     }
 
     if (!metal_backend_available(logger)) {
         result.params.n_gpu_layers = 0;
+        return result;
+    }
+
+    if (is_native_intel_macos_process() && !has_explicit_gpu_layer_override()) {
+        result.params.n_gpu_layers = 0;
+        result.status = LocalLLMClient::Status::GpuFallbackToCpu;
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+        set_env_var("LLAMA_ARG_DEVICE", "cpu");
+        if (logger) {
+            logger->warn(
+                "Native Intel macOS Metal backend is disabled by default for local text LLMs; using CPU. "
+                "Set AI_FILE_SORTER_N_GPU_LAYERS explicitly to opt into Metal.");
+        }
         return result;
     }
 
@@ -2001,6 +2078,19 @@ std::string categorization_user_prompt_for_testing(const std::string& file_name,
                                                    FileType file_type,
                                                    const std::string& consistency_context) {
     return LocalLLMPromptBuilder::build_user_prompt(file_name, file_path, file_type, consistency_context);
+}
+
+MetalLayerEstimationResult estimate_metal_layers_for_testing(const std::string& model_path,
+                                                             std::size_t total_bytes,
+                                                             std::size_t free_bytes)
+{
+    MetalDeviceInfo info;
+    info.total_bytes = total_bytes;
+    info.free_bytes = free_bytes;
+    info.name = "Test Metal GPU";
+    info.backend_reported = true;
+    const AutoGpuLayerEstimation estimation = estimate_gpu_layers_for_metal(model_path, info);
+    return {estimation.layers, estimation.insufficient_memory, estimation.reason};
 }
 
 std::string sanitize_output_for_testing(const std::string& output) {
