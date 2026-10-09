@@ -101,7 +101,10 @@ endif
     export LDFLAGS += -L$(LIBFFI_PREFIX)/lib
     export CPPFLAGS += -I$(LIBFFI_PREFIX)/include
     PLATFORM := MacOS
-    CXXFLAGS += -DMACOS -DENABLE_METAL -DGGML_USE_METAL -DAI_FILE_SORTER_HAS_MTMD -Wno-deprecated -Iinclude/llama -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+    CXXFLAGS += -DMACOS -DAI_FILE_SORTER_HAS_MTMD -Wno-deprecated -Iinclude/llama -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+    ifneq ($(MACOS_ARCH),x86_64)
+    CXXFLAGS += -DENABLE_METAL -DGGML_USE_METAL
+    endif
     ifneq ($(strip $(MACOS_ARCH)),)
     CXXFLAGS := $(filter-out -arch arm64 -arch x86_64,$(CXXFLAGS))
     LDFLAGS := $(filter-out -arch arm64 -arch x86_64,$(LDFLAGS))
@@ -668,7 +671,7 @@ ifeq ($(UNAME), Darwin)
 		echo "Using existing precompiled libs in ./lib/precompiled-intel"; \
 	else \
 		echo "Building llama.cpp for Intel (x86_64) macOS backends..."; \
-		LLAMA_MACOS_ARCH=x86_64 LLAMA_MACOS_ENABLE_METAL=1 LLAMA_MACOS_MULTI_VARIANT=0 LLAMA_PRECOMPILED_DIR=./lib/precompiled-intel ./scripts/build_llama_macos.sh; \
+		LLAMA_MACOS_ARCH=x86_64 LLAMA_MACOS_ENABLE_METAL=0 LLAMA_MACOS_MULTI_VARIANT=0 LLAMA_PRECOMPILED_DIR=./lib/precompiled-intel ./scripts/build_llama_macos.sh; \
 	fi
 	$(MAKE) LLAMA_MULTI_VARIANT=0 GGML_PRECOMPILED_SUBDIR=precompiled-intel APP_NAME="AI File Sorter for Mac Intel" BIN_DIR=./bin/intel MACOS_ARCH=x86_64 all
 else
