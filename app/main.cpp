@@ -519,6 +519,7 @@ bool ensure_llm_choice(Settings& settings, const std::function<void()>& finish_s
     settings.set_gemini_api_key(llm_dialog.get_gemini_api_key());
     settings.set_gemini_model(llm_dialog.get_gemini_model());
     settings.set_llm_choice(llm_dialog.get_selected_llm_choice());
+    settings.set_llm_concurrency(llm_dialog.get_llm_concurrency());
     settings.set_llm_downloads_expanded(llm_dialog.get_llm_downloads_expanded());
     settings.set_llm_storage_dir(llm_dialog.get_llm_storage_dir());
     settings.set_visual_model_id(llm_dialog.get_selected_visual_model_id());

@@ -968,6 +968,7 @@ Timeouts and logging:
 - `AI_FILE_SORTER_LOCAL_LLM_TIMEOUT` - seconds to wait for local LLM responses (default 60).
 - `AI_FILE_SORTER_REMOTE_LLM_TIMEOUT` - seconds to wait for OpenAI/Gemini responses (default 10).
 - `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT` - seconds to wait for custom OpenAI-compatible API responses (default 60).
+- `[Settings] LlmConcurrentRequests` in `config.ini` (also set by the **LLM concurrent requests** combo in the **Select LLM** dialog) - number of requests sent in parallel: `1`, `2`, `4`, `6`, or `8` (default `1`; other values round down to the nearest supported level, and values below 1 become 1). It applies to text categorization and document analysis with ChatGPT or a custom OpenAI-compatible endpoint. Gemini and local GGUF models always run one request at a time. Each in-flight request counts against `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`, including time queued on the server, so raise the timeout if a local server queues parallel requests. Results are still committed in input order, but files in the same round do not see each other's assignments, so results can differ slightly from a run with concurrency 1.
 - `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE` - optional pacing limit for remote LLM calls. Use this for rate-limited providers such as OpenRouter; for example, `20` keeps requests within a 20 requests/minute quota. `0` or unset disables pacing. The same value can also be set in `config.ini` as `RemoteRequestsPerMinute` under `[Settings]`.
 - `AI_FILE_SORTER_LLAMA_LOGS` - enable verbose llama.cpp logs (`1`/`true`); also honors `LLAMA_CPP_DEBUG_LOGS`.
 
@@ -1186,6 +1187,8 @@ Prefer an OpenAI-compatible endpoint such as **LM Studio**, **Ollama**, or your 
 5. The endpoint configuration is stored locally in your AI File Sorter config and can be edited or removed later from the same dialog.
 
 Use this option for local servers or remote providers that follow the OpenAI-style API shape. Response time can be tuned with `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`; rate-limited providers can be paced with `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE` or `[Settings] RemoteRequestsPerMinute` (see [Environment variables](#environment-variables)).
+
+To send several text requests in parallel, set **LLM concurrent requests** in the **Select LLM** dialog (`LlmConcurrentRequests`, see [Environment variables](#environment-variables)). Make sure the server can handle that many simultaneous requests.
 
 ---
 

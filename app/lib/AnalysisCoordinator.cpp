@@ -2,6 +2,7 @@
 
 #include "AnalysisEntryRouter.hpp"
 #include "AnalysisProgress.hpp"
+#include "BoundedWorkExecutor.hpp"
 #include "CategoryDateSuffix.hpp"
 #include "CategorizationService.hpp"
 #include "DatabaseManager.hpp"
@@ -25,6 +26,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
@@ -235,6 +237,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
 {
     const std::string directory_path = app_.get_folder_path();
     app_.core_logger->info("Starting analysis for directory '{}'", directory_path);
+    app_.core_logger->info("LLM API concurrency: {}", app_.settings.effective_llm_concurrency());
 
     bool stop_requested = false;
     auto update_stop = [this, &stop_requested]() {
@@ -1438,93 +1441,178 @@ AnalysisRunResult AnalysisCoordinator::execute()
             doc_settings.max_characters = std::min(doc_settings.max_characters, char_budget);
             DocumentTextAnalyzer doc_analyzer(doc_settings);
 
-            auto llm = app_.make_llm_client();
-            if (!llm) {
-                throw std::runtime_error("Failed to create LLM client.");
+            // Documents are analyzed by up to document_concurrency workers, each owning one client.
+            // Preparation and commit run on this thread in input order, so persistence, progress and
+            // cached suggestions observe the same sequence as a sequential run. With concurrency 1 each
+            // chunk holds one entry and the order of side effects is unchanged.
+            const size_t document_concurrency = std::max<size_t>(1, app_.settings.effective_llm_concurrency());
+            std::vector<std::unique_ptr<ILLMClient>> document_clients;
+            document_clients.reserve(document_concurrency);
+            for (size_t slot = 0; slot < document_concurrency; ++slot) {
+                auto client = app_.make_llm_client();
+                if (!client) {
+                    throw std::runtime_error("Failed to create LLM client.");
+                }
+                client->set_prompt_logging_enabled(app_.should_log_prompts());
+                document_clients.push_back(std::move(client));
             }
-            llm->set_prompt_logging_enabled(app_.should_log_prompts());
+            // One batch per round of requests, so the "Analyzing" lines match the requests in flight.
+            const size_t document_chunk_size = document_concurrency;
+            const auto document_stage_started = std::chrono::steady_clock::now();
+            size_t documents_processed = 0;
 
-            for (const auto& entry : document_entries) {
+            struct PendingDocument {
+                FileEntry entry;
+                bool already_renamed{false};
+                bool document_only{false};
+                std::optional<std::string> cached_suggestion;
+                size_t analysis_index{0};
+            };
+
+            for (size_t chunk_begin = 0; chunk_begin < document_entries.size(); chunk_begin += document_chunk_size) {
                 if (update_stop()) {
                     break;
                 }
-                const bool already_renamed = renamed_files.contains(entry_key(entry));
-                if (already_renamed && rename_documents_only) {
-                    continue;
-                }
-                const bool document_only = cached_document_indices.contains(entry_key(entry));
-                const auto cached_suggestion_it = cached_document_suggestions.find(entry_key(entry));
-                const bool has_cached_suggestion = cached_suggestion_it != cached_document_suggestions.end();
-                if (add_document_date && !document_dates.contains(entry_key(entry))) {
-                    const auto date =
-                        DocumentTextAnalyzer::extract_creation_date(Utils::utf8_to_path(entry.full_path));
-                    if (date) {
-                        document_dates.emplace(entry_key(entry), *date);
-                    }
-                }
-                analyzed_document_entries.push_back(entry);
-                app_.mark_progress_stage_item_in_progress(ProgressStageId::DocumentAnalysis, entry);
+                const size_t chunk_end = std::min(document_entries.size(), chunk_begin + document_chunk_size);
 
-                try {
+                // Phase 1 (coordinator): decide what each entry needs, in input order.
+                std::vector<PendingDocument> pending;
+                std::vector<FileEntry> analysis_inputs;
+                for (size_t index = chunk_begin; index < chunk_end; ++index) {
+                    if (update_stop()) {
+                        break;
+                    }
+                    const auto& entry = document_entries[index];
+                    const bool already_renamed = renamed_files.contains(entry_key(entry));
+                    if (already_renamed && rename_documents_only) {
+                        continue;
+                    }
+                    const bool document_only = cached_document_indices.contains(entry_key(entry));
+                    const auto cached_suggestion_it = cached_document_suggestions.find(entry_key(entry));
+                    const bool has_cached_suggestion = cached_suggestion_it != cached_document_suggestions.end();
+                    if (add_document_date && !document_dates.contains(entry_key(entry))) {
+                        const auto date =
+                            DocumentTextAnalyzer::extract_creation_date(Utils::utf8_to_path(entry.full_path));
+                        if (date) {
+                            document_dates.emplace(entry_key(entry), *date);
+                        }
+                    }
+                    app_.mark_progress_stage_item_in_progress(ProgressStageId::DocumentAnalysis, entry);
+
+                    PendingDocument item;
+                    item.entry = entry;
+                    item.already_renamed = already_renamed;
+                    item.document_only = document_only;
                     if (has_cached_suggestion) {
-                        app_.append_progress(to_utf8(app_.tr("[DOC] Using cached suggestion for %1")
-                                                         .arg(QString::fromStdString(entry.file_name))));
+                        item.cached_suggestion = cached_suggestion_it->second;
+                    } else {
+                        item.analysis_index = analysis_inputs.size();
+                        analysis_inputs.push_back(entry);
+                        app_.append_progress(to_utf8(
+                            app_.tr("[DOC] Analyzing %1").arg(QString::fromStdString(entry.file_name))));
+                    }
+                    pending.push_back(std::move(item));
+                }
+
+                // Phase 2 (workers): only the LLM-backed analysis runs off-thread. The analyzer is const;
+                // PDF text extraction inside it is serialized. Workers write nothing shared.
+                auto analysis_outcomes = BoundedWorkExecutor::run_batch(
+                    analysis_inputs,
+                    document_clients,
+                    app_.stop_analysis,
+                    [&doc_analyzer](std::unique_ptr<ILLMClient>& client, size_t, const FileEntry& entry) {
+                        return doc_analyzer.analyze(Utils::utf8_to_path(entry.full_path), *client);
+                    });
+
+                // Phase 3 (coordinator): commit in input order.
+                for (auto& item : pending) {
+                    const auto& entry = item.entry;
+                    const bool already_renamed = item.already_renamed;
+                    const bool document_only = item.document_only;
+                    // Stop before this request began: the document was never analyzed, so it stays out of the review list.
+                    const bool never_attempted =
+                        !item.cached_suggestion && !analysis_outcomes[item.analysis_index].attempted();
+                    if (!never_attempted) {
+                        analyzed_document_entries.push_back(entry);
+                    }
+                    try {
+                        if (item.cached_suggestion) {
+                            app_.append_progress(to_utf8(app_.tr("[DOC] Using cached suggestion for %1")
+                                                             .arg(QString::fromStdString(entry.file_name))));
+                            const std::string suggested_name =
+                                already_renamed ? std::string() : *item.cached_suggestion;
+                            const std::string prompt_name =
+                                resolve_document_prompt_name(entry.file_name, *item.cached_suggestion);
+                            document_info.emplace(entry_key(entry),
+                                                  DocumentAnalysisInfo{
+                                                      suggested_name,
+                                                      std::nullopt,
+                                                      prompt_name,
+                                                      build_document_prompt_path(entry.full_path, prompt_name, {}),
+                                                      !suggested_name.empty()});
+                            if (rename_documents_only) {
+                                persist_rename_only_progress(entry, suggested_name);
+                            }
+                            if (!rename_documents_only && !document_only) {
+                                document_entries_for_llm.push_back(entry);
+                            }
+                            app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
+                            ++documents_processed;
+                            continue;
+                        }
+
+                        auto& outcome = analysis_outcomes[item.analysis_index];
+                        if (!outcome.attempted()) {
+                            // Stop was requested before this document started.
+                            app_.mark_progress_stage_item_skipped(ProgressStageId::DocumentAnalysis, entry);
+                            continue;
+                        }
+                        if (outcome.error) {
+                            std::rethrow_exception(outcome.error);
+                        }
+                        const auto& analysis = *outcome.value;
+                        ++documents_processed;
                         const std::string suggested_name =
-                            already_renamed ? std::string() : cached_suggestion_it->second;
+                            already_renamed ? std::string() : analysis.suggested_name;
                         const std::string prompt_name =
-                            resolve_document_prompt_name(entry.file_name, cached_suggestion_it->second);
-                        document_info.emplace(entry_key(entry),
-                                              DocumentAnalysisInfo{
-                                                  suggested_name,
-                                                  std::nullopt,
-                                                  prompt_name,
-                                                  build_document_prompt_path(entry.full_path, prompt_name, {}),
-                                                  !suggested_name.empty()});
+                            resolve_document_prompt_name(entry.file_name, analysis.suggested_name);
+                        const std::string prompt_path =
+                            build_document_prompt_path(entry.full_path, prompt_name, analysis.summary);
+                        if (!rename_documents_only) {
+                            persist_llm_suggestion_progress(entry, suggested_name);
+                        }
+                        document_info.emplace(
+                            entry_key(entry),
+                            DocumentAnalysisInfo{
+                                suggested_name,
+                                std::nullopt,
+                                prompt_name,
+                                prompt_path,
+                                !suggested_name.empty()});
                         if (rename_documents_only) {
                             persist_rename_only_progress(entry, suggested_name);
+                        }
+                        if (document_only) {
+                            update_cached_document_suggestion(entry, suggested_name);
                         }
                         if (!rename_documents_only && !document_only) {
                             document_entries_for_llm.push_back(entry);
                         }
-                        app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis,
-                                                                entry);
-                        continue;
+                        app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
+                    } catch (const std::exception& ex) {
+                        handle_document_failure(entry, ex.what(), already_renamed, true, document_only);
+                        app_.mark_progress_stage_item_skipped(ProgressStageId::DocumentAnalysis, entry);
                     }
-
-                    app_.append_progress(to_utf8(
-                        app_.tr("[DOC] Analyzing %1").arg(QString::fromStdString(entry.file_name))));
-                    const auto analysis = doc_analyzer.analyze(Utils::utf8_to_path(entry.full_path), *llm);
-                    const std::string suggested_name =
-                        already_renamed ? std::string() : analysis.suggested_name;
-                    const std::string prompt_name =
-                        resolve_document_prompt_name(entry.file_name, analysis.suggested_name);
-                    const std::string prompt_path =
-                        build_document_prompt_path(entry.full_path, prompt_name, analysis.summary);
-                    if (!rename_documents_only) {
-                        persist_llm_suggestion_progress(entry, suggested_name);
-                    }
-                    document_info.emplace(
-                        entry_key(entry),
-                        DocumentAnalysisInfo{
-                            suggested_name,
-                            std::nullopt,
-                            prompt_name,
-                            prompt_path,
-                            !suggested_name.empty()});
-                    if (rename_documents_only) {
-                        persist_rename_only_progress(entry, suggested_name);
-                    }
-                    if (document_only) {
-                        update_cached_document_suggestion(entry, suggested_name);
-                    }
-                    if (!rename_documents_only && !document_only) {
-                        document_entries_for_llm.push_back(entry);
-                    }
-                    app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
-                } catch (const std::exception& ex) {
-                    handle_document_failure(entry, ex.what(), already_renamed, true, document_only);
-                    app_.mark_progress_stage_item_skipped(ProgressStageId::DocumentAnalysis, entry);
                 }
+            }
+
+            if (app_.core_logger && documents_processed > 0) {
+                const double elapsed_seconds = std::chrono::duration<double>(
+                    std::chrono::steady_clock::now() - document_stage_started).count();
+                app_.core_logger->info("Analyzed {} document(s) in {:.1f} seconds with up to {} concurrent LLM request(s)",
+                                       documents_processed,
+                                       elapsed_seconds,
+                                       document_concurrency);
             }
         }
 

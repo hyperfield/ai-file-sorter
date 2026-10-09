@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## [Unreleased]
+
+- Added an LLM concurrent requests setting (1, 2, 4, 6, or 8 parallel requests) that speeds up text categorization and document analysis with ChatGPT or a custom OpenAI-compatible API endpoint. Results are still committed in input order.
+
 ## [1.9.2] - 2026-08-14
 
 - Fixed a Windows startup crash in Qt GUI theme refresh handling by preventing recursive palette-triggered stylesheet updates.

@@ -51,6 +51,11 @@ public:
      * @brief Return the active custom API endpoint id.
      */
     std::string get_selected_custom_api_id() const;
+    /**
+     * @brief Return the selected number of simultaneous LLM requests.
+     * @return 1, 2, 4, 6 or 8.
+     */
+    int get_llm_concurrency() const;
     std::string get_openai_api_key() const;
     std::string get_openai_model() const;
     std::string get_gemini_api_key() const;
@@ -104,6 +109,10 @@ private:
      * @brief Update UI state for the custom API selection.
      */
     void update_custom_api_choice_ui();
+    /**
+     * @brief Enable the concurrency control only for backends that use it.
+     */
+    void update_llm_concurrency_ui();
     void update_openai_fields_state();
     void update_gemini_fields_state();
     bool openai_inputs_valid() const;
@@ -224,6 +233,8 @@ private:
     QPushButton* edit_custom_button{nullptr};
     QPushButton* delete_custom_button{nullptr};
     QComboBox* custom_api_combo{nullptr};
+    QLabel* llm_concurrency_label{nullptr};
+    QComboBox* llm_concurrency_combo{nullptr};
     QPushButton* add_custom_api_button{nullptr};
     QPushButton* edit_custom_api_button{nullptr};
     QPushButton* delete_custom_api_button{nullptr};

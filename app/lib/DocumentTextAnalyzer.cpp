@@ -32,6 +32,7 @@
 #include <cctype>
 #include <fstream>
 #include <initializer_list>
+#include <mutex>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -360,7 +361,15 @@ PdfiumLibraryGuard& pdfium_library() {
     return guard;
 }
 
+// PDFium is not thread-safe. Document analysis may run several workers at once, so every
+// PDFium call sequence is serialized here. Text extraction is a small share of request time.
+std::mutex& pdfium_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
 std::string extract_pdf_text_pdfium(const std::filesystem::path& path, size_t max_chars) {
+    std::lock_guard<std::mutex> lock(pdfium_mutex());
     pdfium_library();
     const std::string pdf_path = Utils::path_to_utf8(path);
     FPDF_DOCUMENT doc = FPDF_LoadDocument(pdf_path.c_str(), nullptr);

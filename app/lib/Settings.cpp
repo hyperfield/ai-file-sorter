@@ -361,6 +361,29 @@ std::string normalize_visual_model_id(const std::string& value)
     return default_visual_model_descriptor().id;
 }
 
+/**
+ * @brief Clamps a requested LLM concurrency to the supported levels {1, 2, 4, 6, 8}.
+ *
+ * Values are rounded down to the nearest supported level so malformed configs
+ * can never request unbounded parallel work.
+ */
+int normalize_llm_concurrency(int value)
+{
+    if (value >= 8) {
+        return 8;
+    }
+    if (value >= 6) {
+        return 6;
+    }
+    if (value >= 4) {
+        return 4;
+    }
+    if (value >= 2) {
+        return 2;
+    }
+    return 1;
+}
+
 Language system_default_language()
 {
     const QLocale locale = QLocale::system();
@@ -498,6 +521,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     set_gemini_api_key(config.getValue("Settings", "GeminiApiKey", ""));
     set_gemini_model(config.getValue("Settings", "GeminiModel", "gemini-2.5-flash-lite"));
     set_remote_requests_per_minute(load_int("RemoteRequestsPerMinute", 0, 0));
+    set_llm_concurrency(load_int("LlmConcurrentRequests", 1, 1));
     llm_downloads_expanded = load_bool("LLMDownloadsExpanded", true);
     set_llm_storage_dir(config.getValue("Settings", "LlmStorageDir", ""));
     visual_model_id = normalize_visual_model_id(
@@ -660,6 +684,7 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "GeminiApiKey", gemini_api_key);
     config.setValue(settings_section, "GeminiModel", gemini_model.empty() ? "gemini-2.5-flash-lite" : gemini_model);
     config.setValue(settings_section, "RemoteRequestsPerMinute", std::to_string(remote_requests_per_minute));
+    config.setValue(settings_section, "LlmConcurrentRequests", std::to_string(llm_concurrency));
     set_bool_setting(config, settings_section, "LLMDownloadsExpanded", llm_downloads_expanded);
     config.setValue(settings_section, "LlmStorageDir", llm_storage_dir);
     config.setValue(settings_section, "VisualModelId", normalize_visual_model_id(visual_model_id));
@@ -931,6 +956,26 @@ int Settings::get_remote_requests_per_minute() const
 void Settings::set_remote_requests_per_minute(int value)
 {
     remote_requests_per_minute = std::max(0, value);
+}
+
+int Settings::get_llm_concurrency() const
+{
+    return llm_concurrency;
+}
+
+void Settings::set_llm_concurrency(int value)
+{
+    llm_concurrency = normalize_llm_concurrency(value);
+}
+
+size_t Settings::effective_llm_concurrency() const
+{
+    // Only OpenAI-compatible remote endpoints are driven concurrently. Local in-process
+    // models own a single context, and Gemini stays serial until its client is audited.
+    if (llm_choice == LLMChoice::Remote_OpenAI || llm_choice == LLMChoice::Remote_Custom) {
+        return static_cast<size_t>(llm_concurrency);
+    }
+    return 1;
 }
 
 bool Settings::get_llm_downloads_expanded() const

@@ -1856,6 +1856,106 @@ Procedure: Reload settings and retrieve the endpoint by ID.
 Expected outcome: All fields match the original, and the active endpoint ID is preserved.
 Run: `./build-tests/ai_file_sorter_tests "Custom API endpoints persist across Settings load/save"`
 
+### `tests/unit/test_llm_concurrency.cpp`
+
+#### Test case: LLM concurrency setting defaults to one and clamps to supported levels
+Purpose: Ensure the concurrent LLM request setting defaults to one and only stores the supported levels 1, 2, 4, 6, and 8.
+Setup: Load settings from an isolated config directory.
+Procedure: Read the default value, then call `set_llm_concurrency` with 2, 4, 1, 0, -3, 3, 6, 8, 7, 16, and 1000 and read back the stored value after each call.
+Expected outcome: The default is 1; 0 and negative values become 1, 3 becomes 2, 7 becomes 6, and 16 and 1000 become 8; supported levels are kept as-is.
+Run: `./build-tests/ai_file_sorter_tests "LLM concurrency setting defaults to one and clamps to supported levels"`
+
+#### Test case: LLM concurrency persists and reloads with clamping applied
+Purpose: Verify the concurrency value round-trips through `config.ini`.
+Setup: Use an isolated config directory; load settings, set concurrency to 4, and save.
+Procedure: Reload settings and check the value, then set 2, save, and reload again.
+Expected outcome: The saved value 4 reloads as 4, and the later value 2 reloads as 2.
+Run: `./build-tests/ai_file_sorter_tests "LLM concurrency persists and reloads with clamping applied"`
+
+#### Test case: Effective LLM concurrency applies only to OpenAI-compatible remote choices
+Purpose: Ensure only the OpenAI and custom OpenAI-compatible API choices use the configured concurrency.
+Setup: Create settings with concurrency 4.
+Procedure: Switch the LLM choice through `Remote_OpenAI`, `Remote_Custom`, `Remote_Gemini`, `Local_4b_Gemma`, and `Custom` and read `effective_llm_concurrency()` for each.
+Expected outcome: OpenAI and custom remote choices return 4; Gemini, built-in local, and custom local GGUF choices return 1.
+Run: `./build-tests/ai_file_sorter_tests "Effective LLM concurrency applies only to OpenAI-compatible remote choices"`
+
+#### Test case: BoundedWorkExecutor never runs more jobs than contexts and keeps input order
+Purpose: Verify the batch executor caps parallelism at the number of worker contexts and returns outcomes in input order.
+Setup: Eight integer inputs and four worker contexts; each job sleeps 40 ms while tracking how many jobs are active.
+Procedure: Run `BoundedWorkExecutor::run_batch` and record the peak number of concurrently active jobs.
+Expected outcome: Peak concurrency is greater than 1 and at most 4; every outcome is attempted and outcome `i` holds `i * 10`.
+Run: `./build-tests/ai_file_sorter_tests "BoundedWorkExecutor never runs more jobs than contexts and keeps input order"`
+
+#### Test case: BoundedWorkExecutor returns input order when jobs finish in reverse
+Purpose: Confirm results are indexed by input position even when jobs complete in reverse order.
+Setup: Four inputs and four contexts; job `i` sleeps for `30 * (4 - i)` ms and records its completion.
+Procedure: Run `BoundedWorkExecutor::run_batch` and inspect the completion order and each outcome.
+Expected outcome: The first job to complete is input 3, and outcome `i` holds value `i`.
+Run: `./build-tests/ai_file_sorter_tests "BoundedWorkExecutor returns input order when jobs finish in reverse"`
+
+#### Test case: BoundedWorkExecutor isolates a failing job and stop prevents new jobs
+Purpose: Ensure one failing job does not disturb the others and that a stop flag set before the run prevents any job from starting.
+Setup: Four inputs and two contexts; the job for value 1 throws. A second batch uses a stop flag that is already set.
+Procedure: Run the batch with the failing job, then run the second batch and count how many jobs start.
+Expected outcome: Outcomes 0, 2, and 3 hold their values and outcome 1 holds an error. With the stop flag set, no job starts and no outcome is attempted.
+Run: `./build-tests/ai_file_sorter_tests "BoundedWorkExecutor isolates a failing job and stop prevents new jobs"`
+
+#### Test case: Sequential categorization (concurrency 1) uses one client and one request at a time
+Purpose: Confirm that concurrency 1 keeps the original single-client, one-request-at-a-time behavior.
+Setup: Configure remote OpenAI settings with concurrency 1, an isolated database, and six file entries; use a probe client factory that counts calls and active requests.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the probe counters.
+Expected outcome: All six files are categorized, one client instance is created, and the peak number of concurrent requests is 1.
+Run: `./build-tests/ai_file_sorter_tests "Sequential categorization (concurrency 1) uses one client and one request at a time"`
+
+#### Test case: Concurrent categorization runs requests in parallel within the configured cap
+Purpose: Verify that concurrency 4 lets requests overlap without exceeding the cap and without sharing a client between threads.
+Setup: Configure concurrency 4 with eight file entries; each probe request takes 120 ms.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the probe counters.
+Expected outcome: All files are categorized; the peak number of concurrent requests is greater than 1 and at most 4; no client is entered by two threads at once.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization runs requests in parallel within the configured cap"`
+
+#### Test case: Concurrent categorization with concurrency 2 never exceeds two requests
+Purpose: Check the concurrency cap for the two-request setting.
+Setup: Configure concurrency 2 with six file entries; each probe request takes 80 ms.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the probe counters.
+Expected outcome: All files are categorized, the peak number of concurrent requests is at most 2, and exactly two client instances are created.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization with concurrency 2 never exceeds two requests"`
+
+#### Test case: Concurrent categorization creates one client per slot, not per file
+Purpose: Ensure the client pool is sized by the concurrency level rather than by the number of files.
+Setup: Configure concurrency 4 with twenty file entries and the default 60 ms probe delay.
+Procedure: Run `CategorizationService::categorize_entries` and read the instance count and shared-client violation count.
+Expected outcome: All files are categorized, between 1 and 4 client instances are created, and no shared-client violations are recorded.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization creates one client per slot, not per file"`
+
+#### Test case: Concurrent categorization commits results and completions in input order
+Purpose: Verify that results and completion callbacks follow input order even when replies arrive in reverse order.
+Setup: Configure concurrency 4 with four files named `order_a.txt` to `order_d.txt`; their probe delays are 300, 200, 100, and 10 ms, so they finish in reverse order. The completion and result callbacks record file names.
+Procedure: Run `CategorizationService::categorize_entries` with both callbacks.
+Expected outcome: The returned list, the result callback sequence, and the completion callback sequence all list `order_a` through `order_d` in that order.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization commits results and completions in input order"`
+
+#### Test case: Concurrent categorization failure reports once, does not duplicate completions, and propagates
+Purpose: Ensure a failed request is reported once, the exception reaches the caller, and completions are not duplicated.
+Setup: Configure concurrency 4 with four files; the probe throws a `runtime_error` for `fail_b.txt`, and each request takes 80 ms.
+Procedure: Run `CategorizationService::categorize_entries` and expect `std::runtime_error`; inspect the call count, completion callbacks, and progress messages.
+Expected outcome: The exception is rethrown; all four requests in the chunk were started; only `fail_a.txt` is recorded as completed; exactly one progress message contains `[LLM-ERROR]`.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization failure reports once, does not duplicate completions, and propagates"`
+
+#### Test case: Concurrent categorization honours stop: no new requests, no deadlock, unique completions
+Purpose: Verify that setting the stop flag during a run prevents new requests, the run finishes without deadlock, and each file completes at most once.
+Setup: Configure concurrency 4 with 24 file entries; each request takes 150 ms, and the stop flag is set once four requests have started.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the call count and completion callbacks.
+Expected outcome: Fewer than 24 requests are made but at least 4; all completion names are unique; the number of returned results does not exceed the number of completions.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization honours stop: no new requests, no deadlock, unique completions"`
+
+#### Test case: Concurrent categorization calls the client on the worker thread without spawning a helper thread
+Purpose: Verify that concurrent categorization reuses worker threads: the coordinator thread always serves the first client, and the number of distinct calling threads is bounded by the chunk count rather than one thread per request.
+Setup: Configure concurrency 2 with six files. A thread-recording client records which thread entered each client instance; each request sleeps 20 ms.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the call count, the instance count, and the recorded thread ids.
+Expected outcome: Six calls are made across two client instances; instance 0 is entered by only one thread; the number of distinct calling threads is at most 1 plus the three chunks of two files, so no detached thread is started per request.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization calls the client on the worker thread without spawning a helper thread"`
+
 ### `tests/unit/test_remote_api_error.cpp`
 
 #### Test case: RemoteApiError parses numeric Retry-After headers

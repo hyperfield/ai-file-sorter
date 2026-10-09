@@ -44,6 +44,15 @@ normal setup and usage.
 These knobs are most useful when diagnosing slow providers, rate-limited
 providers, or local runtime issues.
 
+## config.ini keys for concurrency
+
+- `[Settings] LlmConcurrentRequests` sets how many LLM requests run in parallel:
+  `1`, `2`, `4`, `6`, or `8` (default `1`). Other values round down to the
+  nearest supported level, and values below 1 become `1`. It applies to ChatGPT
+  and custom OpenAI-compatible text requests. Gemini and local GGUF models always
+  run one request at a time. Each in-flight request counts against
+  `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`, including server queue time.
+
 ## Headless setting overlays
 
 Headless callers can pass `--settings-overrides-file <json-file>` to inject a
