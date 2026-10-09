@@ -31,15 +31,23 @@ QString visual_backend_combo_label(const VisualModelDescriptor& backend,
 
 /**
  * @brief Build built-in and custom visual backend combo items.
+ *
+ * Lists built-in models, custom local models that have an MMProj, and API endpoints that are
+ * marked as supporting image input. Text-only API endpoints are never listed.
  * @param custom_llms Configured custom local LLMs.
  * @param recommended_label Localized text for the recommended marker.
  * @param custom_label_template Localized template containing `%1` for the custom LLM name.
+ * @param custom_apis Configured custom API endpoints; only vision-capable ones are listed.
+ * @param api_label_template Label format for API entries (one `%1` for the endpoint name).
+ *        Empty uses the plain endpoint name.
  * @return Ordered combo items.
  */
 std::vector<LLMSelectionVisualBackendItem> build_visual_backend_items(
     const std::vector<CustomLLM>& custom_llms,
     const QString& recommended_label,
-    const QString& custom_label_template);
+    const QString& custom_label_template,
+    const std::vector<CustomApiEndpoint>& custom_apis = {},
+    const QString& api_label_template = {});
 
 /**
  * @brief Pick the best selectable visual backend id.
@@ -61,8 +69,11 @@ int index_of_visual_backend_id(const std::vector<LLMSelectionVisualBackendItem>&
 
 /**
  * @brief Return the effective descriptor for a selected visual backend id.
+ *
+ * The descriptor's local artifacts back the selected visual model.
  * @param selected_id Selected visual backend id.
  * @return Custom descriptor for custom ids, matching built-in descriptor, or default descriptor.
+ *         Null for API endpoints, which have no local artifacts.
  */
 const VisualModelDescriptor* selected_visual_model_descriptor(std::string_view selected_id);
 

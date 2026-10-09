@@ -17,10 +17,12 @@ QString visual_backend_combo_label(const VisualModelDescriptor& backend,
 std::vector<LLMSelectionVisualBackendItem> build_visual_backend_items(
     const std::vector<CustomLLM>& custom_llms,
     const QString& recommended_label,
-    const QString& custom_label_template)
+    const QString& custom_label_template,
+    const std::vector<CustomApiEndpoint>& custom_apis,
+    const QString& api_label_template)
 {
     std::vector<LLMSelectionVisualBackendItem> items;
-    items.reserve(visual_model_descriptors().size() + custom_llms.size());
+    items.reserve(visual_model_descriptors().size() + custom_llms.size() + custom_apis.size());
 
     for (const auto& backend : visual_model_descriptors()) {
         items.push_back({visual_backend_combo_label(backend, recommended_label),
@@ -33,6 +35,16 @@ std::vector<LLMSelectionVisualBackendItem> build_visual_backend_items(
         }
         items.push_back({custom_label_template.arg(QString::fromStdString(custom.name)),
                          custom_visual_model_id_for_llm(custom.id)});
+    }
+
+    // Only endpoints explicitly marked as vision-capable are offered; text-only endpoints never appear here.
+    for (const auto& api : custom_apis) {
+        if (!is_valid_custom_api_endpoint(api) || !api.supports_vision) {
+            continue;
+        }
+        const QString name = QString::fromStdString(api.name);
+        items.push_back({api_label_template.isEmpty() ? name : api_label_template.arg(name),
+                         api_visual_model_id_for_endpoint(api.id)});
     }
 
     return items;
@@ -67,6 +79,10 @@ std::string choose_visual_backend_id(std::string_view requested_id,
 
 const VisualModelDescriptor* selected_visual_model_descriptor(std::string_view selected_id)
 {
+    if (is_api_visual_model_id(selected_id)) {
+        // API backends have no local artifacts, so there is no descriptor to download for.
+        return nullptr;
+    }
     if (is_custom_visual_model_id(selected_id)) {
         return &custom_visual_model_descriptor();
     }
@@ -78,7 +94,7 @@ const VisualModelDescriptor* selected_visual_model_descriptor(std::string_view s
 
 std::string canonical_visual_backend_id(std::string_view selected_id)
 {
-    if (is_custom_visual_model_id(selected_id)) {
+    if (is_custom_visual_model_id(selected_id) || is_api_visual_model_id(selected_id)) {
         return std::string(selected_id);
     }
     const auto* descriptor = selected_visual_model_descriptor(selected_id);

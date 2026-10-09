@@ -42,6 +42,7 @@ public:
      */
     static std::vector<std::string> local_builtin_labels(const LLMSelectionDialog& dialog);
     static void select_visual_backend(LLMSelectionDialog& dialog, const std::string& backend_id);
+    static bool llm_concurrency_enabled(const LLMSelectionDialog& dialog);
     static void set_network_available_override(LLMSelectionDialog& dialog, std::optional<bool> value);
 };
 

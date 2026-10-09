@@ -1581,6 +1581,9 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_headless_status_json.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_single_instance_coordinator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_cuda_probe.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_concurrency.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_openai_vision.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_api_visual_backend.cpp"
     )
 
     aifs_add_windows_test_executable(aifs_storage_plugin_stub

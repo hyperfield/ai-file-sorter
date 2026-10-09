@@ -59,6 +59,13 @@ void CustomApiDialog::setup_ui()
 
     layout->addLayout(form);
 
+    supports_vision_checkbox = new QCheckBox(tr("Supports image / vision requests"), this);
+    auto* vision_hint = new QLabel(
+        tr("Enable this when the selected model accepts OpenAI-compatible image_url content."), this);
+    vision_hint->setWordWrap(true);
+    layout->addWidget(supports_vision_checkbox);
+    layout->addWidget(vision_hint);
+
     auto* hint = new QLabel(tr("Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint."), this);
     hint->setWordWrap(true);
     layout->addWidget(hint);
@@ -93,6 +100,7 @@ void CustomApiDialog::apply_existing(const CustomApiEndpoint& existing)
     base_url_edit->setText(QString::fromStdString(existing.base_url));
     model_edit->setText(QString::fromStdString(existing.model));
     api_key_edit->setText(QString::fromStdString(existing.api_key));
+    supports_vision_checkbox->setChecked(existing.supports_vision);
     validate_inputs();
 }
 
@@ -114,5 +122,6 @@ CustomApiEndpoint CustomApiDialog::result() const
     endpoint.base_url = base_url_edit->text().trimmed().toStdString();
     endpoint.model = model_edit->text().trimmed().toStdString();
     endpoint.api_key = api_key_edit->text().trimmed().toStdString();
+    endpoint.supports_vision = supports_vision_checkbox->isChecked();
     return endpoint;
 }

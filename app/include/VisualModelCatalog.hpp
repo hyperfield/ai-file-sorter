@@ -114,6 +114,27 @@ std::optional<std::string> custom_llm_id_from_visual_model_id(std::string_view v
 bool is_custom_visual_model_id(std::string_view visual_model_id);
 
 /**
+ * @brief Build a persisted visual model id for an OpenAI-compatible API endpoint.
+ * @param api_endpoint_id Custom API endpoint id.
+ * @return Visual model id in `api:<id>` form, or empty when the id is empty.
+ */
+std::string api_visual_model_id_for_endpoint(std::string_view api_endpoint_id);
+
+/**
+ * @brief Extract a custom API endpoint id from a persisted visual model id.
+ * @param visual_model_id Visual model id to parse.
+ * @return Endpoint id when the value uses the `api:<id>` form.
+ */
+std::optional<std::string> api_endpoint_id_from_visual_model_id(std::string_view visual_model_id);
+
+/**
+ * @brief Return whether a visual model id references an OpenAI-compatible API endpoint.
+ * @param visual_model_id Visual model id to inspect.
+ * @return True when the id uses the `api:<id>` form.
+ */
+bool is_api_visual_model_id(std::string_view visual_model_id);
+
+/**
  * @brief Return the canonical on-disk location for a visual model artifact.
  * @param backend Backend descriptor owning the artifact.
  * @param artifact Artifact descriptor to resolve.

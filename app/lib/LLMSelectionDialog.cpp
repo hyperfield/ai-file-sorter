@@ -425,6 +425,28 @@ void LLMSelectionDialog::setup_ui()
     custom_api_layout->addWidget(delete_custom_api_button);
     custom_api_layout->addStretch(1);
 
+    auto* llm_concurrency_row = new QWidget(radio_container);
+    auto* llm_concurrency_layout = new QHBoxLayout(llm_concurrency_row);
+    llm_concurrency_layout->setContentsMargins(24, 0, 0, 0);
+    const QString llm_concurrency_help = tr(
+        "Maximum number of API requests processed simultaneously. Applies to OpenAI-compatible text "
+        "categorization and to image analysis with an API visual backend. Higher values can improve "
+        "throughput when the server supports parallel requests, but use more memory.");
+    llm_concurrency_label = new QLabel(tr("LLM concurrent requests"), llm_concurrency_row);
+    llm_concurrency_label->setToolTip(llm_concurrency_help);
+    llm_concurrency_combo = new QComboBox(llm_concurrency_row);
+    llm_concurrency_combo->addItem(QStringLiteral("1"), 1);
+    llm_concurrency_combo->addItem(QStringLiteral("2"), 2);
+    llm_concurrency_combo->addItem(QStringLiteral("4"), 4);
+    llm_concurrency_combo->addItem(QStringLiteral("6"), 6);
+    llm_concurrency_combo->addItem(QStringLiteral("8"), 8);
+    llm_concurrency_combo->setToolTip(llm_concurrency_help);
+    const int concurrency_index = llm_concurrency_combo->findData(settings.get_llm_concurrency());
+    llm_concurrency_combo->setCurrentIndex(concurrency_index >= 0 ? concurrency_index : 0);
+    llm_concurrency_layout->addWidget(llm_concurrency_label);
+    llm_concurrency_layout->addWidget(llm_concurrency_combo);
+    llm_concurrency_layout->addStretch(1);
+
     custom_radio = new QRadioButton(
         tr("Custom local LLM (gguf)"), radio_container);
     custom_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
@@ -465,6 +487,7 @@ void LLMSelectionDialog::setup_ui()
     radio_layout->addWidget(custom_api_radio);
     radio_layout->addWidget(custom_api_desc);
     radio_layout->addWidget(custom_api_row);
+    radio_layout->addWidget(llm_concurrency_row);
     radio_layout->addWidget(custom_radio);
     radio_layout->addWidget(custom_row);
 
@@ -788,9 +811,18 @@ std::string LLMSelectionDialog::get_llm_storage_dir() const
     return model_storage_dir_;
 }
 
+int LLMSelectionDialog::get_llm_concurrency() const
+{
+    if (!llm_concurrency_combo) {
+        return settings.get_llm_concurrency();
+    }
+    return llm_concurrency_combo->currentData().toInt();
+}
+
 std::string LLMSelectionDialog::get_selected_visual_model_id() const
 {
-    if (is_custom_visual_model_id(selected_visual_model_id_)) {
+    if (is_custom_visual_model_id(selected_visual_model_id_)
+        || is_api_visual_model_id(selected_visual_model_id_)) {
         return selected_visual_model_id_;
     }
     if (const auto* descriptor = selected_visual_model_descriptor()) {
@@ -832,6 +864,7 @@ void LLMSelectionDialog::update_ui_for_choice()
     update_radio_selection();
     update_custom_choice_ui();
     update_custom_api_choice_ui();
+    update_llm_concurrency_ui();
     update_visual_llm_downloads();
 
     const bool is_local_builtin = (selected_choice == LLMChoice::Local_4b_Gemma
@@ -881,17 +914,19 @@ void LLMSelectionDialog::update_custom_choice_ui()
     const bool is_remote_custom = selected_choice == LLMChoice::Remote_Custom;
     const bool is_custom = selected_choice == LLMChoice::Custom;
     const bool show_model_sections = is_local_builtin || is_custom;
+    // The visual model picker also lists API endpoints, so it stays reachable for the custom API choice.
+    const bool show_visual_picker = show_model_sections || selected_choice == LLMChoice::Remote_Custom;
     if (download_toggle_button) {
-        download_toggle_button->setVisible(show_model_sections);
+        download_toggle_button->setVisible(show_visual_picker);
     }
     if (downloads_container) {
-        const bool show_downloads = show_model_sections && download_toggle_button
+        const bool show_downloads = show_visual_picker && download_toggle_button
             && download_toggle_button->isChecked();
         downloads_container->setVisible(show_downloads);
     }
     download_section->setVisible(is_local_builtin);
     if (visual_llm_download_section) {
-        visual_llm_download_section->setVisible(show_model_sections);
+        visual_llm_download_section->setVisible(show_visual_picker);
     }
     adjust_dialog_size();
     if (openai_inputs) {
@@ -983,6 +1018,21 @@ void LLMSelectionDialog::update_custom_api_choice_ui()
     set_status_message(selected_custom_api_id.empty()
         ? tr("Choose or add a custom API endpoint.")
         : tr("Custom API selected."));
+}
+
+void LLMSelectionDialog::update_llm_concurrency_ui()
+{
+    // Concurrency applies to OpenAI-compatible remote text choices and to API visual backends;
+    // other backends ignore the value.
+    const bool supported = selected_choice == LLMChoice::Remote_OpenAI
+        || selected_choice == LLMChoice::Remote_Custom
+        || is_api_visual_model_id(selected_visual_model_id_);
+    if (llm_concurrency_combo) {
+        llm_concurrency_combo->setEnabled(supported);
+    }
+    if (llm_concurrency_label) {
+        llm_concurrency_label->setEnabled(supported);
+    }
 }
 
 void LLMSelectionDialog::update_openai_fields_state()
@@ -1331,6 +1381,8 @@ void LLMSelectionDialog::refresh_custom_api_lists()
     }
     custom_api_combo->blockSignals(false);
     update_custom_api_buttons();
+    // API endpoints that support images are also offered as visual backends.
+    refresh_visual_backend_combo();
 }
 
 void LLMSelectionDialog::select_custom_by_id(const std::string& id)
@@ -1522,7 +1574,9 @@ void LLMSelectionDialog::refresh_visual_backend_combo()
     const auto items = LLMSelectionVisualBackendModel::build_visual_backend_items(
         settings.get_custom_llms(),
         tr("Recommended"),
-        tr("Custom: %1"));
+        tr("Custom: %1"),
+        settings.get_custom_api_endpoints(),
+        tr("API: %1"));
     const std::string target_id =
         LLMSelectionVisualBackendModel::choose_visual_backend_id(previous_id, items);
 
@@ -1541,6 +1595,7 @@ void LLMSelectionDialog::refresh_visual_backend_combo()
         selected_visual_model_id_.clear();
     }
     visual_backend_combo->blockSignals(false);
+    update_llm_concurrency_ui();
 }
 
 void LLMSelectionDialog::update_custom_buttons()
@@ -2008,26 +2063,24 @@ void LLMSelectionDialog::update_visual_backend_selection()
 {
     const std::string target_id =
         LLMSelectionVisualBackendModel::canonical_visual_backend_id(selected_visual_model_id_);
-    if (target_id.empty()) {
-        return;
-    }
-    selected_visual_model_id_ = target_id;
-    if (!visual_backend_combo) {
-        return;
-    }
-
-    int target_index = -1;
-    for (int i = 0; i < visual_backend_combo->count(); ++i) {
-        if (visual_backend_combo->itemData(i).toString().toStdString() == target_id) {
-            target_index = i;
-            break;
+    if (!target_id.empty()) {
+        selected_visual_model_id_ = target_id;
+        if (visual_backend_combo) {
+            int target_index = -1;
+            for (int i = 0; i < visual_backend_combo->count(); ++i) {
+                if (visual_backend_combo->itemData(i).toString().toStdString() == target_id) {
+                    target_index = i;
+                    break;
+                }
+            }
+            if (target_index >= 0 && visual_backend_combo->currentIndex() != target_index) {
+                visual_backend_combo->blockSignals(true);
+                visual_backend_combo->setCurrentIndex(target_index);
+                visual_backend_combo->blockSignals(false);
+            }
         }
     }
-    if (target_index >= 0 && visual_backend_combo->currentIndex() != target_index) {
-        visual_backend_combo->blockSignals(true);
-        visual_backend_combo->setCurrentIndex(target_index);
-        visual_backend_combo->blockSignals(false);
-    }
+    update_llm_concurrency_ui();
 }
 
 const VisualModelDescriptor* LLMSelectionDialog::selected_visual_model_descriptor() const
@@ -2336,6 +2389,11 @@ void LLMSelectionDialogTestAccess::select_visual_backend(LLMSelectionDialog& dia
     dialog.selected_visual_model_id_ = backend_id;
     dialog.update_visual_backend_selection();
     dialog.update_visual_llm_downloads();
+}
+
+bool LLMSelectionDialogTestAccess::llm_concurrency_enabled(const LLMSelectionDialog& dialog)
+{
+    return dialog.llm_concurrency_combo && dialog.llm_concurrency_combo->isEnabled();
 }
 
 void LLMSelectionDialogTestAccess::set_network_available_override(LLMSelectionDialog& dialog,

@@ -1856,6 +1856,341 @@ Procedure: Reload settings and retrieve the endpoint by ID.
 Expected outcome: All fields match the original, and the active endpoint ID is preserved.
 Run: `./build-tests/ai_file_sorter_tests "Custom API endpoints persist across Settings load/save"`
 
+### `tests/unit/test_llm_concurrency.cpp`
+
+#### Test case: LLM concurrency setting defaults to one and clamps to supported levels
+Purpose: Ensure the concurrent LLM request setting defaults to one and only stores the supported levels 1, 2, 4, 6, and 8.
+Setup: Load settings from an isolated config directory.
+Procedure: Read the default value, then call `set_llm_concurrency` with 2, 4, 1, 0, -3, 3, 6, 8, 7, 16, and 1000 and read back the stored value after each call.
+Expected outcome: The default is 1; 0 and negative values become 1, 3 becomes 2, 7 becomes 6, and 16 and 1000 become 8; supported levels are kept as-is.
+Run: `./build-tests/ai_file_sorter_tests "LLM concurrency setting defaults to one and clamps to supported levels"`
+
+#### Test case: LLM concurrency persists and reloads with clamping applied
+Purpose: Verify the concurrency value round-trips through `config.ini`.
+Setup: Use an isolated config directory; load settings, set concurrency to 4, and save.
+Procedure: Reload settings and check the value, then set 2, save, and reload again.
+Expected outcome: The saved value 4 reloads as 4, and the later value 2 reloads as 2.
+Run: `./build-tests/ai_file_sorter_tests "LLM concurrency persists and reloads with clamping applied"`
+
+#### Test case: Effective LLM concurrency applies only to OpenAI-compatible remote choices
+Purpose: Ensure only the OpenAI and custom OpenAI-compatible API choices use the configured concurrency.
+Setup: Create settings with concurrency 4.
+Procedure: Switch the LLM choice through `Remote_OpenAI`, `Remote_Custom`, `Remote_Gemini`, `Local_4b_Gemma`, and `Custom` and read `effective_llm_concurrency()` for each.
+Expected outcome: OpenAI and custom remote choices return 4; Gemini, built-in local, and custom local GGUF choices return 1.
+Run: `./build-tests/ai_file_sorter_tests "Effective LLM concurrency applies only to OpenAI-compatible remote choices"`
+
+#### Test case: BoundedWorkExecutor never runs more jobs than contexts and keeps input order
+Purpose: Verify the batch executor caps parallelism at the number of worker contexts and returns outcomes in input order.
+Setup: Eight integer inputs and four worker contexts; each job sleeps 40 ms while tracking how many jobs are active.
+Procedure: Run `BoundedWorkExecutor::run_batch` and record the peak number of concurrently active jobs.
+Expected outcome: Peak concurrency is greater than 1 and at most 4; every outcome is attempted and outcome `i` holds `i * 10`.
+Run: `./build-tests/ai_file_sorter_tests "BoundedWorkExecutor never runs more jobs than contexts and keeps input order"`
+
+#### Test case: BoundedWorkExecutor returns input order when jobs finish in reverse
+Purpose: Confirm results are indexed by input position even when jobs complete in reverse order.
+Setup: Four inputs and four contexts; job `i` sleeps for `30 * (4 - i)` ms and records its completion.
+Procedure: Run `BoundedWorkExecutor::run_batch` and inspect the completion order and each outcome.
+Expected outcome: The first job to complete is input 3, and outcome `i` holds value `i`.
+Run: `./build-tests/ai_file_sorter_tests "BoundedWorkExecutor returns input order when jobs finish in reverse"`
+
+#### Test case: BoundedWorkExecutor isolates a failing job and stop prevents new jobs
+Purpose: Ensure one failing job does not disturb the others and that a stop flag set before the run prevents any job from starting.
+Setup: Four inputs and two contexts; the job for value 1 throws. A second batch uses a stop flag that is already set.
+Procedure: Run the batch with the failing job, then run the second batch and count how many jobs start.
+Expected outcome: Outcomes 0, 2, and 3 hold their values and outcome 1 holds an error. With the stop flag set, no job starts and no outcome is attempted.
+Run: `./build-tests/ai_file_sorter_tests "BoundedWorkExecutor isolates a failing job and stop prevents new jobs"`
+
+#### Test case: Sequential categorization (concurrency 1) uses one client and one request at a time
+Purpose: Confirm that concurrency 1 keeps the original single-client, one-request-at-a-time behavior.
+Setup: Configure remote OpenAI settings with concurrency 1, an isolated database, and six file entries; use a probe client factory that counts calls and active requests.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the probe counters.
+Expected outcome: All six files are categorized, one client instance is created, and the peak number of concurrent requests is 1.
+Run: `./build-tests/ai_file_sorter_tests "Sequential categorization (concurrency 1) uses one client and one request at a time"`
+
+#### Test case: Concurrent categorization runs requests in parallel within the configured cap
+Purpose: Verify that concurrency 4 lets requests overlap without exceeding the cap and without sharing a client between threads.
+Setup: Configure concurrency 4 with eight file entries; each probe request takes 120 ms.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the probe counters.
+Expected outcome: All files are categorized; the peak number of concurrent requests is greater than 1 and at most 4; no client is entered by two threads at once.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization runs requests in parallel within the configured cap"`
+
+#### Test case: Concurrent categorization with concurrency 2 never exceeds two requests
+Purpose: Check the concurrency cap for the two-request setting.
+Setup: Configure concurrency 2 with six file entries; each probe request takes 80 ms.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the probe counters.
+Expected outcome: All files are categorized, the peak number of concurrent requests is at most 2, and exactly two client instances are created.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization with concurrency 2 never exceeds two requests"`
+
+#### Test case: Concurrent categorization creates one client per slot, not per file
+Purpose: Ensure the client pool is sized by the concurrency level rather than by the number of files.
+Setup: Configure concurrency 4 with twenty file entries and the default 60 ms probe delay.
+Procedure: Run `CategorizationService::categorize_entries` and read the instance count and shared-client violation count.
+Expected outcome: All files are categorized, between 1 and 4 client instances are created, and no shared-client violations are recorded.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization creates one client per slot, not per file"`
+
+#### Test case: Concurrent categorization commits results and completions in input order
+Purpose: Verify that results and completion callbacks follow input order even when replies arrive in reverse order.
+Setup: Configure concurrency 4 with four files named `order_a.txt` to `order_d.txt`; their probe delays are 300, 200, 100, and 10 ms, so they finish in reverse order. The completion and result callbacks record file names.
+Procedure: Run `CategorizationService::categorize_entries` with both callbacks.
+Expected outcome: The returned list, the result callback sequence, and the completion callback sequence all list `order_a` through `order_d` in that order.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization commits results and completions in input order"`
+
+#### Test case: Concurrent categorization failure reports once, does not duplicate completions, and propagates
+Purpose: Ensure a failed request is reported once, the exception reaches the caller, and completions are not duplicated.
+Setup: Configure concurrency 4 with four files; the probe throws a `runtime_error` for `fail_b.txt`, and each request takes 80 ms.
+Procedure: Run `CategorizationService::categorize_entries` and expect `std::runtime_error`; inspect the call count, completion callbacks, and progress messages.
+Expected outcome: The exception is rethrown; all four requests in the chunk were started; only `fail_a.txt` is recorded as completed; exactly one progress message contains `[LLM-ERROR]`.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization failure reports once, does not duplicate completions, and propagates"`
+
+#### Test case: Concurrent categorization honours stop: no new requests, no deadlock, unique completions
+Purpose: Verify that setting the stop flag during a run prevents new requests, the run finishes without deadlock, and each file completes at most once.
+Setup: Configure concurrency 4 with 24 file entries; each request takes 150 ms, and the stop flag is set once four requests have started.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the call count and completion callbacks.
+Expected outcome: Fewer than 24 requests are made but at least 4; all completion names are unique; the number of returned results does not exceed the number of completions.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization honours stop: no new requests, no deadlock, unique completions"`
+
+#### Test case: Concurrent categorization calls the client on the worker thread without spawning a helper thread
+Purpose: Verify that concurrent categorization reuses worker threads: the coordinator thread always serves the first client, and the number of distinct calling threads is bounded by the chunk count rather than one thread per request.
+Setup: Configure concurrency 2 with six files. A thread-recording client records which thread entered each client instance; each request sleeps 20 ms.
+Procedure: Run `CategorizationService::categorize_entries` and inspect the call count, the instance count, and the recorded thread ids.
+Expected outcome: Six calls are made across two client instances; instance 0 is entered by only one thread; the number of distinct calling threads is at most 1 plus the three chunks of two files, so no detached thread is started per request.
+Run: `./build-tests/ai_file_sorter_tests "Concurrent categorization calls the client on the worker thread without spawning a helper thread"`
+
+### `tests/unit/test_openai_vision.cpp`
+
+#### Test case: OpenAI vision payload uses standard chat content parts
+Purpose: Ensure the image request payload uses the standard OpenAI chat-completions content-part shape.
+Setup: Build a payload with a model name, a system message, a user prompt, a `data:image/jpeg` URL, and `max_tokens` 256.
+Procedure: Parse the JSON and inspect the model, `max_tokens`, and the message and content-part structure.
+Expected outcome: Two messages are present; the system message is a string; the user message is an array with a `text` part and an `image_url` part whose URL equals the data URL.
+Run: `./build-tests/ai_file_sorter_tests "OpenAI vision payload uses standard chat content parts"`
+
+#### Test case: OpenAI vision payload omits max_tokens when not positive
+Purpose: Confirm `max_tokens` is left out of the payload when the value is not positive.
+Setup: Build a payload with `max_tokens` 0.
+Procedure: Parse the JSON and check for a `max_tokens` member.
+Expected outcome: The payload has no `max_tokens` key.
+Run: `./build-tests/ai_file_sorter_tests "OpenAI vision payload omits max_tokens when not positive"`
+
+#### Test case: OpenAI vision preparation encodes opaque images as JPEG and alpha images as PNG
+Purpose: Verify the encoder chooses JPEG for opaque images and PNG for images with transparency.
+Setup: In a temporary directory, save an opaque 64x48 `photo.jpg` and a 64x48 ARGB `screenshot.png` with a semi-transparent fill.
+Procedure: Call `OpenAiVision::prepare_image_data_url` on each file.
+Expected outcome: The opaque image reports `image/jpeg` with a `data:image/jpeg;base64,` URL; the alpha image reports `image/png` with a `data:image/png;base64,` URL.
+Run: `./build-tests/ai_file_sorter_tests "OpenAI vision preparation encodes opaque images as JPEG and alpha images as PNG"`
+
+#### Test case: OpenAI vision preparation downscales large images and never upscales small ones
+Purpose: Check the 2048-pixel long-edge limit and confirm small images keep their original size.
+Setup: In a temporary directory, save a 4000x1000 PNG and a 64x48 PNG.
+Procedure: Prepare both files, decode the resulting data URLs, and read their dimensions.
+Expected outcome: The large image decodes to a width of `kMaxImageLongEdgePixels` (2048) and a height of 512; the small image stays 64x48.
+Run: `./build-tests/ai_file_sorter_tests "OpenAI vision preparation downscales large images and never upscales small ones"`
+
+#### Test case: OpenAI vision preparation reports undecodable files as errors
+Purpose: Ensure a file that is not a decodable image produces an error instead of an empty payload.
+Setup: Write the text "this is not an image" to `notes.jpg` in a temporary directory.
+Procedure: Call `OpenAiVision::prepare_image_data_url` on the file.
+Expected outcome: A `std::runtime_error` is thrown.
+Run: `./build-tests/ai_file_sorter_tests "OpenAI vision preparation reports undecodable files as errors"`
+
+#### Test case: LLM client advertises image input only where the transport supports it
+Purpose: Verify that the OpenAI-compatible `LLMClient` advertises image input while clients that do not support it do not.
+Setup: Create an `LLMClient` pointed at a local base URL, and a text-only client that uses the `ILLMClient` defaults.
+Procedure: Query `supports_image_input()` on both; call `complete_prompt_with_image` on the text-only client.
+Expected outcome: `LLMClient` reports image support; the text-only client does not, and its `complete_prompt_with_image` throws `std::runtime_error`.
+Run: `./build-tests/ai_file_sorter_tests "LLM client advertises image input only where the transport supports it"`
+
+#### Test case: Vision reply parser accepts plain JSON
+Purpose: Ensure `ApiImageAnalyzer::parse_vision_reply` reads a bare JSON object.
+Setup: Use a reply containing `description` and `suggested_name` fields.
+Procedure: Call `parse_vision_reply` on the reply.
+Expected outcome: The parsed description and suggested name match the JSON values.
+Run: `./build-tests/ai_file_sorter_tests "Vision reply parser accepts plain JSON"`
+
+#### Test case: Vision reply parser accepts a single fenced JSON block
+Purpose: Tolerate a Markdown code fence around the JSON reply.
+Setup: Use a reply wrapped in a ```` ```json ```` fenced block.
+Procedure: Call `parse_vision_reply` on the reply.
+Expected outcome: The description and suggested name are extracted.
+Run: `./build-tests/ai_file_sorter_tests "Vision reply parser accepts a single fenced JSON block"`
+
+#### Test case: Vision reply parser rejects malformed JSON and free text
+Purpose: Reject replies that are truncated, plain prose, or a JSON value that is not an object.
+Setup: Use an unterminated JSON object, a plain sentence, and a JSON array.
+Procedure: Call `parse_vision_reply` on each reply.
+Expected outcome: Each call throws `std::runtime_error`.
+Run: `./build-tests/ai_file_sorter_tests "Vision reply parser rejects malformed JSON and free text"`
+
+#### Test case: Vision reply parser tolerates a missing description but requires a suggested name
+Purpose: Make `description` optional while requiring `suggested_name` to be a non-blank string.
+Setup: Use a reply with only `suggested_name`; replies with only `description`, a blank name, and a numeric name.
+Procedure: Parse each reply.
+Expected outcome: The reply without a description yields an empty description and the expected name; the other three replies throw `std::runtime_error`.
+Run: `./build-tests/ai_file_sorter_tests "Vision reply parser tolerates a missing description but requires a suggested name"`
+
+#### Test case: API image analysis maps a reply to description and a sanitized filename with the original extension
+Purpose: Verify `ApiImageAnalyzer::analyze_image` maps the model reply to the result, sanitizes the name, keeps the original extension, and sends the expected request.
+Setup: Use a scripted vision client that returns a description and the name "Tabby cat on a sofa" for `C:/photos/IMG_0042.JPG`.
+Procedure: Call `analyze_image` and inspect the result and the values the client recorded (image path, `max_tokens`, and prompt).
+Expected outcome: The description is copied; the suggested name has no path separators, is at least 4 characters, and ends with `.JPG`; the client received the image path, `kVisionMaxTokens`, and a prompt that mentions `suggested_name`.
+Run: `./build-tests/ai_file_sorter_tests "API image analysis maps a reply to description and a sanitized filename with the original extension"`
+
+#### Test case: API image analysis fails per image when the reply has no usable name
+Purpose: Ensure an image whose reply lacks a usable `suggested_name` fails on its own.
+Setup: Use a scripted reply that contains only a description.
+Procedure: Call `analyze_image` on `scan.png`.
+Expected outcome: A `std::runtime_error` is thrown.
+Run: `./build-tests/ai_file_sorter_tests "API image analysis fails per image when the reply has no usable name"`
+
+#### Test case: Vision reply parser accepts a single JSON object surrounded by prose
+Purpose: Tolerate explanatory text before and after a single JSON object.
+Setup: Use a reply with an introductory sentence and a closing sentence around one JSON object.
+Procedure: Call `parse_vision_reply` on the reply.
+Expected outcome: The description and suggested name are extracted from the object.
+Run: `./build-tests/ai_file_sorter_tests "Vision reply parser accepts a single JSON object surrounded by prose"`
+
+#### Test case: Vision reply parser rejects prose with no JSON object and several JSON objects
+Purpose: Avoid guessing when a reply has no JSON object or more than one.
+Setup: Use a prose sentence with no JSON, and a reply that contains two JSON objects.
+Procedure: Call `parse_vision_reply` on each reply.
+Expected outcome: Both calls throw `std::runtime_error`.
+Run: `./build-tests/ai_file_sorter_tests "Vision reply parser rejects prose with no JSON object and several JSON objects"`
+
+#### Test case: Vision reply parser keeps braces inside JSON strings intact
+Purpose: Ensure brace matching ignores braces that appear inside JSON string values.
+Setup: Use a prefixed reply whose description contains `{OPEN}`.
+Procedure: Call `parse_vision_reply` on the reply.
+Expected outcome: The description is `A sign reading {OPEN}` and the suggested name is `open_sign`.
+Run: `./build-tests/ai_file_sorter_tests "Vision reply parser keeps braces inside JSON strings intact"`
+
+#### Test case: Message extraction returns final content and ignores reasoning when content is present
+Purpose: Confirm the final `content` is used when it is present, with `reasoning_content` kept separate.
+Setup: Use a chat-completions body whose assistant message has both `content` and `reasoning_content`.
+Procedure: Call `OpenAiVision::extract_assistant_message`.
+Expected outcome: `content` equals the JSON string from the content field, and `reasoning_content` is returned separately.
+Run: `./build-tests/ai_file_sorter_tests "Message extraction returns final content and ignores reasoning when content is present"`
+
+#### Test case: Message extraction reports empty content with a useful diagnostic
+Purpose: Ensure an empty reply with no reasoning produces a clear error.
+Setup: Use a chat-completions body with `content` set to an empty string and no reasoning.
+Procedure: Call `OpenAiVision::extract_assistant_message` and capture the exception.
+Expected outcome: A `std::runtime_error` is thrown whose message contains `empty content and no reasoning_content`.
+Run: `./build-tests/ai_file_sorter_tests "Message extraction reports empty content with a useful diagnostic"`
+
+#### Test case: Message extraction detects reasoning-only replies and says so
+Purpose: Tell the user that a reply carrying only reasoning output means server-side reasoning output should be turned off.
+Setup: Use a chat-completions body with `content` set to null and text only in `reasoning_content`.
+Procedure: Call `OpenAiVision::extract_assistant_message` and capture the exception.
+Expected outcome: A `std::runtime_error` is thrown whose message mentions `reasoning_content` and `reasoning output is on`.
+Run: `./build-tests/ai_file_sorter_tests "Message extraction detects reasoning-only replies and says so"`
+
+#### Test case: Message extraction rejects bodies that are not chat completions
+Purpose: Reject non-JSON bodies, such as an HTML error page, and responses without choices.
+Setup: Use the body `<html>502</html>` and a JSON body with an empty `choices` array.
+Procedure: Call `OpenAiVision::extract_assistant_message` on each body.
+Expected outcome: Both calls throw `std::runtime_error`.
+Run: `./build-tests/ai_file_sorter_tests "Message extraction rejects bodies that are not chat completions"`
+
+#### Test case: Image payload carries deterministic temperature and the structured response format
+Purpose: Verify the image payload sets temperature 0, `max_tokens` 512, and the strict `json_schema` response format.
+Setup: Build the response format with `ApiImageAnalyzer::build_image_analysis_response_format` and a payload with temperature 0.0 and `max_tokens` 512.
+Procedure: Parse the payload JSON and inspect the fields and the schema.
+Expected outcome: `temperature` is 0, `max_tokens` is 512, the response format type is `json_schema` named `image_analysis` with `strict` true, the schema requires two fields, and additional properties are not allowed.
+Run: `./build-tests/ai_file_sorter_tests "Image payload carries deterministic temperature and the structured response format"`
+
+#### Test case: API image analysis sends deterministic settings and the structured format
+Purpose: Ensure `analyze_image` requests temperature 0, `kVisionMaxTokens`, and the structured response format.
+Setup: Use a scripted vision client and the image path `bird.png`.
+Procedure: Call `analyze_image` and inspect the options the client recorded.
+Expected outcome: The recorded temperature is 0.0, `max_tokens` equals `kVisionMaxTokens`, and the response format contains `json_schema` and `suggested_name`.
+Run: `./build-tests/ai_file_sorter_tests "API image analysis sends deterministic settings and the structured format"`
+
+#### Test case: Four concurrent vision requests each return their own analysis
+Purpose: Check that `BoundedWorkExecutor` with one client per slot returns one analysis per image, in input order.
+Setup: Create four scripted vision clients and eight image names (`a.jpg` to `h.jpg`).
+Procedure: Run `BoundedWorkExecutor::run_batch` with `analyze_image` as the job.
+Expected outcome: All eight outcomes are attempted without error; each suggested name is longer than 4 characters and ends with the extension of its input file.
+Run: `./build-tests/ai_file_sorter_tests "Four concurrent vision requests each return their own analysis"`
+
+### `tests/unit/test_api_visual_backend.cpp`
+
+#### Test case: Custom API endpoints persist the vision flag and keep their id
+Purpose: Ensure `supports_vision` round-trips through `config.ini` and the endpoint id stays stable across updates.
+Setup: Use an isolated config directory; upsert a vision-capable endpoint with an empty id and save.
+Procedure: Reload settings and find the endpoint by its returned id; upsert the same id with `supports_vision` false, save, and reload again.
+Expected outcome: The first reload reports `supports_vision` true; after the update the reload reports false; the id is unchanged in both cases.
+Run: `./build-tests/ai_file_sorter_tests "Custom API endpoints persist the vision flag and keep their id"`
+
+#### Test case: Custom API endpoints saved without a vision field load as text-only
+Purpose: Keep configs written before the vision option existed loading as text-only endpoints.
+Setup: Save a vision-capable endpoint, then remove the `SupportsVision` line from `config.ini`.
+Procedure: Reload settings and find the endpoint by id.
+Expected outcome: The endpoint loads with the same id and name, and `supports_vision` is false.
+Run: `./build-tests/ai_file_sorter_tests "Custom API endpoints saved without a vision field load as text-only"`
+
+#### Test case: API visual backend ids are distinct from custom local ids
+Purpose: Ensure the `api:` and `custom:` visual backend id namespaces do not overlap.
+Setup: No fixture beyond the id strings.
+Procedure: Call `api_visual_model_id_for_endpoint`, `is_api_visual_model_id`, `is_custom_visual_model_id`, and `api_endpoint_id_from_visual_model_id` with sample ids, including an empty endpoint id and a bare `api:` prefix.
+Expected outcome: Endpoint `7f4c` maps to `api:7f4c`; an empty endpoint id maps to an empty string; `api:` is not a valid API id; `api:` and `custom:` ids are mutually exclusive.
+Run: `./build-tests/ai_file_sorter_tests "API visual backend ids are distinct from custom local ids"`
+
+#### Test case: Visual backend list offers only vision-capable API endpoints
+Purpose: Ensure the visual backend picker lists only vision-capable API endpoints, labelled `API: <name>`.
+Setup: Provide one vision-capable endpoint (`Unsloth Local`) and one text-only endpoint.
+Procedure: Call `LLMSelectionVisualBackendModel::build_visual_backend_items` and look up both ids and the label of the vision entry.
+Expected outcome: `api:api_vis` appears with the label `API: Unsloth Local`; `api:api_txt` is absent; the built-in default entry keeps its id.
+Run: `./build-tests/ai_file_sorter_tests "Visual backend list offers only vision-capable API endpoints"`
+
+#### Test case: Visual backend list keeps existing custom local ids unchanged
+Purpose: Ensure adding API entries does not change the ids of existing custom local visual backends.
+Setup: Provide a custom local LLM with id `llm1` that has an MMProj path, plus one vision-capable API endpoint.
+Procedure: Build the visual backend items and look up `custom:llm1` and `api:api_vis`.
+Expected outcome: Both ids are present in the list.
+Run: `./build-tests/ai_file_sorter_tests "Visual backend list keeps existing custom local ids unchanged"`
+
+#### Test case: Deleted API visual selection falls back to the default visual backend
+Purpose: Handle a saved selection that points to an API endpoint that no longer exists.
+Setup: Build the items list with only the `api_vis` endpoint; the saved selection is `api:api_gone`.
+Procedure: Call `LLMSelectionVisualBackendModel::choose_visual_backend_id`.
+Expected outcome: The default visual model descriptor id is returned.
+Run: `./build-tests/ai_file_sorter_tests "Deleted API visual selection falls back to the default visual backend"`
+
+#### Test case: API visual selections are canonical and have no local descriptor
+Purpose: Ensure `api:` selections are kept unchanged and do not map to a local model descriptor.
+Setup: Use the id `api:api_vis`.
+Procedure: Call `canonical_visual_backend_id` and `selected_visual_model_descriptor` for the id.
+Expected outcome: The canonical id is `api:api_vis`, and the descriptor is null.
+Run: `./build-tests/ai_file_sorter_tests "API visual selections are canonical and have no local descriptor"`
+
+#### Test case: Settings keep an API visual model id instead of resetting it
+Purpose: Ensure `Settings` does not replace an `api:` visual model id with the default.
+Setup: Load settings from an isolated config directory.
+Procedure: Call `set_visual_model_id("api:api_vis")` and read it back with `get_visual_model_id()`; the test does not save or reload.
+Expected outcome: `get_visual_model_id()` returns `api:api_vis`.
+Run: `./build-tests/ai_file_sorter_tests "Settings keep an API visual model id instead of resetting it"`
+
+#### Test case: API visual backend never resolves local model files
+Purpose: Ensure the visual runtime never treats an `api:` selection as local GGUF or MMProj files.
+Setup: Use the id `api:api_vis` with empty model and path inputs.
+Procedure: Call `VisualLlmRuntime::resolve_active_backend` and `VisualLlmRuntime::resolve_paths`.
+Expected outcome: No backend is resolved and an error message is returned; `resolve_paths` returns no value.
+Run: `./build-tests/ai_file_sorter_tests "API visual backend never resolves local model files"`
+
+#### Test case: API visual endpoint resolution explains each failure
+Purpose: Verify `ApiImageAnalyzer::resolve_visual_api_endpoint` returns the endpoint or a specific error for each failure.
+Setup: Provide a vision-capable endpoint (`api_vis`), a text-only endpoint (`api_txt`), and an endpoint with an empty model (`api_bad`).
+Procedure: Resolve `api:api_vis`, `api:api_txt`, `api:api_bad`, `api:api_gone`, and `custom:llm1`, capturing the error for each failure.
+Expected outcome: `api:api_vis` resolves to `Unsloth Local`; the text-only error mentions "image"; the incomplete endpoint error mentions "incomplete"; the missing endpoint error mentions "missing"; the custom id error mentions "not an API endpoint".
+Run: `./build-tests/ai_file_sorter_tests "API visual endpoint resolution explains each failure"`
+
+#### Test case: LLM concurrency control is enabled for an API visual backend even with a local text model
+Purpose: Ensure the LLM concurrent requests control in the selection dialog is enabled when an API visual backend is selected, even though the text model is local.
+Setup: Use an isolated config directory and a Qt test context. Set the text LLM choice to `Local_4b_Gemma`, add a vision-capable API endpoint named `Unsloth Local`, and create an `LLMSelectionDialog`.
+Procedure: Use `LLMSelectionDialogTestAccess` to select the default visual backend and read whether the concurrency control is enabled; then select the `api:<endpoint id>` visual backend and read it again.
+Expected outcome: The concurrency control is disabled for the default visual backend and enabled for the API visual backend.
+Run: `./build-tests/ai_file_sorter_tests "LLM concurrency control is enabled for an API visual backend even with a local text model"`
+
 ### `tests/unit/test_remote_api_error.cpp`
 
 #### Test case: RemoteApiError parses numeric Retry-After headers

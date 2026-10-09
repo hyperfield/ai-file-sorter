@@ -10,6 +10,7 @@ namespace {
 
 constexpr std::string_view kLegacyDefaultLlavaBackendId = "llava-v1.6-mistral-7b";
 constexpr std::string_view kCustomVisualModelIdPrefix = "custom:";
+constexpr std::string_view kApiVisualModelIdPrefix = "api:";
 
 std::optional<std::string> read_cached_download_url(const std::filesystem::path& candidate)
 {
@@ -199,6 +200,33 @@ std::optional<std::string> custom_llm_id_from_visual_model_id(std::string_view v
 bool is_custom_visual_model_id(std::string_view visual_model_id)
 {
     return custom_llm_id_from_visual_model_id(visual_model_id).has_value();
+}
+
+std::string api_visual_model_id_for_endpoint(std::string_view api_endpoint_id)
+{
+    if (api_endpoint_id.empty()) {
+        return {};
+    }
+    std::string id(kApiVisualModelIdPrefix);
+    id.append(api_endpoint_id);
+    return id;
+}
+
+std::optional<std::string> api_endpoint_id_from_visual_model_id(std::string_view visual_model_id)
+{
+    if (visual_model_id.rfind(kApiVisualModelIdPrefix, 0) != 0) {
+        return std::nullopt;
+    }
+    const auto id = visual_model_id.substr(kApiVisualModelIdPrefix.size());
+    if (id.empty()) {
+        return std::nullopt;
+    }
+    return std::string(id);
+}
+
+bool is_api_visual_model_id(std::string_view visual_model_id)
+{
+    return api_endpoint_id_from_visual_model_id(visual_model_id).has_value();
 }
 
 std::filesystem::path visual_artifact_storage_path(const VisualModelDescriptor& backend,

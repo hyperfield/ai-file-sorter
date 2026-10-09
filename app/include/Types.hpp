@@ -83,6 +83,8 @@ struct CustomApiEndpoint {
     std::string base_url;
     std::string api_key;
     std::string model;
+    /** @brief True when the model accepts OpenAI-compatible image_url content. */
+    bool supports_vision{false};
 };
 
 /**

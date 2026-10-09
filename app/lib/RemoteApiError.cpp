@@ -273,7 +273,7 @@ std::string extract_error_message(std::string_view payload)
     if (!message.empty()) {
         oss << ": " << message;
     }
-    throw std::runtime_error(oss.str());
+    throw HttpStatusError(oss.str(), http_code);
 }
 
 } // namespace RemoteApiError

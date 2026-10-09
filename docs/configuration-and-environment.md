@@ -44,6 +44,22 @@ normal setup and usage.
 These knobs are most useful when diagnosing slow providers, rate-limited
 providers, or local runtime issues.
 
+## config.ini keys for concurrency and API vision
+
+- `[Settings] LlmConcurrentRequests` sets how many LLM requests run in parallel:
+  `1`, `2`, `4`, `6`, or `8` (default `1`). Other values round down to the
+  nearest supported level, and values below 1 become `1`. It applies to ChatGPT
+  and custom OpenAI-compatible text requests, and to image analysis through an
+  OpenAI-compatible visual API endpoint. Gemini and local GGUF models always run
+  one request at a time. Each in-flight request counts against
+  `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`, including server queue time.
+- `[CustomApi_<id>] SupportsVision=true|false` marks a custom API endpoint as
+  able to accept image input. A missing key reads as `false`, so older configs
+  stay text-only. Vision-capable endpoints appear as `API: <name>` in the visual
+  backend picker.
+- `[Settings] VisualModelId=api:<endpoint id>` selects such an endpoint as the
+  image analysis backend. No GGUF or `mmproj` files are needed for it.
+
 ## Headless setting overlays
 
 Headless callers can pass `--settings-overrides-file <json-file>` to inject a

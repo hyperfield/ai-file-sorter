@@ -60,6 +60,7 @@ private:
     QLineEdit* model_edit{nullptr};
     QLineEdit* api_key_edit{nullptr};
     QCheckBox* show_api_key_checkbox{nullptr};
+    QCheckBox* supports_vision_checkbox{nullptr};
     QPushButton* ok_button{nullptr};
 };
 

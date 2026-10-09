@@ -76,6 +76,17 @@ public:
      */
     static bool is_supported_image(const std::filesystem::path& path);
 
+    /**
+     * @brief Turns a model-suggested name into a safe filename that keeps the original extension.
+     *
+     * Shared with other visual backends so every image analyzer applies the same rules.
+     * @param raw_name Raw model reply for the filename.
+     * @param original_path Original image path (supplies the extension).
+     * @return Sanitized filename, or an empty string when nothing usable remains.
+     */
+    static std::string make_suggested_filename(const std::string& raw_name,
+                                               const std::filesystem::path& original_path);
+
 private:
 #ifdef AI_FILE_SORTER_HAS_MTMD
     /**
@@ -113,9 +124,9 @@ private:
      * @param max_length Max character length.
      * @return Sanitized filename.
      */
-    std::string sanitize_filename(const std::string& value,
-                                  size_t max_words,
-                                  size_t max_length) const;
+    static std::string sanitize_filename(const std::string& value,
+                                         size_t max_words,
+                                         size_t max_length);
 
     /**
      * @brief Trims whitespace from both ends of a string.

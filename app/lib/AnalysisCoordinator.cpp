@@ -2,6 +2,8 @@
 
 #include "AnalysisEntryRouter.hpp"
 #include "AnalysisProgress.hpp"
+#include "ApiImageAnalyzer.hpp"
+#include "BoundedWorkExecutor.hpp"
 #include "CategoryDateSuffix.hpp"
 #include "CategorizationService.hpp"
 #include "DatabaseManager.hpp"
@@ -10,12 +12,15 @@
 #include "ILLMClient.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "ImageRenameMetadataService.hpp"
+#include "LLMClient.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "MediaRenameMetadataService.hpp"
+#include "RemoteApiError.hpp"
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
+#include "VisualModelCatalog.hpp"
 
 #include <QByteArray>
 #include <QObject>
@@ -25,6 +30,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
@@ -57,6 +63,26 @@ std::string to_utf8(const QString& value)
 {
     const QByteArray bytes = value.toUtf8();
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+}
+
+// True when an HTTP status means the endpoint or model cannot take image input at all, so the rest of the
+// folder should not be sent. 400/422 are ambiguous (they can also mean one oversized image), so they only
+// count as endpoint-wide before any image has succeeded through the API.
+bool is_endpoint_wide_rejection(long status_code, bool any_image_succeeded)
+{
+    switch (status_code) {
+        case 401:
+        case 403:
+        case 404:
+        case 405:
+        case 415:
+            return true;
+        case 400:
+        case 422:
+            return !any_image_succeeded;
+        default:
+            return false;
+    }
 }
 
 std::string trim_copy(const std::string& value)
@@ -235,6 +261,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
 {
     const std::string directory_path = app_.get_folder_path();
     app_.core_logger->info("Starting analysis for directory '{}'", directory_path);
+    app_.core_logger->info("LLM API concurrency: {}", app_.settings.effective_llm_concurrency());
 
     bool stop_requested = false;
     auto update_stop = [this, &stop_requested]() {
@@ -935,18 +962,23 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 }
             };
 
+            // API endpoints bypass the local runtime entirely: no GGUF/MMProj resolution happens for them.
+            const bool use_api_visual_backend = is_api_visual_model_id(app_.settings.get_visual_model_id());
             std::string error;
-            auto visual_backend =
-                VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
-                                                         app_.settings.get_custom_llms(),
-                                                         &error);
-            if (!visual_backend) {
-                throw std::runtime_error(error);
-            }
-            if (app_.core_logger && visual_backend->descriptor) {
-                app_.core_logger->info("Using visual backend '{}' ({})",
-                                       visual_backend->descriptor->display_name,
-                                       visual_backend->descriptor->id);
+            std::optional<VisualLlmRuntime::Backend> visual_backend;
+            if (!use_api_visual_backend) {
+                visual_backend =
+                    VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
+                                                             app_.settings.get_custom_llms(),
+                                                             &error);
+                if (!visual_backend) {
+                    throw std::runtime_error(error);
+                }
+                if (app_.core_logger && visual_backend->descriptor) {
+                    app_.core_logger->info("Using visual backend '{}' ({})",
+                                           visual_backend->descriptor->display_name,
+                                           visual_backend->descriptor->id);
+                }
             }
 
             ImageAnalyzerSettings vision_settings;
@@ -1093,114 +1125,116 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 return ImageAnalyzerFactory::create(*visual_backend, vision_settings);
             };
 
-            std::unique_ptr<ImageAnalyzer> analyzer;
-            bool skip_visual_analysis = false;
-            std::string skip_visual_reason;
-            try {
-                analyzer = create_analyzer();
-            } catch (const std::exception& ex) {
-                const bool retry_on_cpu = should_retry_on_cpu(ex);
+            if (use_api_visual_backend) {
+                const auto api_endpoint = ApiImageAnalyzer::resolve_visual_api_endpoint(
+                    app_.settings.get_visual_model_id(),
+                    app_.settings.get_custom_api_endpoints(),
+                    &error);
+                if (!api_endpoint) {
+                    throw std::runtime_error(error);
+                }
+                app_.append_progress(to_utf8(app_.tr("[VISION] Using OpenAI-compatible API visual backend: %1")
+                                                 .arg(QString::fromStdString(api_endpoint->name))));
                 if (app_.core_logger) {
-                    app_.core_logger->warn(
-                        "Visual analyzer initialization failed (retryable_on_cpu={}): {}",
-                        retry_on_cpu,
-                        ex.what());
+                    app_.core_logger->info("Using OpenAI-compatible API visual backend '{}' (model '{}')",
+                                           api_endpoint->name,
+                                           api_endpoint->model);
                 }
-                if (!(allow_visual_cpu_fallback && retry_on_cpu)) {
-                    skip_visual_analysis = true;
-                    skip_visual_reason = ex.what();
-                    if (app_.core_logger) {
-                        app_.core_logger->warn(
-                            "Visual analysis disabled after initialization failure.");
-                    }
-                } else {
-                    if (!visual_cpu_fallback_choice.has_value()) {
-                        visual_cpu_fallback_choice = app_.prompt_visual_cpu_fallback(ex.what());
-                    }
-                    if (!visual_cpu_fallback_choice.value()) {
-                        throw AnalysisCancelled("Visual CPU fallback declined.");
-                    } else {
-                        app_.append_progress(
-                            to_utf8(app_.tr("[VISION] Switching visual analysis to CPU.")));
-                        vision_settings.use_gpu = false;
-                        visual_cpu_fallback_active = true;
-                        if (app_.core_logger) {
-                            app_.core_logger->warn(
-                                "Retrying visual analyzer initialization on CPU after GPU failure: {}",
-                                ex.what());
-                        }
-                        try {
-                            analyzer = create_analyzer();
-                            if (app_.core_logger) {
-                                app_.core_logger->info(
-                                    "Visual analyzer CPU fallback initialized successfully.");
-                            }
-                        } catch (const std::exception& init_ex) {
-                            skip_visual_analysis = true;
-                            skip_visual_reason = init_ex.what();
-                            if (app_.core_logger) {
-                                app_.core_logger->error(
-                                    "Visual analyzer CPU fallback initialization failed: {}",
-                                    init_ex.what());
-                            }
-                        }
-                    }
-                }
-            }
 
-            if (skip_visual_analysis) {
-                confirm_visual_filename_fallback(skip_visual_reason);
-                if (!skip_visual_reason.empty()) {
-                    if (app_.core_logger) {
-                        app_.core_logger->warn(
-                            "Visual analysis disabled; falling back to filenames: {}",
-                            skip_visual_reason);
-                    }
-                    app_.append_progress(
-                        to_utf8(app_.tr("[VISION-ERROR] %1")
-                                    .arg(QString::fromStdString(skip_visual_reason))));
+                // Each worker slot owns one client for the endpoint. An image is decoded, scaled and encoded
+                // on its worker only while that request is active, so encoded payloads never exceed the slots.
+                const size_t visual_concurrency = std::max<size_t>(1, app_.settings.get_llm_concurrency());
+                std::vector<std::unique_ptr<ILLMClient>> visual_clients;
+                visual_clients.reserve(visual_concurrency);
+                for (size_t slot = 0; slot < visual_concurrency; ++slot) {
+                    auto client = std::make_unique<LLMClient>(api_endpoint->api_key,
+                                                              api_endpoint->model,
+                                                              api_endpoint->base_url);
+                    client->set_prompt_logging_enabled(app_.should_log_prompts());
+                    visual_clients.push_back(std::move(client));
                 }
-                app_.append_progress(to_utf8(
-                    app_.tr("[VISION] Visual analysis disabled; falling back to filenames.")));
-                for (const auto& entry : image_entries) {
+                // One batch per round of requests, so the "Analyzing" lines match the requests in flight.
+                const size_t visual_chunk_size = visual_concurrency;
+
+                struct PendingImage {
+                    FileEntry entry;
+                    bool already_renamed{false};
+                    bool visual_only{false};
+                    std::optional<std::string> cached_suggestion;
+                    bool needs_request{false};
+                    size_t analysis_index{0};
+                };
+
+                // Set when the endpoint rejects requests for every image (for example a text-only model).
+                // Remaining images then skip the server, and the user is asked before continuing.
+                std::optional<std::string> endpoint_failure;
+                bool any_image_succeeded = false;
+
+                for (size_t chunk_begin = 0; chunk_begin < image_entries.size(); chunk_begin += visual_chunk_size) {
                     if (update_stop()) {
                         break;
                     }
-                    const bool already_renamed = renamed_files.contains(entry_key(entry));
-                    if (already_renamed && rename_images_only) {
-                        continue;
-                    }
-                    const bool visual_only = cached_visual_indices.contains(entry_key(entry));
-                    analyzed_image_entries.push_back(entry);
-                    cache_image_date(entry);
-                    app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
-                    handle_visual_failure(entry, std::string(), already_renamed, false, visual_only);
-                    app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis, entry);
-                }
-            } else {
-                bool stop_visual_analysis = false;
-                for (size_t index = 0; index < image_entries.size(); ++index) {
-                    const auto& entry = image_entries[index];
-                    if (update_stop()) {
-                        break;
-                    }
-                    const bool already_renamed = renamed_files.contains(entry_key(entry));
-                    if (already_renamed && rename_images_only) {
-                        continue;
-                    }
-                    const bool visual_only = cached_visual_indices.contains(entry_key(entry));
-                    const auto cached_suggestion_it = cached_image_suggestions.find(entry_key(entry));
-                    const bool has_cached_suggestion = cached_suggestion_it != cached_image_suggestions.end();
-                    analyzed_image_entries.push_back(entry);
-                    cache_image_date(entry);
-                    app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
+                    const size_t chunk_end = std::min(image_entries.size(), chunk_begin + visual_chunk_size);
 
-                    while (true) {
+                    // Phase 1 (coordinator): decide what each image needs, in input order.
+                    std::vector<PendingImage> pending;
+                    std::vector<FileEntry> analysis_inputs;
+                    for (size_t index = chunk_begin; index < chunk_end; ++index) {
+                        if (update_stop()) {
+                            break;
+                        }
+                        const auto& entry = image_entries[index];
+                        const bool already_renamed = renamed_files.contains(entry_key(entry));
+                        if (already_renamed && rename_images_only) {
+                            continue;
+                        }
+                        const bool visual_only = cached_visual_indices.contains(entry_key(entry));
+                        const auto cached_suggestion_it = cached_image_suggestions.find(entry_key(entry));
+                        const bool has_cached_suggestion = cached_suggestion_it != cached_image_suggestions.end();
+                        cache_image_date(entry);
+                        app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
+
+                        PendingImage item;
+                        item.entry = entry;
+                        item.already_renamed = already_renamed;
+                        item.visual_only = visual_only;
+                        if (has_cached_suggestion) {
+                            item.cached_suggestion = cached_suggestion_it->second;
+                        } else if (!endpoint_failure) {
+                            item.needs_request = true;
+                            item.analysis_index = analysis_inputs.size();
+                            analysis_inputs.push_back(entry);
+                            app_.append_progress(to_utf8(
+                                app_.tr("[VISION] Analyzing %1").arg(QString::fromStdString(entry.file_name))));
+                        }
+                        pending.push_back(std::move(item));
+                    }
+
+                    // Phase 2 (workers): one multimodal request per image, at most visual_concurrency in flight.
+                    auto analysis_outcomes = BoundedWorkExecutor::run_batch(
+                        analysis_inputs,
+                        visual_clients,
+                        app_.stop_analysis,
+                        [](std::unique_ptr<ILLMClient>& client, size_t, const FileEntry& entry) {
+                            return ApiImageAnalyzer::analyze_image(*client, entry.full_path);
+                        });
+
+                    // Phase 3 (coordinator): commit in input order, mirroring the local visual path.
+                    for (auto& item : pending) {
+                        const auto& entry = item.entry;
+                        const bool already_renamed = item.already_renamed;
+                        const bool visual_only = item.visual_only;
+                        // Stop before this request began: the image was never analyzed, so it stays out of the review list.
+                        const bool never_attempted =
+                            item.needs_request && !analysis_outcomes[item.analysis_index].attempted();
+                        if (!never_attempted) {
+                            analyzed_image_entries.push_back(entry);
+                        }
                         try {
-                            if (has_cached_suggestion) {
+                            if (item.cached_suggestion) {
                                 app_.append_progress(to_utf8(app_.tr("[VISION] Using cached suggestion for %1")
                                                                  .arg(QString::fromStdString(entry.file_name))));
-                                const std::string prompt_name = cached_suggestion_it->second;
+                                const std::string prompt_name = *item.cached_suggestion;
                                 const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
                                 const std::string suggested_name =
                                     already_renamed ? std::string() : enriched_name;
@@ -1223,24 +1257,32 @@ AnalysisRunResult AnalysisCoordinator::execute()
                                 if (!rename_images_only && !visual_only) {
                                     image_entries_for_llm.push_back(entry);
                                 }
-                                app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis,
-                                                                        entry);
-                                break;
+                                app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
+                                continue;
                             }
 
-                            app_.append_progress(to_utf8(
-                                app_.tr("[VISION] Analyzing %1")
-                                    .arg(QString::fromStdString(entry.file_name))));
-                            const auto analysis = analyzer->analyze(entry.full_path);
-                            emit_visual_diagnostics(entry, analysis);
+                            if (!item.needs_request) {
+                                // The endpoint was already rejected; this image never reached the server.
+                                handle_visual_failure(entry, *endpoint_failure, already_renamed, false, visual_only);
+                                app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis, entry);
+                                continue;
+                            }
+                            auto& outcome = analysis_outcomes[item.analysis_index];
+                            if (!outcome.attempted()) {
+                                // Stop was requested before this image started.
+                                app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis, entry);
+                                continue;
+                            }
+                            if (outcome.error) {
+                                std::rethrow_exception(outcome.error);
+                            }
+                            const auto& analysis = *outcome.value;
+                            any_image_succeeded = true;
                             const std::string prompt_name = analysis.suggested_name;
                             const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
-                            const auto prompt_path = build_image_prompt_path(entry.full_path,
-                                                                             prompt_name,
-                                                                             analysis.description);
-
-                            const std::string suggested_name =
-                                already_renamed ? std::string() : enriched_name;
+                            const auto prompt_path =
+                                build_image_prompt_path(entry.full_path, prompt_name, analysis.description);
+                            const std::string suggested_name = already_renamed ? std::string() : enriched_name;
                             if (!rename_images_only) {
                                 persist_llm_suggestion_progress(entry, suggested_name);
                             }
@@ -1257,115 +1299,307 @@ AnalysisRunResult AnalysisCoordinator::execute()
                             if (visual_only) {
                                 update_cached_image_suggestion(entry, suggested_name);
                             }
-
                             if (!rename_images_only && !visual_only) {
                                 image_entries_for_llm.push_back(entry);
                             }
                             app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
-                            break;
                         } catch (const std::exception& ex) {
-                            const bool retry_on_cpu = should_retry_on_cpu(ex);
-                            if (!visual_cpu_fallback_active &&
-                                allow_visual_cpu_fallback &&
-                                retry_on_cpu) {
-                                if (app_.core_logger) {
-                                    app_.core_logger->warn(
-                                        "Visual analysis failed for '{}' with retryable GPU error: {}",
-                                        entry.file_name,
-                                        ex.what());
-                                }
-                                if (!visual_cpu_fallback_choice.has_value()) {
-                                    visual_cpu_fallback_choice = app_.prompt_visual_cpu_fallback(ex.what());
-                                }
-                                if (visual_cpu_fallback_choice.value()) {
-                                    app_.append_progress(to_utf8(
-                                        app_.tr("[VISION] GPU memory issue detected. Switching to CPU.")));
-                                    vision_settings.use_gpu = false;
-                                    visual_cpu_fallback_active = true;
-                                    if (app_.core_logger) {
-                                        app_.core_logger->warn(
-                                            "Retrying visual analysis on CPU for '{}'.",
-                                            entry.file_name);
-                                    }
-                                    try {
-                                        analyzer = create_analyzer();
-                                        if (app_.core_logger) {
-                                            app_.core_logger->info(
-                                                "Visual analyzer CPU fallback initialized successfully; retrying '{}'.",
-                                                entry.file_name);
-                                        }
-                                    } catch (const std::exception& init_ex) {
-                                        if (app_.core_logger) {
-                                            app_.core_logger->error(
-                                                "Visual analyzer CPU fallback initialization failed for '{}': {}",
-                                                entry.file_name,
-                                                init_ex.what());
-                                        }
-                                        handle_visual_failure(entry,
-                                                              init_ex.what(),
-                                                              already_renamed,
-                                                              true,
-                                                              visual_only);
-                                        app_.mark_progress_stage_item_skipped(
-                                            ProgressStageId::ImageAnalysis,
-                                            entry);
-                                        confirm_visual_filename_fallback(init_ex.what());
-                                        app_.append_progress(to_utf8(app_.tr(
-                                            "[VISION] Visual analysis disabled for remaining images.")));
-                                        stop_visual_analysis = true;
-                                    }
-                                    if (!stop_visual_analysis) {
-                                        continue;
-                                    }
-                                } else {
-                                    throw AnalysisCancelled("Visual CPU fallback declined.");
-                                }
-                            } else {
-                                if (app_.core_logger) {
-                                    app_.core_logger->warn("Visual analysis failed for '{}': {}",
-                                                           entry.file_name,
-                                                           ex.what());
-                                }
-                                handle_visual_failure(entry, ex.what(), already_renamed, true, visual_only);
+                            // Per-image failures fall back to the original filename, like local visual analysis.
+                            if (app_.core_logger) {
+                                app_.core_logger->warn("Visual analysis failed for '{}': {}", entry.file_name, ex.what());
                             }
+                            handle_visual_failure(entry, ex.what(), already_renamed, true, visual_only);
                             app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis, entry);
-                            break;
-                        }
-                    }
 
-                    if (stop_visual_analysis) {
-                        for (size_t remaining = index + 1; remaining < image_entries.size(); ++remaining) {
-                            if (update_stop()) {
-                                break;
+                            // A rejection that applies to every image (bad model or endpoint) should not be
+                            // repeated for the rest of the folder. Ask first, like the local visual path.
+                            // 400/422 only count as endpoint-wide before any image has succeeded; see is_endpoint_wide_rejection.
+                            const auto* http_error = dynamic_cast<const RemoteApiError::HttpStatusError*>(&ex);
+                            if (!endpoint_failure && http_error
+                                && is_endpoint_wide_rejection(http_error->status_code(), any_image_succeeded)) {
+                                endpoint_failure = ex.what();
+                                app_.append_progress(to_utf8(app_.tr(
+                                    "[VISION] The API endpoint rejected image analysis; remaining images will not be sent.")));
+                                confirm_visual_filename_fallback(ex.what());
                             }
-                            const auto& pending = image_entries[remaining];
-                            const bool pending_renamed = renamed_files.contains(entry_key(pending));
-                            if (pending_renamed && rename_images_only) {
-                                continue;
-                            }
-                            const bool pending_visual_only =
-                                cached_visual_indices.contains(entry_key(pending));
-                            analyzed_image_entries.push_back(pending);
-                            cache_image_date(pending);
-                            app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis,
-                                                                      pending);
-                            handle_visual_failure(pending,
-                                                  std::string(),
-                                                  pending_renamed,
-                                                  false,
-                                                  pending_visual_only);
-                            app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis,
-                                                                  pending);
                         }
-                        break;
                     }
                 }
-                if (analyzer) {
+            } else {
+                std::unique_ptr<ImageAnalyzer> analyzer;
+                bool skip_visual_analysis = false;
+                std::string skip_visual_reason;
+                try {
+                    analyzer = create_analyzer();
+                } catch (const std::exception& ex) {
+                    const bool retry_on_cpu = should_retry_on_cpu(ex);
                     if (app_.core_logger) {
-                        app_.core_logger->info(
-                            "Releasing visual analyzer before downstream LLM stages to free resources.");
+                        app_.core_logger->warn(
+                            "Visual analyzer initialization failed (retryable_on_cpu={}): {}",
+                            retry_on_cpu,
+                            ex.what());
                     }
-                    analyzer.reset();
+                    if (!(allow_visual_cpu_fallback && retry_on_cpu)) {
+                        skip_visual_analysis = true;
+                        skip_visual_reason = ex.what();
+                        if (app_.core_logger) {
+                            app_.core_logger->warn(
+                                "Visual analysis disabled after initialization failure.");
+                        }
+                    } else {
+                        if (!visual_cpu_fallback_choice.has_value()) {
+                            visual_cpu_fallback_choice = app_.prompt_visual_cpu_fallback(ex.what());
+                        }
+                        if (!visual_cpu_fallback_choice.value()) {
+                            throw AnalysisCancelled("Visual CPU fallback declined.");
+                        } else {
+                            app_.append_progress(
+                                to_utf8(app_.tr("[VISION] Switching visual analysis to CPU.")));
+                            vision_settings.use_gpu = false;
+                            visual_cpu_fallback_active = true;
+                            if (app_.core_logger) {
+                                app_.core_logger->warn(
+                                    "Retrying visual analyzer initialization on CPU after GPU failure: {}",
+                                    ex.what());
+                            }
+                            try {
+                                analyzer = create_analyzer();
+                                if (app_.core_logger) {
+                                    app_.core_logger->info(
+                                        "Visual analyzer CPU fallback initialized successfully.");
+                                }
+                            } catch (const std::exception& init_ex) {
+                                skip_visual_analysis = true;
+                                skip_visual_reason = init_ex.what();
+                                if (app_.core_logger) {
+                                    app_.core_logger->error(
+                                        "Visual analyzer CPU fallback initialization failed: {}",
+                                        init_ex.what());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (skip_visual_analysis) {
+                    confirm_visual_filename_fallback(skip_visual_reason);
+                    if (!skip_visual_reason.empty()) {
+                        if (app_.core_logger) {
+                            app_.core_logger->warn(
+                                "Visual analysis disabled; falling back to filenames: {}",
+                                skip_visual_reason);
+                        }
+                        app_.append_progress(
+                            to_utf8(app_.tr("[VISION-ERROR] %1")
+                                        .arg(QString::fromStdString(skip_visual_reason))));
+                    }
+                    app_.append_progress(to_utf8(
+                        app_.tr("[VISION] Visual analysis disabled; falling back to filenames.")));
+                    for (const auto& entry : image_entries) {
+                        if (update_stop()) {
+                            break;
+                        }
+                        const bool already_renamed = renamed_files.contains(entry_key(entry));
+                        if (already_renamed && rename_images_only) {
+                            continue;
+                        }
+                        const bool visual_only = cached_visual_indices.contains(entry_key(entry));
+                        analyzed_image_entries.push_back(entry);
+                        cache_image_date(entry);
+                        app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
+                        handle_visual_failure(entry, std::string(), already_renamed, false, visual_only);
+                        app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis, entry);
+                    }
+                } else {
+                    bool stop_visual_analysis = false;
+                    for (size_t index = 0; index < image_entries.size(); ++index) {
+                        const auto& entry = image_entries[index];
+                        if (update_stop()) {
+                            break;
+                        }
+                        const bool already_renamed = renamed_files.contains(entry_key(entry));
+                        if (already_renamed && rename_images_only) {
+                            continue;
+                        }
+                        const bool visual_only = cached_visual_indices.contains(entry_key(entry));
+                        const auto cached_suggestion_it = cached_image_suggestions.find(entry_key(entry));
+                        const bool has_cached_suggestion = cached_suggestion_it != cached_image_suggestions.end();
+                        analyzed_image_entries.push_back(entry);
+                        cache_image_date(entry);
+                        app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
+
+                        while (true) {
+                            try {
+                                if (has_cached_suggestion) {
+                                    app_.append_progress(to_utf8(app_.tr("[VISION] Using cached suggestion for %1")
+                                                                     .arg(QString::fromStdString(entry.file_name))));
+                                    const std::string prompt_name = cached_suggestion_it->second;
+                                    const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
+                                    const std::string suggested_name =
+                                        already_renamed ? std::string() : enriched_name;
+                                    const auto entry_path = Utils::utf8_to_path(entry.full_path);
+                                    const auto prompt_path = Utils::path_to_utf8(
+                                        entry_path.parent_path() / Utils::utf8_to_path(prompt_name));
+                                    image_info.emplace(entry_key(entry),
+                                                       ImageAnalysisInfo{
+                                                           suggested_name,
+                                                           std::nullopt,
+                                                           prompt_name,
+                                                           prompt_path,
+                                                           !suggested_name.empty()});
+                                    if (rename_images_only) {
+                                        persist_rename_only_progress(entry, suggested_name);
+                                    }
+                                    if (visual_only) {
+                                        update_cached_image_suggestion(entry, suggested_name);
+                                    }
+                                    if (!rename_images_only && !visual_only) {
+                                        image_entries_for_llm.push_back(entry);
+                                    }
+                                    app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis,
+                                                                            entry);
+                                    break;
+                                }
+
+                                app_.append_progress(to_utf8(
+                                    app_.tr("[VISION] Analyzing %1")
+                                        .arg(QString::fromStdString(entry.file_name))));
+                                const auto analysis = analyzer->analyze(entry.full_path);
+                                emit_visual_diagnostics(entry, analysis);
+                                const std::string prompt_name = analysis.suggested_name;
+                                const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
+                                const auto prompt_path = build_image_prompt_path(entry.full_path,
+                                                                                 prompt_name,
+                                                                                 analysis.description);
+
+                                const std::string suggested_name =
+                                    already_renamed ? std::string() : enriched_name;
+                                if (!rename_images_only) {
+                                    persist_llm_suggestion_progress(entry, suggested_name);
+                                }
+                                image_info.emplace(entry_key(entry),
+                                                   ImageAnalysisInfo{
+                                                       suggested_name,
+                                                       std::nullopt,
+                                                       prompt_name,
+                                                       prompt_path,
+                                                       !suggested_name.empty()});
+                                if (rename_images_only) {
+                                    persist_rename_only_progress(entry, suggested_name);
+                                }
+                                if (visual_only) {
+                                    update_cached_image_suggestion(entry, suggested_name);
+                                }
+
+                                if (!rename_images_only && !visual_only) {
+                                    image_entries_for_llm.push_back(entry);
+                                }
+                                app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
+                                break;
+                            } catch (const std::exception& ex) {
+                                const bool retry_on_cpu = should_retry_on_cpu(ex);
+                                if (!visual_cpu_fallback_active &&
+                                    allow_visual_cpu_fallback &&
+                                    retry_on_cpu) {
+                                    if (app_.core_logger) {
+                                        app_.core_logger->warn(
+                                            "Visual analysis failed for '{}' with retryable GPU error: {}",
+                                            entry.file_name,
+                                            ex.what());
+                                    }
+                                    if (!visual_cpu_fallback_choice.has_value()) {
+                                        visual_cpu_fallback_choice = app_.prompt_visual_cpu_fallback(ex.what());
+                                    }
+                                    if (visual_cpu_fallback_choice.value()) {
+                                        app_.append_progress(to_utf8(
+                                            app_.tr("[VISION] GPU memory issue detected. Switching to CPU.")));
+                                        vision_settings.use_gpu = false;
+                                        visual_cpu_fallback_active = true;
+                                        if (app_.core_logger) {
+                                            app_.core_logger->warn(
+                                                "Retrying visual analysis on CPU for '{}'.",
+                                                entry.file_name);
+                                        }
+                                        try {
+                                            analyzer = create_analyzer();
+                                            if (app_.core_logger) {
+                                                app_.core_logger->info(
+                                                    "Visual analyzer CPU fallback initialized successfully; retrying '{}'.",
+                                                    entry.file_name);
+                                            }
+                                        } catch (const std::exception& init_ex) {
+                                            if (app_.core_logger) {
+                                                app_.core_logger->error(
+                                                    "Visual analyzer CPU fallback initialization failed for '{}': {}",
+                                                    entry.file_name,
+                                                    init_ex.what());
+                                            }
+                                            handle_visual_failure(entry,
+                                                                  init_ex.what(),
+                                                                  already_renamed,
+                                                                  true,
+                                                                  visual_only);
+                                            app_.mark_progress_stage_item_skipped(
+                                                ProgressStageId::ImageAnalysis,
+                                                entry);
+                                            confirm_visual_filename_fallback(init_ex.what());
+                                            app_.append_progress(to_utf8(app_.tr(
+                                                "[VISION] Visual analysis disabled for remaining images.")));
+                                            stop_visual_analysis = true;
+                                        }
+                                        if (!stop_visual_analysis) {
+                                            continue;
+                                        }
+                                    } else {
+                                        throw AnalysisCancelled("Visual CPU fallback declined.");
+                                    }
+                                } else {
+                                    if (app_.core_logger) {
+                                        app_.core_logger->warn("Visual analysis failed for '{}': {}",
+                                                               entry.file_name,
+                                                               ex.what());
+                                    }
+                                    handle_visual_failure(entry, ex.what(), already_renamed, true, visual_only);
+                                }
+                                app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis, entry);
+                                break;
+                            }
+                        }
+
+                        if (stop_visual_analysis) {
+                            for (size_t remaining = index + 1; remaining < image_entries.size(); ++remaining) {
+                                if (update_stop()) {
+                                    break;
+                                }
+                                const auto& pending = image_entries[remaining];
+                                const bool pending_renamed = renamed_files.contains(entry_key(pending));
+                                if (pending_renamed && rename_images_only) {
+                                    continue;
+                                }
+                                const bool pending_visual_only =
+                                    cached_visual_indices.contains(entry_key(pending));
+                                analyzed_image_entries.push_back(pending);
+                                cache_image_date(pending);
+                                app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis,
+                                                                          pending);
+                                handle_visual_failure(pending,
+                                                      std::string(),
+                                                      pending_renamed,
+                                                      false,
+                                                      pending_visual_only);
+                                app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis,
+                                                                      pending);
+                            }
+                            break;
+                        }
+                    }
+                    if (analyzer) {
+                        if (app_.core_logger) {
+                            app_.core_logger->info(
+                                "Releasing visual analyzer before downstream LLM stages to free resources.");
+                        }
+                        analyzer.reset();
+                    }
                 }
             }
         }
@@ -1438,93 +1672,178 @@ AnalysisRunResult AnalysisCoordinator::execute()
             doc_settings.max_characters = std::min(doc_settings.max_characters, char_budget);
             DocumentTextAnalyzer doc_analyzer(doc_settings);
 
-            auto llm = app_.make_llm_client();
-            if (!llm) {
-                throw std::runtime_error("Failed to create LLM client.");
+            // Documents are analyzed by up to document_concurrency workers, each owning one client.
+            // Preparation and commit run on this thread in input order, so persistence, progress and
+            // cached suggestions observe the same sequence as a sequential run. With concurrency 1 each
+            // chunk holds one entry and the order of side effects is unchanged.
+            const size_t document_concurrency = std::max<size_t>(1, app_.settings.effective_llm_concurrency());
+            std::vector<std::unique_ptr<ILLMClient>> document_clients;
+            document_clients.reserve(document_concurrency);
+            for (size_t slot = 0; slot < document_concurrency; ++slot) {
+                auto client = app_.make_llm_client();
+                if (!client) {
+                    throw std::runtime_error("Failed to create LLM client.");
+                }
+                client->set_prompt_logging_enabled(app_.should_log_prompts());
+                document_clients.push_back(std::move(client));
             }
-            llm->set_prompt_logging_enabled(app_.should_log_prompts());
+            // One batch per round of requests, so the "Analyzing" lines match the requests in flight.
+            const size_t document_chunk_size = document_concurrency;
+            const auto document_stage_started = std::chrono::steady_clock::now();
+            size_t documents_processed = 0;
 
-            for (const auto& entry : document_entries) {
+            struct PendingDocument {
+                FileEntry entry;
+                bool already_renamed{false};
+                bool document_only{false};
+                std::optional<std::string> cached_suggestion;
+                size_t analysis_index{0};
+            };
+
+            for (size_t chunk_begin = 0; chunk_begin < document_entries.size(); chunk_begin += document_chunk_size) {
                 if (update_stop()) {
                     break;
                 }
-                const bool already_renamed = renamed_files.contains(entry_key(entry));
-                if (already_renamed && rename_documents_only) {
-                    continue;
-                }
-                const bool document_only = cached_document_indices.contains(entry_key(entry));
-                const auto cached_suggestion_it = cached_document_suggestions.find(entry_key(entry));
-                const bool has_cached_suggestion = cached_suggestion_it != cached_document_suggestions.end();
-                if (add_document_date && !document_dates.contains(entry_key(entry))) {
-                    const auto date =
-                        DocumentTextAnalyzer::extract_creation_date(Utils::utf8_to_path(entry.full_path));
-                    if (date) {
-                        document_dates.emplace(entry_key(entry), *date);
-                    }
-                }
-                analyzed_document_entries.push_back(entry);
-                app_.mark_progress_stage_item_in_progress(ProgressStageId::DocumentAnalysis, entry);
+                const size_t chunk_end = std::min(document_entries.size(), chunk_begin + document_chunk_size);
 
-                try {
+                // Phase 1 (coordinator): decide what each entry needs, in input order.
+                std::vector<PendingDocument> pending;
+                std::vector<FileEntry> analysis_inputs;
+                for (size_t index = chunk_begin; index < chunk_end; ++index) {
+                    if (update_stop()) {
+                        break;
+                    }
+                    const auto& entry = document_entries[index];
+                    const bool already_renamed = renamed_files.contains(entry_key(entry));
+                    if (already_renamed && rename_documents_only) {
+                        continue;
+                    }
+                    const bool document_only = cached_document_indices.contains(entry_key(entry));
+                    const auto cached_suggestion_it = cached_document_suggestions.find(entry_key(entry));
+                    const bool has_cached_suggestion = cached_suggestion_it != cached_document_suggestions.end();
+                    if (add_document_date && !document_dates.contains(entry_key(entry))) {
+                        const auto date =
+                            DocumentTextAnalyzer::extract_creation_date(Utils::utf8_to_path(entry.full_path));
+                        if (date) {
+                            document_dates.emplace(entry_key(entry), *date);
+                        }
+                    }
+                    app_.mark_progress_stage_item_in_progress(ProgressStageId::DocumentAnalysis, entry);
+
+                    PendingDocument item;
+                    item.entry = entry;
+                    item.already_renamed = already_renamed;
+                    item.document_only = document_only;
                     if (has_cached_suggestion) {
-                        app_.append_progress(to_utf8(app_.tr("[DOC] Using cached suggestion for %1")
-                                                         .arg(QString::fromStdString(entry.file_name))));
+                        item.cached_suggestion = cached_suggestion_it->second;
+                    } else {
+                        item.analysis_index = analysis_inputs.size();
+                        analysis_inputs.push_back(entry);
+                        app_.append_progress(to_utf8(
+                            app_.tr("[DOC] Analyzing %1").arg(QString::fromStdString(entry.file_name))));
+                    }
+                    pending.push_back(std::move(item));
+                }
+
+                // Phase 2 (workers): only the LLM-backed analysis runs off-thread. The analyzer is const;
+                // PDF text extraction inside it is serialized. Workers write nothing shared.
+                auto analysis_outcomes = BoundedWorkExecutor::run_batch(
+                    analysis_inputs,
+                    document_clients,
+                    app_.stop_analysis,
+                    [&doc_analyzer](std::unique_ptr<ILLMClient>& client, size_t, const FileEntry& entry) {
+                        return doc_analyzer.analyze(Utils::utf8_to_path(entry.full_path), *client);
+                    });
+
+                // Phase 3 (coordinator): commit in input order.
+                for (auto& item : pending) {
+                    const auto& entry = item.entry;
+                    const bool already_renamed = item.already_renamed;
+                    const bool document_only = item.document_only;
+                    // Stop before this request began: the document was never analyzed, so it stays out of the review list.
+                    const bool never_attempted =
+                        !item.cached_suggestion && !analysis_outcomes[item.analysis_index].attempted();
+                    if (!never_attempted) {
+                        analyzed_document_entries.push_back(entry);
+                    }
+                    try {
+                        if (item.cached_suggestion) {
+                            app_.append_progress(to_utf8(app_.tr("[DOC] Using cached suggestion for %1")
+                                                             .arg(QString::fromStdString(entry.file_name))));
+                            const std::string suggested_name =
+                                already_renamed ? std::string() : *item.cached_suggestion;
+                            const std::string prompt_name =
+                                resolve_document_prompt_name(entry.file_name, *item.cached_suggestion);
+                            document_info.emplace(entry_key(entry),
+                                                  DocumentAnalysisInfo{
+                                                      suggested_name,
+                                                      std::nullopt,
+                                                      prompt_name,
+                                                      build_document_prompt_path(entry.full_path, prompt_name, {}),
+                                                      !suggested_name.empty()});
+                            if (rename_documents_only) {
+                                persist_rename_only_progress(entry, suggested_name);
+                            }
+                            if (!rename_documents_only && !document_only) {
+                                document_entries_for_llm.push_back(entry);
+                            }
+                            app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
+                            ++documents_processed;
+                            continue;
+                        }
+
+                        auto& outcome = analysis_outcomes[item.analysis_index];
+                        if (!outcome.attempted()) {
+                            // Stop was requested before this document started.
+                            app_.mark_progress_stage_item_skipped(ProgressStageId::DocumentAnalysis, entry);
+                            continue;
+                        }
+                        if (outcome.error) {
+                            std::rethrow_exception(outcome.error);
+                        }
+                        const auto& analysis = *outcome.value;
+                        ++documents_processed;
                         const std::string suggested_name =
-                            already_renamed ? std::string() : cached_suggestion_it->second;
+                            already_renamed ? std::string() : analysis.suggested_name;
                         const std::string prompt_name =
-                            resolve_document_prompt_name(entry.file_name, cached_suggestion_it->second);
-                        document_info.emplace(entry_key(entry),
-                                              DocumentAnalysisInfo{
-                                                  suggested_name,
-                                                  std::nullopt,
-                                                  prompt_name,
-                                                  build_document_prompt_path(entry.full_path, prompt_name, {}),
-                                                  !suggested_name.empty()});
+                            resolve_document_prompt_name(entry.file_name, analysis.suggested_name);
+                        const std::string prompt_path =
+                            build_document_prompt_path(entry.full_path, prompt_name, analysis.summary);
+                        if (!rename_documents_only) {
+                            persist_llm_suggestion_progress(entry, suggested_name);
+                        }
+                        document_info.emplace(
+                            entry_key(entry),
+                            DocumentAnalysisInfo{
+                                suggested_name,
+                                std::nullopt,
+                                prompt_name,
+                                prompt_path,
+                                !suggested_name.empty()});
                         if (rename_documents_only) {
                             persist_rename_only_progress(entry, suggested_name);
+                        }
+                        if (document_only) {
+                            update_cached_document_suggestion(entry, suggested_name);
                         }
                         if (!rename_documents_only && !document_only) {
                             document_entries_for_llm.push_back(entry);
                         }
-                        app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis,
-                                                                entry);
-                        continue;
+                        app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
+                    } catch (const std::exception& ex) {
+                        handle_document_failure(entry, ex.what(), already_renamed, true, document_only);
+                        app_.mark_progress_stage_item_skipped(ProgressStageId::DocumentAnalysis, entry);
                     }
-
-                    app_.append_progress(to_utf8(
-                        app_.tr("[DOC] Analyzing %1").arg(QString::fromStdString(entry.file_name))));
-                    const auto analysis = doc_analyzer.analyze(Utils::utf8_to_path(entry.full_path), *llm);
-                    const std::string suggested_name =
-                        already_renamed ? std::string() : analysis.suggested_name;
-                    const std::string prompt_name =
-                        resolve_document_prompt_name(entry.file_name, analysis.suggested_name);
-                    const std::string prompt_path =
-                        build_document_prompt_path(entry.full_path, prompt_name, analysis.summary);
-                    if (!rename_documents_only) {
-                        persist_llm_suggestion_progress(entry, suggested_name);
-                    }
-                    document_info.emplace(
-                        entry_key(entry),
-                        DocumentAnalysisInfo{
-                            suggested_name,
-                            std::nullopt,
-                            prompt_name,
-                            prompt_path,
-                            !suggested_name.empty()});
-                    if (rename_documents_only) {
-                        persist_rename_only_progress(entry, suggested_name);
-                    }
-                    if (document_only) {
-                        update_cached_document_suggestion(entry, suggested_name);
-                    }
-                    if (!rename_documents_only && !document_only) {
-                        document_entries_for_llm.push_back(entry);
-                    }
-                    app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
-                } catch (const std::exception& ex) {
-                    handle_document_failure(entry, ex.what(), already_renamed, true, document_only);
-                    app_.mark_progress_stage_item_skipped(ProgressStageId::DocumentAnalysis, entry);
                 }
+            }
+
+            if (app_.core_logger && documents_processed > 0) {
+                const double elapsed_seconds = std::chrono::duration<double>(
+                    std::chrono::steady_clock::now() - document_stage_started).count();
+                app_.core_logger->info("Analyzed {} document(s) in {:.1f} seconds with up to {} concurrent LLM request(s)",
+                                       documents_processed,
+                                       elapsed_seconds,
+                                       document_concurrency);
             }
         }
 

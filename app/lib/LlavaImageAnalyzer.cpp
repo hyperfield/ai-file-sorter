@@ -1978,9 +1978,19 @@ std::string LlavaImageAnalyzer::infer_text(void* bitmap,
 }
 #endif
 
+std::string LlavaImageAnalyzer::make_suggested_filename(const std::string& raw_name,
+                                                        const std::filesystem::path& original_path)
+{
+    const std::string base = sanitize_filename(raw_name, kMaxFilenameWords, kMaxFilenameLength);
+    if (base.empty()) {
+        return {};
+    }
+    return normalize_filename(base, original_path);
+}
+
 std::string LlavaImageAnalyzer::sanitize_filename(const std::string& value,
                                                   size_t max_words,
-                                                  size_t max_length) const {
+                                                  size_t max_length) {
     QString cleaned = sanitize_utf8_text(value).trimmed();
     const QString prefix = QStringLiteral("filename:");
     if (cleaned.startsWith(prefix, Qt::CaseInsensitive)) {

@@ -94,6 +94,21 @@ public:
      */
     void set_remote_requests_per_minute(int value);
     /**
+     * @brief Returns the configured number of simultaneous LLM requests.
+     * @return One of the supported concurrency levels (1, 2, 4, 6 or 8).
+     */
+    int get_llm_concurrency() const;
+    /**
+     * @brief Sets the number of simultaneous LLM requests.
+     * @param value Requested level; clamped down to the nearest supported level (1, 2, 4, 6 or 8).
+     */
+    void set_llm_concurrency(int value);
+    /**
+     * @brief Returns the concurrency actually used for remote LLM work.
+     * @return Configured concurrency for OpenAI-compatible remote choices, otherwise 1.
+     */
+    size_t effective_llm_concurrency() const;
+    /**
      * @brief Returns whether the LLM download UI section should remain expanded.
      * @return True when the downloads section is expanded.
      */
@@ -687,6 +702,7 @@ private:
     std::string gemini_api_key;
     std::string gemini_model{ "gemini-2.5-flash-lite" };
     int remote_requests_per_minute{0};
+    int llm_concurrency{1};
     bool llm_downloads_expanded{true};
     std::string llm_storage_dir;
     std::string visual_model_id;

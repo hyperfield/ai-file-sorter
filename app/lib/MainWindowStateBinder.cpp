@@ -1,9 +1,11 @@
 #include "MainWindowStateBinder.hpp"
 
+#include "ApiImageAnalyzer.hpp"
 #include "CategorizationDialog.hpp"
 #include "ErrorMessages.hpp"
 #include "MainApp.hpp"
 #include "VisualLlmRuntime.hpp"
+#include "VisualModelCatalog.hpp"
 
 #include <QAction>
 #include <QByteArray>
@@ -541,7 +543,14 @@ bool MainWindowStateBinder::visual_llm_files_available() const
         return app_.visual_llm_available_probe_();
     }
 #endif
-    return VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
+    const std::string visual_model_id = app_.settings.get_visual_model_id();
+    if (is_api_visual_model_id(visual_model_id)) {
+        // API backends never use local GGUF/MMProj files, so availability means a usable endpoint exists.
+        return ApiImageAnalyzer::resolve_visual_api_endpoint(visual_model_id,
+                                                             app_.settings.get_custom_api_endpoints())
+            .has_value();
+    }
+    return VisualLlmRuntime::resolve_active_backend(visual_model_id,
                                                     app_.settings.get_custom_llms(),
                                                     nullptr)
         .has_value();

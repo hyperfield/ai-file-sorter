@@ -254,6 +254,8 @@ The Gemma 3 4B IT GGUF is also available as a built-in local text/categorization
 
 Custom local GGUF models can also be used for image analysis when their custom LLM entry includes a matching MMProj file. Those entries appear in the **Visual model** selector as custom visual backends and use the files you selected instead of the built-in download controls.
 
+An OpenAI-compatible API endpoint can also be the visual backend, with no local model files at all. Tick **Supports image / vision requests** for the endpoint (see [Using a custom OpenAI-compatible API](#using-a-custom-openai-compatible-api)); it then appears as **API: \<name\>** in the **Visual model** selector. Each image is decoded, rotated using its EXIF orientation, downscaled to at most 2048 px on the long edge, and sent as a JPEG (or a PNG when it has transparency) together with a request for a short description and a suggested filename. If one image fails, its original filename is kept. If the endpoint rejects image requests outright (HTTP 401, 403, 404, 405 or 415, or a 400/422 before any image has succeeded, as a text-only model typically does), the app asks you about it and stops sending the remaining images.
+
 ### Required visual LLM files
 
 The **Select LLM** dialog includes an "Image analysis models" section with backend-specific downloads:
@@ -261,7 +263,7 @@ The **Select LLM** dialog includes an "Image analysis models" section with backe
 - **Visual text model (GGUF)**: The language model that produces the description and the filename suggestion.
 - **Matching `mmproj` file (GGUF)**: The multimodal projector that maps image embeddings into the model token space so the backend can accept images.
 
-Both files are required for the selected backend. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL` or `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+Both files are required for a local visual backend (they are not needed when an API endpoint is the visual backend). If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL` or `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
 
 The same dialog also includes **Model storage**, which changes where built-in local text and visual model downloads are stored. Leave it empty to use the platform default.
 
@@ -968,6 +970,7 @@ Timeouts and logging:
 - `AI_FILE_SORTER_LOCAL_LLM_TIMEOUT` - seconds to wait for local LLM responses (default 60).
 - `AI_FILE_SORTER_REMOTE_LLM_TIMEOUT` - seconds to wait for OpenAI/Gemini responses (default 10).
 - `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT` - seconds to wait for custom OpenAI-compatible API responses (default 60).
+- `[Settings] LlmConcurrentRequests` in `config.ini` (also set by the **LLM concurrent requests** combo in the **Select LLM** dialog) - number of requests sent in parallel: `1`, `2`, `4`, `6`, or `8` (default `1`; other values round down to the nearest supported level, and values below 1 become 1). It applies to text categorization and document analysis with ChatGPT or a custom OpenAI-compatible endpoint, and to image analysis with an OpenAI-compatible visual API endpoint. Gemini and local GGUF models always run one request at a time. Each in-flight request counts against `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`, including time queued on the server, so raise the timeout if a local server queues parallel requests. Results are still committed in input order, but files in the same round do not see each other's assignments, so results can differ slightly from a run with concurrency 1.
 - `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE` - optional pacing limit for remote LLM calls. Use this for rate-limited providers such as OpenRouter; for example, `20` keeps requests within a 20 requests/minute quota. `0` or unset disables pacing. The same value can also be set in `config.ini` as `RemoteRequestsPerMinute` under `[Settings]`.
 - `AI_FILE_SORTER_LLAMA_LOGS` - enable verbose llama.cpp logs (`1`/`true`); also honors `LLAMA_CPP_DEBUG_LOGS`.
 
@@ -1186,6 +1189,10 @@ Prefer an OpenAI-compatible endpoint such as **LM Studio**, **Ollama**, or your 
 5. The endpoint configuration is stored locally in your AI File Sorter config and can be edited or removed later from the same dialog.
 
 Use this option for local servers or remote providers that follow the OpenAI-style API shape. Response time can be tuned with `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`; rate-limited providers can be paced with `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE` or `[Settings] RemoteRequestsPerMinute` (see [Environment variables](#environment-variables)).
+
+To send several text requests in parallel, set **LLM concurrent requests** in the **Select LLM** dialog (`LlmConcurrentRequests`, see [Environment variables](#environment-variables)). Make sure the server can handle that many simultaneous requests.
+
+To use the endpoint for image analysis, tick **Supports image / vision requests** in the endpoint dialog and pick **API: \<name\>** in the **Visual model** selector. The model must accept image input. Vision requests use standard chat-completions `image_url` parts with temperature 0 and a JSON response format. If a reply contains its answer only in `reasoning_content`, the app rejects it; turn off server-side reasoning output for that model.
 
 ---
 

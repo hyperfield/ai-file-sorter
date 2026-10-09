@@ -3,6 +3,7 @@
 #include "Utils.hpp"
 #include "Logger.hpp"
 #include "RemoteApiError.hpp"
+#include "OpenAiVision.hpp"
 #include <curl/curl.h>
 #include <cstdlib>
 #include <filesystem>
@@ -261,7 +262,7 @@ void LLMClient::set_prompt_logging_enabled(bool enabled)
 }
 
 
-std::string LLMClient::send_api_request(std::string json_payload) {
+std::string LLMClient::send_api_request_raw(std::string json_payload) {
     std::string response_string;
     std::string retry_after_header;
     const std::string api_url = resolve_api_url();
@@ -288,7 +289,12 @@ std::string LLMClient::send_api_request(std::string json_payload) {
                                              response.retry_after,
                                              logger);
     }
-    return parse_category_response(response_string, logger);
+    return response_string;
+}
+
+std::string LLMClient::send_api_request(std::string json_payload) {
+    auto logger = Logger::get_logger("core_logger");
+    return parse_category_response(send_api_request_raw(std::move(json_payload)), logger);
 }
 
 std::string LLMClient::effective_model() const
@@ -416,6 +422,35 @@ std::string LLMClient::make_generic_payload(const std::string& system_prompt,
     }
     payload << "}";
     return payload.str();
+}
+
+std::string LLMClient::complete_prompt_with_image(const std::string& prompt,
+                                                  const std::string& image_path,
+                                                  const ImageCompletionOptions& options)
+{
+    static const std::string kSystem =
+        "You are a precise assistant that returns well-formed JSON responses.";
+    // The data URL is built here and dropped when this call returns; it is never logged.
+    const OpenAiVision::PreparedImage image =
+        OpenAiVision::prepare_image_data_url(Utils::utf8_to_path(image_path));
+    if (prompt_logging_enabled) {
+        std::cout << "\n[DEV][PROMPT] Vision request (" << image.mime_type << " image attached)\n"
+                  << prompt << "\n";
+    }
+    const std::string json_payload = OpenAiVision::build_image_chat_payload(effective_model(),
+                                                                            kSystem,
+                                                                            prompt,
+                                                                            image.data_url,
+                                                                            options.max_tokens,
+                                                                            options.temperature,
+                                                                            options.response_format_json);
+    const std::string response_body = send_api_request_raw(json_payload);
+    // Throws with a diagnostic when the reply has no final content (for example reasoning-only output).
+    const std::string content = OpenAiVision::extract_assistant_message(response_body).content;
+    if (prompt_logging_enabled) {
+        std::cout << "[DEV][RESPONSE] Vision reply\n" << content << "\n";
+    }
+    return content;
 }
 
 std::string LLMClient::complete_prompt(const std::string& prompt,

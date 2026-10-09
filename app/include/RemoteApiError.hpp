@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -11,6 +12,24 @@ class logger;
 }
 
 namespace RemoteApiError {
+
+/**
+ * @brief Non-rate-limit HTTP failure from a remote endpoint.
+ *
+ * Derives from std::runtime_error so existing handlers are unaffected. The status code lets
+ * callers tell an endpoint-wide rejection (for example a text-only model given an image)
+ * from a failure that only concerns one request.
+ */
+class HttpStatusError : public std::runtime_error {
+public:
+    HttpStatusError(const std::string& message, long status_code)
+        : std::runtime_error(message), status_code_(status_code) {}
+
+    long status_code() const { return status_code_; }
+
+private:
+    long status_code_;
+};
 
 /**
  * @brief Parses a Retry-After header value expressed as seconds.

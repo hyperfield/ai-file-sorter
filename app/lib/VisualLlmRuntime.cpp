@@ -156,6 +156,13 @@ std::optional<VisualLlmRuntime::Backend> VisualLlmRuntime::resolve_active_backen
     const std::vector<CustomLLM>& custom_llms,
     std::string* error)
 {
+    if (is_api_visual_model_id(backend_id)) {
+        // API endpoints are resolved by ApiImageAnalyzer; they never map to local artifacts.
+        if (error) {
+            *error = "API visual backends do not use local model files.";
+        }
+        return std::nullopt;
+    }
     if (is_custom_visual_model_id(backend_id)) {
         return resolve_custom_visual_backend(backend_id, custom_llms, error);
     }
