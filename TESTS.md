@@ -677,6 +677,13 @@ Procedure: Call `ImageAnalyzerFactory::create()` with GPU disabled.
 Expected outcome: Creation throws a clear invalid/incomplete GGUF artifact error.
 Run: `./build-tests/ai_file_sorter_tests "ImageAnalyzerFactory rejects invalid GGUF artifacts before analyzer startup"`
 
+#### Test case: ImageAnalyzerFactory passes configured model storage to visual GPU preflight
+Purpose: Ensure the Windows visual GPU preflight subprocess inherits the active model storage directory.
+Setup: Set the process-local LLM storage override to a temporary custom model directory.
+Procedure: Build the visual GPU preflight environment through the test access hook.
+Expected outcome: The environment enables the GPU probe skip/use flags and includes `AI_FILE_SORTER_LLM_STORAGE_DIR` with the custom directory.
+Run: `./build-tests/ai_file_sorter_tests "ImageAnalyzerFactory passes configured model storage to visual GPU preflight"`
+
 ### `tests/unit/test_filename_localization_service.cpp`
 
 #### Test case: FilenameLocalizationService localizes filename stems and preserves extensions
@@ -1261,6 +1268,13 @@ Setup: Set `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`, create the main model file 
 Procedure: Call `resolve_active_backend()` and `resolve_paths()`.
 Expected outcome: The backend resolves successfully, returns the LLaVA descriptor, maps the model artifact to the primary file, and maps the mmproj artifact to the fallback file.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the active backend through descriptor artifacts"`
+
+#### Test case: VisualLlmRuntime resolves built-in Gemma after Settings restores custom storage
+Purpose: Prove persisted `LlmStorageDir` is restored before built-in visual backend artifact resolution.
+Setup: Save `LlmStorageDir` to a temporary custom model directory, create Gemma visual artifacts there, and clear the process-local storage override.
+Procedure: Reload `Settings`, then resolve the saved Gemma visual backend through `VisualLlmRuntime::resolve_active_backend()`.
+Expected outcome: Resolution succeeds and returns the model and mmproj paths under the custom storage directory.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves built-in Gemma after Settings restores custom storage"`
 
 #### Test case: VisualLlmRuntime resolves custom visual LLM artifacts
 Purpose: Ensure a user-provided local GGUF plus MMProj pair can be used as the visual model backend.

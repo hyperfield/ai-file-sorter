@@ -3,6 +3,7 @@
 #include "CategorizationDialog.hpp"
 #include "ErrorMessages.hpp"
 #include "MainApp.hpp"
+#include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
 
 #include <QAction>
@@ -645,6 +646,7 @@ bool MainWindowStateBinder::visual_llm_files_available() const
         return app_.visual_llm_available_probe_();
     }
 #endif
+    Utils::set_llm_storage_directory_override(app_.settings.get_llm_storage_dir());
     return VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
                                                     app_.settings.get_custom_llms(),
                                                     nullptr)

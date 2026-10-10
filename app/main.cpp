@@ -47,6 +47,7 @@
 #include "PluginBuildConfig.hpp"
 #include "PluginEntitlementService.hpp"
 #include "PluginLicenseActivator.hpp"
+#include "Settings.hpp"
 #include "SingleInstanceCoordinator.hpp"
 #include "UpdaterBuildConfig.hpp"
 #include "UpdaterLaunchOptions.hpp"
@@ -914,9 +915,19 @@ int run_visual_gpu_probe_mode(const ParsedArguments& parsed_args) {
     set_process_env("AI_FILE_SORTER_VISUAL_SKIP_GPU_PREFLIGHT", "1");
     set_process_env("AI_FILE_SORTER_VISUAL_USE_GPU", "1");
 
+    Settings settings;
+    settings.load();
+
+    std::string backend_id =
+        parsed_args.visual_gpu_probe_backend.value_or(settings.get_visual_model_id());
+    if (backend_id.empty()) {
+        backend_id = settings.get_visual_model_id();
+    }
+
     std::string error;
-    const auto backend =
-        VisualLlmRuntime::resolve_active_backend(parsed_args.visual_gpu_probe_backend.value_or(""), &error);
+    const auto backend = VisualLlmRuntime::resolve_active_backend(backend_id,
+                                                                  settings.get_custom_llms(),
+                                                                  &error);
     if (!backend) {
         std::cerr << (error.empty() ? "Visual GPU probe could not resolve a backend." : error) << "\n";
         return EXIT_FAILURE;

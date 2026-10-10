@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "TestHelpers.hpp"
+#include "Settings.hpp"
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
 #include "VisualModelCatalog.hpp"
@@ -41,6 +42,11 @@ struct VisualRuntimeTempEnv {
           localappdata_guard("LOCALAPPDATA", appdata_dir.path().string())
     {
     }
+};
+
+struct LlmStorageOverrideGuard {
+    std::string previous = Utils::get_llm_storage_directory_override();
+    ~LlmStorageOverrideGuard() { Utils::set_llm_storage_directory_override(previous); }
 };
 
 } // namespace
@@ -110,6 +116,59 @@ TEST_CASE("VisualLlmRuntime resolves the active backend through descriptor artif
     REQUIRE(legacy_paths.has_value());
     CHECK(legacy_paths->model_path == model_path);
     CHECK(legacy_paths->mmproj_path == mmproj_path);
+}
+
+TEST_CASE("VisualLlmRuntime resolves built-in Gemma after Settings restores custom storage") {
+    LlmStorageOverrideGuard storage_guard;
+    TempDir config_dir;
+    TempDir default_storage_dir;
+    TempDir custom_storage_dir;
+    EnvVarGuard home_guard("HOME", default_storage_dir.path().string());
+    EnvVarGuard appdata_guard("APPDATA", default_storage_dir.path().string());
+    EnvVarGuard localappdata_guard("LOCALAPPDATA", default_storage_dir.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    EnvVarGuard storage_env_guard("AI_FILE_SORTER_LLM_STORAGE_DIR", std::nullopt);
+    EnvVarGuard legacy_storage_env_guard("AI_FILE_SORTER_LLM_DIR", std::nullopt);
+    EnvVarGuard model_guard("GEMMA3_4B_MODEL_URL",
+                            std::string("https://example.com/gemma-3-4b-it-Q4_K_M.gguf"));
+    EnvVarGuard mmproj_guard("GEMMA3_4B_MMPROJ_URL",
+                             std::string("https://example.com/mmproj-gemma-3-4b-it-Q4_K_M.gguf"));
+
+    Settings settings;
+    settings.load();
+    settings.set_llm_storage_dir(custom_storage_dir.path().string());
+    settings.set_visual_model_id("gemma-3-4b-it");
+    REQUIRE(settings.save());
+
+    const auto* descriptor = find_visual_model_descriptor("gemma-3-4b-it");
+    REQUIRE(descriptor != nullptr);
+    REQUIRE(descriptor->artifacts.size() == 2);
+    const auto model_path = custom_storage_dir.path() / descriptor->id /
+                            descriptor->artifacts[0].local_storage_name;
+    const auto mmproj_path = custom_storage_dir.path() / descriptor->id /
+                             descriptor->artifacts[1].local_storage_name;
+    write_gguf_file(model_path);
+    write_gguf_file(mmproj_path);
+
+    Utils::set_llm_storage_directory_override("");
+    REQUIRE(Utils::get_llm_storage_directory_override().empty());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_llm_storage_dir() == custom_storage_dir.path().string());
+
+    std::string error;
+    const auto backend = VisualLlmRuntime::resolve_active_backend(
+        reloaded.get_visual_model_id(),
+        reloaded.get_custom_llms(),
+        &error);
+
+    REQUIRE(backend.has_value());
+    CHECK(error.empty());
+    REQUIRE(backend->path_for(VisualModelArtifactKind::Model).has_value());
+    REQUIRE(backend->path_for(VisualModelArtifactKind::Mmproj).has_value());
+    CHECK(*backend->path_for(VisualModelArtifactKind::Model) == model_path);
+    CHECK(*backend->path_for(VisualModelArtifactKind::Mmproj) == mmproj_path);
 }
 
 TEST_CASE("VisualLlmRuntime resolves custom visual LLM artifacts") {

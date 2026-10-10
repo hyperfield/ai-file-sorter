@@ -111,6 +111,23 @@ int visual_gpu_preflight_timeout_ms()
     return kDefaultTimeoutMs;
 }
 
+QProcessEnvironment visual_gpu_preflight_environment()
+{
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_SKIP_GPU_PREFLIGHT"),
+                       QStringLiteral("1"));
+    environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_USE_GPU"),
+                       QStringLiteral("1"));
+
+    const std::string storage_override = Utils::get_llm_storage_directory_override();
+    if (!storage_override.empty()) {
+        environment.insert(QStringLiteral("AI_FILE_SORTER_LLM_STORAGE_DIR"),
+                           QString::fromStdString(storage_override));
+    }
+
+    return environment;
+}
+
 QString visual_gpu_probe_argument(const VisualLlmRuntime::Backend& backend)
 {
     if (!backend.descriptor || !backend.descriptor->id || backend.descriptor->id[0] == '\0') {
@@ -149,12 +166,7 @@ void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend)
 
     const int timeout_ms = visual_gpu_preflight_timeout_ms();
     QProcess process;
-    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
-    environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_SKIP_GPU_PREFLIGHT"),
-                       QStringLiteral("1"));
-    environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_USE_GPU"),
-                       QStringLiteral("1"));
-    process.setProcessEnvironment(environment);
+    process.setProcessEnvironment(visual_gpu_preflight_environment());
     process.setProgram(QString::fromStdString(executable_path));
     process.setArguments({visual_gpu_probe_argument(backend)});
 
@@ -192,6 +204,13 @@ void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend)
 #endif
 
 } // namespace
+
+#if defined(AI_FILE_SORTER_TEST_BUILD) && defined(_WIN32)
+QProcessEnvironment ImageAnalyzerFactoryTestAccess::visual_gpu_preflight_environment()
+{
+    return ::visual_gpu_preflight_environment();
+}
+#endif
 
 std::unique_ptr<ImageAnalyzer> ImageAnalyzerFactory::create(const VisualLlmRuntime::Backend& backend,
                                                             ImageAnalyzerSettings settings)

@@ -556,6 +556,8 @@ std::string AnalysisCoordinator::build_document_prompt_path(const std::string& f
 
 AnalysisRunResult AnalysisCoordinator::execute()
 {
+    Utils::set_llm_storage_directory_override(app_.settings.get_llm_storage_dir());
+
     const std::string directory_path = app_.get_folder_path();
     app_.core_logger->info("Starting analysis for directory '{}'", directory_path);
 

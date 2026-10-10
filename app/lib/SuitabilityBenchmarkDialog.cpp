@@ -1636,6 +1636,8 @@ void SuitabilityBenchmarkDialog::start_benchmark()
 
 void SuitabilityBenchmarkDialog::run_benchmark_worker()
 {
+    Utils::set_llm_storage_directory_override(settings_.get_llm_storage_dir());
+
     QPointer<SuitabilityBenchmarkDialog> self(this);
     auto post_line = [self](const QString& text) {
         if (!self) {
