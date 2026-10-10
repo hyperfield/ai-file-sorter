@@ -60,8 +60,8 @@ FolderStructurePluginDialog::FolderStructurePluginDialog(std::shared_ptr<FolderS
 
     auto* layout = new QVBoxLayout(this);
 
-    auto* intro = new QLabel(tr("Install signed folder-structure plugins that add templates and routing guidance. "
-                                "Checked plugins are loaded automatically."),
+    auto* intro = new QLabel(tr("Add trusted folder-structure packs for templates and smarter sorting guidance. "
+                                "Enabled packs are used automatically."),
                              this);
     intro->setWordWrap(true);
     layout->addWidget(intro);
@@ -90,7 +90,7 @@ FolderStructurePluginDialog::FolderStructurePluginDialog(std::shared_ptr<FolderS
     check_updates_button_ = button_row->addButton(tr("Check for Updates"), QDialogButtonBox::ActionRole);
     import_button_ = button_row->addButton(tr("Install from File..."), QDialogButtonBox::ActionRole);
     install_button_ = button_row->addButton(tr("Install"), QDialogButtonBox::ActionRole);
-    obtain_button_ = button_row->addButton(tr("Obtain..."), QDialogButtonBox::ActionRole);
+    obtain_button_ = button_row->addButton(tr("Read More..."), QDialogButtonBox::ActionRole);
     uninstall_button_ = button_row->addButton(tr("Uninstall"), QDialogButtonBox::ActionRole);
     check_updates_button_->setVisible(PluginBuildConfig::remote_catalogs_enabled());
     install_button_->setVisible(PluginBuildConfig::remote_catalogs_enabled());

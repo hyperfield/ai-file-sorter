@@ -25,6 +25,8 @@
 namespace {
 
 constexpr char kDisabledPluginIdsKey[] = "disabled_plugin_ids";
+constexpr char kJohnnyDecimalPluginId[] = "johnny_decimal_support";
+constexpr char kJohnnyDecimalPluginInfoUrl[] = "https://filesorter.app/plugins/johnny-decimal-support/";
 
 bool copy_package_tree(const std::filesystem::path& source, const std::filesystem::path& destination,
                        std::string* error) {
@@ -130,6 +132,30 @@ bool version_is_newer(const std::string& candidate, const std::string& installed
     return false;
 }
 
+std::string known_purchase_url(const std::string& plugin_id) {
+    if (plugin_id == kJohnnyDecimalPluginId) {
+        return kJohnnyDecimalPluginInfoUrl;
+    }
+    return {};
+}
+
+std::string purchase_url_or_known_default(const std::string& plugin_id, const std::string& purchase_url) {
+    if (!purchase_url.empty()) {
+        return purchase_url;
+    }
+    return known_purchase_url(plugin_id);
+}
+
+void apply_known_plugin_defaults(FolderStructurePluginCatalogEntry& entry) {
+    entry.purchase_url = purchase_url_or_known_default(entry.id, entry.purchase_url);
+}
+
+void apply_known_plugin_defaults(std::vector<FolderStructurePluginCatalogEntry>& entries) {
+    for (auto& entry : entries) {
+        apply_known_plugin_defaults(entry);
+    }
+}
+
 FolderStructurePluginCatalogEntry catalog_entry_from_manifest(const FolderStructurePluginManifest& manifest) {
     return FolderStructurePluginCatalogEntry{
         .id = manifest.id,
@@ -138,8 +164,16 @@ FolderStructurePluginCatalogEntry catalog_entry_from_manifest(const FolderStruct
         .version = manifest.version,
         .license_required = manifest.license_required,
         .product_id = manifest.product_id.empty() ? manifest.id : manifest.product_id,
-        .purchase_url = manifest.purchase_url,
+        .purchase_url = purchase_url_or_known_default(manifest.id, manifest.purchase_url),
     };
+}
+
+std::string missing_entitlement_message(const std::string& plugin_name, const std::string& plugin_id) {
+    const std::string display_name = plugin_name.empty() ? plugin_id : plugin_name;
+    if (display_name.empty()) {
+        return "This folder-structure pack needs an active license before it can be installed.";
+    }
+    return display_name + " needs an active license before it can be installed.";
 }
 
 std::vector<FolderStructurePluginCatalogEntry> merge_catalog_entries(
@@ -250,6 +284,7 @@ bool FolderStructurePluginManager::refresh_remote_catalog(std::string* error) {
         return false;
     }
 
+    apply_known_plugin_defaults(entries);
     remote_catalog_entries_ = std::move(entries);
     return true;
 }
@@ -553,6 +588,7 @@ void FolderStructurePluginManager::load_cached_remote_catalog() {
     std::string error;
     auto entries = load_folder_structure_plugin_catalog_entries_from_json(file.readAll().toStdString(), &error);
     if (!entries.empty()) {
+        apply_known_plugin_defaults(entries);
         remote_catalog_entries_ = std::move(entries);
     }
 }
@@ -638,13 +674,12 @@ bool FolderStructurePluginManager::has_required_entitlement(const FolderStructur
 
     if (error) {
         *error = FolderStructurePluginInstallError{};
-        error->message =
-            "This folder-structure plugin requires an active entitlement for product '" + product_id + "'.";
+        error->message = missing_entitlement_message(entry.name, entry.id);
         error->missing_entitlement = true;
         error->product_id = product_id;
         error->plugin_id = entry.id;
         error->plugin_name = entry.name.empty() ? entry.id : entry.name;
-        error->purchase_url = entry.purchase_url;
+        error->purchase_url = purchase_url_or_known_default(entry.id, entry.purchase_url);
     }
     return false;
 }
@@ -662,13 +697,12 @@ bool FolderStructurePluginManager::has_required_entitlement(const FolderStructur
 
     if (error) {
         *error = FolderStructurePluginInstallError{};
-        error->message =
-            "This folder-structure plugin requires an active entitlement for product '" + product_id + "'.";
+        error->message = missing_entitlement_message(manifest.name, manifest.id);
         error->missing_entitlement = true;
         error->product_id = product_id;
         error->plugin_id = manifest.id;
         error->plugin_name = manifest.name.empty() ? manifest.id : manifest.name;
-        error->purchase_url = manifest.purchase_url;
+        error->purchase_url = purchase_url_or_known_default(manifest.id, manifest.purchase_url);
     }
     return false;
 }

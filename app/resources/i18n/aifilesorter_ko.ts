@@ -722,8 +722,8 @@
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="53"></location>
-            <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
-            <translation>템플릿과 라우팅 지침을 추가하는 서명된 폴더 구조 플러그인을 설치합니다. 선택된 플러그인은 자동으로 로드됩니다.</translation>
+            <source>Add trusted folder-structure packs for templates and smarter sorting guidance. Enabled packs are used automatically.</source>
+            <translation>템플릿과 더 스마트한 정렬 안내를 제공하는 신뢰할 수 있는 폴더 구조 팩을 추가합니다. 활성화된 팩은 자동으로 사용됩니다.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"></location>
@@ -815,18 +815,18 @@ Status: %4
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="238"></location>
-            <source>License required</source>
+            <source>License needed</source>
             <translation>라이선스 필요</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="241"></location>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>%1에 대한 라이선스를 활성화한 후 AI File Sorter가 설치를 다시 시도합니다.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>지금 라이선스를 활성화하면 AI File Sorter가 설치를 자동으로 계속합니다.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"></location>
-            <source>Activate...</source>
-            <translation>활성화...</translation>
+            <source>Activate License...</source>
+            <translation>라이선스 활성화...</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="252"></location>
@@ -867,8 +867,8 @@ Status: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Obtain...</source>
-            <translation>Obtain...</translation>
+            <source>Read More...</source>
+            <translation>자세히 보기...</translation>
         </message>
         <message>
             <source>Available</source>
@@ -1368,8 +1368,8 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2485"></location>
-            <source>Obtain</source>
-            <translation>받기</translation>
+            <source>Read More</source>
+            <translation>자세히 보기</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2486"></location>
@@ -3615,16 +3615,20 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>Failed to install folder-structure plugin.</translation>
         </message>
         <message>
-            <source>License required</source>
-            <translation>License required</translation>
+            <source>License needed</source>
+            <translation>라이선스 필요</translation>
         </message>
         <message>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Activate a license for %1, then AI File Sorter will retry the installation.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>지금 라이선스를 활성화하면 AI File Sorter가 설치를 자동으로 계속합니다.</translation>
         </message>
         <message>
-            <source>Activate...</source>
-            <translation>Activate...</translation>
+            <source>Activate License...</source>
+            <translation>라이선스 활성화...</translation>
+        </message>
+        <message>
+            <source>Read More...</source>
+            <translation>자세히 보기...</translation>
         </message>
         <message>
             <source>Activate Plugin License</source>

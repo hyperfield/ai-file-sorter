@@ -722,8 +722,8 @@
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="53"></location>
-            <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
-            <translation>Şablonlar ve yönlendirme kılavuzu ekleyen imzalı klasör yapısı eklentilerini yükleyin. İşaretli eklentiler otomatik olarak yüklenir.</translation>
+            <source>Add trusted folder-structure packs for templates and smarter sorting guidance. Enabled packs are used automatically.</source>
+            <translation>Şablonlar ve daha akıllı sıralama rehberliği için güvenilir klasör yapısı paketleri ekleyin. Etkin paketler otomatik olarak kullanılır.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"></location>
@@ -815,18 +815,18 @@ Durum: %4
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="238"></location>
-            <source>License required</source>
-            <translation>Lisans gerekli</translation>
+            <source>License needed</source>
+            <translation>Lisans gerekiyor</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="241"></location>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>%1 için bir lisans etkinleştirin, ardından AI File Sorter kurulumu yeniden deneyecek.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>Lisansınızı şimdi etkinleştirin; AI File Sorter kuruluma otomatik olarak devam eder.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"></location>
-            <source>Activate...</source>
-            <translation>Etkinleştir...</translation>
+            <source>Activate License...</source>
+            <translation>Lisansı Etkinleştir...</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="252"></location>
@@ -867,8 +867,8 @@ Durum: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Obtain...</source>
-            <translation>Obtain...</translation>
+            <source>Read More...</source>
+            <translation>Daha fazla bilgi...</translation>
         </message>
         <message>
             <source>Available</source>
@@ -1368,8 +1368,8 @@ Destekler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2485"></location>
-            <source>Obtain</source>
-            <translation>Edin</translation>
+            <source>Read More</source>
+            <translation>Daha fazla bilgi</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2486"></location>
@@ -3615,16 +3615,20 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <translation>Failed to install folder-structure plugin.</translation>
         </message>
         <message>
-            <source>License required</source>
-            <translation>License required</translation>
+            <source>License needed</source>
+            <translation>Lisans gerekiyor</translation>
         </message>
         <message>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Activate a license for %1, then AI File Sorter will retry the installation.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>Lisansınızı şimdi etkinleştirin; AI File Sorter kuruluma otomatik olarak devam eder.</translation>
         </message>
         <message>
-            <source>Activate...</source>
-            <translation>Activate...</translation>
+            <source>Activate License...</source>
+            <translation>Lisansı Etkinleştir...</translation>
+        </message>
+        <message>
+            <source>Read More...</source>
+            <translation>Daha fazla bilgi...</translation>
         </message>
         <message>
             <source>Activate Plugin License</source>

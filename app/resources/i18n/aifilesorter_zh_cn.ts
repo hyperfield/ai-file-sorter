@@ -722,8 +722,8 @@
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="53"></location>
-            <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
-            <translation>安装已签名的文件夹结构插件，以添加模板和路由指导。已勾选的插件会自动加载。</translation>
+            <source>Add trusted folder-structure packs for templates and smarter sorting guidance. Enabled packs are used automatically.</source>
+            <translation>添加可信的文件夹结构包，用于模板和更智能的排序指导。启用的包会自动使用。</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"></location>
@@ -815,18 +815,18 @@ Status: %4
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="238"></location>
-            <source>License required</source>
+            <source>License needed</source>
             <translation>需要许可证</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="241"></location>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>请为 %1 激活许可证，然后 AI File Sorter 将重试安装。</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>立即激活许可证，AI File Sorter 将自动继续安装。</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"></location>
-            <source>Activate...</source>
-            <translation>激活...</translation>
+            <source>Activate License...</source>
+            <translation>激活许可证...</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="252"></location>
@@ -867,8 +867,8 @@ Status: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Obtain...</source>
-            <translation>Obtain...</translation>
+            <source>Read More...</source>
+            <translation>了解更多...</translation>
         </message>
         <message>
             <source>Available</source>
@@ -1368,8 +1368,8 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2485"></location>
-            <source>Obtain</source>
-            <translation>获取</translation>
+            <source>Read More</source>
+            <translation>了解更多</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2486"></location>
@@ -3613,16 +3613,20 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>Failed to install folder-structure plugin.</translation>
         </message>
         <message>
-            <source>License required</source>
-            <translation>License required</translation>
+            <source>License needed</source>
+            <translation>需要许可证</translation>
         </message>
         <message>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Activate a license for %1, then AI File Sorter will retry the installation.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>立即激活许可证，AI File Sorter 将自动继续安装。</translation>
         </message>
         <message>
-            <source>Activate...</source>
-            <translation>Activate...</translation>
+            <source>Activate License...</source>
+            <translation>激活许可证...</translation>
+        </message>
+        <message>
+            <source>Read More...</source>
+            <translation>了解更多...</translation>
         </message>
         <message>
             <source>Activate Plugin License</source>

@@ -3,11 +3,13 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QString>
+#include <QUrl>
 #include <cstddef>
 
 #include "FolderStructurePluginManager.hpp"
@@ -54,14 +56,21 @@ bool activate_folder_structure_plugin_entitlement(QWidget* parent,
 
     QMessageBox license_required(parent);
     license_required.setIcon(QMessageBox::Warning);
-    license_required.setWindowTitle(flow_tr("License required"));
+    license_required.setWindowTitle(flow_tr("License needed"));
     license_required.setText(QString::fromStdString(install_error.message));
     license_required.setInformativeText(
-        flow_tr("Activate a license for %1, then AI File Sorter will retry the installation.")
-            .arg(plugin_display_name(install_error)));
-    auto* activate_button = license_required.addButton(flow_tr("Activate..."), QMessageBox::AcceptRole);
+        flow_tr("Activate your license now and AI File Sorter will continue the installation automatically."));
+    QPushButton* read_more_button = nullptr;
+    if (!install_error.purchase_url.empty()) {
+        read_more_button = license_required.addButton(flow_tr("Read More..."), QMessageBox::ActionRole);
+    }
+    auto* activate_button = license_required.addButton(flow_tr("Activate License..."), QMessageBox::AcceptRole);
     license_required.addButton(QMessageBox::Cancel);
     license_required.exec();
+    if (read_more_button && license_required.clickedButton() == read_more_button) {
+        QDesktopServices::openUrl(QUrl(QString::fromStdString(install_error.purchase_url)));
+        return false;
+    }
     if (license_required.clickedButton() != activate_button) {
         return false;
     }

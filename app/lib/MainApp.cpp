@@ -2640,7 +2640,7 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
                 tr("The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance."));
             primary_button = dialog.addButton(tr("Activate / Install..."), QMessageBox::AcceptRole);
             if (PluginBuildConfig::commercial_plugin_actions_enabled()) {
-                obtain_button = dialog.addButton(tr("Obtain"), QMessageBox::ActionRole);
+                obtain_button = dialog.addButton(tr("Read More"), QMessageBox::ActionRole);
             }
             dialog.addButton(tr("Later"), QMessageBox::RejectRole);
             suppress_button = dialog.addButton(tr("Not interested"), QMessageBox::DestructiveRole);

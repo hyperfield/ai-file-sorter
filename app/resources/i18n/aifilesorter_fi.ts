@@ -722,8 +722,8 @@
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="53"></location>
-            <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
-            <translation>Asenna allekirjoitettuja kansiorakenne-liitännäisiä, jotka lisäävät malleja ja reititysohjeita. Valitut liitännäiset ladataan automaattisesti.</translation>
+            <source>Add trusted folder-structure packs for templates and smarter sorting guidance. Enabled packs are used automatically.</source>
+            <translation>Lisää luotettuja kansiorakennepaketteja malleja ja älykkäämpää lajitteluohjausta varten. Käytössä olevia paketteja käytetään automaattisesti.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"></location>
@@ -815,18 +815,18 @@ Tila: %4
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="238"></location>
-            <source>License required</source>
-            <translation>Lisenssi vaaditaan</translation>
+            <source>License needed</source>
+            <translation>Lisenssi tarvitaan</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="241"></location>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Aktivoi %1:n lisenssi, niin AI File Sorter yrittää asentaa uudelleen.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>Aktivoi lisenssisi nyt, niin AI File Sorter jatkaa asennusta automaattisesti.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"></location>
-            <source>Activate...</source>
-            <translation>Aktivoi...</translation>
+            <source>Activate License...</source>
+            <translation>Aktivoi lisenssi...</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="252"></location>
@@ -867,8 +867,8 @@ Tila: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Obtain...</source>
-            <translation>Obtain...</translation>
+            <source>Read More...</source>
+            <translation>Lue lisää...</translation>
         </message>
         <message>
             <source>Available</source>
@@ -1368,8 +1368,8 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2485"></location>
-            <source>Obtain</source>
-            <translation>Hanki</translation>
+            <source>Read More</source>
+            <translation>Lue lisää</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2486"></location>
@@ -3613,16 +3613,20 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>Failed to install folder-structure plugin.</translation>
         </message>
         <message>
-            <source>License required</source>
-            <translation>License required</translation>
+            <source>License needed</source>
+            <translation>Lisenssi tarvitaan</translation>
         </message>
         <message>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Activate a license for %1, then AI File Sorter will retry the installation.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>Aktivoi lisenssisi nyt, niin AI File Sorter jatkaa asennusta automaattisesti.</translation>
         </message>
         <message>
-            <source>Activate...</source>
-            <translation>Activate...</translation>
+            <source>Activate License...</source>
+            <translation>Aktivoi lisenssi...</translation>
+        </message>
+        <message>
+            <source>Read More...</source>
+            <translation>Lue lisää...</translation>
         </message>
         <message>
             <source>Activate Plugin License</source>

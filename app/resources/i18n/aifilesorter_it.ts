@@ -722,8 +722,8 @@
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="53"></location>
-            <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
-            <translation>Installa plugin firmati per la struttura delle cartelle che aggiungono modelli e indicazioni di instradamento. I plugin selezionati vengono caricati automaticamente.</translation>
+            <source>Add trusted folder-structure packs for templates and smarter sorting guidance. Enabled packs are used automatically.</source>
+            <translation>Aggiungi pacchetti affidabili per la struttura delle cartelle con modelli e indicazioni di ordinamento più intelligenti. I pacchetti abilitati vengono usati automaticamente.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"></location>
@@ -815,18 +815,18 @@ Stato: %4
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="238"></location>
-            <source>License required</source>
-            <translation>Licenza richiesta</translation>
+            <source>License needed</source>
+            <translation>Licenza necessaria</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="241"></location>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Attiva una licenza per %1, quindi AI File Sorter riproverà l'installazione.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>Attiva ora la licenza e AI File Sorter continuerà automaticamente l'installazione.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"></location>
-            <source>Activate...</source>
-            <translation>Attiva...</translation>
+            <source>Activate License...</source>
+            <translation>Attiva licenza...</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="252"></location>
@@ -867,8 +867,8 @@ Stato: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Obtain...</source>
-            <translation>Obtain...</translation>
+            <source>Read More...</source>
+            <translation>Scopri di più...</translation>
         </message>
         <message>
             <source>Available</source>
@@ -1368,8 +1368,8 @@ Supporta: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2485"></location>
-            <source>Obtain</source>
-            <translation>Ottieni</translation>
+            <source>Read More</source>
+            <translation>Scopri di più</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2486"></location>
@@ -3615,16 +3615,20 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
             <translation>Failed to install folder-structure plugin.</translation>
         </message>
         <message>
-            <source>License required</source>
-            <translation>License required</translation>
+            <source>License needed</source>
+            <translation>Licenza necessaria</translation>
         </message>
         <message>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Activate a license for %1, then AI File Sorter will retry the installation.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>Attiva ora la licenza e AI File Sorter continuerà automaticamente l'installazione.</translation>
         </message>
         <message>
-            <source>Activate...</source>
-            <translation>Activate...</translation>
+            <source>Activate License...</source>
+            <translation>Attiva licenza...</translation>
+        </message>
+        <message>
+            <source>Read More...</source>
+            <translation>Scopri di più...</translation>
         </message>
         <message>
             <source>Activate Plugin License</source>

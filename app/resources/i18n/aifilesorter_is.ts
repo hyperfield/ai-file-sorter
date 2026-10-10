@@ -722,8 +722,8 @@
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="53"></location>
-            <source>Install signed folder-structure plugins that add templates and routing guidance. Checked plugins are loaded automatically.</source>
-            <translation>Settu upp undirritaðar viðbætur fyrir möppuskipan sem bæta við sniðmátum og flokkunarleiðbeiningum. Hakaðar viðbætur eru hlaðnar sjálfkrafa.</translation>
+            <source>Add trusted folder-structure packs for templates and smarter sorting guidance. Enabled packs are used automatically.</source>
+            <translation>Bættu við traustum möppuskipanarpökkum fyrir sniðmát og snjallari flokkunarleiðbeiningar. Virkir pakkar eru notaðir sjálfkrafa.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"></location>
@@ -815,18 +815,18 @@ Staða: %4
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="238"></location>
-            <source>License required</source>
-            <translation>Leyfi krafist</translation>
+            <source>License needed</source>
+            <translation>Leyfi þarf</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="241"></location>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Virkjaðu leyfi fyrir %1, þá mun AI File Sorter reyna aftur að setja upp viðbótina.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>Virkjaðu leyfið þitt núna og AI File Sorter heldur uppsetningunni sjálfkrafa áfram.</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="243"></location>
-            <source>Activate...</source>
-            <translation>Virkja...</translation>
+            <source>Activate License...</source>
+            <translation>Virkja leyfi...</translation>
         </message>
         <message>
             <location filename="../../lib/FolderStructurePluginDialog.cpp" line="252"></location>
@@ -867,8 +867,8 @@ Staða: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Obtain...</source>
-            <translation>Obtain...</translation>
+            <source>Read More...</source>
+            <translation>Lesa meira...</translation>
         </message>
         <message>
             <source>Available</source>
@@ -1368,8 +1368,8 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2485"></location>
-            <source>Obtain</source>
-            <translation>Sækja</translation>
+            <source>Read More</source>
+            <translation>Lesa meira</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2486"></location>
@@ -3613,16 +3613,20 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>Failed to install folder-structure plugin.</translation>
         </message>
         <message>
-            <source>License required</source>
-            <translation>License required</translation>
+            <source>License needed</source>
+            <translation>Leyfi þarf</translation>
         </message>
         <message>
-            <source>Activate a license for %1, then AI File Sorter will retry the installation.</source>
-            <translation>Activate a license for %1, then AI File Sorter will retry the installation.</translation>
+            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
+            <translation>Virkjaðu leyfið þitt núna og AI File Sorter heldur uppsetningunni sjálfkrafa áfram.</translation>
         </message>
         <message>
-            <source>Activate...</source>
-            <translation>Activate...</translation>
+            <source>Activate License...</source>
+            <translation>Virkja leyfi...</translation>
+        </message>
+        <message>
+            <source>Read More...</source>
+            <translation>Lesa meira...</translation>
         </message>
         <message>
             <source>Activate Plugin License</source>
