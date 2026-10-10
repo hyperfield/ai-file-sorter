@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <memory>
+#include <string_view>
 #include <thread>
 
 class QLabel;
@@ -115,5 +116,41 @@ private:
     QString last_report_;
     QStringList current_report_;
 };
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+/**
+ * @brief Test hooks for suitability benchmark backend reporting decisions.
+ */
+namespace SuitabilityBenchmarkDialogTestAccess {
+/**
+ * @brief Build the benchmark backend note for a requested backend and probed accelerators.
+ * @param requested_backend Requested backend key such as `cuda`, `vulkan`, `cpu`, or empty auto.
+ * @param cuda_available True when CUDA is usable.
+ * @param vulkan_available True when Vulkan is usable.
+ * @param metal_available True when Metal is usable.
+ * @param gpu_fallback True when the measured run fell back from GPU to CPU.
+ * @return User-facing backend note.
+ */
+QString backend_note_for_testing(std::string_view requested_backend,
+                                 bool cuda_available,
+                                 bool vulkan_available,
+                                 bool metal_available,
+                                 bool gpu_fallback);
+/**
+ * @brief Build the image-analysis backend note for a requested backend and probed accelerators.
+ * @param requested_backend Requested backend key such as `cuda`, `vulkan`, `cpu`, or empty auto.
+ * @param gpu_enabled True when image analysis was allowed to use GPU acceleration.
+ * @param cuda_available True when CUDA is usable.
+ * @param vulkan_available True when Vulkan is usable.
+ * @param metal_available True when Metal is usable.
+ * @return User-facing image backend note.
+ */
+QString image_backend_note_for_testing(std::string_view requested_backend,
+                                       bool gpu_enabled,
+                                       bool cuda_available,
+                                       bool vulkan_available,
+                                       bool metal_available);
+} // namespace SuitabilityBenchmarkDialogTestAccess
+#endif
 
 #endif // SUITABILITY_BENCHMARK_DIALOG_HPP

@@ -991,6 +991,29 @@ Procedure: Inspect the three clear buttons and the busy-state label.
 Expected outcome: All clear buttons are disabled and the dialog shows the busy explanation text.
 Run: `./build-tests/ai_file_sorter_tests "CacheMaintenanceDialog disables cache clearing controls while busy"`
 
+### `tests/unit/test_suitability_benchmark_dialog.cpp`
+
+#### Test case: Suitability benchmark reports Vulkan GPU when CUDA is unavailable
+Purpose: Ensure CUDA unavailability does not make the benchmark describe all GPU acceleration as unavailable when Vulkan is usable.
+Setup: Build backend notes with CUDA unavailable and Vulkan available.
+Procedure: Ask the suitability benchmark test access layer for text and image backend notes.
+Expected outcome: Both notes report `GPU (target: Vulkan)`.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark reports Vulkan GPU when CUDA is unavailable"`
+
+#### Test case: Suitability benchmark reports CPU only when no auto GPU backend is available
+Purpose: Ensure auto backend reporting falls back to CPU only when no CUDA, Vulkan, or Metal accelerator is available.
+Setup: Build an auto backend note with all accelerators unavailable.
+Procedure: Ask the suitability benchmark test access layer for the backend note.
+Expected outcome: The note starts with `CPU` and includes the GPU initialization failure reason.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark reports CPU only when no auto GPU backend is available"`
+
+#### Test case: Suitability benchmark keeps explicit CUDA unavailability distinct from Vulkan
+Purpose: Ensure an explicit CUDA fallback does not also claim Vulkan is unavailable when Vulkan was detected.
+Setup: Build a CUDA backend fallback note with CUDA unavailable and Vulkan available.
+Procedure: Ask the suitability benchmark test access layer for the backend note.
+Expected outcome: The note reports CUDA unavailable, does not report Vulkan unavailable, and uses CPU because the requested backend fell back.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark keeps explicit CUDA unavailability distinct from Vulkan"`
+
 ### `tests/unit/test_utils.cpp`
 
 #### Test case: get_file_name_from_url extracts filename

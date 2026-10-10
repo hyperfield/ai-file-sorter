@@ -397,6 +397,11 @@ struct BenchmarkBackendInfo {
     std::optional<std::string> blas_label;
 };
 
+bool any_gpu_backend_available(const BenchmarkBackendInfo& info)
+{
+    return info.cuda_available || info.vulkan_available || info.metal_available;
+}
+
 struct EnvEntry {
     std::string key;
     std::optional<std::string> value;
@@ -440,57 +445,41 @@ private:
     const EnvSnapshot& snapshot_;
 };
 
-BackendTarget resolve_backend_target(std::string_view override_value)
+BackendTarget resolve_auto_backend_target(const BenchmarkBackendInfo& info)
 {
-    if (override_value == "cpu") {
-        return {"cpu", QObject::tr("CPU").toStdString()};
-    }
-    if (override_value == "metal") {
-        return {"metal", QObject::tr("Metal").toStdString()};
-    }
-    if (override_value == "cuda") {
+    if (info.cuda_available) {
         return {"cuda", QObject::tr("CUDA").toStdString()};
     }
-    if (override_value == "vulkan") {
+    if (info.vulkan_available) {
         return {"vulkan", QObject::tr("Vulkan").toStdString()};
     }
-    if (override_value == "auto") {
-#if defined(__APPLE__)
-        return {"metal", QObject::tr("Metal (auto)").toStdString()};
-#else
-        return {"vulkan", QObject::tr("Vulkan (auto)").toStdString()};
-#endif
+    if (info.metal_available) {
+        return {"metal", QObject::tr("Metal").toStdString()};
     }
-    if (!override_value.empty()) {
-        return {"auto",
-                QObject::tr("%1 (auto)").arg(QString::fromStdString(std::string(override_value))).toStdString()};
-    }
-#if defined(__APPLE__)
-    return {"metal", QObject::tr("Metal (auto)").toStdString()};
-#else
-    return {"vulkan", QObject::tr("Vulkan (auto)").toStdString()};
-#endif
+    return {"auto", QObject::tr("Auto").toStdString()};
 }
 
-std::string format_backend_label(std::string_view name)
+BackendTarget resolve_backend_target(std::string_view override_value,
+                                     const BenchmarkBackendInfo& info)
 {
-    if (name.empty()) {
-        return QObject::tr("Auto").toStdString();
+    const std::string backend = to_lower_copy(std::string(override_value));
+    if (backend == "cpu") {
+        return {"cpu", QObject::tr("CPU").toStdString()};
     }
-    const std::string lowered = to_lower_copy(std::string(name));
-    if (lowered == "vulkan") {
-        return QObject::tr("Vulkan").toStdString();
+    if (backend == "metal") {
+        return {"metal", QObject::tr("Metal").toStdString()};
     }
-    if (lowered == "cuda") {
-        return QObject::tr("CUDA").toStdString();
+    if (backend == "cuda") {
+        return {"cuda", QObject::tr("CUDA").toStdString()};
     }
-    if (lowered == "metal") {
-        return QObject::tr("Metal").toStdString();
+    if (backend == "vulkan") {
+        return {"vulkan", QObject::tr("Vulkan").toStdString()};
     }
-    if (lowered == "cpu") {
-        return QObject::tr("CPU").toStdString();
+    if (backend.empty() || backend == "auto") {
+        return resolve_auto_backend_target(info);
     }
-    return std::string(name);
+    return {"auto",
+            QObject::tr("%1 (auto)").arg(QString::fromStdString(std::string(override_value))).toStdString()};
 }
 
 std::vector<DefaultModel> collect_default_models()
@@ -649,6 +638,28 @@ QString build_gpu_backend_note(const BackendTarget& target)
     return QObject::tr("GPU (target: %1)").arg(QString::fromStdString(target.label));
 }
 
+std::optional<QString> backend_unavailable_reason(const BackendTarget& target,
+                                                  const BenchmarkBackendInfo& info)
+{
+    if (target.key == "cuda" && !info.cuda_available) {
+        QString reason = QObject::tr("GPU via CUDA unavailable");
+        if (!info.vulkan_available) {
+            reason += QStringLiteral("; ") + QObject::tr("Vulkan unavailable");
+        }
+        return reason;
+    }
+    if (target.key == "vulkan" && !info.vulkan_available) {
+        return QObject::tr("GPU via Vulkan unavailable");
+    }
+    if (target.key == "metal" && !info.metal_available) {
+        return QObject::tr("GPU via Metal unavailable");
+    }
+    if (target.key == "auto" && !any_gpu_backend_available(info)) {
+        return QObject::tr("GPU init failed");
+    }
+    return std::nullopt;
+}
+
 QString build_backend_note(const BackendTarget& target,
                            const BenchmarkBackendInfo& info,
                            bool gpu_fallback)
@@ -658,23 +669,31 @@ QString build_backend_note(const BackendTarget& target,
     }
 
     if (gpu_fallback) {
-        QString reason;
-        if (target.key == "vulkan" && !info.vulkan_available) {
-            reason = QObject::tr("GPU via Vulkan unavailable");
-        } else if (target.key == "cuda" && !info.cuda_available) {
-            reason = QObject::tr("GPU via CUDA unavailable");
-            if (!info.vulkan_available) {
-                reason += QStringLiteral("; ") + QObject::tr("Vulkan unavailable");
-            }
-        } else if (target.key == "metal" && !info.metal_available) {
-            reason = QObject::tr("GPU via Metal unavailable");
-        } else {
-            reason = QObject::tr("GPU init failed");
-        }
-        return build_cpu_backend_note(reason, info.blas_label);
+        return build_cpu_backend_note(
+            backend_unavailable_reason(target, info).value_or(QObject::tr("GPU init failed")),
+            info.blas_label);
+    }
+
+    if (const auto reason = backend_unavailable_reason(target, info)) {
+        return build_cpu_backend_note(*reason, info.blas_label);
     }
 
     return build_gpu_backend_note(target);
+}
+
+QString build_image_backend_note(std::string_view requested_backend,
+                                 bool gpu_enabled,
+                                 const BenchmarkBackendInfo& info)
+{
+    if (!gpu_enabled) {
+        return build_cpu_backend_note(QObject::tr("GPU disabled by backend override"), std::nullopt);
+    }
+
+    const BackendTarget target = resolve_backend_target(requested_backend, info);
+    if (target.key == "cpu") {
+        return build_cpu_backend_note(QObject::tr("GPU disabled by backend override"), std::nullopt);
+    }
+    return build_backend_note(target, info, false);
 }
 
 std::string join_duration_list(const std::vector<double>& seconds)
@@ -1046,7 +1065,7 @@ TextModelOutcome run_text_model_checks(const std::vector<DefaultModel>& models,
             });
 
             const std::string backend_before_cat = read_env_lower("AI_FILE_SORTER_GPU_BACKEND");
-            const BackendTarget cat_target = resolve_backend_target(backend_before_cat);
+            const BackendTarget cat_target = resolve_backend_target(backend_before_cat, backend_info);
             if (post_line) {
                 post_line(QObject::tr("    Measuring categorization (warm-up + %1 run(s))...")
                               .arg(kPerItemRuns + 1));
@@ -1076,7 +1095,7 @@ TextModelOutcome run_text_model_checks(const std::vector<DefaultModel>& models,
 
             status_fallback = false;
             const std::string backend_before_doc = read_env_lower("AI_FILE_SORTER_GPU_BACKEND");
-            const BackendTarget doc_target = resolve_backend_target(backend_before_doc);
+            const BackendTarget doc_target = resolve_backend_target(backend_before_doc, backend_info);
             if (post_line) {
                 post_line(QObject::tr("    Measuring document analysis (warm-up + %1 run(s))...")
                               .arg(kPerItemRuns + 1));
@@ -1377,6 +1396,36 @@ QStringList build_result_lines(const TextModelOutcome& text_models,
     return lines;
 }
 } // namespace
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+QString SuitabilityBenchmarkDialogTestAccess::backend_note_for_testing(
+    std::string_view requested_backend,
+    bool cuda_available,
+    bool vulkan_available,
+    bool metal_available,
+    bool gpu_fallback)
+{
+    BenchmarkBackendInfo info;
+    info.cuda_available = cuda_available;
+    info.vulkan_available = vulkan_available;
+    info.metal_available = metal_available;
+    return build_backend_note(resolve_backend_target(requested_backend, info), info, gpu_fallback);
+}
+
+QString SuitabilityBenchmarkDialogTestAccess::image_backend_note_for_testing(
+    std::string_view requested_backend,
+    bool gpu_enabled,
+    bool cuda_available,
+    bool vulkan_available,
+    bool metal_available)
+{
+    BenchmarkBackendInfo info;
+    info.cuda_available = cuda_available;
+    info.vulkan_available = vulkan_available;
+    info.metal_available = metal_available;
+    return build_image_backend_note(requested_backend, gpu_enabled, info);
+}
+#endif
 
 SuitabilityBenchmarkDialog::SuitabilityBenchmarkDialog(Settings& settings,
                                                        QWidget* parent)
@@ -1820,26 +1869,10 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
                 visual_backend = read_env_lower("LLAMA_ARG_DEVICE");
             }
 
-            QString backend_note;
-            if (!VisualLlmRuntime::should_use_gpu()) {
-                backend_note = build_cpu_backend_note(QObject::tr("GPU disabled by backend override"), std::nullopt);
-            } else if (case_insensitive_contains(visual_backend, "vulkan") &&
-                       !backend_info.vulkan_available) {
-                backend_note = build_cpu_backend_note(QObject::tr("GPU via Vulkan unavailable"), std::nullopt);
-            } else if (case_insensitive_contains(visual_backend, "metal") &&
-                       !backend_info.metal_available) {
-                backend_note = build_cpu_backend_note(QObject::tr("GPU via Metal unavailable"), std::nullopt);
-            } else {
-                BackendTarget visual_target = resolve_backend_target(visual_backend);
-                if (visual_target.key == "cpu") {
-                    backend_note = build_cpu_backend_note(QObject::tr("GPU disabled by backend override"), std::nullopt);
-                } else {
-                    if (!visual_backend.empty()) {
-                        visual_target.label = format_backend_label(visual_backend);
-                    }
-                    backend_note = build_gpu_backend_note(visual_target);
-                }
-            }
+            const QString backend_note =
+                build_image_backend_note(visual_backend,
+                                         VisualLlmRuntime::should_use_gpu(),
+                                         backend_info);
 
             post_line(QObject::tr("Backend used (image analysis): %1")
                           .arg(backend_note));
