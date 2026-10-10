@@ -68,6 +68,33 @@ in-app commercial plugin obtain links, Johnny.Decimal purchase/install prompts,
 and plugin license activation. Normal source/download builds leave this option
 off and keep the standard plugin catalog and activation behavior.
 
+The distro profile also changes dependency defaults that are normally convenient
+for upstream binary builds:
+
+- `AI_FILE_SORTER_PDF_BACKEND=pdftotext` by default. Supported values are
+  `embedded-pdfium`, `system-pdfium`, `pdftotext`, and `auto`.
+- `AI_FILE_SORTER_LLAMA_PROVIDER=system` by default on Linux distro builds.
+  Supported values are `precompiled`, `bundled-source`, and `system`.
+- `AI_FILE_SORTER_LLAMA_BACKENDS=cpu` declares the backend set expected by a
+  package build. Add `vulkan` or `cuda` only when the packaging recipe supplies
+  the matching system ggml backend package.
+
+For example, a repository build that expects optional Vulkan and CUDA
+subpackage recipes can configure:
+
+```sh
+cmake -S app -B build-distro \
+  -DAI_FILE_SORTER_DISTRO_REPOSITORY_BUILD=ON \
+  -DAI_FILE_SORTER_UPDATE_MODE=DISABLED \
+  -DAI_FILE_SORTER_LLAMA_PROVIDER=system \
+  -DAI_FILE_SORTER_LLAMA_BACKENDS=cpu,vulkan,cuda \
+  -DAI_FILE_SORTER_PDF_BACKEND=pdftotext
+```
+
+With the `system` llama provider, the app links against package-managed
+`llama`, `ggml`, and `mtmd` development files. CUDA and Vulkan are runtime ggml
+backend packages rather than libraries bundled into the AIFS package.
+
 ## Windows naming and migration note
 
 New registry/settings/integration paths should use `HFStudio`. Compatibility
