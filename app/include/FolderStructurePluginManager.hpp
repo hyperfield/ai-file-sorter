@@ -139,6 +139,14 @@ class FolderStructurePluginManager {
                           std::string* error = nullptr) const;
 
     /**
+     * @brief Checks whether a cached entitlement receipt unlocks a plugin product.
+     * @param product_id Commercial product id required by the plugin.
+     * @param plugin_id Optional concrete plugin id to match inside the receipt.
+     * @return True when a valid local receipt grants access.
+     */
+    bool has_plugin_entitlement(const std::string& product_id, const std::string& plugin_id = {}) const;
+
+    /**
      * @brief Installs or updates a plugin from the remote catalog.
      * @param plugin_id Plugin identifier.
      * @param error Optional output for a user-facing failure reason.

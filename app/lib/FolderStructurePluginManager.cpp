@@ -395,6 +395,12 @@ bool FolderStructurePluginManager::activate_license(const std::string& product_i
     return false;
 }
 
+bool FolderStructurePluginManager::has_plugin_entitlement(const std::string& product_id,
+                                                          const std::string& plugin_id) const {
+    return !product_id.empty() && entitlement_service_ &&
+           entitlement_service_->has_entitlement(product_id, plugin_id);
+}
+
 bool FolderStructurePluginManager::install(const std::string& plugin_id, std::string* error) const {
     FolderStructurePluginInstallError detailed_error;
     const bool installed = install(plugin_id, &detailed_error);

@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <cstddef>
 
@@ -36,6 +37,12 @@ QString plugin_display_name(const FolderStructurePluginInstallError& error) {
     return flow_tr("this plugin");
 }
 
+bool entitlement_is_available(const std::shared_ptr<FolderStructurePluginManager>& plugin_manager,
+                              const FolderStructurePluginInstallError& install_error) {
+    return plugin_manager &&
+           plugin_manager->has_plugin_entitlement(install_error.product_id, install_error.plugin_id);
+}
+
 void show_install_failed(QWidget* parent, const FolderStructurePluginInstallError& install_error) {
     QMessageBox::warning(parent, flow_tr("Install failed"),
                          install_error.message.empty() ? flow_tr("Failed to install folder-structure plugin.")
@@ -53,6 +60,9 @@ bool activate_folder_structure_plugin_entitlement(QWidget* parent,
     if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
         return false;
     }
+    if (entitlement_is_available(plugin_manager, install_error)) {
+        return true;
+    }
 
     QMessageBox license_required(parent);
     license_required.setIcon(QMessageBox::Warning);
@@ -66,7 +76,20 @@ bool activate_folder_structure_plugin_entitlement(QWidget* parent,
     }
     auto* activate_button = license_required.addButton(flow_tr("Activate License..."), QMessageBox::AcceptRole);
     license_required.addButton(QMessageBox::Cancel);
+    bool entitlement_detected = false;
+    QTimer entitlement_refresh_timer(&license_required);
+    entitlement_refresh_timer.setInterval(1000);
+    QObject::connect(&entitlement_refresh_timer, &QTimer::timeout, &license_required, [&]() {
+        if (entitlement_is_available(plugin_manager, install_error)) {
+            entitlement_detected = true;
+            license_required.accept();
+        }
+    });
+    entitlement_refresh_timer.start();
     license_required.exec();
+    if (entitlement_detected || entitlement_is_available(plugin_manager, install_error)) {
+        return true;
+    }
     if (read_more_button && license_required.clickedButton() == read_more_button) {
         QDesktopServices::openUrl(QUrl(QString::fromStdString(install_error.purchase_url)));
         return false;
