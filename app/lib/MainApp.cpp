@@ -86,6 +86,7 @@
 #include <QStandardItemModel>
 #include <QCoreApplication>
 #include <QDesktopServices>
+#include <QStringList>
 #include <QStatusBar>
 #include <QToolButton>
 #include <QTreeView>
@@ -391,6 +392,21 @@ std::string to_lower_copy(std::string value)
         return static_cast<char>(std::tolower(ch));
     });
     return value;
+}
+
+QString display_name_for_folder_structure_profile(const FolderStructurePluginProfile& profile)
+{
+    const std::string kind = to_lower_copy(profile.structure_kind);
+    const std::string id = to_lower_copy(profile.id);
+    if (kind == "johnny_decimal" || kind == "johnny.decimal" ||
+        id.find("johnny_decimal") != std::string::npos ||
+        id.find("johnny.decimal") != std::string::npos) {
+        return QStringLiteral("Johnny.Decimal");
+    }
+    if (!profile.name.empty()) {
+        return QString::fromStdString(profile.name);
+    }
+    return QString::fromStdString(profile.id);
 }
 
 bool case_insensitive_contains(std::string_view haystack, std::string_view needle)
@@ -710,6 +726,8 @@ void MainApp::apply_theme_styles()
 
     apply_if_changed(file_listing_panel,
                      AppTheme::file_listing_panel_style_sheet(current_palette));
+    apply_if_changed(folder_structure_plugin_status_label,
+                     AppTheme::folder_structure_plugin_status_style_sheet(current_palette));
 }
 
 
@@ -1707,6 +1725,7 @@ void MainApp::on_destination_directory_selected(const QString& path)
                                         ? std::string()
                                         : destination_folder);
     update_destination_folder_controls();
+    update_folder_structure_plugin_status(path_entry ? path_entry->text() : QString());
     statusBar()->showMessage(tr("Destination selected: %1").arg(path), 3000);
     status_is_ready_ = false;
     maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
@@ -2073,6 +2092,7 @@ void MainApp::release_analysis_runtime_lock()
 void MainApp::update_results_view_mode()
 {
     if (!results_stack) {
+        update_folder_structure_plugin_status({});
         return;
     }
 
@@ -2084,20 +2104,25 @@ void MainApp::update_results_view_mode()
 
     if (explorer_visible && path_entry) {
         update_folder_contents(path_entry->text());
+    } else {
+        update_folder_structure_plugin_status({});
     }
 }
 
 void MainApp::update_folder_contents(const QString& directory)
 {
     if (!folder_contents_model || !folder_contents_view || directory.isEmpty()) {
+        update_folder_structure_plugin_status({});
         return;
     }
 
     QDir dir(directory);
     if (!dir.exists()) {
+        update_folder_structure_plugin_status({});
         return;
     }
 
+    update_folder_structure_plugin_status(directory);
     refresh_active_storage_provider(to_utf8(directory), false);
 
     const bool previous_flag = suppress_folder_view_sync_;
@@ -2110,6 +2135,76 @@ void MainApp::update_folder_contents(const QString& directory)
     folder_contents_view->resizeColumnToContents(0);
 
     suppress_folder_view_sync_ = previous_flag;
+}
+
+void MainApp::update_folder_structure_plugin_status(const QString& directory)
+{
+    if (!folder_structure_plugin_status_label) {
+        return;
+    }
+
+    folder_structure_plugin_status_label->clear();
+    folder_structure_plugin_status_label->setVisible(false);
+
+    if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree ||
+        !folder_structure_plugin_manager_ ||
+        !results_stack ||
+        results_stack->currentIndex() != folder_view_page_index_) {
+        return;
+    }
+
+    const auto plugin_profiles = folder_structure_plugin_manager_->installed_profiles();
+    if (plugin_profiles.empty()) {
+        return;
+    }
+
+    const QString normalized_destination =
+        normalized_existing_directory_path(QString::fromStdString(get_destination_folder_path()));
+    if (normalized_destination.isEmpty()) {
+        return;
+    }
+
+    try {
+        const auto catalog =
+            FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(to_utf8(normalized_destination)));
+        const auto inferred_profile =
+            FolderStructurePattern::infer_profile(catalog, plugin_profiles);
+        if (inferred_profile.matched_plugin_profile_ids.empty()) {
+            return;
+        }
+
+        QStringList matched_profile_names;
+        for (const auto& matched_id : inferred_profile.matched_plugin_profile_ids) {
+            const auto match =
+                std::find_if(plugin_profiles.begin(), plugin_profiles.end(), [&](const auto& plugin_profile) {
+                    return plugin_profile.id == matched_id;
+                });
+            if (match == plugin_profiles.end()) {
+                continue;
+            }
+
+            const QString display_name = display_name_for_folder_structure_profile(*match);
+            if (!display_name.isEmpty() && !matched_profile_names.contains(display_name)) {
+                matched_profile_names.push_back(display_name);
+            }
+        }
+
+        if (matched_profile_names.empty()) {
+            return;
+        }
+
+        folder_structure_plugin_status_label->setText(
+            tr("Plugin used: %1").arg(matched_profile_names.join(QStringLiteral(", "))));
+        folder_structure_plugin_status_label->setToolTip(
+            tr("Folder-structure guidance is active for the destination folder."));
+        folder_structure_plugin_status_label->setVisible(true);
+    } catch (const std::exception& ex) {
+        if (core_logger) {
+            core_logger->warn("Failed to inspect folder-structure plugin status for destination '{}': {}",
+                              to_utf8(normalized_destination),
+                              ex.what());
+        }
+    }
 }
 
 void MainApp::rebuild_storage_provider_registry()
@@ -2407,6 +2502,7 @@ void MainApp::show_folder_structure_plugin_dialog()
 
     FolderStructurePluginDialog dialog(folder_structure_plugin_manager_, this);
     dialog.exec();
+    update_folder_structure_plugin_status(path_entry ? path_entry->text() : QString());
 }
 
 QString MainApp::johnny_decimal_plugin_page_url()
@@ -2554,35 +2650,29 @@ void MainApp::maybe_suggest_johnny_decimal_plugin_for_current_folder_tree()
         return;
     }
 
-    const std::vector<QString> candidates = {
-        QString::fromStdString(get_destination_folder_path()),
-        QString::fromStdString(get_folder_path()),
-    };
-    for (const QString& candidate : candidates) {
-        const QString normalized_root = normalized_existing_directory_path(candidate);
-        if (normalized_root.isEmpty()) {
-            continue;
-        }
-
-        const std::string root_key = to_utf8(normalized_root);
-        if (root_key == last_johnny_decimal_plugin_suggestion_root_) {
-            continue;
-        }
-        last_johnny_decimal_plugin_suggestion_root_ = root_key;
-
-        if (!should_offer_johnny_decimal_plugin_for_root(normalized_root)) {
-            continue;
-        }
-
-        if (core_logger) {
-            core_logger->info("Offering Johnny.Decimal folder-structure plugin for '{}'", root_key);
-        }
-        maybe_show_johnny_decimal_plugin_suggestion();
+    const QString normalized_destination =
+        normalized_existing_directory_path(QString::fromStdString(get_destination_folder_path()));
+    if (normalized_destination.isEmpty()) {
         return;
     }
+
+    const std::string root_key = to_utf8(normalized_destination);
+    if (root_key == last_johnny_decimal_plugin_suggestion_root_) {
+        return;
+    }
+    last_johnny_decimal_plugin_suggestion_root_ = root_key;
+
+    if (!should_offer_johnny_decimal_plugin_for_root(normalized_destination)) {
+        return;
+    }
+
+    if (core_logger) {
+        core_logger->info("Offering Johnny.Decimal folder-structure plugin for destination '{}'", root_key);
+    }
+    maybe_show_johnny_decimal_plugin_suggestion(tr("destination folder"));
 }
 
-bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
+bool MainApp::maybe_show_johnny_decimal_plugin_suggestion(const QString& matched_folder_description)
 {
     if (settings.get_hide_johnny_decimal_plugin_suggestion()) {
         return false;
@@ -2602,7 +2692,7 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
     }
 
     bool handled = false;
-    run_on_ui_blocking([this, &handled]() {
+    run_on_ui_blocking([this, &handled, matched_folder_description]() {
         if (settings.get_hide_johnny_decimal_plugin_suggestion()) {
             return;
         }
@@ -2624,7 +2714,10 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion()
                                   ? tr("Johnny.Decimal support disabled")
                                   : tr("Johnny.Decimal support available"));
         dialog.setIcon(QMessageBox::Information);
-        dialog.setText(tr("This folder looks like a Johnny.Decimal archive."));
+        dialog.setText(matched_folder_description.isEmpty()
+                           ? tr("This folder looks like a Johnny.Decimal archive.")
+                           : tr("The %1 looks like a Johnny.Decimal archive.")
+                                 .arg(matched_folder_description));
 
         QPushButton* primary_button = nullptr;
         QPushButton* obtain_button = nullptr;

@@ -554,6 +554,13 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     file_listing_layout->setContentsMargins(2, 2, 2, 2);
     file_listing_layout->setSpacing(0);
     file_listing_layout->addWidget(app.results_stack);
+    app.folder_structure_plugin_status_label = new QLabel(app.file_listing_panel);
+    app.folder_structure_plugin_status_label->setObjectName(QStringLiteral("aifsFolderStructurePluginStatusLabel"));
+    app.folder_structure_plugin_status_label->setVisible(false);
+    app.folder_structure_plugin_status_label->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+    app.folder_structure_plugin_status_label->setStyleSheet(
+        AppTheme::folder_structure_plugin_status_style_sheet(app.palette()));
+    file_listing_layout->addWidget(app.folder_structure_plugin_status_label, 0, Qt::AlignLeft);
     main_layout->addWidget(app.file_listing_panel, 1);
 
     app.setCentralWidget(central);

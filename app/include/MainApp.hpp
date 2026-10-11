@@ -310,6 +310,7 @@ private:
     void release_analysis_runtime_lock();
     void update_results_view_mode();
     void update_folder_contents(const QString& directory);
+    void update_folder_structure_plugin_status(const QString& directory);
     void focus_file_explorer_on_path(const QString& path);
     void rebuild_storage_provider_registry();
     void refresh_active_storage_provider(const std::string& directory_path,
@@ -402,9 +403,10 @@ private:
     void show_folder_structure_plugin_dialog();
     /**
      * @brief Offers the Johnny.Decimal folder-structure plugin for compatible folder trees.
+     * @param matched_folder_description Optional user-facing folder role that triggered the offer.
      * @return True when the user chose a flow that should stop the current analysis.
      */
-    bool maybe_show_johnny_decimal_plugin_suggestion();
+    bool maybe_show_johnny_decimal_plugin_suggestion(const QString& matched_folder_description = {});
     /**
      * @brief Attempts to install Johnny.Decimal support from the configured plugin catalog.
      * @return True when the plugin was installed and the current analysis should restart.
@@ -525,6 +527,7 @@ private:
     QPointer<QPushButton> analyze_button;
     QPointer<QPushButton> browse_button;
     QPointer<QLabel> backend_status_label;
+    QPointer<QLabel> folder_structure_plugin_status_label;
     QPointer<QLabel> path_label;
     QPointer<QLabel> destination_path_label;
     QPointer<QLineEdit> destination_path_entry;

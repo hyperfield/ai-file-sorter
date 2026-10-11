@@ -88,6 +88,8 @@ void MainWindowStateBinder::connect_checkbox_signals()
                              app_.settings.set_sorting_mode(mode);
                              update_image_only_controls();
                              update_document_analysis_controls();
+                             app_.update_folder_structure_plugin_status(app_.path_entry ? app_.path_entry->text()
+                                                                                         : QString());
                              app_.maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
                          });
     }
@@ -113,6 +115,8 @@ void MainWindowStateBinder::connect_checkbox_signals()
                              if (!checked) {
                                  app_.settings.set_destination_folder(app_.get_destination_folder_path());
                              }
+                             app_.update_folder_structure_plugin_status(app_.path_entry ? app_.path_entry->text()
+                                                                                         : QString());
                              app_.maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
                          });
     }

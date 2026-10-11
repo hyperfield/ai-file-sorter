@@ -48,6 +48,13 @@ QString file_explorer_panel_style_sheet(const QPalette& palette);
 QString file_listing_panel_style_sheet(const QPalette& palette);
 
 /**
+ * @brief Builds the active folder-structure plugin status label stylesheet.
+ * @param palette Palette used to choose a readable blue accent.
+ * @return Stylesheet text.
+ */
+QString folder_structure_plugin_status_style_sheet(const QPalette& palette);
+
+/**
  * @brief Builds the review dialog stylesheet for the provided palette.
  * @param palette Palette used to derive table, button, and selection colors.
  * @return Stylesheet text.
