@@ -169,9 +169,11 @@ bool receipt_window_is_active(const QJsonObject& payload) {
     return offline_until.isValid() && QDateTime::currentDateTimeUtc() <= offline_until;
 }
 
-bool receipt_matches_device(const QJsonObject& payload, const std::string& expected_device_id) {
+bool receipt_matches_any_device(const QJsonObject& payload, const std::vector<std::string>& expected_device_ids) {
     const std::string receipt_device_id = payload.value("device_id").toString().trimmed().toStdString();
-    return !receipt_device_id.empty() && receipt_device_id == expected_device_id;
+    return !receipt_device_id.empty() &&
+           std::find(expected_device_ids.begin(), expected_device_ids.end(), receipt_device_id) !=
+               expected_device_ids.end();
 }
 
 bool receipt_has_active_entitlement(const QJsonObject& payload) {
@@ -240,7 +242,8 @@ bool development_bypass_grants(std::string_view product_id, std::string_view plu
 std::optional<QJsonObject> parse_verified_payload(const QByteArray& payload, const QByteArray& signature,
                                                   const std::string& key_id,
                                                   const std::vector<PluginEntitlementPublicKey>& trusted_keys,
-                                                  const std::string& expected_device_id, std::string* error) {
+                                                  const std::vector<std::string>& expected_device_ids,
+                                                  std::string* error) {
     const auto trusted_key = trusted_key_for_id(trusted_keys, key_id);
     if (!trusted_key) {
         if (error) {
@@ -270,7 +273,7 @@ std::optional<QJsonObject> parse_verified_payload(const QByteArray& payload, con
         }
         return std::nullopt;
     }
-    if (!receipt_matches_device(object, expected_device_id)) {
+    if (!receipt_matches_any_device(object, expected_device_ids)) {
         if (error) {
             *error = "Entitlement receipt does not match this device.";
         }
@@ -293,7 +296,7 @@ std::optional<QJsonObject> parse_verified_payload(const QByteArray& payload, con
 
 std::optional<QJsonObject> parse_receipt_wrapper(const QByteArray& receipt_bytes,
                                                  const std::vector<PluginEntitlementPublicKey>& trusted_keys,
-                                                 const std::string& expected_device_id) {
+                                                 const std::vector<std::string>& expected_device_ids) {
     const QJsonDocument doc = QJsonDocument::fromJson(receipt_bytes);
     if (!doc.isObject()) {
         return std::nullopt;
@@ -313,7 +316,7 @@ std::optional<QJsonObject> parse_receipt_wrapper(const QByteArray& receipt_bytes
     if (payload.isEmpty() || signature.size() != 64) {
         return std::nullopt;
     }
-    return parse_verified_payload(payload, signature, key_id, trusted_keys, expected_device_id, nullptr);
+    return parse_verified_payload(payload, signature, key_id, trusted_keys, expected_device_ids, nullptr);
 }
 
 std::string receipt_filename(const QByteArray& payload, const QByteArray& signature, const std::string& key_id) {
@@ -329,7 +332,7 @@ std::string path_to_stable_utf8(const std::filesystem::path& path) {
     return std::string(reinterpret_cast<const char*>(text.data()), text.size());
 }
 
-QByteArray device_fingerprint_material(const std::filesystem::path& config_dir) {
+QByteArray device_fingerprint_material(const std::filesystem::path& config_dir, bool include_volatile_os_version) {
     QByteArray material;
     const auto append = [&material](const QByteArray& value) {
         if (value.isEmpty()) {
@@ -346,12 +349,40 @@ QByteArray device_fingerprint_material(const std::filesystem::path& config_dir) 
     append(QSysInfo::currentCpuArchitecture().toUtf8());
     append(QSysInfo::buildAbi().toUtf8());
     append(QSysInfo::kernelType().toUtf8());
-    append(QSysInfo::kernelVersion().toUtf8());
+    if (include_volatile_os_version) {
+        append(QSysInfo::kernelVersion().toUtf8());
+    }
 
     if (material.isEmpty()) {
         material = QByteArray::fromStdString(path_to_stable_utf8(config_dir));
     }
     return material;
+}
+
+std::string device_id_for_material(std::string_view label, const QByteArray& material) {
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    hash.addData(label.data(), static_cast<qsizetype>(label.size()));
+    hash.addData(material);
+    return "dev_" + hash.result().toHex().left(32).toStdString();
+}
+
+std::string stable_device_id(const std::filesystem::path& config_dir) {
+    return device_id_for_material("aifs-entitlement-device:v2", device_fingerprint_material(config_dir, false));
+}
+
+std::string legacy_device_id(const std::filesystem::path& config_dir) {
+    return device_id_for_material("aifs-entitlement-device:v1", device_fingerprint_material(config_dir, true));
+}
+
+std::vector<std::string> accepted_device_ids(const std::filesystem::path& config_dir) {
+    std::vector<std::string> ids;
+    ids.push_back(stable_device_id(config_dir));
+
+    const std::string legacy = legacy_device_id(config_dir);
+    if (legacy != ids.front()) {
+        ids.push_back(legacy);
+    }
+    return ids;
 }
 
 }  // namespace
@@ -370,11 +401,7 @@ std::vector<PluginEntitlementPublicKey> PluginEntitlementService::default_public
 }
 
 std::string PluginEntitlementService::device_id() const {
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    static constexpr char kLabel[] = "aifs-entitlement-device:v1";
-    hash.addData(kLabel, static_cast<qsizetype>(std::char_traits<char>::length(kLabel)));
-    hash.addData(device_fingerprint_material(config_dir_));
-    return "dev_" + hash.result().toHex().left(32).toStdString();
+    return stable_device_id(config_dir_);
 }
 
 bool PluginEntitlementService::store_receipt(const QByteArray& payload, const QByteArray& signature,
@@ -393,7 +420,7 @@ bool PluginEntitlementService::store_receipt(const QByteArray& payload, const QB
         return false;
     }
 
-    if (!parse_verified_payload(payload, signature, key_id, keys, device_id(), error)) {
+    if (!parse_verified_payload(payload, signature, key_id, keys, {device_id()}, error)) {
         return false;
     }
 
@@ -455,7 +482,7 @@ bool PluginEntitlementService::has_entitlement(std::string_view product_id, std:
         return false;
     }
 
-    const std::string expected_device_id = device_id();
+    const std::vector<std::string> expected_device_ids = accepted_device_ids(config_dir_);
     for (std::filesystem::directory_iterator it(receipts, ec), end; it != end && !ec; it.increment(ec)) {
         if (!it->is_regular_file(ec) || ec || it->path().extension() != ".json") {
             continue;
@@ -465,7 +492,7 @@ bool PluginEntitlementService::has_entitlement(std::string_view product_id, std:
         if (!file.open(QIODevice::ReadOnly)) {
             continue;
         }
-        const auto payload = parse_receipt_wrapper(file.readAll(), keys, expected_device_id);
+        const auto payload = parse_receipt_wrapper(file.readAll(), keys, expected_device_ids);
         if (payload && receipt_grants(*payload, product_id, plugin_id)) {
             return true;
         }
