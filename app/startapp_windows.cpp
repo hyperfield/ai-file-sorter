@@ -909,10 +909,26 @@ QStringList build_forwarded_args(int argc, char* argv[], bool& console_log_flag)
     return forwardedArgs;
 }
 
+bool has_argument_prefix(const QStringList& args, const QString& prefix) {
+    for (const QString& arg : args) {
+        if (arg.startsWith(prefix)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool is_headless_invocation(const QStringList& forwardedArgs) {
     return forwardedArgs.contains(QStringLiteral("--headless")) ||
            forwardedArgs.contains(QStringLiteral("--headless-apply")) ||
-           forwardedArgs.contains(QStringLiteral("--headless-help"));
+           forwardedArgs.contains(QStringLiteral("--headless-help")) ||
+           forwardedArgs.contains(QStringLiteral("--plugin-entitlement-info")) ||
+           forwardedArgs.contains(QStringLiteral("--plugin-entitlement-activate")) ||
+           forwardedArgs.contains(QStringLiteral("--activate-plugin-license")) ||
+           forwardedArgs.contains(QStringLiteral("--self-test")) ||
+           has_argument_prefix(forwardedArgs, QStringLiteral("--self-test=")) ||
+           forwardedArgs.contains(QStringLiteral("--visual-gpu-probe")) ||
+           has_argument_prefix(forwardedArgs, QStringLiteral("--visual-gpu-probe="));
 }
 
 QString backend_tag_for_selection(BackendSelection selection) {
