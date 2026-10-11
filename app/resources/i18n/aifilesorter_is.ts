@@ -867,8 +867,8 @@ Staða: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Read More...</source>
-            <translation>Lesa meira...</translation>
+            <source>Get It</source>
+            <translation>Fá það</translation>
         </message>
         <message>
             <source>Available</source>

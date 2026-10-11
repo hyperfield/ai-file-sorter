@@ -867,8 +867,8 @@ Status: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Read More...</source>
-            <translation>Meer lezen...</translation>
+            <source>Get It</source>
+            <translation>Ophalen</translation>
         </message>
         <message>
             <source>Available</source>

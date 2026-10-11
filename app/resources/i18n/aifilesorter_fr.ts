@@ -867,8 +867,8 @@ Signataire vérifié : %3
             <translation>Install</translation>
         </message>
         <message>
-            <source>Read More...</source>
-            <translation>En savoir plus...</translation>
+            <source>Get It</source>
+            <translation>L'obtenir</translation>
         </message>
         <message>
             <source>Available</source>

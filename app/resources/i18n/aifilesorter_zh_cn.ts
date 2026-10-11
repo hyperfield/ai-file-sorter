@@ -867,8 +867,8 @@ Status: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Read More...</source>
-            <translation>了解更多...</translation>
+            <source>Get It</source>
+            <translation>获取</translation>
         </message>
         <message>
             <source>Available</source>

@@ -867,8 +867,8 @@ Stato: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Read More...</source>
-            <translation>Scopri di più...</translation>
+            <source>Get It</source>
+            <translation>Ottienilo</translation>
         </message>
         <message>
             <source>Available</source>

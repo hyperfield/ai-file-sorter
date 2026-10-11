@@ -79,6 +79,7 @@ class FolderStructurePluginDialog : public QDialog {
 
     std::shared_ptr<FolderStructurePluginManager> plugin_manager_;
     QTreeWidget* plugin_list_{nullptr};
+    QLabel* details_label_{nullptr};
     QLabel* description_label_{nullptr};
     QPushButton* check_updates_button_{nullptr};
     QPushButton* import_button_{nullptr};

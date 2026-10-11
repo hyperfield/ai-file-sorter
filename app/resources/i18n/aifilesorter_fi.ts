@@ -867,8 +867,8 @@ Tila: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Read More...</source>
-            <translation>Lue lisää...</translation>
+            <source>Get It</source>
+            <translation>Hanki se</translation>
         </message>
         <message>
             <source>Available</source>

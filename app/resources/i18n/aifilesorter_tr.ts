@@ -867,8 +867,8 @@ Durum: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Read More...</source>
-            <translation>Daha fazla bilgi...</translation>
+            <source>Get It</source>
+            <translation>Edin</translation>
         </message>
         <message>
             <source>Available</source>

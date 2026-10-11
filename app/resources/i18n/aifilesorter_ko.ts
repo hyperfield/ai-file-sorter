@@ -867,8 +867,8 @@ Status: %4
             <translation>Install</translation>
         </message>
         <message>
-            <source>Read More...</source>
-            <translation>자세히 보기...</translation>
+            <source>Get It</source>
+            <translation>받기</translation>
         </message>
         <message>
             <source>Available</source>
