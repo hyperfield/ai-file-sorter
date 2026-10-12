@@ -371,7 +371,7 @@ bool FolderStructurePluginManager::activate_license(const std::string& product_i
                                                     std::string* error) const {
     if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
         if (error) {
-            *error = "This build does not support in-app commercial plugin activation.";
+            *error = "This build does not support in-app licensed plugin activation.";
         }
         return false;
     }

@@ -5,7 +5,7 @@
 #include <string>
 
 /**
- * @brief Request data used to activate a commercial plugin license.
+ * @brief Request data used to activate a licensed plugin.
  */
 struct PluginLicenseActivationRequest {
     /** @brief Activation endpoint URL. Empty uses the app default or environment override. */

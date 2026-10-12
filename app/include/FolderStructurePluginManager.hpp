@@ -129,7 +129,7 @@ class FolderStructurePluginManager {
     bool set_enabled(const std::string& plugin_id, bool enabled, std::string* error = nullptr) const;
 
     /**
-     * @brief Activates a commercial plugin license through the configured activation endpoint.
+     * @brief Activates a licensed plugin through the configured activation endpoint.
      * @param product_id Product id requested by a plugin manifest.
      * @param license_key User-provided license key.
      * @param error Optional output for a user-facing failure reason.

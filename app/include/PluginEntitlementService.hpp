@@ -1,6 +1,6 @@
 /**
  * @file PluginEntitlementService.hpp
- * @brief Local verification and storage for signed commercial plugin entitlement receipts.
+ * @brief Local verification and storage for signed licensed plugin entitlement receipts.
  */
 #pragma once
 

@@ -998,11 +998,13 @@ if (-not (Test-Path (Join-Path $llamaDir "CMakeLists.txt"))) {
 }
 
 $localEnvFileWasExplicit = $PSBoundParameters.ContainsKey("EnvFile")
-if ([string]::IsNullOrWhiteSpace($EnvFile) -and -not $localEnvFileWasExplicit) {
-    $EnvFile = Join-Path $appDir "build_windows.local.env"
-}
 if (-not $SkipLocalEnvFile) {
-    Import-LocalBuildEnvFile -Path $EnvFile -Required:$localEnvFileWasExplicit
+    if ($localEnvFileWasExplicit) {
+        Import-LocalBuildEnvFile -Path $EnvFile -Required
+    } else {
+        Import-LocalBuildEnvFile -Path (Join-Path $appDir "build.local.env")
+        Import-LocalBuildEnvFile -Path (Join-Path $appDir "build_windows.local.env")
+    }
 }
 if (-not $PSBoundParameters.ContainsKey("FolderStructurePluginPublicKeys")) {
     $FolderStructurePluginPublicKeys = $env:AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS

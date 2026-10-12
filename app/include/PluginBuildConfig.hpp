@@ -27,7 +27,7 @@ constexpr bool remote_catalogs_enabled() {
 }
 
 /**
- * @brief Returns whether in-app commercial plugin obtain and activation actions are enabled.
+ * @brief Returns whether in-app licensed plugin obtain and activation actions are enabled.
  * @return True when purchase links and license activation flows may be shown.
  */
 constexpr bool commercial_plugin_actions_enabled() {

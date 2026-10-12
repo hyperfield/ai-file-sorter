@@ -13,13 +13,13 @@ option(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS
 option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
     "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
 option(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS
-    "Enable an environment-variable development bypass for commercial plugin entitlement checks." OFF)
+    "Enable an environment-variable development bypass for plugin entitlement checks." OFF)
 option(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD
-    "Build a Linux repository-friendly profile with local plugins only and no in-app commercial plugin handout." OFF)
+    "Build a Linux repository-friendly profile with local plugins only and no in-app plugin handout." OFF)
 option(AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS
     "Enable remote plugin catalog checks, downloads, and catalog-delivered plugin updates." ON)
 option(AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS
-    "Enable in-app commercial plugin obtain and license activation actions." ON)
+    "Enable in-app licensed plugin obtain and activation actions." ON)
 set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
     "Updater behavior for this build: PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED")
 set_property(CACHE AI_FILE_SORTER_UPDATE_MODE PROPERTY STRINGS
@@ -36,18 +36,30 @@ set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL
     "https://filesorter.app/api/plugins/folder-structures/catalog/"
     CACHE STRING
     "Default remote folder-structure plugin catalog URL baked into the application build.")
+set(_aifs_folder_structure_plugin_public_keys_default "")
+if(DEFINED ENV{AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS})
+    set(_aifs_folder_structure_plugin_public_keys_default "$ENV{AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS}")
+endif()
 set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
-    ""
+    "${_aifs_folder_structure_plugin_public_keys_default}"
     CACHE STRING
     "Trusted folder-structure plugin Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+set(_aifs_storage_plugin_public_keys_default "")
+if(DEFINED ENV{AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS})
+    set(_aifs_storage_plugin_public_keys_default "$ENV{AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS}")
+endif()
 set(AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS
-    ""
+    "${_aifs_storage_plugin_public_keys_default}"
     CACHE STRING
     "Trusted storage plugin package Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+set(_aifs_plugin_entitlement_public_keys_default "")
+if(DEFINED ENV{AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS})
+    set(_aifs_plugin_entitlement_public_keys_default "$ENV{AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS}")
+endif()
 set(AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS
-    ""
+    "${_aifs_plugin_entitlement_public_keys_default}"
     CACHE STRING
-    "Trusted commercial plugin entitlement Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+    "Trusted plugin entitlement Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
 
 if(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -58,7 +70,7 @@ if(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD)
     set(AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS OFF CACHE BOOL
         "Enable remote plugin catalog checks, downloads, and catalog-delivered plugin updates." FORCE)
     set(AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS OFF CACHE BOOL
-        "Enable in-app commercial plugin obtain and license activation actions." FORCE)
+        "Enable in-app licensed plugin obtain and activation actions." FORCE)
 endif()
 
 if(NOT DEFINED AI_FILE_SORTER_PDF_BACKEND)
@@ -165,7 +177,7 @@ endif()
 message(STATUS "AI File Sorter updater mode: ${_aifs_effective_update_mode}")
 message(STATUS "AI File Sorter distro repository build: ${AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD}")
 message(STATUS "AI File Sorter remote plugin catalogs: ${AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS}")
-message(STATUS "AI File Sorter commercial plugin actions: ${AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS}")
+message(STATUS "AI File Sorter licensed plugin actions: ${AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS}")
 message(STATUS "AI File Sorter PDF backend: ${AI_FILE_SORTER_PDF_BACKEND}")
 message(STATUS "AI File Sorter llama.cpp provider: ${AI_FILE_SORTER_LLAMA_PROVIDER}")
 message(STATUS "AI File Sorter llama.cpp backends: ${_aifs_llama_backend_list}")
