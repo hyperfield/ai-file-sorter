@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QPushButton>
 #include <QTreeWidget>
 #include <algorithm>
 #include <array>
@@ -717,6 +718,20 @@ TEST_CASE("FolderStructurePluginDialog lists remote catalog plugins") {
     CHECK(item->text(0) == QStringLiteral("Available"));
     CHECK(item->text(1) == QStringLiteral("Johnny.Decimal Support"));
     CHECK(item->text(2) == QStringLiteral("1.0.0"));
+
+    QPushButton* activate_button = nullptr;
+    QPushButton* obtain_button = nullptr;
+    for (auto* button : dialog.findChildren<QPushButton*>()) {
+        if (button->text() == QStringLiteral("Activate License...")) {
+            activate_button = button;
+        } else if (button->text() == QStringLiteral("Get It")) {
+            obtain_button = button;
+        }
+    }
+    REQUIRE(activate_button != nullptr);
+    CHECK_FALSE(activate_button->isHidden());
+    REQUIRE(obtain_button != nullptr);
+    CHECK_FALSE(obtain_button->isHidden());
 }
 
 TEST_CASE("FolderStructurePluginManager rejects tampered plugin payloads") {

@@ -98,6 +98,23 @@ bool activate_folder_structure_plugin_entitlement(QWidget* parent,
         return false;
     }
 
+    entitlement_refresh_timer.stop();
+    return prompt_for_folder_structure_plugin_entitlement(parent, plugin_manager, install_error);
+}
+
+bool prompt_for_folder_structure_plugin_entitlement(QWidget* parent,
+                                                    const std::shared_ptr<FolderStructurePluginManager>& plugin_manager,
+                                                    const FolderStructurePluginInstallError& install_error) {
+    if (!plugin_manager || !install_error.missing_entitlement || install_error.product_id.empty()) {
+        return false;
+    }
+    if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
+        return false;
+    }
+    if (entitlement_is_available(plugin_manager, install_error)) {
+        return true;
+    }
+
     bool accepted = false;
     const QString license_key =
         QInputDialog::getText(parent, flow_tr("Activate Plugin License"),

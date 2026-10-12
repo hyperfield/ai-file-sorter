@@ -123,6 +123,17 @@ QIcon get_it_button_icon() {
     return icon;
 }
 
+FolderStructurePluginInstallError activation_error_from_catalog_entry(
+    const FolderStructurePluginCatalogEntry& plugin) {
+    FolderStructurePluginInstallError error;
+    error.missing_entitlement = true;
+    error.product_id = plugin.product_id.empty() ? plugin.id : plugin.product_id;
+    error.plugin_id = plugin.id;
+    error.plugin_name = plugin.name.empty() ? plugin.id : plugin.name;
+    error.purchase_url = plugin.purchase_url;
+    return error;
+}
+
 QString get_it_button_style_sheet() {
     return QStringLiteral(
         "QPushButton {"
@@ -196,6 +207,10 @@ FolderStructurePluginDialog::FolderStructurePluginDialog(std::shared_ptr<FolderS
     obtain_button_->setStyleSheet(get_it_button_style_sheet());
     obtain_button_->setVisible(PluginBuildConfig::commercial_plugin_actions_enabled());
     details_row->addWidget(obtain_button_, 0, Qt::AlignTop);
+
+    activate_button_ = new QPushButton(tr("Activate License..."), this);
+    activate_button_->setVisible(false);
+    details_row->addWidget(activate_button_, 0, Qt::AlignTop);
     details_row->addStretch(1);
 
     details_section->addLayout(details_row);
@@ -219,6 +234,7 @@ FolderStructurePluginDialog::FolderStructurePluginDialog(std::shared_ptr<FolderS
     connect(check_updates_button_, &QPushButton::clicked, this, [this]() { start_catalog_refresh(true); });
     connect(import_button_, &QPushButton::clicked, this, [this]() { import_plugin_archive(); });
     connect(install_button_, &QPushButton::clicked, this, [this]() { install_selected_plugin(); });
+    connect(activate_button_, &QPushButton::clicked, this, [this]() { activate_selected_plugin_license(); });
     connect(obtain_button_, &QPushButton::clicked, this, [this]() { open_selected_plugin_page(); });
     connect(uninstall_button_, &QPushButton::clicked, this, [this]() { uninstall_selected_plugin(); });
 
@@ -286,7 +302,7 @@ void FolderStructurePluginDialog::populate_plugins() {
 
 void FolderStructurePluginDialog::update_selection_state() {
     if (!details_label_ || !description_label_ || !check_updates_button_ || !import_button_ || !install_button_ ||
-        !obtain_button_ || !uninstall_button_) {
+        !activate_button_ || !obtain_button_ || !uninstall_button_) {
         return;
     }
 
@@ -298,6 +314,8 @@ void FolderStructurePluginDialog::update_selection_state() {
                                       plugin_manager_->remote_catalog_configured());
     import_button_->setEnabled(plugin_manager_ != nullptr && !refresh_active);
     install_button_->setEnabled(false);
+    activate_button_->setEnabled(false);
+    activate_button_->setVisible(false);
     obtain_button_->setEnabled(false);
     obtain_button_->setVisible(false);
     uninstall_button_->setEnabled(false);
@@ -352,6 +370,10 @@ void FolderStructurePluginDialog::update_selection_state() {
     install_button_->setText(installed ? tr("Update") : tr("Install"));
     install_button_->setEnabled(plugin_manager_ != nullptr && !refresh_active && plugin->has_remote_package() &&
                                 (!installed || can_update));
+    const bool show_activate_button = PluginBuildConfig::commercial_plugin_actions_enabled() &&
+                                      plugin->license_required && !has_license;
+    activate_button_->setVisible(show_activate_button);
+    activate_button_->setEnabled(show_activate_button && !refresh_active);
     const bool show_obtain_button = PluginBuildConfig::commercial_plugin_actions_enabled() && !purchase_url.isEmpty() &&
                                     !(plugin->license_required && has_license);
     obtain_button_->setVisible(show_obtain_button);
@@ -489,6 +511,26 @@ void FolderStructurePluginDialog::install_selected_plugin() {
 
     const auto result = install_folder_structure_plugin_from_catalog(this, plugin_manager_, plugin_id);
     if (result != FolderStructurePluginInstallFlowResult::Installed) {
+        return;
+    }
+
+    populate_plugins();
+    update_selection_state();
+}
+
+void FolderStructurePluginDialog::activate_selected_plugin_license() {
+    const std::string plugin_id = selected_plugin_id();
+    if (!plugin_manager_ || plugin_id.empty()) {
+        return;
+    }
+
+    const auto plugin = plugin_manager_->find_plugin(plugin_id);
+    if (!plugin || !plugin->license_required) {
+        return;
+    }
+
+    const auto activation_error = activation_error_from_catalog_entry(*plugin);
+    if (!prompt_for_folder_structure_plugin_entitlement(this, plugin_manager_, activation_error)) {
         return;
     }
 

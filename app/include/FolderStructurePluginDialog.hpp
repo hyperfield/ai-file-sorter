@@ -64,6 +64,10 @@ class FolderStructurePluginDialog : public QDialog {
      */
     void install_selected_plugin();
     /**
+     * @brief Activates the commercial license for the currently selected catalog plugin.
+     */
+    void activate_selected_plugin_license();
+    /**
      * @brief Opens the purchase/info page for the currently selected catalog plugin.
      */
     void open_selected_plugin_page();
@@ -84,6 +88,7 @@ class FolderStructurePluginDialog : public QDialog {
     QPushButton* check_updates_button_{nullptr};
     QPushButton* import_button_{nullptr};
     QPushButton* install_button_{nullptr};
+    QPushButton* activate_button_{nullptr};
     QPushButton* obtain_button_{nullptr};
     QPushButton* uninstall_button_{nullptr};
     std::atomic<bool> refresh_in_progress_{false};

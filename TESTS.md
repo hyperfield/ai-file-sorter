@@ -2163,8 +2163,8 @@ Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog controls p
 #### Test case: FolderStructurePluginDialog lists remote catalog plugins
 Purpose: Ensure the folder-structure plugin dialog can show server-catalog plugins that are not installed yet.
 Setup: Refresh a manager from a mock catalog containing the Johnny.Decimal support entry and construct the dialog.
-Procedure: Inspect the plugin list row.
-Expected outcome: The dialog lists Johnny.Decimal Support as an available catalog plugin with the advertised version.
+Procedure: Inspect the plugin list row and the selected plugin actions.
+Expected outcome: The dialog lists Johnny.Decimal Support as an available catalog plugin with the advertised version and shows purchase plus license activation actions when entitlement is missing.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog lists remote catalog plugins"`
 
 #### Test case: FolderStructurePluginManager rejects tampered plugin payloads
