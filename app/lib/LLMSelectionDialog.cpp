@@ -1198,14 +1198,14 @@ void LLMSelectionDialog::refresh_downloader()
         downloader = std::make_unique<LLMDownloader>(env_url, explicit_path);
     }
 
-    if (downloader->get_local_download_status() == LLMDownloader::DownloadStatus::InProgress) {
-        try {
-            downloader->init_if_needed();
-        } catch (const std::exception& ex) {
-            set_status_message(QString::fromStdString(ex.what()));
-            downloader.reset();
-        }
-    }
+    // if (downloader->get_local_download_status() == LLMDownloader::DownloadStatus::InProgress) {
+    //     try {
+    //         downloader->init_if_needed();
+    //     } catch (const std::exception& ex) {
+    //         set_status_message(QString::fromStdString(ex.what()));
+    //         downloader.reset();
+    //     }
+    // }
 }
 
 void LLMSelectionDialog::handle_delete_download()
@@ -1703,14 +1703,14 @@ void LLMSelectionDialog::refresh_visual_llm_download_entry(VisualLlmDownloadEntr
                                                             QStringLiteral("#2e7d32")));
     }
 
-    if (entry.downloader->get_local_download_status() == LLMDownloader::DownloadStatus::InProgress) {
-        try {
-            entry.downloader->init_if_needed();
-        } catch (const std::exception& ex) {
-            set_visual_status_message(entry, QString::fromStdString(ex.what()));
-            entry.downloader.reset();
-        }
-    }
+    // if (entry.downloader->get_local_download_status() == LLMDownloader::DownloadStatus::InProgress) {
+    //     try {
+    //         entry.downloader->init_if_needed();
+    //     } catch (const std::exception& ex) {
+    //         set_visual_status_message(entry, QString::fromStdString(ex.what()));
+    //         entry.downloader.reset();
+    //     }
+    // }
 }
 
 void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry& entry)
@@ -1880,12 +1880,12 @@ void LLMSelectionDialog::start_visual_llm_download(VisualLlmDownloadEntry& entry
         return;
     }
 
-    try {
-        entry.downloader->init_if_needed();
-    } catch (const std::exception& ex) {
-        DialogUtils::show_error_dialog(this, ex.what());
-        return;
-    }
+    // try {
+    //     entry.downloader->init_if_needed();
+    // } catch (const std::exception& ex) {
+    //     DialogUtils::show_error_dialog(this, ex.what());
+    //     return;
+    // }
 
     entry.is_downloading = true;
     if (entry.download_button) {
@@ -2173,12 +2173,12 @@ void LLMSelectionDialog::start_download()
         return;
     }
 
-    try {
-        downloader->init_if_needed();
-    } catch (const std::exception& ex) {
-        DialogUtils::show_error_dialog(this, ex.what());
-        return;
-    }
+    // try {
+    //     downloader->init_if_needed();
+    // } catch (const std::exception& ex) {
+    //     DialogUtils::show_error_dialog(this, ex.what());
+    //     return;
+    // }
 
     is_downloading = true;
     update_local_download_choice_enabled_state();

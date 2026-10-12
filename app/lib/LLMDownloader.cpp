@@ -10,6 +10,8 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <winhttp.h>
+#pragma comment(lib, "winhttp.lib")
 #include <system_error>
 #include <stdexcept>
 #ifdef _WIN32
@@ -334,6 +336,7 @@ void LLMDownloader::start_download(std::function<void(double)> progress_cb,
 
     download_thread = std::thread([this]() {
         try {
+            init_if_needed();
             perform_download();
         } catch (const std::exception& ex) {
             download_active.store(false, std::memory_order_relaxed);
@@ -506,22 +509,43 @@ void LLMDownloader::setup_common_curl_options(CURL* curl)
     } catch (const std::exception& ex) {
         throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
     }
+    WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxyConfig = { 0 };   //checking whether proxy exist
+    if (WinHttpGetIEProxyConfigForCurrentUser(&proxyConfig)) {
+        if (proxyConfig.lpszProxy != nullptr) {
+
+            std::wstring proxyW(proxyConfig.lpszProxy);
+            std::string proxyA(proxyW.begin(), proxyW.end());
+            
+            curl_easy_setopt(curl, CURLOPT_PROXY, proxyA.c_str());
+            
+            GlobalFree(proxyConfig.lpszProxy);
+        }
+        if (proxyConfig.lpszProxyBypass != nullptr) GlobalFree(proxyConfig.lpszProxyBypass);
+        if (proxyConfig.lpszAutoConfigUrl != nullptr) GlobalFree(proxyConfig.lpszAutoConfigUrl);
+    }
 #endif
+
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15L);
+    curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
+    curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
 }
 
 
 void LLMDownloader::setup_header_curl_options(CURL* curl)
 {    
     setup_common_curl_options(curl);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15L); 
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L); 
+    
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_HEADER, 1L);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &LLMDownloader::header_callback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, this);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback); // <-- avoids stdout
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_callback); 
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, nullptr);
 }
 
