@@ -3649,4 +3649,138 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>Hae tunnuksella tai nimellä</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>Avaa kansio</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Vie Markdown-hakemisto</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>Tunnus</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>Kansio</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>Tila</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Kohteen tunnus puuttuu</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Virheellinen kohteen tunnus</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Kohde väärässä luokassa</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Kohteen tunnus toistuu</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>Tunnistamaton kansio</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>Alueet: %1 | Luokat: %2 | Kohteet: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>Tarkistusraja saavutettiin; hakemisto voi olla puutteellinen.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>Valitse olemassa oleva arkistokansio.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>Vastaavia kansioita ei löytynyt.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>Kansio ei ole käytettävissä tai se on arkiston ulkopuolella. Päivitä hakemisto.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>Valittua kansiota ei voitu avata.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown-tiedostot (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>Hakemistoa ei voitu tallentaa: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>Hakemisto viety.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Kohteen tunnus puuttuu</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Virheellinen kohteen tunnus</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Kohde väärässä luokassa</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Kohteen tunnus toistuu</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>Tällä luokan suoralla alikansiolla ei ole kohteen tunnusta.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>Käytä kansionimeä kuten 21.03 Projektin nimi.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>Odotettiin kahta numeroa, pistettä, kahta numeroa, välilyöntiä ja otsikkoa.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>Kohteen tunnuksen alkuosa ei vastaa yläluokkaa.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>Siirrä kohde oikeaan luokkaan tai korjaa sen tunnus.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>Tämä kohteen tunnus esiintyy useassa tämän arkiston kansiossa.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>Anna jokaiselle kohdekansiolle yksilöllinen tunnus.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>Tarkistetut kohdekansiot: %1</translation>
+        </message>
+    </context>
 </TS>

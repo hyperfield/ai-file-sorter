@@ -3649,4 +3649,138 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>搜索 ID 或名称</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>打开文件夹</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>导出 Markdown 索引</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>ID</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>文件夹</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>状态</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>缺少项目 ID</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>项目 ID 格式错误</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>项目位于错误类别</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>项目 ID 重复</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>无法识别的文件夹</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>区域：%1 | 类别：%2 | 项目：%3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>已达到扫描上限，索引可能不完整。</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>请选择现有的归档文件夹。</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>没有匹配的文件夹。</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>文件夹不可用或位于归档之外。请刷新索引。</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>无法打开所选文件夹。</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown 文件 (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>无法保存索引：%1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>索引已导出。</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>缺少项目 ID</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>项目 ID 格式错误</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>项目位于错误类别</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>项目 ID 重复</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>此类别的直接子文件夹没有项目 ID。</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>请使用类似 21.03 项目名称的文件夹名称。</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>应为两位数字、一个点、两位数字、一个空格和标题。</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>项目 ID 的前缀与其父类别不符。</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>请将项目移至对应类别或更正其 ID。</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>此项目 ID 出现在归档的多个文件夹中。</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>请为每个项目文件夹分配唯一 ID。</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>已检查的项目文件夹：%1</translation>
+        </message>
+    </context>
 </TS>

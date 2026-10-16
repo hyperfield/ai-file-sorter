@@ -3651,4 +3651,138 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>Zoek op ID of naam</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>Map openen</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Markdown-index exporteren</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>ID</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>Map</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>Status</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Item-ID ontbreekt</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Ongeldig item-ID</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Item in verkeerde categorie</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Dubbel item-ID</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>Niet-herkende map</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>Gebieden: %1 | Categorieën: %2 | Items: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>Scanlimiet bereikt; de index is mogelijk onvolledig.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>Kies een bestaande archiefmap.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>Geen overeenkomende mappen.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>De map is niet beschikbaar of bevindt zich buiten het archief. Vernieuw de index.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>De geselecteerde map kon niet worden geopend.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown-bestanden (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>De index kon niet worden opgeslagen: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>Index geëxporteerd.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Item-ID ontbreekt</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Ongeldig item-ID</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Item in verkeerde categorie</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Dubbel item-ID</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>Deze directe submap van een categorie heeft geen item-ID.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>Gebruik een mapnaam zoals 21.03 Projectnaam.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>Er worden twee cijfers, een punt, twee cijfers, een spatie en een titel verwacht.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>Het voorvoegsel van het item-ID komt niet overeen met de bovenliggende categorie.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>Verplaats het item naar de juiste categorie of corrigeer het ID.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>Dit item-ID komt voor in meerdere mappen in dit archief.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>Geef elke itemmap een uniek ID.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>Gecontroleerde itemmappen: %1</translation>
+        </message>
+    </context>
 </TS>

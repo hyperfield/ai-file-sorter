@@ -3651,4 +3651,138 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>Kimlik veya ad ara</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>Klasörü aç</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Markdown dizinini dışa aktar</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>Kimlik</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>Klasör</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>Durum</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Öğe kimliği eksik</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Öğe kimliği hatalı</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Öğe yanlış kategoride</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Yinelenen öğe kimliği</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>Tanınmayan klasör</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>Alanlar: %1 | Kategoriler: %2 | Öğeler: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>Tarama sınırına ulaşıldı; dizin eksik olabilir.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>Mevcut bir arşiv klasörü seçin.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>Eşleşen klasör yok.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>Klasör kullanılamıyor veya arşivin dışında. Dizini yenileyin.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>Seçilen klasör açılamadı.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown dosyaları (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>Dizin kaydedilemedi: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>Dizin dışa aktarıldı.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Öğe kimliği eksik</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Öğe kimliği hatalı</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Öğe yanlış kategoride</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Yinelenen öğe kimliği</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>Bu doğrudan kategori alt klasörünün öğe kimliği yok.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>21.03 Proje adı gibi bir klasör adı kullanın.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>İki rakam, bir nokta, iki rakam, bir boşluk ve bir başlık bekleniyor.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>Öğe kimliğinin öneki üst kategorisiyle eşleşmiyor.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>Öğeyi uygun kategoriye taşıyın veya kimliğini düzeltin.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>Bu öğe kimliği arşivde birden fazla klasörde bulunuyor.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>Her öğe klasörüne benzersiz bir kimlik atayın.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>Kontrol edilen öğe klasörleri: %1</translation>
+        </message>
+    </context>
 </TS>

@@ -3651,4 +3651,138 @@ Veuillez mettre à jour pour continuer. Si vous choisissez de quitter, l'applica
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>Rechercher un ID ou un nom</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>Ouvrir le dossier</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Exporter l'index Markdown</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>ID</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>Dossier</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>Statut</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>ID d'élément manquant</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>ID d'élément mal formé</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Élément dans la mauvaise catégorie</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>ID d'élément en double</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>Dossier non reconnu</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>Domaines : %1 | Catégories : %2 | Éléments : %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>Limite d'analyse atteinte ; l'index peut être incomplet.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>Choisissez un dossier d'archive existant.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>Aucun dossier correspondant.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>Le dossier est indisponible ou hors de l'archive. Actualisez l'index.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>Impossible d'ouvrir le dossier sélectionné.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Fichiers Markdown (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>Impossible d'enregistrer l'index : %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>Index exporté.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>ID d'élément manquant</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>ID d'élément mal formé</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Élément dans la mauvaise catégorie</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>ID d'élément en double</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>Ce sous-dossier direct d'une catégorie n'a pas d'ID d'élément.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>Utilisez un nom de dossier tel que 21.03 Nom du projet.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>Deux chiffres, un point, deux chiffres, un espace et un titre sont attendus.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>Le préfixe de l'ID d'élément diffère de sa catégorie parente.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>Déplacez l'élément dans la catégorie correspondante ou corrigez son ID.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>Cet ID d'élément apparaît dans plusieurs dossiers de cette archive.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>Attribuez un ID unique à chaque dossier d'élément.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>Dossiers d'éléments vérifiés : %1</translation>
+        </message>
+    </context>
 </TS>

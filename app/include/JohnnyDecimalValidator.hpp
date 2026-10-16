@@ -5,7 +5,12 @@
 #include <string>
 #include <vector>
 
+#include "JohnnyDecimalArchiveIndex.hpp"
+
 namespace JohnnyDecimalValidator {
+
+/** @brief Selects built-in structure checks or plugin-enabled standard item-ID checks as well. */
+enum class Scope { Structure, Items };
 
 /**
  * @brief Severity for a Johnny.Decimal validation finding.
@@ -44,6 +49,10 @@ struct Report {
     int area_count{0};
     /** @brief Count of valid direct category folders inside valid areas. */
     int category_count{0};
+    /** @brief Number of direct item folders checked when item-ID validation is enabled. */
+    std::size_t item_count{0};
+    /** @brief Whether this report includes item-level findings. */
+    bool item_ids_checked{false};
     /** @brief Validation findings. */
     std::vector<Issue> issues;
 
@@ -61,7 +70,21 @@ struct Report {
  * @param max_entries Maximum folder entries retained from the scan.
  * @return Read-only validation report.
  */
-Report validate_archive(const std::filesystem::path& root, int max_depth = 8, std::size_t max_entries = 500);
+Report validate_archive(const std::filesystem::path& root,
+                        int max_depth = JohnnyDecimalArchiveIndex::kDefaultMaxDepth,
+                        std::size_t max_entries = JohnnyDecimalArchiveIndex::kDefaultMaxEntries);
+
+/**
+ * @brief Validates an archive with the selected level of checks from one folder snapshot.
+ * @param root Archive root to scan.
+ * @param scope Whether to include standard AC.ID checks for direct item folders.
+ * @param max_depth Maximum folder depth below the root.
+ * @param max_entries Maximum retained folder entries.
+ * @return Read-only report, with no filesystem changes.
+ */
+Report validate_archive(const std::filesystem::path& root, Scope scope,
+                        int max_depth = JohnnyDecimalArchiveIndex::kDefaultMaxDepth,
+                        std::size_t max_entries = JohnnyDecimalArchiveIndex::kDefaultMaxEntries);
 
 /**
  * @brief Convert a severity to a stable English label.

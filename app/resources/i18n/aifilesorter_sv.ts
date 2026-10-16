@@ -3649,4 +3649,138 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>Sök efter ID eller namn</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>Öppna mapp</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Exportera Markdown-index</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>ID</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>Mapp</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>Status</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Saknat objekt-ID</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Felaktigt objekt-ID</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Objekt i fel kategori</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Duplicerat objekt-ID</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>Okänd mapp</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>Områden: %1 | Kategorier: %2 | Objekt: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>Skanningsgränsen har nåtts; indexet kan vara ofullständigt.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>Välj en befintlig arkivmapp.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>Inga matchande mappar.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>Mappen är otillgänglig eller utanför arkivet. Uppdatera indexet.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>Det gick inte att öppna den valda mappen.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown-filer (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>Det gick inte att spara indexet: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>Indexet har exporterats.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Saknat objekt-ID</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Felaktigt objekt-ID</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Objekt i fel kategori</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Duplicerat objekt-ID</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>Den här direkta undermappen till en kategori saknar objekt-ID.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>Använd ett mappnamn som 21.03 Projektnamn.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>Två siffror, en punkt, två siffror, ett blanksteg och en titel förväntas.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>Objekt-ID:ts prefix stämmer inte med den överordnade kategorin.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>Flytta objektet till rätt kategori eller korrigera dess ID.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>Det här objekt-ID:t finns i flera mappar i arkivet.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>Ge varje objektmapp ett unikt ID.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>Kontrollerade objektmappar: %1</translation>
+        </message>
+    </context>
 </TS>

@@ -3651,4 +3651,138 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>ID 또는 이름 검색</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>폴더 열기</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Markdown 색인 내보내기</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>ID</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>폴더</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>상태</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>항목 ID 누락</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>잘못된 항목 ID</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>잘못된 범주의 항목</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>중복 항목 ID</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>인식되지 않은 폴더</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>영역: %1 | 범주: %2 | 항목: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>검색 한도에 도달하여 색인이 불완전할 수 있습니다.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>기존 아카이브 폴더를 선택하세요.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>일치하는 폴더가 없습니다.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>폴더를 사용할 수 없거나 아카이브 외부에 있습니다. 색인을 새로 고치세요.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>선택한 폴더를 열 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown 파일 (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>색인을 저장할 수 없습니다: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>색인을 내보냈습니다.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>항목 ID 누락</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>잘못된 항목 ID</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>잘못된 범주의 항목</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>중복 항목 ID</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>범주의 이 직접 하위 폴더에 항목 ID가 없습니다.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>21.03 프로젝트 이름과 같은 폴더 이름을 사용하세요.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>두 자리 숫자, 점, 두 자리 숫자, 공백 및 제목이 필요합니다.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>항목 ID의 접두사가 상위 범주와 다릅니다.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>항목을 해당 범주로 이동하거나 ID를 수정하세요.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>이 항목 ID가 아카이브의 여러 폴더에 나타납니다.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>각 항목 폴더에 고유한 ID를 지정하세요.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>검사한 항목 폴더: %1</translation>
+        </message>
+    </context>
 </TS>

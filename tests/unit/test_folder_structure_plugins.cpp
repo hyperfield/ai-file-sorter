@@ -30,6 +30,7 @@
 #include "FolderStructurePattern.hpp"
 #include "FolderStructurePluginCatalog.hpp"
 #include "FolderStructurePluginDialog.hpp"
+#include "FolderStructureInitializerDialog.hpp"
 #include "FolderStructurePluginManager.hpp"
 #include "FolderStructurePluginProfile.hpp"
 #include "FolderStructureTemplates.hpp"
@@ -633,6 +634,7 @@ TEST_CASE("FolderStructurePluginManager requires entitlement for licensed plugin
 }
 
 TEST_CASE("FolderStructurePluginManager installs licensed plugins with entitlement receipts") {
+    QtAppContext qt;
     TempDir config_dir;
     TempDir archive_dir;
     const auto archive_path = archive_dir.path() / "johnny-decimal-paid.aifsplugin";
@@ -652,6 +654,15 @@ TEST_CASE("FolderStructurePluginManager installs licensed plugins with entitleme
     CHECK(installed_plugin_id == "johnny_decimal_support");
     CHECK(manager.installed_plugins().size() == 1);
     CHECK(manager.installed_profiles().size() == 1);
+    FolderStructureInitializerDialog active(config_dir.path(), manager.installed_profiles());
+    CHECK(active.findChild<QWidget*>(QStringLiteral("johnnyDecimalIndexWidget")) != nullptr);
+    REQUIRE(manager.set_enabled(installed_plugin_id, false, &error));
+    FolderStructureInitializerDialog disabled(config_dir.path(), manager.installed_profiles());
+    CHECK(disabled.findChild<QWidget*>(QStringLiteral("johnnyDecimalIndexWidget")) == nullptr);
+    REQUIRE(manager.set_enabled(installed_plugin_id, true, &error));
+    std::filesystem::remove_all(PluginEntitlementService::receipt_directory_for_config_dir(config_dir.path()));
+    FolderStructureInitializerDialog unlicensed(config_dir.path(), manager.installed_profiles());
+    CHECK(unlicensed.findChild<QWidget*>(QStringLiteral("johnnyDecimalIndexWidget")) == nullptr);
 }
 
 TEST_CASE("FolderStructurePluginDialog controls plugin enablement") {

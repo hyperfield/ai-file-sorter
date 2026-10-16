@@ -3649,4 +3649,138 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>Leita eftir auðkenni eða nafni</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>Opna möppu</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Flytja út Markdown-yfirlit</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>Auðkenni</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>Mappa</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>Staða</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Auðkenni atriðis vantar</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Ógilt auðkenni atriðis</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Atriði í röngum flokki</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Tvítekið auðkenni atriðis</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>Óþekkt mappa</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>Svið: %1 | Flokkar: %2 | Atriði: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>Skönnunarmörkum náð; yfirlitið gæti verið ófullkomið.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>Veldu fyrirliggjandi safnmöppu.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>Engar samsvarandi möppur.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>Mappan er ekki tiltæk eða er utan safnsins. Uppfærðu yfirlitið.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>Ekki tókst að opna valda möppu.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown-skrár (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>Ekki tókst að vista yfirlitið: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>Yfirlit flutt út.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Auðkenni atriðis vantar</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Ógilt auðkenni atriðis</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Atriði í röngum flokki</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Tvítekið auðkenni atriðis</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>Þessa beinu undirmöppu flokks vantar auðkenni atriðis.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>Notaðu möppuheiti eins og 21.03 Verkefnisheiti.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>Búist er við tveimur tölustöfum, punkti, tveimur tölustöfum, bili og titli.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>Forskeyti auðkennis atriðis passar ekki við yfirflokkinn.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>Færðu atriðið í réttan flokk eða leiðréttu auðkennið.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>Þetta auðkenni atriðis kemur fyrir í fleiri en einni möppu í safninu.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>Gefðu hverri atriðismöppu einkvæmt auðkenni.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>Athugaðar atriðismöppur: %1</translation>
+        </message>
+    </context>
 </TS>

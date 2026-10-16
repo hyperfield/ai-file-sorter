@@ -3651,4 +3651,138 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>ID या नाम खोजें</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>फ़ोल्डर खोलें</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Markdown अनुक्रमणिका निर्यात करें</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>ID</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>फ़ोल्डर</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>स्थिति</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>आइटम ID मौजूद नहीं है</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>आइटम ID का प्रारूप गलत है</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>आइटम गलत श्रेणी में है</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>दोहराया गया आइटम ID</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>अपरिचित फ़ोल्डर</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>क्षेत्र: %1 | श्रेणियाँ: %2 | आइटम: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>स्कैन की सीमा पूरी हो गई; अनुक्रमणिका अधूरी हो सकती है।</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>मौजूदा संग्रह फ़ोल्डर चुनें।</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>कोई मेल खाता फ़ोल्डर नहीं मिला।</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>फ़ोल्डर उपलब्ध नहीं है या संग्रह के बाहर है। अनुक्रमणिका रीफ़्रेश करें।</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>चुना गया फ़ोल्डर नहीं खोला जा सका।</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown फ़ाइलें (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>अनुक्रमणिका सहेजी नहीं जा सकी: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>अनुक्रमणिका निर्यात हो गई।</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>आइटम ID मौजूद नहीं है</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>आइटम ID का प्रारूप गलत है</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>आइटम गलत श्रेणी में है</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>दोहराया गया आइटम ID</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>श्रेणी के इस सीधे उपफ़ोल्डर में आइटम ID नहीं है।</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>21.03 परियोजना का नाम जैसे फ़ोल्डर नाम का उपयोग करें।</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>दो अंक, एक बिंदु, दो अंक, एक स्पेस और एक शीर्षक अपेक्षित है।</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>आइटम ID का उपसर्ग उसकी मूल श्रेणी से अलग है।</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>आइटम को सही श्रेणी में ले जाएँ या उसका ID ठीक करें।</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>यह आइटम ID इस संग्रह के एक से अधिक फ़ोल्डर में है।</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>हर आइटम फ़ोल्डर को एक अद्वितीय ID दें।</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>जाँचे गए आइटम फ़ोल्डर: %1</translation>
+        </message>
+    </context>
 </TS>

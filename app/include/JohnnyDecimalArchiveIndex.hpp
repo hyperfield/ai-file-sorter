@@ -5,7 +5,16 @@
 #include <string>
 #include <vector>
 
+namespace FolderTreeCatalog {
+class Catalog;
+}
+
 namespace JohnnyDecimalArchiveIndex {
+
+/** @brief Default maximum folder depth retained by archive tools. */
+inline constexpr int kDefaultMaxDepth = 8;
+/** @brief Default maximum number of retained folder entries. */
+inline constexpr std::size_t kDefaultMaxEntries = 500;
 
 /**
  * @brief One folder below a Johnny.Decimal category.
@@ -80,7 +89,16 @@ struct Index {
  * @param max_entries Maximum number of folder entries retained from the scan.
  * @return Structured archive index.
  */
-Index build_index(const std::filesystem::path& root, int max_depth = 8, std::size_t max_entries = 500);
+Index build_index(const std::filesystem::path& root, int max_depth = kDefaultMaxDepth,
+                  std::size_t max_entries = kDefaultMaxEntries);
+
+/**
+ * @brief Builds the index from an existing folder snapshot without rescanning disk.
+ * @param root Archive root represented by the catalog.
+ * @param catalog Scanned folder entries.
+ * @return Structured index of the supplied snapshot.
+ */
+Index from_catalog(const std::filesystem::path& root, const FolderTreeCatalog::Catalog& catalog);
 
 /**
  * @brief Count valid categories in an archive index.
@@ -102,5 +120,12 @@ std::size_t item_count(const Index& index);
  * @return Plain-text map of areas, categories, and items.
  */
 std::string format_index(const Index& index);
+
+/**
+ * @brief Exports the complete snapshot as Markdown with escaped labels and local folder links.
+ * @param index Archive snapshot, including unrecognized folders and scan-limit status.
+ * @return UTF-8 Markdown document.
+ */
+std::string format_markdown(const Index& index);
 
 }  // namespace JohnnyDecimalArchiveIndex

@@ -1,5 +1,7 @@
 #include "JohnnyDecimalArchiveIndex.hpp"
 
+#include <QUrl>
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -285,9 +287,16 @@ Index build_index(const std::filesystem::path& root, int max_depth, std::size_t 
         return index;
     }
 
-    index.scanned = true;
     const auto catalog = FolderTreeCatalog::Catalog::scan(root, max_depth, max_entries);
+    index = from_catalog(root, catalog);
     index.scan_limit_reached = catalog.entries().size() >= max_entries;
+    return index;
+}
+
+Index from_catalog(const std::filesystem::path& root, const FolderTreeCatalog::Catalog& catalog) {
+    Index index;
+    index.root = root;
+    index.scanned = true;
 
     for (const auto& entry : catalog.entries()) {
         if (entry.depth != 1) {
@@ -394,6 +403,64 @@ std::string format_index(const Index& index) {
         }
     }
 
+    return out.str();
+}
+
+namespace {
+
+std::string markdown_label(std::string_view label) {
+    std::string escaped;
+    for (const char ch : label) {
+        if (std::string_view("\\`*_[]<>#").find(ch) != std::string_view::npos) {
+            escaped += '\\';
+        }
+        escaped += ch == '\n' || ch == '\r' ? ' ' : ch;
+    }
+    return escaped;
+}
+
+void markdown_folder(std::ostringstream& out, const Index& index, const std::string& relative, int level) {
+    constexpr int kIndentWidth = 2;
+    const auto path = index.root / Utils::utf8_to_path(relative);
+    const auto url = QUrl::fromLocalFile(QString::fromStdString(Utils::path_to_utf8(path)));
+    out << std::string(static_cast<std::size_t>(level * kIndentWidth), ' ') << "- ["
+        << markdown_label(basename(relative)) << "](<" << url.toEncoded().toStdString() << ">)\n";
+}
+
+void markdown_item(std::ostringstream& out, const Index& index, const Item& item, int level) {
+    markdown_folder(out, index, item.relative_path, level);
+    for (const auto& child : item.children) {
+        markdown_item(out, index, child, level + 1);
+    }
+}
+
+}  // namespace
+
+std::string format_markdown(const Index& index) {
+    std::ostringstream out;
+    out << "# Johnny.Decimal archive index\n\n";
+    if (index.scan_limit_reached) {
+        out << "Scan limit reached; this index may be incomplete.\n\n";
+    }
+    if (!index.scanned) {
+        out << "Archive could not be scanned.\n";
+        return out.str();
+    }
+    for (const auto& area : index.areas) {
+        markdown_folder(out, index, area.relative_path, 0);
+        for (const auto& category : area.categories) {
+            markdown_folder(out, index, category.relative_path, 1);
+            for (const auto& item : category.items) {
+                markdown_item(out, index, item, 2);
+            }
+        }
+        for (const auto& relative : area.other_direct_children) {
+            markdown_folder(out, index, relative, 1);
+        }
+    }
+    for (const auto& relative : index.other_top_level) {
+        markdown_folder(out, index, relative, 0);
+    }
     return out.str();
 }
 

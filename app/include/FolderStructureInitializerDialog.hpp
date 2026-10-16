@@ -16,6 +16,7 @@ class QPlainTextEdit;
 class QPushButton;
 class QTabWidget;
 class QWidget;
+class JohnnyDecimalIndexWidget;
 
 /**
  * @brief Dialog for creating starter folder structures at a user-selected location.
@@ -81,10 +82,12 @@ class FolderStructureInitializerDialog : public QDialog {
     QLineEdit* next_preview_edit_{nullptr};
     QLabel* next_preview_status_label_{nullptr};
     QPlainTextEdit* archive_index_edit_{nullptr};
+    JohnnyDecimalIndexWidget* enhanced_index_{nullptr};
     QPlainTextEdit* validation_report_edit_{nullptr};
     QPushButton* create_button_{nullptr};
     std::vector<FolderStructurePluginProfile> plugin_profiles_;
     std::vector<FolderStructureTemplates::Descriptor> descriptors_;
     std::size_t created_count_{0};
     std::size_t existing_count_{0};
+    bool johnny_decimal_tools_enabled_{false};
 };

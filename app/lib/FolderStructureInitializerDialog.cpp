@@ -17,11 +17,14 @@
 #include <QPushButton>
 #include <QTabWidget>
 #include <QVBoxLayout>
+#include <algorithm>
 #include <filesystem>
 #include <string>
+#include <utility>
 
 #include "JohnnyDecimalFolderSuggester.hpp"
 #include "JohnnyDecimalArchiveIndex.hpp"
+#include "JohnnyDecimalIndexWidget.hpp"
 #include "JohnnyDecimalValidator.hpp"
 #include "Utils.hpp"
 
@@ -48,6 +51,10 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     : QDialog(parent),
       plugin_profiles_(plugin_profiles),
       descriptors_(FolderStructureTemplates::all_with_plugins(plugin_profiles)) {
+    johnny_decimal_tools_enabled_ = std::any_of(plugin_profiles_.begin(), plugin_profiles_.end(), [](const auto& profile) {
+        return QString::fromStdString(profile.structure_kind).compare(QStringLiteral("johnny_decimal"),
+                                                                      Qt::CaseInsensitive) == 0;
+    });
     setWindowTitle(tr("Create folder structure"));
     setMinimumSize(760, 520);
 
@@ -123,16 +130,21 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
 
     archive_index_tab_ = new QWidget(tab_widget_);
     auto* archive_index_layout = new QVBoxLayout(archive_index_tab_);
-    auto* archive_index_description = new QLabel(
-        tr("View a readable map of Johnny.Decimal areas, categories, and item folders in the selected archive."),
-        this);
-    archive_index_description->setWordWrap(true);
-    archive_index_layout->addWidget(archive_index_description);
-    archive_index_edit_ = new QPlainTextEdit(this);
-    archive_index_edit_->setObjectName(QStringLiteral("johnnyDecimalArchiveIndexEdit"));
-    archive_index_edit_->setReadOnly(true);
-    archive_index_edit_->setLineWrapMode(QPlainTextEdit::NoWrap);
-    archive_index_layout->addWidget(archive_index_edit_, 1);
+    if (johnny_decimal_tools_enabled_) {
+        enhanced_index_ = new JohnnyDecimalIndexWidget(this);
+        archive_index_layout->addWidget(enhanced_index_, 1);
+    } else {
+        auto* archive_index_description = new QLabel(
+            tr("View a readable map of Johnny.Decimal areas, categories, and item folders in the selected archive."),
+            this);
+        archive_index_description->setWordWrap(true);
+        archive_index_layout->addWidget(archive_index_description);
+        archive_index_edit_ = new QPlainTextEdit(this);
+        archive_index_edit_->setObjectName(QStringLiteral("johnnyDecimalArchiveIndexEdit"));
+        archive_index_edit_->setReadOnly(true);
+        archive_index_edit_->setLineWrapMode(QPlainTextEdit::NoWrap);
+        archive_index_layout->addWidget(archive_index_edit_, 1);
+    }
     tab_widget_->addTab(archive_index_tab_, tr("Archive index"));
 
     validation_tab_ = new QWidget(tab_widget_);
@@ -347,16 +359,25 @@ void FolderStructureInitializerDialog::create_next_johnny_decimal_folder() {
 }
 
 void FolderStructureInitializerDialog::refresh_archive_index() {
-    if (!archive_index_edit_) {
+    if (!archive_index_edit_ && !enhanced_index_) {
         return;
     }
     if (!destination_edit_ || destination_edit_->text().trimmed().isEmpty()) {
-        archive_index_edit_->setPlainText(tr("Choose a destination folder."));
+        if (archive_index_edit_) {
+            archive_index_edit_->setPlainText(tr("Choose a destination folder."));
+        }
+        if (enhanced_index_) {
+            enhanced_index_->set_index({});
+        }
         return;
     }
 
-    const auto index = JohnnyDecimalArchiveIndex::build_index(destination_root());
-    archive_index_edit_->setPlainText(from_utf8(JohnnyDecimalArchiveIndex::format_index(index)));
+    auto index = JohnnyDecimalArchiveIndex::build_index(destination_root());
+    if (enhanced_index_) {
+        enhanced_index_->set_index(std::move(index));
+    } else {
+        archive_index_edit_->setPlainText(from_utf8(JohnnyDecimalArchiveIndex::format_index(index)));
+    }
 }
 
 void FolderStructureInitializerDialog::refresh_validation_report() {
@@ -368,7 +389,9 @@ void FolderStructureInitializerDialog::refresh_validation_report() {
         return;
     }
 
-    const auto report = JohnnyDecimalValidator::validate_archive(destination_root());
+    const auto scope = johnny_decimal_tools_enabled_ ? JohnnyDecimalValidator::Scope::Items
+                                                    : JohnnyDecimalValidator::Scope::Structure;
+    const auto report = JohnnyDecimalValidator::validate_archive(destination_root(), scope);
     validation_report_edit_->setPlainText(from_utf8(JohnnyDecimalValidator::format_report(report)));
 }
 

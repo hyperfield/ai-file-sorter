@@ -3649,4 +3649,138 @@ Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikat
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>Søg efter ID eller navn</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>Åbn mappe</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Eksportér Markdown-indeks</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>ID</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>Mappe</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>Status</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Manglende element-ID</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Ugyldigt element-ID</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Element i forkert kategori</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Dubleret element-ID</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>Ukendt mappe</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>Områder: %1 | Kategorier: %2 | Elementer: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>Scanningsgrænsen er nået; indekset kan være ufuldstændigt.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>Vælg en eksisterende arkivmappe.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>Ingen matchende mapper.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>Mappen er utilgængelig eller uden for arkivet. Opdatér indekset.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>Den valgte mappe kunne ikke åbnes.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Markdown-filer (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>Indekset kunne ikke gemmes: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>Indeks eksporteret.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Manglende element-ID</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>Ugyldigt element-ID</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Element i forkert kategori</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>Dubleret element-ID</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>Denne direkte undermappe til en kategori mangler et element-ID.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>Brug et mappenavn som 21.03 Projektnavn.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>Der forventes to cifre, et punktum, to cifre, et mellemrum og en titel.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>Element-ID'ets præfiks svarer ikke til den overordnede kategori.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>Flyt elementet til den tilsvarende kategori, eller ret dets ID.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>Dette element-ID findes i flere mapper i arkivet.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>Giv hver elementmappe et entydigt ID.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>Kontrollerede elementmapper: %1</translation>
+        </message>
+    </context>
 </TS>

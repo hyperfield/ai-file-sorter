@@ -2081,6 +2081,57 @@ Procedure: Build the routing explanation text.
 Expected outcome: The explanation includes the AI category, semantic target, Johnny.Decimal pattern, readable target, closest existing folder, and new-folder decision.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeRoutingExplanation describes Johnny Decimal destinations"`
 
+### `tests/unit/test_johnny_decimal_tools.cpp`
+
+#### Test case: JohnnyDecimalItemAnalysis parses standard IDs without truncating malformed numbers
+Purpose: Validate standard AC.ID syntax without numeric overflow or truncated identifiers.
+Setup: Use boundary IDs, malformed widths and separators, missing titles, and very long numeric strings.
+Procedure: Parse each folder name.
+Expected outcome: Valid IDs retain their full identifier/title; invalid and missing IDs are distinguished.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalItemAnalysis parses standard IDs without truncating malformed numbers"`
+
+#### Test case: JohnnyDecimalValidator checks direct item IDs only when requested
+Purpose: Keep basic structure validation stable while adding plugin-enabled item validation.
+Setup: Build an archive with duplicate, malformed, missing, and wrong-category item IDs plus ordinary nested folders.
+Procedure: Validate with the default scope and with item checks enabled.
+Expected outcome: Basic results are unchanged; enhanced checks report every conflicting item without treating nested content folders as new IDs.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator checks direct item IDs only when requested"`
+
+#### Test case: JohnnyDecimalValidator accepts item boundary IDs and preserves scan warnings
+Purpose: Accept standard .00/.99 identifiers and retain errors for incomplete or unavailable scans.
+Setup: Build valid boundary items and use a small scan limit and an absent root.
+Procedure: Run enhanced validation for each case.
+Expected outcome: Valid boundary IDs pass; scan-limit and missing-root states remain explicit.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator accepts item boundary IDs and preserves scan warnings"`
+
+#### Test case: JohnnyDecimalArchiveIndex exports complete escaped local folder links
+Purpose: Produce usable Markdown for paths containing punctuation and Unicode.
+Setup: Create recognized items, nested content, and unrecognized folders.
+Procedure: Export the index and inspect escaped labels and encoded local URLs.
+Expected outcome: Every displayed subtree is represented and incomplete scans carry a warning.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalArchiveIndex exports complete escaped local folder links"`
+
+#### Test case: JohnnyDecimalIndexExport saves complete Markdown and reports filesystem errors
+Purpose: Verify complete UTF-8 exports and actionable file errors.
+Setup: Use a temporary archive and an output directory.
+Procedure: Save an index, compare its content, and attempt a save under a nonexistent parent.
+Expected outcome: The full snapshot is committed and write failures return an error.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalIndexExport saves complete Markdown and reports filesystem errors"`
+
+#### Test case: JohnnyDecimalIndexWidget filters conflicts and opens only existing archive folders
+Purpose: Verify ID/name search, conflict markers, and folder-opening action states.
+Setup: Populate the widget from an archive with duplicate and misplaced IDs using an injected folder-opening service.
+Procedure: Filter by ID and name, open an item, remove it, and clear the snapshot.
+Expected outcome: Matches preserve ancestors, conflicts remain visible, removed folders do not open, and empty snapshots disable actions.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalIndexWidget filters conflicts and opens only existing archive folders"`
+
+#### Test case: FolderStructureInitializerDialog enhances tools only for Johnny Decimal profiles
+Purpose: Expose enhanced indexing and item checks only for enabled Johnny.Decimal profiles.
+Setup: Construct dialogs with no profiles, a Johnny.Decimal profile, and an unrelated profile.
+Procedure: Inspect index controls and validation reports, then clear the destination.
+Expected outcome: Only the Johnny.Decimal profile enables the enhanced view; clearing the destination removes stale results.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureInitializerDialog enhances tools only for Johnny Decimal profiles"`
+
 ### `tests/unit/test_folder_structure_plugins.cpp`
 
 #### Test case: FolderStructurePluginCatalog parses Johnny Decimal catalog entries
@@ -2150,7 +2201,7 @@ Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager requires 
 Purpose: Ensure licensed folder-structure plugins install and load when a valid local entitlement receipt exists.
 Setup: Store a signed Johnny.Decimal entitlement receipt, then build a signed licensed Johnny.Decimal archive.
 Procedure: Install the archive and query installed plugins/profiles.
-Expected outcome: Installation succeeds and the licensed profile is available through the plugin manager.
+Expected outcome: Installation succeeds and the licensed profile enables the enhanced index; disabling the plugin or removing its receipt restores the basic view.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs licensed plugins with entitlement receipts"`
 
 #### Test case: FolderStructurePluginDialog controls plugin enablement

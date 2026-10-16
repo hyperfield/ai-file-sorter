@@ -3651,4 +3651,138 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
             <translation>Failed to activate the plugin license.</translation>
         </message>
     </context>
+    <context>
+        <name>JohnnyDecimalIndexWidget</name>
+        <message>
+            <source>Search ID or name</source>
+            <translation>Buscar ID o nombre</translation>
+        </message>
+        <message>
+            <source>Open folder</source>
+            <translation>Abrir carpeta</translation>
+        </message>
+        <message>
+            <source>Export Markdown index</source>
+            <translation>Exportar índice Markdown</translation>
+        </message>
+        <message>
+            <source>ID</source>
+            <translation>ID</translation>
+        </message>
+        <message>
+            <source>Folder</source>
+            <translation>Carpeta</translation>
+        </message>
+        <message>
+            <source>Status</source>
+            <translation>Estado</translation>
+        </message>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Falta el ID del elemento</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>ID de elemento incorrecto</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Elemento en categoría incorrecta</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>ID de elemento duplicado</translation>
+        </message>
+        <message>
+            <source>Unrecognized folder</source>
+            <translation>Carpeta no reconocida</translation>
+        </message>
+        <message>
+            <source>Areas: %1 | Categories: %2 | Items: %3</source>
+            <translation>Áreas: %1 | Categorías: %2 | Elementos: %3</translation>
+        </message>
+        <message>
+            <source>Scan limit reached; the index may be incomplete.</source>
+            <translation>Se alcanzó el límite de análisis; el índice puede estar incompleto.</translation>
+        </message>
+        <message>
+            <source>Choose an existing archive folder.</source>
+            <translation>Elija una carpeta de archivo existente.</translation>
+        </message>
+        <message>
+            <source>No matching folders.</source>
+            <translation>No hay carpetas coincidentes.</translation>
+        </message>
+        <message>
+            <source>Folder is unavailable or outside the archive. Refresh the index.</source>
+            <translation>La carpeta no está disponible o está fuera del archivo. Actualice el índice.</translation>
+        </message>
+        <message>
+            <source>Could not open the selected folder.</source>
+            <translation>No se pudo abrir la carpeta seleccionada.</translation>
+        </message>
+        <message>
+            <source>Markdown files (*.md)</source>
+            <translation>Archivos Markdown (*.md)</translation>
+        </message>
+        <message>
+            <source>Could not save the index: %1</source>
+            <translation>No se pudo guardar el índice: %1</translation>
+        </message>
+        <message>
+            <source>Index exported.</source>
+            <translation>Índice exportado.</translation>
+        </message>
+    </context>
+    <context>
+        <name>JohnnyDecimalValidator</name>
+        <message>
+            <source>Missing item ID</source>
+            <translation>Falta el ID del elemento</translation>
+        </message>
+        <message>
+            <source>Malformed item ID</source>
+            <translation>ID de elemento incorrecto</translation>
+        </message>
+        <message>
+            <source>Item in wrong category</source>
+            <translation>Elemento en categoría incorrecta</translation>
+        </message>
+        <message>
+            <source>Duplicate item ID</source>
+            <translation>ID de elemento duplicado</translation>
+        </message>
+        <message>
+            <source>This direct child of a category has no item ID.</source>
+            <translation>Esta subcarpeta directa de una categoría no tiene ID de elemento.</translation>
+        </message>
+        <message>
+            <source>Use a folder name such as 21.03 Project name.</source>
+            <translation>Use un nombre de carpeta como 21.03 Nombre del proyecto.</translation>
+        </message>
+        <message>
+            <source>Expected two digits, a dot, two digits, a space, and a title.</source>
+            <translation>Se esperan dos dígitos, un punto, dos dígitos, un espacio y un título.</translation>
+        </message>
+        <message>
+            <source>The item ID prefix differs from its parent category.</source>
+            <translation>El prefijo del ID del elemento no coincide con su categoría superior.</translation>
+        </message>
+        <message>
+            <source>Move the item to its matching category or correct its ID.</source>
+            <translation>Mueva el elemento a su categoría correspondiente o corrija su ID.</translation>
+        </message>
+        <message>
+            <source>This item ID appears in more than one folder in this archive.</source>
+            <translation>Este ID de elemento aparece en varias carpetas de este archivo.</translation>
+        </message>
+        <message>
+            <source>Assign a unique ID to each item folder.</source>
+            <translation>Asigne un ID único a cada carpeta de elemento.</translation>
+        </message>
+        <message>
+            <source>Item folders checked: %1</source>
+            <translation>Carpetas de elementos comprobadas: %1</translation>
+        </message>
+    </context>
 </TS>

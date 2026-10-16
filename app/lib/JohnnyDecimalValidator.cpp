@@ -1,5 +1,7 @@
 #include "JohnnyDecimalValidator.hpp"
 
+#include <QCoreApplication>
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -13,6 +15,7 @@
 #include <vector>
 
 #include "FolderTreeCatalog.hpp"
+#include "JohnnyDecimalItemAnalysis.hpp"
 #include "Utils.hpp"
 
 namespace {
@@ -426,6 +429,51 @@ std::size_t severity_count(const JohnnyDecimalValidator::Report& report, JohnnyD
                                                   [&](const auto& issue) { return issue.severity == severity; }));
 }
 
+std::string tr_items(const char* text) {
+    return QCoreApplication::translate("JohnnyDecimalValidator", text).toStdString();
+}
+
+void validate_items(const FolderTreeCatalog::Catalog& catalog, JohnnyDecimalValidator::Report& report) {
+    const auto items = JohnnyDecimalItemAnalysis::analyze(JohnnyDecimalArchiveIndex::from_catalog(report.root, catalog));
+    report.item_ids_checked = true;
+    report.item_count = items.size();
+    for (const auto& item : items) {
+        using JohnnyDecimalValidator::Severity;
+        if (item.missing_id) {
+            add_issue(report, Severity::Warning, "missing_item_id",
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator", "Missing item ID")), item.relative_path,
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator",
+                                                "This direct child of a category has no item ID.")),
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator",
+                                                "Use a folder name such as 21.03 Project name.")));
+        }
+        if (item.malformed_id) {
+            add_issue(report, Severity::Error, "item_id_malformed",
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator", "Malformed item ID")), item.relative_path,
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator",
+                                                "Expected two digits, a dot, two digits, a space, and a title.")),
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator",
+                                                "Use a folder name such as 21.03 Project name.")));
+        }
+        if (item.wrong_category) {
+            add_issue(report, Severity::Error, "item_category_mismatch",
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator", "Item in wrong category")), item.relative_path,
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator",
+                                                "The item ID prefix differs from its parent category.")),
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator",
+                                                "Move the item to its matching category or correct its ID.")));
+        }
+        if (item.duplicate_id) {
+            add_issue(report, Severity::Error, "duplicate_item_id",
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator", "Duplicate item ID")), item.relative_path,
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator",
+                                                "This item ID appears in more than one folder in this archive.")),
+                      tr_items(QT_TRANSLATE_NOOP("JohnnyDecimalValidator",
+                                                "Assign a unique ID to each item folder.")));
+        }
+    }
+}
+
 std::string path_to_text(const std::filesystem::path& path) {
     return Utils::path_to_utf8(path);
 }
@@ -440,6 +488,10 @@ bool Report::has_errors() const {
 }
 
 Report validate_archive(const std::filesystem::path& root, int max_depth, std::size_t max_entries) {
+    return validate_archive(root, Scope::Structure, max_depth, max_entries);
+}
+
+Report validate_archive(const std::filesystem::path& root, Scope scope, int max_depth, std::size_t max_entries) {
     Report report;
     report.root = root;
 
@@ -476,6 +528,9 @@ Report validate_archive(const std::filesystem::path& root, int max_depth, std::s
     for (const AreaRecord& area : areas) {
         validate_area_children(catalog, area, report);
     }
+    if (scope == Scope::Items) {
+        validate_items(catalog, report);
+    }
     report.looks_johnny_decimal_like = report.area_count > 0 && report.category_count > 0;
     return report;
 }
@@ -499,6 +554,10 @@ std::string format_report(const Report& report) {
         out << "Root: " << path_to_text(report.root) << "\n";
     }
     out << "Areas: " << report.area_count << " | Categories: " << report.category_count << "\n";
+    if (report.item_ids_checked) {
+        out << QCoreApplication::translate("JohnnyDecimalValidator", "Item folders checked: %1")
+                   .arg(static_cast<qulonglong>(report.item_count)).toStdString() << "\n";
+    }
     out << "Errors: " << severity_count(report, Severity::Error)
         << " | Warnings: " << severity_count(report, Severity::Warning)
         << " | Info: " << severity_count(report, Severity::Info) << "\n\n";
