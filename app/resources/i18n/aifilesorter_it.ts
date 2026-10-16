@@ -871,6 +871,10 @@ Stato: %4
             <translation>Ottienilo</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>Scopri di più</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

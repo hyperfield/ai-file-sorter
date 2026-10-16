@@ -871,6 +871,10 @@ Status: %4
             <translation>Få den</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>Læs mere</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

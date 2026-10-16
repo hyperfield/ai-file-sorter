@@ -871,6 +871,10 @@ Tila: %4
             <translation>Hanki se</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>Lue lisää</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

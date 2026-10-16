@@ -871,6 +871,10 @@ Status: %4
             <translation>받기</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>자세히 보기</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

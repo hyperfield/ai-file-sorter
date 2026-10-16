@@ -871,6 +871,10 @@ Status: %4
             <translation>获取</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>了解更多</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

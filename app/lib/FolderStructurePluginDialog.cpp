@@ -43,6 +43,7 @@ namespace {
 constexpr int kPluginIdRole = Qt::UserRole;
 constexpr int kInstalledRole = Qt::UserRole + 1;
 constexpr int kPurchaseUrlRole = Qt::UserRole + 2;
+constexpr int kObtainButtonMinimumWidth = 96;
 
 QString tr_dialog(const char* source_text) {
     return QCoreApplication::translate("FolderStructurePluginDialog", source_text);
@@ -203,7 +204,7 @@ FolderStructurePluginDialog::FolderStructurePluginDialog(std::shared_ptr<FolderS
     obtain_button_ = new QPushButton(tr("Get It"), this);
     obtain_button_->setIcon(get_it_button_icon());
     obtain_button_->setIconSize(QSize(18, 18));
-    obtain_button_->setMinimumWidth(96);
+    obtain_button_->setMinimumWidth(kObtainButtonMinimumWidth);
     obtain_button_->setStyleSheet(get_it_button_style_sheet());
     obtain_button_->setVisible(PluginBuildConfig::commercial_plugin_actions_enabled());
     details_row->addWidget(obtain_button_, 0, Qt::AlignTop);
@@ -374,8 +375,10 @@ void FolderStructurePluginDialog::update_selection_state() {
                                       plugin->license_required && !has_license;
     activate_button_->setVisible(show_activate_button);
     activate_button_->setEnabled(show_activate_button && !refresh_active);
-    const bool show_obtain_button = PluginBuildConfig::commercial_plugin_actions_enabled() && !purchase_url.isEmpty() &&
-                                    !(plugin->license_required && has_license);
+    const bool show_read_more_button = has_license || (installed && !plugin->license_required);
+    const bool show_obtain_button = PluginBuildConfig::commercial_plugin_actions_enabled() && !purchase_url.isEmpty();
+    obtain_button_->setText(show_read_more_button ? tr("Read more") : tr("Get It"));
+    obtain_button_->setIcon(show_read_more_button ? QIcon() : get_it_button_icon());
     obtain_button_->setVisible(show_obtain_button);
     obtain_button_->setEnabled(show_obtain_button && !refresh_active);
     uninstall_button_->setEnabled(plugin_manager_ != nullptr && !refresh_active && installed);

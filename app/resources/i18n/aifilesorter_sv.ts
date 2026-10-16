@@ -871,6 +871,10 @@ Status: %4
             <translation>Hämta</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>Läs mer</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

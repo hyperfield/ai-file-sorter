@@ -224,7 +224,8 @@ PluginArchiveExtractor::ExtractionResult PluginArchiveExtractor::extract_archive
             continue;
         }
 
-        const std::string entry_name(raw_name);
+        std::string entry_name(raw_name);
+        std::replace(entry_name.begin(), entry_name.end(), '\\', '/');
         const auto sanitized = sanitize_archive_path(entry_name);
         if (!sanitized) {
             zip_close(archive);

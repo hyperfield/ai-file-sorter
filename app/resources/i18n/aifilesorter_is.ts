@@ -871,6 +871,10 @@ Staða: %4
             <translation>Fá það</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>Lesa meira</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

@@ -871,6 +871,10 @@ Status: %4
             <translation>Ophalen</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>Meer lezen</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

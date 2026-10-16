@@ -871,6 +871,10 @@ Status: %4
             <translation>इसे पाएं</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>और पढ़ें</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

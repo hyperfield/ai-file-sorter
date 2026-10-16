@@ -48,6 +48,7 @@ public:
 
     /**
      * @brief Extracts an archive into a destination directory.
+     * @details Normalizes Windows path separators before validating archive paths.
      * @param archive_path Source archive path.
      * @param destination_root Destination directory for extracted files.
      * @return Extraction result with manifest path or error.

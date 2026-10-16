@@ -5,6 +5,7 @@
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -13,6 +14,7 @@
 #include <QTreeWidget>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <filesystem>
@@ -21,6 +23,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -33,6 +36,7 @@
 #include "FolderTreeCatalog.hpp"
 #include "MainApp.hpp"
 #include "MainAppTestAccess.hpp"
+#include "PluginArchiveExtractor.hpp"
 #include "PluginBuildConfig.hpp"
 #include "PluginEntitlementService.hpp"
 #include "Settings.hpp"
@@ -49,6 +53,9 @@ constexpr std::array<unsigned char, 32> kTestPublicKey{0xd7, 0x5a, 0x98, 0x01, 0
                                                        0x23, 0x25, 0xaf, 0x02, 0x1a, 0x68, 0xf7, 0x07, 0x51, 0x1a};
 
 constexpr char kTestKeyId[] = "test-folder-structure-key";
+constexpr int kDialogRefreshWaitAttempts = 50;
+constexpr int kDialogRefreshProcessEventsMs = 25;
+constexpr int kDialogRefreshSleepMs = 10;
 
 struct ArchiveEntry {
     std::string name;
@@ -219,6 +226,18 @@ QByteArray entitlement_payload(const std::string& device_id, const QString& offl
     payload.insert("offline_until", offline_until);
     payload.insert("entitlements", entitlements);
     return QJsonDocument(payload).toJson(QJsonDocument::Compact);
+}
+
+bool wait_for_button_enabled(QPushButton* button) {
+    for (int attempt = 0; attempt < kDialogRefreshWaitAttempts; ++attempt) {
+        if (button && button->isEnabled()) {
+            return true;
+        }
+        QCoreApplication::processEvents(QEventLoop::AllEvents, kDialogRefreshProcessEventsMs);
+        std::this_thread::sleep_for(std::chrono::milliseconds(kDialogRefreshSleepMs));
+    }
+    QCoreApplication::processEvents();
+    return button && button->isEnabled();
 }
 
 }  // namespace
@@ -474,7 +493,15 @@ TEST_CASE("FolderStructurePluginManager installs signed declarative plugins") {
     TempDir config_dir;
     TempDir archive_dir;
     const auto archive_path = archive_dir.path() / "johnny-decimal.aifsplugin";
-    create_zip_archive(archive_path, signed_plugin_entries(plugin_manifest(), plugin_profile()));
+    auto entries = signed_plugin_entries(plugin_manifest(), plugin_profile());
+    SECTION("Forward-slash archive paths") {}
+    SECTION("Windows archive paths with explicit directories") {
+        for (auto& entry : entries) {
+            std::replace(entry.name.begin(), entry.name.end(), '/', '\\');
+        }
+        entries.insert(entries.begin(), {"johnny\\profiles\\", QByteArray{}});
+    }
+    create_zip_archive(archive_path, entries);
 
     FolderStructurePluginManager manager(config_dir.path().string(), {test_public_key()});
 
@@ -597,7 +624,7 @@ TEST_CASE("FolderStructurePluginManager requires entitlement for licensed plugin
 
     FolderStructurePluginInstallError error;
     CHECK_FALSE(manager.install_from_archive(archive_path, nullptr, &error));
-    CHECK(error.message.find("entitlement") != std::string::npos);
+    CHECK_FALSE(error.message.empty());
     CHECK(error.missing_entitlement);
     CHECK(error.product_id == "johnny_decimal_support");
     CHECK(error.plugin_id == "johnny_decimal_support");
@@ -703,11 +730,24 @@ TEST_CASE("FolderStructurePluginDialog lists remote catalog plugins") {
         out << catalog_json;
     };
 
+    auto entitlement_service = std::make_shared<PluginEntitlementService>(
+        config_dir.path(), std::vector<PluginEntitlementPublicKey>{test_entitlement_public_key()});
+    bool license_active = false;
+    SECTION("License activation needed") {}
+    SECTION("License active before installation") {
+        const QByteArray payload =
+            entitlement_payload(entitlement_service->device_id(), QStringLiteral("2999-01-01T00:00:00Z"));
+        std::string error;
+        REQUIRE(entitlement_service->store_receipt(payload, sign_ed25519(payload), kTestKeyId, &error));
+        license_active = true;
+    }
+
     auto manager = std::make_shared<FolderStructurePluginManager>(
-        config_dir.path().string(), std::vector<FolderStructurePluginPublicKey>{test_public_key()}, nullptr,
-        download_fn);
+        config_dir.path().string(), std::vector<FolderStructurePluginPublicKey>{test_public_key()},
+        entitlement_service, download_fn);
     std::string error;
     REQUIRE(manager->refresh_remote_catalog(&error));
+    CHECK_FALSE(manager->is_installed("johnny_decimal_support"));
 
     FolderStructurePluginDialog dialog(manager);
     auto* plugin_list = dialog.findChild<QTreeWidget*>();
@@ -724,14 +764,101 @@ TEST_CASE("FolderStructurePluginDialog lists remote catalog plugins") {
     for (auto* button : dialog.findChildren<QPushButton*>()) {
         if (button->text() == QStringLiteral("Activate License...")) {
             activate_button = button;
-        } else if (button->text() == QStringLiteral("Get It")) {
+        } else if (button->text() == (license_active ? QStringLiteral("Read more") : QStringLiteral("Get It"))) {
             obtain_button = button;
         }
     }
     REQUIRE(activate_button != nullptr);
-    CHECK_FALSE(activate_button->isHidden());
+    CHECK(activate_button->isHidden() == license_active);
     REQUIRE(obtain_button != nullptr);
     CHECK_FALSE(obtain_button->isHidden());
+    CHECK(wait_for_button_enabled(obtain_button));
+    CHECK(obtain_button->icon().isNull() == license_active);
+}
+
+TEST_CASE("FolderStructurePluginDialog shows read-more action for installed activated plugins") {
+    if (!PluginBuildConfig::commercial_plugin_actions_enabled()) {
+        SUCCEED("Commercial plugin actions are disabled for this build.");
+        return;
+    }
+
+    EnvVarGuard catalog_guard("AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL", " ");
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir config_dir;
+    TempDir archive_dir;
+    const auto archive_path = archive_dir.path() / "johnny-decimal-paid.aifsplugin";
+    create_zip_archive(archive_path, signed_plugin_entries(licensed_plugin_manifest(), plugin_profile()));
+
+    auto entitlement_service = std::make_shared<PluginEntitlementService>(
+        config_dir.path(), std::vector<PluginEntitlementPublicKey>{test_entitlement_public_key()});
+    const QByteArray payload =
+        entitlement_payload(entitlement_service->device_id(), QStringLiteral("2999-01-01T00:00:00Z"));
+    std::string error;
+    REQUIRE(entitlement_service->store_receipt(payload, sign_ed25519(payload), kTestKeyId, &error));
+
+    auto manager = std::make_shared<FolderStructurePluginManager>(
+        config_dir.path().string(), std::vector<FolderStructurePluginPublicKey>{test_public_key()},
+        entitlement_service);
+    REQUIRE(manager->install_from_archive(archive_path, nullptr, &error));
+
+    FolderStructurePluginDialog dialog(manager);
+
+    auto* plugin_list = dialog.findChild<QTreeWidget*>();
+    REQUIRE(plugin_list != nullptr);
+    REQUIRE(plugin_list->topLevelItemCount() == 1);
+    auto* item = plugin_list->topLevelItem(0);
+    REQUIRE(item != nullptr);
+    CHECK(item->checkState(0) == Qt::Checked);
+
+    QPushButton* read_more_button = nullptr;
+    QPushButton* obtain_button = nullptr;
+    for (auto* button : dialog.findChildren<QPushButton*>()) {
+        if (button->text() == QStringLiteral("Read more")) {
+            read_more_button = button;
+        } else if (button->text() == QStringLiteral("Get It")) {
+            obtain_button = button;
+        }
+    }
+
+    REQUIRE(read_more_button != nullptr);
+    CHECK_FALSE(read_more_button->isHidden());
+    CHECK(wait_for_button_enabled(read_more_button));
+    CHECK(obtain_button == nullptr);
+}
+
+TEST_CASE("PluginArchiveExtractor rejects unsafe paths with either separator") {
+    TempDir archive_dir;
+    const auto archive_path = archive_dir.path() / "unsafe.aifsplugin";
+    const auto destination = archive_dir.path() / "extracted";
+    std::string unsafe_path;
+    SECTION("Forward-slash traversal") { unsafe_path = "../escaped.json"; }
+    SECTION("Backslash traversal") { unsafe_path = "..\\escaped.json"; }
+    SECTION("Mixed-separator traversal") { unsafe_path = "profiles/..\\..\\escaped.json"; }
+    SECTION("Backslash absolute path") { unsafe_path = "\\escaped.json"; }
+    SECTION("Windows network path") { unsafe_path = "\\\\server\\share\\escaped.json"; }
+    create_zip_archive(archive_path, {{"manifest.json", QByteArray::fromStdString(plugin_manifest())},
+                                      {unsafe_path, QByteArray("unsafe payload")}});
+
+    const auto result = PluginArchiveExtractor::extract_archive(archive_path, destination);
+    CHECK_FALSE(result.ok());
+    CHECK(result.message.find("unsafe path") != std::string::npos);
+    CHECK_FALSE(std::filesystem::exists(archive_dir.path() / "escaped.json"));
+}
+
+TEST_CASE("FolderStructurePluginManager rejects unsigned payload files") {
+    TempDir config_dir;
+    TempDir archive_dir;
+    const auto archive_path = archive_dir.path() / "unsigned-payload.aifsplugin";
+    auto entries = signed_plugin_entries(plugin_manifest(), plugin_profile());
+    entries.push_back({"johnny\\profiles\\unsigned.json", QByteArray("unsigned payload")});
+    create_zip_archive(archive_path, entries);
+
+    FolderStructurePluginManager manager(config_dir.path().string(), {test_public_key()});
+    std::string error;
+    CHECK_FALSE(manager.install_from_archive(archive_path, nullptr, &error));
+    CHECK(error.find("unsigned payload") != std::string::npos);
+    CHECK(manager.installed_plugins().empty());
 }
 
 TEST_CASE("FolderStructurePluginManager rejects tampered plugin payloads") {

@@ -871,6 +871,10 @@ Durum: %4
             <translation>Edin</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>Daha fazla bilgi</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

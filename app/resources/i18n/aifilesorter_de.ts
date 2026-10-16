@@ -871,6 +871,10 @@ Status: %4
             <translation>Jetzt holen</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>Mehr erfahren</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

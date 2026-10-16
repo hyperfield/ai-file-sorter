@@ -871,6 +871,10 @@ Signataire vérifié : %3
             <translation>L'obtenir</translation>
         </message>
         <message>
+            <source>Read more</source>
+            <translation>En savoir plus</translation>
+        </message>
+        <message>
             <source>Available</source>
             <translation>Available</translation>
         </message>

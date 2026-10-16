@@ -2127,7 +2127,7 @@ Run: `./build-tests/ai_file_sorter_tests "PluginEntitlementService rejects inval
 
 #### Test case: FolderStructurePluginManager installs signed declarative plugins
 Purpose: Verify signed `.aifsplugin` packages can contribute folder-structure templates and recognition guidance.
-Setup: Build a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key.
+Setup: Build a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key, testing both forward-slash paths and Windows backslash paths with explicit directory entries.
 Procedure: Install the archive, load verified profiles, create plugin-provided folders, and infer conventions from a matching tree.
 Expected outcome: The package installs, the signer id is recorded, the profile appears in template descriptors, and matched plugin guidance is added to routing prompts.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs signed declarative plugins"`
@@ -2162,10 +2162,31 @@ Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog controls p
 
 #### Test case: FolderStructurePluginDialog lists remote catalog plugins
 Purpose: Ensure the folder-structure plugin dialog can show server-catalog plugins that are not installed yet.
-Setup: Refresh a manager from a mock catalog containing the Johnny.Decimal support entry and construct the dialog.
+Setup: Refresh a manager from a mock catalog containing the Johnny.Decimal support entry, with and without an active entitlement receipt, and construct the dialog.
 Procedure: Inspect the plugin list row and the selected plugin actions.
-Expected outcome: The dialog lists Johnny.Decimal Support as an available catalog plugin with the advertised version and shows purchase plus license activation actions when entitlement is missing.
+Expected outcome: The dialog lists Johnny.Decimal Support as an available catalog plugin with the advertised version, shows purchase plus license activation actions when entitlement is missing, and shows an enabled `Read more` link when the license is active before installation.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog lists remote catalog plugins"`
+
+#### Test case: FolderStructurePluginDialog shows read-more action for installed activated plugins
+Purpose: Ensure installed licensed folder-structure plugins keep a visible link to their product/info page after activation.
+Setup: Store a signed Johnny.Decimal entitlement receipt, install a signed licensed Johnny.Decimal archive, and construct the dialog.
+Procedure: Inspect the selected plugin actions.
+Expected outcome: The dialog shows an enabled `Read more` action instead of the `Get It` action.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog shows read-more action for installed activated plugins"`
+
+#### Test case: PluginArchiveExtractor rejects unsafe paths with either separator
+Purpose: Ensure normalizing Windows ZIP paths cannot permit writes outside the extraction directory.
+Setup: Build temporary archives with forward-slash, backslash, mixed-separator traversal, absolute paths, and Windows network paths.
+Procedure: Extract each archive into a temporary destination.
+Expected outcome: Extraction rejects each unsafe path and no file is written outside the destination.
+Run: `./build-tests/ai_file_sorter_tests "PluginArchiveExtractor rejects unsafe paths with either separator"`
+
+#### Test case: FolderStructurePluginManager rejects unsigned payload files
+Purpose: Preserve signature coverage checks for payloads stored with Windows separators.
+Setup: Add an unsigned backslash-path payload to a signed folder-structure archive.
+Procedure: Attempt to install the archive.
+Expected outcome: Installation fails with an unsigned-payload error and no plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects unsigned payload files"`
 
 #### Test case: FolderStructurePluginManager rejects tampered plugin payloads
 Purpose: Ensure package payloads cannot be changed after signing.
