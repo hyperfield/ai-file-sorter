@@ -25,6 +25,7 @@
 #include "JohnnyDecimalFolderSuggester.hpp"
 #include "JohnnyDecimalArchiveIndex.hpp"
 #include "JohnnyDecimalIndexWidget.hpp"
+#include "JohnnyDecimalValidationHighlighter.hpp"
 #include "JohnnyDecimalValidator.hpp"
 #include "Utils.hpp"
 
@@ -159,6 +160,7 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     validation_report_edit_->setObjectName(QStringLiteral("johnnyDecimalValidationReportEdit"));
     validation_report_edit_->setReadOnly(true);
     validation_report_edit_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    new JohnnyDecimalValidationHighlighter(validation_report_edit_);
     validation_layout->addWidget(validation_report_edit_, 1);
     tab_widget_->addTab(validation_tab_, tr("Validation report"));
 

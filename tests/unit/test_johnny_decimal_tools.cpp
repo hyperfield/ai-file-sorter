@@ -3,7 +3,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QSyntaxHighlighter>
 #include <QTabWidget>
+#include <QTextBlock>
+#include <QTextLayout>
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -20,6 +23,7 @@
 #include "JohnnyDecimalIndexExport.hpp"
 #include "JohnnyDecimalItemAnalysis.hpp"
 #include "JohnnyDecimalValidator.hpp"
+#include "JohnnyDecimalValidationHighlighter.hpp"
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
 
@@ -114,6 +118,61 @@ TEST_CASE("JohnnyDecimalValidator accepts item boundary IDs and preserves scan w
     }));
     CHECK_FALSE(JohnnyDecimalValidator::validate_archive(root.path() / "absent",
         JohnnyDecimalValidator::Scope::Items).scanned);
+}
+
+TEST_CASE("JohnnyDecimalValidationHighlighter styles severities and preserves report text") {
+    QtAppContext qt;
+    QPlainTextEdit editor;
+    QPalette palette = editor.palette();
+    palette.setColor(QPalette::Base, Qt::white);
+    palette.setColor(QPalette::Text, Qt::black);
+    editor.setPalette(palette);
+    JohnnyDecimalValidationHighlighter highlighter(&editor);
+    JohnnyDecimalValidator::Report report;
+    report.root = "/archive/<Family> & work";
+    report.issues = {
+        {JohnnyDecimalValidator::Severity::Error, "duplicate_item_id", "Duplicate item ID",
+         "21 Projects/21.01 <Research> & notes", "Duplicate number.", "Choose a unique ID."},
+        {JohnnyDecimalValidator::Severity::Warning, "missing_item_id", "Missing item ID",
+         "21 Projects/Meeting notes", "No item number.", "Add an ID."},
+        {JohnnyDecimalValidator::Severity::Info, "scan_note", "Archive note", "", "Scan details.", ""}};
+    const auto text = QString::fromStdString(JohnnyDecimalValidator::format_report(report));
+    editor.setPlainText(text);
+    highlighter.rehighlight();
+    auto format_at = [&editor](const QString& prefix, int offset = 0) {
+        for (auto block = editor.document()->firstBlock(); block.isValid(); block = block.next()) {
+            if (!block.text().startsWith(prefix)) {
+                continue;
+            }
+            for (const auto& range : block.layout()->formats()) {
+                if (range.start <= offset && offset < range.start + range.length) {
+                    return range.format;
+                }
+            }
+        }
+        return QTextCharFormat{};
+    };
+    const auto error = format_at(QStringLiteral("ERROR -"));
+    CHECK(error.fontWeight() == QFont::Bold);
+    CHECK(error.foreground().color() == QColor(QStringLiteral("#c62828")));
+    const auto warning = format_at(QStringLiteral("WARNING -"));
+    CHECK(warning.fontWeight() == QFont::Bold);
+    CHECK(warning.foreground().color() == QColor(QStringLiteral("#ffdf66")));
+    CHECK(warning.background().color() == QColor(QStringLiteral("#493900")));
+    CHECK(format_at(QStringLiteral("INFO -")).foreground().color() == QColor(QStringLiteral("#1565c0")));
+    CHECK(format_at(QStringLiteral("Path:")).fontWeight() == QFont::Bold);
+    CHECK(format_at(QStringLiteral("Suggested fix:")).fontWeight() == QFont::Bold);
+    CHECK(format_at(QStringLiteral("Johnny.Decimal validation report")).fontWeight() == QFont::Bold);
+    CHECK(editor.toPlainText() == text);
+
+    palette.setColor(QPalette::Base, QColor(QStringLiteral("#202020")));
+    palette.setColor(QPalette::Text, Qt::white);
+    editor.setPalette(palette);
+    CHECK(format_at(QStringLiteral("ERROR -")).foreground().color() == QColor(QStringLiteral("#ff8a80")));
+    CHECK(format_at(QStringLiteral("WARNING -")).foreground() == warning.foreground());
+    CHECK(editor.toPlainText() == text);
+    editor.clear();
+    CHECK(editor.toPlainText().isEmpty());
 }
 
 TEST_CASE("JohnnyDecimalArchiveIndex exports complete escaped local folder links") {
@@ -214,6 +273,7 @@ TEST_CASE("FolderStructureInitializerDialog enhances tools only for Johnny Decim
         CHECK(dialog.findChild<QWidget*>(QStringLiteral("johnnyDecimalIndexWidget")) == nullptr);
         CHECK(dialog.findChild<QPlainTextEdit*>(QStringLiteral("johnnyDecimalArchiveIndexEdit")) != nullptr);
         dialog.findChild<QTabWidget*>()->setCurrentIndex(kValidationTab);
+        REQUIRE(dialog.findChild<QSyntaxHighlighter*>(QStringLiteral("johnnyDecimalValidationHighlighter")));
         CHECK_FALSE(dialog.findChild<QPlainTextEdit*>(QStringLiteral("johnnyDecimalValidationReportEdit"))
                         ->toPlainText().contains(QStringLiteral("Duplicate item ID")));
     }

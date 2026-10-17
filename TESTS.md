@@ -2104,6 +2104,13 @@ Procedure: Run enhanced validation for each case.
 Expected outcome: Valid boundary IDs pass; scan-limit and missing-root states remain explicit.
 Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator accepts item boundary IDs and preserves scan warnings"`
 
+#### Test case: JohnnyDecimalValidationHighlighter styles severities and preserves report text
+Purpose: Make validation reports readable without changing their selectable plain text.
+Setup: Render error, warning, and info findings, including paths with markup characters.
+Procedure: Inspect severity and field formatting, change the editor from a light to a dark palette, then clear it.
+Expected outcome: Error labels are red, warning labels are yellow on a contrasting background, headings and field labels are bold, palette changes update colors, and report text is unchanged.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidationHighlighter styles severities and preserves report text"`
+
 #### Test case: JohnnyDecimalArchiveIndex exports complete escaped local folder links
 Purpose: Produce usable Markdown for paths containing punctuation and Unicode.
 Setup: Create recognized items, nested content, and unrecognized folders.
