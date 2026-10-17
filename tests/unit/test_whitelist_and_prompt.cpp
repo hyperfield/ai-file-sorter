@@ -1302,7 +1302,7 @@ TEST_CASE("CategorizationService accepts suggested folder-tree targets when enab
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
-    CHECK(*calls == 1);
+    CHECK(*calls == 2);
     CHECK(categorized.front().folder_tree_mode);
     CHECK(categorized.front().target_folder_relative_path == "Documents/Invoices");
     CHECK(categorized.front().target_folder_suggested_new);
@@ -1310,7 +1310,7 @@ TEST_CASE("CategorizationService accepts suggested folder-tree targets when enab
     CHECK(categorized.front().folder_tree_allow_new_folders);
     CHECK(categorized.front().category == "Documents");
     CHECK(categorized.front().subcategory == "Invoices");
-    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) == std::string::npos);
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
 
     const auto catalog = FolderTreeCatalog::Catalog::scan(data_dir.path());
     const auto route = db.get_folder_tree_routing(file_name,
@@ -1367,14 +1367,14 @@ TEST_CASE("CategorizationService uses deterministic structure pattern for new fo
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
-    CHECK(*calls == 1);
+    CHECK(*calls == 2);
     CHECK(categorized.front().folder_tree_mode);
     CHECK(categorized.front().target_folder_relative_path == "20-29 Work/22 Proposals");
     CHECK(categorized.front().target_folder_suggested_new);
     CHECK_FALSE(categorized.front().target_folder_exists);
     CHECK(categorized.front().category == "Work");
     CHECK(categorized.front().subcategory == "Proposals");
-    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) == std::string::npos);
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
 }
 
 TEST_CASE("CategorizationService sends detected custom folder conventions to routing LLM") {
@@ -1544,10 +1544,11 @@ TEST_CASE("CategorizationService passes image descriptions through prompt overri
     std::atomic<bool> stop_flag{false};
     auto calls = std::make_shared<int>(0);
     auto captured_path = std::make_shared<std::string>();
-    auto factory = [captured_path, calls]() {
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
         return std::make_unique<PromptCaptureLLM>(
             captured_path,
-            std::shared_ptr<std::string>{},
+            captured_context,
             calls,
             "Category: Nature\nSubcategory: Mountains");
     };
@@ -1568,7 +1569,8 @@ TEST_CASE("CategorizationService passes image descriptions through prompt overri
     REQUIRE(categorized.size() == 1);
     CHECK(*calls == 1);
     CHECK(captured_path->find(suggested_name) != std::string::npos);
-    CHECK(captured_path->find("\nImage description: " + description) != std::string::npos);
+    CHECK(captured_path->find('\n') == std::string::npos);
+    CHECK(captured_context->find("Image description: " + description) != std::string::npos);
     CHECK(captured_path->find("legacy_name.jpg") == std::string::npos);
 }
 
@@ -2214,7 +2216,8 @@ TEST_CASE("CategorizationService uses one-shot categorization prompts for docume
     CHECK(categorized.front().canonical_subcategory == "PCI DSS");
     CHECK(*calls == 1);
     CHECK(captured_path->find(file_name) != std::string::npos);
-    CHECK(captured_path->find("Document summary: Quick reference to PCI DSS controls for merchants and service providers.") != std::string::npos);
+    CHECK(captured_path->find('\n') == std::string::npos);
+    CHECK(captured_context->find("Document summary: Quick reference to PCI DSS controls for merchants and service providers.") != std::string::npos);
     CHECK(captured_context->find("Document categorization guidance:") != std::string::npos);
     CHECK(captured_context->find("Allowed main categories") != std::string::npos);
     CHECK(captured_context->find("The main category is already fixed to:") == std::string::npos);

@@ -278,6 +278,10 @@ DatabaseManager::~DatabaseManager() {
 void DatabaseManager::initialize_schema() {
     if (!db) return;
 
+    if (!content_analysis_cache().initialize()) {
+        db_log(spdlog::level::warn, "Failed to initialize content analysis cache: {}", sqlite3_errmsg(db));
+    }
+
     const char *create_table_sql = R"(
         CREATE TABLE IF NOT EXISTS file_categorization (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1520,7 +1524,7 @@ bool DatabaseManager::clear_directory_categorizations(const std::string& dir_pat
         }
     }
     cached_results.clear();
-    return success;
+    return content_analysis_cache().clear_directory(dir_path, recursive) && success;
 }
 
 bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
@@ -1531,12 +1535,14 @@ bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
 
     char* error_msg = nullptr;
     const char* delete_sql = clear_taxonomy
-        ? "DELETE FROM folder_tree_routing;"
+        ? "DELETE FROM content_analysis_cache;"
+          "DELETE FROM folder_tree_routing;"
           "DELETE FROM category_translation;"
           "DELETE FROM category_alias;"
           "DELETE FROM category_taxonomy;"
           "DELETE FROM file_categorization;"
-        : "DELETE FROM folder_tree_routing;"
+        : "DELETE FROM content_analysis_cache;"
+          "DELETE FROM folder_tree_routing;"
           "DELETE FROM file_categorization;";
     if (sqlite3_exec(db, delete_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         db_log(spdlog::level::err,

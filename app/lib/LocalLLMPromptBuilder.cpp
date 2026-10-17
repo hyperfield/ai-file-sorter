@@ -2,6 +2,7 @@
 
 #include "FileCategoryPolicy.hpp"
 #include "FolderTreeCatalog.hpp"
+#include "ILLMClient.hpp"
 
 #include <algorithm>
 #include <array>
@@ -336,10 +337,12 @@ std::string build_system_prompt(std::string_view file_path,
     if (file_type == FileType::Directory) {
         return directory_categorization_system_prompt();
     }
-    if (has_marker(file_path, kImageDescriptionMarker)) {
+    if (has_marker(file_path, kImageDescriptionMarker) ||
+        has_marker(consistency_context, kImageDescriptionMarker)) {
         return image_categorization_system_prompt(prefer_stable_taxonomy);
     }
-    if (FileCategoryPolicy::is_supported_document_file_name(extract_prompt_file_name(file_path))) {
+    if (FileCategoryPolicy::is_supported_document_file_name(extract_prompt_file_name(file_path)) ||
+        has_marker(consistency_context, kDocumentSummaryMarker)) {
         return document_categorization_system_prompt(prefer_stable_taxonomy);
     }
     return generic_file_categorization_system_prompt();
@@ -350,11 +353,14 @@ std::string build_user_prompt(const std::string& file_name,
                               FileType file_type,
                               const std::string& consistency_context)
 {
-    if (file_type == FileType::File && has_marker(file_path, kImageDescriptionMarker)) {
+    if (file_type == FileType::File &&
+        (has_marker(file_path, kImageDescriptionMarker) ||
+         has_marker(consistency_context, kImageDescriptionMarker))) {
         return build_image_categorization_user_prompt(file_name, file_path, consistency_context);
     }
     if (file_type == FileType::File &&
-        FileCategoryPolicy::is_supported_document_file_name(file_name)) {
+        (FileCategoryPolicy::is_supported_document_file_name(file_name) ||
+         has_marker(consistency_context, kDocumentSummaryMarker))) {
         return build_document_categorization_user_prompt(file_name, file_path, consistency_context);
     }
     return build_generic_categorization_user_prompt(file_name,
@@ -384,7 +390,8 @@ std::string shrink_user_prompt_for_context(const std::string& prompt, int attemp
         }
 
         std::size_t suffix_start = std::string::npos;
-        constexpr std::array<std::string_view, 8> kSectionMarkers = {
+        constexpr std::array<std::string_view, 9> kSectionMarkers = {
+            LLMPrompt::kContentEvidenceEndMarker,
             "\nFile name:",
             "\nDirectory name:",
             "\nPath:",
@@ -428,7 +435,8 @@ std::string shrink_user_prompt_for_context(const std::string& prompt, int attemp
     const std::size_t budget = kPromptBudgets[std::min<std::size_t>(
         static_cast<std::size_t>(attempt),
         kPromptBudgets.size() - 1)];
-    if (trimmed.size() > budget) {
+    // An incomplete folder list or missing JSON contract is not a usable routing prompt.
+    if (trimmed.size() > budget && !is_folder_tree_mode(trimmed)) {
         return truncate_with_ellipsis(trimmed, budget);
     }
 

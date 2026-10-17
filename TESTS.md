@@ -35,6 +35,27 @@ Manual Windows GUI smoke validation for issue #95: launch a normal visible build
 
 ## Unit test catalog
 
+### Content evidence and destination routing regressions
+
+Build with `cmake --build build-tests --target ai_file_sorter_tests -j4`.
+Run the focused group with `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[content-cache],[content-routing]"`.
+These deterministic tests use temporary files and injected LLMs, not live inference.
+
+`tests/unit/test_content_analysis_cache.cpp` covers:
+- `ContentAnalysisCache preserves full evidence across database reopen`: full multiline descriptions survive restart and remain scoped to the analyzer/model version.
+- `ContentAnalysisCache rejects changed and incomplete evidence`: name-only entries are unusable, changed bytes invalidate a cache hit even with unchanged size/mtime, and results cannot be stored against a changed source.
+- `ContentAnalysisCache follows directory and global cache cleanup`: nonrecursive and recursive clearing respect escaped directory names and include content-only rows in the cache-size estimate.
+
+`tests/unit/test_content_context_routing.cpp` covers:
+- `Content evidence reaches classification and routing independently of renaming`: image/document evidence survives a cache round trip, is provided separately from the path to both LLM stages, and suitable existing destinations beat unrelated or duplicate new targets with rename suggestions disabled.
+- `Review plan reserves new numbers across batches and reuses proposed destinations`: deferred batches allocate distinct numbers for distinct labels, reuse an equivalent pending folder, preserve true on-disk existence flags, and do not create directories during analysis.
+- `AnalysisCoordinator reuses complete image evidence without a visual backend`: the full workflow uses cached descriptions without loading a missing visual model, preserves them on a resumed cached review, and invalidates legacy name-only entries or changed source bytes rather than silently sorting by name.
+- `Numbered folder allocation stays within exhausted ranges`: a full range remains recognized, no wider numeric range is invented, and an available gap can be reused.
+
+`tests/unit/test_local_llm_prompt_builder.cpp` additionally covers:
+- `LocalLLMPromptBuilder retains content boundaries and folder constraints on retries`: shortening analysis text must preserve candidate folders and the JSON response contract.
+- `LocalLLMPromptBuilder recognizes evidence supplied separately from the path`: clean path fields still select the image/document prompts that prioritize content, with the full evidence retained in the user prompt.
+
 ### `tests/unit/test_app_test_runner.cpp`
 
 #### Test case: AppTestRunner runs whitelist self-test suite
@@ -3079,14 +3100,14 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService routes into exis
 Purpose: Ensure the existing-folder sorting mode can accept a newly suggested semantic folder instead of forcing a generic fallback.
 Setup: Create a target root with image, archive, and unsorted fallback folders but no document destination, then enable `SuggestNewFolders`.
 Procedure: Categorize one document using an LLM stub that returns semantic document labels.
-Expected outcome: The categorized result records `Documents/Invoices` as a deterministic suggested new folder, marks the target as not existing yet, and persists the routing decision separately from the semantic cache.
+Expected outcome: The service consults the routing LLM after semantic categorization, then records `Documents/Invoices` as a suggested new folder when no usable selection is returned. The target is marked as not existing yet and persisted separately from the semantic cache.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService accepts suggested folder-tree targets when enabled"`
 
 #### Test case: CategorizationService uses deterministic structure pattern for new folder routes
-Purpose: Ensure existing-folder sorting can create coherent new-folder suggestions without a second LLM call when a clear pattern is present.
+Purpose: Ensure existing-folder sorting preserves coherent numbering after comparing suitable existing destinations.
 Setup: Create a Johnny.Decimal-like tree with a numbered `20-29 Work` parent and enable new-folder suggestions.
 Procedure: Categorize one file using an LLM stub that returns `Work / Proposals` semantic labels.
-Expected outcome: The categorized result suggests the first available numbered child folder under `20-29 Work` and only calls the LLM for semantic categorization.
+Expected outcome: The service calls the LLM for semantic categorization and folder selection, then suggests the first available numbered child folder under `20-29 Work` when the routing response is unusable.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses deterministic structure pattern for new folder routes"`
 
 #### Test case: CategorizationService sends detected custom folder conventions to routing LLM
@@ -3127,8 +3148,8 @@ Run: `./build-tests/ai_file_sorter_tests "Image prompt path uses the suggested f
 #### Test case: CategorizationService passes image descriptions through prompt overrides
 Purpose: Verify that image prompt overrides forward the visual description payload to the categorization LLM.
 Setup: Create a categorization service with a prompt-capturing LLM stub, then prepare an image entry with a suggested filename and generated image prompt path.
-Procedure: Run `categorize_entries` with a prompt override for the image entry and inspect the captured prompt path passed to the LLM.
-Expected outcome: The captured prompt contains the suggested filename and `Image description:` section, and omits the original filename.
+Procedure: Run `categorize_entries` with a prompt override and inspect both the captured path and context passed to the LLM.
+Expected outcome: The path contains the suggested filename without embedded description lines; the separate primary-evidence context contains the complete `Image description:` section.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService passes image descriptions through prompt overrides"`
 
 #### Test case: CategorizationService preserves analysis context for learned behavior capture
@@ -3240,7 +3261,7 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService leaves unknown g
 Purpose: Keep document categorization on the simpler single-pass prompt path while preserving the newer main-category guidance and normalization afterward.
 Setup: Enable `More consistent`, then prepare a summarized `.pdf` prompt override and a prompt-capturing LLM stub that returns `Documents : PCI DSS`.
 Procedure: Categorize the file through the service and inspect the captured categorization path and combined context.
-Expected outcome: The service performs one categorization call, the document summary stays attached to the prompt path, the combined context still includes document guidance plus allowed main categories, and no split-pass-only subcategory prompt text is present.
+Expected outcome: The service performs one categorization call, the document summary is passed in the primary-evidence context rather than the path field, the combined context still includes document guidance plus allowed main categories, and no split-pass-only subcategory prompt text is present.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses one-shot categorization prompts for document files"`
 
 #### Test case: CategorizationService normalizes supported image main categories to Images
@@ -3315,12 +3336,12 @@ Procedure: Call `categorize_entries` in `ExistingFolderTree` mode for that file.
 Expected outcome: The cached target folder is returned with folder-tree metadata intact and the LLM call counter stays at zero.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses cached folder-tree target without calling LLM"`
 
-#### Test case: CategorizationService derives new folder route from semantic cache without LLM
+#### Test case: CategorizationService reviews existing destinations before deriving a new folder from semantic cache
 Purpose: Ensure an existing semantic cache row can produce a new-folder suggestion when the destination tree lacks a strong match.
 Setup: Seed semantic `Documents / Invoices` labels, configure existing-folder sorting with new-folder suggestions enabled, and create only unrelated fallback folders.
 Procedure: Call `categorize_entries` for the cached file.
-Expected outcome: The result targets `Documents/Invoices` as a suggested new folder without invoking the LLM.
-Run: `./build-tests/ai_file_sorter_tests "CategorizationService derives new folder route from semantic cache without LLM"`
+Expected outcome: The existing-folder selection LLM is called once; its unrelated fallback is rejected and the result targets `Documents/Invoices` as a suggested new folder.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService reviews existing destinations before deriving a new folder from semantic cache"`
 
 #### Test case: CategorizationService falls back to LLM when cache is empty
 Purpose: Validate cache fallback to LLM and persistence of returned category values.

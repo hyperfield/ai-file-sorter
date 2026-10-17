@@ -169,6 +169,28 @@ int semantic_match_score(std::string_view relative_path,
                          std::string_view subcategory);
 
 /**
+ * @brief Score direct content support using the catalog's existing lexical ranker.
+ * @param relative_path Destination whose human labels are compared without numeric prefixes.
+ * @param evidence Content summary or image description, not the source filename/path.
+ * @return Nonnegative lexical overlap score; zero means no direct content support.
+ */
+int content_match_score(std::string_view relative_path, std::string_view evidence);
+
+/**
+ * @brief Decide whether a strong existing semantic match should replace a weak or new target.
+ * @param selected Validated model or cached selection.
+ * @param best_existing Best existing match to the preliminary category labels.
+ * @param category Preliminary semantic category.
+ * @param subcategory Preliminary semantic subcategory.
+ * @param evidence Full content description; a better content-supported choice is preserved.
+ * @return True when the existing semantic match is preferable.
+ */
+bool prefer_existing_semantic_match(const Selection& selected,
+                                     const std::optional<SemanticMatch>& best_existing,
+                                     std::string_view category, std::string_view subcategory,
+                                     std::string_view evidence);
+
+/**
  * @brief Return the strongest existing folder match for a semantic category.
  * @param catalog Existing folder catalog.
  * @param category Semantic category.

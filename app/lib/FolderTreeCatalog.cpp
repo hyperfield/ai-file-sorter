@@ -689,6 +689,31 @@ std::string semantic_target_path(std::string_view category,
     return validation.valid ? validation.normalized_path : std::string();
 }
 
+int content_match_score(std::string_view relative_path, std::string_view evidence)
+{
+    if (evidence.empty() || !validate_relative_folder_path(relative_path).valid) {
+        return 0;
+    }
+    return candidate_score({FolderStructurePattern::human_label_path(relative_path), 0},
+                           tokenize(std::string(evidence)));
+}
+
+bool prefer_existing_semantic_match(const Selection& selected,
+                                     const std::optional<SemanticMatch>& best_existing,
+                                     std::string_view category, std::string_view subcategory,
+                                     std::string_view evidence)
+{
+    if (!best_existing || !is_strong_semantic_match(best_existing->score)) {
+        return false;
+    }
+    if (!selected.suggested_new && is_strong_semantic_match(
+            semantic_match_score(selected.relative_path, category, subcategory))) {
+        return false;
+    }
+    return content_match_score(selected.relative_path, evidence) <=
+           content_match_score(best_existing->entry.relative_path, evidence);
+}
+
 int semantic_match_score(std::string_view relative_path,
                          std::string_view category,
                          std::string_view subcategory)

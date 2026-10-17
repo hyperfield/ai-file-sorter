@@ -9,6 +9,7 @@
 #include "FilenameLocalizationService.hpp"
 #include "FolderStructurePattern.hpp"
 #include "FolderTreeCatalog.hpp"
+#include "FolderTreeRoutingPlan.hpp"
 #include "FolderTreeRoutingExplanation.hpp"
 #include "ILLMClient.hpp"
 #include "ImageAnalyzerFactory.hpp"
@@ -17,6 +18,7 @@
 #include "MediaRenameMetadataService.hpp"
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
+#include "Logger.hpp"
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
 
@@ -140,64 +142,19 @@ std::optional<FolderTreeCatalog::Selection> existing_semantic_selection(
     return FolderTreeCatalog::resolve_target_path(best_existing->entry.relative_path, catalog, false);
 }
 
-std::optional<FolderTreeCatalog::Selection> semantic_new_folder_selection(
-    const FolderTreeCatalog::Catalog& catalog,
-    const std::string& semantic_category,
-    const std::string& semantic_subcategory,
-    const std::string& semantic_target,
-    bool allow_new_folders,
-    const std::vector<FolderStructurePluginProfile>& plugin_profiles,
-    bool require_high_confidence = false)
-{
-    if (!allow_new_folders) {
-        return std::nullopt;
-    }
-    if (auto suggestion = FolderStructurePattern::suggest_new_folder(catalog,
-                                                                     semantic_category,
-                                                                     semantic_subcategory,
-                                                                     plugin_profiles)) {
-        if (!require_high_confidence || suggestion->high_confidence) {
-            return FolderTreeCatalog::resolve_target_path(suggestion->relative_path, catalog, true);
-        }
-    }
-    if (require_high_confidence || semantic_target.empty()) {
-        return std::nullopt;
-    }
-    return FolderTreeCatalog::resolve_target_path(semantic_target, catalog, true);
-}
-
 FolderTreeCatalog::Selection prefer_semantic_route_when_existing_match_is_weak(
     const FolderTreeCatalog::Catalog& catalog,
     const FolderTreeCatalog::Selection& selection,
     const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing,
     const std::string& semantic_category,
     const std::string& semantic_subcategory,
-    const std::string& semantic_target,
-    bool allow_new_folders,
-    const std::vector<FolderStructurePluginProfile>& plugin_profiles)
+    const std::string& evidence)
 {
-    if (!allow_new_folders || selection.suggested_new) {
-        return selection;
-    }
-
-    const int selected_score = FolderTreeCatalog::semantic_match_score(selection.relative_path,
-                                                                       semantic_category,
-                                                                       semantic_subcategory);
-    if (FolderTreeCatalog::is_strong_semantic_match(selected_score)) {
-        return selection;
-    }
-    if (best_existing && FolderTreeCatalog::is_strong_semantic_match(best_existing->score)) {
+    if (FolderTreeCatalog::prefer_existing_semantic_match(
+            selection, best_existing, semantic_category, semantic_subcategory, evidence)) {
         if (auto existing = existing_semantic_selection(catalog, best_existing)) {
             return *existing;
         }
-    }
-    if (auto semantic_selection = semantic_new_folder_selection(catalog,
-                                                               semantic_category,
-                                                               semantic_subcategory,
-                                                               semantic_target,
-                                                               true,
-                                                               plugin_profiles)) {
-        return *semantic_selection;
     }
     return selection;
 }
@@ -243,9 +200,7 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
     bool allow_new_folders,
     const std::string& semantic_category,
     const std::string& semantic_subcategory,
-    const std::string& semantic_target,
-    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing,
-    const std::vector<FolderStructurePluginProfile>& plugin_profiles)
+    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing)
 {
     if (auto cached = db_manager.get_folder_tree_routing(entry.file_name,
                                                          entry.type,
@@ -263,43 +218,11 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
                                                                      best_existing,
                                                                      semantic_category,
                                                                      semantic_subcategory,
-                                                                     semantic_target,
-                                                                     allow_new_folders,
-                                                                     plugin_profiles);
+                                                                     entry.learning_context);
         }
     }
 
-    if (auto selection = semantic_new_folder_selection(catalog,
-                                                       semantic_category,
-                                                       semantic_subcategory,
-                                                       semantic_target,
-                                                       allow_new_folders,
-                                                       plugin_profiles,
-                                                       true)) {
-        return selection;
-    }
-
-    if (allow_new_folders &&
-        (!best_existing || !FolderTreeCatalog::is_strong_semantic_match(best_existing->score))) {
-        if (auto selection = semantic_new_folder_selection(catalog,
-                                                          semantic_category,
-                                                          semantic_subcategory,
-                                                          semantic_target,
-                                                          true,
-                                                          plugin_profiles)) {
-            return selection;
-        }
-    }
-
-    if (auto selection = existing_semantic_selection(catalog, best_existing)) {
-        return selection;
-    }
-    return semantic_new_folder_selection(catalog,
-                                         semantic_category,
-                                         semantic_subcategory,
-                                         semantic_target,
-                                         allow_new_folders,
-                                         plugin_profiles);
+    return std::nullopt;
 }
 
 std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
@@ -356,10 +279,8 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
                                                          allow_new_folders,
                                                          semantic_category,
                                                          semantic_subcategory,
-                                                         semantic_target,
-                                                         best_existing,
-                                                         plugin_profiles);
-        if (!selection) {
+                                                         best_existing);
+        if (!selection || selection->suggested_new) {
             continue;
         }
 
@@ -510,6 +431,58 @@ size_t resolve_document_char_budget(bool using_local_llm, int max_output_tokens)
     return static_cast<size_t>(prompt_tokens) * chars_per_token;
 }
 
+std::string content_analyzer_id(const Settings& settings, bool image, bool using_local_llm)
+{
+    if (image) {
+        return "image-v1:" + settings.get_visual_model_id();
+    }
+    const auto endpoint = settings.find_custom_api_endpoint(settings.get_active_custom_api_id());
+    const auto custom = settings.find_custom_llm(settings.get_active_custom_llm_id());
+    const auto character_limit = std::min(DocumentTextAnalyzer::Settings{}.max_characters,
+        resolve_document_char_budget(using_local_llm, kDefaultDocumentOutputTokens));
+    return "document-v1:" + std::to_string(static_cast<int>(settings.get_llm_choice())) +
+        ":" + settings.get_openai_model() + ":" + settings.get_gemini_model() +
+        ":" + custom.id + ":" + custom.path + ":" + endpoint.id +
+        ":" + endpoint.base_url + ":" + endpoint.model + ":" + std::to_string(character_limit);
+}
+
+std::optional<ContentAnalysisCache::Evidence> current_content_analysis(
+    DatabaseManager& database, const Settings& settings,
+    const CategorizedFile& entry, bool image, bool using_local_llm)
+{
+    const auto path = Utils::utf8_to_path(entry.file_path) / Utils::utf8_to_path(entry.file_name);
+    const auto key = ContentAnalysisCache::make_key(path, content_analyzer_id(settings, image, using_local_llm));
+    return key ? database.content_analysis_cache().find(*key) : std::nullopt;
+}
+
+std::vector<CategorizedFile> refresh_stale_content_entries(
+    DatabaseManager& database, const Settings& settings,
+    std::vector<CategorizedFile> entries, bool using_local_llm)
+{
+    std::vector<CategorizedFile> current;
+    current.reserve(entries.size());
+    for (auto& entry : entries) {
+        const bool image = cached_entry_is_supported_image(entry);
+        const bool document = cached_entry_is_supported_document(entry);
+        const bool needs_content = (settings.get_analyze_images_by_content() && image) ||
+                                   (settings.get_analyze_documents_by_content() && document);
+        const auto evidence = needs_content
+            ? current_content_analysis(database, settings, entry, image, using_local_llm) : std::nullopt;
+        if (!needs_content || evidence) {
+            if (evidence) {
+                entry.learning_context = (image ? "Image description: " : "Document summary: ") + evidence->description;
+            }
+            current.push_back(std::move(entry));
+            continue;
+        }
+        database.remove_file_categorization(entry.file_path, entry.file_name, entry.type);
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->info("Refreshing missing or stale content evidence for '{}'", entry.file_name);
+        }
+    }
+    return current;
+}
+
 } // namespace
 
 AnalysisCoordinator::AnalysisCoordinator(AnalysisWorkflowContext context)
@@ -613,9 +586,24 @@ AnalysisRunResult AnalysisCoordinator::execute()
             app_.stop_analysis.store(true);
             throw AnalysisCancelled("Johnny.Decimal plugin obtain requested.");
         };
+        auto file_key = [use_full_path_keys](const CategorizedFile& entry) {
+            if (!use_full_path_keys) {
+                return entry.file_name;
+            }
+            return Utils::path_to_utf8(Utils::utf8_to_path(entry.file_path) /
+                                       Utils::utf8_to_path(entry.file_name));
+        };
+        auto raw_cached_entries = app_.categorization_service.load_cached_entries(directory_path);
+        std::unordered_set<std::string> renamed_files;
+        for (const auto& entry : raw_cached_entries) {
+            if (entry.rename_applied) {
+                renamed_files.insert(file_key(entry));
+            }
+        }
         auto cached_entries = prepare_cached_entries_for_sorting_mode(
             app_.db_manager,
-            app_.categorization_service.load_cached_entries(directory_path),
+            refresh_stale_content_entries(app_.db_manager, app_.settings,
+                                          std::move(raw_cached_entries), app_.using_local_llm),
             folder_tree_sorting,
             app_.settings.get_effective_destination_folder(directory_path),
             app_.settings.get_suggest_new_folders(),
@@ -623,15 +611,12 @@ AnalysisRunResult AnalysisCoordinator::execute()
             suggest_johnny_decimal_plugin);
         std::vector<CategorizedFile> pending_renames;
         pending_renames.reserve(cached_entries.size());
-        std::unordered_set<std::string> renamed_files;
         app_.already_categorized_files.clear();
         app_.already_categorized_files.reserve(cached_entries.size());
         std::vector<FileEntry> cached_image_entries_for_visual;
         std::unordered_map<std::string, size_t> cached_visual_indices;
         std::vector<FileEntry> cached_document_entries_for_analysis;
         std::unordered_map<std::string, size_t> cached_document_indices;
-        std::unordered_map<std::string, std::string> cached_image_suggestions;
-        std::unordered_map<std::string, std::string> cached_document_suggestions;
         if (wants_visual_rename) {
             cached_image_entries_for_visual.reserve(cached_entries.size());
             cached_visual_indices.reserve(cached_entries.size());
@@ -676,14 +661,6 @@ AnalysisRunResult AnalysisCoordinator::execute()
             std::transform(trimmed.begin(), trimmed.end(), trimmed.begin(),
                            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
             return trimmed == "uncategorized";
-        };
-        auto file_key = [use_full_path_keys](const CategorizedFile& entry) {
-            if (!use_full_path_keys) {
-                return entry.file_name;
-            }
-            const auto full_path = Utils::utf8_to_path(entry.file_path) /
-                                   Utils::utf8_to_path(entry.file_name);
-            return Utils::path_to_utf8(full_path);
         };
         auto entry_key = [use_full_path_keys](const FileEntry& entry) {
             return use_full_path_keys ? entry.full_path : entry.file_name;
@@ -912,23 +889,11 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 }
                 if (!already_renamed) {
                     pending_renames.push_back(entry);
-                    if (is_image_entry && !rename_images_only && !entry.suggested_name.empty()) {
-                        cached_image_suggestions.emplace(file_key(entry), entry.suggested_name);
-                    }
-                    if (is_document_entry && !rename_documents_only && !entry.suggested_name.empty()) {
-                        cached_document_suggestions.emplace(file_key(entry), entry.suggested_name);
-                    }
                 }
                 continue;
             }
             if (!has_category(entry)) {
                 if (!entry.suggested_name.empty()) {
-                    if (is_image_entry) {
-                        cached_image_suggestions.emplace(file_key(entry), entry.suggested_name);
-                    }
-                    if (is_document_entry) {
-                        cached_document_suggestions.emplace(file_key(entry), entry.suggested_name);
-                    }
                     if (!already_renamed &&
                         allow_entry_renames &&
                         ((rename_images_only && analyze_images && is_image_entry) ||
@@ -1274,32 +1239,78 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 return localized;
             };
 
+        auto enrich_image_suggestion = [&](const FileEntry& entry,
+                                            const std::string& raw_suggested_name) {
+            if (raw_suggested_name.empty() || !image_metadata_service) {
+                return raw_suggested_name;
+            }
+            return image_metadata_service->enrich_suggested_name(Utils::utf8_to_path(entry.full_path),
+                                                                  raw_suggested_name);
+        };
+        auto cache_image_date = [&](const FileEntry& entry) {
+            if (!add_image_date_to_category || !image_metadata_service) {
+                return;
+            }
+            const std::string key = entry_key(entry);
+            if (image_dates.contains(key)) {
+                return;
+            }
+            if (const auto date =
+                    image_metadata_service->extract_capture_date(Utils::utf8_to_path(entry.full_path))) {
+                image_dates.emplace(key, *date);
+            }
+        };
+
+        // Consume complete cache hits before initializing a visual backend.
+        std::vector<FileEntry> uncached_images;
+        for (const auto& entry : image_entries) {
+            if (update_stop()) {
+                break;
+            }
+            const bool already_renamed = renamed_files.contains(entry_key(entry));
+            if (already_renamed && rename_images_only) {
+                continue;
+            }
+            const auto key = ContentAnalysisCache::make_key(Utils::utf8_to_path(entry.full_path),
+                content_analyzer_id(app_.settings, true, app_.using_local_llm));
+            const auto evidence = key ? app_.db_manager.content_analysis_cache().find(*key) : std::nullopt;
+            if (!evidence) {
+                uncached_images.push_back(entry);
+                continue;
+            }
+            app_.set_progress_active_stage(ProgressStageId::ImageAnalysis);
+            app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
+            app_.append_progress(to_utf8(app_.tr("[VISION] Using cached suggestion for %1")
+                                             .arg(QString::fromStdString(entry.file_name))));
+            analyzed_image_entries.push_back(entry);
+            cache_image_date(entry);
+            const auto suggested = already_renamed ? std::string()
+                : enrich_image_suggestion(entry, evidence->suggested_name);
+            image_info.emplace(entry_key(entry), ImageAnalysisInfo{
+                suggested, std::nullopt, evidence->suggested_name,
+                build_image_prompt_path(entry.full_path, evidence->suggested_name, evidence->description),
+                !suggested.empty()});
+            const auto cached_index = cached_visual_indices.find(entry_key(entry));
+            const bool visual_only = cached_index != cached_visual_indices.end();
+            if (visual_only) {
+                auto& cached_entry = app_.already_categorized_files[cached_index->second];
+                cached_entry.suggested_name = suggested;
+                persist_cached_suggestion(cached_entry, suggested);
+            }
+            if (rename_images_only) {
+                persist_rename_only_progress(entry, suggested);
+            } else if (!visual_only) {
+                persist_llm_suggestion_progress(entry, suggested);
+                image_entries_for_llm.push_back(entry);
+            }
+            app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
+        }
+        image_entries = std::move(uncached_images);
+
         if (analyze_images && !image_entries.empty()) {
             if (!image_stage_entries.empty()) {
                 app_.set_progress_active_stage(ProgressStageId::ImageAnalysis);
             }
-            auto enrich_image_suggestion = [&](const FileEntry& entry,
-                                               const std::string& raw_suggested_name) {
-                if (raw_suggested_name.empty() || !image_metadata_service) {
-                    return raw_suggested_name;
-                }
-                return image_metadata_service->enrich_suggested_name(Utils::utf8_to_path(entry.full_path),
-                                                                     raw_suggested_name);
-            };
-            auto cache_image_date = [&](const FileEntry& entry) {
-                if (!add_image_date_to_category || !image_metadata_service) {
-                    return;
-                }
-                const std::string key = entry_key(entry);
-                if (image_dates.contains(key)) {
-                    return;
-                }
-                if (const auto date =
-                        image_metadata_service->extract_capture_date(Utils::utf8_to_path(entry.full_path))) {
-                    image_dates.emplace(key, *date);
-                }
-            };
-
             std::string error;
             auto visual_backend =
                 VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
@@ -1554,50 +1565,24 @@ AnalysisRunResult AnalysisCoordinator::execute()
                         continue;
                     }
                     const bool visual_only = cached_visual_indices.contains(entry_key(entry));
-                    const auto cached_suggestion_it = cached_image_suggestions.find(entry_key(entry));
-                    const bool has_cached_suggestion = cached_suggestion_it != cached_image_suggestions.end();
+                    const auto evidence_key = ContentAnalysisCache::make_key(
+                        Utils::utf8_to_path(entry.full_path),
+                        content_analyzer_id(app_.settings, true, app_.using_local_llm));
                     analyzed_image_entries.push_back(entry);
                     cache_image_date(entry);
                     app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
 
                     while (true) {
                         try {
-                            if (has_cached_suggestion) {
-                                app_.append_progress(to_utf8(app_.tr("[VISION] Using cached suggestion for %1")
-                                                                 .arg(QString::fromStdString(entry.file_name))));
-                                const std::string prompt_name = cached_suggestion_it->second;
-                                const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
-                                const std::string suggested_name =
-                                    already_renamed ? std::string() : enriched_name;
-                                const auto entry_path = Utils::utf8_to_path(entry.full_path);
-                                const auto prompt_path = Utils::path_to_utf8(
-                                    entry_path.parent_path() / Utils::utf8_to_path(prompt_name));
-                                image_info.emplace(entry_key(entry),
-                                                   ImageAnalysisInfo{
-                                                       suggested_name,
-                                                       std::nullopt,
-                                                       prompt_name,
-                                                       prompt_path,
-                                                       !suggested_name.empty()});
-                                if (rename_images_only) {
-                                    persist_rename_only_progress(entry, suggested_name);
-                                }
-                                if (visual_only) {
-                                    update_cached_image_suggestion(entry, suggested_name);
-                                }
-                                if (!rename_images_only && !visual_only) {
-                                    image_entries_for_llm.push_back(entry);
-                                }
-                                app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis,
-                                                                        entry);
-                                break;
-                            }
-
                             app_.append_progress(to_utf8(
                                 app_.tr("[VISION] Analyzing %1")
                                     .arg(QString::fromStdString(entry.file_name))));
                             const auto analysis = analyzer->analyze(entry.full_path);
                             emit_visual_diagnostics(entry, analysis);
+                            if (evidence_key) {
+                                app_.db_manager.content_analysis_cache().store(
+                                    *evidence_key, {analysis.suggested_name, analysis.description});
+                            }
                             const std::string prompt_name = analysis.suggested_name;
                             const std::string enriched_name = enrich_image_suggestion(entry, prompt_name);
                             const auto prompt_path = build_image_prompt_path(entry.full_path,
@@ -1802,12 +1787,9 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 resolve_document_char_budget(app_.using_local_llm, doc_settings.max_tokens);
             doc_settings.max_characters = std::min(doc_settings.max_characters, char_budget);
             DocumentTextAnalyzer doc_analyzer(doc_settings);
+            const auto document_analyzer_id = content_analyzer_id(app_.settings, false, app_.using_local_llm);
 
-            auto llm = app_.make_llm_client();
-            if (!llm) {
-                throw std::runtime_error("Failed to create LLM client.");
-            }
-            llm->set_prompt_logging_enabled(app_.should_log_prompts());
+            std::unique_ptr<ILLMClient> llm;
 
             for (const auto& entry : document_entries) {
                 if (update_stop()) {
@@ -1818,8 +1800,11 @@ AnalysisRunResult AnalysisCoordinator::execute()
                     continue;
                 }
                 const bool document_only = cached_document_indices.contains(entry_key(entry));
-                const auto cached_suggestion_it = cached_document_suggestions.find(entry_key(entry));
-                const bool has_cached_suggestion = cached_suggestion_it != cached_document_suggestions.end();
+                const auto evidence_key = ContentAnalysisCache::make_key(
+                    Utils::utf8_to_path(entry.full_path), document_analyzer_id);
+                const auto cached_analysis = evidence_key
+                    ? app_.db_manager.content_analysis_cache().find(*evidence_key)
+                    : std::nullopt;
                 if (add_document_date && !document_dates.contains(entry_key(entry))) {
                     const auto date =
                         DocumentTextAnalyzer::extract_creation_date(Utils::utf8_to_path(entry.full_path));
@@ -1831,19 +1816,20 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 app_.mark_progress_stage_item_in_progress(ProgressStageId::DocumentAnalysis, entry);
 
                 try {
-                    if (has_cached_suggestion) {
+                    if (cached_analysis) {
                         app_.append_progress(to_utf8(app_.tr("[DOC] Using cached suggestion for %1")
                                                          .arg(QString::fromStdString(entry.file_name))));
                         const std::string suggested_name =
-                            already_renamed ? std::string() : cached_suggestion_it->second;
+                            already_renamed ? std::string() : cached_analysis->suggested_name;
                         const std::string prompt_name =
-                            resolve_document_prompt_name(entry.file_name, cached_suggestion_it->second);
+                            resolve_document_prompt_name(entry.file_name, cached_analysis->suggested_name);
                         document_info.emplace(entry_key(entry),
                                               DocumentAnalysisInfo{
                                                   suggested_name,
                                                   std::nullopt,
                                                   prompt_name,
-                                                  build_document_prompt_path(entry.full_path, prompt_name, {}),
+                                                  build_document_prompt_path(entry.full_path, prompt_name,
+                                                                             cached_analysis->description),
                                                   !suggested_name.empty()});
                         if (rename_documents_only) {
                             persist_rename_only_progress(entry, suggested_name);
@@ -1858,7 +1844,18 @@ AnalysisRunResult AnalysisCoordinator::execute()
 
                     app_.append_progress(to_utf8(
                         app_.tr("[DOC] Analyzing %1").arg(QString::fromStdString(entry.file_name))));
+                    if (!llm) {
+                        llm = app_.make_llm_client();
+                        if (!llm) {
+                            throw std::runtime_error("Failed to create LLM client.");
+                        }
+                        llm->set_prompt_logging_enabled(app_.should_log_prompts());
+                    }
                     const auto analysis = doc_analyzer.analyze(Utils::utf8_to_path(entry.full_path), *llm);
+                    if (evidence_key) {
+                        app_.db_manager.content_analysis_cache().store(
+                            *evidence_key, {analysis.suggested_name, analysis.summary});
+                    }
                     const std::string suggested_name =
                         already_renamed ? std::string() : analysis.suggested_name;
                     const std::string prompt_name =
@@ -2104,6 +2101,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
         };
         app_.notify_review_preview_changed();
 
+        FolderTreeRoutingPlan routing_plan;
         std::vector<CategorizedFile> other_results;
         if (!stop_requested && !other_entries.empty()) {
             other_results = app_.categorization_service.categorize_entries(
@@ -2129,7 +2127,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 suggested_name_provider,
                 [&publish_review_preview_entry](const CategorizedFile& entry) {
                     publish_review_preview_entry(entry);
-                });
+                }, &routing_plan);
         }
         apply_image_dates(other_results);
         apply_document_dates(other_results);
@@ -2197,7 +2195,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                     suggested_name_provider,
                     [&publish_review_preview_entry](const CategorizedFile& entry) {
                         publish_review_preview_entry(entry);
-                    });
+                    }, &routing_plan);
 
                 update_stop();
             }
@@ -2267,7 +2265,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                     suggested_name_provider,
                     [&publish_review_preview_entry](const CategorizedFile& entry) {
                         publish_review_preview_entry(entry);
-                    });
+                    }, &routing_plan);
             }
         }
 

@@ -227,6 +227,8 @@ LIBS=(
 g++ -std=c++20 -fPIC "${INCLUDES[@]}" \
     "$TEST_SRC" "$STUB_SRC" \
     "$ROOT_DIR/app/lib/DatabaseManager.cpp" \
+    "$ROOT_DIR/app/lib/DatabaseTaxonomyNormalizer.cpp" \
+    "$ROOT_DIR/app/lib/ContentAnalysisCache.cpp" \
     "$ROOT_DIR/app/lib/Utils.cpp" \
     -o "$OUTPUT" "${LIBS[@]}"
 

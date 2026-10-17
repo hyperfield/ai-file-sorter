@@ -43,7 +43,8 @@ int prompt_token_budget(int context_tokens, int max_tokens);
  * @brief Shrink a user prompt for progressively smaller context retry attempts.
  * @param prompt Original prompt text.
  * @param attempt Zero-based retry attempt index.
- * @return Prompt with long document/image sections or the whole prompt truncated.
+ * @return Shortened analysis text, retaining complete folder-routing constraints.
+ *         Non-routing prompts may also be truncated to the retry budget.
  */
 std::string shrink_user_prompt_for_context(const std::string& prompt, int attempt);
 

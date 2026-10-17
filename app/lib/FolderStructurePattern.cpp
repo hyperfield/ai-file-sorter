@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <numeric>
 #include <set>
@@ -491,7 +492,7 @@ std::optional<std::string> next_alpha_prefix(const std::vector<PathInfo>& siblin
     return std::nullopt;
 }
 
-std::string make_child_segment(const PathInfo& parent,
+std::optional<std::string> make_child_segment(const PathInfo& parent,
                                const std::vector<PathInfo>& infos,
                                const std::string& child_label)
 {
@@ -501,6 +502,7 @@ std::string make_child_segment(const PathInfo& parent,
         if (auto number = next_numbered_prefix(children, std::pair{pattern.range_start, pattern.range_end})) {
             return format_number(number->value, number->width) + " " + child_label;
         }
+        return std::nullopt;
     }
     if (auto number = next_numbered_prefix(children, std::nullopt)) {
         return format_number(number->value, number->width) + " " + child_label;
@@ -536,7 +538,23 @@ std::optional<TopRangePattern> infer_top_range_pattern(const std::vector<PathInf
         max_end = std::max(max_end, range.range_end);
         width = std::max(width, range.width);
     }
-    return TopRangePattern{max_end + 1, span, width};
+    const auto next_end = static_cast<long long>(max_end) + 1 + span;
+    if (next_end <= std::numeric_limits<int>::max() &&
+        std::to_string(next_end).size() <= static_cast<std::size_t>(width)) {
+        return TopRangePattern{max_end + 1, span, width};
+    }
+    const int first_start = std::min_element(ranges.begin(), ranges.end(), [](const auto& left, const auto& right) {
+        return left.range_start < right.range_start;
+    })->range_start;
+    for (long long start = first_start; start <= max_end - span; start += static_cast<long long>(span) + 1) {
+        const bool occupied = std::any_of(ranges.begin(), ranges.end(), [&](const auto& range) {
+            return start <= range.range_end && start + span >= range.range_start;
+        });
+        if (!occupied) {
+            return TopRangePattern{static_cast<int>(start), span, width};
+        }
+    }
+    return TopRangePattern{-1, span, width};
 }
 
 std::string make_next_range_top_segment(const TopRangePattern& pattern,
@@ -766,8 +784,11 @@ std::optional<SuggestedPath> suggest_new_folder(
         if (child_label.empty()) {
             return std::nullopt;
         }
-        std::string path = parent->info.relative_path + "/" +
-                           make_child_segment(parent->info, infos, child_label);
+        const auto child = make_child_segment(parent->info, infos, child_label);
+        if (!child) {
+            return std::nullopt;
+        }
+        std::string path = parent->info.relative_path + "/" + *child;
         const auto validation = FolderTreeCatalog::validate_relative_folder_path(path);
         if (validation.valid && !catalog.find_existing(validation.normalized_path)) {
             return SuggestedPath{validation.normalized_path,
@@ -780,7 +801,7 @@ std::optional<SuggestedPath> suggest_new_folder(
     const auto profile = infer_profile(catalog, plugin_profiles);
     if (profile.has_johnny_decimal_like_ranges) {
         const auto range_pattern = infer_top_range_pattern(top_level);
-        if (!range_pattern) {
+        if (!range_pattern || range_pattern->next_start < 0) {
             return std::nullopt;
         }
         const std::string top_segment = make_next_range_top_segment(*range_pattern, category_label);

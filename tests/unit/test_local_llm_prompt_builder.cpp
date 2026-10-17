@@ -2,6 +2,7 @@
 
 #include "FolderTreeCatalog.hpp"
 #include "LocalLLMPromptBuilder.hpp"
+#include "ILLMClient.hpp"
 
 #include <string>
 
@@ -87,4 +88,42 @@ TEST_CASE("LocalLLMPromptBuilder shrinks long analysis sections before truncatin
     CHECK(shrunk.find("...") != std::string::npos);
     CHECK(shrunk.find("Allowed main categories") != std::string::npos);
     CHECK(shrunk.find("Answer with exactly one line") != std::string::npos);
+}
+
+TEST_CASE("LocalLLMPromptBuilder retains content boundaries and folder constraints on retries", "[content-routing]")
+{
+    for (const auto* label : {"Document summary: ", "Image description: "}) {
+        const std::string context = std::string("Content evidence (primary):\n") + label +
+            std::string(5000, 'a') + std::string(LLMPrompt::kContentEvidenceEndMarker) + "\n" +
+            std::string(FolderTreeCatalog::kPromptMarker) +
+            "\nExisting destination folder candidates:\n80-89 Legal/82 Data Protection\n";
+        const auto prompt = LocalLLMPromptBuilder::build_user_prompt(
+            "policy.pdf", "/home/theuser/policy.pdf", FileType::File, context);
+        for (int attempt = 0; attempt < 4; ++attempt) {
+            const auto shrunk = LocalLLMPromptBuilder::shrink_user_prompt_for_context(prompt, attempt);
+            CHECK(shrunk.size() < prompt.size());
+            CHECK(shrunk.find(LLMPrompt::kContentEvidenceEndMarker) != std::string::npos);
+            CHECK(shrunk.find("80-89 Legal/82 Data Protection") != std::string::npos);
+            CHECK(shrunk.find("Answer with exactly one JSON object") != std::string::npos);
+        }
+    }
+}
+
+TEST_CASE("LocalLLMPromptBuilder recognizes evidence supplied separately from the path", "[content-routing]")
+{
+    for (const bool image : {false, true}) {
+        const std::string name = image ? "dashboard.png" : "report.pdf";
+        const std::string path = "/home/theuser/Downloads/" + name;
+        const std::string context = std::string("Content evidence (primary):\n") +
+            (image ? "Image description: Dashboard with charts." : "Document summary: Privacy policy.") +
+            std::string(LLMPrompt::kContentEvidenceEndMarker);
+        const auto system = LocalLLMPromptBuilder::build_system_prompt(path, FileType::File, context);
+        const auto user = LocalLLMPromptBuilder::build_user_prompt(name, path, FileType::File, context);
+        CHECK(system.find("primary evidence") != std::string::npos);
+        CHECK(system.find("name only") == std::string::npos);
+        CHECK(system.find(image ? "You categorize image files" : "document categorization assistant") !=
+              std::string::npos);
+        CHECK(user.find(image ? "Categorize this image file" : "Categorize this document file") == 0);
+        CHECK(user.find(context) != std::string::npos);
+    }
 }

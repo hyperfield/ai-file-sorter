@@ -330,7 +330,7 @@ TEST_CASE("CategorizationService uses cached folder-tree target without calling 
     CHECK(*calls == 0);
 }
 
-TEST_CASE("CategorizationService derives new folder route from semantic cache without LLM") {
+TEST_CASE("CategorizationService reviews existing destinations before deriving a new folder from semantic cache") {
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
     Settings settings;
@@ -370,7 +370,7 @@ TEST_CASE("CategorizationService derives new folder route from semantic cache wi
     CHECK_FALSE(categorized.front().target_folder_exists);
     CHECK(categorized.front().category == "Documents");
     CHECK(categorized.front().subcategory == "Invoices");
-    CHECK(*calls == 0);
+    CHECK(*calls == 1);
 }
 
 TEST_CASE("CategorizationService falls back to LLM when cache is empty") {

@@ -2,6 +2,7 @@
 #define DATABASEMANAGER_HPP
 
 #include "CategoryLanguage.hpp"
+#include "ContentAnalysisCache.hpp"
 #include "Types.hpp"
 #include <string>
 #include <map>
@@ -14,6 +15,9 @@ class DatabaseManager {
 public:
     explicit DatabaseManager(std::string config_dir);
     ~DatabaseManager();
+
+    /** @brief Borrow the disposable content-evidence cache. @return A connection-scoped cache handle. */
+    ContentAnalysisCache content_analysis_cache() const { return ContentAnalysisCache(db); }
 
     bool is_file_already_categorized(const std::string &file_name);
     struct ResolvedCategory {

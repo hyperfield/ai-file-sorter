@@ -1,6 +1,12 @@
 #pragma once
 #include "Types.hpp"
 #include <string>
+#include <string_view>
+
+namespace LLMPrompt {
+/** @brief Delimits untrusted content evidence before routing instructions and candidate lists. */
+inline constexpr std::string_view kContentEvidenceEndMarker = "\n[[AI_FILE_SORTER_CONTENT_EVIDENCE_END]]";
+}
 
 class ILLMClient {
 public:

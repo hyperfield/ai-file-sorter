@@ -20,6 +20,7 @@
 class Settings;
 class ILLMClient;
 class UserLearningStore;
+class FolderTreeRoutingPlan;
 namespace spdlog { class logger; }
 
 /**
@@ -109,6 +110,7 @@ public:
      * @param llm_factory Factory for creating an LLM client.
      * @param prompt_override Optional prompt override provider.
      * @param suggested_name_provider Optional suggested-name provider.
+     * @param routing_plan Optional shared reservations across batches in one review.
      * @return Categorized entries that were successfully processed.
      */
     std::vector<CategorizedFile> categorize_entries(
@@ -122,7 +124,8 @@ public:
         std::function<std::unique_ptr<ILLMClient>()> llm_factory,
         const PromptOverrideProvider& prompt_override = {},
         const SuggestedNameProvider& suggested_name_provider = {},
-        const ResultCallback& result_callback = {}) const;
+        const ResultCallback& result_callback = {},
+        FolderTreeRoutingPlan* routing_plan = nullptr) const;
 
 private:
     using CategoryPair = std::pair<std::string, std::string>;
@@ -143,6 +146,7 @@ private:
      * @param progress_callback Progress updates callback.
      * @param consistency_context Consistency hints block.
      * @param remote_throttle_callback Optional callback invoked before remote cache misses.
+     * @param routing_plan Proposed folders shared across the review plan.
      * @return Resolved category for the item.
      */
     DatabaseManager::ResolvedCategory categorize_with_cache(
@@ -156,7 +160,8 @@ private:
         FileType file_type,
         const ProgressCallback& progress_callback,
         const std::string& consistency_context,
-        const RemoteThrottleCallback& remote_throttle_callback) const;
+        const RemoteThrottleCallback& remote_throttle_callback,
+        FolderTreeRoutingPlan& routing_plan) const;
 
     /**
      * @brief Categorizes a single entry and persists the result.
@@ -170,6 +175,7 @@ private:
      * @param recategorization_callback Callback for re-categorization events.
      * @param session_history Mutable session history for consistency hints.
      * @param remote_throttle_callback Optional callback invoked before remote cache misses.
+     * @param routing_plan Proposed folders shared across the review plan.
      * @return Categorized entry when successful.
      */
     std::optional<CategorizedFile> categorize_single_entry(
@@ -182,7 +188,8 @@ private:
         const ProgressCallback& progress_callback,
         const RecategorizationCallback& recategorization_callback,
         SessionHistoryMap& session_history,
-        const RemoteThrottleCallback& remote_throttle_callback) const;
+        const RemoteThrottleCallback& remote_throttle_callback,
+        FolderTreeRoutingPlan& routing_plan) const;
 
     /**
      * @brief Combines language, family-candidate, whitelist, and hint blocks into a single prompt context.
@@ -214,6 +221,7 @@ private:
      * @param progress_callback Progress updates callback.
      * @param combined_context Combined prompt context.
      * @param remote_throttle_callback Optional callback invoked before remote cache misses.
+     * @param routing_plan Proposed folders shared across the review plan.
      * @return Resolved category for the item.
      */
     DatabaseManager::ResolvedCategory run_categorization_with_cache(
@@ -226,7 +234,8 @@ private:
         const std::string& prompt_path,
         const ProgressCallback& progress_callback,
         const std::string& combined_context,
-        const RemoteThrottleCallback& remote_throttle_callback) const;
+        const RemoteThrottleCallback& remote_throttle_callback,
+        FolderTreeRoutingPlan& routing_plan) const;
     /**
      * @brief Handles empty or invalid categorization results.
      * @param entry File entry being categorized.
@@ -404,6 +413,7 @@ private:
      * @param semantic Semantic category result to route.
      * @param progress_callback Progress updates callback.
      * @param remote_throttle_callback Optional callback invoked before remote route requests.
+     * @param routing_plan Proposed folders shared across the review plan.
      * @return Semantic category with folder-tree target metadata attached.
      */
     DatabaseManager::ResolvedCategory route_semantic_category_to_folder_tree(
@@ -417,7 +427,8 @@ private:
         FileType file_type,
         const DatabaseManager::ResolvedCategory& semantic,
         const ProgressCallback& progress_callback,
-        const RemoteThrottleCallback& remote_throttle_callback) const;
+        const RemoteThrottleCallback& remote_throttle_callback,
+        FolderTreeRoutingPlan& routing_plan) const;
 
     /**
      * @brief Ensures remote credentials are present and reports errors via progress callback.
