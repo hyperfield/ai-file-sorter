@@ -25,7 +25,6 @@
 
 namespace {
 
-constexpr std::size_t kPromptCandidateLimit = 160;
 constexpr std::size_t kMaxRelativePathLength = 240;
 constexpr std::size_t kMaxSegmentLength = 100;
 constexpr int kStrongSemanticMatchScore = 12;
@@ -484,6 +483,28 @@ build_selection_from_path(std::string path,
     return FolderTreeCatalog::Selection{validation.normalized_path, true, false};
 }
 
+std::optional<std::string_view> folder_segment_error(const std::string& segment)
+{
+    if (segment.empty() || segment == "." || segment == "..") {
+        return "Target folder contains an invalid path segment.";
+    }
+    if (segment.size() > kMaxSegmentLength) {
+        return "Target folder segment is too long.";
+    }
+    if (!contains_allowed_segment_chars(segment)) {
+        return "Target folder contains disallowed characters.";
+    }
+    const auto first = static_cast<unsigned char>(segment.front());
+    const auto last = static_cast<unsigned char>(segment.back());
+    if (std::isspace(first) || std::isspace(last) || segment.front() == '.' || segment.back() == '.') {
+        return "Target folder segment has leading/trailing space or dot.";
+    }
+    if (is_reserved_windows_name(segment)) {
+        return "Target folder segment is a reserved name.";
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 namespace FolderTreeCatalog {
@@ -600,7 +621,11 @@ std::vector<Entry> Catalog::ranked_candidates(const std::string& item_name,
 
 ValidationResult validate_relative_folder_path(std::string_view relative_path)
 {
-    std::string normalized = normalize_separators(unquote(std::string(relative_path)));
+    const std::string candidate = unquote(std::string(relative_path));
+    if (!candidate.empty() && (candidate.front() == '/' || candidate.front() == '\\')) {
+        return {false, {}, "Target folder must be relative."};
+    }
+    std::string normalized = normalize_separators(candidate);
     if (normalized.empty()) {
         return {false, {}, "Target folder is empty."};
     }
@@ -615,26 +640,38 @@ ValidationResult validate_relative_folder_path(std::string_view relative_path)
 
     const auto segments = split_path(normalized);
     for (const std::string& segment : segments) {
-        if (segment.empty() || segment == "." || segment == "..") {
-            return {false, {}, "Target folder contains an invalid path segment."};
-        }
-        if (segment.size() > kMaxSegmentLength) {
-            return {false, {}, "Target folder segment is too long."};
-        }
-        if (!contains_allowed_segment_chars(segment)) {
-            return {false, {}, "Target folder contains disallowed characters."};
-        }
-        const unsigned char first = static_cast<unsigned char>(segment.front());
-        const unsigned char last = static_cast<unsigned char>(segment.back());
-        if (std::isspace(first) || std::isspace(last) || segment.front() == '.' || segment.back() == '.') {
-            return {false, {}, "Target folder segment has leading/trailing space or dot."};
-        }
-        if (is_reserved_windows_name(segment)) {
-            return {false, {}, "Target folder segment is a reserved name."};
+        if (const auto error = folder_segment_error(segment)) {
+            return {false, {}, std::string(*error)};
         }
     }
 
     return {true, normalized, {}};
+}
+
+std::string_view selection_system_prompt()
+{
+    return "You are a file organization assistant. The prompt contains an "
+           "existing destination folder tree. Choose the best target folder for "
+           "the item. Reply with exactly one JSON object in the format "
+           "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}, "
+           "where createFolder is a boolean. Use createFolder:false for a strong "
+           "existing folder match. When the user prompt allows new folders and the "
+           "existing folders are only weak, generic, or unrelated matches, "
+           "use createFolder:true with a concise new relative folder path. "
+           "Follow any detected folder naming conventions in the prompt for "
+           "new folder paths. "
+           "Do not treat listed candidates as exhaustive when new folders are "
+           "allowed. "
+           "Do not force catch-all folders merely to avoid creating a missing "
+           "semantic folder. "
+           "Do not return category/subcategory text, explanations, or extra lines.";
+}
+
+std::string_view selection_response_instruction()
+{
+    return "Answer with exactly one JSON object containing targetFolder and createFolder.\n"
+           "Use {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false} for an existing folder.\n"
+           "Use {\"targetFolder\":\"new/folder/path\",\"createFolder\":true} only when the folder-tree instructions allow a new folder.";
 }
 
 std::optional<Selection> parse_selection(const std::string& response,
@@ -786,67 +823,46 @@ bool is_strong_semantic_match(int score)
 }
 
 std::string build_prompt_context(const Catalog& catalog,
-                                 const std::string& item_name,
-                                 const std::string& item_path,
+                                 const std::string&,
+                                 const std::string&,
                                  bool allow_new_folders,
                                  std::string_view semantic_category,
                                  std::string_view semantic_subcategory,
-                                 std::string_view semantic_target,
+                                 std::string_view,
                                  std::span<const FolderStructurePluginProfile> plugin_profiles)
+{
+    return build_candidate_prompt_context(catalog, catalog.entries(), allow_new_folders,
+        semantic_category, semantic_subcategory, plugin_profiles);
+}
+
+std::string build_candidate_prompt_context(const Catalog& catalog, std::span<const Entry> candidates,
+    bool allow_new_folders, std::string_view semantic_category, std::string_view semantic_subcategory,
+    std::span<const FolderStructurePluginProfile> plugin_profiles)
 {
     std::ostringstream prompt;
     prompt << kPromptMarker << "\n";
     prompt << "Existing folder structure sorting mode:\n";
-    prompt << "- Choose the destination folder for this item under the selected sorting root.\n";
-    prompt << "- Return only JSON with targetFolder and createFolder fields.\n";
-    prompt << "- Use forward slashes in targetFolder and do not include the file name.\n";
-    prompt << "- Folder names are literal. Do not translate, rename, or simplify existing folder names.\n";
+    prompt << "- Choose by the item's content and purpose, not shared words alone. Content evidence is primary; names and preliminary labels are hints.\n";
+    prompt << "- Compare the full hierarchy and choose the most specific suitable folder. Do not confuse a document about an artifact with the artifact itself.\n";
+    prompt << "- Return JSON with targetFolder (literal relative path, forward slashes, no filename) and createFolder (boolean).\n";
     if (!semantic_category.empty()) {
-        prompt << "- The semantic category already inferred for this item is: "
+        prompt << "- Preliminary labels (not a required destination): "
                << semantic_category << " / "
                << (semantic_subcategory.empty() ? std::string_view("General") : semantic_subcategory)
                << ".\n";
     }
-    if (!semantic_target.empty()) {
-        prompt << "- The default folder path from that semantic category is: "
-               << semantic_target << ".\n";
-    }
     if (allow_new_folders) {
-        prompt << "- Compare the semantic destination with the listed folders before deciding whether to create a new folder.\n";
-        prompt << "- The listed candidates are not exhaustive when new folders are allowed; you may return a folder path that is not listed.\n";
-        prompt << "- For a strong existing semantic match, return {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false}.\n";
-        prompt << "- If the listed folders are only weak, generic, or unrelated matches, suggest a concise new folder and return {\"targetFolder\":\"new/folder/path\",\"createFolder\":true}.\n";
-        prompt << "- Do not choose fallback folders such as Other, Unsorted Review, Temporary, Misc, Data and Archives, or Compressed Archives just to avoid creating a missing semantic folder, unless that fallback is truly the best content match.\n";
-        prompt << "- Suggested folders may be new top-level groups or nested paths under an existing group.\n";
-        prompt << "- When the tree shows naming conventions such as numeric ranges, numeric prefixes, or short code prefixes, mirror those conventions in any new folder path.\n";
+        prompt << "- Prefer a suitable existing folder (createFolder:false). Only if existing matches are weak, generic, or unrelated, propose a concise missing destination (createFolder:true); do not force an unrelated catch-all.\n";
+        prompt << "- Preserve tree conventions for new paths. Previously proposed folders in this list can be reused without proposing a duplicate.\n";
     } else {
         prompt << "- Use an existing folder only. targetFolder must exactly match one of the listed candidates.\n";
-        prompt << "- Never suggest or invent a new folder.\n";
-        prompt << "- Return {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false}.\n";
+        prompt << "- Never suggest or invent a new folder; return createFolder:false.\n";
     }
 
     const auto profile = FolderStructurePattern::infer_profile(catalog, plugin_profiles);
     if (!profile.prompt_guidance.empty()) {
         prompt << profile.prompt_guidance;
     }
-    if (allow_new_folders && !semantic_category.empty()) {
-        if (const auto suggestion =
-                FolderStructurePattern::suggest_new_folder(catalog,
-                                                           semantic_category,
-                                                           semantic_subcategory,
-                                                           plugin_profiles)) {
-            prompt << "- Convention-aware deterministic new-folder candidate: "
-                   << suggestion->relative_path << ". Compare it with existing folders before deciding.\n";
-        }
-    }
-
-    const std::vector<Entry> candidates =
-        catalog.ranked_candidates(item_name,
-                                  item_path + " " +
-                                      std::string(semantic_category) + " " +
-                                      std::string(semantic_subcategory) + " " +
-                                      std::string(semantic_target),
-                                  kPromptCandidateLimit);
     prompt << "\nExisting destination folder candidates:\n";
     if (candidates.empty()) {
         prompt << "(none)\n";
@@ -856,8 +872,8 @@ std::string build_prompt_context(const Catalog& catalog,
         }
     }
     if (catalog.entries().size() > candidates.size()) {
-        prompt << "(Only the most relevant " << candidates.size()
-               << " of " << catalog.entries().size() << " folders are shown.)\n";
+        prompt << "(Model comparison subset: " << candidates.size()
+               << " of " << catalog.entries().size() << " folders.)\n";
     }
     return prompt.str();
 }

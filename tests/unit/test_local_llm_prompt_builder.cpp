@@ -34,7 +34,9 @@ TEST_CASE("LocalLLMPromptBuilder preserves specialized prompt routing")
         LocalLLMPromptBuilder::build_system_prompt("home/theuser/Downloads/report.pdf",
                                                    FileType::File,
                                                    folder_tree_context);
-    CHECK(folder_tree_system_prompt.find("createFolder:true") != std::string::npos);
+    CHECK(folder_tree_system_prompt == FolderTreeCatalog::selection_system_prompt());
+    CHECK(folder_tree_system_prompt.find("Reply with exactly one JSON object") != std::string::npos);
+    CHECK(folder_tree_system_prompt.find("\"targetFolder\":\"relative/folder/path\",\"createFolder\":false") != std::string::npos);
     CHECK(folder_tree_system_prompt.find("Do not treat listed candidates as exhaustive") !=
           std::string::npos);
     CHECK(folder_tree_system_prompt.find("weak, generic, or unrelated matches") != std::string::npos);
@@ -44,7 +46,7 @@ TEST_CASE("LocalLLMPromptBuilder preserves specialized prompt routing")
                                                  "home/theuser/Downloads/report.pdf",
                                                  FileType::File,
                                                  folder_tree_context);
-    CHECK(folder_tree_user_prompt.find("\"createFolder\":false") != std::string::npos);
+    CHECK(folder_tree_user_prompt.find(FolderTreeCatalog::selection_response_instruction()) != std::string::npos);
     CHECK(folder_tree_user_prompt.find("\"createFolder\":true") != std::string::npos);
 }
 
@@ -67,6 +69,33 @@ TEST_CASE("LocalLLMPromptBuilder strips image guidance from image prompts only")
     CHECK(prompt.find("Image categorization guidance:") == std::string::npos);
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
     CHECK(prompt.find("Full path:") == std::string::npos);
+}
+
+TEST_CASE("LocalLLMPromptBuilder uses JSON answers for every folder-routing input", "[folder-response]")
+{
+    const std::string context(FolderTreeCatalog::kPromptMarker);
+    for (const auto* path : {"/inbox/report.pdf\nDocument summary: Budget report.",
+                            "/inbox/photo.png\nImage description: A receipt.", "/inbox/installer.deb"}) {
+        const auto system = LocalLLMPromptBuilder::build_system_prompt(path, FileType::File, context);
+        const auto user = LocalLLMPromptBuilder::build_user_prompt("item", path, FileType::File, context);
+        CHECK(system == FolderTreeCatalog::selection_system_prompt());
+        CHECK(user.ends_with(FolderTreeCatalog::selection_response_instruction()));
+        CHECK(user.find("\"createFolder\":false") != std::string::npos);
+        CHECK(user.find("\"createFolder\":true") != std::string::npos);
+    }
+    const auto directory = LocalLLMPromptBuilder::build_user_prompt("Reports", "/inbox/Reports", FileType::Directory, context);
+    CHECK(directory.ends_with(FolderTreeCatalog::selection_response_instruction()));
+}
+
+TEST_CASE("LocalLLMPromptBuilder shortening preserves the folder-response footer", "[folder-response][prompt-budget]")
+{
+    const std::string footer(FolderTreeCatalog::selection_response_instruction());
+    const auto prompt = "Document summary: " + std::string(5000, 'x') + "\n" + footer;
+    // Use a normal prompt prefix so the summary marker starts after a newline.
+    const auto input = "Categorize this document.\n" + prompt;
+    const auto shrunk = LocalLLMPromptBuilder::shrink_user_prompt_for_context(input, 3);
+    CHECK(shrunk.size() < input.size());
+    CHECK(shrunk.ends_with(footer));
 }
 
 TEST_CASE("LocalLLMPromptBuilder shrinks long analysis sections before truncating prompt")
@@ -126,4 +155,27 @@ TEST_CASE("LocalLLMPromptBuilder recognizes evidence supplied separately from th
         CHECK(user.find(image ? "Categorize this image file" : "Categorize this document file") == 0);
         CHECK(user.find(context) != std::string::npos);
     }
+}
+
+TEST_CASE("LocalLLMPromptBuilder fits complete chat prompts beyond an unchanged shrink step", "[prompt-budget]")
+{
+    const std::string prefix = "<BOS><SYSTEM>mandatory instructions</SYSTEM><USER>";
+    const std::string suffix = "</USER><ASSISTANT>";
+    const auto prompt = std::string("Document\nDocument summary: ") + std::string(900, 'x') +
+        std::string(LLMPrompt::kContentEvidenceEndMarker) + "\nAnswer with exactly one JSON object.";
+    CHECK(LocalLLMPromptBuilder::shrink_user_prompt_for_context(prompt, 0) == prompt);
+    const auto fitted = LocalLLMPromptBuilder::fit_user_prompt(prompt, 700,
+        [&](const auto& user) { return (prefix + user + suffix).size(); });
+    REQUIRE(fitted);
+    CHECK((prefix + *fitted + suffix).size() <= 700);
+    CHECK(fitted->find(LLMPrompt::kContentEvidenceEndMarker) != std::string::npos);
+    CHECK(fitted->ends_with("Answer with exactly one JSON object."));
+}
+
+TEST_CASE("LocalLLMPromptBuilder rejects budgets that would truncate required instructions", "[prompt-budget]")
+{
+    const std::string prompt = std::string(2000, 'x') + "\nAllowed main categories: A, B\nAnswer with exactly one line.";
+    CHECK_FALSE(LocalLLMPromptBuilder::fit_user_prompt(prompt, 700,
+        [](const auto& user) { return user.size() + 100; }));
+    CHECK(LocalLLMPromptBuilder::shrink_user_prompt_for_context(prompt, 3) == prompt);
 }

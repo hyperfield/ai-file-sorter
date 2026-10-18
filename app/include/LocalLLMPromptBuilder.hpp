@@ -4,6 +4,8 @@
 
 #include <string>
 #include <string_view>
+#include <functional>
+#include <optional>
 
 namespace LocalLLMPromptBuilder {
 
@@ -44,8 +46,17 @@ int prompt_token_budget(int context_tokens, int max_tokens);
  * @param prompt Original prompt text.
  * @param attempt Zero-based retry attempt index.
  * @return Shortened analysis text, retaining complete folder-routing constraints.
- *         Non-routing prompts may also be truncated to the retry budget.
  */
 std::string shrink_user_prompt_for_context(const std::string& prompt, int attempt);
+
+/**
+ * @brief Fit optional evidence while preserving the complete chat framing and constraints.
+ * @param prompt Original user prompt.
+ * @param token_budget Input token budget, excluding generation reserve.
+ * @param count_tokens Counter for the full system/template/user prompt, not just user text.
+ * @return Fitted user text, or empty when mandatory instructions cannot fit.
+ */
+std::optional<std::string> fit_user_prompt(const std::string& prompt, std::size_t token_budget,
+    const std::function<std::size_t(const std::string&)>& count_tokens);
 
 } // namespace LocalLLMPromptBuilder

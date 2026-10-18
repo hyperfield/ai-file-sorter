@@ -127,7 +127,19 @@ private:
 ValidationResult validate_relative_folder_path(std::string_view relative_path);
 
 /**
- * @brief Parse a model response as a folder-tree selection.
+ * @brief Shared system instructions for JSON folder selection on every backend.
+ * @return Static prompt text; new-folder permission remains in the candidate context.
+ */
+std::string_view selection_system_prompt();
+
+/**
+ * @brief State the JSON response contract with a relative path and creation flag.
+ * @return Static response instructions appended to folder-selection user prompts.
+ */
+std::string_view selection_response_instruction();
+
+/**
+ * @brief Parse a JSON folder-tree selection or a compatible plain-path reply.
  * @param response Raw LLM response.
  * @param catalog Existing destination folders.
  * @param allow_new_folders True to accept safe paths not present in the catalog.
@@ -224,6 +236,20 @@ std::string build_prompt_context(const Catalog& catalog,
                                  std::string_view semantic_subcategory = {},
                                  std::string_view semantic_target = {},
                                  std::span<const FolderStructurePluginProfile> plugin_profiles = {});
+
+/**
+ * @brief Build a complete routing comparison over explicitly supplied candidates.
+ * @param catalog Full planning catalog, used only for structural guidance.
+ * @param candidates Complete candidate entries for this comparison, without lexical filtering.
+ * @param allow_new_folders Permit proposals only after existing candidates have been compared.
+ * @param semantic_category Preliminary category hint, subordinate to content evidence.
+ * @param semantic_subcategory Preliminary subcategory hint.
+ * @param plugin_profiles Installed declarative structure guidance.
+ * @return Routing instructions and a literal, untruncated candidate list.
+ */
+std::string build_candidate_prompt_context(const Catalog& catalog, std::span<const Entry> candidates,
+    bool allow_new_folders, std::string_view semantic_category, std::string_view semantic_subcategory,
+    std::span<const FolderStructurePluginProfile> plugin_profiles = {});
 
 /**
  * @brief Derive compatibility category labels from a relative target folder path.

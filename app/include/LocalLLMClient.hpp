@@ -1,9 +1,12 @@
 #pragma once
 
 #include "ILLMClient.hpp"
+#include "ILLMRequestControl.hpp"
 #include "Types.hpp"
 #include "llama.h"
 #include <functional>
+#include <atomic>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -11,7 +14,7 @@
 
 namespace spdlog { class logger; }
 
-class LocalLLMClient : public ILLMClient {
+class LocalLLMClient : public ILLMClient, public ILLMRequestControl {
 public:
     /**
      * @brief Per-client local runtime options.
@@ -72,6 +75,11 @@ public:
                                 int max_tokens) override;
     void set_prompt_logging_enabled(bool enabled) override;
     /**
+     * @brief Set or clear the cooperative deadline for a timed inference request.
+     * @param deadline Monotonic deadline, or empty to disable cancellation.
+     */
+    void set_request_deadline(std::optional<Clock::time_point> deadline) noexcept override;
+    /**
      * @brief Registers a status callback for runtime events.
      * @param callback Callback to invoke when status events occur.
      */
@@ -83,6 +91,13 @@ public:
     void set_fallback_decision_callback(FallbackDecisionCallback callback);
 
 private:
+    /**
+     * @brief Check the request deadline without touching backend objects from another thread.
+     * @param client Owning LocalLLMClient, passed through the llama.cpp callback.
+     * @return True after its request deadline expires.
+     */
+    static bool request_expired(void* client);
+    std::atomic<Clock::duration::rep> request_deadline_{std::numeric_limits<Clock::duration::rep>::max()};
     void load_model_if_needed();
     void configure_llama_logging(const std::shared_ptr<spdlog::logger>& logger) const;
     llama_model_params prepare_model_params(const std::shared_ptr<spdlog::logger>& logger);

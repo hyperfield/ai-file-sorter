@@ -35,6 +35,8 @@ TEST_CASE("FolderTreeCatalog validates safe relative folder paths")
     CHECK(valid.normalized_path == "10-19 Admin/11 Reports");
 
     CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("../escape").valid);
+    CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("/escape").valid);
+    CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("\\\\server\\share").valid);
     CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("C:/escape").valid);
     CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("Admin/<bad>").valid);
     CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("Admin/CON.txt").valid);
@@ -102,6 +104,29 @@ TEST_CASE("FolderTreeCatalog accepts new folders only when enabled")
     CHECK(selection->suggested_new);
 }
 
+TEST_CASE("FolderTreeCatalog plain paths retain validation and creation permissions", "[plain-path]")
+{
+    const FolderTreeCatalog::Catalog catalog({{"Finance", 1}, {"Finance/Invoices", 2}});
+    for (const bool allow_new : {false, true}) {
+        const auto existing = FolderTreeCatalog::parse_selection("finance/invoices", catalog, allow_new);
+        REQUIRE(existing);
+        CHECK(existing->relative_path == "Finance/Invoices");
+        CHECK(existing->exists);
+        CHECK_FALSE(existing->suggested_new);
+        const auto proposed = FolderTreeCatalog::parse_selection("Finance/Forecasts", catalog, allow_new);
+        CHECK(proposed.has_value() == allow_new);
+        if (proposed) {
+            CHECK_FALSE(proposed->exists);
+            CHECK(proposed->suggested_new);
+        }
+        for (const auto* unsafe : {"../outside", "/outside", "\\\\server\\share", "C:/outside", "Finance/../outside",
+                                   "Finance/<invalid>", "Finance/CON.txt"}) {
+            INFO("Target: " << unsafe << "; new folders: " << allow_new);
+            CHECK_FALSE(FolderTreeCatalog::parse_selection(unsafe, catalog, allow_new));
+        }
+    }
+}
+
 TEST_CASE("FolderTreeCatalog prompt guides new folders over weak fallbacks")
 {
     FolderTreeCatalog::Catalog catalog({
@@ -119,13 +144,11 @@ TEST_CASE("FolderTreeCatalog prompt guides new folders over weak fallbacks")
         "D:/Incoming/invoice_q2_2026.pdf",
         true);
 
-    CHECK(prompt.find("{\"targetFolder\":\"existing/folder/path\",\"createFolder\":false}") !=
-          std::string::npos);
-    CHECK(prompt.find("{\"targetFolder\":\"new/folder/path\",\"createFolder\":true}") !=
-          std::string::npos);
-    CHECK(prompt.find("listed candidates are not exhaustive") != std::string::npos);
-    CHECK(prompt.find("weak, generic, or unrelated matches") != std::string::npos);
-    CHECK(prompt.find("Do not choose fallback folders") != std::string::npos);
+    CHECK(prompt.find("Return JSON with targetFolder") != std::string::npos);
+    CHECK(prompt.find("createFolder:false") != std::string::npos);
+    CHECK(prompt.find("createFolder:true") != std::string::npos);
+    CHECK(prompt.find("existing matches are weak, generic, or unrelated") != std::string::npos);
+    CHECK(prompt.find("do not force an unrelated catch-all") != std::string::npos);
     CHECK(prompt.find("Other/Unsorted Review") != std::string::npos);
 }
 
@@ -394,8 +417,8 @@ TEST_CASE("FolderTreeCatalog prompt includes detected structure conventions")
 
     CHECK(prompt.find("Detected folder structure conventions") != std::string::npos);
     CHECK(prompt.find("Johnny.Decimal-like") != std::string::npos);
-    CHECK(prompt.find("Convention-aware deterministic new-folder candidate: 30-39 Finance/31 Budgets") !=
-          std::string::npos);
+    CHECK(prompt.find("Preliminary labels (not a required destination): Finance / Budgets") != std::string::npos);
+    CHECK(prompt.find("deterministic new-folder candidate") == std::string::npos);
 }
 
 TEST_CASE("FolderTreeCatalog derives compatibility labels from target path")

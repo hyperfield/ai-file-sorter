@@ -94,30 +94,12 @@ bool is_folder_tree_mode(std::string_view consistency_context)
 
 std::string folder_tree_system_prompt()
 {
-    return "You are a file organization assistant. The prompt contains an "
-           "existing destination folder tree. Choose the best target folder for "
-           "the item. Reply with exactly one JSON object in the format "
-           "{\"targetFolder\":\"relative/folder/path\",\"createFolder\":false}, "
-           "where createFolder is a boolean. Use createFolder:false for a strong "
-           "existing folder match. When the user prompt allows new folders and "
-           "the existing folders are only weak, generic, or unrelated matches, "
-           "use createFolder:true with a concise new relative folder path. "
-           "Follow any detected folder naming conventions in the prompt for "
-           "new folder paths. "
-           "Do not treat listed candidates as exhaustive when new folders are "
-           "allowed. "
-           "Do not force catch-all folders merely to avoid creating a missing "
-           "semantic folder. "
-           "Do not return category/subcategory text, explanations, or extra lines.";
+    return std::string(FolderTreeCatalog::selection_system_prompt());
 }
 
 std::string folder_tree_response_instruction()
 {
-    return "Answer with exactly one JSON object containing targetFolder and createFolder.\n"
-           "Use {\"targetFolder\":\"existing/folder/path\",\"createFolder\":false} "
-           "for an existing folder.\n"
-           "Use {\"targetFolder\":\"new/folder/path\",\"createFolder\":true} only "
-           "when the folder-tree instructions allow a new folder.";
+    return std::string(FolderTreeCatalog::selection_response_instruction());
 }
 
 std::string generic_file_categorization_system_prompt()
@@ -381,7 +363,6 @@ int prompt_token_budget(int context_tokens, int max_tokens)
 std::string shrink_user_prompt_for_context(const std::string& prompt, int attempt)
 {
     static const std::array<std::size_t, 4> kSummaryBudgets = {1200, 800, 500, 300};
-    static const std::array<std::size_t, 4> kPromptBudgets = {1800, 1400, 1000, 700};
 
     auto trim_labeled_section = [&](std::string text, std::string_view marker) {
         const auto marker_pos = text.find(marker);
@@ -390,8 +371,11 @@ std::string shrink_user_prompt_for_context(const std::string& prompt, int attemp
         }
 
         std::size_t suffix_start = std::string::npos;
-        constexpr std::array<std::string_view, 9> kSectionMarkers = {
+        constexpr std::array<std::string_view, 12> kSectionMarkers = {
             LLMPrompt::kContentEvidenceEndMarker,
+            FolderTreeCatalog::kPromptMarker,
+            "\nAnswer with exactly one JSON object",
+            "\nAnswer with exactly one relative folder path",
             "\nFile name:",
             "\nDirectory name:",
             "\nPath:",
@@ -432,15 +416,20 @@ std::string shrink_user_prompt_for_context(const std::string& prompt, int attemp
     trimmed = trim_labeled_section(std::move(trimmed), "\nDocument summary: ");
     trimmed = trim_labeled_section(std::move(trimmed), "\nImage description: ");
 
-    const std::size_t budget = kPromptBudgets[std::min<std::size_t>(
-        static_cast<std::size_t>(attempt),
-        kPromptBudgets.size() - 1)];
-    // An incomplete folder list or missing JSON contract is not a usable routing prompt.
-    if (trimmed.size() > budget && !is_folder_tree_mode(trimmed)) {
-        return truncate_with_ellipsis(trimmed, budget);
-    }
-
     return trimmed;
+}
+
+std::optional<std::string> fit_user_prompt(const std::string& prompt, std::size_t token_budget,
+    const std::function<std::size_t(const std::string&)>& count_tokens)
+{
+    if (count_tokens(prompt) <= token_budget) return prompt;
+    constexpr int kEvidenceShrinkAttempts = 4;
+    for (int attempt = 0; attempt < kEvidenceShrinkAttempts; ++attempt) {
+        // A plateau at an early summary budget does not exhaust smaller budgets.
+        auto candidate = shrink_user_prompt_for_context(prompt, attempt);
+        if (count_tokens(candidate) <= token_budget) return candidate;
+    }
+    return std::nullopt;
 }
 
 } // namespace LocalLLMPromptBuilder
