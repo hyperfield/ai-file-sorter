@@ -513,6 +513,36 @@ std::optional<std::string> make_child_segment(const PathInfo& parent,
     return child_label;
 }
 
+std::optional<std::string> decimal_child_segment(const PathInfo& parent,
+    const std::vector<PathInfo>& infos, const std::string& label)
+{
+    constexpr int kDecimalItemWidth = 2;
+    constexpr int kLastDecimalItem = 99;
+    const auto prefix = parent.patterns.back().prefix + ".";
+    std::set<int> used;
+    for (const auto& child : direct_children_of(infos, parent.relative_path)) {
+        const auto& code = child.patterns.back().prefix;
+        if (code.starts_with(prefix)) {
+            if (const auto item = parse_int(std::string_view(code).substr(prefix.size()))) used.insert(*item);
+        }
+    }
+    for (int item = 1; item <= kLastDecimalItem; ++item) {
+        if (!used.contains(item)) return prefix + format_number(item, kDecimalItemWidth) + " " + label;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> allocate_child_segment(const PathInfo& parent,
+    const std::vector<PathInfo>& infos, const std::string& label)
+{
+    const auto& patterns = parent.patterns;
+    if (patterns.size() >= 2 && patterns[patterns.size() - 2].kind == PrefixKind::Range &&
+        patterns.back().kind == PrefixKind::Number && patterns.back().prefix.find('.') == std::string::npos) {
+        return decimal_child_segment(parent, infos, label);
+    }
+    return make_child_segment(parent, infos, label);
+}
+
 struct TopRangePattern {
     int next_start{-1};
     int span{9};
@@ -691,6 +721,31 @@ std::string join_examples(const std::vector<std::string>& examples)
 
 namespace FolderStructurePattern {
 
+namespace {
+std::pair<std::string, std::string> requested_labels(
+    std::string_view semantic_category, std::string_view semantic_subcategory)
+{
+    auto category = Utils::sanitize_path_label(std::string(semantic_category));
+    auto child = Utils::sanitize_path_label(std::string(semantic_subcategory));
+    if (is_general_subcategory(child) || lower_copy(category) == lower_copy(child)) {
+        child.clear();
+    }
+    return {std::move(category), std::move(child)};
+}
+} // namespace
+
+std::optional<ProposedChild> proposed_child_location(
+    const FolderTreeCatalog::Catalog& catalog,
+    std::string_view semantic_category, std::string_view semantic_subcategory)
+{
+    const auto [category, child] = requested_labels(semantic_category, semantic_subcategory);
+    if (category.empty() || child.empty()) {
+        return std::nullopt;
+    }
+    const auto parent = best_parent_candidate(make_path_infos(catalog), category, child);
+    return parent ? std::optional(ProposedChild{parent->info.relative_path, child}) : std::nullopt;
+}
+
 Profile infer_profile(const FolderTreeCatalog::Catalog& catalog,
                       std::span<const FolderStructurePluginProfile> plugin_profiles)
 {
@@ -766,19 +821,11 @@ std::optional<SuggestedPath> suggest_new_folder(
     std::string_view semantic_subcategory,
     std::span<const FolderStructurePluginProfile> plugin_profiles)
 {
-    const std::string category_label =
-        Utils::sanitize_path_label(std::string(semantic_category));
-    const std::string subcategory_label =
-        Utils::sanitize_path_label(std::string(semantic_subcategory));
+    const auto [category_label, child_label] = requested_labels(semantic_category, semantic_subcategory);
     if (category_label.empty()) {
         return std::nullopt;
     }
 
-    const std::string child_label =
-        is_general_subcategory(subcategory_label) ||
-                lower_copy(category_label) == lower_copy(subcategory_label)
-            ? std::string()
-            : subcategory_label;
     const auto infos = make_path_infos(catalog);
     if (auto parent = best_parent_candidate(infos, category_label, child_label)) {
         if (child_label.empty()) {
@@ -850,6 +897,56 @@ std::string human_label_path(std::string_view relative_path)
         labels.push_back(parsed.label.empty() ? parsed.original : parsed.label);
     }
     return join_path(labels);
+}
+
+namespace {
+std::optional<std::string> allocate_top_segment(const std::vector<PathInfo>& infos,
+    const SegmentPattern& proposed)
+{
+    const auto top = top_level_infos(infos);
+    if (const auto ranges = infer_top_range_pattern(top)) {
+        if (ranges->next_start < 0) return std::nullopt;
+        return make_next_range_top_segment(*ranges, proposed.label);
+    }
+    if (auto path = make_top_level_numbered_path(top, proposed.label, "")) return path;
+    if (auto path = make_top_level_alpha_path(top, proposed.label, "")) return path;
+    return proposed.original;
+}
+} // namespace
+
+std::optional<std::string> allocate_proposed_path(
+    const FolderTreeCatalog::Catalog& catalog, std::string_view proposed_path)
+{
+    const auto validation = FolderTreeCatalog::validate_relative_folder_path(proposed_path);
+    if (!validation.valid) return std::nullopt;
+    auto entries = catalog.entries();
+    std::string parent;
+    for (const auto& segment : split_path(validation.normalized_path)) {
+        const auto literal = parent.empty() ? segment : parent + "/" + segment;
+        const FolderTreeCatalog::Catalog planning(entries);
+        if (const auto existing = planning.find_existing(literal)) {
+            parent = *existing;
+            continue;
+        }
+        const auto infos = make_path_infos(planning);
+        const auto proposed = parse_segment(segment);
+        std::optional<std::string> allocated;
+        if (parent.empty()) {
+            allocated = allocate_top_segment(infos, proposed);
+        } else {
+            const auto found = std::find_if(infos.begin(), infos.end(), [&](const auto& info) {
+                return info.relative_path == parent;
+            });
+            if (found == infos.end()) return std::nullopt;
+            const bool coded = infer_profile(planning).has_recognized_conventions ||
+                found->patterns.back().kind == PrefixKind::Range;
+            allocated = allocate_child_segment(*found, infos, coded ? proposed.label : proposed.original);
+        }
+        if (!allocated) return std::nullopt;
+        parent = parent.empty() ? *allocated : parent + "/" + *allocated;
+        entries.push_back({parent, static_cast<int>(split_path(parent).size())});
+    }
+    return parent;
 }
 
 } // namespace FolderStructurePattern

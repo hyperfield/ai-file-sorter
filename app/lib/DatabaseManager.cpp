@@ -20,6 +20,8 @@
 
 namespace {
 constexpr double kSimilarityThreshold = 0.85;
+// Keep routes chosen by the previous lexical override policy out of model-driven reviews.
+constexpr std::string_view kRoutingCachePolicy = "content-llm-v2:";
 constexpr char kLegacyMusicCategoryNormalized[] = "music";
 constexpr char kCanonicalAudioCategoryDisplay[] = "Audio";
 constexpr char kLegacyInstallerBuildersNormalized[] = "installer builders";
@@ -1334,7 +1336,8 @@ bool DatabaseManager::insert_or_update_folder_tree_routing(
     sqlite3_bind_text(stmt.get(), 2, file_type.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt.get(), 3, dir_path.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt.get(), 4, record.destination_root.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt.get(), 5, record.tree_fingerprint.c_str(), -1, SQLITE_TRANSIENT);
+    const auto cache_fingerprint = std::string(kRoutingCachePolicy) + record.tree_fingerprint;
+    sqlite3_bind_text(stmt.get(), 5, cache_fingerprint.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt.get(), 6, record.allow_new_folders ? 1 : 0);
     sqlite3_bind_text(stmt.get(), 7, record.semantic_category.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt.get(), 8, record.semantic_subcategory.c_str(), -1, SQLITE_TRANSIENT);
@@ -1393,7 +1396,8 @@ DatabaseManager::get_folder_tree_routing(
     sqlite3_bind_text(stmt.get(), 2, type_label.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt.get(), 3, dir_path.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt.get(), 4, destination_root.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt.get(), 5, tree_fingerprint.c_str(), -1, SQLITE_TRANSIENT);
+    const auto cache_fingerprint = std::string(kRoutingCachePolicy) + tree_fingerprint;
+    sqlite3_bind_text(stmt.get(), 5, cache_fingerprint.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt.get(), 6, allow_new_folders ? 1 : 0);
     sqlite3_bind_text(stmt.get(), 7, semantic_category.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt.get(), 8, semantic_subcategory.c_str(), -1, SQLITE_TRANSIENT);
@@ -1409,7 +1413,7 @@ DatabaseManager::get_folder_tree_routing(
 
     FolderTreeRoutingRecord record;
     record.destination_root = text_at(0);
-    record.tree_fingerprint = text_at(1);
+    record.tree_fingerprint = tree_fingerprint;
     record.allow_new_folders = sqlite3_column_int(stmt.get(), 2) != 0;
     record.semantic_category = text_at(3);
     record.semantic_subcategory = text_at(4);

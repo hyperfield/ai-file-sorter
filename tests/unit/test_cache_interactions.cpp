@@ -330,7 +330,7 @@ TEST_CASE("CategorizationService uses cached folder-tree target without calling 
     CHECK(*calls == 0);
 }
 
-TEST_CASE("CategorizationService reviews existing destinations before deriving a new folder from semantic cache") {
+TEST_CASE("CategorizationService honors model-selected new folders despite semantic cache") {
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
     Settings settings;
@@ -355,7 +355,7 @@ TEST_CASE("CategorizationService reviews existing destinations before deriving a
     auto calls = std::make_shared<int>(0);
     auto factory = [calls]() {
         return std::make_unique<CountingLLM>(calls,
-                                             "{\"targetFolder\":\"Other/Unsorted Review\",\"createFolder\":false}");
+                                             "{\"targetFolder\":\"Documents/Invoices\",\"createFolder\":true}");
     };
 
     const auto full_path = (data_dir.path() / file_name).string();

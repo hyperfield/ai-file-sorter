@@ -42,6 +42,23 @@ struct SuggestedPath {
     std::string reason;
 };
 
+/** @brief Intended parent and human child label before a convention prefix is allocated. */
+struct ProposedChild {
+    std::string parent_relative_path;
+    std::string label;
+};
+
+/**
+ * @brief Locate a proposed child without consuming an available folder number.
+ * @param catalog Existing and pending folders used to resolve the parent.
+ * @param semantic_category Semantic main category inferred for the item.
+ * @param semantic_subcategory Semantic subcategory inferred for the item.
+ * @return Resolved parent and label, even when its numeric range is exhausted.
+ */
+std::optional<ProposedChild> proposed_child_location(
+    const FolderTreeCatalog::Catalog& catalog,
+    std::string_view semantic_category, std::string_view semantic_subcategory);
+
 /**
  * @brief Infer folder naming conventions from a catalog.
  * @param catalog Existing destination folder catalog.
@@ -63,6 +80,15 @@ std::optional<SuggestedPath> suggest_new_folder(
     std::string_view semantic_category,
     std::string_view semantic_subcategory,
     std::span<const FolderStructurePluginProfile> plugin_profiles = {});
+
+/**
+ * @brief Allocate collision-free prefixes for a model-chosen path, without choosing its labels or parent.
+ * @param catalog Existing and reserved folders.
+ * @param proposed_path Valid model-selected relative path.
+ * @return Convention-compliant path, or empty for unsafe paths or exhausted ranges.
+ */
+std::optional<std::string> allocate_proposed_path(
+    const FolderTreeCatalog::Catalog& catalog, std::string_view proposed_path);
 
 /**
  * @brief Return folder path text with leading numeric/range/code prefixes removed from each segment.

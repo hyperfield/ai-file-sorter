@@ -1822,6 +1822,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_prompt_builder.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_request_runner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_inference_audit.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_tree_llm_router.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ggml_runtime_paths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_custom_llm.cpp"

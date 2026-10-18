@@ -7,7 +7,6 @@
 
 #include <atomic>
 #include <deque>
-#include <future>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -297,20 +296,6 @@ private:
      * @return Maximum remote requests per minute, or 0 when disabled.
      */
     int resolve_remote_requests_per_minute() const;
-    /**
-     * @brief Launches an asynchronous LLM categorization request.
-     * @param llm LLM client used for the request.
-     * @param item_name Display name for the item.
-     * @param item_path Display path for the item.
-     * @param file_type File or directory.
-     * @param consistency_context Consistency hints block.
-     * @return Future that yields the raw LLM response.
-     */
-    std::future<std::string> start_llm_future(ILLMClient& llm,
-                                              const std::string& item_name,
-                                              const std::string& item_path,
-                                              FileType file_type,
-                                              const std::string& consistency_context) const;
     /**
      * @brief Builds a whitelist context block for the prompt.
      * @return Whitelist prompt section.

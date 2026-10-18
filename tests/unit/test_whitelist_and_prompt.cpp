@@ -1289,7 +1289,8 @@ TEST_CASE("CategorizationService accepts suggested folder-tree targets when enab
             captured_path,
             captured_context,
             calls,
-            "Documents : Invoices");
+            std::vector<std::string>{"Documents : Invoices",
+                R"({"targetFolder":"Documents/Invoices","createFolder":true})"});
     };
 
     const auto categorized = service.categorize_entries(files,
@@ -1354,7 +1355,8 @@ TEST_CASE("CategorizationService uses deterministic structure pattern for new fo
             captured_path,
             captured_context,
             calls,
-            "Work : Proposals");
+            std::vector<std::string>{"Work : Proposals",
+                R"({"targetFolder":"20-29 Work/21 Proposals","createFolder":true})"});
     };
 
     const auto categorized = service.categorize_entries(files,

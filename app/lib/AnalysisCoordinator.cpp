@@ -132,33 +132,6 @@ void strip_cached_date_category_for_routing(CategorizedFile& entry,
     }
 }
 
-std::optional<FolderTreeCatalog::Selection> existing_semantic_selection(
-    const FolderTreeCatalog::Catalog& catalog,
-    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing)
-{
-    if (!best_existing) {
-        return std::nullopt;
-    }
-    return FolderTreeCatalog::resolve_target_path(best_existing->entry.relative_path, catalog, false);
-}
-
-FolderTreeCatalog::Selection prefer_semantic_route_when_existing_match_is_weak(
-    const FolderTreeCatalog::Catalog& catalog,
-    const FolderTreeCatalog::Selection& selection,
-    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing,
-    const std::string& semantic_category,
-    const std::string& semantic_subcategory,
-    const std::string& evidence)
-{
-    if (FolderTreeCatalog::prefer_existing_semantic_match(
-            selection, best_existing, semantic_category, semantic_subcategory, evidence)) {
-        if (auto existing = existing_semantic_selection(catalog, best_existing)) {
-            return *existing;
-        }
-    }
-    return selection;
-}
-
 void persist_cached_folder_tree_route(
     DatabaseManager& db_manager,
     const CategorizedFile& entry,
@@ -199,8 +172,7 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
     const std::string& fingerprint,
     bool allow_new_folders,
     const std::string& semantic_category,
-    const std::string& semantic_subcategory,
-    const std::optional<FolderTreeCatalog::SemanticMatch>& best_existing)
+    const std::string& semantic_subcategory)
 {
     if (auto cached = db_manager.get_folder_tree_routing(entry.file_name,
                                                          entry.type,
@@ -213,12 +185,7 @@ std::optional<FolderTreeCatalog::Selection> choose_cached_folder_tree_route(
         if (auto selection = FolderTreeCatalog::resolve_target_path(cached->target_folder_relative_path,
                                                                     catalog,
                                                                     allow_new_folders)) {
-            return prefer_semantic_route_when_existing_match_is_weak(catalog,
-                                                                     *selection,
-                                                                     best_existing,
-                                                                     semantic_category,
-                                                                     semantic_subcategory,
-                                                                     entry.learning_context);
+            return selection;
         }
     }
 
@@ -278,8 +245,7 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
                                                          fingerprint,
                                                          allow_new_folders,
                                                          semantic_category,
-                                                         semantic_subcategory,
-                                                         best_existing);
+                                                         semantic_subcategory);
         if (!selection || selection->suggested_new) {
             continue;
         }
