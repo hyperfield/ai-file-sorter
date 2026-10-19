@@ -73,6 +73,7 @@ public:
         QPointer<QCheckBox>& rename_documents_only_checkbox;
         QPointer<QCheckBox>& add_document_date_to_category_checkbox;
         QPointer<QToolButton>& document_options_toggle_button;
+        QPointer<QPushButton> sorting_rules_button;
     };
 
     /**
@@ -141,6 +142,7 @@ public:
         QAction*& about_qt_action;
         QAction*& about_agpl_action;
         QAction*& support_project_action;
+        QAction* sorting_rules_action{nullptr};
     };
 
     /**

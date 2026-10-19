@@ -16,7 +16,33 @@ This document provides a detailed description of every test case in the project.
 - If Windows CMake reports a missing Visual Studio instance from an existing `build-tests` directory, use `cmake --fresh` when supported, delete/recreate that build directory, or choose a new build directory; the Visual Studio path is stored in `CMakeCache.txt`.
 - MediaInfo is expected from a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`); vendored MediaInfo directories/binaries are intentionally rejected by the build.
 
-## App test modes
+## Sorting Rules And Filename Length
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[sorting-rules],[content-routing]"`.
+
+`tests/unit/test_sorting_rules.cpp` covers:
+- `Filename word limits default independently and persist within bounds`: image and
+  document limits default to three, persist separately, and clamp invalid values
+  to the supported three-to-six range; malformed stored integers use the default.
+- `Image filename prompts and cleanup honor three through six words`: both visual
+  prompt policies request the selected maximum and production cleanup retains the
+  corresponding words without discarding meaningful numeric tokens.
+- `Document filename prompts and cleanup honor three through six words`: an
+  injected client verifies the prompt and cleaned filename at every slider value,
+  while document summaries remain unaffected.
+- `Sorting rules opens from both entry points and retains existing controls`:
+  the first Settings action and main-window button open the same dialog; existing
+  controls move out of the main panel, sliders persist independently on closing,
+  reflect loaded or externally changed settings on opening, and the dialog entry
+  points are disabled during analysis.
+
+`tests/unit/test_content_context_routing.cpp` also verifies that complete cached
+image evidence is not reused after changing the image filename word limit, while
+the default three-word configuration retains its existing cache identity.
+Existing checkbox-matrix, image-option, and translation tests continue to exercise
+the controls now hosted in Sorting Rules.
+
+## App Test Modes
 
 The production executable supports two developer-oriented test modes:
 

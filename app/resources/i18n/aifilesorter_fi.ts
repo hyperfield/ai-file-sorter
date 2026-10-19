@@ -2956,6 +2956,14 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Lajittelusäännöt...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Lajittelusäännöt...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;Tiedosto</translation>
@@ -3781,6 +3789,37 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
         <message>
             <source>Item folders checked: %1</source>
             <translation>Tarkistetut kohdekansiot: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Lajittelusäännöt</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Tiedostonimen sanojen enimmäismäärä</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Kuvat</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Asiakirjat</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 sanaa</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Kuvatiedostonimien sanaraja</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Asiakirjatiedostonimien sanaraja</translation>
         </message>
     </context>
 </TS>

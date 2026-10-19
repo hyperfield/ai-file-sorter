@@ -43,6 +43,7 @@
 
 class QAction;
 class QCheckBox;
+class QDialog;
 class QRadioButton;
 class QComboBox;
 class QLabel;
@@ -523,6 +524,9 @@ private:
     std::vector<FileEntry> files_to_categorize;
     std::vector<CategorizedFile> new_files_to_sort;
 
+    QPointer<QDialog> sorting_rules_dialog;
+    QPointer<QPushButton> sorting_rules_button;
+    QAction* sorting_rules_action{nullptr};
     QPointer<QLineEdit> path_entry;
     QPointer<QPushButton> analyze_button;
     QPointer<QPushButton> browse_button;

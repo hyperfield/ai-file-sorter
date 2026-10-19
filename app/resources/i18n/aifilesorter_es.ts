@@ -2958,6 +2958,14 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Reglas de clasificación...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Reglas de clasificación...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;Archivo</translation>
@@ -3783,6 +3791,37 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
         <message>
             <source>Item folders checked: %1</source>
             <translation>Carpetas de elementos comprobadas: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Reglas de clasificación</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Máximo de palabras en el nombre de archivo</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Imágenes</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Documentos</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 palabras</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Límite de palabras para nombres de imágenes</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Límite de palabras para nombres de documentos</translation>
         </message>
     </context>
 </TS>

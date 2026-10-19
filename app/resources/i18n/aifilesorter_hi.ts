@@ -2958,6 +2958,14 @@ Please update to continue. If you choose to quit, the application will close.</s
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>छँटाई के नियम...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>छँटाई के नियम...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="44"></location>
             <source>Interface &amp;language</source>
             <translation>इंटरफ़ेस &amp;भाषा</translation>
@@ -3783,6 +3791,37 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <source>Item folders checked: %1</source>
             <translation>जाँचे गए आइटम फ़ोल्डर: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>छँटाई के नियम</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>फ़ाइल नाम में शब्दों की अधिकतम संख्या</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>चित्र</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>दस्तावेज़</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 शब्द</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>चित्र फ़ाइल नाम की शब्द सीमा</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>दस्तावेज़ फ़ाइल नाम की शब्द सीमा</translation>
         </message>
     </context>
 </TS>

@@ -2958,6 +2958,14 @@ Bitte aktualisieren Sie, um fortzufahren. Wenn Sie Beenden wählen, wird die Anw
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Sortierregeln...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Sortierregeln...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;Datei</translation>
@@ -3783,6 +3791,37 @@ Bitte aktualisieren Sie, um fortzufahren. Wenn Sie Beenden wählen, wird die Anw
         <message>
             <source>Item folders checked: %1</source>
             <translation>Geprüfte Elementordner: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Sortierregeln</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Maximale Wortanzahl im Dateinamen</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Bilder</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Dokumente</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 Wörter</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Wortgrenze für Bilddateinamen</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Wortgrenze für Dokumentdateinamen</translation>
         </message>
     </context>
 </TS>

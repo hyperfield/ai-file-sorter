@@ -2956,6 +2956,14 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Sorteringsregler...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Sorteringsregler...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;Arkiv</translation>
@@ -3781,6 +3789,37 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
         <message>
             <source>Item folders checked: %1</source>
             <translation>Kontrollerade objektmappar: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Sorteringsregler</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Högsta antal ord i filnamn</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Bilder</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Dokument</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 ord</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Ordgräns för bildfilnamn</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Ordgräns för dokumentfilnamn</translation>
         </message>
     </context>
 </TS>

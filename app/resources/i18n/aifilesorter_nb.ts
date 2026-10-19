@@ -2956,6 +2956,14 @@ Oppdater for å fortsette. Hvis du velger å avslutte, lukkes applikasjonen.</tr
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Sorteringsregler...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Sorteringsregler...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;Fil</translation>
@@ -3781,6 +3789,37 @@ Oppdater for å fortsette. Hvis du velger å avslutte, lukkes applikasjonen.</tr
         <message>
             <source>Item folders checked: %1</source>
             <translation>Kontrollerte elementmapper: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Sorteringsregler</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Maksimalt antall ord i filnavn</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Bilder</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Dokumenter</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 ord</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Ordgrense for bildefilnavn</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Ordgrense for dokumentfilnavn</translation>
         </message>
     </context>
 </TS>

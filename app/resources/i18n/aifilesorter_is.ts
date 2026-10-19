@@ -2956,6 +2956,14 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Flokkunarreglur...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Flokkunarreglur...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;Skrá</translation>
@@ -3781,6 +3789,37 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
         <message>
             <source>Item folders checked: %1</source>
             <translation>Athugaðar atriðismöppur: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Flokkunarreglur</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Hámarksfjöldi orða í skráarheiti</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Myndir</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Skjöl</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 orð</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Orðamörk fyrir heiti myndaskráa</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Orðamörk fyrir heiti skjalaskráa</translation>
         </message>
     </context>
 </TS>

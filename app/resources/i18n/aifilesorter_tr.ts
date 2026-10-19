@@ -2958,6 +2958,14 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Sıralama kuralları...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Sıralama Kuralları...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;Dosya</translation>
@@ -3783,6 +3791,37 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
         <message>
             <source>Item folders checked: %1</source>
             <translation>Kontrol edilen öğe klasörleri: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Sıralama Kuralları</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Dosya adındaki en fazla sözcük sayısı</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Görseller</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Belgeler</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 sözcük</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Görsel dosya adı sözcük sınırı</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Belge dosya adı sözcük sınırı</translation>
         </message>
     </context>
 </TS>

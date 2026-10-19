@@ -2958,6 +2958,14 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Regole di ordinamento...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Regole di ordinamento...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;File</translation>
@@ -3783,6 +3791,37 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
         <message>
             <source>Item folders checked: %1</source>
             <translation>Cartelle elemento controllate: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Regole di ordinamento</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Numero massimo di parole nel nome del file</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Immagini</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Documenti</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 parole</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Limite di parole per i nomi delle immagini</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Limite di parole per i nomi dei documenti</translation>
         </message>
     </context>
 </TS>

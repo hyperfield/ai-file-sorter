@@ -1365,6 +1365,15 @@ void MainApp::apply_accessibility_metadata()
 
 void MainApp::update_settings_action_states()
 {
+    if (sorting_rules_action) {
+        sorting_rules_action->setEnabled(!analysis_in_progress_);
+    }
+    if (sorting_rules_button) {
+        sorting_rules_button->setEnabled(!analysis_in_progress_);
+    }
+    if (sorting_rules_dialog) {
+        sorting_rules_dialog->setEnabled(!analysis_in_progress_);
+    }
     if (create_folder_structure_action) {
         create_folder_structure_action->setEnabled(!analysis_in_progress_);
     }

@@ -2958,6 +2958,14 @@ Please update to continue. If you choose to quit, the application will close.</s
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>정렬 규칙...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>정렬 규칙...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;파일</translation>
@@ -3783,6 +3791,37 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <source>Item folders checked: %1</source>
             <translation>검사한 항목 폴더: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>정렬 규칙</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>파일 이름의 최대 단어 수</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>이미지</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>문서</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1개 단어</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>이미지 파일 이름 단어 수 제한</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>문서 파일 이름 단어 수 제한</translation>
         </message>
     </context>
 </TS>

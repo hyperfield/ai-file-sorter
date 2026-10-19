@@ -2958,6 +2958,14 @@ Veuillez mettre à jour pour continuer. Si vous choisissez de quitter, l'applica
     <context>
         <name>UiTranslator</name>
         <message>
+            <source>Sorting rules...</source>
+            <translation>Règles de tri...</translation>
+        </message>
+        <message>
+            <source>Sorting Rules...</source>
+            <translation>Règles de tri...</translation>
+        </message>
+        <message>
             <location filename="../../lib/UiTranslator.cpp" line="33"></location>
             <source>&amp;File</source>
             <translation>&amp;Fichier</translation>
@@ -3783,6 +3791,37 @@ Veuillez mettre à jour pour continuer. Si vous choisissez de quitter, l'applica
         <message>
             <source>Item folders checked: %1</source>
             <translation>Dossiers d'éléments vérifiés : %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>SortingRulesDialog</name>
+        <message>
+            <source>Sorting Rules</source>
+            <translation>Règles de tri</translation>
+        </message>
+        <message>
+            <source>Maximum filename words</source>
+            <translation>Nombre maximal de mots du nom de fichier</translation>
+        </message>
+        <message>
+            <source>Images</source>
+            <translation>Images</translation>
+        </message>
+        <message>
+            <source>Documents</source>
+            <translation>Documents</translation>
+        </message>
+        <message>
+            <source>%1 words</source>
+            <translation>%1 mots</translation>
+        </message>
+        <message>
+            <source>Image filename word limit</source>
+            <translation>Limite de mots des noms d’images</translation>
+        </message>
+        <message>
+            <source>Document filename word limit</source>
+            <translation>Limite de mots des noms de documents</translation>
         </message>
     </context>
 </TS>

@@ -195,6 +195,9 @@ void UiTranslator::translate_window_title() const
 
 void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
 {
+    if (auto* button = raw_ptr(deps_.primary.sorting_rules_button)) {
+        button->setText(tr("Sorting rules..."));
+    }
     const QString browse_text = tr("Browse…");
     if (auto* label = raw_ptr(deps_.primary.path_label)) {
         label->setText(tr("Folder:"));
@@ -397,6 +400,7 @@ void UiTranslator::translate_menus_and_actions() const
     };
 
     const ActionEntry action_entries[] = {
+        {deps_.actions.sorting_rules_action, QT_TRANSLATE_NOOP("UiTranslator", "Sorting Rules...")},
         {deps_.actions.file_quit_action, kActionQuit},
         {deps_.actions.run_benchmark_action, kActionSystemCompatibilityCheck},
         {deps_.actions.create_folder_structure_action, kActionCreateFolderStructure},
