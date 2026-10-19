@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include "FilenameWordLimits.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -77,6 +79,8 @@ struct ImageAnalysisResult {
  * @brief Shared configuration for local image analyzers.
  */
 struct ImageAnalyzerSettings {
+    /** @brief Maximum words in a suggested filename, independent of its description. */
+    size_t max_filename_words = kDefaultFilenameWords;
     /** @brief Context length (tokens). */
     int32_t n_ctx = kDefaultImageAnalyzerContextTokens;
     /** @brief Maximum tokens to predict. */

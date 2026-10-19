@@ -68,7 +68,6 @@ MTMD_API void mtmd_helper_log_set(ggml_log_callback log_callback, void* user_dat
 #endif
 
 namespace {
-constexpr size_t kMaxFilenameWords = 3;
 constexpr size_t kMaxFilenameLength = 50;
 constexpr int32_t kDefaultVisualCpuBatchSize = 512;
 constexpr int32_t kDefaultVisualGpuBatchSize = 512;
@@ -172,12 +171,14 @@ PromptRequest build_description_request(VisualPromptPolicy policy) {
     return {"", ""};
 }
 
-PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view description) {
+PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view description,
+                                     size_t max_words = kDefaultFilenameWords) {
     switch (policy) {
     case VisualPromptPolicy::LegacyLlava: {
         std::ostringstream oss;
         oss << "Based on the description below, generate a specific and descriptive filename for the image.\n"
-            << "Limit the filename to a maximum of 3 words. Use nouns and avoid starting with verbs like "
+            << "Limit the filename to a maximum of " << max_words
+            << " words. Use nouns and avoid starting with verbs like "
             << "'depicts', 'shows', 'presents', etc.\n"
             << "Do not include any data type words like 'image', 'jpg', 'png', 'webp', etc. Use only letters and "
             << "connect words with underscores.\n\n"
@@ -195,7 +196,7 @@ PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view
         oss << "Create a short filename stem from this image description.\n"
             << "Description: " << description << "\n\n"
             << "Rules:\n"
-            << "- maximum 3 words\n"
+            << "- maximum " << max_words << " words\n"
             << "- lowercase letters only\n"
             << "- join words with underscores\n"
             << "- prefer concrete nouns\n"
@@ -1364,8 +1365,12 @@ std::string filename_system_prompt(VisualPromptPolicy policy) {
     return build_filename_request(policy, "example description").system_prompt;
 }
 
-std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description) {
-    return build_filename_request(policy, description).user_prompt;
+std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description, size_t max_words) {
+    return build_filename_request(policy, description, max_words).user_prompt;
+}
+
+std::string sanitize_filename(const std::string& value, size_t max_words) {
+    return LlavaImageAnalyzer::sanitize_filename(value, max_words, kMaxFilenameLength);
 }
 
 bool can_transcode_webp_for_visual_analysis(const std::filesystem::path& path) {
@@ -1697,7 +1702,7 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
                                                settings_.n_predict,
                                                &diagnostics.description_pass);
 
-    const auto filename_request = build_filename_request(prompt_policy_, description);
+    const auto filename_request = build_filename_request(prompt_policy_, description, settings_.max_filename_words);
     const std::string raw_filename = infer_text(nullptr,
                                                 filename_request.system_prompt,
                                                 filename_request.user_prompt,
@@ -1707,9 +1712,9 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
     if (logger) {
         logger->info("Visual raw filename: {}", raw_filename);
     }
-    std::string filename_base = sanitize_filename(raw_filename, kMaxFilenameWords, kMaxFilenameLength);
+    std::string filename_base = sanitize_filename(raw_filename, settings_.max_filename_words, kMaxFilenameLength);
     if (filename_base.empty()) {
-        filename_base = sanitize_filename(description, kMaxFilenameWords, kMaxFilenameLength);
+        filename_base = sanitize_filename(description, settings_.max_filename_words, kMaxFilenameLength);
     }
     if (filename_base.empty()) {
         filename_base = "image_" + slugify(Utils::path_to_utf8(image_path.stem()));
@@ -1980,7 +1985,7 @@ std::string LlavaImageAnalyzer::infer_text(void* bitmap,
 
 std::string LlavaImageAnalyzer::sanitize_filename(const std::string& value,
                                                   size_t max_words,
-                                                  size_t max_length) const {
+                                                  size_t max_length) {
     QString cleaned = sanitize_utf8_text(value).trimmed();
     const QString prefix = QStringLiteral("filename:");
     if (cleaned.startsWith(prefix, Qt::CaseInsensitive)) {

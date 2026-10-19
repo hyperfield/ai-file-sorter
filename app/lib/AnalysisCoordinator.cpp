@@ -399,8 +399,11 @@ size_t resolve_document_char_budget(bool using_local_llm, int max_output_tokens)
 
 std::string content_analyzer_id(const Settings& settings, bool image, bool using_local_llm)
 {
+    const auto word_suffix = [](int words) {
+        return words == kDefaultFilenameWords ? std::string() : ":words=" + std::to_string(words);
+    };
     if (image) {
-        return "image-v1:" + settings.get_visual_model_id();
+        return "image-v1:" + settings.get_visual_model_id() + word_suffix(settings.get_image_filename_words());
     }
     const auto endpoint = settings.find_custom_api_endpoint(settings.get_active_custom_api_id());
     const auto custom = settings.find_custom_llm(settings.get_active_custom_llm_id());
@@ -409,7 +412,8 @@ std::string content_analyzer_id(const Settings& settings, bool image, bool using
     return "document-v1:" + std::to_string(static_cast<int>(settings.get_llm_choice())) +
         ":" + settings.get_openai_model() + ":" + settings.get_gemini_model() +
         ":" + custom.id + ":" + custom.path + ":" + endpoint.id +
-        ":" + endpoint.base_url + ":" + endpoint.model + ":" + std::to_string(character_limit);
+        ":" + endpoint.base_url + ":" + endpoint.model + ":" + std::to_string(character_limit) +
+        word_suffix(settings.get_document_filename_words());
 }
 
 std::optional<ContentAnalysisCache::Evidence> current_content_analysis(
@@ -1292,6 +1296,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
             }
 
             ImageAnalyzerSettings vision_settings;
+            vision_settings.max_filename_words = app_.settings.get_image_filename_words();
             vision_settings.use_gpu = VisualLlmRuntime::should_use_gpu();
             const auto visual_gpu_override = read_env_bool("AI_FILE_SORTER_VISUAL_USE_GPU");
             if (visual_gpu_override.has_value()) {
@@ -1748,6 +1753,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
             };
 
             DocumentTextAnalyzer::Settings doc_settings;
+            doc_settings.max_filename_words = app_.settings.get_document_filename_words();
             doc_settings.max_tokens = kDefaultDocumentOutputTokens;
             const size_t char_budget =
                 resolve_document_char_budget(app_.using_local_llm, doc_settings.max_tokens);

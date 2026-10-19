@@ -536,6 +536,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     include_subdirectories = load_bool("IncludeSubdirectories", false);
     analyze_images_by_content = load_bool("AnalyzeImagesByContent", false);
     offer_rename_images = load_bool("OfferRenameImages", false);
+    set_image_filename_words(load_int("ImageFilenameWords", kDefaultFilenameWords, kMinimumFilenameWords));
     add_image_date_place_to_filename = load_bool("AddImageDatePlaceToFilename", false);
     add_audio_video_metadata_to_filename = load_bool("AddAudioVideoMetadataToFilename", true);
     add_image_date_to_category = load_bool("AddImageDateToCategory", false);
@@ -543,6 +544,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     process_images_only = load_bool("ProcessImagesOnly", false);
     analyze_documents_by_content = load_bool("AnalyzeDocumentsByContent", false);
     offer_rename_documents = load_bool("OfferRenameDocuments", false);
+    set_document_filename_words(load_int("DocumentFilenameWords", kDefaultFilenameWords, kMinimumFilenameWords));
     rename_documents_only = load_bool("RenameDocumentsOnly", false);
     process_documents_only = load_bool("ProcessDocumentsOnly", false);
     add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
@@ -704,6 +706,7 @@ void Settings::save_core_settings()
     }
     set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
     set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
+    config.setValue(settings_section, "ImageFilenameWords", std::to_string(image_filename_words));
     set_bool_setting(config, settings_section, "AddImageDatePlaceToFilename", add_image_date_place_to_filename);
     set_bool_setting(config, settings_section, "AddAudioVideoMetadataToFilename", add_audio_video_metadata_to_filename);
     set_bool_setting(config, settings_section, "AddImageDateToCategory", add_image_date_to_category);
@@ -712,6 +715,7 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "ProcessImagesOnly", process_images_only);
     set_bool_setting(config, settings_section, "AnalyzeDocumentsByContent", analyze_documents_by_content);
     set_bool_setting(config, settings_section, "OfferRenameDocuments", offer_rename_documents);
+    config.setValue(settings_section, "DocumentFilenameWords", std::to_string(document_filename_words));
     set_bool_setting(config, settings_section, "DocumentOptionsExpanded", document_options_expanded);
     set_bool_setting(config, settings_section, "RenameDocumentsOnly", rename_documents_only);
     set_bool_setting(config, settings_section, "ProcessDocumentsOnly", process_documents_only);
@@ -874,6 +878,26 @@ bool Settings::save()
     return config.save(config_path);
 }
 
+
+int Settings::get_image_filename_words() const
+{
+    return image_filename_words;
+}
+
+void Settings::set_image_filename_words(int words)
+{
+    image_filename_words = clamp_filename_words(words);
+}
+
+int Settings::get_document_filename_words() const
+{
+    return document_filename_words;
+}
+
+void Settings::set_document_filename_words(int words)
+{
+    document_filename_words = clamp_filename_words(words);
+}
 
 LLMChoice Settings::get_llm_choice() const
 {

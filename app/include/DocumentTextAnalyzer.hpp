@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FilenameWordLimits.hpp"
 #include <cstddef>
 #include <filesystem>
 #include <optional>
@@ -8,7 +9,7 @@
 class ILLMClient;
 
 inline constexpr std::size_t kDefaultDocumentAnalyzerMaxCharacters = 8000;
-inline constexpr std::size_t kDefaultDocumentAnalyzerMaxFilenameWords = 3;
+inline constexpr std::size_t kDefaultDocumentAnalyzerMaxFilenameWords = kDefaultFilenameWords;
 inline constexpr std::size_t kDefaultDocumentAnalyzerMaxFilenameLength = 50;
 inline constexpr int kDefaultDocumentAnalyzerMaxTokens = 256;
 

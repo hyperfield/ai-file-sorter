@@ -5,6 +5,7 @@
 #include <Types.hpp>
 #include <Language.hpp>
 #include <CategoryLanguage.hpp>
+#include "FilenameWordLimits.hpp"
 #include <string>
 #include <filesystem>
 #include <vector>
@@ -301,6 +302,16 @@ public:
      */
     void set_offer_rename_images(bool value);
     /**
+     * @brief Returns the word limit for content-derived image filenames.
+     * @return Maximum word count from three to six.
+     */
+    int get_image_filename_words() const;
+    /**
+     * @brief Sets the image filename word limit, clamped to the supported range.
+     * @param words Maximum word count from three to six.
+     */
+    void set_image_filename_words(int words);
+    /**
      * @brief Returns whether image filename suggestions should include EXIF date/place prefixes.
      * @return True when EXIF date/place prefixes are enabled for image rename suggestions.
      */
@@ -380,6 +391,16 @@ public:
      * @param value True to enable document rename suggestions.
      */
     void set_offer_rename_documents(bool value);
+    /**
+     * @brief Returns the word limit for content-derived document filenames.
+     * @return Maximum word count from three to six.
+     */
+    int get_document_filename_words() const;
+    /**
+     * @brief Sets the document filename word limit, clamped to the supported range.
+     * @param words Maximum word count from three to six.
+     */
+    void set_document_filename_words(int words);
     /**
      * @brief Returns whether the document options group is expanded.
      * @return True when the document options group should be expanded.
@@ -727,6 +748,7 @@ private:
     bool include_subdirectories{false};
     bool analyze_images_by_content{false};
     bool offer_rename_images{false};
+    int image_filename_words{kDefaultFilenameWords};
     bool add_image_date_place_to_filename{false};
     bool add_audio_video_metadata_to_filename{true};
     bool add_image_date_to_category{false};
@@ -735,6 +757,7 @@ private:
     bool process_images_only{false};
     bool analyze_documents_by_content{false};
     bool offer_rename_documents{false};
+    int document_filename_words{kDefaultFilenameWords};
     bool document_options_expanded{false};
     bool rename_documents_only{false};
     bool process_documents_only{false};

@@ -555,6 +555,11 @@ TEST_CASE("AnalysisCoordinator reuses complete image evidence without a visual b
     REQUIRE(resumed.review.size() == 1);
     CHECK(resumed.review.front().learning_context.find("privacy obligations") != std::string::npos);
     CHECK(requests->size() == 2);
+    settings.set_image_filename_words(6);
+    const auto different_word_limit = run_cached_image_workflow(settings, database, source.path(), requests);
+    CHECK(different_word_limit.result.status == AnalysisRunStatus::Failed);
+    CHECK(requests->size() == 2);
+    settings.set_image_filename_words(3);
     image.fill(Qt::black);
     REQUIRE(image.save(QString::fromStdString(image_path.string())));
     const auto changed = run_cached_image_workflow(settings, database, source.path(), requests);
