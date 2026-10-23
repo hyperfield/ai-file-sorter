@@ -379,7 +379,7 @@ std::string content_analyzer_id(const Settings& settings, bool image, bool using
         return words == kDefaultFilenameWords ? std::string() : ":words=" + std::to_string(words);
     };
     if (image) {
-        return "image-v1:" + settings.get_visual_model_id() + word_suffix(settings.get_image_filename_words());
+        return "image-v2:" + settings.get_visual_model_id() + word_suffix(settings.get_image_filename_words());
     }
     const auto endpoint = settings.find_custom_api_endpoint(settings.get_active_custom_api_id());
     const auto custom = settings.find_custom_llm(settings.get_active_custom_llm_id());

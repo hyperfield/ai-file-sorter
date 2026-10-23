@@ -660,7 +660,9 @@ TEST_CASE("CategorizationService reuses literal proposals without overriding exi
 
 TEST_CASE("AnalysisCoordinator reuses complete image evidence without a visual backend", "[content-routing]")
 {
-    const bool complete = GENERATE(false, true);
+    enum class EvidenceState { Missing, Legacy, Current };
+    const auto state = GENERATE(EvidenceState::Missing, EvidenceState::Legacy, EvidenceState::Current);
+    const bool complete = state != EvidenceState::Missing;
     TempDir config;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
     Settings settings;
@@ -683,7 +685,8 @@ TEST_CASE("AnalysisCoordinator reuses complete image evidence without a visual b
     DatabaseManager database(settings.get_config_dir());
     REQUIRE(database.insert_or_update_file_with_categorization(
         "IMG_0001.png", "F", source.path().string(), {0, "", ""}, false, "policy_changes.png"));
-    const auto key = ContentAnalysisCache::make_key(image_path, "image-v1:" + settings.get_visual_model_id());
+    const auto version = state == EvidenceState::Current ? "image-v2:" : "image-v1:";
+    const auto key = ContentAnalysisCache::make_key(image_path, version + settings.get_visual_model_id());
     REQUIRE(key);
     if (complete) {
         REQUIRE(database.content_analysis_cache().store(
@@ -692,7 +695,7 @@ TEST_CASE("AnalysisCoordinator reuses complete image evidence without a visual b
     const auto requests = std::make_shared<std::vector<Request>>();
     const auto run = run_cached_image_workflow(settings, database, source.path(), requests);
     INFO(run.result.error_message);
-    if (!complete) {
+    if (state != EvidenceState::Current) {
         CHECK(run.result.status == AnalysisRunStatus::Failed);
         CHECK(requests->empty());
         CHECK_FALSE(database.get_categorized_file(source.path().string(), "IMG_0001.png", FileType::File));
