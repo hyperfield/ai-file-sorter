@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QLabel>
+#include <QCoreApplication>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QSyntaxHighlighter>
@@ -102,7 +103,9 @@ TEST_CASE("JohnnyDecimalValidator checks direct item IDs only when requested") {
     CHECK(codes.count("item_id_malformed") == 1);
     CHECK(codes.count("missing_item_id") == 1);
     CHECK(report.has_errors());
-    CHECK(JohnnyDecimalValidator::format_report(report).find("Item folders checked: 7") != std::string::npos);
+    const auto expected_count = QCoreApplication::translate("JohnnyDecimalValidator", "Item folders checked: %1")
+        .arg(static_cast<qulonglong>(report.item_count)).toStdString();
+    CHECK(JohnnyDecimalValidator::format_report(report).find(expected_count) != std::string::npos);
 }
 
 TEST_CASE("JohnnyDecimalValidator accepts item boundary IDs and preserves scan warnings") {
