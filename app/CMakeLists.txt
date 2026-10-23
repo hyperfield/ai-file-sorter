@@ -1385,6 +1385,7 @@ if(WIN32 AND _aifs_windows_enable_starter)
         "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/GgmlRuntimePaths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaRuntimeSelection.cpp"
     )
     set_target_properties(${STARTER_TARGET} PROPERTIES
         OUTPUT_NAME "aifilesorter"
@@ -1989,6 +1990,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/VisualModelCatalog.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaRuntimeSelection.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Version.cpp"
         )
 
