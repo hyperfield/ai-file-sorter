@@ -18,6 +18,7 @@
 
 class Settings;
 class ILLMClient;
+struct LLMResponseConstraint;
 class UserLearningStore;
 class FolderTreeRoutingPlan;
 namespace spdlog { class logger; }
@@ -276,6 +277,7 @@ private:
      * @param file_type File or directory.
      * @param is_local_llm True when using a local LLM backend.
      * @param consistency_context Consistency hints block.
+     * @param constraint Optional response contract, copied into the timed request.
      * @return Raw LLM response string.
      */
     std::string run_llm_with_timeout(
@@ -284,7 +286,8 @@ private:
         const std::string& item_path,
         FileType file_type,
         bool is_local_llm,
-        const std::string& consistency_context) const;
+        const std::string& consistency_context,
+        const LLMResponseConstraint* constraint = nullptr) const;
     /**
      * @brief Resolves the LLM timeout based on runtime and environment settings.
      * @param is_local_llm True when using a local LLM backend.

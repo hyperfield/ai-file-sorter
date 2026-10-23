@@ -3,6 +3,8 @@
 #include "DatabaseManager.hpp"
 #include "FolderStructurePattern.hpp"
 #include "FolderTreeRoutingPlan.hpp"
+#include "FolderTreeSelectionContract.hpp"
+#include "FolderPurposeMetadata.hpp"
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
 #include "ResultsCoordinator.hpp"
@@ -28,6 +30,7 @@ struct Request {
     std::string name;
     std::string path;
     std::string context;
+    std::string schema;
 };
 
 class RoutingLLM : public ILLMClient {
@@ -39,7 +42,13 @@ public:
     std::string categorize_file(const std::string& name, const std::string& path,
                                 FileType, const std::string& context) override
     {
-        requests_->push_back({name, path, context});
+        requests_->push_back({name, path, context, {}});
+        return respond_(requests_->back());
+    }
+    std::string categorize_file_constrained(const std::string& name, const std::string& path,
+        FileType, const std::string& context, const LLMResponseConstraint& constraint) override
+    {
+        requests_->push_back({name, path, context, constraint.json_schema});
         return respond_(requests_->back());
     }
     std::string complete_prompt(const std::string&, int) override { return {}; }
@@ -160,6 +169,9 @@ TEST_CASE("Content evidence reaches classification and routing independently of 
     CHECK_FALSE(result.front().target_folder_suggested_new);
     CHECK(result.front().suggested_name.empty());
     REQUIRE(requests->size() == 2);
+    CHECK(requests->front().schema.empty());
+    CHECK_FALSE(requests->back().schema.empty());
+    CHECK(requests->back().schema.find("80-89 Legal/82 Data Protection") != std::string::npos);
     for (const auto& request : *requests) {
         CHECK(request.context.find(evidence->description) != std::string::npos);
         CHECK(request.context.find("Content evidence (primary") != std::string::npos);
@@ -189,6 +201,13 @@ TEST_CASE("Review plan reserves new numbers across batches and reuses proposed d
     auto factory = [requests]() {
         return std::make_unique<RoutingLLM>(requests, [](const Request& request) {
             if (request.context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos) {
+                if (request.context.find(FolderTreeSelectionContract::kProposalMarker) == std::string::npos) {
+                    if (request.name.find("budget") != std::string::npos &&
+                        request.context.find("10-19 Finance/13 Budgets\n") != std::string::npos) {
+                        return std::string(R"({"targetFolder":"10-19 Finance/13 Budgets","createFolder":false})");
+                    }
+                    return std::string(R"({"targetFolder":null,"createFolder":false})");
+                }
                 return request.name.find("forecast") != std::string::npos
                     ? std::string(R"({"targetFolder":"10-19 Finance/13 Forecasts","createFolder":true})")
                     : std::string(R"({"targetFolder":"10-19 Finance/13 Budgets","createFolder":true})");
@@ -238,6 +257,58 @@ TEST_CASE("Review plan matches pending labels only within the same literal paren
     CHECK(plan.find_proposed_child(root, "Media", "cafe\xcc\x81", true) == "Media/75 Caf\xc3\xa9");
 }
 
+TEST_CASE("Content evidence and response constraints survive abstention and proposal retries", "[content-routing]")
+{
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_use_consistency_hints(false);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    TempDir source;
+    TempDir archive;
+    std::filesystem::create_directories(archive.path() / "Finance/Payroll");
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(archive.path().string());
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    auto requests = std::make_shared<std::vector<Request>>();
+    const auto factory = [requests] {
+        return std::make_unique<RoutingLLM>(requests, [attempt = 0](const Request& request) mutable {
+            if (request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos) {
+                return std::string("Photography : Landscapes");
+            }
+            if (request.context.find(FolderTreeSelectionContract::kProposalMarker) == std::string::npos) {
+                return std::string(R"({"targetFolder":null,"createFolder":false})");
+            }
+            return ++attempt == 1 ? std::string(R"({"targetFolder":"../outside","createFolder":true})")
+                                  : std::string(R"({"targetFolder":"Photography/Landscapes","createFolder":true})");
+        });
+    };
+    const std::string evidence = "Mountain landscape photography collection.\nCopyright notes: https://example.org/photos?q=mountain";
+    const auto path = (source.path() / "unhelpful-name.pdf").string();
+    const auto prompt_path = AnalysisCoordinator::build_document_prompt_path(path, "mountain_landscape.pdf", evidence);
+    std::atomic<bool> stop{false};
+    const auto result = service.categorize_entries({{path, "unhelpful-name.pdf", FileType::File}},
+        true, stop, {}, {}, {}, {}, factory,
+        [&](const FileEntry&) { return CategorizationService::PromptOverride{"mountain_landscape.pdf", prompt_path}; });
+    REQUIRE(result.size() == 1);
+    CHECK(result.front().target_folder_relative_path == "Photography/Landscapes");
+    CHECK(result.front().target_folder_suggested_new);
+    CHECK_FALSE(std::filesystem::exists(archive.path() / "Photography"));
+    REQUIRE(requests->size() == 4);
+    for (std::size_t i = 0; i < requests->size(); ++i) {
+        const auto& request = requests->at(i);
+        CHECK(request.context.find(evidence) != std::string::npos);
+        CHECK(request.path.find('\n') == std::string::npos);
+        CHECK(request.schema.empty() == (i == 0));
+        CHECK((request.context.find(FolderTreeSelectionContract::kProposalMarker) != std::string::npos) == (i >= 2));
+    }
+    CHECK(requests->at(1).schema.find("enum") != std::string::npos);
+    CHECK(requests->at(2).schema == requests->at(3).schema);
+    CHECK(requests->at(3).context.find("Invalid proposal") != std::string::npos);
+}
+
 TEST_CASE("Review plan preserves meaningful numbers in literal and human labels", "[content-routing][folder-plan]")
 {
     FolderTreeRoutingPlan plan;
@@ -279,10 +350,18 @@ TEST_CASE("CategorizationService reuses weak Landscape proposals even when the r
     CategorizationService service(settings, database, nullptr);
     FolderTreeRoutingPlan plan;
     const auto requests = std::make_shared<std::vector<Request>>();
-    const auto factory = [requests, parent] {
-        return std::make_unique<RoutingLLM>(requests, [parent](const Request& request) {
-            if (request.context.find("Never suggest or invent a new folder") != std::string::npos) {
+    const auto factory = [requests, parent, expected, &settings] {
+        return std::make_unique<RoutingLLM>(requests, [parent, expected, &settings](const Request& request) {
+            if (!settings.get_suggest_new_folders() &&
+                request.context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos) {
                 return "{\"targetFolder\":\"" + parent + "\",\"createFolder\":false}";
+            }
+            if (request.context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos &&
+                request.context.find(FolderTreeSelectionContract::kProposalMarker) == std::string::npos) {
+                if (request.context.find(expected + "\n") != std::string::npos) {
+                    return "{\"targetFolder\":\"" + expected + "\",\"createFolder\":false}";
+                }
+                return std::string(R"({"targetFolder":null,"createFolder":false})");
             }
             return request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos
                 ? std::string("Images : Landscape")
@@ -403,6 +482,7 @@ TEST_CASE("CategorizationService leaves failed model routing unresolved instead 
 
 TEST_CASE("Folder route cache excludes legacy lexical-policy decisions", "[content-routing][llm-routing]")
 {
+    const std::string old_fingerprint = GENERATE("tree-hash", "content-llm-v2:tree-hash", "staged-constrained-llm-v3:tree-hash", "purpose-aware-llm-v4:tree-hash");
     TempDir config;
     DatabaseManager database(config.path().string());
     DatabaseManager::FolderTreeRoutingRecord route;
@@ -422,13 +502,79 @@ TEST_CASE("Folder route cache excludes legacy lexical-policy decisions", "[conte
     sqlite3* raw = nullptr;
     const auto file = (config.path() / "categorization_results.db").string();
     REQUIRE(sqlite3_open(file.c_str(), &raw) == SQLITE_OK);
-    const auto updated = sqlite3_exec(raw, "UPDATE folder_tree_routing SET tree_fingerprint = 'tree-hash'", nullptr, nullptr, nullptr);
+    sqlite3_stmt* statement = nullptr;
+    REQUIRE(sqlite3_prepare_v2(raw, "UPDATE folder_tree_routing SET tree_fingerprint = ?", -1, &statement, nullptr) == SQLITE_OK);
+    REQUIRE(sqlite3_bind_text(statement, 1, old_fingerprint.c_str(), -1, SQLITE_TRANSIENT) == SQLITE_OK);
+    const auto updated = sqlite3_step(statement);
+    sqlite3_finalize(statement);
     sqlite3_close(raw);
-    REQUIRE(updated == SQLITE_OK);
+    REQUIRE(updated == SQLITE_DONE);
     CHECK_FALSE(lookup());
     REQUIRE(database.insert_or_update_folder_tree_routing("monthly.pdf", "F", "inbox", route));
     REQUIRE(lookup());
     CHECK(lookup()->target_folder_relative_path == "Clients/Delivery");
+}
+
+TEST_CASE("Folder-purpose edits invalidate cached semantic routes without losing evidence", "[content-routing][folder-purpose]")
+{
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    TempDir source;
+    TempDir archive;
+    std::filesystem::create_directories(archive.path() / "Reports");
+    std::filesystem::create_directories(archive.path() / "Presentations");
+    Settings settings;
+    settings.set_use_consistency_hints(false);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(archive.path().string());
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    const auto requests = std::make_shared<std::vector<Request>>();
+    const auto factory = [requests] {
+        return std::make_unique<RoutingLLM>(requests, [](const Request& request) {
+            if (request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos) return std::string("Business : Launch");
+            if (request.context.find(FolderTreeSelectionContract::kProposalMarker) != std::string::npos) {
+                return std::string(R"({"targetFolder":"Presentations","createFolder":true})");
+            }
+            return request.context.find("Launch talks and slide decks") == std::string::npos
+                ? std::string(R"({"targetFolder":"Reports","createFolder":false})")
+                : std::string(R"({"targetFolder":null,"createFolder":false})");
+        });
+    };
+    const auto path = (source.path() / "launch.pptx").string();
+    const std::string evidence = "A launch presentation with demo screenshots and presenter notes.";
+    const auto prompt = AnalysisCoordinator::build_document_prompt_path(path, "launch.pptx", evidence);
+    std::atomic<bool> stop{false};
+    const auto run = [&] {
+        return service.categorize_entries({{path, "launch.pptx", FileType::File}}, true, stop, {}, {}, {}, {}, factory,
+            [&](const FileEntry&) { return CategorizationService::PromptOverride{"launch.pptx", prompt}; });
+    };
+    const auto first = run();
+    REQUIRE(first.size() == 1);
+    CHECK(first.front().target_folder_relative_path == "Reports");
+    const auto cached = run();
+    REQUIRE(cached.size() == 1);
+    CHECK(cached.front().target_folder_relative_path == "Reports");
+    CHECK(requests->size() == 2);
+    {
+        std::ofstream file(archive.path() / FolderPurposeMetadata::kFileName);
+        file << R"({"version":1,"folders":{"Reports":"Board reports","Presentations":"Launch talks and slide decks"}})";
+    }
+    const auto reconsidered = run();
+    REQUIRE(reconsidered.size() == 1);
+    CHECK(reconsidered.front().target_folder_relative_path == "Presentations");
+    CHECK(reconsidered.front().target_folder_exists);
+    CHECK_FALSE(reconsidered.front().target_folder_suggested_new);
+    REQUIRE(requests->size() == 4);
+    for (const auto& request : *requests) {
+        CHECK(request.context.find(evidence) != std::string::npos);
+        CHECK(request.context.find(FolderTreeSelectionContract::kReconsiderationMarker) == std::string::npos);
+        CHECK(request.context.find("Purpose-aware comparison") == std::string::npos);
+    }
+    CHECK(requests->back().context.find(FolderTreeSelectionContract::kProposalMarker) != std::string::npos);
+    CHECK_FALSE(requests->back().schema.empty());
 }
 
 TEST_CASE("CategorizationService reuses literal proposals without overriding existing targets", "[content-routing][folder-plan]")
@@ -455,6 +601,15 @@ TEST_CASE("CategorizationService reuses literal proposals without overriding exi
         return std::make_unique<RoutingLLM>(requests, [](const Request& request) {
             if (request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos) {
                 return std::string("Images : Landscape");
+            }
+            if (request.context.find(FolderTreeSelectionContract::kProposalMarker) == std::string::npos) {
+                if (request.context.find("Media/LANDSCAPE\n") != std::string::npos) {
+                    return std::string(R"({"targetFolder":"Media/LANDSCAPE","createFolder":false})");
+                }
+                if (request.context.find("Media/Landscape\n") != std::string::npos) {
+                    return std::string(R"({"targetFolder":"Media/Landscape","createFolder":false})");
+                }
+                return std::string(R"({"targetFolder":null,"createFolder":false})");
             }
             const auto target = request.name == "first.jpg" ? "Media/Landscape" : "Media/LANDSCAPE";
             return std::string("{\"targetFolder\":\"") + target + "\",\"createFolder\":true}";
@@ -587,4 +742,82 @@ TEST_CASE("Numbered folder allocation stays within exhausted ranges", "[content-
         entries.push_back({"10-19 Finance/" + std::to_string(number) + " Existing", 2});
     }
     CHECK_FALSE(FolderStructurePattern::suggest_new_folder(FolderTreeCatalog::Catalog(entries), "Finance", "Budgets"));
+}
+
+TEST_CASE("Content evidence preserves multiline text URLs and literal paths end to end", "[content-routing]")
+{
+    const bool image = GENERATE(false, true);
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_use_consistency_hints(false);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    TempDir source;
+    TempDir archive;
+    std::filesystem::create_directories(archive.path() / "Research" / "Notes");
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(archive.path().string());
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    const std::string evidence = "Subject: parser validation\nURL: https://example.org/files//sample?q=1\n"
+                                 "Network: \\\\server\\share\nDetails:  two  spaces; ../literal/reference";
+    const auto path = source.path() / (image ? "image.png" : "notes.txt");
+    const auto prompt = image ? AnalysisCoordinator::build_image_prompt_path(path.string(), path.filename().string(), evidence)
+                              : AnalysisCoordinator::build_document_prompt_path(path.string(), path.filename().string(), evidence);
+    auto requests = std::make_shared<std::vector<Request>>();
+    const auto factory = [requests]() {
+        return std::make_unique<RoutingLLM>(requests, [](const Request& request) {
+            return request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos
+                ? std::string("Research : Notes")
+                : std::string(R"({"targetFolder":"Research/Notes","createFolder":false})");
+        });
+    };
+    std::atomic<bool> stop{false};
+    const auto result = service.categorize_entries({{path.string(), path.filename().string(), FileType::File}},
+        true, stop, {}, {}, {}, {}, factory,
+        [&](const FileEntry&) { return CategorizationService::PromptOverride{path.filename().string(), prompt}; });
+    REQUIRE(result.size() == 1);
+    REQUIRE(requests->size() == 2);
+    CHECK(result.front().target_folder_relative_path == "Research/Notes");
+    for (const auto& request : *requests) {
+        CHECK(request.path.find('\n') == std::string::npos);
+        CHECK(request.context.find(evidence) != std::string::npos);
+    }
+}
+
+TEST_CASE("Folder destination selection survives invalid preliminary categories", "[content-routing]")
+{
+    const std::string preliminary = GENERATE(std::string(), std::string("Utilities : Utilities"), std::string("invalid"));
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_use_consistency_hints(false);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(false);
+    TempDir source;
+    TempDir archive;
+    std::filesystem::create_directories(archive.path() / "Engineering" / "Software");
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(archive.path().string());
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    auto requests = std::make_shared<std::vector<Request>>();
+    const auto factory = [requests, preliminary]() {
+        return std::make_unique<RoutingLLM>(requests, [preliminary](const Request& request) {
+            return request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos
+                ? preliminary : std::string(R"({"targetFolder":"Engineering/Software","createFolder":false})");
+        });
+    };
+    std::atomic<bool> stop{false};
+    const std::string name = "application-linux.zip";
+    const auto result = service.categorize_entries({{(source.path() / name).string(), name, FileType::File}},
+        true, stop, {}, {}, {}, {}, factory);
+    REQUIRE(result.size() == 1);
+    REQUIRE(requests->size() == 2);
+    CHECK(result.front().target_folder_relative_path == "Engineering/Software");
+    CHECK(result.front().folder_tree_mode);
+    CHECK(result.front().canonical_category == "Engineering");
+    CHECK(result.front().canonical_subcategory == "Software");
+    CHECK_FALSE(result.front().target_folder_suggested_new);
+    CHECK_FALSE(std::filesystem::exists(archive.path() / "Utilities"));
 }

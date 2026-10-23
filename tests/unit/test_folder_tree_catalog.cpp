@@ -104,6 +104,30 @@ TEST_CASE("FolderTreeCatalog accepts new folders only when enabled")
     CHECK(selection->suggested_new);
 }
 
+TEST_CASE("FolderTreeCatalog does not reinterpret rejected JSON as permission to create")
+{
+    const FolderTreeCatalog::Catalog catalog({{"70-79 Media & Design", 1},
+        {"70-79 Media & Design/74 Presentations", 2}});
+    for (const auto* reply : {
+        R"({"targetFolder":"40-79 Media & Design/74 Presentations","createFolder":false})",
+        R"({"targetFolder":"36-79 Media & Design/74 Presentations","createFolder":false})",
+        R"({"targetFolder":"70-79 Media & Design/75 New","createFolder":"false"})",
+        R"({"targetFolder":"70-79 Media & Design/75 New","createFolder":true,"newFolder":false})"}) {
+        CHECK_FALSE(FolderTreeCatalog::parse_selection(reply, catalog, true));
+        CHECK_FALSE(FolderTreeCatalog::parse_selection(std::string("```json\n") + reply + "\n```", catalog, true));
+        CHECK_FALSE(FolderTreeCatalog::parse_selection(std::string("Answer: ") + reply, catalog, true));
+    }
+    CHECK(FolderTreeCatalog::parse_selection(
+        R"({"targetFolder":"70-79 Media & Design/75 New","createFolder":true})", catalog, true));
+    for (const auto* reply : {
+        R"("targetFolder":"40-79 Media & Design/74 Presentations","createFolder":false)",
+        R"(40-79 Media & Design/74 Presentations","createFolder : false)",
+        R"("targetFolder":"70-79 Media & Design/75 New","createFolder":true,"newFolder":false)",
+        R"("targetFolder":"70-79 Media & Design/75 New","createFolder":unknown)"}) {
+        CHECK_FALSE(FolderTreeCatalog::parse_selection(reply, catalog, true));
+    }
+}
+
 TEST_CASE("FolderTreeCatalog plain paths retain validation and creation permissions", "[plain-path]")
 {
     const FolderTreeCatalog::Catalog catalog({{"Finance", 1}, {"Finance/Invoices", 2}});

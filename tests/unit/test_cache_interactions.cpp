@@ -209,23 +209,30 @@ std::filesystem::path create_signed_stub_storage_plugin_archive(const std::files
 class CountingLLM : public ILLMClient {
    public:
     CountingLLM(std::shared_ptr<int> calls, std::string response)
-        : calls_(std::move(calls)), response_(std::move(response)) {}
+        : CountingLLM(std::move(calls), std::vector<std::string>{std::move(response)}) {}
+
+    CountingLLM(std::shared_ptr<int> calls, std::vector<std::string> responses)
+        : calls_(std::move(calls)), responses_(std::move(responses)) {}
 
     std::string categorize_file(const std::string&, const std::string&, FileType, const std::string&) override {
-        ++(*calls_);
-        return response_;
+        return next_response();
     }
 
     std::string complete_prompt(const std::string&, int) override {
-        ++(*calls_);
-        return response_;
+        return next_response();
     }
 
     void set_prompt_logging_enabled(bool) override {}
 
    private:
     std::shared_ptr<int> calls_;
-    std::string response_;
+    std::vector<std::string> responses_;
+    std::size_t next_{0};
+
+    std::string next_response() {
+        ++(*calls_);
+        return responses_.at(std::min(next_++, responses_.size() - 1));
+    }
 };
 
 class PromptCapturingLLM : public ILLMClient {
@@ -354,8 +361,9 @@ TEST_CASE("CategorizationService honors model-selected new folders despite seman
     std::atomic<bool> stop_flag{false};
     auto calls = std::make_shared<int>(0);
     auto factory = [calls]() {
-        return std::make_unique<CountingLLM>(calls,
-                                             "{\"targetFolder\":\"Documents/Invoices\",\"createFolder\":true}");
+        return std::make_unique<CountingLLM>(calls, std::vector<std::string>{
+            R"({"targetFolder":null,"createFolder":false})",
+            R"({"targetFolder":"Documents/Invoices","createFolder":true})"});
     };
 
     const auto full_path = (data_dir.path() / file_name).string();
@@ -370,7 +378,7 @@ TEST_CASE("CategorizationService honors model-selected new folders despite seman
     CHECK_FALSE(categorized.front().target_folder_exists);
     CHECK(categorized.front().category == "Documents");
     CHECK(categorized.front().subcategory == "Invoices");
-    CHECK(*calls == 1);
+    CHECK(*calls == 2);
 }
 
 TEST_CASE("CategorizationService falls back to LLM when cache is empty") {

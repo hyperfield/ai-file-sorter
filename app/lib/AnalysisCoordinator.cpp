@@ -278,30 +278,6 @@ std::vector<CategorizedFile> prepare_cached_entries_for_sorting_mode(
     return filtered;
 }
 
-std::string collapse_spaces_copy(const std::string& value)
-{
-    std::string collapsed;
-    collapsed.reserve(value.size());
-    bool previous_space = false;
-    for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
-            if (!previous_space) {
-                collapsed.push_back(' ');
-            }
-            previous_space = true;
-            continue;
-        }
-        collapsed.push_back(static_cast<char>(ch));
-        previous_space = false;
-    }
-    return trim_copy(collapsed);
-}
-
-std::string normalize_prompt_snippet(const std::string& value)
-{
-    return collapse_spaces_copy(value);
-}
-
 QString format_timing_value(double milliseconds)
 {
     if (milliseconds >= 1000.0) {
@@ -475,9 +451,8 @@ std::string AnalysisCoordinator::build_image_prompt_path(const std::string& full
         prompt_name.empty() ? Utils::path_to_utf8(entry_path.filename()) : prompt_name;
     std::string prompt_path = Utils::path_to_utf8(
         entry_path.parent_path() / Utils::utf8_to_path(effective_name));
-    const std::string normalized_description = normalize_prompt_snippet(description);
-    if (!normalized_description.empty()) {
-        prompt_path += "\nImage description: " + normalized_description;
+    if (!description.empty()) {
+        prompt_path += "\nImage description: " + description;
     }
     return prompt_path;
 }

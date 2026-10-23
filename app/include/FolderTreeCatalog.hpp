@@ -24,6 +24,8 @@ struct Entry {
     std::string relative_path;
     /** @brief Nesting depth below the sorting root. */
     int depth{0};
+    /** @brief Optional archive-supplied description of this folder's purpose, treated as data. */
+    std::string purpose{};
 };
 
 /**

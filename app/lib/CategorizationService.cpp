@@ -251,6 +251,21 @@ std::string extract_base_prompt_path(const std::string& prompt_path) {
     return prompt_path.substr(0, newline);
 }
 
+DatabaseManager::ResolvedCategory semantic_for_selected_folder(
+    DatabaseManager& database, const DatabaseManager::ResolvedCategory& preliminary,
+    const FolderTreeCatalog::Selection& selection)
+{
+    if (preliminary.taxonomy_id != -1 && !preliminary.category.empty() && !preliminary.subcategory.empty() &&
+        to_lower_copy_str(preliminary.category) != "uncategorized" &&
+        to_lower_copy_str(preliminary.subcategory) != "general") {
+        return preliminary;
+    }
+    const auto labels = Utils::utf8_to_path(FolderStructurePattern::human_label_path(selection.relative_path));
+    const auto child = Utils::path_to_utf8(labels.filename());
+    const auto parent = Utils::path_to_utf8(labels.parent_path().filename());
+    return database.resolve_category(parent.empty() ? child : parent, parent.empty() ? "General" : child);
+}
+
 bool is_screenshot_like_image_context(const std::string& prompt_name,
                                       const std::string& prompt_path) {
     const std::string lowered_name = to_lower_copy_str(prompt_name);
@@ -1230,12 +1245,12 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
         if (selection.suggested_new) {
             routing_plan.reserve(destination_root, selection.relative_path);
         }
-        auto routed = semantic;
+        auto routed = semantic_for_selected_folder(db_manager, semantic, selection);
         routed.target_folder_relative_path = selection.relative_path;
         routed.folder_tree_routing_explanation = FolderTreeRoutingExplanation::build({
-            semantic.category,
-            semantic.subcategory,
-            semantic_target,
+            routed.category,
+            routed.subcategory,
+            FolderTreeCatalog::semantic_target_path(routed.category, routed.subcategory),
             selection,
             best_existing,
             structure_profile
@@ -1304,19 +1319,19 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
     try {
         selection = FolderTreeLLMRouter::select(planning_catalog, allow_new,
             semantic.category, semantic.subcategory, plugin_profiles,
-            [&](const std::string& context) {
+            [&](const std::string& context, const LLMResponseConstraint& constraint) {
                 if (!is_local_llm &&
                     (!ensure_remote_credentials_for_request(display_name, progress_callback) ||
                      (remote_throttle_callback && !remote_throttle_callback(display_name)))) {
                     throw std::runtime_error("Folder routing request was not authorized");
                 }
-                return run_llm_with_timeout(llm, prompt_name, prompt_path, file_type, is_local_llm, context);
+                return run_llm_with_timeout(llm, prompt_name, prompt_path, file_type, is_local_llm,
+                                            context, &constraint);
+            }, [&](FolderTreeCatalog::Selection candidate) -> std::optional<FolderTreeCatalog::Selection> {
+                // Planning entries include uncreated proposals; validate physical flags and numbering before retry ends.
+                const auto physical = FolderTreeCatalog::resolve_target_path(candidate.relative_path, catalog, allow_new);
+                return physical ? validate_proposal(*physical) : std::nullopt;
             });
-        if (selection) {
-            // Planning entries include uncreated proposals, so restore physical existence flags.
-            selection = FolderTreeCatalog::resolve_target_path(selection->relative_path, catalog, allow_new);
-            if (selection) selection = validate_proposal(*selection);
-        }
     } catch (const std::exception& ex) {
         if (core_logger) {
             core_logger->warn("Folder-tree routing LLM failed for '{}': {}", display_name, ex.what());
@@ -1610,8 +1625,7 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
                                        file_type,
                                        progress_callback,
                                        consistency_context);
-    if (folder_tree_sorting && semantic.taxonomy_id != -1 &&
-        !semantic.category.empty() && !semantic.subcategory.empty()) {
+    if (folder_tree_sorting) {
         return route_semantic_category_to_folder_tree(llm,
                                                       is_local_llm,
                                                       display_name,
@@ -1646,7 +1660,9 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     const std::string display_path = Utils::abbreviate_user_path(entry.full_path);
     const std::string prompt_name = prompt_override ? prompt_override->name : entry.file_name;
     const std::string prompt_path = prompt_override ? prompt_override->path : entry.full_path;
-    const std::string prompt_path_display = Utils::abbreviate_user_path(prompt_path);
+    const auto base_prompt_path = extract_base_prompt_path(prompt_path);
+    const std::string prompt_path_display = Utils::abbreviate_user_path(base_prompt_path) +
+                                          prompt_path.substr(base_prompt_path.size());
     const bool use_consistency_hints = settings.get_use_consistency_hints();
     const bool rich_image_context = has_image_description_context(prompt_path);
     const std::string extension = extract_extension(entry.file_name);
@@ -2128,7 +2144,8 @@ std::string CategorizationService::run_llm_with_timeout(
     const std::string& item_path,
     FileType file_type,
     bool is_local_llm,
-    const std::string& consistency_context) const
+    const std::string& consistency_context,
+    const LLMResponseConstraint* constraint) const
 {
     const int timeout_seconds = resolve_llm_timeout(is_local_llm);
 
@@ -2140,7 +2157,12 @@ std::string CategorizationService::run_llm_with_timeout(
           "The filename, source directory and preliminary category labels are supporting clues; "
           "prefer the content evidence when they conflict.\n" + evidence +
           std::string(LLMPrompt::kContentEvidenceEndMarker) + "\n\n" + consistency_context;
-    return LLMRequestRunner::run(llm, [&llm, item_name, request_path, file_type, request_context] {
+    const auto response_constraint = constraint ? std::optional(*constraint) : std::nullopt;
+    return LLMRequestRunner::run(llm, [&llm, item_name, request_path, file_type, request_context, response_constraint] {
+        if (response_constraint) {
+            return llm.categorize_file_constrained(item_name, request_path, file_type, request_context,
+                                                  *response_constraint);
+        }
         return llm.categorize_file(item_name, request_path, file_type, request_context);
     }, std::chrono::seconds(timeout_seconds), core_logger);
 }

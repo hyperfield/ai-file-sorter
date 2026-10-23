@@ -37,9 +37,9 @@ TEST_CASE("LocalLLMPromptBuilder preserves specialized prompt routing")
     CHECK(folder_tree_system_prompt == FolderTreeCatalog::selection_system_prompt());
     CHECK(folder_tree_system_prompt.find("Reply with exactly one JSON object") != std::string::npos);
     CHECK(folder_tree_system_prompt.find("\"targetFolder\":\"relative/folder/path\",\"createFolder\":false") != std::string::npos);
-    CHECK(folder_tree_system_prompt.find("Do not treat listed candidates as exhaustive") !=
+    CHECK(folder_tree_system_prompt.find("separate new-folder proposal stage") !=
           std::string::npos);
-    CHECK(folder_tree_system_prompt.find("weak, generic, or unrelated matches") != std::string::npos);
+    CHECK(folder_tree_system_prompt.find("no listed folder is suitable") != std::string::npos);
 
     const std::string folder_tree_user_prompt =
         LocalLLMPromptBuilder::build_user_prompt("report.pdf",

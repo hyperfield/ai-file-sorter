@@ -1235,7 +1235,7 @@ TEST_CASE("CategorizationService routes into existing folder-tree targets") {
             calls,
             std::vector<std::string>{
                 "Category: Admin\nSubcategory: Reports",
-                "{\"targetFolder\":\"10-19 admin/11 reports\",\"createFolder\":false}"});
+                "{\"targetFolder\":\"10-19 Admin/11 Reports\",\"createFolder\":false}"});
     };
 
     const auto categorized = service.categorize_entries(files,
@@ -1290,6 +1290,7 @@ TEST_CASE("CategorizationService accepts suggested folder-tree targets when enab
             captured_context,
             calls,
             std::vector<std::string>{"Documents : Invoices",
+                R"({"targetFolder":null,"createFolder":false})",
                 R"({"targetFolder":"Documents/Invoices","createFolder":true})"});
     };
 
@@ -1303,7 +1304,7 @@ TEST_CASE("CategorizationService accepts suggested folder-tree targets when enab
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
-    CHECK(*calls == 2);
+    CHECK(*calls == 3);
     CHECK(categorized.front().folder_tree_mode);
     CHECK(categorized.front().target_folder_relative_path == "Documents/Invoices");
     CHECK(categorized.front().target_folder_suggested_new);
@@ -1356,6 +1357,7 @@ TEST_CASE("CategorizationService uses deterministic structure pattern for new fo
             captured_context,
             calls,
             std::vector<std::string>{"Work : Proposals",
+                R"({"targetFolder":null,"createFolder":false})",
                 R"({"targetFolder":"20-29 Work/21 Proposals","createFolder":true})"});
     };
 
@@ -1369,7 +1371,7 @@ TEST_CASE("CategorizationService uses deterministic structure pattern for new fo
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
-    CHECK(*calls == 2);
+    CHECK(*calls == 3);
     CHECK(categorized.front().folder_tree_mode);
     CHECK(categorized.front().target_folder_relative_path == "20-29 Work/22 Proposals");
     CHECK(categorized.front().target_folder_suggested_new);
@@ -1410,6 +1412,7 @@ TEST_CASE("CategorizationService sends detected custom folder conventions to rou
             calls,
             std::vector<std::string>{
                 "Archives : Logs",
+                R"({"targetFolder":null,"createFolder":false})",
                 "{\"targetFolder\":\"DH Archives/Logs\",\"createFolder\":true}"});
     };
 
@@ -1423,7 +1426,7 @@ TEST_CASE("CategorizationService sends detected custom folder conventions to rou
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
-    CHECK(*calls == 2);
+    CHECK(*calls == 3);
     CHECK(categorized.front().folder_tree_mode);
     CHECK(categorized.front().target_folder_relative_path == "DH Archives/Logs");
     CHECK(categorized.front().target_folder_suggested_new);

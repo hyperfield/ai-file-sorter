@@ -156,6 +156,7 @@ changelog/
 !/docs/
 !/docs/architecture.md
 !/docs/headless-runtime-contract.md
+!/docs/folder-purposes.md
 !/docs/configuration-and-environment.md
 !/docs/testing.md
 !/docs/categorization-behavior.md
