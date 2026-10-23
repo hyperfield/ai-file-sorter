@@ -32,7 +32,8 @@ std::optional<std::string> read_cached_download_url(const std::filesystem::path&
 bool is_shared_legacy_filename(const std::filesystem::path& candidate)
 {
     const auto filename = candidate.filename().string();
-    return filename == "mmproj-model.gguf" || filename == "mmproj-model-f16.gguf";
+    return filename == "mmproj-model.gguf" || filename == "mmproj-model-f16.gguf"
+        || filename == "mmproj-F16.gguf";
 }
 
 bool is_default_llava_mmproj_without_metadata_compatible(
@@ -123,6 +124,24 @@ const std::vector<VisualModelDescriptor>& visual_model_descriptors()
                   "mmproj-gemma-3-4b-it-Q4_0.gguf",
                   "mmproj-gemma-3-4b-it-Q4_K_M.gguf",
                   "mmproj-gemma-3-4b-it-Q8_0.gguf"}},
+            },
+        },
+        {
+            "qwen3.5-4b",
+            "Qwen3.5 4B",
+            VisualModelArchitecture::MtmdProjector,
+            VisualPromptPolicy::StructuredVisionInstruct,
+            {
+                {VisualModelArtifactKind::Model,
+                 "Qwen3.5 4B (text model)",
+                 "QWEN35_4B_MODEL_URL",
+                 "model.gguf",
+                 {}},
+                {VisualModelArtifactKind::Mmproj,
+                 "Qwen3.5 4B mmproj (vision encoder)",
+                 "QWEN35_4B_MMPROJ_URL",
+                 "mmproj.gguf",
+                 {"mmproj-F16.gguf"}},
             },
         },
     };

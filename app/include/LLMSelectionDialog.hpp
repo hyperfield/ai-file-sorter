@@ -213,6 +213,7 @@ private:
     QRadioButton* gemini_radio{nullptr};
     QRadioButton* custom_api_radio{nullptr};
     QRadioButton* local3_radio{nullptr};
+    QRadioButton* qwen35_radio{nullptr};
     QRadioButton* local3_legacy_radio{nullptr};
     QRadioButton* local7_radio{nullptr};
     QRadioButton* local7_gemma_radio{nullptr};

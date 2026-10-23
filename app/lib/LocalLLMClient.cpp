@@ -2,8 +2,10 @@
 #include "FolderTreeCatalog.hpp"
 #include "GgmlRuntimePaths.hpp"
 #include "LocalLLMPromptBuilder.hpp"
+#include "NativeChatTemplate.hpp"
 #include "LLMErrors.hpp"
 #include "InferenceAudit.hpp"
+#include "NativeJsonSchemaGrammar.hpp"
 #include "LocalLLMResponseSanitizer.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
@@ -116,6 +118,17 @@ private:
 
 
 namespace {
+llama_sampler* make_response_grammar_sampler(const llama_vocab* vocab, const std::string& grammar)
+{
+    try {
+        auto* sampler = llama_sampler_init_grammar(vocab, grammar.c_str(), "root");
+        if (!sampler) throw ResponseConstraintError("Cannot initialize the response grammar sampler");
+        return sampler;
+    } catch (const std::exception& error) {
+        throw ResponseConstraintError(std::string("Cannot enforce response grammar: ") + error.what());
+    }
+}
+
 
 constexpr int kDefaultLocalLlmContextTokens = 2048;
 constexpr int kMinimumContextAttemptTokens = 512;
@@ -126,7 +139,6 @@ constexpr int kFirstBatchFallbackTokens = 1024;
 constexpr int kSecondBatchFallbackTokens = 512;
 constexpr int kThirdBatchFallbackTokens = 256;
 constexpr int kDefaultCompletionTokens = 256;
-constexpr std::size_t kEstimatedPromptBufferBytes = 4096;
 constexpr std::size_t kTokenPieceBufferBytes = 128;
 constexpr std::size_t kMetadataScanBytes = 8ULL * 1024ULL * 1024ULL;
 constexpr double kBytesPerMiB = 1024.0 * 1024.0;
@@ -141,8 +153,6 @@ constexpr double kCudaMaxApproxFreeBudgetFraction = 0.98;
 constexpr double kCudaMaxUsableTotalBudgetFraction = 0.90;
 constexpr double kCudaMinApproxFreeBudgetFraction = 0.45;
 constexpr double kCudaLayerOverheadFactor = 1.08;
-constexpr float kDefaultMinPSampler = 0.05f;
-constexpr float kDefaultTemperatureSampler = 0.8f;
 constexpr int kGpuLayerRetryScaleNumerator = 3;
 constexpr int kGpuLayerRetryScaleDenominator = 4;
 constexpr int kMinimumGpuLayerRetryCount = 1;
@@ -696,71 +706,6 @@ std::optional<int32_t> infer_block_count_from_tensors(gguf_context* ctx)
     return std::nullopt;
 }
 
-bool format_prompt(llama_model* model,
-                   std::string_view system_prompt,
-                   std::string_view user_prompt,
-                   std::string& final_prompt)
-{
-    if (!model) {
-        return false;
-    }
-
-    const char* tmpl = llama_model_chat_template(model, nullptr);
-    if (!tmpl || tmpl[0] == '\0') {
-        final_prompt.clear();
-        if (!system_prompt.empty()) {
-            final_prompt.append(system_prompt);
-            final_prompt.append("\n\n");
-        }
-        final_prompt.append(user_prompt);
-        return true;
-    }
-
-    std::vector<std::string> owned_messages;
-    owned_messages.reserve(system_prompt.empty() ? 1 : 2);
-    std::vector<llama_chat_message> messages;
-    messages.reserve(system_prompt.empty() ? 1 : 2);
-
-    if (!system_prompt.empty()) {
-        owned_messages.emplace_back(system_prompt);
-        messages.push_back({"system", owned_messages.back().c_str()});
-    }
-
-    owned_messages.emplace_back(user_prompt);
-    messages.push_back({"user", owned_messages.back().c_str()});
-
-    std::size_t estimated_size = kEstimatedPromptBufferBytes;
-    for (const auto& message : owned_messages) {
-        estimated_size += message.size() * 2;
-    }
-
-    std::vector<char> formatted_prompt(estimated_size);
-    int actual_len = llama_chat_apply_template(tmpl,
-                                               messages.data(),
-                                               messages.size(),
-                                               true,
-                                               formatted_prompt.data(),
-                                               static_cast<int32_t>(formatted_prompt.size()));
-    if (actual_len < 0) {
-        return false;
-    }
-
-    if (actual_len >= static_cast<int>(formatted_prompt.size())) {
-        formatted_prompt.resize(static_cast<std::size_t>(actual_len) + 1);
-        actual_len = llama_chat_apply_template(tmpl,
-                                               messages.data(),
-                                               messages.size(),
-                                               true,
-                                               formatted_prompt.data(),
-                                               static_cast<int32_t>(formatted_prompt.size()));
-        if (actual_len < 0 || actual_len >= static_cast<int>(formatted_prompt.size())) {
-            return false;
-        }
-    }
-
-    final_prompt.assign(formatted_prompt.data(), static_cast<std::size_t>(actual_len));
-    return true;
-}
 
 bool tokenize_prompt(const llama_vocab* vocab,
                      const std::string& final_prompt,
@@ -847,13 +792,13 @@ std::string_view evaluate_prompt(llama_context* ctx, std::span<llama_token> toke
 }
 
 void audit_runtime(InferenceAudit* audit, llama_context* ctx, llama_sampler* sampler,
-                    int prompt_budget, int generation_limit)
+                    int prompt_budget, int generation_limit, const LocalInferenceOptions& options)
 {
     if (!audit) return;
     const char* backend = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
     audit->set_runtime({static_cast<int>(llama_n_ctx(ctx)), prompt_budget, generation_limit,
         static_cast<int>(llama_n_batch(ctx)), llama_sampler_get_seed(sampler),
-        kDefaultTemperatureSampler, kDefaultMinPSampler, backend ? backend : "auto",
+        options.temperature, options.min_p, backend ? backend : "auto",
         llama_n_threads(ctx), llama_n_threads_batch(ctx)});
 }
 
@@ -1899,11 +1844,13 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path,
                                Options options)
     : model_path(model_path),
       options_(options),
+      inference_(options.inference ? *options.inference : LocalInferenceOptions::from_environment()),
       fallback_decision_callback_(std::move(fallback_decision_callback)),
       original_gpu_backend_env_(read_env_value("AI_FILE_SORTER_GPU_BACKEND")),
       original_llama_arg_device_env_(read_env_value("LLAMA_ARG_DEVICE")),
       original_ggml_disable_cuda_env_(read_env_value("GGML_DISABLE_CUDA"))
 {
+    inference_.validate();
     ScopedBackendEnvRestore backend_env_guard;
 
     auto logger = Logger::get_logger("core_logger");
@@ -2242,6 +2189,16 @@ void LocalLLMClient::configure_context(int context_length, const llama_model_par
     ctx_params = llama_context_default_params();
     ctx_params.n_ctx = context_length;
     ctx_params.n_batch = context_length;
+    if (inference_.threads) {
+        ctx_params.n_threads = inference_.threads;
+        ctx_params.n_threads_batch = inference_.threads;
+    }
+    if (inference_.batch_tokens) ctx_params.n_batch = std::min(inference_.batch_tokens, context_length);
+    if (inference_.microbatch_tokens) ctx_params.n_ubatch = inference_.microbatch_tokens;
+    if (inference_.flash_attention) {
+        ctx_params.flash_attn_type = *inference_.flash_attention
+            ? LLAMA_FLASH_ATTN_TYPE_ENABLED : LLAMA_FLASH_ATTN_TYPE_DISABLED;
+    }
     ctx_params.abort_callback = &LocalLLMClient::request_expired;
     ctx_params.abort_callback_data = this;
 #ifdef GGML_USE_METAL
@@ -2266,8 +2223,11 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
 std::string LocalLLMClient::generate_response(const std::string& prompt,
                                               int n_predict,
                                               bool apply_sanitizer,
-                                              const std::string& system_prompt)
+                                              const std::string& system_prompt,
+                                              const LLMResponseConstraint& constraint)
 {
+    const auto output_grammar = NativeJsonSchemaGrammar::compile(constraint.json_schema);
+    n_predict = inference_.output_tokens.value_or(n_predict);
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
         logger->debug("Generating response with prompt length {} chars target {} tokens", prompt.size(), n_predict);
@@ -2415,20 +2375,25 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
             ctx_params = resolved_params;
 
             smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
-            llama_sampler_chain_add(smpl, llama_sampler_init_min_p(kDefaultMinPSampler, 1));
-            llama_sampler_chain_add(smpl, llama_sampler_init_temp(kDefaultTemperatureSampler));
-            llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+            if (!output_grammar.empty()) {
+                llama_sampler_chain_add(smpl, make_response_grammar_sampler(vocab, output_grammar));
+                if (audit) audit->set_response_constraint(constraint.json_schema, output_grammar);
+                if (logger) logger->debug("Installed per-request JSON response grammar");
+            }
+            llama_sampler_chain_add(smpl, llama_sampler_init_min_p(inference_.min_p, 1));
+            llama_sampler_chain_add(smpl, llama_sampler_init_temp(inference_.temperature));
+            llama_sampler_chain_add(smpl, llama_sampler_init_dist(inference_.seed));
 
             std::vector<llama_token> prompt_tokens;
             int n_prompt = 0;
             std::string final_prompt;
             const int context_budget =
                 LocalLLMPromptBuilder::prompt_token_budget(static_cast<int>(resolved_params.n_ctx), n_predict);
-            audit_runtime(audit.get(), ctx, smpl, context_budget, n_predict);
+            audit_runtime(audit.get(), ctx, smpl, context_budget, n_predict, inference_);
             const auto fitted = LocalLLMPromptBuilder::fit_user_prompt(prompt, context_budget,
                 [&](const std::string& user_prompt) -> std::size_t {
-                    if (!format_prompt(model, system_prompt, user_prompt, final_prompt) ||
-                        !tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
+                    final_prompt = NativeChatTemplate::format(model, system_prompt, user_prompt);
+                    if (!tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
                         throw PromptBudgetError("Unable to format or tokenize the complete chat prompt");
                     }
                     audit_fit(audit.get(), vocab, user_prompt, final_prompt, prompt_tokens);
@@ -2465,6 +2430,11 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
             if (ctx) llama_free(ctx);
             if (smpl) llama_sampler_free(smpl);
             // Explicit audit failures are not GPU failures and must not trigger CPU retries.
+            throw;
+        } catch (const ResponseConstraintError& ex) {
+            if (ctx) llama_free(ctx);
+            if (smpl) llama_sampler_free(smpl);
+            if (audit) audit->fail(ex.what());
             throw;
         } catch (const PromptBudgetError& ex) {
             if (ctx) llama_free(ctx);
@@ -2531,6 +2501,13 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
                                             FileType file_type,
                                             const std::string& consistency_context)
 {
+    return categorize_file_constrained(file_name, file_path, file_type, consistency_context, {});
+}
+
+std::string LocalLLMClient::categorize_file_constrained(const std::string& file_name,
+    const std::string& file_path, FileType file_type, const std::string& consistency_context,
+    const LLMResponseConstraint& constraint)
+{
     if (auto logger = Logger::get_logger("core_logger")) {
         if (!file_path.empty()) {
             logger->debug("Requesting local categorization for '{}' ({}) at '{}'",
@@ -2550,7 +2527,7 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
     const bool folder_tree_mode =
         consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos;
     const int max_tokens = folder_tree_mode ? 128 : 64;
-    std::string response = generate_response(prompt, max_tokens, !folder_tree_mode, system_prompt);
+    std::string response = generate_response(prompt, max_tokens, !folder_tree_mode, system_prompt, constraint);
     if (prompt_logging_enabled) {
         std::cout << "[DEV][RESPONSE] Categorization reply\n" << response << "\n";
     }

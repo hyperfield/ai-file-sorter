@@ -84,6 +84,7 @@ bool has_linux_runtime_dependencies(const std::filesystem::path& dir)
 {
     constexpr std::array versioned_core_files = {
         "libllama.so.0",
+        "libllama-common.so",
         "libggml.so.0",
         "libggml-base.so.0",
         "libmtmd.so.0",
@@ -168,6 +169,7 @@ std::optional<std::filesystem::path> resolve_windows_cpu_runtime_dir(
 {
     constexpr std::array required_files = {
         "llama.dll",
+        "llama-common.dll",
         "ggml.dll",
         "ggml-cpu.dll",
     };
@@ -200,6 +202,7 @@ std::optional<std::filesystem::path> resolve_windows_vulkan_payload_dir(
 {
     constexpr std::array required_files = {
         "llama.dll",
+        "llama-common.dll",
         "ggml.dll",
         "ggml-vulkan.dll",
         "vulkan-1.dll",
@@ -284,7 +287,7 @@ LinuxAcceleratorPayloadCheck validate_linux_accelerator_payload(
     if (!has_linux_runtime_dependencies(dir)) {
         result.reason =
             "missing Linux runtime dependencies required by the ggml backend payload "
-            "(libllama.so.0, libggml.so.0, libggml-base.so.0, libmtmd.so.0, libggml-cpu.so)";
+            "(libllama.so.0, libllama-common.so, libggml.so.0, libggml-base.so.0, libmtmd.so.0, libggml-cpu.so)";
         return result;
     }
 

@@ -332,6 +332,7 @@ std::string llm_choice_to_string(LLMChoice choice) {
         case LLMChoice::Remote_Gemini: return "Remote_Gemini";
         case LLMChoice::Remote_Custom: return "Remote_Custom";
         case LLMChoice::Local_4b_Gemma: return "Local_4b_Gemma";
+        case LLMChoice::Local_4b_Qwen35: return "Local_4b_Qwen35";
         case LLMChoice::Local_3b_legacy: return "Local_3b_legacy";
         case LLMChoice::Local_7b: return "Local_7b";
         case LLMChoice::Local_7b_Gemma: return "Local_7b_Gemma";
@@ -506,6 +507,7 @@ LLMChoice Settings::parse_llm_choice() const
     if (value == "Remote_Gemini") return LLMChoice::Remote_Gemini;
     if (value == "Remote_Custom") return LLMChoice::Remote_Custom;
     if (value == "Local_3b" || value == "Local_4b_Gemma") return LLMChoice::Local_4b_Gemma;
+    if (value == "Local_4b_Qwen35") return LLMChoice::Local_4b_Qwen35;
     if (value == "Local_3b_legacy") return LLMChoice::Local_3b_legacy;
     if (value == "Local_7b") return LLMChoice::Local_7b;
     if (value == "Local_7b_Gemma") return LLMChoice::Local_7b_Gemma;

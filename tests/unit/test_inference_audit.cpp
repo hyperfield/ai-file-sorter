@@ -5,6 +5,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <array>
+#include <QCryptographicHash>
 
 namespace {
 constexpr char kAuditEnv[] = "AI_FILE_SORTER_INFERENCE_AUDIT_DIR";
@@ -67,6 +68,7 @@ TEST_CASE("InferenceAudit captures fitting and exact successful decode chunks", 
     audit->finish("raw reply");
     const auto capture = read_capture(root.path(), id);
     CHECK(capture["status"] == "finished");
+    CHECK_FALSE(capture.contains("responseConstraint"));
     CHECK(capture["allPromptTokensAcceptedExactly"].toBool());
     CHECK(capture["acceptedPromptTokens"] == 4);
     CHECK(capture["selectedFitAttempt"] == 1);
@@ -84,6 +86,28 @@ TEST_CASE("InferenceAudit captures fitting and exact successful decode chunks", 
     const auto file_mode = std::filesystem::status(root.path() / id / "attempt-1.json").permissions();
     CHECK((file_mode & std::filesystem::perms::all) == (std::filesystem::perms::owner_read | std::filesystem::perms::owner_write));
 #endif
+}
+
+TEST_CASE("InferenceAudit records the exact enforced response contract", "[inference-audit]")
+{
+    PrivateAuditRoot root;
+    EnvVarGuard guard(kAuditEnv, root.path().string());
+    std::string id;
+    auto audit = create_audit(id);
+    const std::string schema = R"({"type":"object"})";
+    const std::string grammar = "root ::= \"{}\"\n";
+    audit->set_response_constraint(schema, grammar);
+    audit->finish("{}");
+    const auto constraint = read_capture(root.path(), id)["responseConstraint"].toObject();
+    CHECK(constraint["enforced"].toBool());
+    for (const auto& [key, expected] : {std::pair{"jsonSchema", schema}, {"nativeGrammar", grammar}}) {
+        const auto bytes = constraint[key].toObject();
+        CHECK(bytes["text"].toString().toStdString() == expected);
+        CHECK(bytes["bytes"].toInteger() == static_cast<qint64>(expected.size()));
+        CHECK(QByteArray::fromBase64(bytes["base64"].toString().toLatin1()) == QByteArray::fromStdString(expected));
+        CHECK(bytes["sha256"].toString() == QString::fromLatin1(
+            QCryptographicHash::hash(QByteArray::fromStdString(expected), QCryptographicHash::Sha256).toHex()));
+    }
 }
 
 TEST_CASE("InferenceAudit rejects false completeness on failed or altered input", "[inference-audit]")

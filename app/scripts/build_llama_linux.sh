@@ -14,7 +14,7 @@ fi
 PRECOMPILED_ROOT_DIR="$SCRIPT_DIR/../lib/precompiled"
 HEADERS_DIR="$SCRIPT_DIR/../include/llama"
 HOST_ARCH="$(uname -m)"
-BUILD_JOBS="${AI_FILE_SORTER_LINUX_RUNTIME_JOBS:-$(nproc)}"
+BUILD_JOBS="${AI_FILE_SORTER_LINUX_RUNTIME_JOBS:-4}"
 if ! [[ "$BUILD_JOBS" =~ ^[0-9]+$ ]] || (( BUILD_JOBS < 1 )); then
     echo "Invalid AI_FILE_SORTER_LINUX_RUNTIME_JOBS='$BUILD_JOBS'. Expected a positive integer." >&2
     exit 1
@@ -313,7 +313,6 @@ build_variant() {
     local cuda_architectures="$9"
 
     local build_dir="$LLAMA_DIR/build-$variant"
-    rm -rf "$build_dir"
     mkdir -p "$build_dir"
 
     echo "Building variant '$variant' (CUDA=$cuda_flag, VULKAN=$vulkan_flag, BLAS=$blas_flag)..."
@@ -340,6 +339,14 @@ build_variant() {
     fi
 
     local cmake_args=(
+        -DCMAKE_BUILD_TYPE=Release
+        -DLLAMA_BUILD_COMMON=ON
+        -DLLAMA_BUILD_MTMD=ON
+        -DLLAMA_BUILD_TOOLS=OFF
+        -DLLAMA_BUILD_APP=OFF
+        -DLLAMA_BUILD_EXAMPLES=OFF
+        -DLLAMA_BUILD_TESTS=OFF
+        -DMTMD_VIDEO=OFF
         -DGGML_CUDA="$cuda_flag"
         -DGGML_VULKAN="$vulkan_flag"
         -DGGML_OPENCL=OFF
@@ -382,7 +389,7 @@ build_variant() {
         build_env=(env "LIBRARY_PATH=$library_path")
     fi
 
-    local -a build_targets=(ggml-base ggml ggml-cpu llama mtmd)
+    local -a build_targets=(ggml-base ggml ggml-cpu llama llama-common mtmd)
     if [[ "$blas_flag" == "ON" ]]; then
         build_targets+=(ggml-blas)
     fi
@@ -499,5 +506,4 @@ cp "$LLAMA_DIR/include/llama.h" "$HEADERS_DIR"
 cp "$LLAMA_DIR"/ggml/src/*.h "$HEADERS_DIR"
 cp "$LLAMA_DIR"/ggml/include/*.h "$HEADERS_DIR"
 
-# Clean up build directories
-rm -rf "$LLAMA_DIR"/build-*
+# Keep variant build trees for incremental rebuilds and diagnostics.

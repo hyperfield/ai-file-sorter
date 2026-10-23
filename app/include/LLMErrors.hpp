@@ -11,6 +11,13 @@ public:
     explicit PromptBudgetError(const std::string& message) : std::runtime_error(message) {}
 };
 
+/** @brief A requested output contract could not be enforced; never retry unconstrained or on CPU. */
+class ResponseConstraintError : public std::runtime_error {
+public:
+    /** @brief Construct a non-backend constraint error. @param message Failure description. */
+    explicit ResponseConstraintError(const std::string& message) : std::runtime_error(message) {}
+};
+
 class BackoffError : public std::runtime_error {
 public:
     BackoffError(const std::string& message, int retry_seconds)

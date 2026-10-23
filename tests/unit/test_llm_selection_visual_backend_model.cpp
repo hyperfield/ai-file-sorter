@@ -24,6 +24,8 @@ TEST_CASE("LLM selection visual backend model builds built-in and visual custom 
     CHECK(items[0].id == "llava-v1.6-mistral-7b");
     CHECK(items[1].id == "gemma-3-4b-it");
     CHECK(items[1].label == QStringLiteral("Gemma 3 4B IT (Recommended)"));
+    CHECK(items[2].id == "qwen3.5-4b");
+    CHECK(items[2].label == QStringLiteral("Qwen3.5 4B"));
     CHECK(items.back().id == "custom:vision");
     CHECK(items.back().label == QStringLiteral("Custom: Vision Pair"));
 }

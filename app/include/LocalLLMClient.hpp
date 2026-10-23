@@ -2,6 +2,7 @@
 
 #include "ILLMClient.hpp"
 #include "ILLMRequestControl.hpp"
+#include "LocalInferenceOptions.hpp"
 #include "Types.hpp"
 #include "llama.h"
 #include <functional>
@@ -24,6 +25,8 @@ public:
          * @brief Force this local client to load and run on CPU regardless of process GPU settings.
          */
         bool force_cpu_backend{false};
+        /** @brief Injected controls, or empty to resolve opt-in environment settings. */
+        std::optional<LocalInferenceOptions> inference;
     };
 
     /**
@@ -66,11 +69,25 @@ public:
     std::string generate_response(const std::string& prompt,
                                   int n_predict,
                                   bool apply_sanitizer = true,
-                                  const std::string& system_prompt = {});
+                                  const std::string& system_prompt = {},
+                                  const LLMResponseConstraint& constraint = {});
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,
                                 FileType file_type,
                                 const std::string& consistency_context) override;
+    /**
+     * @brief Categorize with a per-request schema enforced by the native grammar sampler.
+     * @param file_name Item name.
+     * @param file_path Source path without embedded evidence.
+     * @param file_type Item kind.
+     * @param consistency_context Complete routing instructions and content evidence.
+     * @param constraint Structured response contract; empty leaves generation unconstrained.
+     * @return Unsanitized structured reply for folder routing.
+     * @throws ResponseConstraintError If the requested constraint cannot be installed.
+     */
+    std::string categorize_file_constrained(const std::string& file_name,
+        const std::string& file_path, FileType file_type, const std::string& consistency_context,
+        const LLMResponseConstraint& constraint) override;
     std::string complete_prompt(const std::string& prompt,
                                 int max_tokens) override;
     void set_prompt_logging_enabled(bool enabled) override;
@@ -119,6 +136,7 @@ private:
     llama_context_params ctx_params;
     bool prompt_logging_enabled{false};
     Options options_;
+    LocalInferenceOptions inference_;
     StatusCallback status_callback_;
     FallbackDecisionCallback fallback_decision_callback_;
     std::vector<Status> pending_statuses_;

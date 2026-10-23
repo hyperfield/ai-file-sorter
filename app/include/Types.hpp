@@ -12,7 +12,8 @@ enum class LLMChoice {
     Local_3b_legacy,
     Local_7b,
     Local_7b_Gemma,
-    Custom
+    Custom,
+    Local_4b_Qwen35
 };
 
 inline bool is_remote_choice(LLMChoice choice) {

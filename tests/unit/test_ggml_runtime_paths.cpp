@@ -73,6 +73,7 @@ TEST_CASE("Windows CPU runtime resolution falls back to the Vulkan runtime layou
 
     std::filesystem::create_directories(fallback);
     std::ofstream(fallback / "llama.dll").put('x');
+    std::ofstream(fallback / "llama-common.dll").put('x');
     std::ofstream(fallback / "ggml.dll").put('x');
     std::ofstream(fallback / "ggml-cpu.dll").put('x');
 
@@ -95,6 +96,7 @@ TEST_CASE("Windows Vulkan payload resolution prefers the BLAS runtime layout") {
     std::filesystem::create_directories(fallback);
     for (const auto& dir : {preferred, fallback}) {
         std::ofstream(dir / "llama.dll").put('x');
+        std::ofstream(dir / "llama-common.dll").put('x');
         std::ofstream(dir / "ggml.dll").put('x');
         std::ofstream(dir / "ggml-vulkan.dll").put('x');
         std::ofstream(dir / "vulkan-1.dll").put('x');
@@ -131,6 +133,7 @@ TEST_CASE("Linux Vulkan payload validation accepts compatible runtime directorie
 
     std::ofstream(payload / "libggml-vulkan.so").put('x');
     std::ofstream(payload / "libllama.so.0").put('x');
+    std::ofstream(payload / "libllama-common.so").put('x');
     std::ofstream(payload / "libggml.so.0").put('x');
     std::ofstream(payload / "libggml-base.so.0").put('x');
     std::ofstream(payload / "libmtmd.so.0").put('x');
@@ -141,6 +144,12 @@ TEST_CASE("Linux Vulkan payload validation accepts compatible runtime directorie
 
     REQUIRE(validation.valid);
     REQUIRE(validation.reason.empty());
+
+    std::filesystem::remove(payload / "libllama-common.so");
+    const auto missing_chat_runtime =
+        GgmlRuntimePaths::validate_linux_accelerator_payload(payload, "vulkan");
+    CHECK_FALSE(missing_chat_runtime.valid);
+    CHECK(missing_chat_runtime.reason.find("missing Linux runtime dependencies") != std::string::npos);
 }
 
 #if defined(__linux__)

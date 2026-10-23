@@ -1,8 +1,10 @@
 #include "LlavaImageAnalyzer.hpp"
 
 #include "ImageDecodeUtils.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "LlamaModelParams.hpp"
+#include "NativeChatTemplate.hpp"
 #include "Utils.hpp"
 
 #include <QByteArray>
@@ -79,7 +81,6 @@ constexpr int32_t kVisualMinimumContextTokens = 1024;
 constexpr int32_t kVisualGpuLayerRetryScaleNumerator = 3;
 constexpr int32_t kVisualGpuLayerRetryScaleDenominator = 4;
 constexpr int32_t kMinimumVisualGpuLayerRetryCount = 1;
-constexpr std::size_t kEstimatedPromptBufferBytes = 4096;
 constexpr std::size_t kGeneratedResponseReserveBytes = 256;
 constexpr std::size_t kTokenPieceBufferBytes = 256;
 constexpr double kBytesPerMiB = 1024.0 * 1024.0;
@@ -1143,38 +1144,6 @@ struct ChunkDeleter {
 using BitmapPtr = std::unique_ptr<mtmd_bitmap, BitmapDeleter>;
 using ChunkPtr = std::unique_ptr<mtmd_input_chunks, ChunkDeleter>;
 
-template <typename LoadedBitmap>
-mtmd_bitmap* unwrap_loaded_bitmap(LoadedBitmap&& loaded_bitmap) {
-    if constexpr (std::is_convertible_v<std::decay_t<LoadedBitmap>, mtmd_bitmap*>) {
-        return loaded_bitmap;
-    } else {
-        return loaded_bitmap.bitmap;
-    }
-}
-
-template <typename Context, typename Byte>
-auto load_bitmap_from_buf_compat(Context* vision_ctx, const Byte* data, size_t size, int)
-    -> decltype(mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size)) {
-    return mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size);
-}
-
-template <typename Context, typename Byte>
-auto load_bitmap_from_buf_compat(Context* vision_ctx, const Byte* data, size_t size, long)
-    -> decltype(mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size, false)) {
-    return mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size, false);
-}
-
-template <typename Context>
-auto load_bitmap_from_file_compat(Context* vision_ctx, const char* path, int)
-    -> decltype(mtmd_helper_bitmap_init_from_file(vision_ctx, path)) {
-    return mtmd_helper_bitmap_init_from_file(vision_ctx, path);
-}
-
-template <typename Context>
-auto load_bitmap_from_file_compat(Context* vision_ctx, const char* path, long)
-    -> decltype(mtmd_helper_bitmap_init_from_file(vision_ctx, path, false)) {
-    return mtmd_helper_bitmap_init_from_file(vision_ctx, path, false);
-}
 
 BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
                                               const std::string& image_path_utf8) {
@@ -1198,12 +1167,13 @@ BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
                                  image_path_utf8);
     }
 
-    auto loaded_bitmap = load_bitmap_from_buf_compat(
+    auto loaded_bitmap = mtmd_helper_bitmap_init_from_buf(
         vision_ctx,
         reinterpret_cast<const unsigned char*>(png_bytes.constData()),
         static_cast<size_t>(png_bytes.size()),
-        0);
-    return BitmapPtr(unwrap_loaded_bitmap(loaded_bitmap));
+        false,
+        mtmd_helper_init_opt_default());
+    return BitmapPtr(loaded_bitmap.bitmap);
 }
 
 BitmapPtr load_visual_bitmap(mtmd_context* vision_ctx,
@@ -1218,8 +1188,9 @@ BitmapPtr load_visual_bitmap(mtmd_context* vision_ctx,
     }
 
     auto loaded_bitmap =
-        load_bitmap_from_file_compat(vision_ctx, image_path_utf8.c_str(), 0);
-    return BitmapPtr(unwrap_loaded_bitmap(loaded_bitmap));
+        mtmd_helper_bitmap_init_from_file(vision_ctx, image_path_utf8.c_str(), false,
+                                         mtmd_helper_init_opt_default());
+    return BitmapPtr(loaded_bitmap.bitmap);
 }
 
 llama_token greedy_sample(const float* logits, int vocab_size, float temperature) {
@@ -1236,70 +1207,6 @@ llama_token greedy_sample(const float* logits, int vocab_size, float temperature
     return static_cast<llama_token>(best_index);
 }
 
-bool format_visual_prompt(llama_model* model,
-                          std::string_view system_prompt,
-                          std::string_view user_prompt,
-                          std::string& final_prompt) {
-    if (!model) {
-        return false;
-    }
-
-    const char* tmpl = llama_model_chat_template(model, nullptr);
-    if (!tmpl || tmpl[0] == '\0') {
-        final_prompt.clear();
-        if (!system_prompt.empty()) {
-            final_prompt.append(system_prompt);
-            final_prompt.append("\n\n");
-        }
-        final_prompt.append(user_prompt);
-        return true;
-    }
-
-    std::vector<std::string> owned_messages;
-    owned_messages.reserve(system_prompt.empty() ? 1 : 2);
-    std::vector<llama_chat_message> messages;
-    messages.reserve(system_prompt.empty() ? 1 : 2);
-
-    if (!system_prompt.empty()) {
-        owned_messages.emplace_back(system_prompt);
-        messages.push_back({"system", owned_messages.back().c_str()});
-    }
-
-    owned_messages.emplace_back(user_prompt);
-    messages.push_back({"user", owned_messages.back().c_str()});
-
-    std::size_t estimated_size = kEstimatedPromptBufferBytes;
-    for (const auto& message : owned_messages) {
-        estimated_size += message.size() * 2;
-    }
-
-    std::vector<char> formatted_prompt(estimated_size);
-    int actual_len = llama_chat_apply_template(tmpl,
-                                               messages.data(),
-                                               messages.size(),
-                                               true,
-                                               formatted_prompt.data(),
-                                               static_cast<int32_t>(formatted_prompt.size()));
-    if (actual_len < 0) {
-        return false;
-    }
-
-    if (actual_len >= static_cast<int>(formatted_prompt.size())) {
-        formatted_prompt.resize(static_cast<std::size_t>(actual_len) + 1);
-        actual_len = llama_chat_apply_template(tmpl,
-                                               messages.data(),
-                                               messages.size(),
-                                               true,
-                                               formatted_prompt.data(),
-                                               static_cast<int32_t>(formatted_prompt.size()));
-        if (actual_len < 0 || actual_len >= static_cast<int>(formatted_prompt.size())) {
-            return false;
-        }
-    }
-
-    final_prompt.assign(formatted_prompt.data(), static_cast<std::size_t>(actual_len));
-    return true;
-}
 
 #else
 
@@ -1422,6 +1329,7 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
 
     auto logger = Logger::get_logger("core_logger");
     const std::string backend_name = resolve_backend_name();
+    GgmlRuntimePaths::ensure_ggml_backends_loaded(logger);
     const auto cleanup = [this]() {
         if (vision_ctx_) {
             mtmd_free(vision_ctx_);
@@ -1810,9 +1718,9 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
 
     const auto inference_started = std::chrono::steady_clock::now();
 
-    std::string formatted_prompt;
-    if (!format_visual_prompt(model_, system_prompt, user_prompt, formatted_prompt) || formatted_prompt.empty()) {
-        formatted_prompt = user_prompt;
+    const std::string formatted_prompt = NativeChatTemplate::format(model_, system_prompt, user_prompt);
+    if (formatted_prompt.empty()) {
+        throw std::runtime_error("The visual model produced an empty chat prompt");
     }
 
     ChunkPtr chunks(mtmd_input_chunks_init());
@@ -1822,6 +1730,7 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
 
     mtmd_input_text text{};
     text.text = formatted_prompt.c_str();
+    text.text_len = formatted_prompt.size();
     text.add_special = true;
     text.parse_special = true;
 

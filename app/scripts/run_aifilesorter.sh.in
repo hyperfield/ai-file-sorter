@@ -22,6 +22,7 @@ has_cpu_payload() {
     dir="$1"
     [ -d "$dir" ] || return 1
     dir_has_match "$dir" "libllama.so*" &&
+    dir_has_match "$dir" "libllama-common.so*" &&
     dir_has_match "$dir" "libggml.so*" &&
     dir_has_match "$dir" "libggml-base.so*" &&
     dir_has_match "$dir" "libggml-cpu.so*" &&

@@ -118,6 +118,47 @@ TEST_CASE("VisualLlmRuntime resolves the active backend through descriptor artif
     CHECK(legacy_paths->mmproj_path == mmproj_path);
 }
 
+TEST_CASE("VisualLlmRuntime resolves the Qwen model and matching projector") {
+    VisualRuntimeTempEnv env;
+    EnvVarGuard model_guard("QWEN35_4B_MODEL_URL",
+                           std::string("https://example.com/Qwen3.5-4B-Q4_K_M.gguf"));
+    EnvVarGuard mmproj_guard("QWEN35_4B_MMPROJ_URL",
+                            std::string("https://example.com/mmproj-F16.gguf"));
+    const auto* descriptor = find_visual_model_descriptor("qwen3.5-4b");
+    REQUIRE(descriptor != nullptr);
+    CHECK(descriptor->prompt_policy == VisualPromptPolicy::StructuredVisionInstruct);
+    REQUIRE(descriptor->artifacts.size() == 2);
+    for (const auto& artifact : descriptor->artifacts) {
+        write_gguf_file(visual_artifact_storage_path(*descriptor, artifact));
+    }
+
+    std::string error;
+    const auto backend = VisualLlmRuntime::resolve_active_backend("qwen3.5-4b", &error);
+    REQUIRE(backend.has_value());
+    CHECK(error.empty());
+    CHECK(backend->descriptor == descriptor);
+    CHECK(backend->path_for(VisualModelArtifactKind::Model)
+          == visual_artifact_storage_path(*descriptor, descriptor->artifacts[0]));
+    CHECK(backend->path_for(VisualModelArtifactKind::Mmproj)
+          == visual_artifact_storage_path(*descriptor, descriptor->artifacts[1]));
+    CHECK(std::string(default_visual_model_descriptor().id) == "gemma-3-4b-it");
+}
+
+TEST_CASE("Qwen projector lookup rejects ambiguous legacy files without matching metadata") {
+    VisualRuntimeTempEnv env;
+    const std::string url = "https://example.com/qwen/mmproj-F16.gguf";
+    const auto* descriptor = find_visual_model_descriptor("qwen3.5-4b");
+    REQUIRE(descriptor != nullptr);
+    const auto& artifact = descriptor->artifacts[1];
+    const auto legacy = std::filesystem::path(Utils::get_default_llm_destination()) / "mmproj-F16.gguf";
+    write_gguf_file(legacy);
+    CHECK_FALSE(resolve_visual_artifact_path(*descriptor, artifact, url).has_value());
+    write_download_metadata(legacy, "https://example.com/other/mmproj-F16.gguf");
+    CHECK_FALSE(resolve_visual_artifact_path(*descriptor, artifact, url).has_value());
+    write_download_metadata(legacy, url);
+    CHECK(resolve_visual_artifact_path(*descriptor, artifact, url) == legacy);
+}
+
 TEST_CASE("VisualLlmRuntime resolves built-in Gemma after Settings restores custom storage") {
     LlmStorageOverrideGuard storage_guard;
     TempDir config_dir;

@@ -66,7 +66,7 @@ else
 endif
 
     # --- Other dependencies ---
-	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lmtmd -lX11 -pthread
+	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama-common -lllama -lggml -lggml-base -lmtmd -lX11 -pthread
 	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled/cpu/bin' -Wl,-rpath,'$$ORIGIN/../lib/precompiled'
 	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin -Wl,-rpath-link=./lib/precompiled
 
@@ -170,7 +170,7 @@ endif
     CXXFLAGS += $(QT_CXXFLAGS)
     LDFLAGS += $(QT_LDFLAGS)
 
-    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lmtmd -lintl -pthread
+    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama-common -lllama -lggml -lggml-base -lmtmd -lintl -pthread
 	LDFLAGS += -framework Metal -framework Foundation
     LDFLAGS += -Wl,-rpath,@loader_path/lib -Wl,-rpath,@loader_path/../lib/$(GGML_PRECOMPILED_SUBDIR)
     BIN_SUBDIR := $(patsubst ./bin/%,%,$(BIN_DIR))
@@ -251,6 +251,7 @@ else
 CXXFLAGS += -Wno-array-bounds -Wno-stringop-overflow -Wno-stringop-overread
 endif
 INCLUDE_DIRS = -I./include -I./include/external/llama.cpp/include -I./include/external/llama.cpp/ggml/include -I./include/external/llama.cpp/tools/mtmd
+INCLUDE_DIRS += -I./include/external/llama.cpp/common -I./include/external/llama.cpp/vendor
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
 LIB_DIRS += -L./lib/precompiled/cpu/bin -L./lib/precompiled
@@ -768,6 +769,8 @@ else ifeq ($(PLATFORM), MacOS)
 	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libggml.dylib $(INSTALL_LIB_DIR)
 	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libmtmd.dylib $(INSTALL_LIB_DIR)
 	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libllama.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libllama-common.dylib $(INSTALL_LIB_DIR)
+	ln -sf libllama-common.dylib $(INSTALL_LIB_DIR)/libllama-common.0.dylib
 	if [ -n "$(PDFIUM_LIB)" ] && [ -f "$(PDFIUM_LIB)" ]; then \
 		cp "$(PDFIUM_LIB)" $(INSTALL_LIB_DIR); \
 	fi

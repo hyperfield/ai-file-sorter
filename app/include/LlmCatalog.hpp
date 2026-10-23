@@ -17,6 +17,10 @@ struct DefaultLlmEntry {
     const char* url_env;
     const char* name_env;
     const char* fallback_name;
+    /** @brief Optional visual backend that can share this model's text weights. */
+    const char* visual_backend_id{nullptr};
+    /** @brief URL setting used to verify that the shared artifacts match. */
+    const char* visual_model_url_env{nullptr};
 };
 
 /**

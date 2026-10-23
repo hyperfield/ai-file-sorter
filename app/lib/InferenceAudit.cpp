@@ -102,7 +102,7 @@ std::unique_ptr<InferenceAudit> InferenceAudit::from_environment(
     audit->record_.insert("systemPrompt", bytes_value(system_prompt));
     audit->record_.insert("originalUserPrompt", bytes_value(user_prompt));
     audit->record_.insert("chatTemplate", bytes_value(chat_template));
-    audit->record_.insert("templateMode", chat_template.empty() ? "plain-text-fallback" : "llama_chat_apply_template");
+    audit->record_.insert("templateMode", chat_template.empty() ? "plain-text-fallback" : "llama-common-jinja-thinking-disabled");
     audit->persist();
     return audit;
 }
@@ -140,6 +140,13 @@ void InferenceAudit::set_runtime(const Runtime& runtime)
         {"batchTokens", runtime.batch_tokens}, {"seed", static_cast<qint64>(runtime.seed)},
         {"generationThreads", runtime.generation_threads}, {"batchThreads", runtime.batch_threads},
         {"temperature", runtime.temperature}, {"minP", runtime.min_p}, {"requestedBackend", string_value(runtime.backend)}});
+    persist();
+}
+
+void InferenceAudit::set_response_constraint(std::string_view schema, std::string_view grammar)
+{
+    record_.insert("responseConstraint", QJsonObject{{"jsonSchema", bytes_value(schema)},
+        {"nativeGrammar", bytes_value(grammar)}, {"enforced", true}});
     persist();
 }
 

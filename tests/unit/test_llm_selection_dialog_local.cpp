@@ -30,7 +30,7 @@ void write_gguf_file(const std::filesystem::path& path)
 }
 } // namespace
 
-TEST_CASE("LLM selection dialog lists built-in local models in Gemma Mistral Gemma order") {
+TEST_CASE("LLM selection dialog lists built-in local models in Gemma Qwen Mistral Gemma order") {
     QtAppContext qt;
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
@@ -42,13 +42,45 @@ TEST_CASE("LLM selection dialog lists built-in local models in Gemma Mistral Gem
     const std::vector<std::string> labels =
         LLMSelectionDialogTestAccess::local_builtin_labels(dialog);
 
-    REQUIRE(labels.size() == 3);
+    REQUIRE(labels.size() == 4);
     CHECK(labels[0] == default_llm_label_for_choice(LLMChoice::Local_4b_Gemma).toStdString());
-    CHECK(labels[1] == default_llm_label_for_choice(LLMChoice::Local_7b).toStdString());
-    CHECK(labels[2] == default_llm_label_for_choice(LLMChoice::Local_7b_Gemma).toStdString());
+    CHECK(labels[1] == default_llm_label_for_choice(LLMChoice::Local_4b_Qwen35).toStdString());
+    CHECK(labels[2] == default_llm_label_for_choice(LLMChoice::Local_7b).toStdString());
+    CHECK(labels[3] == default_llm_label_for_choice(LLMChoice::Local_7b_Gemma).toStdString());
     CHECK(labels[0].find("Recommended") == std::string::npos);
     CHECK(labels[1].find("Recommended") == std::string::npos);
     CHECK(labels[2].find("Recommended") == std::string::npos);
+    CHECK(labels[3].find("Recommended") == std::string::npos);
+}
+
+TEST_CASE("LLM selection dialog restores Qwen and shares its visual text weights") {
+    QtAppContext qt;
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+    EnvVarGuard localappdata_guard("LOCALAPPDATA", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    EnvVarGuard local_url_guard("LOCAL_LLM_QWEN35_4B_DOWNLOAD_URL",
+                               std::string("https://example.com/Qwen3.5-4B-Q4_K_M.gguf"));
+    EnvVarGuard visual_url_guard("QWEN35_4B_MODEL_URL",
+                                std::string("https://example.com/Qwen3.5-4B-Q4_K_M.gguf"));
+
+    Settings settings;
+    settings.load();
+    settings.set_llm_choice(LLMChoice::Local_4b_Qwen35);
+    REQUIRE(settings.save());
+    Settings restored;
+    REQUIRE(restored.load());
+    CHECK(restored.get_llm_choice() == LLMChoice::Local_4b_Qwen35);
+
+    LLMSelectionDialog dialog(restored);
+    CHECK(dialog.get_selected_llm_choice() == LLMChoice::Local_4b_Qwen35);
+    const auto* descriptor = find_visual_model_descriptor("qwen3.5-4b");
+    REQUIRE(descriptor != nullptr);
+    auto* downloader = LLMSelectionDialogTestAccess::local_downloader(dialog);
+    REQUIRE(downloader != nullptr);
+    CHECK(std::filesystem::path(downloader->get_download_destination())
+          == visual_artifact_storage_path(*descriptor, descriptor->artifacts.front()));
 }
 
 TEST_CASE("LLM selection dialog defaults to the Gemma 4B local model") {

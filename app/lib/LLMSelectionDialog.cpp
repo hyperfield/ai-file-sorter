@@ -241,6 +241,9 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     case LLMChoice::Local_4b_Gemma:
         local3_radio->setChecked(true);
         break;
+    case LLMChoice::Local_4b_Qwen35:
+        qwen35_radio->setChecked(true);
+        break;
     case LLMChoice::Local_3b_legacy:
         if (local3_legacy_radio && !local3_legacy_radio->isHidden()) {
             local3_legacy_radio->setChecked(true);
@@ -328,6 +331,10 @@ void LLMSelectionDialog::setup_ui()
         tr("Balanced local model for categorization with lower hardware requirements than 7B models.\nSupports many languages for categorization.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."),
         radio_container);
     local3_desc->setWordWrap(true);
+
+    qwen35_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_4b_Qwen35), radio_container);
+    qwen35_radio->setObjectName(QStringLiteral("qwen35Radio"));
+    qwen35_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
 
     local7_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_7b), radio_container);
     local7_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
@@ -488,6 +495,7 @@ void LLMSelectionDialog::setup_ui()
 
     radio_layout->addWidget(local3_radio);
     radio_layout->addWidget(local3_desc);
+    radio_layout->addWidget(qwen35_radio);
     radio_layout->addWidget(local7_radio);
     radio_layout->addWidget(local7_desc);
     radio_layout->addWidget(local7_gemma_radio);
@@ -512,6 +520,7 @@ void LLMSelectionDialog::setup_ui()
     llm_group->addButton(gemini_radio);
     llm_group->addButton(custom_api_radio);
     llm_group->addButton(local3_radio);
+    llm_group->addButton(qwen35_radio);
     if (local3_legacy_radio) {
         llm_group->addButton(local3_legacy_radio);
     }
@@ -668,6 +677,7 @@ void LLMSelectionDialog::connect_signals()
     connect(gemini_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_api_radio, &QRadioButton::toggled, this, update_handler);
     connect(local3_radio, &QRadioButton::toggled, this, update_handler);
+    connect(qwen35_radio, &QRadioButton::toggled, this, update_handler);
     if (local3_legacy_radio) {
         connect(local3_legacy_radio, &QRadioButton::toggled, this, update_handler);
     }
@@ -872,10 +882,7 @@ void LLMSelectionDialog::update_ui_for_choice()
     update_custom_api_choice_ui();
     update_visual_llm_downloads();
 
-    const bool is_local_builtin = (selected_choice == LLMChoice::Local_4b_Gemma
-        || selected_choice == LLMChoice::Local_3b_legacy
-        || selected_choice == LLMChoice::Local_7b
-        || selected_choice == LLMChoice::Local_7b_Gemma);
+    const bool is_local_builtin = default_llm_entry_for_choice(selected_choice) != nullptr;
 
     if (selected_choice == LLMChoice::Custom || is_remote_choice(selected_choice) || !is_local_builtin) {
         return;
@@ -896,6 +903,8 @@ void LLMSelectionDialog::update_radio_selection()
         selected_choice = LLMChoice::Local_3b_legacy;
     } else if (local3_radio->isChecked()) {
         selected_choice = LLMChoice::Local_4b_Gemma;
+    } else if (qwen35_radio->isChecked()) {
+        selected_choice = LLMChoice::Local_4b_Qwen35;
     } else if (local7_radio->isChecked()) {
         selected_choice = LLMChoice::Local_7b;
     } else if (local7_gemma_radio && local7_gemma_radio->isChecked()) {
@@ -910,10 +919,7 @@ void LLMSelectionDialog::update_custom_choice_ui()
     if (!ok_button && button_box) {
         ok_button = button_box->button(QDialogButtonBox::Ok);
     }
-    const bool is_local_builtin = (selected_choice == LLMChoice::Local_4b_Gemma
-        || selected_choice == LLMChoice::Local_3b_legacy
-        || selected_choice == LLMChoice::Local_7b
-        || selected_choice == LLMChoice::Local_7b_Gemma);
+    const bool is_local_builtin = default_llm_entry_for_choice(selected_choice) != nullptr;
     const bool is_remote_openai = selected_choice == LLMChoice::Remote_OpenAI;
     const bool is_remote_gemini = selected_choice == LLMChoice::Remote_Gemini;
     const bool is_remote_custom = selected_choice == LLMChoice::Remote_Custom;
@@ -1107,6 +1113,9 @@ void LLMSelectionDialog::update_local_download_choice_enabled_state()
     const bool allow_switch = !is_downloading.load();
     if (local3_radio) {
         local3_radio->setEnabled(allow_switch || local3_radio->isChecked());
+    }
+    if (qwen35_radio) {
+        qwen35_radio->setEnabled(allow_switch || qwen35_radio->isChecked());
     }
     if (local3_legacy_radio) {
         local3_legacy_radio->setEnabled(allow_switch || local3_legacy_radio->isChecked());
@@ -2363,6 +2372,9 @@ std::vector<std::string> LLMSelectionDialogTestAccess::local_builtin_labels(
     std::vector<std::string> labels;
     if (dialog.local3_radio) {
         labels.push_back(dialog.local3_radio->text().toStdString());
+    }
+    if (dialog.qwen35_radio) {
+        labels.push_back(dialog.qwen35_radio->text().toStdString());
     }
     if (dialog.local7_radio) {
         labels.push_back(dialog.local7_radio->text().toStdString());

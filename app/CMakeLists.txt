@@ -1041,8 +1041,11 @@ qt_add_resources(aifilesorter "app_resources"
     FILES ${APP_RESOURCE_FILES}
 )
 
-set(AIFS_LLAMA_INCLUDE_DIRS "")
-set(AIFS_LLAMA_LINK_LIBRARIES llama)
+set(AIFS_LLAMA_INCLUDE_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/common"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/vendor"
+)
+set(AIFS_LLAMA_LINK_LIBRARIES llama llama-common)
 set(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK FALSE)
 set(HAVE_MTMD_HELPER_LOG_SET FALSE)
 list(FIND _aifs_llama_backend_list "cuda" _aifs_llama_cuda_backend_index)
@@ -1105,7 +1108,7 @@ if(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
         IMPORTED_LOCATION "${LLAMA_CPU_DLL}"
     )
 
-    foreach(libName IN ITEMS ggml ggml-base ggml-cpu)
+    foreach(libName IN ITEMS ggml ggml-base ggml-cpu llama-common)
         set(import_path "${PRECOMPILED_CPU_LIB_DIR}/${libName}.lib")
         set(dll_path "${PRECOMPILED_CPU_BIN_DIR}/${libName}.dll")
         if(NOT EXISTS "${import_path}")
@@ -1114,7 +1117,11 @@ if(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
         if(NOT EXISTS "${dll_path}")
             message(FATAL_ERROR "Missing ${dll_path}. Run app/scripts/build_llama_windows.ps1 cuda=off vcpkgroot=<path> to stage runtime DLLs.")
         endif()
-        string(REPLACE "-" "_" imported_target "${libName}")
+        if(libName STREQUAL "llama-common")
+            set(imported_target "llama-common")
+        else()
+            string(REPLACE "-" "_" imported_target "${libName}")
+        endif()
         add_library(${imported_target} SHARED IMPORTED)
         set_target_properties(${imported_target} PROPERTIES
             IMPORTED_IMPLIB "${import_path}"
@@ -1170,15 +1177,25 @@ elseif(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "system")
     find_path(AIFS_SYSTEM_GGUF_INCLUDE_DIR NAMES gguf.h)
     find_path(AIFS_SYSTEM_MTMD_INCLUDE_DIR NAMES mtmd.h mtmd-helper.h)
     find_library(AIFS_SYSTEM_MTMD_LIBRARY NAMES mtmd)
+    find_library(AIFS_SYSTEM_LLAMA_COMMON_LIBRARY NAMES llama-common)
     if(NOT AIFS_SYSTEM_LLAMA_INCLUDE_DIR
        OR NOT AIFS_SYSTEM_GGML_INCLUDE_DIR
        OR NOT AIFS_SYSTEM_GGUF_INCLUDE_DIR
        OR NOT AIFS_SYSTEM_MTMD_INCLUDE_DIR
-       OR NOT AIFS_SYSTEM_MTMD_LIBRARY)
+       OR NOT AIFS_SYSTEM_MTMD_LIBRARY
+       OR NOT AIFS_SYSTEM_LLAMA_COMMON_LIBRARY)
         message(FATAL_ERROR
             "AI_FILE_SORTER_LLAMA_PROVIDER=system requires system llama.cpp development "
             "artifacts for llama.h, ggml-backend.h, gguf.h, mtmd.h, mtmd-helper.h, "
-            "libllama, libggml, and libmtmd.")
+            "libllama, libggml, libmtmd, and libllama-common matching the bundled revision.")
+    endif()
+
+    if(NOT TARGET llama-common)
+        add_library(llama-common UNKNOWN IMPORTED)
+        set_target_properties(llama-common PROPERTIES
+            IMPORTED_LOCATION "${AIFS_SYSTEM_LLAMA_COMMON_LIBRARY}"
+            INTERFACE_LINK_LIBRARIES "llama"
+        )
     endif()
 
     add_library(mtmd UNKNOWN IMPORTED)
@@ -1217,6 +1234,12 @@ elseif(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "bundled-source")
 
     # Build llama.cpp from the included submodule for non-Windows platforms
     set(LLAMA_BUILD_COMMON ON CACHE BOOL "llama: build common utils library" FORCE)
+    set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "llama: build tools" FORCE)
+    set(LLAMA_BUILD_APP OFF CACHE BOOL "llama: build unified binary" FORCE)
+    set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "llama: build examples" FORCE)
+    set(LLAMA_BUILD_TESTS OFF CACHE BOOL "llama: build tests" FORCE)
+    set(LLAMA_BUILD_MTMD ON CACHE BOOL "llama: build visual library" FORCE)
+    set(MTMD_VIDEO OFF CACHE BOOL "mtmd: build video support" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libs" FORCE)
     if(_aifs_llama_has_cuda_backend)
         set(GGML_CUDA ON CACHE BOOL "ggml: enable CUDA backend" FORCE)
@@ -1250,7 +1273,6 @@ elseif(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "bundled-source")
         set(_llama_install_version "0.0.0")
     endif()
     set(LLAMA_INSTALL_VERSION "${_llama_install_version}")
-    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd" "${CMAKE_CURRENT_BINARY_DIR}/mtmd-build")
     list(APPEND AIFS_LLAMA_INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/include"
@@ -1634,6 +1656,7 @@ if(WIN32)
 
     set(_aifs_root_ggml_runtime_dlls
         llama.dll
+        llama-common.dll
         mtmd.dll
         ggml.dll
         ggml-base.dll
@@ -1821,6 +1844,8 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_protected_project_detector.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_prompt_builder.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_inference_options.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_native_chat_template.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_request_runner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_inference_audit.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_tree_llm_router.cpp"

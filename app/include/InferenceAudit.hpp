@@ -61,6 +61,13 @@ public:
     void set_runtime(const Runtime& runtime);
 
     /**
+     * @brief Capture a response contract after its native grammar sampler is installed.
+     * @param schema Exact requested JSON schema.
+     * @param grammar Compiled grammar passed to the sampler.
+     */
+    void set_response_constraint(std::string_view schema, std::string_view grammar);
+
+    /**
      * @brief Record each tokenized fitting candidate, including rejected oversized candidates.
      * @param user_prompt Candidate user text after optional fitting.
      * @param formatted_prompt Complete chat-template output.
