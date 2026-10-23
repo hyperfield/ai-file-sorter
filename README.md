@@ -509,8 +509,17 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 4. **Build the llama runtime variants** (run once per backend you plan to ship/test)
 
+   The submodule is pinned to llama.cpp `b11669` (`620d2225`). Rebuild all shipped
+   runtime variants after updating it; do not mix old and new `llama`, `llama-common`,
+   `ggml`, or `mtmd` libraries. Native chat formatting uses the embedded Jinja
+   template with thinking disabled. Gemma remains the default; Qwen3.5 4B and its
+   matching projector are separate choices in model selection.
+
    The Linux helper accepts either `cuda=on` / `vulkan=on` / `blas=on` or the GNU-style
    `--cuda=on` / `--vulkan=on` / `--blas=on` forms.
+   It defaults to four build workers. Set `AI_FILE_SORTER_LINUX_RUNTIME_JOBS=8`
+   to use eight, and compile the app with `make -j8`. Variant build directories
+   are retained for incremental rebuilds.
 
    ```bash
    # CPU / OpenBLAS
@@ -621,6 +630,7 @@ Apple Silicon Macs running macOS 15 or later are supported for macOS source buil
    ./app/scripts/build_llama_macos.sh --arm64   # Apple Silicon
    ```
    The macOS app and `.app` bundles use the runtime staged under `app/lib/precompiled*`; they do not need Homebrew `ggml` or `llama.cpp` libraries.
+   The runtime helper defaults to four build workers; set `AI_FILE_SORTER_MACOS_RUNTIME_JOBS=8` for eight.
    If you have older `ggml` / `llama.cpp` copies installed in generic library locations, prefer unlinking or removing them instead of relying on them implicitly.
 7. **Compile the application**
 
@@ -711,6 +721,8 @@ Option A - CMake + vcpkg (recommended)
 5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **Visual Studio Developer PowerShell** shell). Invoke the script once per backend you need. The script accepts `cuda=on|off`, `vulkan=on|off`, `blas=on|off`, `vcpkgroot=<path>`, `openblasroot=<path>`, and `cudaarch=<value>`. `vcpkgroot=<path>` is optional and only needed when auto-discovery misses your install. `blas` defaults to `AUTO`: it is enabled automatically for CPU-only builds and disabled automatically for CUDA/Vulkan builds unless you force it on. For Windows builds, the helper now keeps the shared ggml runtime generic and SSE4.2-safe instead of forcing AVX2 across every DLL. For CUDA builds, the helper prefers a valid `CUDA_PATH` and otherwise auto-selects the newest installed toolkit it can validate under `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA`. Make sure `nvcc --version` and `nvidia-smi` succeed in this same shell before running `cuda=on`. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
 
    ```powershell
+   # Optional: override the default four build workers
+   $env:AI_FILE_SORTER_WINDOWS_RUNTIME_JOBS = "8"
    # CPU / OpenBLAS only
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=off
    # CUDA (requires matching NVIDIA toolkit/driver)
@@ -721,7 +733,7 @@ Option A - CMake + vcpkg (recommended)
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=on
    ```
   
-  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). The helper also stages OpenSSL runtime DLLs and, for OpenBLAS-backed builds, the MinGW companion DLLs needed beside `libopenblas.dll`. Windows ggml runtimes built by this helper target SSE4.2 and leave AVX, AVX2, BMI2, and newer x86 extensions disabled so the packaged DLLs remain usable on older x64 CPUs. If the vendored `llama.cpp` UI assets are missing, the helper downloads a prebuilt UI bundle before configuring and removes the temporary extracted assets after the build completes. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
+  Each run emits `llama.dll`, `llama-common.dll`, `mtmd.dll`, and `ggml*.dll` under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). Rebuild every shipped variant from the pinned submodule before rebuilding the application. The helper also stages OpenSSL runtime DLLs and, for OpenBLAS-backed builds, the MinGW companion DLLs needed beside `libopenblas.dll`. Windows ggml runtimes built by this helper target SSE4.2 and leave AVX, AVX2, BMI2, and newer x86 extensions disabled so the packaged DLLs remain usable on older x64 CPUs. Only runtime libraries are built; server/UI assets are not downloaded. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
 
 6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt` and shares one dependency install tree across builds:
 

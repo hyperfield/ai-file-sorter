@@ -1,5 +1,16 @@
 # Test Suite Guide
 
+## Visual input context budgets
+
+`tests/unit/test_visual_input_budget.cpp` covers the complete image/text prompt
+plus reserved output, arithmetic overflow, M-RoPE positions versus token slots,
+unchanged fitting images, native patch quantization during bounded resizing,
+unfit fixed-size inputs, invalid budgets, and rejection of CPU fallback for a
+context-capacity failure. Run `./build-tests/ai_file_sorter_tests '[visual-budget]'`.
+Oversized images are resized only for inference; source files are unchanged.
+The existing content-routing image-cache test also checks that legacy `image-v1`
+evidence is rejected after the visual input policy advances to `image-v2`.
+
 This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. UI-centric tests use a headless Qt platform plugin so they can run without a visible display: `minimal` on Windows and `offscreen` on other platforms.
 
 ## How to run tests
@@ -125,17 +136,45 @@ These deterministic tests use temporary files and injected LLMs, not live infere
 
 `tests/unit/test_folder_tree_llm_router.cpp` covers model comparisons across every catalog entry, whole-list splitting on token-budget errors, bounded invalid-response retries, new-folder permissions, and structural allocation that preserves the model's parent and human labels, including decimal items.
 
+Additional routing regressions cover explicit `createFolder:false` on nonexistent paths,
+contradictory/non-boolean creation flags, corrective retries after structural rejection,
+invalid preliminary categories that must not suppress destination selection, and exact
+multiline evidence/URL preservation through both classification and routing.
+Run: `./build-tests/ai_file_sorter_tests "[content-routing],[llm-routing],FolderTreeCatalog*"`.
+The item-validation report count assertion uses the active translation, avoiding
+an English-only failure when the complete suite previously loaded another locale.
+
 Folder selection requests JSON containing `targetFolder` and `createFolder`.
-The parser also accepts compatible plain-path replies, with the same path-safety
-and creation-permission checks. Local, OpenAI-compatible and Gemini routing
-system prompts share the same contract.
+The legacy catalog parser also accepts compatible plain-path replies for stored
+paths and callers outside staged routing. The staged router requires strict JSON.
+Local, OpenAI-compatible and Gemini routing system prompts share the JSON contract.
 Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[plain-path],[folder-response]"`.
 The response-format regressions cover:
 - `FolderTreeCatalog plain paths retain validation and creation permissions`: existing paths resolve to catalog spelling, missing paths require permission, and traversal/absolute/reserved paths are rejected.
-- `FolderTreeLLMRouter accepts plain existing and permitted new paths`: infer existing/new status from the catalog and permission, without model-supplied metadata.
+- `FolderTreeLLMRouter proposes only after explicit existing-folder abstention`: a null existing choice authorizes a separate JSON proposal only when creation is enabled.
 - `FolderTreeLLMRouter retries keep the JSON response contract`: invalid paths trigger bounded retries that continue requesting JSON and preserving new-folder permissions.
 - `LocalLLMPromptBuilder uses JSON answers for every folder-routing input`: document/image/generic/directory prompts use the shared JSON instructions.
 - `LocalLLMPromptBuilder shortening preserves the folder-response footer`: fitting optional evidence cannot shorten the required response instructions.
+
+Exact-path constrained routing coverage:
+- `tests/unit/test_folder_tree_selection_contract.cpp`: schema enums contain only the offered literal paths plus null, strict field/type checks, no case/number repairs, safe proposals, and authoritative reuse of exact existing targets.
+- `tests/unit/test_native_json_schema_grammar.cpp`: pinned llama.cpp JSON-schema conversion, required-field ordering matching prompt examples, preservation of optional properties, literal path escaping, null/proposal rules, explicit failure rather than unconstrained fallback.
+- `tests/unit/test_folder_tree_llm_router.cpp`: bounded comparisons/retries, group abstentions, empty catalogs, malformed replies never authorizing proposals, and post-abstention structural validation.
+- `tests/unit/test_content_context_routing.cpp`: the per-request schema and complete evidence reach the timed client; pending-folder reuse and physical flags survive stage separation.
+- Existing whitelist/prompt and cache workflow fixtures now model explicit abstention before new-folder proposals; old lexical and combined-stage routing caches are excluded.
+- `tests/unit/test_inference_audit.cpp`: optional byte-exact schema/grammar capture after native enforcement, including hashes.
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[folder-constraint],[native-grammar],[llm-routing],[content-routing],[inference-audit]"`.
+These offline tests do not measure semantic model accuracy; live decoding requires a separate opt-in model run.
+
+Folder-purpose routing coverage:
+- `tests/unit/test_folder_purpose_metadata.cpp`: version/UTF-8/size/path validation, all-or-nothing failures, optional files and symlink rejection, exact-path attachment and cache fingerprint invalidation, encoded untrusted data and ancestor/subset context.
+- `tests/unit/test_file_scanner.cpp`: metadata control files stay out of sorting queues, including hidden recursive scans.
+- `tests/unit/test_folder_tree_llm_router.cpp`: default description-preserving literal reuse with validation, metadata in tournament finalists, and all four combinations of the opt-in purpose-comparison and bounded reconsideration controls.
+- `tests/unit/test_content_context_routing.cpp`: actual route-cache invalidation after metadata edits or policy changes, full evidence and schema preservation through existing-folder reuse after abstention, and prior pending-proposal/numbering safeguards.
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[folder-purpose],[llm-routing],[content-routing],FolderTreeCatalog*"`.
+See `docs/folder-purposes.md` for the versioned user-supplied metadata format.
 
 `tests/unit/test_llm_request_runner.cpp` covers deadline cleanup on success/errors, joining noncooperative timed-out workers, and cooperative cancellation before reusing or destroying a client. These tests use injected clients and millisecond deadlines, without loading a model.
 
@@ -211,6 +250,13 @@ Setup: Provide document-style, image-style, and malformed suffixed category labe
 Procedure: Strip suffixes by expected file kind.
 Expected outcome: Only valid suffixes for the requested kind are removed.
 Run: `./build-tests/ai_file_sorter_tests "CategoryDateSuffix strips generated suffixes by kind"`
+
+### `tests/unit/test_local_inference_options.cpp`
+
+Run: `./build-tests/ai_file_sorter_tests "Local inference options*"`
+
+Covers unchanged native defaults, injected/environment sampling, worker and batch controls,
+and rejection of malformed, nonfinite, overflowing or contradictory overrides.
 
 ### `tests/unit/test_local_llm_backend.cpp` (skipped when `GGML_USE_METAL` is defined)
 
@@ -1175,14 +1221,14 @@ Run: `./build-tests/ai_file_sorter_tests "sanitize_path_label strips invalid UTF
 
 #### Test case: Windows Vulkan payload candidates prefer the BLAS runtime layout
 Purpose: Ensure Windows runtime lookup prefers the packaged `vulkan-blas` payload before the legacy Vulkan layout.
-Setup: Construct a Windows executable path under a representative install root.
+Setup: Construct an executable path under a temporary install root using host-native filesystem joins. Only the payload layout is Windows-specific.
 Procedure: Call `GgmlRuntimePaths::windows_vulkan_payload_candidate_dirs()`.
 Expected outcome: The first candidate is `lib/precompiled/vulkan-blas/bin` and the second is `lib/precompiled/vulkan/bin`.
 Run: `./build-tests/ai_file_sorter_tests "Windows Vulkan payload candidates prefer the BLAS runtime layout"`
 
 #### Test case: Windows CPU runtime candidates fall back to the Vulkan runtime layout
 Purpose: Ensure launcher-based Windows builds can reuse `wvulkan` when the dedicated CPU runtime directory is absent.
-Setup: Construct a Windows executable path under a representative install root.
+Setup: Construct an executable path under a temporary install root using host-native filesystem joins. Only the payload layout is Windows-specific.
 Procedure: Call `GgmlRuntimePaths::windows_cpu_runtime_candidate_dirs()`.
 Expected outcome: The candidate order starts with `wocuda` and then falls back to `wvulkan`.
 Run: `./build-tests/ai_file_sorter_tests "Windows CPU runtime candidates fall back to the Vulkan runtime layout"`
@@ -1238,6 +1284,25 @@ Run: `./build-tests/ai_file_sorter_tests "format_size keeps byte values in bytes
 
 ### `tests/unit/test_windows_cuda_probe.cpp`
 
+The pure `WindowsCudaRuntimeSelection` policy runs on every host, including
+Windows path strings with backslashes, forward slashes, and mixed separators.
+Production Windows discovery and the test-access wrappers share that policy.
+DLL discovery/loading and CUDA driver calls remain compiled only on Windows.
+
+#### Additional selection-policy cases
+- `Windows CUDA runtime selection validates DLL names without filesystem access`:
+  checks suffix formats, malformed/overflowing input, and toolkit-version fallback.
+- `Windows CUDA runtime selection handles Windows separators and case on every host`:
+  checks case, dot segments, Unicode parent directories, and toolkit minor-version overrides.
+- `Windows CUDA runtime selection preserves source and layout priorities`:
+  checks explicit toolkit hints, x64/bin/root ordering, generic runtimes, and PhysX.
+- `Windows CUDA runtime selection orders versions and breaks ties deterministically`:
+  checks version preference, stable lexical tie-breaking, and invalid-candidate filtering.
+- `Non-Windows CUDA probing reports no native runtime` (non-Windows only):
+  verifies native probing stays inactive while pure policy tests remain available.
+
+Run: `./build-tests/ai_file_sorter_tests "Windows CUDA runtime selection*,WindowsCudaProbe*,Non-Windows CUDA probing*"`
+
 #### Test case: WindowsCudaProbe normalizes mixed-era runtime suffixes
 Purpose: Ensure CUDA runtime DLL suffixes from legacy and modern CUDA versions are ranked by toolkit era rather than raw integer value.
 Setup: Compare representative runtime names such as `cudart64_13.dll`, `cudart64_65.dll`, `cudart64_121.dll`, and `cudart64_110.dll`.
@@ -1266,14 +1331,24 @@ Procedure: Call `WindowsCudaProbe::can_select_cuda_backend()`.
 Expected outcome: CUDA is accepted only when the packaged payload is present and the backend load test passes.
 Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe requires the packaged CUDA backend to be loadable"`
 
+### `tests/unit/test_native_chat_template.cpp`
+
+Covers embedded-template rendering policy: system/user messages, assistant generation
+framing, disabled thinking, long folder lists, media markers, and invalid inputs.
+Run: `./build-tests/ai_file_sorter_tests "Native chat templates*"`
+
 ### `tests/unit/test_llm_selection_dialog_local.cpp`
 
-#### Test case: LLM selection dialog lists built-in local models in Gemma Mistral Gemma order
+#### Test case: LLM selection dialog lists built-in local models in Gemma Qwen Mistral Gemma order
 Purpose: Ensure the categorization-model radio buttons present the built-in local models in the intended top-to-bottom order without a separate recommended badge.
 Setup: Construct the dialog on a clean config directory and collect the visible built-in local-model labels through test access.
-Procedure: Compare the returned labels with the catalog labels for Gemma 4B, Mistral 7B, and Gemma 7B.
-Expected outcome: The dialog lists Gemma 4B first, Mistral 7B second, Gemma 7B third, and none of the labels include `Recommended`.
-Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog lists built-in local models in Gemma Mistral Gemma order"`
+Procedure: Compare the returned labels with the catalog labels for Gemma 4B, Qwen3.5 4B, Mistral 7B, and Gemma 7B.
+Expected outcome: The dialog lists those four models in order, and none of the labels include `Recommended`.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog lists built-in local models in Gemma Qwen Mistral Gemma order"`
+
+#### Test case: LLM selection dialog restores Qwen and shares its visual text weights
+Purpose: Round-trip the Qwen choice through settings without duplicating its text weights.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog restores Qwen and shares its visual text weights"`
 
 #### Test case: LLM selection dialog defaults to the Gemma 4B local model
 Purpose: Verify the built-in local categorization choice defaults to Gemma 4B when no prior selection is stored.
@@ -1385,6 +1460,15 @@ Expected outcome: The entry reports that the downloaded file is invalid or incom
 Run: `./build-tests/ai_file_sorter_tests "Visual dialog does not mark invalid preferred artifacts as ready"`
 
 ### `tests/unit/test_visual_llm_runtime.cpp`
+
+#### Test case: VisualLlmRuntime resolves the Qwen model and matching projector
+Purpose: Resolve the independent Qwen visual backend without changing the Gemma default.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the Qwen model and matching projector"`
+
+#### Test case: Qwen projector lookup rejects ambiguous legacy files without matching metadata
+Purpose: Prevent a generic `mmproj-F16.gguf` belonging to another model from being
+silently reused as Qwen's projector; require matching download provenance for legacy files.
+Run: `./build-tests/ai_file_sorter_tests "Qwen projector lookup rejects ambiguous legacy files without matching metadata"`
 
 #### Test case: Default visual model descriptor exposes the MTMD backend catalog
 Purpose: Verify the built-in visual model catalog exposes the expected default backend descriptor and the alternate backend entries used by the selector UI.
@@ -1839,6 +1923,10 @@ Expected outcome: The preferred path is the visual backend storage path, and no 
 Run: `./build-tests/ai_file_sorter_tests "Built-in Gemma 4B prefers the shared visual-model artifact path for new downloads"`
 
 ### `tests/unit/test_category_language_support.cpp`
+
+#### Test case: Qwen category language support exposes the full language list
+Purpose: Keep Qwen available for the same category languages as Gemma 3.
+Run: `./build-tests/ai_file_sorter_tests "Qwen category language support exposes the full language list"`
 
 #### Test case: Gemma 3 category language support exposes the full language list
 Purpose: Ensure the built-in Gemma 3 4B local model keeps the full expanded category-language catalog available.
