@@ -677,6 +677,8 @@ std::string DocumentTextAnalyzer::build_prompt(const std::string& excerpt,
     oss << "Summarize the document excerpt below in at most 120 words. "
         << "Then propose a short descriptive filename (max " << settings_.max_filename_words
         << " words, nouns only). "
+        << "Use English descriptive words regardless of the document's language. "
+        << "Preserve proper nouns and identifiers without translating them. "
         << "Use underscores between words, avoid generic words like 'document', 'file', or extensions. "
         << "Return JSON only in the format: {\"summary\":\"...\",\"filename\":\"...\"}.\n\n";
     oss << "Document filename: " << file_name << "\n";

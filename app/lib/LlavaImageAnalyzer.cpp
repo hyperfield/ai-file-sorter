@@ -179,10 +179,12 @@ PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view
     case VisualPromptPolicy::LegacyLlava: {
         std::ostringstream oss;
         oss << "Based on the description below, generate a specific and descriptive filename for the image.\n"
+            << "Use English descriptive words regardless of the description's language.\n"
+            << "Preserve proper nouns and identifiers without translating them.\n"
             << "Limit the filename to a maximum of " << max_words
             << " words. Use nouns and avoid starting with verbs like "
             << "'depicts', 'shows', 'presents', etc.\n"
-            << "Do not include any data type words like 'image', 'jpg', 'png', 'webp', etc. Use only letters and "
+            << "Do not include any data type words like 'image', 'jpg', 'png', 'webp', etc. Use only letters and numbers; "
             << "connect words with underscores.\n\n"
             << "Description: " << description << "\n\n"
             << "Example:\n"
@@ -198,8 +200,10 @@ PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view
         oss << "Create a short filename stem from this image description.\n"
             << "Description: " << description << "\n\n"
             << "Rules:\n"
+            << "- use English descriptive words regardless of the description's language\n"
+            << "- preserve proper nouns and identifiers without translating them\n"
             << "- maximum " << max_words << " words\n"
-            << "- lowercase letters only\n"
+            << "- lowercase letters and numbers only\n"
             << "- join words with underscores\n"
             << "- prefer concrete nouns\n"
             << "- do not include a file extension\n"

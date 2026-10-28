@@ -69,9 +69,14 @@ TEST_CASE("Image filename prompts and cleanup honor three through six words", "[
     const int words = GENERATE(3, 4, 5, 6);
     const auto policy = GENERATE(VisualPromptPolicy::LegacyLlava,
                                  VisualPromptPolicy::StructuredVisionInstruct);
-    const auto prompt = LlavaImageAnalyzerTestAccess::filename_user_prompt(policy, "A quarterly revenue chart", words);
+    const std::string description = "Un graphique des revenus trimestriels pour Acme Q4-2026";
+    const auto prompt = LlavaImageAnalyzerTestAccess::filename_user_prompt(policy, description, words);
     const std::string marker = policy == VisualPromptPolicy::LegacyLlava ? "maximum of " : "maximum ";
     CHECK(prompt.find(marker + std::to_string(words) + " words") != std::string::npos);
+    CHECK(prompt.find("English descriptive words regardless of the description's language") != std::string::npos);
+    CHECK(prompt.find("proper nouns and identifiers without translating them") != std::string::npos);
+    CHECK(prompt.find("letters and numbers") != std::string::npos);
+    CHECK(prompt.find(description) != std::string::npos);
     const std::vector<std::string> expected{
         "quarterly_revenue_forecast", "quarterly_revenue_forecast_budget",
         "quarterly_revenue_forecast_budget_planning", "quarterly_revenue_forecast_budget_planning_notes"};
@@ -84,14 +89,19 @@ TEST_CASE("Document filename prompts and cleanup honor three through six words",
 {
     const int words = GENERATE(3, 4, 5, 6);
     TempDir temp;
-    const auto path = temp.path() / "report.txt";
-    std::ofstream(path) << "Quarterly revenue forecast and budget planning.";
+    const auto path = temp.path() / "rapport.txt";
+    const std::string excerpt = "Previsions des revenus trimestriels et budget pour Acme Q4-2026.";
+    std::ofstream(path) << excerpt;
     DocumentTextAnalyzer::Settings settings;
     settings.max_filename_words = words;
     DocumentTextAnalyzer analyzer(settings);
     FilenameReplyClient client;
     const auto result = analyzer.analyze(path, client);
     CHECK(client.last_prompt.find("max " + std::to_string(words) + " words") != std::string::npos);
+    CHECK(client.last_prompt.find("English descriptive words regardless of the document's language") != std::string::npos);
+    CHECK(client.last_prompt.find("proper nouns and identifiers without translating them") != std::string::npos);
+    CHECK(client.last_prompt.find("rapport.txt") != std::string::npos);
+    CHECK(client.last_prompt.find(excerpt) != std::string::npos);
     const std::vector<std::string> expected{
         "quarterly_revenue_forecast.txt", "quarterly_revenue_forecast_budget.txt",
         "quarterly_revenue_forecast_budget_planning.txt", "quarterly_revenue_forecast_budget_planning_chart.txt"};

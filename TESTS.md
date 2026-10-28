@@ -36,11 +36,14 @@ Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[sorting-rule
   document limits default to three, persist separately, and clamp invalid values
   to the supported three-to-six range; malformed stored integers use the default.
 - `Image filename prompts and cleanup honor three through six words`: both visual
-  prompt policies request the selected maximum and production cleanup retains the
-  corresponding words without discarding meaningful numeric tokens.
+  prompt policies request English descriptive words from a French description,
+  preserve proper nouns and identifiers, allow numeric tokens, and request the
+  selected maximum; production cleanup retains the corresponding words without
+  discarding meaningful numeric tokens.
 - `Document filename prompts and cleanup honor three through six words`: an
-  injected client verifies the prompt and cleaned filename at every slider value,
-  while document summaries remain unaffected.
+  injected client verifies English filename instructions and preservation of proper
+  nouns and identifiers with a French excerpt and filename at every slider value,
+  while cleaned filename limits and document summaries remain unaffected.
 - `Sorting rules opens from both entry points and retains existing controls`:
   the first Settings action and main-window button open the same dialog; existing
   controls move out of the main panel, sliders persist independently on closing,
