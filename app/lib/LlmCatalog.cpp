@@ -177,11 +177,13 @@ const std::vector<DefaultLlmEntry>& default_llm_entries()
         {LLMChoice::Local_4b_Qwen35, "LOCAL_LLM_QWEN35_4B_DOWNLOAD_URL", "LOCAL_LLM_QWEN35_4B_DISPLAY_NAME",
          "Qwen3.5 4B Q4_K_M", "qwen3.5-4b", "QWEN35_4B_MODEL_URL"},
         {LLMChoice::Local_7b, "LOCAL_LLM_7B_DOWNLOAD_URL", "LOCAL_LLM_7B_DISPLAY_NAME",
-         "Mistral 7B Instruct v0.2 Q5_K_M"},
+         "Mistral 7B Instruct v0.2 Q5_K_M", nullptr, nullptr,
+         BuiltinLlmVisibility::DownloadedOrSelected},
         {LLMChoice::Local_7b_Gemma, "LOCAL_LLM_7B_GEMMA_DOWNLOAD_URL",
          "LOCAL_LLM_7B_GEMMA_DISPLAY_NAME", "Gemma 1.1 7B IT Q5_K_M"},
         {LLMChoice::Local_3b_legacy, "LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL",
-         "LOCAL_LLM_3B_LEGACY_DISPLAY_NAME", "LLaMa 3b v3.2 Instruct Q8, legacy"}};
+         "LOCAL_LLM_3B_LEGACY_DISPLAY_NAME", "LLaMa 3b v3.2 Instruct Q8, legacy", nullptr, nullptr,
+         BuiltinLlmVisibility::DownloadedOnly}};
     return entries;
 }
 
@@ -196,6 +198,21 @@ const DefaultLlmEntry* default_llm_entry_for_choice(LLMChoice choice)
         return nullptr;
     }
     return &(*it);
+}
+
+bool builtin_llm_choice_visible(LLMChoice choice, LLMChoice saved_choice)
+{
+    const auto* entry = default_llm_entry_for_choice(choice);
+    if (!entry) {
+        return false;
+    }
+    if (entry->visibility == BuiltinLlmVisibility::Always) {
+        return true;
+    }
+    if (entry->visibility == BuiltinLlmVisibility::DownloadedOrSelected && choice == saved_choice) {
+        return true;
+    }
+    return builtin_llm_artifact_available(choice);
 }
 
 QString default_llm_label(const DefaultLlmEntry& entry)

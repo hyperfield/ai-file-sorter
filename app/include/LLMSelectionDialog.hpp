@@ -97,7 +97,8 @@ private:
     void showEvent(QShowEvent* event) override;
     void accept() override;
     void update_ui_for_choice();
-    void update_legacy_local_3b_visibility();
+    /** @brief Refresh retired model choices while preserving supported existing selections. */
+    void update_legacy_local_choices_visibility();
     void update_radio_selection();
     void update_custom_choice_ui();
     /**
@@ -193,7 +194,6 @@ private:
                                                              VisualModelArtifactKind kind) const;
     VisualLlmDownloadEntry* find_visual_download_entry_by_env_var(std::string_view env_var);
     const VisualLlmDownloadEntry* find_visual_download_entry_by_env_var(std::string_view env_var) const;
-    bool legacy_local_3b_available() const;
 
     Settings& settings;
     LLMChoice selected_choice{LLMChoice::Unset};
@@ -233,6 +233,7 @@ private:
     QLabel* file_size_label{nullptr};
     QLabel* status_label{nullptr};
     QLabel* local3_legacy_desc{nullptr};
+    QLabel* local7_desc{nullptr};
     QProgressBar* progress_bar{nullptr};
     QPushButton* download_button{nullptr};
     QPushButton* delete_download_button{nullptr};

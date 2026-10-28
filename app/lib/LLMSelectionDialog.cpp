@@ -338,7 +338,7 @@ void LLMSelectionDialog::setup_ui()
 
     local7_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_7b), radio_container);
     local7_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* local7_desc = new QLabel(
+    local7_desc = new QLabel(
         tr("Larger local model. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."),
         radio_container);
     local7_desc->setWordWrap(true);
@@ -355,9 +355,7 @@ void LLMSelectionDialog::setup_ui()
     local3_legacy_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     local3_legacy_desc = new QLabel(tr("Legacy model kept for existing downloads."), radio_container);
     local3_legacy_desc->setWordWrap(true);
-    const bool has_legacy_3b = legacy_local_3b_available();
-    local3_legacy_radio->setVisible(has_legacy_3b);
-    local3_legacy_desc->setVisible(has_legacy_3b);
+    update_legacy_local_choices_visibility();
 
     gemini_radio = new QRadioButton(tr("Gemini (Google AI Studio API key)"), radio_container);
     gemini_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
@@ -853,27 +851,29 @@ void LLMSelectionDialog::set_status_message(const QString& message)
     status_label->setText(message);
 }
 
-bool LLMSelectionDialog::legacy_local_3b_available() const
+void LLMSelectionDialog::update_legacy_local_choices_visibility()
 {
-    return builtin_llm_artifact_available(LLMChoice::Local_3b_legacy);
-}
-
-void LLMSelectionDialog::update_legacy_local_3b_visibility()
-{
-    if (!local3_legacy_radio || !local3_legacy_desc) {
-        return;
-    }
-    const bool available = legacy_local_3b_available();
-    local3_legacy_radio->setVisible(available);
-    local3_legacy_desc->setVisible(available);
-    if (!available && local3_legacy_radio->isChecked() && local3_radio) {
-        local3_radio->setChecked(true);
+    const struct {
+        LLMChoice choice;
+        QRadioButton* radio;
+        QLabel* description;
+    } legacy_choices[] = {
+        {LLMChoice::Local_3b_legacy, local3_legacy_radio, local3_legacy_desc},
+        {LLMChoice::Local_7b, local7_radio, local7_desc}
+    };
+    for (const auto& [choice, radio, description] : legacy_choices) {
+        const bool visible = builtin_llm_choice_visible(choice, settings.get_llm_choice());
+        radio->setVisible(visible);
+        description->setVisible(visible);
+        if (!visible && radio->isChecked()) {
+            local3_radio->setChecked(true);
+        }
     }
 }
 
 void LLMSelectionDialog::update_ui_for_choice()
 {
-    update_legacy_local_3b_visibility();
+    update_legacy_local_choices_visibility();
     update_custom_buttons();
     update_custom_api_buttons();
 
@@ -2370,19 +2370,18 @@ std::vector<std::string> LLMSelectionDialogTestAccess::local_builtin_labels(
     const LLMSelectionDialog& dialog)
 {
     std::vector<std::string> labels;
-    if (dialog.local3_radio) {
-        labels.push_back(dialog.local3_radio->text().toStdString());
-    }
-    if (dialog.qwen35_radio) {
-        labels.push_back(dialog.qwen35_radio->text().toStdString());
-    }
-    if (dialog.local7_radio) {
-        labels.push_back(dialog.local7_radio->text().toStdString());
-    }
-    if (dialog.local7_gemma_radio) {
-        labels.push_back(dialog.local7_gemma_radio->text().toStdString());
+    for (const auto* radio : {dialog.local3_radio, dialog.qwen35_radio, dialog.local7_radio,
+                              dialog.local7_gemma_radio, dialog.local3_legacy_radio}) {
+        if (radio && !radio->isHidden()) {
+            labels.push_back(radio->text().toStdString());
+        }
     }
     return labels;
+}
+
+void LLMSelectionDialogTestAccess::refresh_local_choices(LLMSelectionDialog& dialog)
+{
+    dialog.update_ui_for_choice();
 }
 
 void LLMSelectionDialogTestAccess::select_visual_backend(LLMSelectionDialog& dialog,

@@ -1342,12 +1342,33 @@ Run: `./build-tests/ai_file_sorter_tests "Native chat templates*"`
 
 ### `tests/unit/test_llm_selection_dialog_local.cpp`
 
-#### Test case: LLM selection dialog lists built-in local models in Gemma Qwen Mistral Gemma order
-Purpose: Ensure the categorization-model radio buttons present the built-in local models in the intended top-to-bottom order without a separate recommended badge.
-Setup: Construct the dialog on a clean config directory and collect the visible built-in local-model labels through test access.
-Procedure: Compare the returned labels with the catalog labels for Gemma 4B, Qwen3.5 4B, Mistral 7B, and Gemma 7B.
-Expected outcome: The dialog lists those four models in order, and none of the labels include `Recommended`.
-Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog lists built-in local models in Gemma Qwen Mistral Gemma order"`
+#### Test case: LLM selection dialog hides retired models on fresh installations
+Purpose: Keep retired Mistral and LLaMa models out of fresh categorization-model offerings.
+Setup: Construct the dialog with clean settings and an empty isolated model directory.
+Procedure: Collect the visible built-in local-model labels through test access.
+Expected outcome: Only Gemma 4B, Qwen3.5 4B, and Gemma 7B appear, in that order, without a separate recommended badge.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog hides retired models on fresh installations"`
+
+#### Test case: LLM selection dialog retains installed Mistral without changing the saved model
+Purpose: Preserve access to an existing Mistral download even when another model is selected.
+Setup: Save the Gemma choice and place Mistral weights in an isolated custom model directory.
+Procedure: Inspect the offered choices and select Mistral.
+Expected outcome: Mistral remains in the original model order and uses its existing artifact; opening or changing the dialog does not rewrite the saved selection.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog retains installed Mistral without changing the saved model"`
+
+#### Test case: LLM selection dialog restores saved Mistral when its weights are missing
+Purpose: Preserve older `Local_7b` selections and allow re-downloading missing weights.
+Setup: Load the historical settings identifier and round-trip it through settings persistence with an empty custom model directory.
+Procedure: Open the dialog, inspect the selection and downloader path, and switch away and back.
+Expected outcome: Mistral remains offered and selected with its original download path, despite missing weights.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog restores saved Mistral when its weights are missing"`
+
+#### Test case: LLM selection dialog hides unsaved Mistral after its weights are removed
+Purpose: Refresh retired-model availability when the qualifying download disappears.
+Setup: Keep Gemma as the saved choice, install Mistral, and select it temporarily in the dialog.
+Procedure: Remove the test artifact and refresh local choices.
+Expected outcome: Mistral disappears and the dialog falls back to Gemma 4B.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog hides unsaved Mistral after its weights are removed"`
 
 #### Test case: LLM selection dialog restores Qwen and shares its visual text weights
 Purpose: Round-trip the Qwen choice through settings without duplicating its text weights.
@@ -1882,6 +1903,13 @@ Expected outcome: The rename-only checkboxes are disabled in the first case and 
 Run: `./build-tests/ai_file_sorter_tests "Review dialog rename-only toggles disabled when renames are not allowed"`
 
 ### `tests/unit/test_custom_llm.cpp`
+
+#### Test case: Built-in local model visibility preserves retired choices
+Purpose: Verify catalog visibility policies without removing compatible model identifiers or artifact lookup.
+Setup: Use an isolated empty model directory and create test artifacts as needed.
+Procedure: Check current models, installed or saved Mistral, downloaded-only legacy LLaMa, and non-built-in choices.
+Expected outcome: Current models are always offered; Mistral requires a download or saved selection; LLaMa retains its existing downloaded-only rule; non-built-in choices are excluded.
+Run: `./build-tests/ai_file_sorter_tests "Built-in local model visibility preserves retired choices"`
 
 #### Test case: Custom LLM entries persist across Settings load/save
 Purpose: Ensure custom LLM definitions persist correctly, including optional visual MMProj metadata and the selected model storage directory.

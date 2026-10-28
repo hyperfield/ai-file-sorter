@@ -48,6 +48,11 @@ public:
      * @return Ordered list of built-in local model labels.
      */
     static std::vector<std::string> local_builtin_labels(const LLMSelectionDialog& dialog);
+    /**
+     * @brief Refreshes model visibility and selection after local artifact changes.
+     * @param dialog Selection dialog instance under test.
+     */
+    static void refresh_local_choices(LLMSelectionDialog& dialog);
     static void select_visual_backend(LLMSelectionDialog& dialog, const std::string& backend_id);
     static void set_network_available_override(LLMSelectionDialog& dialog, std::optional<bool> value);
 };
