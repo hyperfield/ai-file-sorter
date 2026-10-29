@@ -965,6 +965,7 @@ set(AIFS_HELP_RESOURCE_FILES
 )
 
 set(AIFS_WHATS_NEW_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.10.0.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_da.md"

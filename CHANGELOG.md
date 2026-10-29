@@ -1,5 +1,16 @@
 ﻿# Changelog
 
+## [1.10.0] - Unreleased
+
+- Sort files into an existing folder structure as well as generated category folders. Choose a separate destination, control whether new folders may be suggested, and review the chosen folder and routing explanation before applying changes.
+- Create starter folder structures, including Johnny.Decimal archives. Optional folder-structure plugins add guidance for numbered folders, tools to create the next folder, an archive index, and validation reports. Plugins can be installed and managed from the app; some require a separate license.
+- Added a **Sorting rules...** dialog with separate maximum filename word limits for images and documents. Each limit can be set from 3 to 6 words and defaults to 3.
+- Added **Qwen3.5 4B** for local text and image analysis. Gemma 3 4B IT remains the default. Mistral 7B is no longer offered for new text-model downloads, while existing configurations and downloads remain supported.
+- Added support for the new sorting settings and richer destination previews in **AI File Sorter for File Explorer 1.1.0**. Explorer jobs can use their own filename limits without changing the desktop app's saved preferences.
+- Storage integrations, including OneDrive support, now use separately installed, verified plugin packages.
+- Improved local analysis reliability, cancellation, and handling of large images, with more reliable GPU startup and fallback across Windows, Linux, and macOS.
+- Improved review editing and undo behavior. Undo removes only folders created by the app and preserves existing folders.
+
 ## [1.9.2] - 2026-08-14
 
 - Fixed a Windows startup crash in Qt GUI theme refresh handling by preventing recursive palette-triggered stylesheet updates.

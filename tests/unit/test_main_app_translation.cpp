@@ -780,11 +780,16 @@ TEST_CASE("What's New content is packaged for the current app version")
     const QString markdown = WhatsNewContent::markdown_for_version(version);
 
     REQUIRE(markdown.contains(QStringLiteral("Highlights")));
-    REQUIRE(markdown.contains(QStringLiteral("Fixed a Windows issue")));
-    REQUIRE(markdown.contains(QStringLiteral("close before sorting started")));
+    REQUIRE(markdown.contains(QStringLiteral("existing folder structure")));
+    REQUIRE(markdown.contains(QStringLiteral("filename word limits")));
+    REQUIRE(markdown.contains(QStringLiteral("Qwen3.5 4B")));
 
     REQUIRE(WhatsNewContent::markdown_for_version(version, Language::English) == markdown);
     REQUIRE_FALSE(WhatsNewContent::markdown_for_version(version, Language::French).isEmpty());
+
+    const QString previous_release = WhatsNewContent::markdown_for_version(QStringLiteral("1.9.2"));
+    REQUIRE(previous_release.contains(QStringLiteral("Fixed a Windows issue")));
+    REQUIRE(previous_release.contains(QStringLiteral("close before sorting started")));
 
     const QString localized_version = QStringLiteral("1.9.1");
     const QString localized_english = WhatsNewContent::markdown_for_version(localized_version);
