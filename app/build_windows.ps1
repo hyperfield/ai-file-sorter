@@ -688,7 +688,8 @@ function Get-ConfigureArguments {
         [int]$CMakeMinor
     )
 
-    $configureArgs = @("-S", $appDir, "-B", $Variant.BuildDir)
+    # Rediscover vcpkg from the selected toolchain instead of reusing another installation's cached root.
+    $configureArgs = @("-U", "Z_VCPKG_ROOT_DIR", "-S", $appDir, "-B", $Variant.BuildDir)
     $configureArgs += @("-G", $Generator)
     $configureArgs += "-DCMAKE_TOOLCHAIN_FILE=$ToolchainFile"
     $configureArgs += "-DVCPKG_TARGET_TRIPLET=x64-windows"
