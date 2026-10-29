@@ -621,6 +621,15 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-
 
 ### `tests/unit/test_headless_settings_overrides_json.cpp`
 
+#### Test case: HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences
+
+Loads saved existing-tree sorting, an archive destination, and new-folder permission.
+Checks that omitted/empty destination overrides use the analyzed root, an explicit root
+is honored, sorting preferences remain inherited unless overridden, and all config bytes
+and reloaded preferences remain unchanged. No model is loaded.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences"`
+
 #### Test case: HeadlessSettingsOverridesJson parses bounded independent filename word limits
 
 Checks both JSON keys for every supported value, independent image/document values, clamping
@@ -644,6 +653,16 @@ Expected outcome: The parser preserves the whitelist activation/name, returns tr
 Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson parses direct whitelist lists"`
 
 ### `tests/unit/test_headless_status_json.cpp`
+
+#### Test case: HeadlessStatusJson exports authoritative review destinations and routing explanations
+
+Uses the real apply service in dry-run mode for existing trees, proposed folders, generated
+categories, rename-only entries, unresolved targets, and duplicate suggested names. Checks
+that saved plans match app-calculated destinations and names, routing explanations reach
+status JSON, and tampered display destinations cannot redirect apply. Mismatched preview
+counts/sources are rejected, and no source files or destination folders are changed.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessStatusJson exports authoritative review destinations and routing explanations"`
 
 #### Test case: HeadlessStatusJson round-trips UTF-8 review plans
 Purpose: Verify the extracted headless status/review JSON serializer preserves non-ASCII paths, filenames, and folder-tree target metadata.

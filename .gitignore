@@ -163,6 +163,8 @@ changelog/
 !/docs/updater-contract.md
 !/docs/storage-plugin-protocol.md
 !/docs/schemas/
+!/docs/schemas/headless-settings-overrides.schema.json
+!/docs/schemas/headless-review-plan.schema.json
 !/docs/schemas/storage-plugin-v1/
 !/docs/schemas/storage-plugin-v1/*.schema.json
 

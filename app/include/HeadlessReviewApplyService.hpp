@@ -56,6 +56,10 @@ public:
         std::string category;
         std::string subcategory;
         std::string target_folder;
+        /** @brief App-generated explanation of the chosen folder-tree route; display metadata only. */
+        std::string folder_tree_routing_explanation;
+        /** @brief Whether the analyzed entry uses a relative folder-tree destination. */
+        bool folder_tree_mode{false};
         bool target_folder_suggested_new{false};
         bool target_folder_exists{false};
         std::string message;

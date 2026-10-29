@@ -606,6 +606,10 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     CHECK(plan.value(QStringLiteral("kind")).toString() == QStringLiteral("aifs.headlessReviewPlan"));
     CHECK(plan.value(QStringLiteral("operation")).toString() == QStringLiteral("categorize"));
     CHECK(plan.value(QStringLiteral("entries")).toArray().size() == 1);
+    const auto planned_entry = plan.value(QStringLiteral("entries")).toArray().at(0).toObject();
+    CHECK(planned_entry.value(QStringLiteral("plannedDestination")) ==
+          flat_entries.at(0).toObject().value(QStringLiteral("destination")));
+    CHECK(planned_entry.contains(QStringLiteral("folderTreeRoutingExplanation")));
 }
 
 TEST_CASE("HeadlessAnalysisCommand preserves UTF-8 filenames in review status")

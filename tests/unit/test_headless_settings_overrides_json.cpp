@@ -4,6 +4,7 @@
 #include "HeadlessAnalysisWorkflowHost.hpp"
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
+#include "Utils.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -22,6 +23,10 @@ public:
     static std::pair<int, int> filename_words(const HeadlessAnalysisWorkflowHost& host)
     {
         return {host.settings_.get_image_filename_words(), host.settings_.get_document_filename_words()};
+    }
+    static SortingMode sorting_mode(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return host.settings_.get_sorting_mode();
     }
 };
 
@@ -146,4 +151,57 @@ TEST_CASE("HeadlessAnalysisWorkflowHost isolates filename word overrides from pe
     REQUIRE(reloaded.load());
     CHECK(reloaded.get_image_filename_words() == 4);
     CHECK(reloaded.get_document_filename_words() == 5);
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    const auto source = temp.path() / "inbox";
+    const auto archive = temp.path() / "archive";
+    std::filesystem::create_directories(source);
+    std::filesystem::create_directories(archive);
+    Settings stored;
+    stored.set_destination_folder(Utils::path_to_utf8(archive));
+    stored.set_sorting_mode(SortingMode::ExistingFolderTree);
+    stored.set_suggest_new_folders(true);
+    REQUIRE(stored.save());
+    const auto config = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+    const auto config_bytes = [&]() {
+        std::ifstream input(config, std::ios::binary);
+        return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    };
+    const auto before = config_bytes();
+    HeadlessAnalysisWorkflowHost::Options options;
+    options.folder_path = Utils::path_to_utf8(source);
+    auto destination = source;
+    auto mode = SortingMode::ExistingFolderTree;
+    bool suggest_new = true;
+    SECTION("omitted overrides inherit mode and permission but reset destination") {}
+    SECTION("empty destination explicitly selects the analyzed root") {
+        options.settings_overrides.destination_folder = "";
+    }
+    SECTION("an explicit override selects the archive") {
+        options.settings_overrides.destination_folder = Utils::path_to_utf8(archive);
+        destination = archive;
+    }
+    SECTION("an independent extension can override inherited sorting") {
+        options.settings_overrides.sorting_mode = SortingMode::GeneratedCategories;
+        options.settings_overrides.suggest_new_folders = false;
+        mode = SortingMode::GeneratedCategories;
+        suggest_new = false;
+    }
+    {
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        CHECK(std::filesystem::equivalent(Utils::utf8_to_path(host.destination_folder()), destination));
+        CHECK(HeadlessAnalysisWorkflowHostTestAccess::sorting_mode(host) == mode);
+        CHECK(host.suggest_new_folders() == suggest_new);
+        CHECK(config_bytes() == before);
+    }
+    CHECK(config_bytes() == before);
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    CHECK(reloaded.get_sorting_mode() == SortingMode::ExistingFolderTree);
+    CHECK(reloaded.get_suggest_new_folders());
+    CHECK(reloaded.get_destination_folder() == Utils::path_to_utf8(archive));
 }

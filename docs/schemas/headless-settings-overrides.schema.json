@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI File Sorter headless settings overrides",
+  "description": "Recommended producer contract for --settings-overrides-file. All properties are optional, unknown properties are ignored, and overrides never persist app preferences. The parser also tolerates invalid individual values by ignoring them.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "sortingMode": { "type": "string", "enum": ["GeneratedCategories", "ExistingFolderTree"], "description": "Omission inherits the persisted sorting mode." },
+    "destinationFolder": { "type": "string", "description": "Destination root. Omission or an empty string uses the analyzed folder, not the persisted destination." },
+    "suggestNewFolders": { "type": "boolean", "description": "Allow proposals for missing folder-tree destinations. Omission inherits the persisted preference." },
+    "useSubcategories": { "type": "boolean" },
+    "useConsistencyHints": { "type": "boolean" },
+    "useWhitelist": { "type": "boolean" },
+    "activeWhitelist": { "type": "string" },
+    "allowedCategories": { "type": "array", "items": { "type": "string" } },
+    "allowedSubcategories": { "type": "array", "items": { "type": "string" } },
+    "categorizeFiles": { "type": "boolean" },
+    "categorizeDirectories": { "type": "boolean" },
+    "includeSubdirectories": { "type": "boolean" },
+    "analyzeImagesByContent": { "type": "boolean" },
+    "processImagesOnly": { "type": "boolean" },
+    "addImageDateToCategory": { "type": "boolean" },
+    "addImageDatePlaceToFilename": { "type": "boolean" },
+    "offerRenameImages": { "type": "boolean" },
+    "imageFilenameWords": { "$ref": "#/$defs/filenameWords" },
+    "renameImagesOnly": { "type": "boolean" },
+    "addAudioVideoMetadataToFilename": { "type": "boolean" },
+    "analyzeDocumentsByContent": { "type": "boolean" },
+    "processDocumentsOnly": { "type": "boolean" },
+    "offerRenameDocuments": { "type": "boolean" },
+    "documentFilenameWords": { "$ref": "#/$defs/filenameWords" },
+    "renameDocumentsOnly": { "type": "boolean" },
+    "addDocumentDateToCategory": { "type": "boolean" },
+    "language": { "type": "string", "description": "App interface language display name." },
+    "categoryLanguage": { "type": "string", "description": "Generated category-label language. Image and document naming prompts request English descriptive words, preserving proper nouns and identifiers." }
+  },
+  "$defs": {
+    "filenameWords": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 6,
+      "description": "Maximum content-derived filename words. Producers should send 3 through 6; the parser also accepts other whole numbers and clamps them. Omission inherits the persisted preference, whose default is 3."
+    }
+  }
+}

@@ -1,5 +1,14 @@
 # Headless Runtime Contract
 
+The integration-facing JSON contracts are available as machine-readable schemas:
+
+- [Settings overrides](schemas/headless-settings-overrides.schema.json)
+- [Review plans](schemas/headless-review-plan.schema.json)
+
+The schemas describe recommended producer payloads. Individual settings are optional;
+the parser tolerates invalid individual values as described below. Additional properties
+allow compatible evolution. Applying a review always runs the app's validation again.
+
 ## Reproducible Local Inference
 
 Optional, per-process controls apply to native local text inference. They do not
@@ -89,7 +98,56 @@ Usage: aifilesorter --headless --operation <categorize|rename|categorize-and-ren
        aifilesorter --headless-apply --review-file <json-file> [--status-file <json-file>] [--job-id <id>]
 ```
 
-## Filename word-limit overrides
+## Settings override contract
+
+`--settings-overrides-file` reads a UTF-8 JSON object. Overrides affect only the current
+process's settings overlay; they do not write `config.ini`. Except for the destination
+root, omitted preferences inherit the app's persisted settings. Operation-specific
+overlays still enforce categorization-only and rename-only behavior.
+
+**Destination initialization is deliberately different from other preferences.** The host
+loads app preferences, sets the analyzed folder, and clears the persisted destination
+before applying explicit overrides. Omitting `destinationFolder`, or setting it to an
+empty string, uses the analyzed folder (the common parent for explicit file selections).
+The persisted **sorting mode remains inherited** unless `sortingMode` is supplied.
+Consequently, an integration that wants independent settings must send all three of
+`sortingMode`, `destinationFolder`, and `suggestNewFolders`, including an empty destination
+when appropriate. No per-job config-file write is needed.
+
+```json
+{
+  "sortingMode": "ExistingFolderTree",
+  "destinationFolder": "D:\\Archive",
+  "suggestNewFolders": false,
+  "useSubcategories": true,
+  "offerRenameImages": true,
+  "imageFilenameWords": 3,
+  "offerRenameDocuments": true,
+  "documentFilenameWords": 5
+}
+```
+
+| Properties | JSON type and meaning |
+| --- | --- |
+| `sortingMode` | String: `GeneratedCategories` or `ExistingFolderTree`. Producers should use these canonical names. |
+| `destinationFolder` | String destination root; whitespace is trimmed. Empty explicitly selects the analyzed root. |
+| `suggestNewFolders` | Boolean allowing missing folder-tree proposals, subject to review/apply validation. |
+| `useSubcategories`, `useConsistencyHints` | Booleans controlling generated category layout and consistency. Subcategories do not alter literal folder-tree targets. |
+| `useWhitelist`, `activeWhitelist` | Boolean activation and string whitelist name. |
+| `allowedCategories`, `allowedSubcategories` | Arrays of direct whitelist strings; non-string and empty items are ignored and valid items are trimmed. |
+| `categorizeFiles`, `categorizeDirectories`, `includeSubdirectories` | Boolean target-processing preferences. |
+| `analyzeImagesByContent`, `processImagesOnly`, `addImageDateToCategory`, `addImageDatePlaceToFilename`, `offerRenameImages`, `renameImagesOnly` | Boolean image-workflow preferences. |
+| `analyzeDocumentsByContent`, `processDocumentsOnly`, `offerRenameDocuments`, `renameDocumentsOnly`, `addDocumentDateToCategory` | Boolean document-workflow preferences. |
+| `addAudioVideoMetadataToFilename` | Boolean audio/video naming preference. |
+| `imageFilenameWords`, `documentFilenameWords` | Independent whole-number limits, described below. |
+| `language`, `categoryLanguage` | String language display names. Category language affects category labels; image/document naming prompts request English descriptive words, preserving proper nouns and identifiers without translation. |
+
+Boolean overrides require JSON booleans. Unrecognized sorting-mode strings, missing
+values, and values of the wrong type are ignored; an invalid destination therefore still
+uses the analyzed root. Unknown properties are ignored. Invalid JSON or a non-object root
+is a file-level error, rather than a request to rewrite app preferences.
+
+### Filename word-limit overrides
 
 `--settings-overrides-file` accepts two optional whole-number properties:
 
@@ -137,6 +195,87 @@ that arbitrary file collections are accepted.
 - `--review-only` forces review preparation without applying changes.
 - `--auto-apply` opts into direct apply for callers that intentionally want it.
 - Saved review plans use the JSON kind `aifs.headlessReviewPlan`.
+
+### Review plan JSON schema
+
+Plans use `schemaVersion: 1`. New display metadata is optional within version 1 so
+integrations can continue reading older plans. The full field definitions are in the
+[review-plan schema](schemas/headless-review-plan.schema.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "aifs.headlessReviewPlan",
+  "operation": "categorize-and-rename",
+  "jobId": "explorer-example",
+  "paths": ["C:/Inbox/invoice.pdf"],
+  "applyOptions": {
+    "baseDir": "D:/Archive",
+    "undoDir": "C:/Users/example/AppData/Local/AIFileSorter/undo",
+    "useSubcategories": true,
+    "includeSubdirectories": false,
+    "applySuggestedNames": true,
+    "moveCategorizedEntries": true,
+    "allowNewFolderTargets": false,
+    "categoryLanguage": "English"
+  },
+  "entries": [{
+    "filePath": "C:/Inbox",
+    "fileName": "invoice.pdf",
+    "type": "file",
+    "category": "Documents",
+    "subcategory": "Invoices",
+    "suggestedName": "Acme invoice 2026.pdf",
+    "renameOnly": false,
+    "renameApplied": false,
+    "canonicalCategory": "Documents",
+    "canonicalSubcategory": "Invoices",
+    "folderTreeMode": true,
+    "targetFolder": "Clients/Acme/Invoices",
+    "targetFolderExists": true,
+    "targetFolderSuggestedNew": false,
+    "folderTreeAllowNewFolders": false,
+    "plannedDestination": "D:/Archive/Clients/Acme/Invoices/Acme invoice 2026.pdf",
+    "folderTreeRoutingExplanation": "The existing Acme invoice folder matches this document."
+  }]
+}
+```
+
+`filePath` is the **source parent directory**; the full source is `filePath / fileName`.
+`applyOptions.baseDir` captures the resolved destination root. Generated-category entries
+use category/subcategory labels under that root. Folder-tree entries use the literal
+`targetFolder` path under that root, independently of those semantic labels. An empty
+folder-tree target is unresolved, not a request to move to the root. Rename-only entries,
+or plans with `moveCategorizedEntries: false`, remain in their source directory.
+
+`applySuggestedNames` enables `suggestedName`, with the original extension preserved when
+the suggestion lacks one. The app resolves duplicate names during the dry run and stores
+the resulting names in the plan. `renameApplied` means the suggested rename has already
+occurred. `useSubcategories` affects generated-category destinations only;
+`includeSubdirectories` retains the analyzed scope. `undoDir` selects undo storage and
+`categoryLanguage` supplies category-label context. The app reads the saved options for
+apply rather than reloading current sorting settings or rerunning analysis.
+
+`plannedDestination` is the full destination calculated by the app's dry run, including
+name-collision handling. It may be absent in older/API-created plans or empty for a
+skipped/invalid entry. Status entries expose the same full path as `destination`.
+`folderTreeRoutingExplanation` is the app's explanation of its original route and also
+appears on status entries. Treat both as display metadata. They never authorize a move,
+select a target, or grant folder creation; the apply service ignores `plannedDestination`
+and recomputes paths from the reviewed fields and options.
+
+To approve a subset, retain only the selected entries in `entries`; do not use an
+integration-specific checkbox property as an apply instruction. Preserve unknown fields.
+After editing category labels, clear `canonicalCategory` and `canonicalSubcategory` so
+stale canonical labels do not override the edits. After changing a destination, clear
+`plannedDestination` and `folderTreeRoutingExplanation`; use an edited preview until the
+app validates the new path. Existence flags describe the original snapshot, not a promise
+that the filesystem still has that shape.
+
+Missing folder-tree targets require `allowNewFolderTargets` or the entry's
+`folderTreeAllowNewFolders`. The app revalidates relative paths, existence, naming rules,
+and creation permission at apply time. Review and dry runs do not create folders or move
+files. A routing explanation or `targetFolderSuggestedNew: true` cannot bypass this gate.
 
 ## Status contract
 

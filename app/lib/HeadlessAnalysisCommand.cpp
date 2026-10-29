@@ -984,7 +984,8 @@ int HeadlessAnalysisCommand::run(const Options& options,
                                         options,
                                         host.review_entries(),
                                         apply_options,
-                                        &review_plan_error)) {
+                                        &review_plan_error,
+                                        &*apply_result)) {
                 emit_status(options,
                             "failed",
                             "Could not write headless review plan.",

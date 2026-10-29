@@ -367,6 +367,10 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
     entry_result.category = display_category(entry);
     entry_result.subcategory = display_subcategory(entry);
     entry_result.target_folder = entry.target_folder_relative_path;
+    entry_result.folder_tree_mode = entry.folder_tree_mode;
+    if (entry.folder_tree_mode && !entry.rename_only && options.move_categorized_entries) {
+        entry_result.folder_tree_routing_explanation = entry.folder_tree_routing_explanation;
+    }
     entry_result.target_folder_suggested_new = entry.target_folder_suggested_new;
     entry_result.target_folder_exists = entry.target_folder_exists;
     entry_result.rename_only = entry.rename_only;
