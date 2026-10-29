@@ -49,6 +49,8 @@ struct HeadlessSettingsOverrides {
     std::optional<bool> add_image_date_place_to_filename;
     /** @brief Override whether picture rename suggestions are generated. */
     std::optional<bool> offer_rename_images;
+    /** @brief Override the image filename word limit for this run, clamped to three through six. */
+    std::optional<int> image_filename_words;
     /** @brief Override whether picture files are rename-only. */
     std::optional<bool> rename_images_only;
     /** @brief Override whether audio/video metadata is used in suggested filenames. */
@@ -59,6 +61,8 @@ struct HeadlessSettingsOverrides {
     std::optional<bool> process_documents_only;
     /** @brief Override whether document rename suggestions are generated. */
     std::optional<bool> offer_rename_documents;
+    /** @brief Override the document filename word limit for this run, clamped to three through six. */
+    std::optional<int> document_filename_words;
     /** @brief Override whether document files are rename-only. */
     std::optional<bool> rename_documents_only;
     /** @brief Override whether document dates are appended to category labels. */

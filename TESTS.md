@@ -621,6 +621,21 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-
 
 ### `tests/unit/test_headless_settings_overrides_json.cpp`
 
+#### Test case: HeadlessSettingsOverridesJson parses bounded independent filename word limits
+
+Checks both JSON keys for every supported value, independent image/document values, clamping
+of out-of-range and very large integers, and inheritance for omitted or malformed values.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson parses bounded independent filename word limits"`
+
+#### Test case: HeadlessAnalysisWorkflowHost isolates filename word overrides from persisted preferences
+
+Constructs the real headless host with neither, either, or both word limits overridden. Verifies
+the effective limits, clamping of direct API values, unchanged config bytes during and after
+the host lifetime, and unchanged preferences when settings are reloaded. No model is loaded.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost isolates filename word overrides from persisted preferences"`
+
 #### Test case: HeadlessSettingsOverridesJson parses direct whitelist lists
 Purpose: Verify headless settings override JSON can carry explicit whitelist categories, subcategories, sorting-mode options, and destination roots for deterministic integrations and tests.
 Setup: Build a JSON object with `useWhitelist`, `activeWhitelist`, `allowedCategories`, `allowedSubcategories`, `sortingMode`, `destinationFolder`, and `suggestNewFolders`, including whitespace, an empty string, and a non-string value.

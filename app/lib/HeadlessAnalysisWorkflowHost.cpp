@@ -550,6 +550,9 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     if (overrides.offer_rename_images) {
         settings_.set_offer_rename_images(*overrides.offer_rename_images);
     }
+    if (overrides.image_filename_words) {
+        settings_.set_image_filename_words(*overrides.image_filename_words);
+    }
     if (overrides.rename_images_only) {
         settings_.set_rename_images_only(*overrides.rename_images_only);
     }
@@ -564,6 +567,9 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     }
     if (overrides.offer_rename_documents) {
         settings_.set_offer_rename_documents(*overrides.offer_rename_documents);
+    }
+    if (overrides.document_filename_words) {
+        settings_.set_document_filename_words(*overrides.document_filename_words);
     }
     if (overrides.rename_documents_only) {
         settings_.set_rename_documents_only(*overrides.rename_documents_only);

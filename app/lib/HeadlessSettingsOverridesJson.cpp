@@ -1,4 +1,5 @@
 #include "HeadlessSettingsOverridesJson.hpp"
+#include "FilenameWordLimits.hpp"
 
 #include <QJsonArray>
 #include <QJsonValue>
@@ -6,6 +7,8 @@
 #include <QString>
 #include <QStringView>
 
+#include <algorithm>
+#include <cmath>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -19,6 +22,21 @@ std::optional<bool> optional_bool_from_json(const QJsonObject& object, QStringVi
         return std::nullopt;
     }
     return value.toBool();
+}
+
+std::optional<int> optional_filename_words_from_json(const QJsonObject& object, QStringView key)
+{
+    const QJsonValue value = object.value(key);
+    if (!value.isDouble()) {
+        return std::nullopt;
+    }
+    const double words = value.toDouble();
+    if (!std::isfinite(words) || std::trunc(words) != words) {
+        return std::nullopt;
+    }
+    // Clamp before conversion so even very large JSON integers cannot overflow int.
+    return static_cast<int>(std::clamp(words, static_cast<double>(kMinimumFilenameWords),
+                                      static_cast<double>(kMaximumFilenameWords)));
 }
 
 std::optional<std::vector<std::string>> optional_string_array_from_json(const QJsonObject& object,
@@ -142,6 +160,7 @@ HeadlessSettingsOverrides HeadlessSettingsOverridesJson::from_json(const QJsonOb
     set_optional_bool(object, QStringLiteral("offerRenameImages"), [&](bool value) {
         overrides.offer_rename_images = value;
     });
+    overrides.image_filename_words = optional_filename_words_from_json(object, QStringLiteral("imageFilenameWords"));
     set_optional_bool(object, QStringLiteral("renameImagesOnly"), [&](bool value) {
         overrides.rename_images_only = value;
     });
@@ -157,6 +176,7 @@ HeadlessSettingsOverrides HeadlessSettingsOverridesJson::from_json(const QJsonOb
     set_optional_bool(object, QStringLiteral("offerRenameDocuments"), [&](bool value) {
         overrides.offer_rename_documents = value;
     });
+    overrides.document_filename_words = optional_filename_words_from_json(object, QStringLiteral("documentFilenameWords"));
     set_optional_bool(object, QStringLiteral("renameDocumentsOnly"), [&](bool value) {
         overrides.rename_documents_only = value;
     });

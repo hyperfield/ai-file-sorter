@@ -89,6 +89,24 @@ Usage: aifilesorter --headless --operation <categorize|rename|categorize-and-ren
        aifilesorter --headless-apply --review-file <json-file> [--status-file <json-file>] [--job-id <id>]
 ```
 
+## Filename word-limit overrides
+
+`--settings-overrides-file` accepts two optional whole-number properties:
+
+```json
+{
+  "imageFilenameWords": 6,
+  "documentFilenameWords": 4
+}
+```
+
+Each property independently controls the maximum content-derived words in suggested filenames.
+The supported range is 3–6, with a persisted app default of 3. Integer values outside the range
+are clamped. Omitted properties, nulls, strings, booleans, arrays, objects, fractional numbers,
+and non-finite numbers leave the corresponding persisted preference in use. The host also
+clamps overrides supplied through the in-memory API. These overlays apply only to the current
+headless analysis; they never write the app config or modify a saved review plan's filenames.
+
 ## Supported targets
 
 - One folder target.

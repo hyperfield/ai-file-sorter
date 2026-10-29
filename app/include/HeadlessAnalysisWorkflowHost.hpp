@@ -30,6 +30,8 @@ namespace spdlog { class logger; }
  * @brief Owns non-GUI services needed to run the analysis workflow from headless integrations.
  */
 class HeadlessAnalysisWorkflowHost {
+    /** @brief Allows focused tests to inspect the effective, non-persistent settings overlay. */
+    friend class HeadlessAnalysisWorkflowHostTestAccess;
 public:
     /**
      * @brief Headless operation semantics applied as an in-memory settings overlay.
