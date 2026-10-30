@@ -1,9 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "SuitabilityBenchmarkDialog.hpp"
+#include "TestHelpers.hpp"
 
 TEST_CASE("Suitability benchmark recognizes Metal backend aliases")
 {
+    QtAppContext qt_context;
     CHECK(SuitabilityBenchmarkDialogTestAccess::backend_alias_matches("MTL", "metal"));
     CHECK(SuitabilityBenchmarkDialogTestAccess::backend_alias_matches("MTL0", "metal"));
     CHECK(SuitabilityBenchmarkDialogTestAccess::backend_alias_matches("Metal", "mtl"));
@@ -26,6 +28,7 @@ TEST_CASE("Suitability benchmark recognizes Metal backend aliases")
 
 TEST_CASE("Suitability benchmark reports Vulkan GPU when CUDA is unavailable")
 {
+    QtAppContext qt_context;
     const QString text_note =
         SuitabilityBenchmarkDialogTestAccess::backend_note_for_testing("", false, true, false, false);
     CHECK(text_note == QStringLiteral("GPU (target: Vulkan)"));
@@ -37,6 +40,7 @@ TEST_CASE("Suitability benchmark reports Vulkan GPU when CUDA is unavailable")
 
 TEST_CASE("Suitability benchmark reports CPU only when no auto GPU backend is available")
 {
+    QtAppContext qt_context;
     const QString note =
         SuitabilityBenchmarkDialogTestAccess::backend_note_for_testing("", false, false, false, false);
 
@@ -46,6 +50,7 @@ TEST_CASE("Suitability benchmark reports CPU only when no auto GPU backend is av
 
 TEST_CASE("Suitability benchmark keeps explicit CUDA unavailability distinct from Vulkan")
 {
+    QtAppContext qt_context;
     const QString note =
         SuitabilityBenchmarkDialogTestAccess::backend_note_for_testing("cuda", false, true, false, true);
 
