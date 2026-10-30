@@ -16,8 +16,11 @@
 #include <utility>
 
 #include "CategorizationService.hpp"
+#include "CloudCompatibilityProvider.hpp"
+#include "CloudPathDetectorProvider.hpp"
 #include "DatabaseManager.hpp"
 #include "DocumentTextAnalyzer.hpp"
+#include "ExternalProcessStorageProvider.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
@@ -590,6 +593,72 @@ TEST_CASE("ResultsCoordinator respects filesystem Unicode equivalence without ch
         CHECK(matched.empty());
 #endif
     }
+}
+
+TEST_CASE("ResultsCoordinator matches Unicode cache names for cloud filesystem providers") {
+    TempDir root;
+    const std::string cached_name = "caf\xc3\xa9.txt";
+    const std::string disk_name = "cafe\xcc\x81.txt";
+    write_file(root.path() / Utils::utf8_to_path(disk_name));
+    write_file(root.path() / "nested" / Utils::utf8_to_path(disk_name));
+    const auto directory = Utils::path_to_utf8(root.path());
+    const std::vector<CategorizedFile> categorized = {
+        CategorizedFile{directory, cached_name, FileType::File, "Documents", "Notes", 0}};
+    std::vector<std::unique_ptr<IStorageProvider>> providers;
+    for (const std::string id : {"dropbox", "pcloud", "custom_sync"}) {
+        providers.push_back(std::make_unique<CloudCompatibilityProvider>(
+            id, id, std::vector<std::string>{id}));
+    }
+    providers.push_back(std::make_unique<CloudPathDetectorProvider>(
+        "onedrive_detector", "onedrive", "OneDrive", std::vector<std::string>{"onedrive"}));
+
+    for (const auto& provider : providers) {
+        INFO(provider->id());
+        ResultsCoordinator coordinator(*provider);
+        for (bool full_paths : {false, true}) {
+            const auto options = full_paths ? FileScanOptions::Files | FileScanOptions::Recursive
+                                            : FileScanOptions::Files;
+            const auto actual = coordinator.list_directory(directory, options);
+            REQUIRE(actual.size() == (full_paths ? 2 : 1));
+            const auto cached = coordinator.extract_file_names(categorized, full_paths);
+            const auto uncached = coordinator.find_files_to_categorize(directory, options, cached, full_paths);
+            const auto matched = coordinator.compute_files_to_sort(directory, options, actual, categorized, full_paths);
+#if defined(__APPLE__)
+            REQUIRE(uncached.size() == (full_paths ? 1 : 0));
+            REQUIRE(matched.size() == 1);
+            CHECK(matched.front().file_name == disk_name);
+            CHECK(matched.front().file_path == directory);
+            if (full_paths) {
+                CHECK(Utils::utf8_to_path(uncached.front().full_path).parent_path() == root.path() / "nested");
+            }
+#else
+            CHECK(uncached.size() == actual.size());
+            CHECK(matched.empty());
+#endif
+        }
+    }
+}
+
+TEST_CASE("ResultsCoordinator preserves literal Unicode identity for external providers") {
+    ExternalProcessStorageProvider remote(StoragePluginManifest{}, "remote", "remote_instance", false);
+    CloudCompatibilityProvider cloud("custom_sync", "Sync", {"sync"});
+    ResultsCoordinator coordinator(cloud);
+    coordinator.set_storage_provider(remote);
+    const std::string composed = "caf\xc3\xa9.txt";
+    const std::string decomposed = "cafe\xcc\x81.txt";
+    CHECK(coordinator.cache_key(composed) == composed);
+    CHECK(coordinator.cache_key(decomposed) == decomposed);
+    const std::vector<CategorizedFile> categorized = {
+        CategorizedFile{"/remote", composed, FileType::File, "Documents", "Notes", 0},
+        CategorizedFile{"/remote", decomposed, FileType::File, "Documents", "Notes", 0}};
+    CHECK(coordinator.extract_file_names(categorized, false).size() == 2);
+    CHECK(coordinator.extract_file_names(categorized, true).size() == 2);
+    coordinator.set_storage_provider(cloud);
+#if defined(__APPLE__)
+    CHECK(coordinator.cache_key(composed) == coordinator.cache_key(decomposed));
+#else
+    CHECK(coordinator.cache_key(composed) != coordinator.cache_key(decomposed));
+#endif
 }
 
 TEST_CASE("DocumentTextAnalyzer handles UTF-8 filenames") {

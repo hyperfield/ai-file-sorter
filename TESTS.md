@@ -3626,6 +3626,20 @@ Procedure: Compute uncached entries via `find_files_to_categorize`.
 Expected outcome: Only the truly uncached nested path remains in the result set.
 Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator respects full-path cache keys for recursive scans"`
 
+#### Test case: ResultsCoordinator matches Unicode cache names for cloud filesystem providers
+Purpose: Ensure cloud-synced local folders use the native filesystem's Unicode comparison rules when matching cached names.
+Setup: Create decomposed Unicode filenames at root and nested paths, cache the composed root filename, and use Dropbox, pCloud, a custom compatibility provider, and the OneDrive detector fallback.
+Procedure: Match cached entries for both flat and recursive scans.
+Expected outcome: On macOS the cached root file matches while the nested file remains uncached, and original scanned filenames are preserved. Other platforms retain literal filename comparison.
+Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator matches Unicode cache names for cloud filesystem providers"`
+
+#### Test case: ResultsCoordinator preserves literal Unicode identity for external providers
+Purpose: Verify external providers retain their own filename identity when the active provider changes.
+Setup: Prepare composed and decomposed Unicode cache entries and a coordinator initially bound to a cloud compatibility provider.
+Procedure: Rebind to an external-process provider, extract filename and full-path keys, then switch back to the cloud provider.
+Expected outcome: External keys remain distinct; switching back restores the platform's local comparison rules without launching an external process.
+Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator preserves literal Unicode identity for external providers"`
+
 #### Test case: CategorizationService invokes completion callback per entry
 Purpose: Verify per-entry completion notifications fire for categorization progress tracking.
 Setup: Prepare multiple file entries and callbacks that count queued/completed events.

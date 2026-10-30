@@ -1,7 +1,6 @@
 #include "ResultsCoordinator.hpp"
 #include "Utils.hpp"
 
-#include <QString>
 #include <algorithm>
 #include <cassert>
 #include <filesystem>
@@ -18,12 +17,7 @@ void ResultsCoordinator::set_storage_provider(IStorageProvider& storage_provider
 
 std::string ResultsCoordinator::cache_key(const std::string& path) const
 {
-#if defined(__APPLE__)
-    if (storage_provider_->id() == "local_fs") {
-        return QString::fromStdString(path).normalized(QString::NormalizationForm_C).toStdString();
-    }
-#endif
-    return path;
+    return storage_provider_->comparison_key(path);
 }
 
 std::vector<FileEntry> ResultsCoordinator::list_directory(const std::string& directory,

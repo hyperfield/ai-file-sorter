@@ -30,7 +30,7 @@ public:
     /**
      * @brief Build a lookup key without changing the stored filesystem name.
      * @param path Filename or full path returned by the active storage provider.
-     * @return Key accounting for macOS local filesystem Unicode equivalence.
+     * @return Key accounting for the active provider's filename comparison rules.
      */
     std::string cache_key(const std::string& path) const;
 
