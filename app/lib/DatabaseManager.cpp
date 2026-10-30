@@ -103,6 +103,30 @@ struct StatementDeleter {
 
 using StatementPtr = std::unique_ptr<sqlite3_stmt, StatementDeleter>;
 
+// Hold SQLite's connection mutex across binding and stepping a reused statement.
+class ConnectionLock {
+public:
+    explicit ConnectionLock(sqlite3* db) : mutex_(sqlite3_db_mutex(db)) { sqlite3_mutex_enter(mutex_); }
+    ~ConnectionLock() { sqlite3_mutex_leave(mutex_); }
+    ConnectionLock(const ConnectionLock&) = delete;
+    ConnectionLock& operator=(const ConnectionLock&) = delete;
+private:
+    sqlite3_mutex* mutex_;
+};
+
+class StatementReset {
+public:
+    explicit StatementReset(sqlite3_stmt* statement) : statement_(statement) {}
+    ~StatementReset() {
+        sqlite3_reset(statement_);
+        sqlite3_clear_bindings(statement_);
+    }
+    StatementReset(const StatementReset&) = delete;
+    StatementReset& operator=(const StatementReset&) = delete;
+private:
+    sqlite3_stmt* statement_;
+};
+
 StatementPtr prepare_statement(sqlite3* db, const char* sql) {
     sqlite3_stmt* raw = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &raw, nullptr) != SQLITE_OK) {
@@ -274,6 +298,8 @@ DatabaseManager::DatabaseManager(std::string config_dir)
 }
 
 DatabaseManager::~DatabaseManager() {
+    sqlite3_finalize(categorized_file_statement_);
+    sqlite3_finalize(data_version_statement_);
     if (db) {
         sqlite3_close(db);
         db = nullptr;
@@ -292,11 +318,16 @@ ContentAnalysisCache DatabaseManager::content_analysis_cache() const {
 
 bool DatabaseManager::ensure_path_aliases() const {
     if (!db) return false;
+    ConnectionLock lock(db);
     int version;
     {
-        auto statement = prepare_statement(db, "PRAGMA main.data_version;");
-        if (!statement || sqlite3_step(statement.get()) != SQLITE_ROW) return false;
-        version = sqlite3_column_int(statement.get(), 0);
+        if (!data_version_statement_ &&
+            sqlite3_prepare_v2(db, "PRAGMA main.data_version;", -1, &data_version_statement_, nullptr) != SQLITE_OK) {
+            return false;
+        }
+        StatementReset reset(data_version_statement_);
+        if (sqlite3_step(data_version_statement_) != SQLITE_ROW) return false;
+        version = sqlite3_column_int(data_version_statement_, 0);
     }
     if (path_aliases_ready_ && version == path_aliases_data_version_) return true;
     path_aliases_ready_ = false;
@@ -314,7 +345,7 @@ bool DatabaseManager::ensure_path_aliases() const {
     };
     if (!exec("CREATE TEMP TABLE IF NOT EXISTS aifs_path_alias "
               "(path TEXT PRIMARY KEY, comparison_key TEXT NOT NULL);"
-              "CREATE INDEX IF NOT EXISTS temp.idx_aifs_path_alias_key ON aifs_path_alias(comparison_key);"
+              "CREATE INDEX IF NOT EXISTS temp.idx_aifs_path_alias_key ON aifs_path_alias(comparison_key, path);"
               "DELETE FROM temp.aifs_path_alias;")) return false;
 
     const std::vector<std::pair<std::string, std::vector<std::string>>> tables{
@@ -2114,35 +2145,35 @@ std::optional<CategorizedFile>
 DatabaseManager::get_categorized_file(const std::string& dir_path,
                                       const std::string& file_name,
                                       FileType file_type) {
-    if (!ensure_path_aliases()) {
-        return std::nullopt;
-    }
+    if (!db) return std::nullopt;
+    ConnectionLock lock(db);
+    if (!ensure_path_aliases()) return std::nullopt;
 
-    const char *sql =
-        "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
-        "categorization_style, rename_only, rename_applied "
-        "FROM file_categorization "
-        "WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND file_type = ? "
-        "ORDER BY timestamp DESC, id DESC;";
-    StatementPtr stmt = prepare_statement(db, sql);
-    if (!stmt) {
+    const char* sql =
+        "SELECT f.dir_path, f.file_name, f.file_type, f.category, f.subcategory, f.suggested_name, "
+        "f.taxonomy_id, f.categorization_style, f.rename_only, f.rename_applied "
+        "FROM file_categorization AS f "
+        "JOIN temp.aifs_path_alias AS d ON d.path = f.dir_path "
+        "JOIN temp.aifs_path_alias AS n ON n.path = f.file_name "
+        "WHERE d.comparison_key = ?1 AND n.comparison_key = ?2 AND f.file_type = ?3 "
+        "ORDER BY f.timestamp DESC, f.id DESC;";
+    if (!categorized_file_statement_ &&
+        sqlite3_prepare_v2(db, sql, -1, &categorized_file_statement_, nullptr) != SQLITE_OK) {
         return std::nullopt;
     }
-
-    if (sqlite3_bind_text(stmt.get(), 1, dir_path.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
-        return std::nullopt;
-    }
-    if (sqlite3_bind_text(stmt.get(), 2, file_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
-        return std::nullopt;
-    }
-    const std::string type_str = (file_type == FileType::File) ? "F" : "D";
-    if (sqlite3_bind_text(stmt.get(), 3, type_str.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+    StatementReset reset(categorized_file_statement_);
+    const auto directory_key = path_comparison_key(dir_path);
+    const auto name_key = path_comparison_key(file_name);
+    const char* type = file_type == FileType::File ? "F" : "D";
+    if (sqlite3_bind_text(categorized_file_statement_, 1, directory_key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
+        sqlite3_bind_text(categorized_file_statement_, 2, name_key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
+        sqlite3_bind_text(categorized_file_statement_, 3, type, -1, SQLITE_STATIC) != SQLITE_OK) {
         return std::nullopt;
     }
 
     std::optional<CategorizedFile> result;
-    while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-        if (auto entry = build_categorized_entry(stmt.get())) {
+    while (sqlite3_step(categorized_file_statement_) == SQLITE_ROW) {
+        if (auto entry = build_categorized_entry(categorized_file_statement_)) {
             if (!result) result = std::move(entry);
             else result->rename_applied |= entry->rename_applied;
         }

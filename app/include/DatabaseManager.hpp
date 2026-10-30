@@ -229,6 +229,8 @@ private:
     bool file_exists_in_db(const std::string &file_name, const std::string &file_path);
 
     sqlite3* db;
+    mutable sqlite3_stmt* data_version_statement_{nullptr};
+    sqlite3_stmt* categorized_file_statement_{nullptr};
     const IStorageProvider* storage_provider_{nullptr};
     mutable bool path_aliases_ready_{false};
     mutable int path_aliases_data_version_{0};

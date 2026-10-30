@@ -422,6 +422,36 @@ TEST_CASE("DatabaseManager sees cache writes from other database connections", "
     CHECK(db.get_categorized_files("/changed").empty());
 }
 
+TEST_CASE("DatabaseManager reuses lookups without retaining bindings or read locks", "[storage-cache]") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager db(root.path().string());
+    REQUIRE(db.insert_or_update_file_with_categorization("entry", "F", "/sample", {0, "Documents", "Notes"}, false));
+    REQUIRE(db.insert_or_update_file_with_categorization("entry", "D", "/sample", {0, "Documents", "Folders"}, false));
+    const auto file = db.get_categorized_file("/sample", "entry", FileType::File);
+    const auto directory = db.get_categorized_file("/sample", "entry", FileType::Directory);
+    REQUIRE(file);
+    REQUIRE(directory);
+    CHECK(file->subcategory == "Notes");
+    CHECK(directory->subcategory == "Folders");
+    CHECK_FALSE(db.get_categorized_file("/other", "entry", FileType::File));
+    CHECK_FALSE(db.get_categorized_file("/sample", "absent", FileType::File));
+
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    RawDatabase raw(connection, sqlite3_close);
+    // A retained read cursor would prevent this commit on a separate connection.
+    execute_sql(raw.get(), "BEGIN IMMEDIATE; UPDATE file_categorization SET subcategory='Updated' "
+                          "WHERE file_type='F'; COMMIT;");
+    const auto updated = db.get_categorized_file("/sample", "entry", FileType::File);
+    REQUIRE(updated);
+    CHECK(updated->subcategory == "Updated");
+    execute_sql(raw.get(), "ALTER TABLE file_categorization ADD COLUMN test_schema_change TEXT;");
+    const auto after_schema_change = db.get_categorized_file("/sample", "entry", FileType::Directory);
+    REQUIRE(after_schema_change);
+    CHECK(after_schema_change->subcategory == "Folders");
+}
+
 TEST_CASE("DatabaseManager rolls back empty-row pruning if a later deletion fails", "[storage-cache]") {
     TempDir root;
     EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
