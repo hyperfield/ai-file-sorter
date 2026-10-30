@@ -53,7 +53,9 @@ bool ContentAnalysisCache::initialize() const
         );
     )";
     auto statement = prepare(db_, sql);
-    return statement && sqlite3_step(statement.get()) == SQLITE_DONE;
+    return statement && sqlite3_step(statement.get()) == SQLITE_DONE &&
+        sqlite3_exec(db_, "CREATE INDEX IF NOT EXISTS idx_content_analysis_cache_directory "
+                         "ON content_analysis_cache(dir_path);", nullptr, nullptr, nullptr) == SQLITE_OK;
 }
 
 std::optional<ContentAnalysisCache::Key> ContentAnalysisCache::make_key(
@@ -77,8 +79,9 @@ std::optional<ContentAnalysisCache::Key> ContentAnalysisCache::make_key(
 
 std::optional<ContentAnalysisCache::Evidence> ContentAnalysisCache::find(const Key& key) const
 {
+    if (ensure_paths_ && !ensure_paths_()) return std::nullopt;
     auto statement = prepare(db_, "SELECT suggested_name, description FROM content_analysis_cache "
-                                  "WHERE aifs_path_key(source_path) = aifs_path_key(?) AND analyzer = ? AND sha256 = ? "
+                                  "WHERE source_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND analyzer = ? AND sha256 = ? "
                                   "ORDER BY rowid DESC LIMIT 1;");
     if (!statement) {
         return std::nullopt;
@@ -104,6 +107,7 @@ bool ContentAnalysisCache::store(const Key& key, const Evidence& evidence) const
     if (!current || current->sha256 != key.sha256) {
         return false;
     }
+    if (ensure_paths_ && !ensure_paths_()) return false;
     SqliteSavepoint write(db_);
     if (!write) return false;
     auto statement = prepare(db_, R"(
@@ -130,7 +134,7 @@ bool ContentAnalysisCache::store(const Key& key, const Evidence& evidence) const
     }
     if (!stored) return false;
     auto cleanup = prepare(db_, "DELETE FROM content_analysis_cache "
-        "WHERE aifs_path_key(source_path) = aifs_path_key(?1) AND analyzer = ?2 AND source_path != ?1;");
+        "WHERE source_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) AND analyzer = ?2 AND source_path != ?1;");
     if (!cleanup) return false;
     sqlite3_bind_text(cleanup.get(), 1, key.path.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(cleanup.get(), 2, key.analyzer.c_str(), -1, SQLITE_TRANSIENT);
@@ -139,7 +143,11 @@ bool ContentAnalysisCache::store(const Key& key, const Evidence& evidence) const
 
 bool ContentAnalysisCache::clear_directory(const std::string& directory, bool recursive) const
 {
-    auto statement = prepare(db_, "DELETE FROM content_analysis_cache WHERE aifs_path_within(dir_path, ?, ?);");
+    if (ensure_paths_ && !ensure_paths_()) return false;
+    auto statement = prepare(db_, recursive
+        ? "DELETE FROM content_analysis_cache WHERE aifs_path_within(dir_path, ?1, 1);"
+        : "DELETE FROM content_analysis_cache WHERE dir_path IN "
+          "(SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1));");
     if (!statement) {
         return false;
     }
@@ -150,6 +158,5 @@ bool ContentAnalysisCache::clear_directory(const std::string& directory, bool re
     }
     const auto normalized = Utils::path_to_utf8(absolute.lexically_normal());
     sqlite3_bind_text(statement.get(), 1, normalized.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(statement.get(), 2, recursive ? 1 : 0);
     return sqlite3_step(statement.get()) == SQLITE_DONE;
 }

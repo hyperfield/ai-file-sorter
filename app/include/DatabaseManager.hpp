@@ -26,7 +26,7 @@ public:
     void set_storage_provider(const IStorageProvider& provider);
 
     /** @brief Borrow the disposable content-evidence cache. @return A connection-scoped cache handle. */
-    ContentAnalysisCache content_analysis_cache() const { return ContentAnalysisCache(db); }
+    ContentAnalysisCache content_analysis_cache() const;
 
     bool is_file_already_categorized(const std::string &file_name);
     struct ResolvedCategory {
@@ -163,6 +163,7 @@ public:
 
 private:
     bool initialize_path_comparison();
+    bool ensure_path_aliases() const;
     std::string path_comparison_key(const std::string& path) const;
     std::vector<CategorizedFile> read_cached_entries(sqlite3_stmt* statement) const;
 
@@ -229,6 +230,8 @@ private:
 
     sqlite3* db;
     const IStorageProvider* storage_provider_{nullptr};
+    mutable bool path_aliases_ready_{false};
+    mutable int path_aliases_data_version_{0};
     const std::string config_dir;
     const std::string db_file;
     std::vector<TaxonomyEntry> taxonomy_entries;

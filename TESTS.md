@@ -2055,6 +2055,10 @@ Run: `./build-tests/ai_file_sorter_tests "[storage-cache]"`
 - `DatabaseManager cleans empty legacy duplicates without removing valid Unicode entries`: pruning an empty legacy spelling leaves its valid equivalent entry intact.
 - `DatabaseManager matches and updates Unicode folder routing identities`: equivalent source and destination paths reuse a routing decision; upserts remove duplicate spellings while preserving decisions for other tree fingerprints, and deleting the source removes its routes.
 - `DatabaseManager rolls back Unicode upserts if duplicate cleanup fails`: a database trigger forces cleanup to fail; the original row and labels remain unchanged.
+- `DatabaseManager avoids per-row comparison work for indexed cache operations`: seeds 10,000 categorization, routing, and content-evidence rows, then checks that repeated lookups and updates use a bounded number of provider comparisons. This checks scaling without a wall-clock threshold.
+- `DatabaseManager rolls back cache clearing when a dependent deletion fails`: forces routing, evidence, and taxonomy deletion errors during single-file, flat/recursive directory, and global clearing. Every failed clear preserves all original rows and reports failure; retrying after removing the fault succeeds.
+- `DatabaseManager sees cache writes from other database connections`: warms the path lookup and verifies that external inserts, path updates, and deletes are visible on subsequent cache operations.
+- `DatabaseManager rolls back empty-row pruning if a later deletion fails`: forces the second deletion in a pruning operation to fail and verifies that the first deletion is rolled back too.
 
 #### Test case: DatabaseManager keeps rename-only entries with empty labels
 Purpose: Ensure rename-only entries are not removed when categories are empty.

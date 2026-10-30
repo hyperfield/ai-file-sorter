@@ -11,6 +11,7 @@
 #include <sqlite3.h>
 
 #include <memory>
+#include <functional>
 
 namespace {
 class NormalizingStorageProvider : public LocalFsProvider {
@@ -18,6 +19,15 @@ public:
     std::string comparison_key(const std::string& path) const override {
         return QString::fromStdString(path).normalized(QString::NormalizationForm_C).toStdString();
     }
+};
+
+class CountingStorageProvider : public NormalizingStorageProvider {
+public:
+    std::string comparison_key(const std::string& path) const override {
+        ++comparisons;
+        return NormalizingStorageProvider::comparison_key(path);
+    }
+    mutable size_t comparisons{0};
 };
 
 using RawDatabase = std::unique_ptr<sqlite3, decltype(&sqlite3_close)>;
@@ -288,6 +298,147 @@ TEST_CASE("DatabaseManager rolls back Unicode upserts if duplicate cleanup fails
     const auto cached = db.get_categorized_file("/sample", "café.txt", FileType::File);
     REQUIRE(cached);
     CHECK(cached->subcategory == "Notes");
+}
+
+TEST_CASE("DatabaseManager avoids per-row comparison work for indexed cache operations", "[storage-cache]") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager db(root.path().string());
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    RawDatabase raw(connection, sqlite3_close);
+    execute_sql(raw.get(), R"sql(
+        WITH RECURSIVE entries(i) AS (VALUES(1) UNION ALL SELECT i + 1 FROM entries WHERE i < 10000)
+        INSERT INTO file_categorization(file_name, file_type, dir_path, category, subcategory)
+        SELECT 'file-' || i || '.txt', 'F', '/sample', 'Documents', 'Notes' FROM entries;
+    )sql");
+    CountingStorageProvider provider;
+    db.set_storage_provider(provider);
+    DatabaseManager::FolderTreeRoutingRecord route;
+    route.destination_root = "/target";
+    route.tree_fingerprint = "tree:v1";
+    route.semantic_category = "Documents";
+    route.semantic_subcategory = "Notes";
+    route.target_folder_relative_path = "Notes";
+    REQUIRE(db.insert_or_update_folder_tree_routing("file-9000.txt", "F", "/sample", route));
+    execute_sql(raw.get(), R"sql(
+        INSERT INTO folder_tree_routing(file_name,file_type,dir_path,destination_root,tree_fingerprint,
+            semantic_category,semantic_subcategory,target_folder_relative_path)
+        SELECT file_name,file_type,dir_path,'/target',
+            (SELECT tree_fingerprint FROM folder_tree_routing LIMIT 1),'Documents','Notes','Notes'
+        FROM file_categorization WHERE file_name != 'file-9000.txt';
+        INSERT INTO content_analysis_cache
+        SELECT '/sample/' || file_name,dir_path,'document:v1','hash',file_name,'Evidence'
+        FROM file_categorization;
+    )sql");
+    REQUIRE(db.get_categorized_file("/sample", "file-9000.txt", FileType::File));
+    provider.comparisons = 0;
+    for (int index = 9000; index < 9100; ++index) {
+        const auto name = "file-" + std::to_string(index) + ".txt";
+        REQUIRE(db.get_categorized_file("/sample", name, FileType::File));
+        REQUIRE(db.insert_or_update_file_with_categorization(name, "F", "/sample", {0, "Documents", "Notes"}, false));
+        REQUIRE(db.get_folder_tree_routing(name, FileType::File, "/sample", "/target", "tree:v1",
+                                          false, "Documents", "Notes"));
+        REQUIRE(db.insert_or_update_folder_tree_routing(name, "F", "/sample", route));
+        REQUIRE(db.content_analysis_cache().find({"/sample/" + name, "document:v1", "hash"}));
+    }
+    // No wall-clock threshold: repeated operations must not normalize the entire 10,000-row cache.
+    CHECK(provider.comparisons < 5000);
+}
+
+TEST_CASE("DatabaseManager rolls back cache clearing when a dependent deletion fails", "[storage-cache]") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager db(root.path().string());
+    const auto labels = db.resolve_category("Documents", "Notes");
+    REQUIRE(db.insert_or_update_file_with_categorization("notes.txt", "F", "/sample", labels, false));
+    DatabaseManager::FolderTreeRoutingRecord route;
+    route.destination_root = "/target";
+    route.tree_fingerprint = "tree:v1";
+    route.semantic_category = "Documents";
+    route.semantic_subcategory = "Notes";
+    route.target_folder_relative_path = "Notes";
+    REQUIRE(db.insert_or_update_folder_tree_routing("notes.txt", "F", "/sample", route));
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    RawDatabase raw(connection, sqlite3_close);
+    execute_sql(raw.get(), "INSERT INTO content_analysis_cache VALUES "
+        "('/sample/notes.txt', '/sample', 'document:v1', 'hash', 'notes.txt', 'Evidence');");
+    std::string rejection_table = "folder_tree_routing";
+    std::function<bool()> clear;
+    bool single_file = false;
+    bool clear_taxonomy = false;
+    SECTION("Single-file routing failure") {
+        single_file = true;
+        clear = [&] { return db.remove_file_categorization("/sample", "notes.txt", FileType::File); };
+    }
+    SECTION("Nonrecursive directory routing failure") {
+        clear = [&] { return db.clear_directory_categorizations("/sample"); };
+    }
+    SECTION("Recursive directory evidence failure") {
+        rejection_table = "content_analysis_cache";
+        clear = [&] { return db.clear_directory_categorizations("/sample", true); };
+    }
+    SECTION("Global routing failure") {
+        clear = [&] { return db.clear_all_categorizations(); };
+    }
+    SECTION("Global taxonomy failure") {
+        rejection_table = "category_taxonomy";
+        clear_taxonomy = true;
+        clear = [&] { return db.clear_all_categorizations(true); };
+    }
+    execute_sql(raw.get(), "CREATE TRIGGER reject_clear BEFORE DELETE ON " + rejection_table +
+        " BEGIN SELECT RAISE(ABORT, 'test dependent deletion failure'); END;");
+    CHECK_FALSE(clear());
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM file_categorization;") == 1);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM folder_tree_routing;") == 1);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM content_analysis_cache;") == 1);
+    CHECK(db.resolve_category("Documents", "Notes").taxonomy_id == labels.taxonomy_id);
+    execute_sql(raw.get(), "DROP TRIGGER reject_clear;");
+    REQUIRE(clear());
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM file_categorization;") == 0);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM folder_tree_routing;") == 0);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM content_analysis_cache;") == (single_file ? 1 : 0));
+    CHECK(db.get_taxonomy_snapshot(0).empty() == clear_taxonomy);
+}
+
+TEST_CASE("DatabaseManager sees cache writes from other database connections", "[storage-cache]") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager db(root.path().string());
+    NormalizingStorageProvider provider;
+    db.set_storage_provider(provider);
+    CHECK(db.get_categorized_files("/sample").empty());
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    RawDatabase raw(connection, sqlite3_close);
+    execute_sql(raw.get(), "INSERT INTO file_categorization(file_name,file_type,dir_path,category,subcategory) "
+        "VALUES('café.txt','F','/sample','Documents','Notes');");
+    REQUIRE(db.get_categorized_file("/sample", "cafe\xcc\x81.txt", FileType::File));
+    execute_sql(raw.get(), "UPDATE file_categorization SET file_name='résumé.txt',dir_path='/changed';");
+    CHECK_FALSE(db.get_categorized_file("/sample", "café.txt", FileType::File));
+    REQUIRE(db.get_categorized_file("/changed", "re\xcc\x81sume\xcc\x81.txt", FileType::File));
+    execute_sql(raw.get(), "DELETE FROM file_categorization;");
+    CHECK(db.get_categorized_files("/changed").empty());
+}
+
+TEST_CASE("DatabaseManager rolls back empty-row pruning if a later deletion fails", "[storage-cache]") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager db(root.path().string());
+    REQUIRE(db.insert_or_update_file_with_categorization("first.txt", "F", "/sample", {0, "", ""}, false));
+    REQUIRE(db.insert_or_update_file_with_categorization("second.txt", "F", "/sample", {0, "", ""}, false));
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    RawDatabase raw(connection, sqlite3_close);
+    execute_sql(raw.get(), "CREATE TRIGGER reject_last_empty_delete BEFORE DELETE ON file_categorization "
+        "WHEN (SELECT COUNT(*) FROM file_categorization) = 1 "
+        "BEGIN SELECT RAISE(ABORT, 'test later deletion failure'); END;");
+    CHECK(db.remove_empty_categorizations("/sample").empty());
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM file_categorization;") == 2);
+    execute_sql(raw.get(), "DROP TRIGGER reject_last_empty_delete;");
+    CHECK(db.remove_empty_categorizations("/sample").size() == 2);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM file_categorization;") == 0);
 }
 
 TEST_CASE("DatabaseManager repairs stored Unicode taxonomy keys and preserves references on reopen") {
