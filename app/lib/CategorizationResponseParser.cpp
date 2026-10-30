@@ -31,7 +31,7 @@ std::string to_lower_copy_str(std::string value)
 
 std::string trim_copy(std::string value)
 {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !Utils::is_ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -43,7 +43,7 @@ std::string collapse_spaces_copy(std::string value)
     collapsed.reserve(value.size());
     bool previous_space = false;
     for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
+        if (Utils::is_ascii_space(ch)) {
             if (!previous_space) {
                 collapsed.push_back(' ');
             }
@@ -77,11 +77,11 @@ std::string strip_wrapping_punctuation(std::string value)
         }
     };
 
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.front())) ||
+    while (!value.empty() && (Utils::is_ascii_space(static_cast<unsigned char>(value.front())) ||
                               is_wrapping(static_cast<unsigned char>(value.front())))) {
         value.erase(value.begin());
     }
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.back())) ||
+    while (!value.empty() && (Utils::is_ascii_space(static_cast<unsigned char>(value.back())) ||
                               is_wrapping(static_cast<unsigned char>(value.back())) ||
                               value.back() == '.' || value.back() == ',' ||
                               value.back() == ':' || value.back() == ';')) {
@@ -225,7 +225,7 @@ std::string strip_inline_label_artifacts(std::string value, bool category_label)
 
             std::size_t label_start = idx + 1;
             while (label_start < lower.size() &&
-                   std::isspace(static_cast<unsigned char>(lower[label_start]))) {
+                   Utils::is_ascii_space(static_cast<unsigned char>(lower[label_start]))) {
                 ++label_start;
             }
 
@@ -239,7 +239,7 @@ std::string strip_inline_label_artifacts(std::string value, bool category_label)
 
                 const std::size_t after_label = label_start + label.size();
                 if (after_label == lower.size() ||
-                    std::isspace(static_cast<unsigned char>(lower[after_label])) ||
+                    Utils::is_ascii_space(static_cast<unsigned char>(lower[after_label])) ||
                     lower[after_label] == ':' ||
                     lower[after_label] == '=') {
                     return idx;
@@ -313,7 +313,7 @@ std::string strip_leading_label_artifacts(std::string value)
         std::size_t pos = marker.size();
         while (pos < value.size()) {
             const unsigned char ch = static_cast<unsigned char>(value[pos]);
-            if (std::isspace(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
+            if (Utils::is_ascii_space(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
                 ch == '"' || ch == '\'' || ch == '`') {
                 ++pos;
                 continue;
@@ -350,7 +350,7 @@ std::string strip_list_prefix(std::string line)
     }
 
     if ((line.front() == '-' || line.front() == '*') && line.size() > 1 &&
-        std::isspace(static_cast<unsigned char>(line[1]))) {
+        Utils::is_ascii_space(static_cast<unsigned char>(line[1]))) {
         return trim_copy(line.substr(1));
     }
 
@@ -360,7 +360,7 @@ std::string strip_list_prefix(std::string line)
     }
     if (idx > 0 && idx + 1 < line.size() &&
         (line[idx] == '.' || line[idx] == ')') &&
-        std::isspace(static_cast<unsigned char>(line[idx + 1]))) {
+        Utils::is_ascii_space(static_cast<unsigned char>(line[idx + 1]))) {
         return trim_copy(line.substr(idx + 1));
     }
 
@@ -459,7 +459,7 @@ std::optional<std::string> extract_relaxed_labeled_value(const std::string& line
         std::size_t pos = variant.size();
         while (pos < cleaned.size()) {
             const unsigned char ch = static_cast<unsigned char>(cleaned[pos]);
-            if (std::isspace(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
+            if (Utils::is_ascii_space(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
                 ch == '"' || ch == '\'' || ch == '`') {
                 ++pos;
                 continue;
@@ -543,7 +543,7 @@ bool split_inline_pair(const std::string& line, std::string& category, std::stri
 bool contains_only_allowed_chars(const std::string& value)
 {
     for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
+        if (Utils::is_ascii_control(ch)) {
             return false;
         }
         static const std::string forbidden = R"(<>:"/\|?*)";
@@ -561,7 +561,7 @@ bool has_leading_or_trailing_space_or_dot(const std::string& value)
     }
     const unsigned char first = static_cast<unsigned char>(value.front());
     const unsigned char last = static_cast<unsigned char>(value.back());
-    return std::isspace(first) || std::isspace(last);
+    return Utils::is_ascii_space(first) || Utils::is_ascii_space(last);
 }
 
 bool is_reserved_windows_name(const std::string& value)

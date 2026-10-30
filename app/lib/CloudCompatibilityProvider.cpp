@@ -36,6 +36,11 @@ std::string CloudCompatibilityProvider::id() const
     return provider_id_;
 }
 
+std::string CloudCompatibilityProvider::comparison_key(const std::string& path) const
+{
+    return fallback_provider_.comparison_key(path);
+}
+
 StorageProviderDetection CloudCompatibilityProvider::detect(const std::string& root_path) const
 {
     const CloudPathMatch match = detect_cloud_path_match(root_path, path_markers_, env_var_names_);

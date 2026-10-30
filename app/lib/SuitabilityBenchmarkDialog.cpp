@@ -363,6 +363,46 @@ bool case_insensitive_contains(std::string_view haystack, std::string_view needl
     return hay.find(nee) != std::string::npos;
 }
 
+bool is_metal_backend_key(std::string_view value)
+{
+    const std::string lowered = to_lower_copy(std::string(value));
+    return lowered == "metal" || lowered == "mtl";
+}
+
+bool backend_identifier_matches(std::string_view actual, std::string_view requested)
+{
+    if (requested.empty()) {
+        return true;
+    }
+    if (case_insensitive_contains(actual, requested)) {
+        return true;
+    }
+    return is_metal_backend_key(requested) &&
+           (case_insensitive_contains(actual, "metal") ||
+            case_insensitive_contains(actual, "mtl"));
+}
+
+ggml_backend_reg_t backend_reg_by_name_or_alias(std::string_view backend_name)
+{
+    if (backend_name.empty()) {
+        return nullptr;
+    }
+
+    const std::string name(backend_name);
+    if (ggml_backend_reg_t reg = ggml_backend_reg_by_name(name.c_str())) {
+        return reg;
+    }
+
+    if (is_metal_backend_key(backend_name)) {
+        if (ggml_backend_reg_t reg = ggml_backend_reg_by_name("MTL")) {
+            return reg;
+        }
+        return ggml_backend_reg_by_name("Metal");
+    }
+
+    return nullptr;
+}
+
 std::string format_timestamp(std::chrono::system_clock::time_point point)
 {
     std::time_t time_value = std::chrono::system_clock::to_time_t(point);
@@ -466,7 +506,7 @@ BackendTarget resolve_backend_target(std::string_view override_value,
     if (backend == "cpu") {
         return {"cpu", QObject::tr("CPU").toStdString()};
     }
-    if (backend == "metal") {
+    if (is_metal_backend_key(backend)) {
         return {"metal", QObject::tr("Metal").toStdString()};
     }
     if (backend == "cuda") {
@@ -578,7 +618,7 @@ std::optional<BackendMemorySnapshot> query_backend_memory(std::string_view backe
         }
         auto* reg = ggml_backend_dev_backend_reg(device);
         const char* reg_name = reg ? ggml_backend_reg_name(reg) : nullptr;
-        if (!case_insensitive_contains(reg_name ? reg_name : "", backend_name)) {
+        if (!backend_identifier_matches(reg_name ? reg_name : "", backend_name)) {
             continue;
         }
 
@@ -608,8 +648,7 @@ std::optional<BackendMemorySnapshot> query_backend_memory(std::string_view backe
 bool is_backend_available(std::string_view backend_name)
 {
     load_ggml_backends_once();
-    const std::string name(backend_name);
-    ggml_backend_reg_t reg = ggml_backend_reg_by_name(name.c_str());
+    ggml_backend_reg_t reg = backend_reg_by_name_or_alias(backend_name);
     if (!reg) {
         return false;
     }
@@ -889,9 +928,40 @@ std::optional<std::pair<std::string, std::string>> parse_category_pair(const std
 struct StepResult {
     bool success{false};
     bool skipped{false};
+    std::string backend_key;
+    std::string backend_fallback_reason;
     std::string detail;
     std::chrono::steady_clock::duration duration{};
 };
+
+std::string requested_image_backend_key(const BenchmarkBackendInfo& backend_info)
+{
+    if (!VisualLlmRuntime::should_use_gpu()) {
+        return "cpu";
+    }
+
+    std::string visual_backend = read_env_lower("AI_FILE_SORTER_GPU_BACKEND");
+    if (visual_backend.empty()) {
+        visual_backend = read_env_lower("LLAMA_ARG_DEVICE");
+    }
+
+    return resolve_backend_target(visual_backend, backend_info).key;
+}
+
+std::string image_backend_fallback_reason(const std::string& backend_key,
+                                          const BenchmarkBackendInfo& backend_info)
+{
+#if defined(__APPLE__)
+    const auto target = resolve_backend_target(backend_key, backend_info);
+    if (const auto reason = backend_unavailable_reason(target, backend_info)) {
+        return reason->toStdString();
+    }
+#else
+    (void)backend_key;
+#endif
+    (void)backend_info;
+    return {};
+}
 
 struct TextModelOutcome {
     bool skipped{true};
@@ -964,7 +1034,8 @@ StepResult run_document_test(ILLMClient& llm, const std::filesystem::path& temp_
 
 StepResult run_image_test(const std::filesystem::path& temp_dir,
                           std::string_view visual_backend_id,
-                          const std::vector<CustomLLM>& custom_llms)
+                          const std::vector<CustomLLM>& custom_llms,
+                          const BenchmarkBackendInfo& backend_info)
 {
     StepResult result;
 #if defined(AI_FILE_SORTER_HAS_MTMD)
@@ -992,7 +1063,11 @@ StepResult run_image_test(const std::filesystem::path& temp_dir,
     const auto start = std::chrono::steady_clock::now();
     try {
         ImageAnalyzerSettings analyzer_settings;
-        analyzer_settings.use_gpu = VisualLlmRuntime::should_use_gpu();
+        result.backend_key = requested_image_backend_key(backend_info);
+        result.backend_fallback_reason =
+            image_backend_fallback_reason(result.backend_key, backend_info);
+        analyzer_settings.use_gpu = result.backend_key != "cpu" &&
+                                    result.backend_fallback_reason.empty();
         auto analyzer = ImageAnalyzerFactory::create(*visual_backend, analyzer_settings);
         const auto analysis = analyzer->analyze(image_path);
         result.success = !analysis.suggested_name.empty();
@@ -1004,6 +1079,7 @@ StepResult run_image_test(const std::filesystem::path& temp_dir,
     }
     result.duration = std::chrono::steady_clock::now() - start;
 #else
+    (void)backend_info;
     result.skipped = true;
     result.detail = "Visual LLM support is not available in this build.";
 #endif
@@ -1398,6 +1474,12 @@ QStringList build_result_lines(const TextModelOutcome& text_models,
 } // namespace
 
 #if defined(AI_FILE_SORTER_TEST_BUILD)
+bool SuitabilityBenchmarkDialogTestAccess::backend_alias_matches(
+    std::string_view actual, std::string_view requested)
+{
+    return backend_identifier_matches(actual, requested);
+}
+
 QString SuitabilityBenchmarkDialogTestAccess::backend_note_for_testing(
     std::string_view requested_backend,
     bool cuda_available,
@@ -1838,7 +1920,8 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
         }
         StepResult image_result = run_image_test(temp_dir,
                                                  settings_.get_visual_model_id(),
-                                                 settings_.get_custom_llms());
+                                                 settings_.get_custom_llms(),
+                                                 backend_info);
 
         if (image_result.skipped) {
             const QString detail = image_result.detail.empty()
@@ -1864,15 +1947,21 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
         }
 
         if (!image_result.skipped) {
-            std::string visual_backend = read_env_lower("AI_FILE_SORTER_GPU_BACKEND");
+            std::string visual_backend = image_result.backend_key;
+            if (visual_backend.empty()) {
+                visual_backend = read_env_lower("AI_FILE_SORTER_GPU_BACKEND");
+            }
             if (visual_backend.empty()) {
                 visual_backend = read_env_lower("LLAMA_ARG_DEVICE");
             }
 
-            const QString backend_note =
-                build_image_backend_note(visual_backend,
-                                         VisualLlmRuntime::should_use_gpu(),
-                                         backend_info);
+            const QString backend_note = image_result.backend_fallback_reason.empty()
+                ? build_image_backend_note(visual_backend,
+                                           VisualLlmRuntime::should_use_gpu(),
+                                           backend_info)
+                : build_cpu_backend_note(
+                      QString::fromStdString(image_result.backend_fallback_reason),
+                      std::nullopt);
 
             post_line(QObject::tr("Backend used (image analysis): %1")
                           .arg(backend_note));

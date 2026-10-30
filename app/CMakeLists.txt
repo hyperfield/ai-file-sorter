@@ -426,7 +426,10 @@ if(APPLE)
     endif()
     if(_aifs_macos_arches MATCHES "(^|;)(arm64|aarch64)($|;)")
         # Qt 6 headers on newer Apple SDKs require arm_acle.h for __yield().
-        add_compile_options(-include arm_acle.h)
+        add_compile_options(
+            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-include>"
+            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:arm_acle.h>"
+        )
     endif()
 endif()
 
@@ -873,8 +876,6 @@ aifs_apply_update_mode(aifilesorter)
 
 target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
     ${DOC_DEPS_INCLUDE_DIRS}
 )
 
@@ -1061,6 +1062,10 @@ if(NOT _aifs_llama_vulkan_backend_index EQUAL -1)
 endif()
 
 if(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
+    list(APPEND AIFS_LLAMA_INCLUDE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
+    )
     if(NOT WIN32)
         message(FATAL_ERROR
             "AI_FILE_SORTER_LLAMA_PROVIDER=precompiled is currently supported only for "
@@ -1269,6 +1274,15 @@ elseif(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "bundled-source")
         set(GGML_AVX512_BF16 OFF CACHE BOOL "ggml: enable AVX512-BF16" FORCE)
     endif()
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp" "${CMAKE_CURRENT_BINARY_DIR}/llama-build")
+    if(TARGET vendor-hash)
+        # MediaInfo exports incompatible functions with the same SHA-256 names.
+        target_compile_definitions(vendor-hash PRIVATE
+            sha256_init=aifs_llama_sha256_init
+            sha256_update=aifs_llama_sha256_update
+            sha256_final=aifs_llama_sha256_final
+            sha256_hash=aifs_llama_sha256_hash
+        )
+    endif()
     get_directory_property(_llama_install_version DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/llama-build" DEFINITION LLAMA_INSTALL_VERSION)
     if (NOT _llama_install_version OR _llama_install_version STREQUAL "LLAMA_INSTALL_VERSION-NOTFOUND")
         set(_llama_install_version "0.0.0")
@@ -1923,12 +1937,16 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     target_include_directories(ai_file_sorter_tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
         ${AIFS_LLAMA_INCLUDE_DIRS}
         ${DOC_DEPS_INCLUDE_DIRS}
     )
+
+    if(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "bundled-source" AND TARGET vendor-hash)
+        target_sources(ai_file_sorter_tests PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_bundled_llama_hash.cpp")
+    endif()
 
     target_link_libraries(ai_file_sorter_tests PRIVATE
         Catch2::Catch2WithMain

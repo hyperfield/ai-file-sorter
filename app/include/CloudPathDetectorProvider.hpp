@@ -17,6 +17,7 @@ public:
                               std::vector<std::string> env_var_names = {});
 
     std::string id() const override;
+    std::string comparison_key(const std::string& path) const override;
     StorageProviderDetection detect(const std::string& root_path) const override;
     StorageProviderCapabilities capabilities() const override;
     std::vector<FileEntry> list_directory(const std::string& directory,

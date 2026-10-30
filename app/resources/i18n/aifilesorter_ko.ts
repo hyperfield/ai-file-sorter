@@ -926,7 +926,59 @@ Status: %4
             <source>Failed to check for folder-structure plugin updates.</source>
             <translation>Failed to check for folder-structure plugin updates.</translation>
         </message>
-    </context>
+        <message>
+        <source>Install signed folder-structure packs for templates and smarter sorting guidance. AI File Sorter verifies each pack before enabling it.</source>
+        <translation>서명된 폴더 구조 팩을 설치하여 템플릿과 더 나은 정리 안내를 이용하세요. AI File Sorter는 각 팩을 활성화하기 전에 검증합니다.</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>게시자</translation>
+    </message>
+    <message>
+        <source>Signature verified with trusted key %1.</source>
+        <translation>신뢰할 수 있는 키 %1(으)로 서명을 검증했습니다.</translation>
+    </message>
+    <message>
+        <source>Listed in the AI File Sorter plugin catalog.</source>
+        <translation>AI File Sorter 플러그인 카탈로그에 등록되어 있습니다.</translation>
+    </message>
+    <message>
+        <source>Available to install</source>
+        <translation>설치 가능</translation>
+    </message>
+    <message>
+        <source>License: %1</source>
+        <translation>라이선스: %1</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>활성</translation>
+    </message>
+    <message>
+        <source>Activation needed</source>
+        <translation>활성화 필요</translation>
+    </message>
+    <message>
+        <source>Verified publisher: %1</source>
+        <translation>검증된 게시자: %1</translation>
+    </message>
+    <message>
+        <source>Publisher: %1</source>
+        <translation>게시자: %1</translation>
+    </message>
+    <message>
+        <source>%1 %2
+%3
+Status: %4%5
+
+%6</source>
+        <translation>%1 %2
+%3
+상태: %4%5
+
+%6</translation>
+    </message>
+</context>
     <context>
         <name>LLMSelectionDialog</name>
         <message>
@@ -2026,7 +2078,23 @@ A valid code will permanently hide this support reminder.</translation>
             <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
             <translation>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</translation>
         </message>
-    </context>
+        <message>
+        <source>Plugin used: %1</source>
+        <translation>사용 중인 플러그인: %1</translation>
+    </message>
+    <message>
+        <source>Folder-structure guidance is active for the destination folder.</source>
+        <translation>대상 폴더에 폴더 구조 안내가 활성화되어 있습니다.</translation>
+    </message>
+    <message>
+        <source>destination folder</source>
+        <translation>대상 폴더</translation>
+    </message>
+    <message>
+        <source>The %1 looks like a Johnny.Decimal archive.</source>
+        <translation>%1이(가) Johnny.Decimal 아카이브인 것 같습니다.</translation>
+    </message>
+</context>
     <context>
         <name>MainWindowStateBinder</name>
         <message>

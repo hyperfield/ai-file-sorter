@@ -61,7 +61,12 @@ public:
     static std::filesystem::path ensure_ca_bundle();
     static std::string path_to_utf8(const std::filesystem::path& path);
     static std::filesystem::path utf8_to_path(const std::string& utf8_path);
+    /** @brief Build a native filesystem lookup key while preserving stored path spellings. */
+    static std::string filesystem_comparison_key(const std::string& path);
     static std::string sanitize_path_label(const std::string& value);
+    // Byte-oriented parsers must leave non-ASCII UTF-8 bytes unchanged.
+    static constexpr bool is_ascii_control(unsigned char ch) { return ch < 0x20 || ch == 0x7f; }
+    static constexpr bool is_ascii_space(unsigned char ch) { return ch == ' ' || (ch >= '\t' && ch <= '\r'); }
 
 private:
     static int get_ngl(int vram_mb);

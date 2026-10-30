@@ -49,7 +49,7 @@ std::string& llm_storage_directory_override()
 
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !Utils::is_ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -1070,61 +1070,37 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
     return to_forward_slashes(Utils::path_to_utf8(normalized.filename()));
 }
 
-namespace {
-std::string trim_ws(const std::string& value) {
-    const char* whitespace = " \t\n\r\f\v";
-    const auto start = value.find_first_not_of(whitespace);
-    const auto end = value.find_last_not_of(whitespace);
-    if (start == std::string::npos || end == std::string::npos) {
-        return std::string();
-    }
-    return value.substr(start, end - start + 1);
-}
+std::string Utils::filesystem_comparison_key(const std::string& path) {
+#if defined(__APPLE__)
+    return QString::fromStdString(path).normalized(QString::NormalizationForm_C).toStdString();
+#else
+    return path;
+#endif
 }
 
 std::string Utils::sanitize_path_label(const std::string& value) {
-    const std::string invalid = R"(<>:"/\|?*)";
-    QString normalized = QString::fromUtf8(value.c_str());
+    const QString invalid = QStringLiteral("<>:\"/\\|?*");
+    QString normalized = QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
     normalized.remove(QChar::ReplacementCharacter);
-    const QByteArray normalized_utf8 = normalized.normalized(QString::NormalizationForm_C).toUtf8();
-    const std::string utf8_value(normalized_utf8.constData(),
-                                 static_cast<std::size_t>(normalized_utf8.size()));
-    std::string cleaned;
-    cleaned.reserve(utf8_value.size());
+    normalized = normalized.normalized(QString::NormalizationForm_C);
+    QString cleaned;
+    cleaned.reserve(normalized.size());
 
-    // Replace invalid path characters and control chars with spaces.
-    for (unsigned char ch : utf8_value) {
-        if (std::iscntrl(ch)) {
+    // Classify Unicode characters rather than individual UTF-8 bytes.
+    for (QChar ch : normalized) {
+        if (ch.category() == QChar::Other_Control) {
             continue;
         }
-        if (invalid.find(static_cast<char>(ch)) != std::string::npos) {
-            cleaned.push_back(' ');
+        if (invalid.contains(ch)) {
+            cleaned.append(QLatin1Char(' '));
         } else {
-            cleaned.push_back(static_cast<char>(ch));
+            cleaned.append(ch);
         }
     }
 
-    // Collapse multiple spaces.
-    std::string collapsed;
-    collapsed.reserve(cleaned.size());
-    bool prev_space = false;
-    for (char ch : cleaned) {
-        const bool is_space = std::isspace(static_cast<unsigned char>(ch));
-        if (is_space) {
-            if (!prev_space) {
-                collapsed.push_back(' ');
-            }
-        } else {
-            collapsed.push_back(ch);
-        }
-        prev_space = is_space;
+    cleaned = cleaned.simplified();
+    while (cleaned.endsWith(QLatin1Char('.')) || cleaned.endsWith(QLatin1Char(' '))) {
+        cleaned.chop(1);
     }
-
-    // Trim and drop trailing dots/spaces (Windows safety).
-    std::string trimmed = trim_ws(collapsed);
-    while (!trimmed.empty() && (trimmed.back() == '.' || std::isspace(static_cast<unsigned char>(trimmed.back())))) {
-        trimmed.pop_back();
-    }
-
-    return trim_ws(trimmed);
+    return cleaned.toStdString();
 }

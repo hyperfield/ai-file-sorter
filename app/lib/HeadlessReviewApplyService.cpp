@@ -31,7 +31,7 @@ std::string to_lower_copy(std::string value)
 
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !Utils::is_ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -75,7 +75,7 @@ bool contains_only_allowed_chars(const std::string& value)
 {
     static const std::string forbidden = R"(<>:"/\|?*)";
     for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
+        if (Utils::is_ascii_control(ch)) {
             return false;
         }
         if (forbidden.find(static_cast<char>(ch)) != std::string::npos) {
@@ -112,7 +112,7 @@ bool has_leading_or_trailing_space_or_dot(const std::string& value)
     }
     const unsigned char first = static_cast<unsigned char>(value.front());
     const unsigned char last = static_cast<unsigned char>(value.back());
-    return std::isspace(first) || std::isspace(last) ||
+    return Utils::is_ascii_space(first) || Utils::is_ascii_space(last) ||
            value.front() == '.' || value.back() == '.';
 }
 
@@ -319,6 +319,7 @@ HeadlessReviewApplyService::HeadlessReviewApplyService(DatabaseManager* db_manag
       logger_(std::move(logger)),
       history_store_(history_store)
 {
+    if (db_manager_) db_manager_->set_storage_provider(storage_provider_);
 }
 
 HeadlessReviewApplyService::Result

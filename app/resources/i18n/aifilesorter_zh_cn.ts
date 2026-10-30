@@ -926,7 +926,59 @@ Status: %4
             <source>Failed to check for folder-structure plugin updates.</source>
             <translation>Failed to check for folder-structure plugin updates.</translation>
         </message>
-    </context>
+        <message>
+        <source>Install signed folder-structure packs for templates and smarter sorting guidance. AI File Sorter verifies each pack before enabling it.</source>
+        <translation>安装经过签名的文件夹结构包，获取模板和更智能的分类指导。AI File Sorter 会在启用每个包之前验证它。</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>发布者</translation>
+    </message>
+    <message>
+        <source>Signature verified with trusted key %1.</source>
+        <translation>已使用受信任密钥 %1 验证签名。</translation>
+    </message>
+    <message>
+        <source>Listed in the AI File Sorter plugin catalog.</source>
+        <translation>已列入 AI File Sorter 插件目录。</translation>
+    </message>
+    <message>
+        <source>Available to install</source>
+        <translation>可安装</translation>
+    </message>
+    <message>
+        <source>License: %1</source>
+        <translation>许可证：%1</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>已激活</translation>
+    </message>
+    <message>
+        <source>Activation needed</source>
+        <translation>需要激活</translation>
+    </message>
+    <message>
+        <source>Verified publisher: %1</source>
+        <translation>已验证的发布者：%1</translation>
+    </message>
+    <message>
+        <source>Publisher: %1</source>
+        <translation>发布者：%1</translation>
+    </message>
+    <message>
+        <source>%1 %2
+%3
+Status: %4%5
+
+%6</source>
+        <translation>%1 %2
+%3
+状态：%4%5
+
+%6</translation>
+    </message>
+</context>
     <context>
         <name>LLMSelectionDialog</name>
         <message>
@@ -2024,7 +2076,23 @@ A valid code will permanently hide this support reminder.</translation>
             <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
             <translation>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</translation>
         </message>
-    </context>
+        <message>
+        <source>Plugin used: %1</source>
+        <translation>使用的插件：%1</translation>
+    </message>
+    <message>
+        <source>Folder-structure guidance is active for the destination folder.</source>
+        <translation>已为目标文件夹启用文件夹结构指导。</translation>
+    </message>
+    <message>
+        <source>destination folder</source>
+        <translation>目标文件夹</translation>
+    </message>
+    <message>
+        <source>The %1 looks like a Johnny.Decimal archive.</source>
+        <translation>%1 似乎是一个 Johnny.Decimal 归档。</translation>
+    </message>
+</context>
     <context>
         <name>MainWindowStateBinder</name>
         <message>

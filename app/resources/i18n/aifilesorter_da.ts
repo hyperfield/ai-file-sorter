@@ -926,7 +926,59 @@ Status: %4
             <source>Failed to check for folder-structure plugin updates.</source>
             <translation>Failed to check for folder-structure plugin updates.</translation>
         </message>
-    </context>
+        <message>
+        <source>Install signed folder-structure packs for templates and smarter sorting guidance. AI File Sorter verifies each pack before enabling it.</source>
+        <translation>Installer signerede mappestrukturpakker med skabeloner og bedre sorteringsvejledning. AI File Sorter kontrollerer hver pakke, før den aktiveres.</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Udgiver</translation>
+    </message>
+    <message>
+        <source>Signature verified with trusted key %1.</source>
+        <translation>Signatur bekræftet med den betroede nøgle %1.</translation>
+    </message>
+    <message>
+        <source>Listed in the AI File Sorter plugin catalog.</source>
+        <translation>Opført i AI File Sorters pluginkatalog.</translation>
+    </message>
+    <message>
+        <source>Available to install</source>
+        <translation>Klar til installation</translation>
+    </message>
+    <message>
+        <source>License: %1</source>
+        <translation>Licens: %1</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>Aktiv</translation>
+    </message>
+    <message>
+        <source>Activation needed</source>
+        <translation>Aktivering påkrævet</translation>
+    </message>
+    <message>
+        <source>Verified publisher: %1</source>
+        <translation>Bekræftet udgiver: %1</translation>
+    </message>
+    <message>
+        <source>Publisher: %1</source>
+        <translation>Udgiver: %1</translation>
+    </message>
+    <message>
+        <source>%1 %2
+%3
+Status: %4%5
+
+%6</source>
+        <translation>%1 %2
+%3
+Status: %4%5
+
+%6</translation>
+    </message>
+</context>
     <context>
         <name>LLMSelectionDialog</name>
         <message>
@@ -2024,7 +2076,23 @@ A valid code will permanently hide this support reminder.</translation>
             <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
             <translation>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</translation>
         </message>
-    </context>
+        <message>
+        <source>Plugin used: %1</source>
+        <translation>Anvendt plugin: %1</translation>
+    </message>
+    <message>
+        <source>Folder-structure guidance is active for the destination folder.</source>
+        <translation>Vejledning til mappestruktur er aktiv for destinationsmappen.</translation>
+    </message>
+    <message>
+        <source>destination folder</source>
+        <translation>destinationsmappe</translation>
+    </message>
+    <message>
+        <source>The %1 looks like a Johnny.Decimal archive.</source>
+        <translation>%1 ligner et Johnny.Decimal-arkiv.</translation>
+    </message>
+</context>
     <context>
         <name>MainWindowStateBinder</name>
         <message>

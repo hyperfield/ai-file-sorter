@@ -1,6 +1,7 @@
 #include "ContentAnalysisCache.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
+#include "SqliteSavepoint.hpp"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -52,7 +53,9 @@ bool ContentAnalysisCache::initialize() const
         );
     )";
     auto statement = prepare(db_, sql);
-    return statement && sqlite3_step(statement.get()) == SQLITE_DONE;
+    return statement && sqlite3_step(statement.get()) == SQLITE_DONE &&
+        sqlite3_exec(db_, "CREATE INDEX IF NOT EXISTS idx_content_analysis_cache_directory "
+                         "ON content_analysis_cache(dir_path);", nullptr, nullptr, nullptr) == SQLITE_OK;
 }
 
 std::optional<ContentAnalysisCache::Key> ContentAnalysisCache::make_key(
@@ -76,8 +79,10 @@ std::optional<ContentAnalysisCache::Key> ContentAnalysisCache::make_key(
 
 std::optional<ContentAnalysisCache::Evidence> ContentAnalysisCache::find(const Key& key) const
 {
+    if (ensure_paths_ && !ensure_paths_()) return std::nullopt;
     auto statement = prepare(db_, "SELECT suggested_name, description FROM content_analysis_cache "
-                                  "WHERE source_path = ? AND analyzer = ? AND sha256 = ?;");
+                                  "WHERE source_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND analyzer = ? AND sha256 = ? "
+                                  "ORDER BY rowid DESC LIMIT 1;");
     if (!statement) {
         return std::nullopt;
     }
@@ -102,6 +107,9 @@ bool ContentAnalysisCache::store(const Key& key, const Evidence& evidence) const
     if (!current || current->sha256 != key.sha256) {
         return false;
     }
+    if (ensure_paths_ && !ensure_paths_()) return false;
+    SqliteSavepoint write(db_);
+    if (!write) return false;
     auto statement = prepare(db_, R"(
         INSERT INTO content_analysis_cache(source_path, analyzer, sha256, suggested_name, description, dir_path)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -124,14 +132,22 @@ bool ContentAnalysisCache::store(const Key& key, const Evidence& evidence) const
             logger->warn("Could not store content analysis evidence: {}", sqlite3_errmsg(db_));
         }
     }
-    return stored;
+    if (!stored) return false;
+    auto cleanup = prepare(db_, "DELETE FROM content_analysis_cache "
+        "WHERE source_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) AND analyzer = ?2 AND source_path != ?1;");
+    if (!cleanup) return false;
+    sqlite3_bind_text(cleanup.get(), 1, key.path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(cleanup.get(), 2, key.analyzer.c_str(), -1, SQLITE_TRANSIENT);
+    return sqlite3_step(cleanup.get()) == SQLITE_DONE && write.commit();
 }
 
 bool ContentAnalysisCache::clear_directory(const std::string& directory, bool recursive) const
 {
+    if (ensure_paths_ && !ensure_paths_()) return false;
     auto statement = prepare(db_, recursive
-        ? "DELETE FROM content_analysis_cache WHERE dir_path = ? OR dir_path LIKE ? ESCAPE '\\';"
-        : "DELETE FROM content_analysis_cache WHERE dir_path = ?;");
+        ? "DELETE FROM content_analysis_cache WHERE aifs_path_within(dir_path, ?1, 1);"
+        : "DELETE FROM content_analysis_cache WHERE dir_path IN "
+          "(SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1));");
     if (!statement) {
         return false;
     }
@@ -142,17 +158,5 @@ bool ContentAnalysisCache::clear_directory(const std::string& directory, bool re
     }
     const auto normalized = Utils::path_to_utf8(absolute.lexically_normal());
     sqlite3_bind_text(statement.get(), 1, normalized.c_str(), -1, SQLITE_TRANSIENT);
-    if (recursive) {
-        std::string pattern;
-        const auto prefix = Utils::path_to_utf8(Utils::utf8_to_path(normalized) / "");
-        for (const char character : prefix) {
-            if (character == '\\' || character == '%' || character == '_') {
-                pattern += '\\';
-            }
-            pattern += character;
-        }
-        pattern += '%';
-        sqlite3_bind_text(statement.get(), 2, pattern.c_str(), -1, SQLITE_TRANSIENT);
-    }
     return sqlite3_step(statement.get()) == SQLITE_DONE;
 }

@@ -16,8 +16,11 @@
 #include <utility>
 
 #include "CategorizationService.hpp"
+#include "CloudCompatibilityProvider.hpp"
+#include "CloudPathDetectorProvider.hpp"
 #include "DatabaseManager.hpp"
 #include "DocumentTextAnalyzer.hpp"
+#include "ExternalProcessStorageProvider.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
@@ -280,6 +283,36 @@ TEST_CASE("CategorizationService uses cached categorization without calling LLM"
     CHECK(categorized.front().category == "Images");
     CHECK(categorized.front().subcategory == "Photos");
     CHECK(*calls == 0);
+}
+
+TEST_CASE("CategorizationService reuses native Unicode cache entries without extra LLM calls", "[storage-cache]") {
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    TempDir source;
+    const auto directory = source.path() / Utils::utf8_to_path("cafe\xcc\x81");
+    const std::string filename = "cafe\xcc\x81.png";
+    write_file(directory / Utils::utf8_to_path(filename));
+    const auto cached_directory = Utils::path_to_utf8(source.path() / Utils::utf8_to_path("caf\xc3\xa9"));
+    const auto resolved = db.resolve_category("Images", "Photos");
+    REQUIRE(db.insert_or_update_file_with_categorization("caf\xc3\xa9.png", "F", cached_directory, resolved, false));
+    CategorizationService service(settings, db, nullptr);
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() { return std::make_unique<CountingLLM>(calls, "Documents : Reports"); };
+    const std::vector<FileEntry> files = {
+        FileEntry{Utils::path_to_utf8(directory / Utils::utf8_to_path(filename)), filename, FileType::File}};
+    std::atomic<bool> stop{false};
+    const auto result = service.categorize_entries(files, true, stop, {}, {}, {}, {}, factory);
+    REQUIRE(result.size() == 1);
+    CHECK(result.front().file_name == filename);
+#if defined(__APPLE__)
+    CHECK(service.load_cached_entries(Utils::path_to_utf8(directory)).size() == 1);
+    CHECK(result.front().category == "Images");
+    CHECK(*calls == 0);
+#else
+    CHECK(*calls == 1);
+#endif
 }
 
 TEST_CASE("CategorizationService uses cached folder-tree target without calling LLM") {
@@ -561,6 +594,101 @@ TEST_CASE("ResultsCoordinator preserves UTF-8 full paths during recursive matchi
     REQUIRE(files_to_sort.size() == 1);
     CHECK(files_to_sort.front().file_path == Utils::path_to_utf8(root_file.parent_path()));
     CHECK(files_to_sort.front().file_name == Utils::path_to_utf8(root_file.filename()));
+}
+
+TEST_CASE("ResultsCoordinator respects filesystem Unicode equivalence without changing filenames") {
+    TempDir root;
+    const std::string cached_name = "caf\xc3\xa9.txt";
+    const std::string disk_name = "cafe\xcc\x81.txt";
+    write_file(root.path() / Utils::utf8_to_path(disk_name));
+    LocalFsProvider provider;
+    ResultsCoordinator coordinator(provider);
+    const auto directory = Utils::path_to_utf8(root.path());
+    const auto options = FileScanOptions::Files;
+    const auto actual = coordinator.list_directory(directory, options);
+    REQUIRE(actual.size() == 1);
+    const std::vector<CategorizedFile> categorized = {
+        CategorizedFile{directory, cached_name, FileType::File, "Documents", "Notes", 0}};
+
+    for (bool full_paths : {false, true}) {
+        const auto cached = coordinator.extract_file_names(categorized, full_paths);
+        const auto uncached = coordinator.find_files_to_categorize(directory, options, cached, full_paths);
+        const auto matched = coordinator.compute_files_to_sort(directory, options, actual, categorized, full_paths);
+#if defined(__APPLE__)
+        CHECK(uncached.empty());
+        REQUIRE(matched.size() == 1);
+        CHECK(matched.front().file_name == actual.front().file_name);
+#else
+        CHECK(uncached.size() == 1);
+        CHECK(matched.empty());
+#endif
+    }
+}
+
+TEST_CASE("ResultsCoordinator matches Unicode cache names for cloud filesystem providers") {
+    TempDir root;
+    const std::string cached_name = "caf\xc3\xa9.txt";
+    const std::string disk_name = "cafe\xcc\x81.txt";
+    write_file(root.path() / Utils::utf8_to_path(disk_name));
+    write_file(root.path() / "nested" / Utils::utf8_to_path(disk_name));
+    const auto directory = Utils::path_to_utf8(root.path());
+    const std::vector<CategorizedFile> categorized = {
+        CategorizedFile{directory, cached_name, FileType::File, "Documents", "Notes", 0}};
+    std::vector<std::unique_ptr<IStorageProvider>> providers;
+    for (const std::string id : {"dropbox", "pcloud", "custom_sync"}) {
+        providers.push_back(std::make_unique<CloudCompatibilityProvider>(
+            id, id, std::vector<std::string>{id}));
+    }
+    providers.push_back(std::make_unique<CloudPathDetectorProvider>(
+        "onedrive_detector", "onedrive", "OneDrive", std::vector<std::string>{"onedrive"}));
+
+    for (const auto& provider : providers) {
+        INFO(provider->id());
+        ResultsCoordinator coordinator(*provider);
+        for (bool full_paths : {false, true}) {
+            const auto options = full_paths ? FileScanOptions::Files | FileScanOptions::Recursive
+                                            : FileScanOptions::Files;
+            const auto actual = coordinator.list_directory(directory, options);
+            REQUIRE(actual.size() == (full_paths ? 2 : 1));
+            const auto cached = coordinator.extract_file_names(categorized, full_paths);
+            const auto uncached = coordinator.find_files_to_categorize(directory, options, cached, full_paths);
+            const auto matched = coordinator.compute_files_to_sort(directory, options, actual, categorized, full_paths);
+#if defined(__APPLE__)
+            REQUIRE(uncached.size() == (full_paths ? 1 : 0));
+            REQUIRE(matched.size() == 1);
+            CHECK(matched.front().file_name == disk_name);
+            CHECK(matched.front().file_path == directory);
+            if (full_paths) {
+                CHECK(Utils::utf8_to_path(uncached.front().full_path).parent_path() == root.path() / "nested");
+            }
+#else
+            CHECK(uncached.size() == actual.size());
+            CHECK(matched.empty());
+#endif
+        }
+    }
+}
+
+TEST_CASE("ResultsCoordinator preserves literal Unicode identity for external providers") {
+    ExternalProcessStorageProvider remote(StoragePluginManifest{}, "remote", "remote_instance", false);
+    CloudCompatibilityProvider cloud("custom_sync", "Sync", {"sync"});
+    ResultsCoordinator coordinator(cloud);
+    coordinator.set_storage_provider(remote);
+    const std::string composed = "caf\xc3\xa9.txt";
+    const std::string decomposed = "cafe\xcc\x81.txt";
+    CHECK(coordinator.cache_key(composed) == composed);
+    CHECK(coordinator.cache_key(decomposed) == decomposed);
+    const std::vector<CategorizedFile> categorized = {
+        CategorizedFile{"/remote", composed, FileType::File, "Documents", "Notes", 0},
+        CategorizedFile{"/remote", decomposed, FileType::File, "Documents", "Notes", 0}};
+    CHECK(coordinator.extract_file_names(categorized, false).size() == 2);
+    CHECK(coordinator.extract_file_names(categorized, true).size() == 2);
+    coordinator.set_storage_provider(cloud);
+#if defined(__APPLE__)
+    CHECK(coordinator.cache_key(composed) == coordinator.cache_key(decomposed));
+#else
+    CHECK(coordinator.cache_key(composed) != coordinator.cache_key(decomposed));
+#endif
 }
 
 TEST_CASE("DocumentTextAnalyzer handles UTF-8 filenames") {

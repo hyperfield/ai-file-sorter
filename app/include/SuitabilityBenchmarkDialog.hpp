@@ -122,6 +122,7 @@ private:
  * @brief Test hooks for suitability benchmark backend reporting decisions.
  */
 namespace SuitabilityBenchmarkDialogTestAccess {
+bool backend_alias_matches(std::string_view actual, std::string_view requested);
 /**
  * @brief Build the benchmark backend note for a requested backend and probed accelerators.
  * @param requested_backend Requested backend key such as `cuda`, `vulkan`, `cpu`, or empty auto.

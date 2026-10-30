@@ -44,7 +44,7 @@ void validate_visual_artifact_file(const std::filesystem::path& path, const char
     }
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 std::string trim_copy(std::string value)
 {
     const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
@@ -205,7 +205,7 @@ void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend)
 
 } // namespace
 
-#if defined(AI_FILE_SORTER_TEST_BUILD) && defined(_WIN32)
+#if defined(AI_FILE_SORTER_TEST_BUILD) && (defined(_WIN32) || defined(__APPLE__))
 QProcessEnvironment ImageAnalyzerFactoryTestAccess::visual_gpu_preflight_environment()
 {
     return ::visual_gpu_preflight_environment();
@@ -227,7 +227,7 @@ std::unique_ptr<ImageAnalyzer> ImageAnalyzerFactory::create(const VisualLlmRunti
     validate_visual_artifact_file(model_path, "model");
     validate_visual_artifact_file(mmproj_path, "multimodal projector");
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     if (settings.use_gpu && !should_skip_visual_gpu_preflight()) {
         run_visual_gpu_preflight(backend);
     }

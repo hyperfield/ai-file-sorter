@@ -1,8 +1,10 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 
 struct sqlite3;
 
@@ -25,8 +27,10 @@ public:
     /**
      * @brief Borrow an existing SQLite connection without taking ownership.
      * @param database Connection owned by DatabaseManager, or null when unavailable.
+     * @param ensure_paths Refreshes connection-local lookup keys before cache access.
      */
-    explicit ContentAnalysisCache(sqlite3* database) : db_(database) {}
+    explicit ContentAnalysisCache(sqlite3* database, std::function<bool()> ensure_paths = {})
+        : db_(database), ensure_paths_(std::move(ensure_paths)) {}
 
     /** @brief Create the versioned evidence table. @return True on success. */
     bool initialize() const;
@@ -65,4 +69,5 @@ public:
 
 private:
     sqlite3* db_;
+    std::function<bool()> ensure_paths_;
 };

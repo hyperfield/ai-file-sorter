@@ -27,6 +27,7 @@ struct BackendProbeGuard {
 TEST_CASE("LlavaImageAnalyzer uses conservative default visual batch sizing") {
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(false, "vulkan") == 512);
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "metal") == 1024);
+    CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "MTL") == 1024);
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "vulkan") == 512);
 #if defined(_WIN32)
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "cuda") == 512);

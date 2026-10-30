@@ -5,6 +5,16 @@
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
 
+TEST_CASE("llama context defaults expose valid callbacks through the configured headers") {
+    const auto params = llama_context_default_params();
+    CHECK(params.n_threads > 0);
+    CHECK(params.n_threads_batch > 0);
+    CHECK(params.cb_eval == nullptr);
+    CHECK(params.cb_eval_user_data == nullptr);
+    CHECK(params.abort_callback == nullptr);
+    CHECK(params.abort_callback_data == nullptr);
+}
+
 #ifndef GGML_USE_METAL
 
 namespace {

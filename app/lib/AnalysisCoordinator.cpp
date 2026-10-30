@@ -531,12 +531,13 @@ AnalysisRunResult AnalysisCoordinator::execute()
             app_.stop_analysis.store(true);
             throw AnalysisCancelled("Johnny.Decimal plugin obtain requested.");
         };
-        auto file_key = [use_full_path_keys](const CategorizedFile& entry) {
+        auto file_key = [this, use_full_path_keys](const CategorizedFile& entry) {
             if (!use_full_path_keys) {
-                return entry.file_name;
+                return app_.results_coordinator.cache_key(entry.file_name);
             }
-            return Utils::path_to_utf8(Utils::utf8_to_path(entry.file_path) /
-                                       Utils::utf8_to_path(entry.file_name));
+            return app_.results_coordinator.cache_key(
+                Utils::path_to_utf8(Utils::utf8_to_path(entry.file_path) /
+                                   Utils::utf8_to_path(entry.file_name)));
         };
         auto raw_cached_entries = app_.categorization_service.load_cached_entries(directory_path);
         std::unordered_set<std::string> renamed_files;
@@ -607,8 +608,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
                            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
             return trimmed == "uncategorized";
         };
-        auto entry_key = [use_full_path_keys](const FileEntry& entry) {
-            return use_full_path_keys ? entry.full_path : entry.file_name;
+        auto entry_key = [this, use_full_path_keys](const FileEntry& entry) {
+            return app_.results_coordinator.cache_key(use_full_path_keys ? entry.full_path : entry.file_name);
         };
         auto resolve_entry_for_storage = [this](const CategorizedFile& entry) {
             const std::string canonical_category =

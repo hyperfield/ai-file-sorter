@@ -27,6 +27,28 @@ This document provides a detailed description of every test case in the project.
 - If Windows CMake reports a missing Visual Studio instance from an existing `build-tests` directory, use `cmake --fresh` when supported, delete/recreate that build directory, or choose a new build directory; the Visual Studio path is stored in `CMakeCache.txt`.
 - MediaInfo is expected from a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`); vendored MediaInfo directories/binaries are intentionally rejected by the build.
 
+## Unicode taxonomy matching
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "Taxonomy*,DatabaseManager*"`.
+
+`tests/unit/test_database_manager_rename_only.cpp` covers:
+
+- `Taxonomy normalization preserves Unicode letters numbers and attached marks`:
+  NFC composition, case folding, Unicode whitespace, Indic vowel marks, and
+  letters outside the basic multilingual plane retain valid lookup keys.
+- `Taxonomy fuzzy matching compares Unicode code points rather than UTF-8 bytes`:
+  shared encoding bytes do not make distinct Chinese labels look like spelling variants.
+- `DatabaseManager matches canonical Unicode forms without merging distinct short labels`:
+  composed and decomposed spellings reuse an ID while distinct short labels remain separate.
+- `DatabaseManager repairs stored Unicode taxonomy keys and preserves references on reopen`:
+  damaged keys are rebuilt from display labels; equivalent duplicate rows merge while
+  cached file references, valid aliases, frequencies, and translations are retained.
+  Key swaps respect uniqueness, the latest translation wins a language collision,
+  and reopening an already repaired database does not repeat the migration.
+- `DatabaseManager rolls back Unicode key migration completely when a write fails`:
+  a trigger interrupts a duplicate merge after writes have begun; all original rows
+  and references survive, and a later open can retry the migration successfully.
+
 ## Sorting Rules And Filename Length
 
 Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[sorting-rules],[content-routing]"`.
@@ -117,6 +139,7 @@ These deterministic tests use temporary files and injected LLMs, not live infere
 - `ContentAnalysisCache preserves full evidence across database reopen`: full multiline descriptions survive restart and remain scoped to the analyzer/model version.
 - `ContentAnalysisCache rejects changed and incomplete evidence`: name-only entries are unusable, changed bytes invalidate a cache hit even with unchanged size/mtime, and results cannot be stored against a changed source.
 - `ContentAnalysisCache follows directory and global cache cleanup`: nonrecursive and recursive clearing respect escaped directory names and include content-only rows in the cache-size estimate.
+- `ContentAnalysisCache shares native Unicode identity across lookup upsert and clear`: equivalent macOS source paths share evidence and directory cleanup; literal filesystem names remain distinct on other platforms.
 
 `tests/unit/test_content_context_routing.cpp` covers:
 - `Content evidence reaches classification and routing independently of renaming`: image/document evidence survives a cache round trip and reaches both LLM stages separately from the path, including when preliminary labels differ from the model-selected destination.
@@ -2023,6 +2046,21 @@ Run: `./build-tests/ai_file_sorter_tests "English-only built-in local models exp
 
 ### `tests/unit/test_database_manager_rename_only.cpp`
 
+#### Storage cache path identity regressions
+Run: `./build-tests/ai_file_sorter_tests "[storage-cache]"`
+
+- `DatabaseManager reuses cached Unicode paths for native filesystems`: flat and recursive reads, direct lookups, style checks, and deletion recognize equivalent macOS paths while retaining stored spellings. Recursive matching respects directory boundaries and literal `%`/`_` characters.
+- `DatabaseManager upserts equivalent native filenames without duplicate cache rows`: updating an equivalent macOS path keeps one row, writes the supplied spelling, and preserves the recorded rename state. Other platforms keep literal identities distinct.
+- `DatabaseManager follows provider comparison rules without rewriting legacy names`: external providers retain distinct Unicode names; switching comparison rules merges legacy duplicates only in returned results, preferring the newest labels while preserving rename state.
+- `DatabaseManager cleans empty legacy duplicates without removing valid Unicode entries`: pruning an empty legacy spelling leaves its valid equivalent entry intact.
+- `DatabaseManager matches and updates Unicode folder routing identities`: equivalent source and destination paths reuse a routing decision; upserts remove duplicate spellings while preserving decisions for other tree fingerprints, and deleting the source removes its routes.
+- `DatabaseManager rolls back Unicode upserts if duplicate cleanup fails`: a database trigger forces cleanup to fail; the original row and labels remain unchanged.
+- `DatabaseManager avoids per-row comparison work for indexed cache operations`: seeds 10,000 categorization, routing, and content-evidence rows, then checks that repeated lookups and updates use a bounded number of provider comparisons. This checks scaling without a wall-clock threshold.
+- `DatabaseManager rolls back cache clearing when a dependent deletion fails`: forces routing, evidence, and taxonomy deletion errors during single-file, flat/recursive directory, and global clearing. Every failed clear preserves all original rows and reports failure; retrying after removing the fault succeeds.
+- `DatabaseManager sees cache writes from other database connections`: warms the path lookup and verifies that external inserts, path updates, and deletes are visible on subsequent cache operations.
+- `DatabaseManager reuses lookups without retaining bindings or read locks`: alternates filenames, directories, and file types across repeated lookups, verifies a separate connection can commit updates, and checks that cached statements recover after schema changes.
+- `DatabaseManager rolls back empty-row pruning if a later deletion fails`: forces the second deletion in a pruning operation to fail and verifies that the first deletion is rolled back too.
+
 #### Test case: DatabaseManager keeps rename-only entries with empty labels
 Purpose: Ensure rename-only entries are not removed when categories are empty.
 Setup: Insert one rename-only entry with a suggested name and one empty entry with no rename suggestion.
@@ -3569,6 +3607,13 @@ Procedure: Call `categorize_entries` for that file.
 Expected outcome: The cached category is returned and the LLM call counter stays at zero.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses cached categorization without calling LLM"`
 
+#### Test case: CategorizationService reuses native Unicode cache entries without extra LLM calls
+Purpose: Verify equivalent macOS folder and filename spellings reuse the cached categorization before model inference.
+Setup: Seed a composed Unicode cache entry and create the corresponding decomposed filename, with a counting LLM stub.
+Procedure: Categorize the scanned file and load its directory cache.
+Expected outcome: On macOS the cached labels are reused with zero LLM calls and the scanned filename is preserved. Other platforms invoke the LLM for the distinct filename.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService reuses native Unicode cache entries without extra LLM calls"`
+
 #### Test case: CategorizationService uses cached folder-tree target without calling LLM
 Purpose: Ensure existing-folder sorting mode can reuse cached semantic labels and a cached routing decision without invoking the LLM.
 Setup: Seed the database with semantic labels plus a matching `folder_tree_routing` row and create the corresponding destination folder.
@@ -3603,6 +3648,20 @@ Setup: Create duplicate filenames at root and nested paths, then seed cache keys
 Procedure: Compute uncached entries via `find_files_to_categorize`.
 Expected outcome: Only the truly uncached nested path remains in the result set.
 Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator respects full-path cache keys for recursive scans"`
+
+#### Test case: ResultsCoordinator matches Unicode cache names for cloud filesystem providers
+Purpose: Ensure cloud-synced local folders use the native filesystem's Unicode comparison rules when matching cached names.
+Setup: Create decomposed Unicode filenames at root and nested paths, cache the composed root filename, and use Dropbox, pCloud, a custom compatibility provider, and the OneDrive detector fallback.
+Procedure: Match cached entries for both flat and recursive scans.
+Expected outcome: On macOS the cached root file matches while the nested file remains uncached, and original scanned filenames are preserved. Other platforms retain literal filename comparison.
+Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator matches Unicode cache names for cloud filesystem providers"`
+
+#### Test case: ResultsCoordinator preserves literal Unicode identity for external providers
+Purpose: Verify external providers retain their own filename identity when the active provider changes.
+Setup: Prepare composed and decomposed Unicode cache entries and a coordinator initially bound to a cloud compatibility provider.
+Procedure: Rebind to an external-process provider, extract filename and full-path keys, then switch back to the cloud provider.
+Expected outcome: External keys remain distinct; switching back restores the platform's local comparison rules without launching an external process.
+Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator preserves literal Unicode identity for external providers"`
 
 #### Test case: CategorizationService invokes completion callback per entry
 Purpose: Verify per-entry completion notifications fire for categorization progress tracking.

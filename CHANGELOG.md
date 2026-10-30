@@ -10,6 +10,9 @@
 - Storage integrations, including OneDrive support, now use separately installed, verified plugin packages.
 - Improved local analysis reliability, cancellation, and handling of large images, with more reliable GPU startup and fallback across Windows, Linux, and macOS.
 - Improved review editing and undo behavior. Undo removes only folders created by the app and preserves existing folders.
+- Fixed macOS Metal compatibility checks on Apple Silicon systems where llama.cpp reports the backend as `MTL`, preventing false "Metal unavailable" results in the compatibility benchmark.
+- Hardened macOS image-analysis startup by running the visual GPU preflight in a subprocess before creating the analyzer, so GPU initialization failures can fall back cleanly instead of crashing the app.
+- Fixed the macOS release build by keeping the Qt `arm_acle.h` workaround out of raw assembly sources, allowing vendored llama.cpp's embedded Metal library assembly to build with the local Xcode/SDK.
 
 ## [1.9.2] - 2026-08-14
 

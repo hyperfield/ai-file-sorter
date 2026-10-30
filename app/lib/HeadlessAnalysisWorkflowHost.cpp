@@ -87,6 +87,7 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
     runtime_data_dir_ = settings_.get_config_dir();
     core_logger_ = resolve_core_logger();
     db_manager_ = std::make_unique<DatabaseManager>(runtime_data_dir_);
+    db_manager_->set_storage_provider(storage_provider_);
     user_learning_store_ = std::make_unique<UserLearningStore>(runtime_data_dir_);
     whitelist_store_ = std::make_unique<WhitelistStore>(runtime_data_dir_);
     folder_structure_plugin_manager_ =

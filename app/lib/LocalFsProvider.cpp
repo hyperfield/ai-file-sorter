@@ -40,6 +40,11 @@ std::string LocalFsProvider::id() const
     return "local_fs";
 }
 
+std::string LocalFsProvider::comparison_key(const std::string& path) const
+{
+    return Utils::filesystem_comparison_key(path);
+}
+
 StorageProviderDetection LocalFsProvider::detect(const std::string& root_path) const
 {
     (void)root_path;

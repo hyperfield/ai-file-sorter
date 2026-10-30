@@ -197,7 +197,7 @@ private:
     };
 
     /**
-     * @brief Reapplies palette-aware styles after theme changes.
+     * @brief Reapplies palette-aware styles while guarding against recursive palette events.
      */
     void apply_theme_styles();
     void setup_ui();

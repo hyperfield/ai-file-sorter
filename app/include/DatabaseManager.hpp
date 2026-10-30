@@ -11,13 +11,22 @@
 #include <optional>
 #include <sqlite3.h>
 
+class IStorageProvider;
+
 class DatabaseManager {
 public:
     explicit DatabaseManager(std::string config_dir);
     ~DatabaseManager();
 
+    /**
+     * @brief Uses the active provider's path comparison rules for cache operations.
+     * @param provider Provider that outlives cache operations, as with ResultsCoordinator.
+     * Defaults to native filesystem comparison until a provider is selected.
+     */
+    void set_storage_provider(const IStorageProvider& provider);
+
     /** @brief Borrow the disposable content-evidence cache. @return A connection-scoped cache handle. */
-    ContentAnalysisCache content_analysis_cache() const { return ContentAnalysisCache(db); }
+    ContentAnalysisCache content_analysis_cache() const;
 
     bool is_file_already_categorized(const std::string &file_name);
     struct ResolvedCategory {
@@ -153,6 +162,11 @@ public:
     std::optional<bool> get_directory_categorization_style(const std::string& dir_path) const;
 
 private:
+    bool initialize_path_comparison();
+    bool ensure_path_aliases() const;
+    std::string path_comparison_key(const std::string& path) const;
+    std::vector<CategorizedFile> read_cached_entries(sqlite3_stmt* statement) const;
+
     struct TaxonomyEntry {
         int id;
         std::string category;
@@ -170,6 +184,11 @@ private:
      * @return True when any taxonomy, alias, translation, or cached file rows were updated.
      */
     bool migrate_legacy_taxonomy_labels();
+    /**
+     * @brief Repairs stored Unicode keys and merges equivalent rows transactionally.
+     * @return True when the keys are current or the migration committed successfully.
+     */
+    bool migrate_taxonomy_normalization();
     /**
      * @brief Recomputes taxonomy frequencies from cached file categorizations.
      */
@@ -210,6 +229,11 @@ private:
     bool file_exists_in_db(const std::string &file_name, const std::string &file_path);
 
     sqlite3* db;
+    mutable sqlite3_stmt* data_version_statement_{nullptr};
+    sqlite3_stmt* categorized_file_statement_{nullptr};
+    const IStorageProvider* storage_provider_{nullptr};
+    mutable bool path_aliases_ready_{false};
+    mutable int path_aliases_data_version_{0};
     const std::string config_dir;
     const std::string db_file;
     std::vector<TaxonomyEntry> taxonomy_entries;

@@ -407,7 +407,8 @@ int32_t resolve_default_visual_batch_size(bool gpu_enabled, std::string_view bac
     if (!gpu_enabled) {
         return kDefaultVisualCpuBatchSize;
     }
-    if (case_insensitive_contains(backend_name, "metal")) {
+    if (case_insensitive_contains(backend_name, "metal") ||
+        case_insensitive_contains(backend_name, "mtl")) {
         return kDefaultMetalVisualBatchSize;
     }
 #if defined(_WIN32)

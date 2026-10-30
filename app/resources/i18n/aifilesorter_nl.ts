@@ -926,7 +926,59 @@ Status: %4
             <source>Failed to check for folder-structure plugin updates.</source>
             <translation>Failed to check for folder-structure plugin updates.</translation>
         </message>
-    </context>
+        <message>
+        <source>Install signed folder-structure packs for templates and smarter sorting guidance. AI File Sorter verifies each pack before enabling it.</source>
+        <translation>Installeer ondertekende pakketten met mapstructuren voor sjablonen en betere sorteerbegeleiding. AI File Sorter controleert elk pakket voordat het wordt ingeschakeld.</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Uitgever</translation>
+    </message>
+    <message>
+        <source>Signature verified with trusted key %1.</source>
+        <translation>Handtekening geverifieerd met de vertrouwde sleutel %1.</translation>
+    </message>
+    <message>
+        <source>Listed in the AI File Sorter plugin catalog.</source>
+        <translation>Vermeld in de plug-incatalogus van AI File Sorter.</translation>
+    </message>
+    <message>
+        <source>Available to install</source>
+        <translation>Beschikbaar om te installeren</translation>
+    </message>
+    <message>
+        <source>License: %1</source>
+        <translation>Licentie: %1</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>Actief</translation>
+    </message>
+    <message>
+        <source>Activation needed</source>
+        <translation>Activering vereist</translation>
+    </message>
+    <message>
+        <source>Verified publisher: %1</source>
+        <translation>Geverifieerde uitgever: %1</translation>
+    </message>
+    <message>
+        <source>Publisher: %1</source>
+        <translation>Uitgever: %1</translation>
+    </message>
+    <message>
+        <source>%1 %2
+%3
+Status: %4%5
+
+%6</source>
+        <translation>%1 %2
+%3
+Status: %4%5
+
+%6</translation>
+    </message>
+</context>
     <context>
         <name>LLMSelectionDialog</name>
         <message>
@@ -2026,7 +2078,23 @@ A valid code will permanently hide this support reminder.</translation>
             <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
             <translation>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</translation>
         </message>
-    </context>
+        <message>
+        <source>Plugin used: %1</source>
+        <translation>Gebruikte plug-in: %1</translation>
+    </message>
+    <message>
+        <source>Folder-structure guidance is active for the destination folder.</source>
+        <translation>Begeleiding voor mapstructuren is actief voor de doelmap.</translation>
+    </message>
+    <message>
+        <source>destination folder</source>
+        <translation>doelmap</translation>
+    </message>
+    <message>
+        <source>The %1 looks like a Johnny.Decimal archive.</source>
+        <translation>De %1 lijkt op een Johnny.Decimal-archief.</translation>
+    </message>
+</context>
     <context>
         <name>MainWindowStateBinder</name>
         <message>

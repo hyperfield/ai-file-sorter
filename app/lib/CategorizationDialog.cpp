@@ -521,7 +521,6 @@ void CategorizationDialog::apply_theme_styles()
     }
 }
 
-
 namespace {
 QFileIconProvider& file_icon_provider()
 {

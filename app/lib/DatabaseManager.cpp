@@ -3,18 +3,24 @@
 #include "Types.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
+#include "SqliteSavepoint.hpp"
+#include "StorageProvider.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <iostream>
+#include <initializer_list>
 #include <memory>
 #include <optional>
+#include <new>
 #include <string_view>
 #include <utility>
+#include <unordered_set>
 #include <vector>
 
 #include <sqlite3.h>
+#include <QStringDecoder>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 
@@ -97,6 +103,30 @@ struct StatementDeleter {
 
 using StatementPtr = std::unique_ptr<sqlite3_stmt, StatementDeleter>;
 
+// Hold SQLite's connection mutex across binding and stepping a reused statement.
+class ConnectionLock {
+public:
+    explicit ConnectionLock(sqlite3* db) : mutex_(sqlite3_db_mutex(db)) { sqlite3_mutex_enter(mutex_); }
+    ~ConnectionLock() { sqlite3_mutex_leave(mutex_); }
+    ConnectionLock(const ConnectionLock&) = delete;
+    ConnectionLock& operator=(const ConnectionLock&) = delete;
+private:
+    sqlite3_mutex* mutex_;
+};
+
+class StatementReset {
+public:
+    explicit StatementReset(sqlite3_stmt* statement) : statement_(statement) {}
+    ~StatementReset() {
+        sqlite3_reset(statement_);
+        sqlite3_clear_bindings(statement_);
+    }
+    StatementReset(const StatementReset&) = delete;
+    StatementReset& operator=(const StatementReset&) = delete;
+private:
+    sqlite3_stmt* statement_;
+};
+
 StatementPtr prepare_statement(sqlite3* db, const char* sql) {
     sqlite3_stmt* raw = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &raw, nullptr) != SQLITE_OK) {
@@ -105,11 +135,26 @@ StatementPtr prepare_statement(sqlite3* db, const char* sql) {
     return StatementPtr(raw);
 }
 
+bool delete_cache_rows(sqlite3* db, const char* sql, std::initializer_list<std::string_view> values) {
+    auto statement = prepare_statement(db, sql);
+    if (!statement) {
+        db_log(spdlog::level::err, "Failed to prepare cache deletion: {}", sqlite3_errmsg(db));
+        return false;
+    }
+    int parameter = 1;
+    for (const auto value : values) {
+        if (sqlite3_bind_text(statement.get(), parameter++, value.data(),
+                              static_cast<int>(value.size()), SQLITE_TRANSIENT) != SQLITE_OK) return false;
+    }
+    if (sqlite3_step(statement.get()) != SQLITE_DONE) {
+        db_log(spdlog::level::err, "Failed to delete cache entries: {}", sqlite3_errmsg(db));
+        return false;
+    }
+    return true;
+}
+
 std::string trim_copy(std::string value) {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
-    value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
-    value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
-    return value;
+    return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size())).trimmed().toStdString();
 }
 
 bool has_label_content(const std::string& value) {
@@ -155,36 +200,6 @@ std::string strip_inline_translation_label_artifacts(std::string value, bool cat
     }
 
     return trim_copy(std::move(value));
-}
-
-std::string escape_like_pattern(const std::string& value) {
-    std::string escaped;
-    escaped.reserve(value.size() * 2);
-    for (char ch : value) {
-        if (ch == '\\' || ch == '%' || ch == '_') {
-            escaped.push_back('\\');
-        }
-        escaped.push_back(ch);
-    }
-    return escaped;
-}
-
-std::string build_recursive_dir_pattern(const std::string& directory_path) {
-    std::string escaped = escape_like_pattern(directory_path);
-    if (directory_path.empty()) {
-        return escaped + "%";
-    }
-    const char sep = directory_path.find('\\') != std::string::npos ? '\\' : '/';
-    if (directory_path.back() == sep) {
-        escaped.push_back('%');
-        return escaped;
-    }
-    if (sep == '\\' || sep == '%' || sep == '_') {
-        escaped.push_back('\\');
-    }
-    escaped.push_back(sep);
-    escaped.push_back('%');
-    return escaped;
 }
 
 std::optional<CategorizedFile> build_categorized_entry(sqlite3_stmt* stmt) {
@@ -261,8 +276,20 @@ DatabaseManager::DatabaseManager(std::string config_dir)
 
     sqlite3_extended_result_codes(db, 1);
 
+    if (!initialize_path_comparison()) {
+        db_log(spdlog::level::err, "Failed to initialize cache path comparison: {}", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        db = nullptr;
+        return;
+    }
     initialize_schema();
     initialize_taxonomy_schema();
+    if (!migrate_taxonomy_normalization()) {
+        db_log(spdlog::level::err, "Taxonomy key migration failed; leaving the existing cache unchanged");
+        sqlite3_close(db);
+        db = nullptr;
+        return;
+    }
     load_taxonomy_cache();
     if (migrate_legacy_taxonomy_labels()) {
         load_taxonomy_cache();
@@ -271,10 +298,154 @@ DatabaseManager::DatabaseManager(std::string config_dir)
 }
 
 DatabaseManager::~DatabaseManager() {
+    sqlite3_finalize(categorized_file_statement_);
+    sqlite3_finalize(data_version_statement_);
     if (db) {
         sqlite3_close(db);
         db = nullptr;
     }
+}
+
+void DatabaseManager::set_storage_provider(const IStorageProvider& provider) {
+    storage_provider_ = &provider;
+    path_aliases_ready_ = false;
+    cached_results.clear();
+}
+
+ContentAnalysisCache DatabaseManager::content_analysis_cache() const {
+    return ContentAnalysisCache(db, [this] { return ensure_path_aliases(); });
+}
+
+bool DatabaseManager::ensure_path_aliases() const {
+    if (!db) return false;
+    ConnectionLock lock(db);
+    int version;
+    {
+        if (!data_version_statement_ &&
+            sqlite3_prepare_v2(db, "PRAGMA main.data_version;", -1, &data_version_statement_, nullptr) != SQLITE_OK) {
+            return false;
+        }
+        StatementReset reset(data_version_statement_);
+        if (sqlite3_step(data_version_statement_) != SQLITE_ROW) return false;
+        version = sqlite3_column_int(data_version_statement_, 0);
+    }
+    if (path_aliases_ready_ && version == path_aliases_data_version_) return true;
+    path_aliases_ready_ = false;
+
+    // Keep provider-dependent keys off disk. Raw cache columns retain their ordinary SQLite indexes.
+    // TEMP triggers track this connection's writes; data_version detects writes by other connections.
+    SqliteSavepoint rebuild(db);
+    if (!rebuild) return false;
+    const auto exec = [&](const std::string& sql) {
+        if (sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK) {
+            db_log(spdlog::level::err, "Failed to refresh cache path lookup: {}", sqlite3_errmsg(db));
+            return false;
+        }
+        return true;
+    };
+    if (!exec("CREATE TEMP TABLE IF NOT EXISTS aifs_path_alias "
+              "(path TEXT PRIMARY KEY, comparison_key TEXT NOT NULL);"
+              "CREATE INDEX IF NOT EXISTS temp.idx_aifs_path_alias_key ON aifs_path_alias(comparison_key, path);"
+              "DELETE FROM temp.aifs_path_alias;")) return false;
+
+    const std::vector<std::pair<std::string, std::vector<std::string>>> tables{
+        {"file_categorization", {"file_name", "dir_path"}},
+        {"folder_tree_routing", {"file_name", "dir_path", "destination_root"}},
+        {"content_analysis_cache", {"source_path", "dir_path"}}
+    };
+    for (const auto& [table, columns] : tables) {
+        std::string remember;
+        std::string changed_columns;
+        for (const auto& column : columns) {
+            if (!exec("INSERT OR IGNORE INTO temp.aifs_path_alias(path, comparison_key) "
+                      "SELECT path, aifs_path_key(path) FROM (SELECT DISTINCT " + column +
+                      " AS path FROM main." + table + ") "
+                      "WHERE path NOT IN (SELECT path FROM temp.aifs_path_alias);")) return false;
+            remember += "INSERT OR IGNORE INTO aifs_path_alias(path, comparison_key) VALUES(NEW." + column +
+                        ", aifs_path_key(NEW." + column + "));";
+            if (!changed_columns.empty()) changed_columns += ',';
+            changed_columns += column;
+        }
+        if (!exec("CREATE TEMP TRIGGER IF NOT EXISTS aifs_remember_" + table +
+                  "_insert AFTER INSERT ON main." + table + " BEGIN " + remember + " END;" +
+                  "CREATE TEMP TRIGGER IF NOT EXISTS aifs_remember_" + table +
+                  "_update AFTER UPDATE OF " + changed_columns + " ON main." + table +
+                  " BEGIN " + remember + " END;")) return false;
+    }
+    if (!rebuild.commit()) return false;
+    path_aliases_data_version_ = version;
+    path_aliases_ready_ = true;
+    return true;
+}
+
+std::string DatabaseManager::path_comparison_key(const std::string& path) const {
+    return storage_provider_ ? storage_provider_->comparison_key(path) : Utils::filesystem_comparison_key(path);
+}
+
+bool DatabaseManager::initialize_path_comparison() {
+    const auto key = [](sqlite3_context* context, int, sqlite3_value** values) {
+        try {
+            const auto* text = reinterpret_cast<const char*>(sqlite3_value_text(values[0]));
+            if (!text) {
+                sqlite3_result_null(context);
+                return;
+            }
+            const auto* manager = static_cast<const DatabaseManager*>(sqlite3_user_data(context));
+            const auto result = manager->path_comparison_key(std::string(text, sqlite3_value_bytes(values[0])));
+            sqlite3_result_text(context, result.data(), static_cast<int>(result.size()), SQLITE_TRANSIENT);
+        } catch (const std::bad_alloc&) {
+            sqlite3_result_error_nomem(context);
+        } catch (...) {
+            sqlite3_result_error(context, "Storage path comparison failed", -1);
+        }
+    };
+    const auto within = [](sqlite3_context* context, int, sqlite3_value** values) {
+        try {
+            const auto* manager = static_cast<const DatabaseManager*>(sqlite3_user_data(context));
+            const auto read_key = [&](int index) {
+                const auto* text = reinterpret_cast<const char*>(sqlite3_value_text(values[index]));
+                return manager->path_comparison_key(text
+                    ? std::string(text, sqlite3_value_bytes(values[index])) : std::string());
+            };
+            const auto path = read_key(0);
+            auto directory = read_key(1);
+            bool matches = path == directory;
+            if (!matches && sqlite3_value_int(values[2])) {
+                if (!directory.empty()) {
+                    const char separator = directory.find('\\') != std::string::npos ? '\\' : '/';
+                    if (directory.back() != separator) directory.push_back(separator);
+                }
+                matches = path.starts_with(directory);
+            }
+            sqlite3_result_int(context, matches ? 1 : 0);
+        } catch (const std::bad_alloc&) {
+            sqlite3_result_error_nomem(context);
+        } catch (...) {
+            sqlite3_result_error(context, "Storage directory comparison failed", -1);
+        }
+    };
+    // These functions follow the active provider. Do not mark them deterministic or persist indexes using them.
+    return sqlite3_create_function_v2(db, "aifs_path_key", 1, SQLITE_UTF8, this, key, nullptr, nullptr, nullptr) == SQLITE_OK &&
+           sqlite3_create_function_v2(db, "aifs_path_within", 3, SQLITE_UTF8, this, within, nullptr, nullptr, nullptr) == SQLITE_OK;
+}
+
+std::vector<CategorizedFile> DatabaseManager::read_cached_entries(sqlite3_stmt* statement) const {
+    std::vector<CategorizedFile> entries;
+    std::unordered_map<std::string, size_t> seen;
+    while (sqlite3_step(statement) == SQLITE_ROW) {
+        if (auto entry = build_categorized_entry(statement)) {
+            const auto key = path_comparison_key(entry->file_path) + '\0' +
+                             path_comparison_key(entry->file_name) + '\0' +
+                             std::to_string(static_cast<int>(entry->type));
+            const auto [found, inserted] = seen.emplace(key, entries.size());
+            if (inserted) {
+                entries.push_back(std::move(*entry));
+            } else {
+                entries[found->second].rename_applied |= entry->rename_applied;
+            }
+        }
+    }
+    return entries;
 }
 
 void DatabaseManager::initialize_schema() {
@@ -363,7 +534,8 @@ void DatabaseManager::initialize_schema() {
     }
 
     const char *create_index_sql =
-        "CREATE INDEX IF NOT EXISTS idx_file_categorization_taxonomy ON file_categorization(taxonomy_id);";
+        "CREATE INDEX IF NOT EXISTS idx_file_categorization_taxonomy ON file_categorization(taxonomy_id);"
+        "CREATE INDEX IF NOT EXISTS idx_file_categorization_directory ON file_categorization(dir_path);";
     if (sqlite3_exec(db, create_index_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         db_log(spdlog::level::err, "Failed to create taxonomy index: {}", error_msg);
         sqlite3_free(error_msg);
@@ -398,7 +570,8 @@ void DatabaseManager::initialize_schema() {
 
     const char *create_routing_lookup_index_sql =
         "CREATE INDEX IF NOT EXISTS idx_folder_tree_routing_lookup "
-        "ON folder_tree_routing(file_name, file_type, dir_path, destination_root, tree_fingerprint);";
+        "ON folder_tree_routing(file_name, file_type, dir_path, destination_root, tree_fingerprint);"
+        "CREATE INDEX IF NOT EXISTS idx_folder_tree_routing_directory ON folder_tree_routing(dir_path);";
     if (sqlite3_exec(db, create_routing_lookup_index_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         db_log(spdlog::level::err, "Failed to create folder_tree_routing lookup index: {}", error_msg);
         sqlite3_free(error_msg);
@@ -472,6 +645,211 @@ void DatabaseManager::initialize_taxonomy_schema() {
         db_log(spdlog::level::err, "Failed to create translation lookup index: {}", error_msg);
         sqlite3_free(error_msg);
     }
+}
+
+bool DatabaseManager::migrate_taxonomy_normalization() {
+    if (!db) {
+        return false;
+    }
+
+    const auto exec = [&](const char* sql) {
+        if (sqlite3_exec(db, sql, nullptr, nullptr, nullptr) != SQLITE_OK) {
+            db_log(spdlog::level::err, "Failed to migrate taxonomy keys: {}", sqlite3_errmsg(db));
+            return false;
+        }
+        return true;
+    };
+    if (!exec("BEGIN IMMEDIATE;")) {
+        return false;
+    }
+    struct Transaction {
+        sqlite3* connection;
+        bool committed{false};
+        ~Transaction() {
+            if (!committed) {
+                sqlite3_exec(connection, "ROLLBACK;", nullptr, nullptr, nullptr);
+            }
+        }
+    } transaction{db};
+    const auto text = [](sqlite3_stmt* stmt, int column) {
+        const auto* value = reinterpret_cast<const char*>(sqlite3_column_text(stmt, column));
+        return value ? std::string(value, static_cast<size_t>(sqlite3_column_bytes(stmt, column))) : std::string();
+    };
+    const auto valid_utf8 = [](const std::string& value) {
+        QStringDecoder decoder(QStringDecoder::Utf8);
+        const QString decoded = decoder(QByteArrayView(value.data(), static_cast<qsizetype>(value.size())));
+        return !decoder.hasError();
+    };
+    const auto step = [&](sqlite3_stmt* stmt) {
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            db_log(spdlog::level::err, "Failed to migrate taxonomy keys: {}", sqlite3_errmsg(db));
+            return false;
+        }
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        return true;
+    };
+
+    struct TaxonomyRow {
+        int id;
+        std::string category_key;
+        std::string subcategory_key;
+    };
+    struct AliasRow {
+        int taxonomy_id;
+        std::string category_key;
+        std::string subcategory_key;
+    };
+    struct TranslationRow {
+        int taxonomy_id;
+        std::string language;
+        std::string category;
+        std::string subcategory;
+        std::string category_key;
+        std::string subcategory_key;
+        std::optional<std::string> updated_at;
+    };
+    std::vector<TaxonomyRow> rows;
+    std::vector<AliasRow> aliases;
+    std::vector<TranslationRow> translations;
+    std::unordered_map<std::string, int> owners;
+    std::unordered_map<int, int> redirects;
+    std::unordered_map<int, sqlite3_int64> frequencies;
+    bool changed = false;
+    {
+        StatementPtr stmt = prepare_statement(db,
+            "SELECT id, canonical_category, canonical_subcategory, normalized_category, "
+            "normalized_subcategory, frequency FROM category_taxonomy ORDER BY id;");
+        if (!stmt) return false;
+        int rc;
+        while ((rc = sqlite3_step(stmt.get())) == SQLITE_ROW) {
+            const int id = sqlite3_column_int(stmt.get(), 0);
+            const std::string category = normalize_label(text(stmt.get(), 1));
+            const std::string subcategory = DatabaseTaxonomyNormalizer::strip_trailing_stopwords(
+                normalize_label(text(stmt.get(), 2)));
+            const auto [owner, inserted] = owners.emplace(make_key(category, subcategory), id);
+            const int target = owner->second;
+            redirects.emplace(id, target);
+            frequencies[target] += sqlite3_column_int64(stmt.get(), 5);
+            changed |= !inserted || category != text(stmt.get(), 3) || subcategory != text(stmt.get(), 4);
+            rows.push_back({id, category, subcategory});
+        }
+        if (rc != SQLITE_DONE) return false;
+    }
+    const auto target_id = [&](int id) {
+        const auto found = redirects.find(id);
+        return found == redirects.end() ? id : found->second;
+    };
+    {
+        StatementPtr stmt = prepare_statement(db,
+            "SELECT taxonomy_id, alias_category_norm, alias_subcategory_norm "
+            "FROM category_alias ORDER BY taxonomy_id, alias_category_norm, alias_subcategory_norm;");
+        if (!stmt) return false;
+        int rc;
+        while ((rc = sqlite3_step(stmt.get())) == SQLITE_ROW) {
+            const int id = sqlite3_column_int(stmt.get(), 0);
+            const auto category = text(stmt.get(), 1);
+            const auto subcategory = text(stmt.get(), 2);
+            // Damaged aliases have no original display label from which to recover their spelling.
+            if (!valid_utf8(category) || !valid_utf8(subcategory)) {
+                changed = true;
+                continue;
+            }
+            const auto category_key = normalize_label(category);
+            const auto subcategory_key = normalize_label(subcategory);
+            if (category_key.empty() || subcategory_key.empty() ||
+                owners.contains(make_key(category_key, subcategory_key))) {
+                changed = true;
+                continue;
+            }
+            changed |= target_id(id) != id || category != category_key || subcategory != subcategory_key;
+            aliases.push_back({target_id(id), category_key, subcategory_key});
+        }
+        if (rc != SQLITE_DONE) return false;
+    }
+    {
+        StatementPtr stmt = prepare_statement(db,
+            "SELECT taxonomy_id, language, category, subcategory, normalized_category, "
+            "normalized_subcategory, updated_at FROM category_translation ORDER BY taxonomy_id, language;");
+        if (!stmt) return false;
+        int rc;
+        while ((rc = sqlite3_step(stmt.get())) == SQLITE_ROW) {
+            const int id = sqlite3_column_int(stmt.get(), 0);
+            const auto category = text(stmt.get(), 2);
+            const auto subcategory = text(stmt.get(), 3);
+            const auto category_key = normalize_label(category);
+            const auto subcategory_key = normalize_label(subcategory);
+            changed |= target_id(id) != id || category_key != text(stmt.get(), 4) ||
+                       subcategory_key != text(stmt.get(), 5);
+            translations.push_back({target_id(id), text(stmt.get(), 1), category, subcategory,
+                category_key, subcategory_key, sqlite3_column_type(stmt.get(), 6) == SQLITE_NULL
+                    ? std::nullopt : std::optional<std::string>(text(stmt.get(), 6))});
+        }
+        if (rc != SQLITE_DONE) return false;
+    }
+    if (changed) {
+        // Temporary keys allow equivalent rows and key swaps to be repaired without UNIQUE conflicts.
+        if (!exec("DELETE FROM category_alias; DELETE FROM category_translation; "
+                  "UPDATE category_taxonomy SET normalized_category = char(0) || id, normalized_subcategory = '';")) {
+            return false;
+        }
+        StatementPtr retarget = prepare_statement(db,
+            "UPDATE file_categorization SET taxonomy_id = ? WHERE taxonomy_id = ?;");
+        StatementPtr remove = prepare_statement(db, "DELETE FROM category_taxonomy WHERE id = ?;");
+        StatementPtr update = prepare_statement(db,
+            "UPDATE category_taxonomy SET normalized_category = ?, normalized_subcategory = ?, frequency = ? WHERE id = ?;");
+        if (!retarget || !remove || !update) return false;
+        for (const auto& row : rows) {
+            const int target = target_id(row.id);
+            if (target != row.id) {
+                sqlite3_bind_int(retarget.get(), 1, target);
+                sqlite3_bind_int(retarget.get(), 2, row.id);
+                if (!step(retarget.get())) return false;
+                sqlite3_bind_int(remove.get(), 1, row.id);
+                if (!step(remove.get())) return false;
+            } else {
+                sqlite3_bind_text(update.get(), 1, row.category_key.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(update.get(), 2, row.subcategory_key.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_int64(update.get(), 3, frequencies.at(row.id));
+                sqlite3_bind_int(update.get(), 4, row.id);
+                if (!step(update.get())) return false;
+            }
+        }
+        StatementPtr alias = prepare_statement(db,
+            "INSERT OR IGNORE INTO category_alias (taxonomy_id, alias_category_norm, alias_subcategory_norm) VALUES (?, ?, ?);");
+        if (!alias) return false;
+        for (const auto& row : aliases) {
+            sqlite3_bind_int(alias.get(), 1, row.taxonomy_id);
+            sqlite3_bind_text(alias.get(), 2, row.category_key.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(alias.get(), 3, row.subcategory_key.c_str(), -1, SQLITE_TRANSIENT);
+            if (!step(alias.get())) return false;
+        }
+        StatementPtr translation = prepare_statement(db,
+            "INSERT INTO category_translation (taxonomy_id, language, category, subcategory, "
+            "normalized_category, normalized_subcategory, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(taxonomy_id, language) DO UPDATE SET category = excluded.category, "
+            "subcategory = excluded.subcategory, normalized_category = excluded.normalized_category, "
+            "normalized_subcategory = excluded.normalized_subcategory, updated_at = excluded.updated_at "
+            "WHERE COALESCE(excluded.updated_at, '') > COALESCE(category_translation.updated_at, '');");
+        if (!translation) return false;
+        for (const auto& row : translations) {
+            sqlite3_bind_int(translation.get(), 1, row.taxonomy_id);
+            sqlite3_bind_text(translation.get(), 2, row.language.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(translation.get(), 3, row.category.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(translation.get(), 4, row.subcategory.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(translation.get(), 5, row.category_key.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(translation.get(), 6, row.subcategory_key.c_str(), -1, SQLITE_TRANSIENT);
+            if (row.updated_at) {
+                sqlite3_bind_text(translation.get(), 7, row.updated_at->c_str(), -1, SQLITE_TRANSIENT);
+            } else {
+                sqlite3_bind_null(translation.get(), 7);
+            }
+            if (!step(translation.get())) return false;
+        }
+    }
+    if (!exec("COMMIT;")) return false;
+    transaction.committed = true;
+    return true;
 }
 
 void DatabaseManager::load_taxonomy_cache() {
@@ -1075,16 +1453,6 @@ DatabaseManager::resolve_category_for_language(const std::string& category,
         return resolve_category(category, subcategory);
     }
 
-    auto trim_copy = [](std::string value) {
-        auto is_space = [](unsigned char ch) { return std::isspace(ch); };
-        value.erase(value.begin(), std::find_if(value.begin(), value.end(),
-                                                [&](unsigned char ch) { return !is_space(ch); }));
-        value.erase(std::find_if(value.rbegin(), value.rend(),
-                                 [&](unsigned char ch) { return !is_space(ch); }).base(),
-                    value.end());
-        return value;
-    };
-
     std::string trimmed_category = trim_copy(category);
     std::string trimmed_subcategory = trim_copy(subcategory);
     if (trimmed_category.empty()) {
@@ -1238,13 +1606,18 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     const std::string &suggested_name,
     bool rename_only,
     bool rename_applied) {
-    if (!db) return false;
+    if (!ensure_path_aliases()) return false;
+    SqliteSavepoint write(db);
+    if (!write) return false;
 
     const char *sql = R"(
         INSERT INTO file_categorization
             (file_name, file_type, dir_path, category, subcategory, suggested_name,
              taxonomy_id, categorization_style, rename_only, rename_applied)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+            MAX(?10, COALESCE((SELECT MAX(rename_applied) FROM file_categorization
+                WHERE file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) AND file_type = ?2
+                  AND dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?3))), 0)))
         ON CONFLICT(file_name, file_type, dir_path)
         DO UPDATE SET
             category = excluded.category,
@@ -1256,7 +1629,8 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
             rename_applied = CASE
                 WHEN excluded.rename_applied = 1 THEN 1
                 ELSE rename_applied
-            END;
+            END,
+            timestamp = CURRENT_TIMESTAMP;
     )";
 
     sqlite3_stmt *stmt = nullptr;
@@ -1289,11 +1663,24 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
 
     sqlite3_finalize(stmt);
 
+    if (success) {
+        auto cleanup = prepare_statement(db,
+            "DELETE FROM file_categorization "
+            "WHERE file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) AND file_type = ?2 "
+            "AND dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?3)) "
+            "AND (file_name != ?1 OR dir_path != ?3);");
+        if (!cleanup) return false;
+        sqlite3_bind_text(cleanup.get(), 1, file_name.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(cleanup.get(), 2, file_type.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(cleanup.get(), 3, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+        success = sqlite3_step(cleanup.get()) == SQLITE_DONE;
+        if (success && sqlite3_changes(db) > 0) refresh_taxonomy_frequencies();
+    }
     if (success && resolved.taxonomy_id > 0) {
         increment_taxonomy_frequency(resolved.taxonomy_id);
     }
 
-    return success;
+    return success && write.commit();
 }
 
 bool DatabaseManager::insert_or_update_folder_tree_routing(
@@ -1302,10 +1689,12 @@ bool DatabaseManager::insert_or_update_folder_tree_routing(
     const std::string& dir_path,
     const FolderTreeRoutingRecord& record)
 {
-    if (!db) {
+    if (!ensure_path_aliases()) {
         return false;
     }
 
+    SqliteSavepoint write(db);
+    if (!write) return false;
     const char* sql = R"(
         INSERT INTO folder_tree_routing
             (file_name, file_type, dir_path, destination_root, tree_fingerprint,
@@ -1354,7 +1743,25 @@ bool DatabaseManager::insert_or_update_folder_tree_routing(
         return false;
     }
 
-    return true;
+    auto cleanup = prepare_statement(db, R"(
+        DELETE FROM folder_tree_routing
+        WHERE file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) AND file_type = ?2
+          AND dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?3))
+          AND destination_root IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?4))
+          AND tree_fingerprint = ?5 AND allow_new_folders = ?6
+          AND semantic_category = ?7 AND semantic_subcategory = ?8
+          AND (file_name != ?1 OR dir_path != ?3 OR destination_root != ?4);
+    )");
+    if (!cleanup) return false;
+    sqlite3_bind_text(cleanup.get(), 1, file_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(cleanup.get(), 2, file_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(cleanup.get(), 3, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(cleanup.get(), 4, record.destination_root.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(cleanup.get(), 5, cache_fingerprint.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(cleanup.get(), 6, record.allow_new_folders ? 1 : 0);
+    sqlite3_bind_text(cleanup.get(), 7, record.semantic_category.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(cleanup.get(), 8, record.semantic_subcategory.c_str(), -1, SQLITE_TRANSIENT);
+    return sqlite3_step(cleanup.get()) == SQLITE_DONE && write.commit();
 }
 
 std::optional<DatabaseManager::FolderTreeRoutingRecord>
@@ -1368,7 +1775,7 @@ DatabaseManager::get_folder_tree_routing(
     const std::string& semantic_category,
     const std::string& semantic_subcategory)
 {
-    if (!db) {
+    if (!ensure_path_aliases()) {
         return std::nullopt;
     }
 
@@ -1378,11 +1785,11 @@ DatabaseManager::get_folder_tree_routing(
                best_existing_folder, best_existing_score, target_folder_relative_path,
                target_folder_suggested_new, target_folder_exists
         FROM folder_tree_routing
-        WHERE file_name = ? AND file_type = ? AND dir_path = ?
-          AND destination_root = ? AND tree_fingerprint = ?
+        WHERE file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND file_type = ? AND dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?))
+          AND destination_root IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND tree_fingerprint = ?
           AND allow_new_folders = ?
           AND semantic_category = ? AND semantic_subcategory = ?
-        LIMIT 1;
+        ORDER BY updated_at DESC, id DESC LIMIT 1;
     )";
 
     StatementPtr stmt = prepare_statement(db, sql);
@@ -1429,106 +1836,43 @@ DatabaseManager::get_folder_tree_routing(
 bool DatabaseManager::remove_file_categorization(const std::string& dir_path,
                                                  const std::string& file_name,
                                                  const FileType file_type) {
-    if (!db) {
-        return false;
-    }
-
-    const char* sql =
-        "DELETE FROM file_categorization WHERE dir_path = ? AND file_name = ? AND file_type = ?;";
-
-    sqlite3_stmt* stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        db_log(spdlog::level::err, "Failed to prepare delete categorization statement: {}", sqlite3_errmsg(db));
-        return false;
-    }
-
-    const std::string type_str = (file_type == FileType::File) ? "F" : "D";
-
-    sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, file_name.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, type_str.c_str(), -1, SQLITE_TRANSIENT);
-
-    const bool success = sqlite3_step(stmt) == SQLITE_DONE;
-    if (!success) {
-        db_log(spdlog::level::err, "Failed to delete cached categorization for '{}': {}", file_name, sqlite3_errmsg(db));
-    }
-
-    sqlite3_finalize(stmt);
-    if (success) {
-        const char* routing_sql =
-            "DELETE FROM folder_tree_routing WHERE dir_path = ? AND file_name = ? AND file_type = ?;";
-        sqlite3_stmt* routing_stmt = nullptr;
-        if (sqlite3_prepare_v2(db, routing_sql, -1, &routing_stmt, nullptr) == SQLITE_OK) {
-            sqlite3_bind_text(routing_stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_text(routing_stmt, 2, file_name.c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_text(routing_stmt, 3, type_str.c_str(), -1, SQLITE_TRANSIENT);
-            if (sqlite3_step(routing_stmt) != SQLITE_DONE) {
-                db_log(spdlog::level::warn,
-                       "Failed to delete cached folder-tree routing for '{}': {}",
-                       file_name,
-                       sqlite3_errmsg(db));
-            }
-            sqlite3_finalize(routing_stmt);
-        } else {
-            db_log(spdlog::level::warn,
-                   "Failed to prepare cached folder-tree routing delete: {}",
-                   sqlite3_errmsg(db));
-        }
-    }
-    return success;
+    if (!ensure_path_aliases()) return false;
+    SqliteSavepoint write(db);
+    if (!write) return false;
+    const std::string type = file_type == FileType::File ? "F" : "D";
+    const char* categorization_sql =
+        "DELETE FROM file_categorization "
+        "WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) "
+        "AND file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?2)) "
+        "AND file_type = ?3;";
+    const char* routing_sql =
+        "DELETE FROM folder_tree_routing "
+        "WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) "
+        "AND file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?2)) "
+        "AND file_type = ?3;";
+    if (!delete_cache_rows(db, categorization_sql, {dir_path, file_name, type}) ||
+        !delete_cache_rows(db, routing_sql, {dir_path, file_name, type}) || !write.commit()) return false;
+    cached_results.clear();
+    return true;
 }
 
-bool DatabaseManager::clear_directory_categorizations(const std::string& dir_path,
-                                                      bool recursive) {
-    if (!db) {
-        return false;
-    }
-
-    const char* sql = recursive
-        ? "DELETE FROM file_categorization WHERE dir_path = ? OR dir_path LIKE ? ESCAPE '\\';"
-        : "DELETE FROM file_categorization WHERE dir_path = ?;";
-    sqlite3_stmt* stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        db_log(spdlog::level::err, "Failed to prepare directory cache clear statement: {}", sqlite3_errmsg(db));
-        return false;
-    }
-
-    sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
-    if (recursive) {
-        const std::string pattern = build_recursive_dir_pattern(dir_path);
-        sqlite3_bind_text(stmt, 2, pattern.c_str(), -1, SQLITE_TRANSIENT);
-    }
-    const bool success = sqlite3_step(stmt) == SQLITE_DONE;
-    if (!success) {
-        db_log(spdlog::level::err, "Failed to clear cached categorizations for '{}': {}", dir_path, sqlite3_errmsg(db));
-    }
-    sqlite3_finalize(stmt);
-    if (success) {
-        const char* routing_sql = recursive
-            ? "DELETE FROM folder_tree_routing WHERE dir_path = ? OR dir_path LIKE ? ESCAPE '\\';"
-            : "DELETE FROM folder_tree_routing WHERE dir_path = ?;";
-        sqlite3_stmt* routing_stmt = nullptr;
-        if (sqlite3_prepare_v2(db, routing_sql, -1, &routing_stmt, nullptr) == SQLITE_OK) {
-            sqlite3_bind_text(routing_stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
-            if (recursive) {
-                const std::string pattern = build_recursive_dir_pattern(dir_path);
-                sqlite3_bind_text(routing_stmt, 2, pattern.c_str(), -1, SQLITE_TRANSIENT);
-            }
-            if (sqlite3_step(routing_stmt) != SQLITE_DONE) {
-                db_log(spdlog::level::warn,
-                       "Failed to clear cached folder-tree routings for '{}': {}",
-                       dir_path,
-                       sqlite3_errmsg(db));
-            }
-            sqlite3_finalize(routing_stmt);
-        } else {
-            db_log(spdlog::level::warn,
-                   "Failed to prepare folder-tree routing clear statement: {}",
-                   sqlite3_errmsg(db));
-        }
-    }
+bool DatabaseManager::clear_directory_categorizations(const std::string& dir_path, bool recursive) {
+    if (!ensure_path_aliases()) return false;
+    SqliteSavepoint write(db);
+    if (!write) return false;
+    const char* categorization_sql = recursive
+        ? "DELETE FROM file_categorization WHERE aifs_path_within(dir_path, ?1, 1);"
+        : "DELETE FROM file_categorization WHERE dir_path IN "
+          "(SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1));";
+    const char* routing_sql = recursive
+        ? "DELETE FROM folder_tree_routing WHERE aifs_path_within(dir_path, ?1, 1);"
+        : "DELETE FROM folder_tree_routing WHERE dir_path IN "
+          "(SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1));";
+    if (!delete_cache_rows(db, categorization_sql, {dir_path}) ||
+        !delete_cache_rows(db, routing_sql, {dir_path}) ||
+        !content_analysis_cache().clear_directory(dir_path, recursive) || !write.commit()) return false;
     cached_results.clear();
-    return content_analysis_cache().clear_directory(dir_path, recursive) && success;
+    return true;
 }
 
 bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
@@ -1536,6 +1880,8 @@ bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
     if (!db) {
         return false;
     }
+    SqliteSavepoint write(db);
+    if (!write) return false;
 
     char* error_msg = nullptr;
     const char* delete_sql = clear_taxonomy
@@ -1543,8 +1889,8 @@ bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
           "DELETE FROM folder_tree_routing;"
           "DELETE FROM category_translation;"
           "DELETE FROM category_alias;"
-          "DELETE FROM category_taxonomy;"
           "DELETE FROM file_categorization;"
+          "DELETE FROM category_taxonomy;"
         : "DELETE FROM content_analysis_cache;"
           "DELETE FROM folder_tree_routing;"
           "DELETE FROM file_categorization;";
@@ -1564,7 +1910,7 @@ bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
         ? "DELETE FROM sqlite_sequence WHERE name IN ('file_categorization', 'category_taxonomy', 'folder_tree_routing');"
         : "DELETE FROM sqlite_sequence WHERE name IN ('file_categorization', 'folder_tree_routing');";
     if (sqlite3_exec(db, reset_sequence_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
-        db_log(spdlog::level::warn,
+        db_log(spdlog::level::err,
                clear_taxonomy
                    ? "Failed to reset categorization cache/taxonomy sequence: {}"
                    : "Failed to reset categorization cache sequence: {}",
@@ -1573,8 +1919,11 @@ bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
             sqlite3_free(error_msg);
             error_msg = nullptr;
         }
+        return false;
     }
 
+    if (!write.commit()) return false;
+    path_aliases_ready_ = false;
     const char* vacuum_sql = "VACUUM;";
     if (sqlite3_exec(db, vacuum_sql, nullptr, nullptr, &error_msg) != SQLITE_OK) {
         db_log(spdlog::level::warn,
@@ -1600,18 +1949,16 @@ bool DatabaseManager::clear_all_categorizations(bool clear_taxonomy)
 bool DatabaseManager::has_categorization_style_conflict(const std::string& dir_path,
                                                         bool desired_style,
                                                         bool recursive) const {
-    if (!db) {
+    if (!ensure_path_aliases()) {
         return false;
     }
 
     const char* sql = recursive
-        ? "SELECT 1 FROM file_categorization "
-          "WHERE (dir_path = ? OR dir_path LIKE ? ESCAPE '\\') "
-          "AND IFNULL(categorization_style, 0) != ? "
-          "LIMIT 1;"
-        : "SELECT 1 FROM file_categorization "
-          "WHERE dir_path = ? AND IFNULL(categorization_style, 0) != ? "
-          "LIMIT 1;";
+        ? "SELECT 1 FROM file_categorization WHERE aifs_path_within(dir_path, ?1, 1) "
+          "AND IFNULL(categorization_style, 0) != ?2 LIMIT 1;"
+        : "SELECT 1 FROM file_categorization WHERE dir_path IN "
+          "(SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) "
+          "AND IFNULL(categorization_style, 0) != ?2 LIMIT 1;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         db_log(spdlog::level::warn, "Failed to prepare cached style conflict query: {}", sqlite3_errmsg(db));
@@ -1619,12 +1966,7 @@ bool DatabaseManager::has_categorization_style_conflict(const std::string& dir_p
     }
 
     sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
-    int bind_index = 2;
-    if (recursive) {
-        const std::string pattern = build_recursive_dir_pattern(dir_path);
-        sqlite3_bind_text(stmt, bind_index++, pattern.c_str(), -1, SQLITE_TRANSIENT);
-    }
-    sqlite3_bind_int(stmt, bind_index, desired_style ? 1 : 0);
+    sqlite3_bind_int(stmt, 2, desired_style ? 1 : 0);
 
     const bool conflict = sqlite3_step(stmt) == SQLITE_ROW;
     sqlite3_finalize(stmt);
@@ -1632,12 +1974,12 @@ bool DatabaseManager::has_categorization_style_conflict(const std::string& dir_p
 }
 
 std::optional<bool> DatabaseManager::get_directory_categorization_style(const std::string& dir_path) const {
-    if (!db) {
+    if (!ensure_path_aliases()) {
         return std::nullopt;
     }
 
     const char* sql =
-        "SELECT categorization_style FROM file_categorization WHERE dir_path = ? LIMIT 1;";
+        "SELECT categorization_style FROM file_categorization WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) LIMIT 1;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         db_log(spdlog::level::warn, "Failed to prepare cached style query: {}", sqlite3_errmsg(db));
@@ -1660,14 +2002,16 @@ std::optional<bool> DatabaseManager::get_directory_categorization_style(const st
 std::vector<CategorizedFile>
 DatabaseManager::remove_empty_categorizations(const std::string& dir_path) {
     std::vector<CategorizedFile> removed;
-    if (!db) {
+    if (!ensure_path_aliases()) {
         return removed;
     }
+    SqliteSavepoint write(db);
+    if (!write) return {};
 
     const char* sql = R"(
-        SELECT file_name, file_type, IFNULL(category, ''), IFNULL(subcategory, ''), taxonomy_id
+        SELECT file_name, file_type, IFNULL(category, ''), IFNULL(subcategory, ''), taxonomy_id, id, dir_path
         FROM file_categorization
-        WHERE dir_path = ?
+        WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?))
           AND (category IS NULL OR TRIM(category) = '' OR subcategory IS NULL OR TRIM(subcategory) = '')
           AND (suggested_name IS NULL OR TRIM(suggested_name) = '')
           AND IFNULL(rename_only, 0) = 0;
@@ -1685,6 +2029,7 @@ DatabaseManager::remove_empty_categorizations(const std::string& dir_path) {
         return removed;
     }
 
+    std::vector<sqlite3_int64> empty_ids;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
         const char* type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
@@ -1700,7 +2045,9 @@ DatabaseManager::remove_empty_categorizations(const std::string& dir_path) {
             taxonomy_id = sqlite3_column_int(stmt, 4);
         }
 
-        removed.push_back({dir_path,
+        empty_ids.push_back(sqlite3_column_int64(stmt, 5));
+        const char* stored_directory = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+        removed.push_back({stored_directory ? stored_directory : dir_path,
                            file_name,
                            entry_type,
                            category ? category : "",
@@ -1709,10 +2056,20 @@ DatabaseManager::remove_empty_categorizations(const std::string& dir_path) {
     }
 
     sqlite3_finalize(stmt);
-    for (const auto& entry : removed) {
-        remove_file_categorization(entry.file_path, entry.file_name, entry.type);
+    // Delete only the empty rows: older caches can also contain a valid equivalent spelling.
+    auto cleanup = prepare_statement(db, "DELETE FROM file_categorization WHERE id = ?;");
+    if (!cleanup) return {};
+    for (const auto id : empty_ids) {
+        sqlite3_bind_int64(cleanup.get(), 1, id);
+        if (sqlite3_step(cleanup.get()) != SQLITE_DONE) return {};
+        sqlite3_reset(cleanup.get());
     }
-    return removed;
+    for (const auto& entry : removed) {
+        if (!get_categorized_file(entry.file_path, entry.file_name, entry.type)) {
+            if (!remove_file_categorization(entry.file_path, entry.file_name, entry.type)) return {};
+        }
+    }
+    return write.commit() ? removed : std::vector<CategorizedFile>{};
 }
 
 void DatabaseManager::increment_taxonomy_frequency(int taxonomy_id) {
@@ -1739,12 +2096,13 @@ void DatabaseManager::increment_taxonomy_frequency(int taxonomy_id) {
 std::vector<CategorizedFile>
 DatabaseManager::get_categorized_files(const std::string &directory_path) {
     std::vector<CategorizedFile> categorized_files;
-    if (!db) return categorized_files;
+    if (!ensure_path_aliases()) return categorized_files;
 
     const char *sql =
         "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
         "categorization_style, rename_only, rename_applied "
-        "FROM file_categorization WHERE dir_path = ?;";
+        "FROM file_categorization WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) "
+        "ORDER BY timestamp DESC, id DESC;";
     StatementPtr stmt = prepare_statement(db, sql);
     if (!stmt) {
         return categorized_files;
@@ -1755,19 +2113,13 @@ DatabaseManager::get_categorized_files(const std::string &directory_path) {
         return categorized_files;
     }
 
-    while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-        if (auto entry = build_categorized_entry(stmt.get())) {
-            categorized_files.push_back(std::move(*entry));
-        }
-    }
-
-    return categorized_files;
+    return read_cached_entries(stmt.get());
 }
 
 std::vector<CategorizedFile>
 DatabaseManager::get_categorized_files_recursive(const std::string& directory_path) {
     std::vector<CategorizedFile> categorized_files;
-    if (!db) {
+    if (!ensure_path_aliases()) {
         return categorized_files;
     }
 
@@ -1775,7 +2127,7 @@ DatabaseManager::get_categorized_files_recursive(const std::string& directory_pa
         "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
         "categorization_style, rename_only, rename_applied "
         "FROM file_categorization "
-        "WHERE dir_path = ? OR dir_path LIKE ? ESCAPE '\\';";
+        "WHERE aifs_path_within(dir_path, ?, 1) ORDER BY timestamp DESC, id DESC;";
     StatementPtr stmt = prepare_statement(db, sql);
     if (!stmt) {
         return categorized_files;
@@ -1786,56 +2138,47 @@ DatabaseManager::get_categorized_files_recursive(const std::string& directory_pa
         return categorized_files;
     }
 
-    const std::string pattern = build_recursive_dir_pattern(directory_path);
-    if (sqlite3_bind_text(stmt.get(), 2, pattern.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
-        db_log(spdlog::level::err, "Failed to bind recursive directory pattern: {}", sqlite3_errmsg(db));
-        return categorized_files;
-    }
-
-    while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-        if (auto entry = build_categorized_entry(stmt.get())) {
-            categorized_files.push_back(std::move(*entry));
-        }
-    }
-
-    return categorized_files;
+    return read_cached_entries(stmt.get());
 }
 
 std::optional<CategorizedFile>
 DatabaseManager::get_categorized_file(const std::string& dir_path,
                                       const std::string& file_name,
                                       FileType file_type) {
-    if (!db) {
+    if (!db) return std::nullopt;
+    ConnectionLock lock(db);
+    if (!ensure_path_aliases()) return std::nullopt;
+
+    const char* sql =
+        "SELECT f.dir_path, f.file_name, f.file_type, f.category, f.subcategory, f.suggested_name, "
+        "f.taxonomy_id, f.categorization_style, f.rename_only, f.rename_applied "
+        "FROM file_categorization AS f "
+        "JOIN temp.aifs_path_alias AS d ON d.path = f.dir_path "
+        "JOIN temp.aifs_path_alias AS n ON n.path = f.file_name "
+        "WHERE d.comparison_key = ?1 AND n.comparison_key = ?2 AND f.file_type = ?3 "
+        "ORDER BY f.timestamp DESC, f.id DESC;";
+    if (!categorized_file_statement_ &&
+        sqlite3_prepare_v2(db, sql, -1, &categorized_file_statement_, nullptr) != SQLITE_OK) {
+        return std::nullopt;
+    }
+    StatementReset reset(categorized_file_statement_);
+    const auto directory_key = path_comparison_key(dir_path);
+    const auto name_key = path_comparison_key(file_name);
+    const char* type = file_type == FileType::File ? "F" : "D";
+    if (sqlite3_bind_text(categorized_file_statement_, 1, directory_key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
+        sqlite3_bind_text(categorized_file_statement_, 2, name_key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
+        sqlite3_bind_text(categorized_file_statement_, 3, type, -1, SQLITE_STATIC) != SQLITE_OK) {
         return std::nullopt;
     }
 
-    const char *sql =
-        "SELECT dir_path, file_name, file_type, category, subcategory, suggested_name, taxonomy_id, "
-        "categorization_style, rename_only, rename_applied "
-        "FROM file_categorization "
-        "WHERE dir_path = ? AND file_name = ? AND file_type = ? "
-        "LIMIT 1;";
-    StatementPtr stmt = prepare_statement(db, sql);
-    if (!stmt) {
-        return std::nullopt;
+    std::optional<CategorizedFile> result;
+    while (sqlite3_step(categorized_file_statement_) == SQLITE_ROW) {
+        if (auto entry = build_categorized_entry(categorized_file_statement_)) {
+            if (!result) result = std::move(entry);
+            else result->rename_applied |= entry->rename_applied;
+        }
     }
-
-    if (sqlite3_bind_text(stmt.get(), 1, dir_path.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
-        return std::nullopt;
-    }
-    if (sqlite3_bind_text(stmt.get(), 2, file_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
-        return std::nullopt;
-    }
-    const std::string type_str = (file_type == FileType::File) ? "F" : "D";
-    if (sqlite3_bind_text(stmt.get(), 3, type_str.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
-        return std::nullopt;
-    }
-
-    if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-        return build_categorized_entry(stmt.get());
-    }
-
-    return std::nullopt;
+    return result;
 }
 
 std::vector<std::string>
@@ -1843,11 +2186,12 @@ DatabaseManager::get_categorization_from_db(const std::string& dir_path,
                                             const std::string& file_name,
                                             FileType file_type) {
     std::vector<std::string> categorization;
-    if (!db) return categorization;
+    if (!ensure_path_aliases()) return categorization;
 
     const char *sql =
         "SELECT category, subcategory FROM file_categorization "
-        "WHERE dir_path = ? AND file_name = ? AND file_type = ?;";
+        "WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND file_type = ? "
+        "ORDER BY timestamp DESC, id DESC LIMIT 1;";
     sqlite3_stmt *stmtcat = nullptr;
 
     if (sqlite3_prepare_v2(db, sql, -1, &stmtcat, nullptr) != SQLITE_OK) {
@@ -1881,9 +2225,9 @@ DatabaseManager::get_categorization_from_db(const std::string& dir_path,
 }
 
 bool DatabaseManager::is_file_already_categorized(const std::string &file_name) {
-    if (!db) return false;
+    if (!ensure_path_aliases()) return false;
 
-    const char *sql = "SELECT 1 FROM file_categorization WHERE file_name = ? LIMIT 1;";
+    const char *sql = "SELECT 1 FROM file_categorization WHERE file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) LIMIT 1;";
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return false;
@@ -1897,18 +2241,20 @@ bool DatabaseManager::is_file_already_categorized(const std::string &file_name) 
 
 std::vector<std::string> DatabaseManager::get_dir_contents_from_db(const std::string &dir_path) {
     std::vector<std::string> results;
-    if (!db) return results;
+    if (!ensure_path_aliases()) return results;
 
-    const char *sql = "SELECT file_name FROM file_categorization WHERE dir_path = ?;";
+    const char *sql = "SELECT file_name FROM file_categorization WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?));";
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return results;
     }
 
     sqlite3_bind_text(stmt, 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    std::unordered_set<std::string> seen;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         const char *name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-        results.emplace_back(name ? name : "");
+        const std::string stored_name = name ? name : "";
+        if (seen.insert(path_comparison_key(stored_name)).second) results.push_back(stored_name);
     }
     sqlite3_finalize(stmt);
     return results;
@@ -2043,10 +2389,10 @@ void DatabaseManager::load_cache() {
 }
 
 bool DatabaseManager::file_exists_in_db(const std::string &file_name, const std::string &file_path) {
-    if (!db) return false;
+    if (!ensure_path_aliases()) return false;
 
     const char *sql =
-        "SELECT 1 FROM file_categorization WHERE file_name = ? AND dir_path = ? LIMIT 1;";
+        "SELECT 1 FROM file_categorization WHERE file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) LIMIT 1;";
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return false;

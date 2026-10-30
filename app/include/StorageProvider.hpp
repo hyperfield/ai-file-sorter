@@ -93,6 +93,12 @@ public:
      */
     virtual std::string id() const = 0;
     /**
+     * @brief Builds a filename or full-path lookup key using provider comparison rules.
+     * @param path Original filename or full path, which remains unchanged in stored metadata.
+     * @return Comparison key; defaults to literal identity for providers without native rules.
+     */
+    virtual std::string comparison_key(const std::string& path) const { return path; }
+    /**
      * @brief Detects whether the provider should handle a given root path.
      * @param root_path Candidate root path selected by the user.
      * @return Detection metadata including confidence and user-facing diagnostics.

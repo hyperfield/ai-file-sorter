@@ -217,14 +217,18 @@ INCLUDES+=(
     -I"$QT_HEADERS/QtCore"
 )
 
-LIBS=(
-    -L"$QT_LIB_DIR"
-    -lQt6Core
-    -lsqlite3
-    -pthread
-)
+LIBS=(-lsqlite3 -pthread)
+if [[ -d "$QT_LIB_DIR/QtCore.framework" ]]; then
+    INCLUDES+=(-F"$QT_LIB_DIR" -I"$QT_LIB_DIR/QtCore.framework/Headers")
+    LIBS+=(-F"$QT_LIB_DIR" -framework QtCore "-Wl,-rpath,$QT_LIB_DIR")
+else
+    LIBS+=(-L"$QT_LIB_DIR" -lQt6Core)
+fi
+if [[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]]; then
+    INCLUDES+=(-include arm_acle.h)
+fi
 
-g++ -std=c++20 -fPIC "${INCLUDES[@]}" \
+"${CXX:-c++}" -std=c++20 -fPIC "${INCLUDES[@]}" \
     "$TEST_SRC" "$STUB_SRC" \
     "$ROOT_DIR/app/lib/DatabaseManager.cpp" \
     "$ROOT_DIR/app/lib/DatabaseTaxonomyNormalizer.cpp" \

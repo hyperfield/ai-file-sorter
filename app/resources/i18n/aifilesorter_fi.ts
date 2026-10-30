@@ -926,7 +926,59 @@ Status: %4
             <source>Failed to check for folder-structure plugin updates.</source>
             <translation>Failed to check for folder-structure plugin updates.</translation>
         </message>
-    </context>
+        <message>
+        <source>Install signed folder-structure packs for templates and smarter sorting guidance. AI File Sorter verifies each pack before enabling it.</source>
+        <translation>Asenna allekirjoitettuja kansiorakennepaketteja saadaksesi malleja ja tarkempia lajitteluohjeita. AI File Sorter tarkistaa jokaisen paketin ennen sen käyttöönottoa.</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Julkaisija</translation>
+    </message>
+    <message>
+        <source>Signature verified with trusted key %1.</source>
+        <translation>Allekirjoitus vahvistettu luotetulla avaimella %1.</translation>
+    </message>
+    <message>
+        <source>Listed in the AI File Sorter plugin catalog.</source>
+        <translation>Lueteltu AI File Sorterin lisäosaluettelossa.</translation>
+    </message>
+    <message>
+        <source>Available to install</source>
+        <translation>Asennettavissa</translation>
+    </message>
+    <message>
+        <source>License: %1</source>
+        <translation>Lisenssi: %1</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>Aktiivinen</translation>
+    </message>
+    <message>
+        <source>Activation needed</source>
+        <translation>Aktivointi vaaditaan</translation>
+    </message>
+    <message>
+        <source>Verified publisher: %1</source>
+        <translation>Vahvistettu julkaisija: %1</translation>
+    </message>
+    <message>
+        <source>Publisher: %1</source>
+        <translation>Julkaisija: %1</translation>
+    </message>
+    <message>
+        <source>%1 %2
+%3
+Status: %4%5
+
+%6</source>
+        <translation>%1 %2
+%3
+Tila: %4%5
+
+%6</translation>
+    </message>
+</context>
     <context>
         <name>LLMSelectionDialog</name>
         <message>
@@ -2024,7 +2076,23 @@ A valid code will permanently hide this support reminder.</translation>
             <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
             <translation>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</translation>
         </message>
-    </context>
+        <message>
+        <source>Plugin used: %1</source>
+        <translation>Käytetty lisäosa: %1</translation>
+    </message>
+    <message>
+        <source>Folder-structure guidance is active for the destination folder.</source>
+        <translation>Kansiorakenneohjeet ovat käytössä kohdekansiossa.</translation>
+    </message>
+    <message>
+        <source>destination folder</source>
+        <translation>kohdekansio</translation>
+    </message>
+    <message>
+        <source>The %1 looks like a Johnny.Decimal archive.</source>
+        <translation>%1 näyttää Johnny.Decimal-arkistolta.</translation>
+    </message>
+</context>
     <context>
         <name>MainWindowStateBinder</name>
         <message>
