@@ -23,7 +23,7 @@ Environment overrides:
 - `LLAMA_MACOS_ENABLE_METAL=0|1|auto`: Enable Metal backend. Default is `auto` for Apple Silicon builds.
 - `LLAMA_MACOS_MULTI_VARIANT=0|1`: Build multi-variant CPU backends (useful for M1-safe binaries).
 - `LLAMA_PRECOMPILED_DIR`: Output directory for the compiled libs (default: `app/lib/precompiled`).
-- `MACOSX_DEPLOYMENT_TARGET`: Override the deployment target (default: `15.0`).
+- `MACOSX_DEPLOYMENT_TARGET`: Override the deployment target (default: `26.0`). App builds require macOS 26 or later.
 
 Examples:
 

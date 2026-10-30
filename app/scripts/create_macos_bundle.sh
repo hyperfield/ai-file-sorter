@@ -664,7 +664,7 @@ build_bundle() {
     <key>CFBundleExecutable</key>
     <string>${APP_NAME}</string>
     <key>LSMinimumSystemVersion</key>
-    <string>15.0</string>
+    <string>${MACOSX_DEPLOYMENT_TARGET:-26.0}</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>CFBundleIconFile</key>

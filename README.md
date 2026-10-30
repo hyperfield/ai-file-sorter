@@ -647,9 +647,9 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 ### macOS
 
-Apple Silicon Macs running macOS 15 or later are supported for macOS source builds and release bundles.
+Apple Silicon Macs running macOS 26 or later are supported for macOS source builds and release bundles.
 
-1. **Install Xcode command-line tools** (`xcode-select --install`).
+1. **Install Xcode command-line tools** (`xcode-select --install`) with a macOS 26 or newer SDK.
 2. **Install Homebrew** (if required).
 3. **Install dependencies**
 
@@ -665,7 +665,7 @@ Apple Silicon Macs running macOS 15 or later are supported for macOS source buil
    ```
 
 4. **Clone the repository and submodules** (same commands as Linux).
-   > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=15.0` so the Mach-O `LC_BUILD_VERSION` matches the supported Apple Silicon floor. Raise it if you intentionally want a newer floor.
+   > The macOS build defaults to a minimum deployment target of `26.0` in Make, CMake, and release bundles. This is required by the standard library's floating-point `std::from_chars` used for inference controls. Set `MACOSX_DEPLOYMENT_TARGET` (or `CMAKE_OSX_DEPLOYMENT_TARGET` for CMake) to select a newer minimum.
 
 5. **Build vendored libzip** (generates `zipconf.h` and `libzip.a`)
 

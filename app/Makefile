@@ -86,7 +86,7 @@ endif
     LIBFFI_PREFIX := $(BREW_PREFIX)/opt/libffi
     EXPAT_PREFIX := $(BREW_PREFIX)/opt/expat
     SDKROOT := $(shell xcrun --sdk macosx --show-sdk-path 2>/dev/null)
-    MACOSX_DEPLOYMENT_TARGET ?= 15.0
+    MACOSX_DEPLOYMENT_TARGET ?= 26.0
     HOMEBREW_OS_PKG_CONFIG_DIRS := $(shell if [ -d "$(BREW_PREFIX)/Library/Homebrew/os/mac/pkgconfig" ]; then find "$(BREW_PREFIX)/Library/Homebrew/os/mac/pkgconfig" -mindepth 1 -maxdepth 1 -type d | tr '\n' ':' | sed 's/:$$//'; fi)
     # Homebrew exposes system pkg-config metadata like libcurl.pc here; libmediainfo depends on it.
     MACOS_PKG_CONFIG_DIRS := $(BREW_PREFIX)/lib/pkgconfig:$(BREW_PREFIX)/share/pkgconfig:$(LIBFFI_PREFIX)/lib/pkgconfig:$(EXPAT_PREFIX)/lib/pkgconfig:$(QT_PREFIX)/lib/pkgconfig$(if $(strip $(HOMEBREW_OS_PKG_CONFIG_DIRS)),:$(HOMEBREW_OS_PKG_CONFIG_DIRS))

@@ -1,6 +1,22 @@
 cmake_minimum_required(VERSION 3.21)
 
+# Set the deployment target before compiler detection, including caches with an empty target.
+# Floating-point std::from_chars requires macOS 26 in Apple's standard library.
+if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+    if(NOT "$ENV{MACOSX_DEPLOYMENT_TARGET}" STREQUAL "")
+        set(_aifs_macos_deployment_target "$ENV{MACOSX_DEPLOYMENT_TARGET}")
+    else()
+        set(_aifs_macos_deployment_target "26.0")
+    endif()
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "${_aifs_macos_deployment_target}" CACHE STRING
+        "Minimum macOS deployment version" FORCE)
+endif()
+
 project(AIFileSorter LANGUAGES CXX)
+
+if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS "26.0")
+    message(FATAL_ERROR "AI File Sorter requires macOS 26.0 or later. Set CMAKE_OSX_DEPLOYMENT_TARGET to 26.0 or newer.")
+endif()
 
 # C++ standard
 set(CMAKE_CXX_STANDARD 20)
