@@ -926,7 +926,59 @@ Status: %4
             <source>Failed to check for folder-structure plugin updates.</source>
             <translation>Failed to check for folder-structure plugin updates.</translation>
         </message>
-    </context>
+        <message>
+        <source>Install signed folder-structure packs for templates and smarter sorting guidance. AI File Sorter verifies each pack before enabling it.</source>
+        <translation>Settu upp undirritaða möppuskipanarpakka með sniðmátum og betri leiðbeiningum um flokkun. AI File Sorter staðfestir hvern pakka áður en hann er virkjaður.</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Útgefandi</translation>
+    </message>
+    <message>
+        <source>Signature verified with trusted key %1.</source>
+        <translation>Undirskrift staðfest með trausta lyklinum %1.</translation>
+    </message>
+    <message>
+        <source>Listed in the AI File Sorter plugin catalog.</source>
+        <translation>Skráð í viðbótaskrá AI File Sorter.</translation>
+    </message>
+    <message>
+        <source>Available to install</source>
+        <translation>Tiltækt til uppsetningar</translation>
+    </message>
+    <message>
+        <source>License: %1</source>
+        <translation>Leyfi: %1</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>Virkt</translation>
+    </message>
+    <message>
+        <source>Activation needed</source>
+        <translation>Virkjun nauðsynleg</translation>
+    </message>
+    <message>
+        <source>Verified publisher: %1</source>
+        <translation>Staðfestur útgefandi: %1</translation>
+    </message>
+    <message>
+        <source>Publisher: %1</source>
+        <translation>Útgefandi: %1</translation>
+    </message>
+    <message>
+        <source>%1 %2
+%3
+Status: %4%5
+
+%6</source>
+        <translation>%1 %2
+%3
+Staða: %4%5
+
+%6</translation>
+    </message>
+</context>
     <context>
         <name>LLMSelectionDialog</name>
         <message>
@@ -2024,7 +2076,23 @@ A valid code will permanently hide this support reminder.</translation>
             <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
             <translation>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</translation>
         </message>
-    </context>
+        <message>
+        <source>Plugin used: %1</source>
+        <translation>Viðbót í notkun: %1</translation>
+    </message>
+    <message>
+        <source>Folder-structure guidance is active for the destination folder.</source>
+        <translation>Leiðbeiningar um möppuskipan eru virkar fyrir áfangamöppuna.</translation>
+    </message>
+    <message>
+        <source>destination folder</source>
+        <translation>áfangamappa</translation>
+    </message>
+    <message>
+        <source>The %1 looks like a Johnny.Decimal archive.</source>
+        <translation>%1 virðist vera Johnny.Decimal-safn.</translation>
+    </message>
+</context>
     <context>
         <name>MainWindowStateBinder</name>
         <message>

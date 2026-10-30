@@ -926,7 +926,59 @@ Status: %4
             <source>Failed to check for folder-structure plugin updates.</source>
             <translation>Failed to check for folder-structure plugin updates.</translation>
         </message>
-    </context>
+        <message>
+        <source>Install signed folder-structure packs for templates and smarter sorting guidance. AI File Sorter verifies each pack before enabling it.</source>
+        <translation>Şablonlar ve daha iyi sıralama önerileri için imzalı klasör yapısı paketleri yükleyin. AI File Sorter, her paketi etkinleştirmeden önce doğrular.</translation>
+    </message>
+    <message>
+        <source>Publisher</source>
+        <translation>Yayıncı</translation>
+    </message>
+    <message>
+        <source>Signature verified with trusted key %1.</source>
+        <translation>İmza, güvenilen %1 anahtarıyla doğrulandı.</translation>
+    </message>
+    <message>
+        <source>Listed in the AI File Sorter plugin catalog.</source>
+        <translation>AI File Sorter eklenti kataloğunda listeleniyor.</translation>
+    </message>
+    <message>
+        <source>Available to install</source>
+        <translation>Yüklenebilir</translation>
+    </message>
+    <message>
+        <source>License: %1</source>
+        <translation>Lisans: %1</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>Etkin</translation>
+    </message>
+    <message>
+        <source>Activation needed</source>
+        <translation>Etkinleştirme gerekiyor</translation>
+    </message>
+    <message>
+        <source>Verified publisher: %1</source>
+        <translation>Doğrulanmış yayıncı: %1</translation>
+    </message>
+    <message>
+        <source>Publisher: %1</source>
+        <translation>Yayıncı: %1</translation>
+    </message>
+    <message>
+        <source>%1 %2
+%3
+Status: %4%5
+
+%6</source>
+        <translation>%1 %2
+%3
+Durum: %4%5
+
+%6</translation>
+    </message>
+</context>
     <context>
         <name>LLMSelectionDialog</name>
         <message>
@@ -2026,7 +2078,23 @@ A valid code will permanently hide this support reminder.</translation>
             <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
             <translation>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</translation>
         </message>
-    </context>
+        <message>
+        <source>Plugin used: %1</source>
+        <translation>Kullanılan eklenti: %1</translation>
+    </message>
+    <message>
+        <source>Folder-structure guidance is active for the destination folder.</source>
+        <translation>Hedef klasör için klasör yapısı rehberliği etkin.</translation>
+    </message>
+    <message>
+        <source>destination folder</source>
+        <translation>hedef klasör</translation>
+    </message>
+    <message>
+        <source>The %1 looks like a Johnny.Decimal archive.</source>
+        <translation>%1 bir Johnny.Decimal arşivi gibi görünüyor.</translation>
+    </message>
+</context>
     <context>
         <name>MainWindowStateBinder</name>
         <message>
