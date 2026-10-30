@@ -24,7 +24,7 @@
 AI File Sorter is a cross-platform desktop application that uses AI to organize files and suggest cleaner, more consistent names for images, documents, and supported audio/video files. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
 
 <p align="center">
-  <img src="images/screenshots/aifs-main.png" alt="AI File Sorter main window on Windows" width="900">
+  <img src="images/screenshots/aifs-main-window-win.png" alt="AI File Sorter on Windows with 60 mixed files and an existing destination library" width="900">
 </p>
 
 The app can analyze picture files locally with built-in visual LLM backends and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. AI File Sorter can also clean up messy audio and video filenames by using the metadata already stored inside supported media files. If tags such as year, artist, album, or title are available, the app can turn them into a clear suggestion like `2024_artist_album_title.mp3`, which you can review, edit, or ignore before any change is applied.
@@ -51,6 +51,23 @@ AI File Sorter can run entirely on your device. When you use a local model, your
 3. Category and rename suggestions are generated  
 4. You review and adjust if needed before anything is changed  
 
+### Sorting stray files into existing folders
+
+This Windows walkthrough follows 60 files from Downloads into an existing library.
+It shows folder routing, a destination correction, a dry-run preview, and confirmed
+moves. Pauses at the key steps make the 44-second loop easier to follow; long
+processing waits are omitted.
+
+<p align="center">
+  <a href="images/screenshots/ai-file-sorter-win.gif">
+    <img src="images/screenshots/ai-file-sorter-win.gif" alt="Animated Windows walkthrough: route 60 files into existing folders, review a destination, preview the moves, and confirm sorting" width="900">
+  </a>
+</p>
+
+See the [Windows screenshot gallery](images/screenshots/README.md) for all eight
+steps in English and French, including model selection, analysis, review, and
+the organized library.
+
 ---
 
 ## Safe First Run
@@ -66,18 +83,19 @@ This keeps the first run low risk: your files stay on your computer when you use
 [![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9npk4dzd6r6s)
 
 <p align="center">
-  <img src="images/screenshots/aifs-analyzing.png" alt="AI File Sorter analysis progress dialog on Windows" width="49%" align="top" style="vertical-align: top;">
+  <img src="images/screenshots/aifs-progress-dialog-win.png" alt="AI File Sorter analyzing the contents of the 60-file Windows collection" width="49%" align="top" style="vertical-align: top;">
   <img src="images/screenshots/aifs-done-linux.png" alt="AI File Sorter review and confirm results on Linux" width="49%" align="top" style="vertical-align: top;">
 </p>
 
 <p align="center">
   <img src="images/screenshots/aifs-benchmark-dialog-macos.png" alt="AI File Sorter compatibility benchmark on macOS" width="49%" align="top" style="vertical-align: top;">
-  <img src="images/screenshots/aifs-done-2.png" alt="AI File Sorter review and confirm results with mixed file types on Windows" width="49%" align="top" style="vertical-align: top;">
+  <img src="images/screenshots/aifs-review-dialog-win.png" alt="AI File Sorter reviewing filenames and existing destination folders on Windows" width="49%" align="top" style="vertical-align: top;">
 </p>
 
 ---
 
 - [AI File Sorter](#ai-file-sorter)
+  - [Sorting stray files into existing folders](#sorting-stray-files-into-existing-folders)
   - [Safe First Run](#safe-first-run)
   - [Technical reference](#technical-reference)
   - [Changelog](#changelog)
