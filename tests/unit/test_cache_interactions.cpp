@@ -563,6 +563,35 @@ TEST_CASE("ResultsCoordinator preserves UTF-8 full paths during recursive matchi
     CHECK(files_to_sort.front().file_name == Utils::path_to_utf8(root_file.filename()));
 }
 
+TEST_CASE("ResultsCoordinator respects filesystem Unicode equivalence without changing filenames") {
+    TempDir root;
+    const std::string cached_name = "caf\xc3\xa9.txt";
+    const std::string disk_name = "cafe\xcc\x81.txt";
+    write_file(root.path() / Utils::utf8_to_path(disk_name));
+    LocalFsProvider provider;
+    ResultsCoordinator coordinator(provider);
+    const auto directory = Utils::path_to_utf8(root.path());
+    const auto options = FileScanOptions::Files;
+    const auto actual = coordinator.list_directory(directory, options);
+    REQUIRE(actual.size() == 1);
+    const std::vector<CategorizedFile> categorized = {
+        CategorizedFile{directory, cached_name, FileType::File, "Documents", "Notes", 0}};
+
+    for (bool full_paths : {false, true}) {
+        const auto cached = coordinator.extract_file_names(categorized, full_paths);
+        const auto uncached = coordinator.find_files_to_categorize(directory, options, cached, full_paths);
+        const auto matched = coordinator.compute_files_to_sort(directory, options, actual, categorized, full_paths);
+#if defined(__APPLE__)
+        CHECK(uncached.empty());
+        REQUIRE(matched.size() == 1);
+        CHECK(matched.front().file_name == actual.front().file_name);
+#else
+        CHECK(uncached.size() == 1);
+        CHECK(matched.empty());
+#endif
+    }
+}
+
 TEST_CASE("DocumentTextAnalyzer handles UTF-8 filenames") {
     TempDir data_dir;
     const auto unicode_name = utf8_string(u8"東京_보고서.txt");

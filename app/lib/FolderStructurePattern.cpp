@@ -51,7 +51,7 @@ constexpr int kStrongParentScore = 10;
 
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !Utils::is_ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -107,7 +107,7 @@ std::size_t consume_digits(const std::string& value, std::size_t pos)
 
 std::size_t skip_spaces(const std::string& value, std::size_t pos)
 {
-    while (pos < value.size() && std::isspace(static_cast<unsigned char>(value[pos]))) {
+    while (pos < value.size() && Utils::is_ascii_space(static_cast<unsigned char>(value[pos]))) {
         ++pos;
     }
     return pos;
@@ -191,7 +191,7 @@ SegmentPattern parse_segment(std::string segment)
     if (alpha_end >= 2 &&
         alpha_end <= 4 &&
         alpha_end < segment.size() &&
-        std::isspace(static_cast<unsigned char>(segment[alpha_end]))) {
+        Utils::is_ascii_space(static_cast<unsigned char>(segment[alpha_end]))) {
         parsed.kind = PrefixKind::Alpha;
         parsed.prefix = segment.substr(0, alpha_end);
         parsed.label = trim_copy(segment.substr(skip_spaces(segment, alpha_end)));

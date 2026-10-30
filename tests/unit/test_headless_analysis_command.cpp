@@ -658,8 +658,12 @@ TEST_CASE("HeadlessAnalysisCommand preserves UTF-8 filenames in review status")
                                    .value(QStringLiteral("entries")).toArray();
     REQUIRE(entries.size() == 1);
     const QJsonObject entry = entries.at(0).toObject();
-    const QString expected_name =
-        QString::fromUtf8(file_name.data(), static_cast<qsizetype>(file_name.size()));
+    const std::filesystem::directory_iterator on_disk(target);
+    REQUIRE(on_disk != std::filesystem::directory_iterator{});
+    const QString expected_name = QString::fromStdString(Utils::path_to_utf8(on_disk->path().filename()));
+    CHECK(expected_name.normalized(QString::NormalizationForm_C) ==
+          QString::fromUtf8(file_name.data(), static_cast<qsizetype>(file_name.size()))
+              .normalized(QString::NormalizationForm_C));
     const QString actual_name = entry.value(QStringLiteral("fileName")).toString();
     CHECK(actual_name == expected_name);
     CHECK_FALSE(actual_name.contains(QChar::ReplacementCharacter));

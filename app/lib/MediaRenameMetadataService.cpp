@@ -172,7 +172,7 @@ std::string sanitize_metadata_value(std::string value)
         if (ch == '\0') {
             continue;
         }
-        if (std::iscntrl(ch)) {
+        if (Utils::is_ascii_control(ch)) {
             sanitized.push_back(' ');
             continue;
         }
@@ -503,7 +503,7 @@ bool parse_id3v1_from_file(const std::filesystem::path& media_path,
 
     const auto read_field = [&](std::size_t offset, std::size_t length) -> std::optional<std::string> {
         std::string value(tag.data() + offset, length);
-        while (!value.empty() && (value.back() == '\0' || std::isspace(static_cast<unsigned char>(value.back())))) {
+        while (!value.empty() && (value.back() == '\0' || Utils::is_ascii_space(static_cast<unsigned char>(value.back())))) {
             value.pop_back();
         }
         value = sanitize_metadata_value(value);

@@ -1,6 +1,7 @@
 #include "ResultsCoordinator.hpp"
 #include "Utils.hpp"
 
+#include <QString>
 #include <algorithm>
 #include <cassert>
 #include <filesystem>
@@ -13,6 +14,16 @@ ResultsCoordinator::ResultsCoordinator(IStorageProvider& storage_provider)
 void ResultsCoordinator::set_storage_provider(IStorageProvider& storage_provider)
 {
     storage_provider_ = &storage_provider;
+}
+
+std::string ResultsCoordinator::cache_key(const std::string& path) const
+{
+#if defined(__APPLE__)
+    if (storage_provider_->id() == "local_fs") {
+        return QString::fromStdString(path).normalized(QString::NormalizationForm_C).toStdString();
+    }
+#endif
+    return path;
 }
 
 std::vector<FileEntry> ResultsCoordinator::list_directory(const std::string& directory,
@@ -29,13 +40,18 @@ std::vector<FileEntry> ResultsCoordinator::find_files_to_categorize(
     bool use_full_path_keys) const
 {
     std::vector<FileEntry> actual_files = list_directory(directory_path, options);
+    std::unordered_set<std::string> cached_keys;
+    cached_keys.reserve(cached_files.size());
+    for (const auto& path : cached_files) {
+        cached_keys.insert(cache_key(path));
+    }
 
     std::vector<FileEntry> found_files;
     found_files.reserve(actual_files.size());
 
     for (const auto& entry : actual_files) {
-        const std::string key = use_full_path_keys ? entry.full_path : entry.file_name;
-        if (!cached_files.contains(key)) {
+        const std::string key = cache_key(use_full_path_keys ? entry.full_path : entry.file_name);
+        if (!cached_keys.contains(key)) {
             found_files.push_back(entry);
         }
     }
@@ -59,20 +75,21 @@ std::vector<CategorizedFile> ResultsCoordinator::compute_files_to_sort(
         const auto it = std::find_if(
             categorized_files.begin(),
             categorized_files.end(),
-            [&entry, use_full_path_keys](const CategorizedFile& categorized_file) {
+            [this, &entry, use_full_path_keys](const CategorizedFile& categorized_file) {
                 if (categorized_file.type != entry.type) {
                     return false;
                 }
                 if (use_full_path_keys) {
                     const auto full_path = Utils::utf8_to_path(categorized_file.file_path) /
                                            Utils::utf8_to_path(categorized_file.file_name);
-                    return full_path == Utils::utf8_to_path(entry.full_path);
+                    return cache_key(Utils::path_to_utf8(full_path)) == cache_key(entry.full_path);
                 }
-                return categorized_file.file_name == entry.file_name;
+                return cache_key(categorized_file.file_name) == cache_key(entry.file_name);
             });
 
         if (it != categorized_files.end()) {
             files_to_sort.push_back(*it);
+            files_to_sort.back().file_name = entry.file_name;
         }
     }
 
@@ -89,9 +106,9 @@ std::unordered_set<std::string> ResultsCoordinator::extract_file_names(
         if (use_full_path_keys) {
             const auto full_path = Utils::utf8_to_path(file.file_path) /
                                    Utils::utf8_to_path(file.file_name);
-            file_names.insert(Utils::path_to_utf8(full_path));
+            file_names.insert(cache_key(Utils::path_to_utf8(full_path)));
         } else {
-            file_names.insert(file.file_name);
+            file_names.insert(cache_key(file.file_name));
         }
     }
     return file_names;

@@ -70,7 +70,7 @@ void append_folder_purposes(std::ostream& prompt, const FolderTreeCatalog::Catal
 
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !Utils::is_ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -185,7 +185,7 @@ bool contains_allowed_segment_chars(const std::string& value)
 {
     static const std::string forbidden = R"(<>:"|?*)";
     for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
+        if (Utils::is_ascii_control(ch)) {
             return false;
         }
         if (forbidden.find(static_cast<char>(ch)) != std::string::npos) {
@@ -336,7 +336,7 @@ bool json_bool_value(const Json::Value& object,
 bool is_key_separator_gap(std::string_view gap)
 {
     return std::all_of(gap.begin(), gap.end(), [](unsigned char ch) {
-        return std::isspace(ch) || ch == '"' || ch == '\'';
+        return Utils::is_ascii_space(ch) || ch == '"' || ch == '\'';
     });
 }
 
@@ -556,7 +556,7 @@ std::optional<std::string_view> folder_segment_error(const std::string& segment)
     }
     const auto first = static_cast<unsigned char>(segment.front());
     const auto last = static_cast<unsigned char>(segment.back());
-    if (std::isspace(first) || std::isspace(last) || segment.front() == '.' || segment.back() == '.') {
+    if (Utils::is_ascii_space(first) || Utils::is_ascii_space(last) || segment.front() == '.' || segment.back() == '.') {
         return "Target folder segment has leading/trailing space or dot.";
     }
     if (is_reserved_windows_name(segment)) {

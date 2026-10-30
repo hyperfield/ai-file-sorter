@@ -102,6 +102,16 @@ TEST_CASE("sanitize_path_label preserves valid Unicode emoji labels") {
     REQUIRE(Utils::sanitize_path_label(label) == label);
 }
 
+TEST_CASE("sanitize_path_label preserves UTF-8 and removes Unicode controls") {
+    for (const std::string label : {"Økonomi", "会议", "Café", "नमस्ते", "🧪 Results"}) {
+        CHECK(Utils::sanitize_path_label(label) == label);
+    }
+    CHECK(Utils::sanitize_path_label("Cafe\xcc\x81") == "Caf\xc3\xa9");
+    CHECK(Utils::sanitize_path_label(std::string("A\0B", 3)) == "AB");
+    CHECK(Utils::sanitize_path_label("A\xc2\x85" "B") == "AB");
+    CHECK(Utils::sanitize_path_label("  A\xc2\xa0" "B...  ") == "A B");
+}
+
 TEST_CASE("format_size keeps byte values in bytes below one kilobyte") {
     REQUIRE(Utils::format_size(999) == "999.00 B");
     REQUIRE(Utils::format_size(1024) == "1.00 KB");

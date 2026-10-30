@@ -40,6 +40,10 @@ TEST_CASE("FolderTreeCatalog validates safe relative folder paths")
     CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("C:/escape").valid);
     CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("Admin/<bad>").valid);
     CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("Admin/CON.txt").valid);
+    CHECK(FolderTreeCatalog::validate_relative_folder_path("Media/75 Økonomi ☁️").valid);
+    CHECK(FolderTreeCatalog::validate_relative_folder_path("Media/75 Cafe\xcc\x81").valid);
+    CHECK(FolderTreeCatalog::validate_relative_folder_path("Media/75 Ġ").valid);
+    CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("Media/Bad\x01").valid);
 }
 
 TEST_CASE("FolderTreeCatalog parses existing-only model responses")
