@@ -171,6 +171,11 @@ private:
      */
     bool migrate_legacy_taxonomy_labels();
     /**
+     * @brief Repairs stored Unicode keys and merges equivalent rows transactionally.
+     * @return True when the keys are current or the migration committed successfully.
+     */
+    bool migrate_taxonomy_normalization();
+    /**
      * @brief Recomputes taxonomy frequencies from cached file categorizations.
      */
     void refresh_taxonomy_frequencies();

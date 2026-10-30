@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <sqlite3.h>
+#include <QStringDecoder>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
 
@@ -106,10 +107,7 @@ StatementPtr prepare_statement(sqlite3* db, const char* sql) {
 }
 
 std::string trim_copy(std::string value) {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
-    value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
-    value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
-    return value;
+    return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size())).trimmed().toStdString();
 }
 
 bool has_label_content(const std::string& value) {
@@ -263,6 +261,12 @@ DatabaseManager::DatabaseManager(std::string config_dir)
 
     initialize_schema();
     initialize_taxonomy_schema();
+    if (!migrate_taxonomy_normalization()) {
+        db_log(spdlog::level::err, "Taxonomy key migration failed; leaving the existing cache unchanged");
+        sqlite3_close(db);
+        db = nullptr;
+        return;
+    }
     load_taxonomy_cache();
     if (migrate_legacy_taxonomy_labels()) {
         load_taxonomy_cache();
@@ -472,6 +476,211 @@ void DatabaseManager::initialize_taxonomy_schema() {
         db_log(spdlog::level::err, "Failed to create translation lookup index: {}", error_msg);
         sqlite3_free(error_msg);
     }
+}
+
+bool DatabaseManager::migrate_taxonomy_normalization() {
+    if (!db) {
+        return false;
+    }
+
+    const auto exec = [&](const char* sql) {
+        if (sqlite3_exec(db, sql, nullptr, nullptr, nullptr) != SQLITE_OK) {
+            db_log(spdlog::level::err, "Failed to migrate taxonomy keys: {}", sqlite3_errmsg(db));
+            return false;
+        }
+        return true;
+    };
+    if (!exec("BEGIN IMMEDIATE;")) {
+        return false;
+    }
+    struct Transaction {
+        sqlite3* connection;
+        bool committed{false};
+        ~Transaction() {
+            if (!committed) {
+                sqlite3_exec(connection, "ROLLBACK;", nullptr, nullptr, nullptr);
+            }
+        }
+    } transaction{db};
+    const auto text = [](sqlite3_stmt* stmt, int column) {
+        const auto* value = reinterpret_cast<const char*>(sqlite3_column_text(stmt, column));
+        return value ? std::string(value, static_cast<size_t>(sqlite3_column_bytes(stmt, column))) : std::string();
+    };
+    const auto valid_utf8 = [](const std::string& value) {
+        QStringDecoder decoder(QStringDecoder::Utf8);
+        const QString decoded = decoder(QByteArrayView(value.data(), static_cast<qsizetype>(value.size())));
+        return !decoder.hasError();
+    };
+    const auto step = [&](sqlite3_stmt* stmt) {
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            db_log(spdlog::level::err, "Failed to migrate taxonomy keys: {}", sqlite3_errmsg(db));
+            return false;
+        }
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        return true;
+    };
+
+    struct TaxonomyRow {
+        int id;
+        std::string category_key;
+        std::string subcategory_key;
+    };
+    struct AliasRow {
+        int taxonomy_id;
+        std::string category_key;
+        std::string subcategory_key;
+    };
+    struct TranslationRow {
+        int taxonomy_id;
+        std::string language;
+        std::string category;
+        std::string subcategory;
+        std::string category_key;
+        std::string subcategory_key;
+        std::optional<std::string> updated_at;
+    };
+    std::vector<TaxonomyRow> rows;
+    std::vector<AliasRow> aliases;
+    std::vector<TranslationRow> translations;
+    std::unordered_map<std::string, int> owners;
+    std::unordered_map<int, int> redirects;
+    std::unordered_map<int, sqlite3_int64> frequencies;
+    bool changed = false;
+    {
+        StatementPtr stmt = prepare_statement(db,
+            "SELECT id, canonical_category, canonical_subcategory, normalized_category, "
+            "normalized_subcategory, frequency FROM category_taxonomy ORDER BY id;");
+        if (!stmt) return false;
+        int rc;
+        while ((rc = sqlite3_step(stmt.get())) == SQLITE_ROW) {
+            const int id = sqlite3_column_int(stmt.get(), 0);
+            const std::string category = normalize_label(text(stmt.get(), 1));
+            const std::string subcategory = DatabaseTaxonomyNormalizer::strip_trailing_stopwords(
+                normalize_label(text(stmt.get(), 2)));
+            const auto [owner, inserted] = owners.emplace(make_key(category, subcategory), id);
+            const int target = owner->second;
+            redirects.emplace(id, target);
+            frequencies[target] += sqlite3_column_int64(stmt.get(), 5);
+            changed |= !inserted || category != text(stmt.get(), 3) || subcategory != text(stmt.get(), 4);
+            rows.push_back({id, category, subcategory});
+        }
+        if (rc != SQLITE_DONE) return false;
+    }
+    const auto target_id = [&](int id) {
+        const auto found = redirects.find(id);
+        return found == redirects.end() ? id : found->second;
+    };
+    {
+        StatementPtr stmt = prepare_statement(db,
+            "SELECT taxonomy_id, alias_category_norm, alias_subcategory_norm "
+            "FROM category_alias ORDER BY taxonomy_id, alias_category_norm, alias_subcategory_norm;");
+        if (!stmt) return false;
+        int rc;
+        while ((rc = sqlite3_step(stmt.get())) == SQLITE_ROW) {
+            const int id = sqlite3_column_int(stmt.get(), 0);
+            const auto category = text(stmt.get(), 1);
+            const auto subcategory = text(stmt.get(), 2);
+            // Damaged aliases have no original display label from which to recover their spelling.
+            if (!valid_utf8(category) || !valid_utf8(subcategory)) {
+                changed = true;
+                continue;
+            }
+            const auto category_key = normalize_label(category);
+            const auto subcategory_key = normalize_label(subcategory);
+            if (category_key.empty() || subcategory_key.empty() ||
+                owners.contains(make_key(category_key, subcategory_key))) {
+                changed = true;
+                continue;
+            }
+            changed |= target_id(id) != id || category != category_key || subcategory != subcategory_key;
+            aliases.push_back({target_id(id), category_key, subcategory_key});
+        }
+        if (rc != SQLITE_DONE) return false;
+    }
+    {
+        StatementPtr stmt = prepare_statement(db,
+            "SELECT taxonomy_id, language, category, subcategory, normalized_category, "
+            "normalized_subcategory, updated_at FROM category_translation ORDER BY taxonomy_id, language;");
+        if (!stmt) return false;
+        int rc;
+        while ((rc = sqlite3_step(stmt.get())) == SQLITE_ROW) {
+            const int id = sqlite3_column_int(stmt.get(), 0);
+            const auto category = text(stmt.get(), 2);
+            const auto subcategory = text(stmt.get(), 3);
+            const auto category_key = normalize_label(category);
+            const auto subcategory_key = normalize_label(subcategory);
+            changed |= target_id(id) != id || category_key != text(stmt.get(), 4) ||
+                       subcategory_key != text(stmt.get(), 5);
+            translations.push_back({target_id(id), text(stmt.get(), 1), category, subcategory,
+                category_key, subcategory_key, sqlite3_column_type(stmt.get(), 6) == SQLITE_NULL
+                    ? std::nullopt : std::optional<std::string>(text(stmt.get(), 6))});
+        }
+        if (rc != SQLITE_DONE) return false;
+    }
+    if (changed) {
+        // Temporary keys allow equivalent rows and key swaps to be repaired without UNIQUE conflicts.
+        if (!exec("DELETE FROM category_alias; DELETE FROM category_translation; "
+                  "UPDATE category_taxonomy SET normalized_category = char(0) || id, normalized_subcategory = '';")) {
+            return false;
+        }
+        StatementPtr retarget = prepare_statement(db,
+            "UPDATE file_categorization SET taxonomy_id = ? WHERE taxonomy_id = ?;");
+        StatementPtr remove = prepare_statement(db, "DELETE FROM category_taxonomy WHERE id = ?;");
+        StatementPtr update = prepare_statement(db,
+            "UPDATE category_taxonomy SET normalized_category = ?, normalized_subcategory = ?, frequency = ? WHERE id = ?;");
+        if (!retarget || !remove || !update) return false;
+        for (const auto& row : rows) {
+            const int target = target_id(row.id);
+            if (target != row.id) {
+                sqlite3_bind_int(retarget.get(), 1, target);
+                sqlite3_bind_int(retarget.get(), 2, row.id);
+                if (!step(retarget.get())) return false;
+                sqlite3_bind_int(remove.get(), 1, row.id);
+                if (!step(remove.get())) return false;
+            } else {
+                sqlite3_bind_text(update.get(), 1, row.category_key.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(update.get(), 2, row.subcategory_key.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_int64(update.get(), 3, frequencies.at(row.id));
+                sqlite3_bind_int(update.get(), 4, row.id);
+                if (!step(update.get())) return false;
+            }
+        }
+        StatementPtr alias = prepare_statement(db,
+            "INSERT OR IGNORE INTO category_alias (taxonomy_id, alias_category_norm, alias_subcategory_norm) VALUES (?, ?, ?);");
+        if (!alias) return false;
+        for (const auto& row : aliases) {
+            sqlite3_bind_int(alias.get(), 1, row.taxonomy_id);
+            sqlite3_bind_text(alias.get(), 2, row.category_key.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(alias.get(), 3, row.subcategory_key.c_str(), -1, SQLITE_TRANSIENT);
+            if (!step(alias.get())) return false;
+        }
+        StatementPtr translation = prepare_statement(db,
+            "INSERT INTO category_translation (taxonomy_id, language, category, subcategory, "
+            "normalized_category, normalized_subcategory, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(taxonomy_id, language) DO UPDATE SET category = excluded.category, "
+            "subcategory = excluded.subcategory, normalized_category = excluded.normalized_category, "
+            "normalized_subcategory = excluded.normalized_subcategory, updated_at = excluded.updated_at "
+            "WHERE COALESCE(excluded.updated_at, '') > COALESCE(category_translation.updated_at, '');");
+        if (!translation) return false;
+        for (const auto& row : translations) {
+            sqlite3_bind_int(translation.get(), 1, row.taxonomy_id);
+            sqlite3_bind_text(translation.get(), 2, row.language.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(translation.get(), 3, row.category.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(translation.get(), 4, row.subcategory.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(translation.get(), 5, row.category_key.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(translation.get(), 6, row.subcategory_key.c_str(), -1, SQLITE_TRANSIENT);
+            if (row.updated_at) {
+                sqlite3_bind_text(translation.get(), 7, row.updated_at->c_str(), -1, SQLITE_TRANSIENT);
+            } else {
+                sqlite3_bind_null(translation.get(), 7);
+            }
+            if (!step(translation.get())) return false;
+        }
+    }
+    if (!exec("COMMIT;")) return false;
+    transaction.committed = true;
+    return true;
 }
 
 void DatabaseManager::load_taxonomy_cache() {
@@ -1074,16 +1283,6 @@ DatabaseManager::resolve_category_for_language(const std::string& category,
     if (language == CategoryLanguage::English || !db) {
         return resolve_category(category, subcategory);
     }
-
-    auto trim_copy = [](std::string value) {
-        auto is_space = [](unsigned char ch) { return std::isspace(ch); };
-        value.erase(value.begin(), std::find_if(value.begin(), value.end(),
-                                                [&](unsigned char ch) { return !is_space(ch); }));
-        value.erase(std::find_if(value.rbegin(), value.rend(),
-                                 [&](unsigned char ch) { return !is_space(ch); }).base(),
-                    value.end());
-        return value;
-    };
 
     std::string trimmed_category = trim_copy(category);
     std::string trimmed_subcategory = trim_copy(subcategory);

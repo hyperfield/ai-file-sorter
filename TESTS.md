@@ -27,6 +27,28 @@ This document provides a detailed description of every test case in the project.
 - If Windows CMake reports a missing Visual Studio instance from an existing `build-tests` directory, use `cmake --fresh` when supported, delete/recreate that build directory, or choose a new build directory; the Visual Studio path is stored in `CMakeCache.txt`.
 - MediaInfo is expected from a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`); vendored MediaInfo directories/binaries are intentionally rejected by the build.
 
+## Unicode taxonomy matching
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "Taxonomy*,DatabaseManager*"`.
+
+`tests/unit/test_database_manager_rename_only.cpp` covers:
+
+- `Taxonomy normalization preserves Unicode letters numbers and attached marks`:
+  NFC composition, case folding, Unicode whitespace, Indic vowel marks, and
+  letters outside the basic multilingual plane retain valid lookup keys.
+- `Taxonomy fuzzy matching compares Unicode code points rather than UTF-8 bytes`:
+  shared encoding bytes do not make distinct Chinese labels look like spelling variants.
+- `DatabaseManager matches canonical Unicode forms without merging distinct short labels`:
+  composed and decomposed spellings reuse an ID while distinct short labels remain separate.
+- `DatabaseManager repairs stored Unicode taxonomy keys and preserves references on reopen`:
+  damaged keys are rebuilt from display labels; equivalent duplicate rows merge while
+  cached file references, valid aliases, frequencies, and translations are retained.
+  Key swaps respect uniqueness, the latest translation wins a language collision,
+  and reopening an already repaired database does not repeat the migration.
+- `DatabaseManager rolls back Unicode key migration completely when a write fails`:
+  a trigger interrupts a duplicate merge after writes have begun; all original rows
+  and references survive, and a later open can retry the migration successfully.
+
 ## Sorting Rules And Filename Length
 
 Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[sorting-rules],[content-routing]"`.

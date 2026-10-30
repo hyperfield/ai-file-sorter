@@ -1,9 +1,182 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "DatabaseManager.hpp"
+#include "DatabaseTaxonomyNormalizer.hpp"
 #include "TestHelpers.hpp"
 
 #include <sqlite3.h>
+
+#include <memory>
+
+namespace {
+using RawDatabase = std::unique_ptr<sqlite3, decltype(&sqlite3_close)>;
+using RawStatement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
+
+void execute_sql(sqlite3* db, const std::string& sql) {
+    const int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    INFO(sql);
+    INFO(sqlite3_errmsg(db));
+    REQUIRE(result == SQLITE_OK);
+}
+
+RawStatement query(sqlite3* db, const char* sql) {
+    sqlite3_stmt* raw = nullptr;
+    const int result = sqlite3_prepare_v2(db, sql, -1, &raw, nullptr);
+    RawStatement statement(raw, sqlite3_finalize);
+    INFO(sql);
+    REQUIRE(result == SQLITE_OK);
+    return statement;
+}
+
+sqlite3_int64 query_integer(sqlite3* db, const char* sql) {
+    auto statement = query(db, sql);
+    REQUIRE(sqlite3_step(statement.get()) == SQLITE_ROW);
+    return sqlite3_column_int64(statement.get(), 0);
+}
+
+std::string query_text(sqlite3* db, const char* sql) {
+    auto statement = query(db, sql);
+    REQUIRE(sqlite3_step(statement.get()) == SQLITE_ROW);
+    return reinterpret_cast<const char*>(sqlite3_column_text(statement.get(), 0));
+}
+
+RawDatabase legacy_unicode_database(const TempDir& directory) {
+    {
+        DatabaseManager initialize(directory.path().string());
+    }
+    sqlite3* raw = nullptr;
+    const int result = sqlite3_open((directory.path() / "categorization_results.db").string().c_str(), &raw);
+    RawDatabase db(raw, sqlite3_close);
+    REQUIRE(result == SQLITE_OK);
+    execute_sql(db.get(), R"sql(
+        INSERT INTO category_taxonomy
+            (id, canonical_category, canonical_subcategory, normalized_category, normalized_subcategory, frequency)
+        VALUES
+            (10, 'Café', 'Økonomi', CAST(X'636166E3' AS TEXT), 'broken-economy', 2),
+            (20, 'CAFÉ', 'ØKONOMI', 'legacy-cafe', 'legacy-economy', 3),
+            (30, '会议', '资料', '会计', '资料', 7),
+            (40, '会计', '资料', '会议', '资料', 11);
+        INSERT INTO file_categorization
+            (file_name, file_type, dir_path, category, subcategory, taxonomy_id)
+        VALUES ('coffee.txt', 'F', '/sample', 'Café', 'Økonomi', 20),
+               ('meetings.txt', 'F', '/sample', '会议', '资料', 30),
+               ('accounts.txt', 'F', '/sample', '会计', '资料', 40);
+        INSERT INTO category_alias (alias_category_norm, alias_subcategory_norm, taxonomy_id)
+        VALUES ('coffee', 'economy', 20),
+               ('meeting', 'notes', 30),
+               (CAST(X'636166E3' AS TEXT), 'broken-economy', 20);
+        INSERT INTO category_translation
+            (taxonomy_id, language, category, subcategory, normalized_category, normalized_subcategory, updated_at)
+        VALUES (10, 'french', 'Café', 'Économie', 'caf', 'conomie', '2025-01-01 00:00:00'),
+               (20, 'french', 'CAFÉ', 'ÉCONOMIE', 'broken-cafe', 'broken-economy', '2026-01-01 00:00:00'),
+               (20, 'danish', 'Kaffe', 'Økonomi', 'kaffe', 'broken-economy', '2025-06-01 00:00:00');
+    )sql");
+    return db;
+}
+} // namespace
+
+TEST_CASE("Taxonomy normalization preserves Unicode letters numbers and attached marks") {
+    using DatabaseTaxonomyNormalizer::normalize_label;
+    CHECK(normalize_label("  CAFÉ\xc2\xa0 Reports  ") == "café reports");
+    CHECK(normalize_label("Cafe\xcc\x81") == normalize_label("Café"));
+    CHECK(normalize_label("ØKONOMI") == "økonomi");
+    CHECK(normalize_label("会议 资料") == "会议 资料");
+    CHECK(normalize_label("अनुसंधान") == "अनुसंधान");
+    CHECK(normalize_label("कला") != normalize_label("कली"));
+    CHECK(normalize_label("\xf0\x90\x90\x80") == "\xf0\x90\x90\xa8");
+    CHECK(normalize_label("Images: Photo_Files") == "images photofiles");
+    CHECK(normalize_label("Cloud ☁️") == "cloud");
+}
+
+TEST_CASE("Taxonomy fuzzy matching compares Unicode code points rather than UTF-8 bytes") {
+    CHECK(DatabaseTaxonomyNormalizer::string_similarity("会议", "会计") == 0.5);
+    CHECK(DatabaseTaxonomyNormalizer::string_similarity("ab", "ac") == 0.5);
+    CHECK(DatabaseTaxonomyNormalizer::string_similarity("\xf0\x90\x90\xa8", "\xf0\x90\x90\xa9") == 0.0);
+}
+
+TEST_CASE("DatabaseManager matches canonical Unicode forms without merging distinct short labels") {
+    TempDir root;
+    DatabaseManager db(root.path().string());
+    const auto cafe = db.resolve_category("Café", "Økonomi");
+    REQUIRE(cafe.taxonomy_id > 0);
+    CHECK(db.resolve_category("CAFE\xcc\x81", "ØKONOMI").taxonomy_id == cafe.taxonomy_id);
+    const auto meetings = db.resolve_category("会议", "资料");
+    const auto accounting = db.resolve_category("会计", "资料");
+    REQUIRE(meetings.taxonomy_id > 0);
+    REQUIRE(accounting.taxonomy_id > 0);
+    CHECK(meetings.taxonomy_id != accounting.taxonomy_id);
+}
+
+TEST_CASE("DatabaseManager repairs stored Unicode taxonomy keys and preserves references on reopen") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    auto raw = legacy_unicode_database(root);
+    {
+        DatabaseManager db(root.path().string());
+        CHECK(db.resolve_category("CAFE\xcc\x81", "ØKONOMI").taxonomy_id == 10);
+        CHECK(db.resolve_category("coffee", "economy").taxonomy_id == 10);
+        CHECK(db.resolve_category("会议", "资料").taxonomy_id == 30);
+        CHECK(db.resolve_category("会计", "资料").taxonomy_id == 40);
+        const auto cached = db.get_categorized_file("/sample", "coffee.txt", FileType::File);
+        REQUIRE(cached.has_value());
+        CHECK(cached->taxonomy_id == 10);
+        CHECK(cached->category == "Café");
+        CHECK(cached->subcategory == "Økonomi");
+        const auto french = db.get_category_translation(10, CategoryLanguage::French);
+        REQUIRE(french.has_value());
+        CHECK(french->category == "CAFÉ");
+        CHECK(french->subcategory == "ÉCONOMIE");
+        const auto danish = db.get_category_translation(10, CategoryLanguage::Danish);
+        REQUIRE(danish.has_value());
+        CHECK(danish->subcategory == "Økonomi");
+        CHECK(db.resolve_category_for_language("cafe\xcc\x81", "économie", CategoryLanguage::French).taxonomy_id == 10);
+    }
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM category_taxonomy;") == 3);
+    CHECK(query_integer(raw.get(), "SELECT frequency FROM category_taxonomy WHERE id = 10;") == 5);
+    CHECK(query_integer(raw.get(), "SELECT frequency FROM category_taxonomy WHERE id = 30;") == 7);
+    CHECK(query_integer(raw.get(), "SELECT frequency FROM category_taxonomy WHERE id = 40;") == 11);
+    CHECK(query_text(raw.get(), "SELECT normalized_category FROM category_taxonomy WHERE id = 10;") == "café");
+    CHECK(query_text(raw.get(), "SELECT normalized_subcategory FROM category_taxonomy WHERE id = 10;") == "økonomi");
+    CHECK(query_integer(raw.get(), "SELECT taxonomy_id FROM category_alias WHERE alias_category_norm = 'coffee';") == 10);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM category_alias WHERE alias_category_norm = CAST(X'636166E3' AS TEXT);") == 0);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM file_categorization WHERE taxonomy_id = 20;") == 0);
+    CHECK(query_text(raw.get(), "SELECT updated_at FROM category_translation WHERE taxonomy_id = 10 AND language = 'french';") == "2026-01-01 00:00:00");
+    auto integrity = query(raw.get(), "PRAGMA foreign_key_check;");
+    CHECK(sqlite3_step(integrity.get()) == SQLITE_DONE);
+    integrity.reset();
+
+    execute_sql(raw.get(), "CREATE TRIGGER reject_repeat_rekey BEFORE UPDATE OF normalized_category ON category_taxonomy "
+                          "BEGIN SELECT RAISE(ABORT, 'unexpected repeated migration'); END;");
+    {
+        DatabaseManager reopened(root.path().string());
+        CHECK(reopened.resolve_category("Café", "Økonomi").taxonomy_id == 10);
+    }
+    CHECK(query_integer(raw.get(), "SELECT frequency FROM category_taxonomy WHERE id = 10;") == 5);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM category_translation;") == 2);
+}
+
+TEST_CASE("DatabaseManager rolls back Unicode key migration completely when a write fails") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    auto raw = legacy_unicode_database(root);
+    execute_sql(raw.get(), "CREATE TRIGGER reject_taxonomy_merge BEFORE DELETE ON category_taxonomy WHEN OLD.id = 20 "
+                          "BEGIN SELECT RAISE(ABORT, 'test migration failure'); END;");
+    {
+        DatabaseManager failed(root.path().string());
+        CHECK(failed.resolve_category("Café", "Økonomi").taxonomy_id == -1);
+    }
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM category_taxonomy;") == 4);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM category_alias;") == 3);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM category_translation;") == 3);
+    CHECK(query_integer(raw.get(), "SELECT taxonomy_id FROM file_categorization WHERE file_name = 'coffee.txt';") == 20);
+    CHECK(query_text(raw.get(), "SELECT hex(normalized_category) FROM category_taxonomy WHERE id = 10;") == "636166E3");
+    CHECK(query_integer(raw.get(), "SELECT frequency FROM category_taxonomy WHERE id = 10;") == 2);
+    execute_sql(raw.get(), "DROP TRIGGER reject_taxonomy_merge;");
+    {
+        DatabaseManager recovered(root.path().string());
+        CHECK(recovered.resolve_category("Café", "Økonomi").taxonomy_id == 10);
+    }
+}
 
 TEST_CASE("DatabaseManager keeps rename-only entries with empty labels") {
     TempDir base_dir;
