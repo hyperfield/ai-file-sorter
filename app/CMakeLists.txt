@@ -426,7 +426,10 @@ if(APPLE)
     endif()
     if(_aifs_macos_arches MATCHES "(^|;)(arm64|aarch64)($|;)")
         # Qt 6 headers on newer Apple SDKs require arm_acle.h for __yield().
-        add_compile_options(-include arm_acle.h)
+        add_compile_options(
+            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-include>"
+            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:arm_acle.h>"
+        )
     endif()
 endif()
 

@@ -9,7 +9,7 @@
 
 #include <memory>
 
-#if defined(AI_FILE_SORTER_TEST_BUILD) && defined(_WIN32)
+#if defined(AI_FILE_SORTER_TEST_BUILD) && (defined(_WIN32) || defined(__APPLE__))
 class QProcessEnvironment;
 #endif
 
@@ -28,7 +28,7 @@ public:
                                                  ImageAnalyzerSettings settings = {});
 };
 
-#if defined(AI_FILE_SORTER_TEST_BUILD) && defined(_WIN32)
+#if defined(AI_FILE_SORTER_TEST_BUILD) && (defined(_WIN32) || defined(__APPLE__))
 /**
  * @brief Test hooks for visual analyzer factory internals.
  */

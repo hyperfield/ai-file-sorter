@@ -783,6 +783,8 @@ TEST_CASE("What's New content is packaged for the current app version")
     REQUIRE(markdown.contains(QStringLiteral("existing folder structure")));
     REQUIRE(markdown.contains(QStringLiteral("filename word limits")));
     REQUIRE(markdown.contains(QStringLiteral("Qwen3.5 4B")));
+    REQUIRE(markdown.contains(QStringLiteral("Metal backend detection")));
+    REQUIRE(markdown.contains(QStringLiteral("image-analysis benchmark")));
 
     REQUIRE(WhatsNewContent::markdown_for_version(version, Language::English) == markdown);
     REQUIRE_FALSE(WhatsNewContent::markdown_for_version(version, Language::French).isEmpty());

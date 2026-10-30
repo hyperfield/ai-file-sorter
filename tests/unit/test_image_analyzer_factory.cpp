@@ -7,13 +7,13 @@
 #include "VisualModelCatalog.hpp"
 #include "VisualLlmRuntime.hpp"
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 #include <QProcessEnvironment>
 #endif
 
 #include <fstream>
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 namespace {
 
 struct LlmStorageOverrideGuard {
@@ -51,7 +51,7 @@ TEST_CASE("ImageAnalyzerFactory rejects invalid GGUF artifacts before analyzer s
             "Visual model artifact is invalid or incomplete (expected GGUF header):"));
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 TEST_CASE("ImageAnalyzerFactory passes configured model storage to visual GPU preflight")
 {
     LlmStorageOverrideGuard storage_guard;

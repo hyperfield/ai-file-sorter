@@ -2,6 +2,28 @@
 
 #include "SuitabilityBenchmarkDialog.hpp"
 
+TEST_CASE("Suitability benchmark recognizes Metal backend aliases")
+{
+    CHECK(SuitabilityBenchmarkDialogTestAccess::backend_alias_matches("MTL", "metal"));
+    CHECK(SuitabilityBenchmarkDialogTestAccess::backend_alias_matches("MTL0", "metal"));
+    CHECK(SuitabilityBenchmarkDialogTestAccess::backend_alias_matches("Metal", "mtl"));
+    CHECK(SuitabilityBenchmarkDialogTestAccess::backend_alias_matches("mtl", "Metal"));
+    CHECK_FALSE(SuitabilityBenchmarkDialogTestAccess::backend_alias_matches("Vulkan", "metal"));
+
+    const QString text_note =
+        SuitabilityBenchmarkDialogTestAccess::backend_note_for_testing("MTL", false, false, true, false);
+    CHECK(text_note == QStringLiteral("GPU (target: Metal)"));
+
+    const QString image_note =
+        SuitabilityBenchmarkDialogTestAccess::image_backend_note_for_testing("mtl", true, false, false, true);
+    CHECK(image_note == QStringLiteral("GPU (target: Metal)"));
+
+    const QString fallback_note =
+        SuitabilityBenchmarkDialogTestAccess::image_backend_note_for_testing("MTL", true, false, false, false);
+    CHECK(fallback_note.startsWith(QStringLiteral("CPU")));
+    CHECK(fallback_note.contains(QStringLiteral("GPU via Metal unavailable")));
+}
+
 TEST_CASE("Suitability benchmark reports Vulkan GPU when CUDA is unavailable")
 {
     const QString text_note =

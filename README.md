@@ -145,6 +145,7 @@ the main entry page, use these technical references:
 - Use Qwen3.5 4B for local text and image analysis, alongside the default Gemma 3 4B IT.
 - Added support for the sorting settings and destination previews in AI File Sorter for File Explorer 1.1.0.
 - Improved local analysis, cancellation, GPU compatibility, review editing, and undo reliability.
+- Fixed macOS Metal backend detection and hardened image-analysis startup and benchmark fallback.
 
 ## [1.9.2] - 2026-08-14
 
