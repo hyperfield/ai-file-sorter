@@ -16,10 +16,16 @@ Environment overrides:
   LLAMA_MACOS_ARCH        Target architecture (overridden by CLI)
   LLAMA_MACOS_ENABLE_METAL=0|1|auto
   LLAMA_MACOS_MULTI_VARIANT=0|1
+  AI_FILE_SORTER_MACOS_RUNTIME_JOBS=4
 USAGE
 }
 
 CLI_ARCH=""
+BUILD_JOBS="${AI_FILE_SORTER_MACOS_RUNTIME_JOBS:-4}"
+if ! [[ "$BUILD_JOBS" =~ ^[0-9]+$ ]] || (( BUILD_JOBS < 1 )); then
+    echo "AI_FILE_SORTER_MACOS_RUNTIME_JOBS must be a positive integer." >&2
+    exit 1
+fi
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --arch)
@@ -215,6 +221,13 @@ LDFLAGS= cmake -S . -B "$BUILD_DIR" \
   -DCMAKE_INSTALL_RPATH=${DYLIB_RPATH} \
   -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} \
   -DBUILD_SHARED_LIBS=ON \
+  -DLLAMA_BUILD_COMMON=ON \
+  -DLLAMA_BUILD_MTMD=ON \
+  -DLLAMA_BUILD_TOOLS=OFF \
+  -DLLAMA_BUILD_APP=OFF \
+  -DLLAMA_BUILD_EXAMPLES=OFF \
+  -DLLAMA_BUILD_TESTS=OFF \
+  -DMTMD_VIDEO=OFF \
   -DCMAKE_EXE_LINKER_FLAGS= \
   -DCMAKE_SHARED_LINKER_FLAGS= \
   -DCMAKE_MODULE_LINKER_FLAGS= \
@@ -229,12 +242,13 @@ LDFLAGS= cmake -S . -B "$BUILD_DIR" \
   -DGGML_KLEIDIAI=OFF \
   -DBLAS_LIBRARIES="-framework Accelerate"
 
-LDFLAGS= cmake --build "$BUILD_DIR" --config Release -- -j$(sysctl -n hw.logicalcpu)
+LDFLAGS= cmake --build "$BUILD_DIR" --config Release --parallel "$BUILD_JOBS"
 
 # Copy the resulting dynamic (.dylib) libraries
 rm -rf "$PRECOMPILED_LIBS_DIR"
 mkdir -p "$PRECOMPILED_LIBS_DIR"
 cp "$BUILD_BIN_DIR"/libllama.dylib "$PRECOMPILED_LIBS_DIR"
+cp "$BUILD_BIN_DIR"/libllama-common.dylib "$PRECOMPILED_LIBS_DIR"
 cp "$BUILD_BIN_DIR"/libggml*.dylib "$PRECOMPILED_LIBS_DIR"
 cp "$BUILD_BIN_DIR"/libmtmd.dylib "$PRECOMPILED_LIBS_DIR"
 normalize_macos_dylib_rpaths "$PRECOMPILED_LIBS_DIR" "$BUILD_BIN_DIR"
@@ -242,6 +256,7 @@ normalize_macos_dylib_rpaths "$PRECOMPILED_LIBS_DIR" "$BUILD_BIN_DIR"
 (
   cd "$PRECOMPILED_LIBS_DIR"
   ln -sf libllama.dylib libllama.0.dylib
+  ln -sf libllama-common.dylib libllama-common.0.dylib
   ln -sf libmtmd.dylib libmtmd.0.dylib
 )
 

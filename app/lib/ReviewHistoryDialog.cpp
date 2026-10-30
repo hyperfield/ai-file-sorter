@@ -254,7 +254,9 @@ void ReviewHistoryDialog::undo_selected_entries()
             continue;
         }
 
-        const auto result = storage_provider_.undo_move(entry->source_path, entry->destination_path);
+        const auto result = storage_provider_.undo_move(entry->source_path,
+                                                        entry->destination_path,
+                                                        entry->created_directories);
         if (!result.success) {
             ++skipped;
             details << QString::fromStdString(

@@ -1,6 +1,8 @@
 #include "LocalLLMPromptBuilder.hpp"
 
 #include "FileCategoryPolicy.hpp"
+#include "FolderTreeCatalog.hpp"
+#include "ILLMClient.hpp"
 
 #include <algorithm>
 #include <array>
@@ -83,6 +85,21 @@ std::string extract_prompt_file_name(std::string_view payload)
 bool is_refined_sorting_mode(std::string_view consistency_context)
 {
     return consistency_context.find(kRefinedSortingStyleMarker) != std::string_view::npos;
+}
+
+bool is_folder_tree_mode(std::string_view consistency_context)
+{
+    return consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string_view::npos;
+}
+
+std::string folder_tree_system_prompt()
+{
+    return std::string(FolderTreeCatalog::selection_system_prompt());
+}
+
+std::string folder_tree_response_instruction()
+{
+    return std::string(FolderTreeCatalog::selection_response_instruction());
 }
 
 std::string generic_file_categorization_system_prompt()
@@ -209,7 +226,11 @@ std::string build_generic_categorization_user_prompt(const std::string& file_nam
         prompt << "\n" << consistency_context << "\n";
     }
 
-    prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    if (is_folder_tree_mode(consistency_context)) {
+        prompt << "\n" << folder_tree_response_instruction();
+    } else {
+        prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    }
     return prompt.str();
 }
 
@@ -233,7 +254,9 @@ std::string build_image_categorization_user_prompt(const std::string& file_name,
     if (!extra_context.empty()) {
         prompt << "\n" << extra_context << "\n";
     }
-    if (prefer_stable_taxonomy) {
+    if (is_folder_tree_mode(consistency_context)) {
+        prompt << "\n" << folder_tree_response_instruction();
+    } else if (prefer_stable_taxonomy) {
         prompt << "\nAnswer with exactly one line:\nImages : <Subcategory>";
     } else {
         prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
@@ -259,7 +282,11 @@ std::string build_document_categorization_user_prompt(const std::string& file_na
     if (!consistency_context.empty()) {
         prompt << "\n" << consistency_context << "\n";
     }
-    prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    if (is_folder_tree_mode(consistency_context)) {
+        prompt << "\n" << folder_tree_response_instruction();
+    } else {
+        prompt << "\nAnswer with exactly one line:\n<Main category> : <Subcategory>";
+    }
     return prompt.str();
 }
 
@@ -286,13 +313,18 @@ std::string build_system_prompt(std::string_view file_path,
                                 std::string_view consistency_context)
 {
     const bool prefer_stable_taxonomy = !is_refined_sorting_mode(consistency_context);
+    if (is_folder_tree_mode(consistency_context)) {
+        return folder_tree_system_prompt();
+    }
     if (file_type == FileType::Directory) {
         return directory_categorization_system_prompt();
     }
-    if (has_marker(file_path, kImageDescriptionMarker)) {
+    if (has_marker(file_path, kImageDescriptionMarker) ||
+        has_marker(consistency_context, kImageDescriptionMarker)) {
         return image_categorization_system_prompt(prefer_stable_taxonomy);
     }
-    if (FileCategoryPolicy::is_supported_document_file_name(extract_prompt_file_name(file_path))) {
+    if (FileCategoryPolicy::is_supported_document_file_name(extract_prompt_file_name(file_path)) ||
+        has_marker(consistency_context, kDocumentSummaryMarker)) {
         return document_categorization_system_prompt(prefer_stable_taxonomy);
     }
     return generic_file_categorization_system_prompt();
@@ -303,11 +335,14 @@ std::string build_user_prompt(const std::string& file_name,
                               FileType file_type,
                               const std::string& consistency_context)
 {
-    if (file_type == FileType::File && has_marker(file_path, kImageDescriptionMarker)) {
+    if (file_type == FileType::File &&
+        (has_marker(file_path, kImageDescriptionMarker) ||
+         has_marker(consistency_context, kImageDescriptionMarker))) {
         return build_image_categorization_user_prompt(file_name, file_path, consistency_context);
     }
     if (file_type == FileType::File &&
-        FileCategoryPolicy::is_supported_document_file_name(file_name)) {
+        (FileCategoryPolicy::is_supported_document_file_name(file_name) ||
+         has_marker(consistency_context, kDocumentSummaryMarker))) {
         return build_document_categorization_user_prompt(file_name, file_path, consistency_context);
     }
     return build_generic_categorization_user_prompt(file_name,
@@ -328,7 +363,6 @@ int prompt_token_budget(int context_tokens, int max_tokens)
 std::string shrink_user_prompt_for_context(const std::string& prompt, int attempt)
 {
     static const std::array<std::size_t, 4> kSummaryBudgets = {1200, 800, 500, 300};
-    static const std::array<std::size_t, 4> kPromptBudgets = {1800, 1400, 1000, 700};
 
     auto trim_labeled_section = [&](std::string text, std::string_view marker) {
         const auto marker_pos = text.find(marker);
@@ -337,7 +371,11 @@ std::string shrink_user_prompt_for_context(const std::string& prompt, int attemp
         }
 
         std::size_t suffix_start = std::string::npos;
-        constexpr std::array<std::string_view, 8> kSectionMarkers = {
+        constexpr std::array<std::string_view, 12> kSectionMarkers = {
+            LLMPrompt::kContentEvidenceEndMarker,
+            FolderTreeCatalog::kPromptMarker,
+            "\nAnswer with exactly one JSON object",
+            "\nAnswer with exactly one relative folder path",
             "\nFile name:",
             "\nDirectory name:",
             "\nPath:",
@@ -378,14 +416,20 @@ std::string shrink_user_prompt_for_context(const std::string& prompt, int attemp
     trimmed = trim_labeled_section(std::move(trimmed), "\nDocument summary: ");
     trimmed = trim_labeled_section(std::move(trimmed), "\nImage description: ");
 
-    const std::size_t budget = kPromptBudgets[std::min<std::size_t>(
-        static_cast<std::size_t>(attempt),
-        kPromptBudgets.size() - 1)];
-    if (trimmed.size() > budget) {
-        return truncate_with_ellipsis(trimmed, budget);
-    }
-
     return trimmed;
+}
+
+std::optional<std::string> fit_user_prompt(const std::string& prompt, std::size_t token_budget,
+    const std::function<std::size_t(const std::string&)>& count_tokens)
+{
+    if (count_tokens(prompt) <= token_budget) return prompt;
+    constexpr int kEvidenceShrinkAttempts = 4;
+    for (int attempt = 0; attempt < kEvidenceShrinkAttempts; ++attempt) {
+        // A plateau at an early summary budget does not exhaust smaller budgets.
+        auto candidate = shrink_user_prompt_for_context(prompt, attempt);
+        if (count_tokens(candidate) <= token_budget) return candidate;
+    }
+    return std::nullopt;
 }
 
 } // namespace LocalLLMPromptBuilder

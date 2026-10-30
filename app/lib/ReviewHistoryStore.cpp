@@ -3,6 +3,11 @@
 #include "Logger.hpp"
 #include "Utils.hpp"
 
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonParseError>
+#include <QJsonValue>
+
 #include <algorithm>
 #include <chrono>
 #include <cctype>
@@ -87,6 +92,42 @@ StatementPtr prepare_statement(sqlite3* db, const char* sql, std::string* error 
     return nullptr;
 }
 
+bool table_has_column(sqlite3* db, const char* table, const char* column)
+{
+    std::string sql = "PRAGMA table_info(";
+    sql += table;
+    sql += ")";
+    auto stmt = prepare_statement(db, sql.c_str());
+    if (!stmt) {
+        return false;
+    }
+
+    while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+        if (sqlite_text(stmt.get(), 1) == column) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ensure_column(sqlite3* db,
+                   const char* table,
+                   const char* column,
+                   const char* column_definition,
+                   std::string* error)
+{
+    if (table_has_column(db, table, column)) {
+        return true;
+    }
+
+    std::string sql = "ALTER TABLE ";
+    sql += table;
+    sql += " ADD COLUMN ";
+    sql += column_definition;
+    sql += ";";
+    return exec_sql(db, sql.c_str(), error);
+}
+
 void bind_text(sqlite3_stmt* stmt, int index, const std::string& value)
 {
     sqlite3_bind_text(stmt, index, value.c_str(), -1, SQLITE_TRANSIENT);
@@ -98,6 +139,39 @@ std::string trim_copy(std::string value)
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
+}
+
+std::string encode_string_array(const std::vector<std::string>& values)
+{
+    QJsonArray array;
+    for (const auto& value : values) {
+        array.push_back(QString::fromStdString(value));
+    }
+    return QJsonDocument(array).toJson(QJsonDocument::Compact).toStdString();
+}
+
+std::vector<std::string> decode_string_array(const std::string& value)
+{
+    if (value.empty()) {
+        return {};
+    }
+
+    QJsonParseError parse_error{};
+    const QJsonDocument document =
+        QJsonDocument::fromJson(QByteArray::fromStdString(value), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError || !document.isArray()) {
+        return {};
+    }
+
+    std::vector<std::string> result;
+    const QJsonArray array = document.array();
+    result.reserve(array.size());
+    for (const auto& item : array) {
+        if (item.isString()) {
+            result.push_back(item.toString().toStdString());
+        }
+    }
+    return result;
 }
 
 ReviewHistoryStore::Entry read_entry(sqlite3_stmt* stmt)
@@ -118,8 +192,9 @@ ReviewHistoryStore::Entry read_entry(sqlite3_stmt* stmt)
     entry.mtime = static_cast<std::time_t>(sqlite3_column_int64(stmt, 12));
     entry.stable_identity = sqlite_text(stmt, 13);
     entry.revision_token = sqlite_text(stmt, 14);
-    entry.undone = sqlite3_column_int(stmt, 15) != 0;
-    entry.undone_at_utc = sqlite_text(stmt, 16);
+    entry.created_directories = decode_string_array(sqlite_text(stmt, 15));
+    entry.undone = sqlite3_column_int(stmt, 16) != 0;
+    entry.undone_at_utc = sqlite_text(stmt, 17);
     return entry;
 }
 
@@ -230,9 +305,10 @@ std::optional<long long> ReviewHistoryStore::record_entry(const Entry& entry, st
             mtime,
             stable_identity,
             revision_token,
+            created_directories,
             undone,
             undone_at_utc
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '')
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '')
     )sql";
 
     auto stmt = prepare_statement(db_, kSql, error);
@@ -255,6 +331,7 @@ std::optional<long long> ReviewHistoryStore::record_entry(const Entry& entry, st
     sqlite3_bind_int64(stmt.get(), index++, static_cast<sqlite3_int64>(entry.mtime));
     bind_text(stmt.get(), index++, entry.stable_identity);
     bind_text(stmt.get(), index++, entry.revision_token);
+    bind_text(stmt.get(), index++, encode_string_array(entry.created_directories));
 
     if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
         if (error) {
@@ -276,14 +353,16 @@ std::vector<ReviewHistoryStore::Entry> ReviewHistoryStore::entries(std::size_t l
     static constexpr char kSqlNoLimit[] = R"sql(
         SELECT id, created_at_utc, provider_id, operation, source_path, destination_path,
                original_file_name, final_file_name, category, subcategory, file_description,
-               size_bytes, mtime, stable_identity, revision_token, undone, undone_at_utc
+               size_bytes, mtime, stable_identity, revision_token, created_directories,
+               undone, undone_at_utc
         FROM review_history
         ORDER BY id DESC
     )sql";
     static constexpr char kSqlLimit[] = R"sql(
         SELECT id, created_at_utc, provider_id, operation, source_path, destination_path,
                original_file_name, final_file_name, category, subcategory, file_description,
-               size_bytes, mtime, stable_identity, revision_token, undone, undone_at_utc
+               size_bytes, mtime, stable_identity, revision_token, created_directories,
+               undone, undone_at_utc
         FROM review_history
         ORDER BY id DESC
         LIMIT ?
@@ -305,7 +384,8 @@ ReviewHistoryStore::search_entries(const std::string& query, std::size_t limit) 
     static constexpr char kSqlNoLimit[] = R"sql(
         SELECT id, created_at_utc, provider_id, operation, source_path, destination_path,
                original_file_name, final_file_name, category, subcategory, file_description,
-               size_bytes, mtime, stable_identity, revision_token, undone, undone_at_utc
+               size_bytes, mtime, stable_identity, revision_token, created_directories,
+               undone, undone_at_utc
         FROM review_history
         WHERE lower(original_file_name) LIKE lower(?)
            OR lower(final_file_name) LIKE lower(?)
@@ -319,7 +399,8 @@ ReviewHistoryStore::search_entries(const std::string& query, std::size_t limit) 
     static constexpr char kSqlLimit[] = R"sql(
         SELECT id, created_at_utc, provider_id, operation, source_path, destination_path,
                original_file_name, final_file_name, category, subcategory, file_description,
-               size_bytes, mtime, stable_identity, revision_token, undone, undone_at_utc
+               size_bytes, mtime, stable_identity, revision_token, created_directories,
+               undone, undone_at_utc
         FROM review_history
         WHERE lower(original_file_name) LIKE lower(?)
            OR lower(final_file_name) LIKE lower(?)
@@ -342,7 +423,8 @@ std::optional<ReviewHistoryStore::Entry> ReviewHistoryStore::entry_by_id(long lo
     static constexpr char kSql[] = R"sql(
         SELECT id, created_at_utc, provider_id, operation, source_path, destination_path,
                original_file_name, final_file_name, category, subcategory, file_description,
-               size_bytes, mtime, stable_identity, revision_token, undone, undone_at_utc
+               size_bytes, mtime, stable_identity, revision_token, created_directories,
+               undone, undone_at_utc
         FROM review_history
         WHERE id = ?
     )sql";
@@ -430,6 +512,7 @@ bool ReviewHistoryStore::initialize_schema(std::string* error)
             mtime INTEGER NOT NULL DEFAULT 0,
             stable_identity TEXT NOT NULL DEFAULT '',
             revision_token TEXT NOT NULL DEFAULT '',
+            created_directories TEXT NOT NULL DEFAULT '[]',
             undone INTEGER NOT NULL DEFAULT 0,
             undone_at_utc TEXT NOT NULL DEFAULT ''
         );
@@ -440,5 +523,12 @@ bool ReviewHistoryStore::initialize_schema(std::string* error)
         CREATE INDEX IF NOT EXISTS idx_review_history_category
             ON review_history(category, subcategory);
     )sql";
-    return exec_sql(db_, kSchema, error);
+    if (!exec_sql(db_, kSchema, error)) {
+        return false;
+    }
+    return ensure_column(db_,
+                         "review_history",
+                         "created_directories",
+                         "created_directories TEXT NOT NULL DEFAULT '[]'",
+                         error);
 }

@@ -77,6 +77,30 @@ std::string join_list(const std::vector<std::string>& items) {
     return oss.str();
 }
 
+SortingMode sorting_mode_from_string(std::string value)
+{
+    value = trim_copy(std::move(value));
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    if (value == "existingfoldertree" || value == "existing-folder-tree" ||
+        value == "existing_folder_tree" || value == "foldertree" || value == "folder-tree") {
+        return SortingMode::ExistingFolderTree;
+    }
+    return SortingMode::GeneratedCategories;
+}
+
+std::string sorting_mode_to_string(SortingMode mode)
+{
+    switch (mode) {
+    case SortingMode::ExistingFolderTree:
+        return "ExistingFolderTree";
+    case SortingMode::GeneratedCategories:
+    default:
+        return "GeneratedCategories";
+    }
+}
+
 std::string escape_map_token(const std::string& value)
 {
     std::string escaped;
@@ -308,6 +332,7 @@ std::string llm_choice_to_string(LLMChoice choice) {
         case LLMChoice::Remote_Gemini: return "Remote_Gemini";
         case LLMChoice::Remote_Custom: return "Remote_Custom";
         case LLMChoice::Local_4b_Gemma: return "Local_4b_Gemma";
+        case LLMChoice::Local_4b_Qwen35: return "Local_4b_Qwen35";
         case LLMChoice::Local_3b_legacy: return "Local_3b_legacy";
         case LLMChoice::Local_7b: return "Local_7b";
         case LLMChoice::Local_7b_Gemma: return "Local_7b_Gemma";
@@ -482,6 +507,7 @@ LLMChoice Settings::parse_llm_choice() const
     if (value == "Remote_Gemini") return LLMChoice::Remote_Gemini;
     if (value == "Remote_Custom") return LLMChoice::Remote_Custom;
     if (value == "Local_3b" || value == "Local_4b_Gemma") return LLMChoice::Local_4b_Gemma;
+    if (value == "Local_4b_Qwen35") return LLMChoice::Local_4b_Qwen35;
     if (value == "Local_3b_legacy") return LLMChoice::Local_3b_legacy;
     if (value == "Local_7b") return LLMChoice::Local_7b;
     if (value == "Local_7b_Gemma") return LLMChoice::Local_7b_Gemma;
@@ -503,12 +529,16 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     visual_model_id = normalize_visual_model_id(
         config.getValue("Settings", "VisualModelId", default_visual_model_descriptor().id));
     use_subcategories = load_bool("UseSubcategories", true);
+    sorting_mode = sorting_mode_from_string(
+        config.getValue("Settings", "SortingMode", "GeneratedCategories"));
+    suggest_new_folders = load_bool("SuggestNewFolders", false);
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
     include_subdirectories = load_bool("IncludeSubdirectories", false);
     analyze_images_by_content = load_bool("AnalyzeImagesByContent", false);
     offer_rename_images = load_bool("OfferRenameImages", false);
+    set_image_filename_words(load_int("ImageFilenameWords", kDefaultFilenameWords, kMinimumFilenameWords));
     add_image_date_place_to_filename = load_bool("AddImageDatePlaceToFilename", false);
     add_audio_video_metadata_to_filename = load_bool("AddAudioVideoMetadataToFilename", true);
     add_image_date_to_category = load_bool("AddImageDateToCategory", false);
@@ -516,6 +546,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     process_images_only = load_bool("ProcessImagesOnly", false);
     analyze_documents_by_content = load_bool("AnalyzeDocumentsByContent", false);
     offer_rename_documents = load_bool("OfferRenameDocuments", false);
+    set_document_filename_words(load_int("DocumentFilenameWords", kDefaultFilenameWords, kMinimumFilenameWords));
     rename_documents_only = load_bool("RenameDocumentsOnly", false);
     process_documents_only = load_bool("ProcessDocumentsOnly", false);
     add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
@@ -548,6 +579,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
         categorize_directories = false;
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
+    destination_folder = config.getValue("Settings", "DestinationFolder", "");
     show_file_explorer = load_bool("ShowFileExplorer", true);
     recent_network_locations = parse_multiline_list(
         config.getValue("Settings", "RecentNetworkLocations", ""));
@@ -572,10 +604,8 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
     categorized_file_count = load_int("CategorizedFileCount", 0, 0);
     next_support_prompt_threshold = load_int("SupportPromptThreshold", 50, 50);
-    windows_explorer_extension_prompt_dismissed =
-        load_bool("WindowsExplorerExtensionPromptDismissed", false);
-    windows_explorer_extension_prompt_last_shown_utc =
-        config.getValue("Settings", "WindowsExplorerExtensionPromptLastShownUtc", "");
+    hide_johnny_decimal_plugin_suggestion =
+        load_bool("HideJohnnyDecimalPluginSuggestion", false);
 }
 
 void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)
@@ -664,6 +694,8 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "LlmStorageDir", llm_storage_dir);
     config.setValue(settings_section, "VisualModelId", normalize_visual_model_id(visual_model_id));
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
+    config.setValue(settings_section, "SortingMode", sorting_mode_to_string(sorting_mode));
+    set_bool_setting(config, settings_section, "SuggestNewFolders", suggest_new_folders);
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
     set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
     set_bool_setting(config, settings_section, "CategorizeDirectories", categorize_directories);
@@ -676,6 +708,7 @@ void Settings::save_core_settings()
     }
     set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
     set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
+    config.setValue(settings_section, "ImageFilenameWords", std::to_string(image_filename_words));
     set_bool_setting(config, settings_section, "AddImageDatePlaceToFilename", add_image_date_place_to_filename);
     set_bool_setting(config, settings_section, "AddAudioVideoMetadataToFilename", add_audio_video_metadata_to_filename);
     set_bool_setting(config, settings_section, "AddImageDateToCategory", add_image_date_to_category);
@@ -684,11 +717,13 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "ProcessImagesOnly", process_images_only);
     set_bool_setting(config, settings_section, "AnalyzeDocumentsByContent", analyze_documents_by_content);
     set_bool_setting(config, settings_section, "OfferRenameDocuments", offer_rename_documents);
+    config.setValue(settings_section, "DocumentFilenameWords", std::to_string(document_filename_words));
     set_bool_setting(config, settings_section, "DocumentOptionsExpanded", document_options_expanded);
     set_bool_setting(config, settings_section, "RenameDocumentsOnly", rename_documents_only);
     set_bool_setting(config, settings_section, "ProcessDocumentsOnly", process_documents_only);
     set_bool_setting(config, settings_section, "AddDocumentDateToCategory", add_document_date_to_category);
     config.setValue(settings_section, "SortFolder", this->sort_folder);
+    config.setValue(settings_section, "DestinationFolder", destination_folder);
 
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
     set_optional_setting(config, settings_section, "WhatsNewVersionShown", whats_new_version_shown);
@@ -719,12 +754,8 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
     set_bool_setting(config,
                      settings_section,
-                     "WindowsExplorerExtensionPromptDismissed",
-                     windows_explorer_extension_prompt_dismissed);
-    set_optional_setting(config,
-                         settings_section,
-                         "WindowsExplorerExtensionPromptLastShownUtc",
-                         windows_explorer_extension_prompt_last_shown_utc);
+                     "HideJohnnyDecimalPluginSuggestion",
+                     hide_johnny_decimal_plugin_suggestion);
 }
 
 void Settings::save_whitelist_settings()
@@ -849,6 +880,26 @@ bool Settings::save()
     return config.save(config_path);
 }
 
+
+int Settings::get_image_filename_words() const
+{
+    return image_filename_words;
+}
+
+void Settings::set_image_filename_words(int words)
+{
+    image_filename_words = clamp_filename_words(words);
+}
+
+int Settings::get_document_filename_words() const
+{
+    return document_filename_words;
+}
+
+void Settings::set_document_filename_words(int words)
+{
+    document_filename_words = clamp_filename_words(words);
+}
 
 LLMChoice Settings::get_llm_choice() const
 {
@@ -1104,6 +1155,26 @@ void Settings::set_use_subcategories(bool value)
     use_subcategories = value;
 }
 
+SortingMode Settings::get_sorting_mode() const
+{
+    return sorting_mode;
+}
+
+void Settings::set_sorting_mode(SortingMode mode)
+{
+    sorting_mode = mode;
+}
+
+bool Settings::get_suggest_new_folders() const
+{
+    return suggest_new_folders;
+}
+
+void Settings::set_suggest_new_folders(bool value)
+{
+    suggest_new_folders = value;
+}
+
 bool Settings::get_use_consistency_hints() const
 {
     return use_consistency_hints;
@@ -1298,6 +1369,22 @@ std::string Settings::get_sort_folder() const
 void Settings::set_sort_folder(const std::string &path)
 {
     this->sort_folder = path;
+}
+
+std::string Settings::get_destination_folder() const
+{
+    return destination_folder;
+}
+
+void Settings::set_destination_folder(const std::string& path)
+{
+    destination_folder = trim_copy(path);
+}
+
+std::string Settings::get_effective_destination_folder(const std::string& analysis_folder) const
+{
+    const std::string destination = trim_copy(destination_folder);
+    return destination.empty() ? analysis_folder : destination;
 }
 
 bool Settings::get_consistency_pass_enabled() const
@@ -1507,24 +1594,14 @@ void Settings::set_next_support_prompt_threshold(int threshold)
     next_support_prompt_threshold = threshold;
 }
 
-bool Settings::get_windows_explorer_extension_prompt_dismissed() const
+bool Settings::get_hide_johnny_decimal_plugin_suggestion() const
 {
-    return windows_explorer_extension_prompt_dismissed;
+    return hide_johnny_decimal_plugin_suggestion;
 }
 
-void Settings::set_windows_explorer_extension_prompt_dismissed(bool value)
+void Settings::set_hide_johnny_decimal_plugin_suggestion(bool value)
 {
-    windows_explorer_extension_prompt_dismissed = value;
-}
-
-std::string Settings::get_windows_explorer_extension_prompt_last_shown_utc() const
-{
-    return windows_explorer_extension_prompt_last_shown_utc;
-}
-
-void Settings::set_windows_explorer_extension_prompt_last_shown_utc(const std::string& value)
-{
-    windows_explorer_extension_prompt_last_shown_utc = value;
+    hide_johnny_decimal_plugin_suggestion = value;
 }
 
 std::vector<std::string> Settings::get_allowed_categories() const

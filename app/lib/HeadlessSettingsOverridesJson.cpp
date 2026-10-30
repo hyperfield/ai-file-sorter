@@ -1,10 +1,14 @@
 #include "HeadlessSettingsOverridesJson.hpp"
+#include "FilenameWordLimits.hpp"
 
 #include <QJsonArray>
 #include <QJsonValue>
+#include <QByteArray>
 #include <QString>
 #include <QStringView>
 
+#include <algorithm>
+#include <cmath>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -18,6 +22,21 @@ std::optional<bool> optional_bool_from_json(const QJsonObject& object, QStringVi
         return std::nullopt;
     }
     return value.toBool();
+}
+
+std::optional<int> optional_filename_words_from_json(const QJsonObject& object, QStringView key)
+{
+    const QJsonValue value = object.value(key);
+    if (!value.isDouble()) {
+        return std::nullopt;
+    }
+    const double words = value.toDouble();
+    if (!std::isfinite(words) || std::trunc(words) != words) {
+        return std::nullopt;
+    }
+    // Clamp before conversion so even very large JSON integers cannot overflow int.
+    return static_cast<int>(std::clamp(words, static_cast<double>(kMinimumFilenameWords),
+                                      static_cast<double>(kMaximumFilenameWords)));
 }
 
 std::optional<std::vector<std::string>> optional_string_array_from_json(const QJsonObject& object,
@@ -43,12 +62,45 @@ std::optional<std::vector<std::string>> optional_string_array_from_json(const QJ
     return values;
 }
 
+std::optional<std::string> optional_string_from_json(const QJsonObject& object, QStringView key)
+{
+    const QJsonValue value = object.value(key);
+    if (!value.isString()) {
+        return std::nullopt;
+    }
+    const QByteArray utf8 = value.toString().trimmed().toUtf8();
+    return std::string(utf8.constData(), static_cast<std::size_t>(utf8.size()));
+}
+
 template <typename Setter>
 void set_optional_bool(const QJsonObject& object, QStringView key, Setter setter)
 {
     if (const auto value = optional_bool_from_json(object, key)) {
         setter(*value);
     }
+}
+
+std::optional<SortingMode> optional_sorting_mode_from_json(const QJsonObject& object, QStringView key)
+{
+    const QJsonValue value = object.value(key);
+    if (!value.isString()) {
+        return std::nullopt;
+    }
+    const QString mode = value.toString().trimmed().toLower();
+    if (mode == QStringLiteral("existingfoldertree") ||
+        mode == QStringLiteral("existing-folder-tree") ||
+        mode == QStringLiteral("existing_folder_tree") ||
+        mode == QStringLiteral("foldertree") ||
+        mode == QStringLiteral("folder-tree")) {
+        return SortingMode::ExistingFolderTree;
+    }
+    if (mode == QStringLiteral("generatedcategories") ||
+        mode == QStringLiteral("generated-categories") ||
+        mode == QStringLiteral("generated_categories") ||
+        mode == QStringLiteral("categories")) {
+        return SortingMode::GeneratedCategories;
+    }
+    return std::nullopt;
 }
 
 } // namespace
@@ -58,6 +110,15 @@ HeadlessSettingsOverrides HeadlessSettingsOverridesJson::from_json(const QJsonOb
     HeadlessSettingsOverrides overrides;
     set_optional_bool(object, QStringLiteral("useSubcategories"), [&](bool value) {
         overrides.use_subcategories = value;
+    });
+    if (const auto mode = optional_sorting_mode_from_json(object, QStringLiteral("sortingMode"))) {
+        overrides.sorting_mode = *mode;
+    }
+    if (const auto destination = optional_string_from_json(object, QStringLiteral("destinationFolder"))) {
+        overrides.destination_folder = *destination;
+    }
+    set_optional_bool(object, QStringLiteral("suggestNewFolders"), [&](bool value) {
+        overrides.suggest_new_folders = value;
     });
     set_optional_bool(object, QStringLiteral("useConsistencyHints"), [&](bool value) {
         overrides.use_consistency_hints = value;
@@ -99,6 +160,7 @@ HeadlessSettingsOverrides HeadlessSettingsOverridesJson::from_json(const QJsonOb
     set_optional_bool(object, QStringLiteral("offerRenameImages"), [&](bool value) {
         overrides.offer_rename_images = value;
     });
+    overrides.image_filename_words = optional_filename_words_from_json(object, QStringLiteral("imageFilenameWords"));
     set_optional_bool(object, QStringLiteral("renameImagesOnly"), [&](bool value) {
         overrides.rename_images_only = value;
     });
@@ -114,6 +176,7 @@ HeadlessSettingsOverrides HeadlessSettingsOverridesJson::from_json(const QJsonOb
     set_optional_bool(object, QStringLiteral("offerRenameDocuments"), [&](bool value) {
         overrides.offer_rename_documents = value;
     });
+    overrides.document_filename_words = optional_filename_words_from_json(object, QStringLiteral("documentFilenameWords"));
     set_optional_bool(object, QStringLiteral("renameDocumentsOnly"), [&](bool value) {
         overrides.rename_documents_only = value;
     });

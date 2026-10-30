@@ -24,6 +24,18 @@ struct mtmd_bitmap;
 
 using LlavaImageAnalysisResult = ImageAnalysisResult;
 
+#ifdef AI_FILE_SORTER_TEST_BUILD
+namespace LlavaImageAnalyzerTestAccess {
+/**
+ * @brief Exercises production filename cleanup without loading a visual model.
+ * @param value Raw model filename reply.
+ * @param max_words Maximum words retained in the cleaned stem.
+ * @return Sanitized filename stem.
+ */
+std::string sanitize_filename(const std::string& value, size_t max_words);
+}
+#endif
+
 /**
  * @brief Runs local MTMD-backed visual inference to describe images and suggest filenames.
  *
@@ -77,6 +89,9 @@ public:
     static bool is_supported_image(const std::filesystem::path& path);
 
 private:
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend std::string LlavaImageAnalyzerTestAccess::sanitize_filename(const std::string&, size_t);
+#endif
 #ifdef AI_FILE_SORTER_HAS_MTMD
     /**
      * @brief Runs inference on the given bitmap.
@@ -113,9 +128,9 @@ private:
      * @param max_length Max character length.
      * @return Sanitized filename.
      */
-    std::string sanitize_filename(const std::string& value,
+    static std::string sanitize_filename(const std::string& value,
                                   size_t max_words,
-                                  size_t max_length) const;
+                                  size_t max_length);
 
     /**
      * @brief Trims whitespace from both ends of a string.
@@ -216,7 +231,15 @@ bool should_use_mmproj_gpu_for_memory(std::string_view backend_name,
 std::string description_system_prompt(VisualPromptPolicy policy);
 std::string description_user_prompt(VisualPromptPolicy policy);
 std::string filename_system_prompt(VisualPromptPolicy policy);
-std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description);
+/**
+ * @brief Builds the production filename prompt with a configurable word limit.
+ * @param policy Backend prompt policy.
+ * @param description Image description to name.
+ * @param max_words Maximum words requested in the filename.
+ * @return The filename user prompt.
+ */
+std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description,
+                               size_t max_words = kDefaultFilenameWords);
 /**
  * @brief Checks whether a WebP file can be decoded and transcoded for MTMD input.
  * @param path WebP image path to decode.

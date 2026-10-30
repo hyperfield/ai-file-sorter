@@ -23,6 +23,7 @@ TEST_CASE("ReviewHistoryStore persists, searches, and marks history entries undo
     entry.mtime = 42;
     entry.stable_identity = "identity";
     entry.revision_token = "12:42";
+    entry.created_directories = {"/photos", "/photos/Family"};
 
     std::string error;
     const auto id = store.record_entry(entry, &error);
@@ -34,6 +35,7 @@ TEST_CASE("ReviewHistoryStore persists, searches, and marks history entries undo
     CHECK(by_filename.front().id == *id);
     CHECK(by_filename.front().operation == ReviewHistoryStore::Operation::RenameAndCategorize);
     CHECK(by_filename.front().file_description == entry.file_description);
+    CHECK(by_filename.front().created_directories == entry.created_directories);
 
     const auto by_category = store.search_entries("family");
     REQUIRE(by_category.size() == 1);
@@ -55,4 +57,5 @@ TEST_CASE("ReviewHistoryStore persists, searches, and marks history entries undo
     REQUIRE(all_entries.size() == 1);
     CHECK(all_entries.front().id == *id);
     CHECK(all_entries.front().undone);
+    CHECK(all_entries.front().created_directories == entry.created_directories);
 }

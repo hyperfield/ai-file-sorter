@@ -1,6 +1,11 @@
 #include "LocalLLMClient.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "GgmlRuntimePaths.hpp"
 #include "LocalLLMPromptBuilder.hpp"
+#include "NativeChatTemplate.hpp"
+#include "LLMErrors.hpp"
+#include "InferenceAudit.hpp"
+#include "NativeJsonSchemaGrammar.hpp"
 #include "LocalLLMResponseSanitizer.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
@@ -113,6 +118,17 @@ private:
 
 
 namespace {
+llama_sampler* make_response_grammar_sampler(const llama_vocab* vocab, const std::string& grammar)
+{
+    try {
+        auto* sampler = llama_sampler_init_grammar(vocab, grammar.c_str(), "root");
+        if (!sampler) throw ResponseConstraintError("Cannot initialize the response grammar sampler");
+        return sampler;
+    } catch (const std::exception& error) {
+        throw ResponseConstraintError(std::string("Cannot enforce response grammar: ") + error.what());
+    }
+}
+
 
 constexpr int kDefaultLocalLlmContextTokens = 2048;
 constexpr int kMinimumContextAttemptTokens = 512;
@@ -123,7 +139,6 @@ constexpr int kFirstBatchFallbackTokens = 1024;
 constexpr int kSecondBatchFallbackTokens = 512;
 constexpr int kThirdBatchFallbackTokens = 256;
 constexpr int kDefaultCompletionTokens = 256;
-constexpr std::size_t kEstimatedPromptBufferBytes = 4096;
 constexpr std::size_t kTokenPieceBufferBytes = 128;
 constexpr std::size_t kMetadataScanBytes = 8ULL * 1024ULL * 1024ULL;
 constexpr double kBytesPerMiB = 1024.0 * 1024.0;
@@ -138,8 +153,6 @@ constexpr double kCudaMaxApproxFreeBudgetFraction = 0.98;
 constexpr double kCudaMaxUsableTotalBudgetFraction = 0.90;
 constexpr double kCudaMinApproxFreeBudgetFraction = 0.45;
 constexpr double kCudaLayerOverheadFactor = 1.08;
-constexpr float kDefaultMinPSampler = 0.05f;
-constexpr float kDefaultTemperatureSampler = 0.8f;
 constexpr int kGpuLayerRetryScaleNumerator = 3;
 constexpr int kGpuLayerRetryScaleDenominator = 4;
 constexpr int kMinimumGpuLayerRetryCount = 1;
@@ -243,14 +256,87 @@ struct MetalDeviceInfo {
     size_t total_bytes = 0;
     size_t free_bytes = 0;
     std::string name;
+    bool backend_reported = false;
 
     bool valid() const {
         return total_bytes > 0;
     }
 };
 
+[[maybe_unused]] bool has_explicit_gpu_layer_override() {
+    return resolve_gpu_layer_override() != INT_MIN;
+}
+
+#if defined(__APPLE__) && (defined(__x86_64__) || defined(__i386__))
+bool process_is_rosetta_translated() {
+    int translated = 0;
+    size_t size = sizeof(translated);
+    return sysctlbyname("sysctl.proc_translated", &translated, &size, nullptr, 0) == 0 &&
+           translated == 1;
+}
+
+[[maybe_unused]] bool is_native_intel_macos_process() {
+    return !process_is_rosetta_translated();
+}
+#else
+[[maybe_unused]] bool is_native_intel_macos_process() {
+    return false;
+}
+#endif
+
 #if defined(GGML_USE_METAL)
-MetalDeviceInfo query_primary_gpu_device() {
+ggml_backend_reg_t resolve_metal_backend_reg() {
+    ggml_backend_reg_t metal = ggml_backend_reg_by_name("Metal");
+    if (!metal) {
+        metal = ggml_backend_reg_by_name("MTL");
+    }
+    return metal;
+}
+
+std::optional<MetalDeviceInfo> query_metal_backend_device(ggml_backend_reg_t metal) {
+    if (!metal) {
+        return std::nullopt;
+    }
+
+    const size_t dev_count = ggml_backend_reg_dev_count(metal);
+    MetalDeviceInfo best;
+    bool found = false;
+    for (size_t i = 0; i < dev_count; ++i) {
+        ggml_backend_dev_t device = ggml_backend_reg_dev_get(metal, i);
+        if (!device) {
+            continue;
+        }
+
+        size_t free_bytes = 0;
+        size_t total_bytes = 0;
+        ggml_backend_dev_memory(device, &free_bytes, &total_bytes);
+        if (free_bytes == 0 && total_bytes == 0) {
+            continue;
+        }
+
+        MetalDeviceInfo info;
+        info.free_bytes = free_bytes;
+        info.total_bytes = (total_bytes != 0) ? total_bytes : free_bytes;
+        info.backend_reported = true;
+        const char* device_name = ggml_backend_dev_name(device);
+        info.name = (device_name && device_name[0] != '\0') ? device_name : "Metal GPU";
+        if (!found || info.total_bytes > best.total_bytes) {
+            best = std::move(info);
+            found = true;
+        }
+    }
+
+    if (!found) {
+        return std::nullopt;
+    }
+    return best;
+}
+
+MetalDeviceInfo query_primary_gpu_device(ggml_backend_reg_t metal) {
+    if (const auto backend_device = query_metal_backend_device(metal)) {
+        return *backend_device;
+    }
+
     MetalDeviceInfo info;
 
 #if defined(__APPLE__)
@@ -274,16 +360,15 @@ MetalDeviceInfo query_primary_gpu_device() {
     }
 
     info.name = "Metal (system memory)";
+#else
+    info.name = "Metal GPU";
 #endif
 
     return info;
 }
 
 bool metal_backend_available(const std::shared_ptr<spdlog::logger>& logger) {
-    ggml_backend_reg_t metal = ggml_backend_reg_by_name("Metal");
-    if (!metal) {
-        metal = ggml_backend_reg_by_name("MTL");
-    }
+    ggml_backend_reg_t metal = resolve_metal_backend_reg();
     if (!metal) {
         if (logger) {
             logger->warn("Metal backend not registered under aliases Metal/MTL; falling back to CPU");
@@ -621,71 +706,6 @@ std::optional<int32_t> infer_block_count_from_tensors(gguf_context* ctx)
     return std::nullopt;
 }
 
-bool format_prompt(llama_model* model,
-                   std::string_view system_prompt,
-                   std::string_view user_prompt,
-                   std::string& final_prompt)
-{
-    if (!model) {
-        return false;
-    }
-
-    const char* tmpl = llama_model_chat_template(model, nullptr);
-    if (!tmpl || tmpl[0] == '\0') {
-        final_prompt.clear();
-        if (!system_prompt.empty()) {
-            final_prompt.append(system_prompt);
-            final_prompt.append("\n\n");
-        }
-        final_prompt.append(user_prompt);
-        return true;
-    }
-
-    std::vector<std::string> owned_messages;
-    owned_messages.reserve(system_prompt.empty() ? 1 : 2);
-    std::vector<llama_chat_message> messages;
-    messages.reserve(system_prompt.empty() ? 1 : 2);
-
-    if (!system_prompt.empty()) {
-        owned_messages.emplace_back(system_prompt);
-        messages.push_back({"system", owned_messages.back().c_str()});
-    }
-
-    owned_messages.emplace_back(user_prompt);
-    messages.push_back({"user", owned_messages.back().c_str()});
-
-    std::size_t estimated_size = kEstimatedPromptBufferBytes;
-    for (const auto& message : owned_messages) {
-        estimated_size += message.size() * 2;
-    }
-
-    std::vector<char> formatted_prompt(estimated_size);
-    int actual_len = llama_chat_apply_template(tmpl,
-                                               messages.data(),
-                                               messages.size(),
-                                               true,
-                                               formatted_prompt.data(),
-                                               static_cast<int32_t>(formatted_prompt.size()));
-    if (actual_len < 0) {
-        return false;
-    }
-
-    if (actual_len >= static_cast<int>(formatted_prompt.size())) {
-        formatted_prompt.resize(static_cast<std::size_t>(actual_len) + 1);
-        actual_len = llama_chat_apply_template(tmpl,
-                                               messages.data(),
-                                               messages.size(),
-                                               true,
-                                               formatted_prompt.data(),
-                                               static_cast<int32_t>(formatted_prompt.size()));
-        if (actual_len < 0 || actual_len >= static_cast<int>(formatted_prompt.size())) {
-            return false;
-        }
-    }
-
-    final_prompt.assign(formatted_prompt.data(), static_cast<std::size_t>(actual_len));
-    return true;
-}
 
 bool tokenize_prompt(const llama_vocab* vocab,
                      const std::string& final_prompt,
@@ -724,52 +744,110 @@ bool tokenize_prompt(const llama_vocab* vocab,
     return true;
 }
 
-std::string run_generation_loop(llama_context* ctx,
+std::string detokenize_for_audit(const llama_vocab* vocab, std::span<const llama_token> tokens)
+{
+    const int required = -llama_detokenize(vocab, tokens.data(), static_cast<int32_t>(tokens.size()),
+                                          nullptr, 0, false, true);
+    if (required < 0) throw InferenceAudit::Error("Unable to size the token round-trip capture");
+    std::string text(static_cast<std::size_t>(required), '\0');
+    const int written = llama_detokenize(vocab, tokens.data(), static_cast<int32_t>(tokens.size()),
+                                         text.data(), required, false, true);
+    if (written < 0) throw InferenceAudit::Error("Unable to detokenize the captured inference input");
+    text.resize(static_cast<std::size_t>(written));
+    return text;
+}
+
+struct GenerationResult {
+    std::string raw_output;
+    std::string stop_reason;
+    int generated_tokens{0};
+};
+
+int decode_prompt_chunk(llama_context* ctx, std::span<llama_token> tokens,
+                         std::size_t offset, InferenceAudit* audit)
+{
+    llama_batch batch = llama_batch_get_one(tokens.data(), static_cast<int32_t>(tokens.size()));
+    if (audit) audit->submit_prompt(offset, {batch.token, static_cast<std::size_t>(batch.n_tokens)});
+    const int status = llama_decode(ctx, batch);
+    if (audit) audit->prompt_result(status);
+    return status;
+}
+
+std::string_view evaluate_prompt(llama_context* ctx, std::span<llama_token> tokens,
+    const std::function<bool()>& expired, InferenceAudit* audit, const std::shared_ptr<spdlog::logger>& logger)
+{
+    const auto configured_batch = llama_n_batch(ctx);
+    const auto batch_size = static_cast<std::size_t>(configured_batch > 0 ? configured_batch : llama_n_ctx(ctx));
+    std::size_t offset = 0;
+    while (offset < tokens.size()) {
+        if (expired()) return "cancelled-during-prompt";
+        const auto chunk = tokens.subspan(offset, std::min(batch_size, tokens.size() - offset));
+        if (decode_prompt_chunk(ctx, chunk, offset, audit)) {
+            if (logger) logger->warn("llama_decode returned non-zero status during prompt eval; aborting generation");
+            return "prompt-decode-error";
+        }
+        offset += chunk.size();
+    }
+    return {};
+}
+
+void audit_runtime(InferenceAudit* audit, llama_context* ctx, llama_sampler* sampler,
+                    int prompt_budget, int generation_limit, const LocalInferenceOptions& options)
+{
+    if (!audit) return;
+    const char* backend = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
+    audit->set_runtime({static_cast<int>(llama_n_ctx(ctx)), prompt_budget, generation_limit,
+        static_cast<int>(llama_n_batch(ctx)), llama_sampler_get_seed(sampler),
+        options.temperature, options.min_p, backend ? backend : "auto",
+        llama_n_threads(ctx), llama_n_threads_batch(ctx)});
+}
+
+void audit_fit(InferenceAudit* audit, const llama_vocab* vocab, const std::string& user_prompt,
+                 const std::string& formatted_prompt, std::span<const llama_token> tokens)
+{
+    if (audit) audit->record_fit(user_prompt, formatted_prompt, tokens, detokenize_for_audit(vocab, tokens));
+}
+
+std::string finish_generation_response(GenerationResult generated, InferenceAudit* audit,
+    const std::function<std::string(const std::string&)>& transform)
+{
+    if (audit) audit->record_generation(generated.raw_output, generated.stop_reason, generated.generated_tokens);
+    std::string output = generated.stop_reason.starts_with("cancelled") ? std::string() : std::move(generated.raw_output);
+    while (!output.empty() && std::isspace(static_cast<unsigned char>(output.front()))) output.erase(output.begin());
+    output = transform(output);
+    if (audit) audit->finish(output);
+    return output;
+}
+
+GenerationResult run_generation_loop(llama_context* ctx,
                                 llama_sampler* smpl,
                                 std::vector<llama_token>& prompt_tokens,
                                 int n_prompt,
                                 int max_tokens,
                                 const std::shared_ptr<spdlog::logger>& logger,
-                                const llama_vocab* vocab)
+                                const llama_vocab* vocab,
+                                const std::function<bool()>& expired,
+                                InferenceAudit* audit)
 {
     const int ctx_n_ctx = static_cast<int>(llama_n_ctx(ctx));
-    int ctx_n_batch = static_cast<int>(llama_n_batch(ctx));
-    if (ctx_n_batch <= 0) {
-        ctx_n_batch = ctx_n_ctx;
-    }
-
     const int prompt_budget = LocalLLMPromptBuilder::prompt_token_budget(ctx_n_ctx, max_tokens);
     if (prompt_budget > 0 && n_prompt > prompt_budget) {
-        const int overflow = n_prompt - prompt_budget;
-        if (overflow > 0 && overflow < n_prompt) {
-            if (logger) {
-                logger->warn("Prompt tokens ({}) exceed prompt budget ({}) by {}; truncating oldest tokens",
-                             n_prompt, prompt_budget, overflow);
-            }
-            prompt_tokens.erase(prompt_tokens.begin(),
-                                prompt_tokens.begin() + overflow);
-            n_prompt = prompt_budget;
-        }
+        throw PromptBudgetError("Complete chat prompt exceeds the input token budget");
     }
 
-    int n_pos = 0;
-    while (n_pos < n_prompt) {
-        const int chunk = std::min(ctx_n_batch, n_prompt - n_pos);
-        llama_batch batch = llama_batch_get_one(prompt_tokens.data() + n_pos, chunk);
-        if (llama_decode(ctx, batch)) {
-            if (logger) {
-                logger->warn("llama_decode returned non-zero status during prompt eval; aborting generation");
-            }
-            return std::string();
-        }
-        n_pos += chunk;
+    const auto prompt_error = evaluate_prompt(ctx, std::span(prompt_tokens).first(n_prompt), expired, audit, logger);
+    if (!prompt_error.empty()) {
+        return {"", std::string(prompt_error), 0};
     }
 
     std::string output;
     int generated_tokens = 0;
+    std::string stop_reason = "generation-token-limit";
     while (generated_tokens < max_tokens) {
+        if (expired()) return {std::move(output), "cancelled-during-generation", generated_tokens};
         llama_token new_token_id = llama_sampler_sample(smpl, ctx, -1);
         if (llama_vocab_is_eog(vocab, new_token_id)) {
+            stop_reason = "end-of-generation-token";
             break;
         }
 
@@ -777,6 +855,7 @@ std::string run_generation_loop(llama_context* ctx,
         int n = llama_token_to_piece(vocab, new_token_id, buf,
                                      sizeof(buf), 0, true);
         if (n < 0) {
+            stop_reason = "token-piece-error";
             break;
         }
         output.append(buf, n);
@@ -784,6 +863,7 @@ std::string run_generation_loop(llama_context* ctx,
 
         llama_batch batch = llama_batch_get_one(&new_token_id, 1);
         if (llama_decode(ctx, batch)) {
+            stop_reason = "generation-decode-error";
             if (logger) {
                 logger->warn("llama_decode returned non-zero status; aborting generation");
             }
@@ -791,11 +871,7 @@ std::string run_generation_loop(llama_context* ctx,
         }
     }
 
-    while (!output.empty() && std::isspace(static_cast<unsigned char>(output.front()))) {
-        output.erase(output.begin());
-    }
-
-    return output;
+    return {std::move(output), std::move(stop_reason), generated_tokens};
 }
 
 std::optional<int32_t> parse_block_count_entry(const std::vector<char>& buffer,
@@ -913,7 +989,6 @@ struct AutoGpuLayerEstimation {
     std::string reason;
 };
 
-#if defined(GGML_USE_METAL)
 AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_path,
                                                      const MetalDeviceInfo & device_info) {
     AutoGpuLayerEstimation result;
@@ -976,7 +1051,6 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
 
     return result;
 }
-#endif // defined(GGML_USE_METAL)
 
 namespace {
 
@@ -1208,7 +1282,7 @@ int determine_metal_layers(const std::string& model_path,
                            const std::shared_ptr<spdlog::logger>& logger) {
     int gpu_layers = resolve_gpu_layer_override();
     if (gpu_layers == INT_MIN) {
-        const MetalDeviceInfo device_info = query_primary_gpu_device();
+        const MetalDeviceInfo device_info = query_primary_gpu_device(resolve_metal_backend_reg());
         const auto estimation = estimate_gpu_layers_for_metal(model_path, device_info);
 
         gpu_layers = (estimation.layers >= 0) ? estimation.layers : -1;
@@ -1216,12 +1290,13 @@ int determine_metal_layers(const std::string& model_path,
         if (logger) {
             const double to_mib = kBytesPerMiB;
             logger->info(
-                "Metal device '{}' total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({})",
+                "Metal device '{}' total {:.1f} MiB, free {:.1f} MiB -> n_gpu_layers={} ({}, metrics={})",
                 device_info.name.empty() ? "GPU" : device_info.name,
                 device_info.total_bytes / to_mib,
                 device_info.free_bytes / to_mib,
                 gpu_layers_to_string(gpu_layers),
-                estimation.reason
+                estimation.reason,
+                device_info.backend_reported ? "backend" : "system"
             );
         }
     } else if (logger) {
@@ -1769,11 +1844,13 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path,
                                Options options)
     : model_path(model_path),
       options_(options),
+      inference_(options.inference ? *options.inference : LocalInferenceOptions::from_environment()),
       fallback_decision_callback_(std::move(fallback_decision_callback)),
       original_gpu_backend_env_(read_env_value("AI_FILE_SORTER_GPU_BACKEND")),
       original_llama_arg_device_env_(read_env_value("LLAMA_ARG_DEVICE")),
       original_ggml_disable_cuda_env_(read_env_value("GGML_DISABLE_CUDA"))
 {
+    inference_.validate();
     ScopedBackendEnvRestore backend_env_guard;
 
     auto logger = Logger::get_logger("core_logger");
@@ -1836,23 +1913,29 @@ ModelPreparationResult build_model_preparation_result_for_path(
     result.params = llama_model_default_params();
 
 #ifdef GGML_USE_METAL
-    const char* backend_env = std::getenv("AI_FILE_SORTER_GPU_BACKEND");
-    if (backend_env) {
-        std::string value(backend_env);
-        std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-            return static_cast<char>(std::tolower(c));
-        });
-        if (value == "cpu") {
-            if (logger) {
-                logger->info("AI_FILE_SORTER_GPU_BACKEND=cpu set; disabling Metal and using CPU backend.");
-            }
-            result.params.n_gpu_layers = 0;
-            return result;
+    if (is_cpu_backend_requested()) {
+        if (logger) {
+            logger->info("CPU backend requested; disabling Metal for local LLM.");
         }
+        result.params.n_gpu_layers = 0;
+        return result;
     }
 
     if (!metal_backend_available(logger)) {
         result.params.n_gpu_layers = 0;
+        return result;
+    }
+
+    if (is_native_intel_macos_process() && !has_explicit_gpu_layer_override()) {
+        result.params.n_gpu_layers = 0;
+        result.status = LocalLLMClient::Status::GpuFallbackToCpu;
+        set_env_var("AI_FILE_SORTER_GPU_BACKEND", "cpu");
+        set_env_var("LLAMA_ARG_DEVICE", "cpu");
+        if (logger) {
+            logger->warn(
+                "Native Intel macOS Metal backend is disabled by default for local text LLMs; using CPU. "
+                "Set AI_FILE_SORTER_N_GPU_LAYERS explicitly to opt into Metal.");
+        }
         return result;
     }
 
@@ -2002,6 +2085,19 @@ std::string categorization_user_prompt_for_testing(const std::string& file_name,
     return LocalLLMPromptBuilder::build_user_prompt(file_name, file_path, file_type, consistency_context);
 }
 
+MetalLayerEstimationResult estimate_metal_layers_for_testing(const std::string& model_path,
+                                                             std::size_t total_bytes,
+                                                             std::size_t free_bytes)
+{
+    MetalDeviceInfo info;
+    info.total_bytes = total_bytes;
+    info.free_bytes = free_bytes;
+    info.name = "Test Metal GPU";
+    info.backend_reported = true;
+    const AutoGpuLayerEstimation estimation = estimate_gpu_layers_for_metal(model_path, info);
+    return {estimation.layers, estimation.insufficient_memory, estimation.reason};
+}
+
 std::string sanitize_output_for_testing(const std::string& output) {
     return LocalLLMResponseSanitizer::sanitize_categorization_output(output);
 }
@@ -2093,6 +2189,18 @@ void LocalLLMClient::configure_context(int context_length, const llama_model_par
     ctx_params = llama_context_default_params();
     ctx_params.n_ctx = context_length;
     ctx_params.n_batch = context_length;
+    if (inference_.threads) {
+        ctx_params.n_threads = inference_.threads;
+        ctx_params.n_threads_batch = inference_.threads;
+    }
+    if (inference_.batch_tokens) ctx_params.n_batch = std::min(inference_.batch_tokens, context_length);
+    if (inference_.microbatch_tokens) ctx_params.n_ubatch = inference_.microbatch_tokens;
+    if (inference_.flash_attention) {
+        ctx_params.flash_attn_type = *inference_.flash_attention
+            ? LLAMA_FLASH_ATTN_TYPE_ENABLED : LLAMA_FLASH_ATTN_TYPE_DISABLED;
+    }
+    ctx_params.abort_callback = &LocalLLMClient::request_expired;
+    ctx_params.abort_callback_data = this;
 #ifdef GGML_USE_METAL
     if (model_params.n_gpu_layers != 0) {
         ctx_params.offload_kqv = true;
@@ -2115,12 +2223,17 @@ std::string LocalLLMClient::make_prompt(const std::string& file_name,
 std::string LocalLLMClient::generate_response(const std::string& prompt,
                                               int n_predict,
                                               bool apply_sanitizer,
-                                              const std::string& system_prompt)
+                                              const std::string& system_prompt,
+                                              const LLMResponseConstraint& constraint)
 {
+    const auto output_grammar = NativeJsonSchemaGrammar::compile(constraint.json_schema);
+    n_predict = inference_.output_tokens.value_or(n_predict);
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
         logger->debug("Generating response with prompt length {} chars target {} tokens", prompt.size(), n_predict);
     }
+
+    if (request_expired(this)) return {};
 
     struct ContextAttempt {
         int n_ctx;
@@ -2198,10 +2311,16 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
     };
 
     bool allow_fallback = true;
+    std::string audit_request_id;
+    int generation_attempt = 0;
     for (;;) {
         llama_context* ctx = nullptr;
         llama_sampler* smpl = nullptr;
+        std::unique_ptr<InferenceAudit> audit;
         try {
+            const char* chat_template = llama_model_chat_template(model, nullptr);
+            audit = InferenceAudit::from_environment(model_path, system_prompt, prompt,
+                chat_template ? chat_template : "", audit_request_id, ++generation_attempt);
             llama_context_params resolved_params = ctx_params;
             llama_context_params base_params = ctx_params;
             ctx = init_context_with_retries(base_params, false, resolved_params);
@@ -2249,81 +2368,80 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
                 if (logger) {
                     logger->error("Failed to initialize llama context");
                 }
+                if (audit) audit->fail("Failed to initialize llama context");
                 return "";
             }
 
             ctx_params = resolved_params;
 
             smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
-            llama_sampler_chain_add(smpl, llama_sampler_init_min_p(kDefaultMinPSampler, 1));
-            llama_sampler_chain_add(smpl, llama_sampler_init_temp(kDefaultTemperatureSampler));
-            llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+            if (!output_grammar.empty()) {
+                llama_sampler_chain_add(smpl, make_response_grammar_sampler(vocab, output_grammar));
+                if (audit) audit->set_response_constraint(constraint.json_schema, output_grammar);
+                if (logger) logger->debug("Installed per-request JSON response grammar");
+            }
+            llama_sampler_chain_add(smpl, llama_sampler_init_min_p(inference_.min_p, 1));
+            llama_sampler_chain_add(smpl, llama_sampler_init_temp(inference_.temperature));
+            llama_sampler_chain_add(smpl, llama_sampler_init_dist(inference_.seed));
 
             std::vector<llama_token> prompt_tokens;
             int n_prompt = 0;
-            std::string working_prompt = prompt;
             std::string final_prompt;
             const int context_budget =
                 LocalLLMPromptBuilder::prompt_token_budget(static_cast<int>(resolved_params.n_ctx), n_predict);
-            for (int shrink_attempt = 0;; ++shrink_attempt) {
-                if (!format_prompt(model, system_prompt, working_prompt, final_prompt)) {
-                    if (logger) {
-                        logger->error("Failed to apply chat template to prompt");
+            audit_runtime(audit.get(), ctx, smpl, context_budget, n_predict, inference_);
+            const auto fitted = LocalLLMPromptBuilder::fit_user_prompt(prompt, context_budget,
+                [&](const std::string& user_prompt) -> std::size_t {
+                    final_prompt = NativeChatTemplate::format(model, system_prompt, user_prompt);
+                    if (!tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
+                        throw PromptBudgetError("Unable to format or tokenize the complete chat prompt");
                     }
-                    llama_free(ctx);
-                    llama_sampler_free(smpl);
-                    return "";
-                }
-
-                if (!tokenize_prompt(vocab, final_prompt, prompt_tokens, n_prompt, logger)) {
-                    llama_free(ctx);
-                    llama_sampler_free(smpl);
-                    return "";
-                }
-
-                if (context_budget <= 0 || n_prompt <= context_budget) {
-                    break;
-                }
-
-                const std::string trimmed_prompt =
-                    LocalLLMPromptBuilder::shrink_user_prompt_for_context(working_prompt, shrink_attempt);
-                if (trimmed_prompt == working_prompt) {
-                    if (logger) {
-                        logger->warn("Prompt tokens ({}) still exceed prompt budget ({}); proceeding with token truncation",
-                                     n_prompt,
-                                     context_budget);
-                    }
-                    break;
-                }
-
-                if (logger) {
-                    logger->warn("Prompt tokens ({}) exceed prompt budget ({}); shrinking user prompt and retrying",
-                                 n_prompt,
-                                 context_budget);
-                }
-                working_prompt = trimmed_prompt;
+                    audit_fit(audit.get(), vocab, user_prompt, final_prompt, prompt_tokens);
+                    return static_cast<std::size_t>(n_prompt);
+                });
+            if (!fitted) {
+                throw PromptBudgetError("Required instructions and folder candidates exceed the input token budget");
             }
 
-            std::string output = run_generation_loop(ctx,
+            auto generated = run_generation_loop(ctx,
                                                      smpl,
                                                      prompt_tokens,
                                                      n_prompt,
                                                      n_predict,
                                                      logger,
-                                                     vocab);
-
+                                                     vocab,
+                                                     [this] { return request_expired(this); },
+                                                     audit.get());
             llama_sampler_reset(smpl);
             llama_free(ctx);
             llama_sampler_free(smpl);
+            ctx = nullptr;
+            smpl = nullptr;
 
             if (logger) {
-                logger->debug("Generation complete, produced {} character(s)", output.size());
+                logger->debug("Generation complete, produced {} character(s)", generated.raw_output.size());
             }
 
-            if (apply_sanitizer) {
-                return sanitize_output(output);
-            }
-            return output;
+            return finish_generation_response(std::move(generated), audit.get(),
+                [this, apply_sanitizer](const std::string& output) {
+                    return apply_sanitizer ? sanitize_output(output) : output;
+                });
+        } catch (const InferenceAudit::Error&) {
+            if (ctx) llama_free(ctx);
+            if (smpl) llama_sampler_free(smpl);
+            // Explicit audit failures are not GPU failures and must not trigger CPU retries.
+            throw;
+        } catch (const ResponseConstraintError& ex) {
+            if (ctx) llama_free(ctx);
+            if (smpl) llama_sampler_free(smpl);
+            if (audit) audit->fail(ex.what());
+            throw;
+        } catch (const PromptBudgetError& ex) {
+            if (ctx) llama_free(ctx);
+            if (smpl) llama_sampler_free(smpl);
+            if (audit) audit->fail(ex.what());
+            // Input size is independent of GPU health; let routing split whole candidate lists.
+            throw;
         } catch (const std::exception& ex) {
             if (ctx) {
                 llama_free(ctx);
@@ -2331,6 +2449,7 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
             if (smpl) {
                 llama_sampler_free(smpl);
             }
+            if (audit) audit->fail(ex.what());
 
             if (allow_fallback && !is_cpu_backend_requested()) {
                 if (!allow_gpu_fallback(fallback_decision_callback_, logger, "generation failure")) {
@@ -2382,6 +2501,13 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
                                             FileType file_type,
                                             const std::string& consistency_context)
 {
+    return categorize_file_constrained(file_name, file_path, file_type, consistency_context, {});
+}
+
+std::string LocalLLMClient::categorize_file_constrained(const std::string& file_name,
+    const std::string& file_path, FileType file_type, const std::string& consistency_context,
+    const LLMResponseConstraint& constraint)
+{
     if (auto logger = Logger::get_logger("core_logger")) {
         if (!file_path.empty()) {
             logger->debug("Requesting local categorization for '{}' ({}) at '{}'",
@@ -2398,7 +2524,10 @@ std::string LocalLLMClient::categorize_file(const std::string& file_name,
                   << "[system]\n" << system_prompt << "\n"
                   << "[user]\n" << prompt << "\n";
     }
-    std::string response = generate_response(prompt, 64, true, system_prompt);
+    const bool folder_tree_mode =
+        consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos;
+    const int max_tokens = folder_tree_mode ? 128 : 64;
+    std::string response = generate_response(prompt, max_tokens, !folder_tree_mode, system_prompt, constraint);
     if (prompt_logging_enabled) {
         std::cout << "[DEV][RESPONSE] Categorization reply\n" << response << "\n";
     }
@@ -2441,6 +2570,18 @@ LocalLLMClient::~LocalLLMClient() {
 void LocalLLMClient::set_prompt_logging_enabled(bool enabled)
 {
     prompt_logging_enabled = enabled;
+}
+
+void LocalLLMClient::set_request_deadline(std::optional<Clock::time_point> deadline) noexcept
+{
+    request_deadline_.store(deadline ? deadline->time_since_epoch().count()
+        : std::numeric_limits<Clock::duration::rep>::max(), std::memory_order_relaxed);
+}
+
+bool LocalLLMClient::request_expired(void* client)
+{
+    const auto* self = static_cast<const LocalLLMClient*>(client);
+    return Clock::now().time_since_epoch().count() >= self->request_deadline_.load(std::memory_order_relaxed);
 }
 
 void LocalLLMClient::set_status_callback(StatusCallback callback)

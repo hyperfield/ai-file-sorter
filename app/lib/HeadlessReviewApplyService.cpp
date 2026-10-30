@@ -1,10 +1,12 @@
 #include "HeadlessReviewApplyService.hpp"
 
 #include "DatabaseManager.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "MovableCategorizedFile.hpp"
 #include "ReviewFileNaming.hpp"
 #include "ReviewHistoryStore.hpp"
 #include "StorageProvider.hpp"
+#include "StorageUndoCleanup.hpp"
 #include "UndoManager.hpp"
 #include "Utils.hpp"
 
@@ -39,6 +41,20 @@ bool is_missing_category_label(const std::string& value)
 {
     const std::string trimmed = trim_copy(value);
     return trimmed.empty() || to_lower_copy(trimmed) == "uncategorized";
+}
+
+std::string normalized_directory_key(const std::string& path)
+{
+    std::string key = Utils::path_to_utf8(Utils::utf8_to_path(path).lexically_normal());
+#ifdef _WIN32
+    key = to_lower_copy(key);
+#endif
+    return key;
+}
+
+bool same_directory_path(const std::string& left, const std::string& right)
+{
+    return normalized_directory_key(left) == normalized_directory_key(right);
 }
 
 std::string strip_history_description_label(std::string value)
@@ -219,10 +235,9 @@ std::string display_subcategory(const CategorizedFile& entry)
     return entry.subcategory.empty() ? entry.canonical_subcategory : entry.subcategory;
 }
 
-std::string source_directory_for_database(const CategorizedFile& entry,
-                                          const HeadlessReviewApplyService::Options& options)
+std::string source_directory_for_database(const CategorizedFile& entry)
 {
-    return options.include_subdirectories ? entry.file_path : options.base_dir;
+    return entry.file_path;
 }
 
 DatabaseManager::ResolvedCategory resolve_category_for_storage(DatabaseManager& db_manager,
@@ -237,6 +252,52 @@ DatabaseManager::ResolvedCategory resolve_category_for_storage(DatabaseManager& 
         return db_manager.resolve_category(entry.canonical_category, canonical_subcategory);
     }
     return db_manager.resolve_category_for_language(category, subcategory, language);
+}
+
+void persist_folder_tree_route(DatabaseManager& db_manager,
+                               const CategorizedFile& entry,
+                               const std::string& cache_file_name,
+                               const std::string& cache_dir,
+                               const std::string& destination_root,
+                               const std::string& target_folder,
+                               bool allow_new_folders,
+                               bool target_exists,
+                               bool target_suggested_new,
+                               const DatabaseManager::ResolvedCategory& resolved)
+{
+    if (destination_root.empty() || target_folder.empty() ||
+        resolved.category.empty() || resolved.subcategory.empty()) {
+        return;
+    }
+
+    const auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
+    if (!validation.valid) {
+        return;
+    }
+
+    const auto catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(destination_root));
+    const auto best_existing =
+        FolderTreeCatalog::best_semantic_match(catalog, resolved.category, resolved.subcategory);
+
+    DatabaseManager::FolderTreeRoutingRecord route;
+    route.destination_root = destination_root;
+    route.tree_fingerprint = catalog.fingerprint();
+    route.allow_new_folders = allow_new_folders;
+    route.semantic_category = resolved.category;
+    route.semantic_subcategory = resolved.subcategory;
+    route.semantic_target_folder =
+        FolderTreeCatalog::semantic_target_path(resolved.category, resolved.subcategory);
+    if (best_existing) {
+        route.best_existing_folder = best_existing->entry.relative_path;
+        route.best_existing_score = best_existing->score;
+    }
+    route.target_folder_relative_path = validation.normalized_path;
+    route.target_folder_suggested_new = target_suggested_new;
+    route.target_folder_exists = target_exists;
+    db_manager.insert_or_update_folder_tree_routing(cache_file_name,
+                                                    entry.type == FileType::Directory ? "D" : "F",
+                                                    cache_dir,
+                                                    route);
 }
 
 void append_skipped(HeadlessReviewApplyService::Result& result,
@@ -278,8 +339,9 @@ HeadlessReviewApplyService::apply(const std::vector<CategorizedFile>& entries,
 
     std::vector<MoveRecord> move_history;
     move_history.reserve(entries.size());
+    std::vector<std::string> run_created_directories;
     for (const auto& entry : entries_to_apply) {
-        apply_entry(entry, options, result, move_history);
+        apply_entry(entry, options, result, move_history, run_created_directories);
     }
 
     result.undo_plan_saved = persist_undo_plan(options, move_history);
@@ -289,7 +351,8 @@ HeadlessReviewApplyService::apply(const std::vector<CategorizedFile>& entries,
 void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                              const Options& options,
                                              Result& result,
-                                             std::vector<MoveRecord>& move_history) const
+                                             std::vector<MoveRecord>& move_history,
+                                             std::vector<std::string>& run_created_directories) const
 {
     const std::string destination_name =
         resolve_destination_name(entry, options.apply_suggested_names && !entry.rename_applied);
@@ -303,6 +366,13 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
     entry_result.destination_name = destination_name;
     entry_result.category = display_category(entry);
     entry_result.subcategory = display_subcategory(entry);
+    entry_result.target_folder = entry.target_folder_relative_path;
+    entry_result.folder_tree_mode = entry.folder_tree_mode;
+    if (entry.folder_tree_mode && !entry.rename_only && options.move_categorized_entries) {
+        entry_result.folder_tree_routing_explanation = entry.folder_tree_routing_explanation;
+    }
+    entry_result.target_folder_suggested_new = entry.target_folder_suggested_new;
+    entry_result.target_folder_exists = entry.target_folder_exists;
     entry_result.rename_only = entry.rename_only;
 
     if (entry.rename_only && !options.apply_suggested_names) {
@@ -373,6 +443,11 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                                         effective_subcategory,
                                                         options.category_language);
             }
+            resolved.target_folder_relative_path = entry.target_folder_relative_path;
+            resolved.folder_tree_mode = entry.folder_tree_mode;
+            resolved.target_folder_suggested_new = entry.target_folder_suggested_new;
+            resolved.target_folder_exists = entry.target_folder_exists;
+            resolved.folder_tree_allow_new_folders = entry.folder_tree_allow_new_folders;
             const std::string type_label = entry.type == FileType::Directory ? "D" : "F";
             db_manager_->remove_file_categorization(entry.file_path, entry.file_name, entry.type);
             db_manager_->insert_or_update_file_with_categorization(destination_name,
@@ -383,6 +458,144 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                                                    destination_name,
                                                                    entry.rename_only || resolved.category.empty(),
                                                                    true);
+            if (entry.folder_tree_mode) {
+                persist_folder_tree_route(*db_manager_,
+                                          entry,
+                                          destination_name,
+                                          entry.file_path,
+                                          options.base_dir,
+                                          entry.target_folder_relative_path,
+                                          options.allow_new_folder_targets ||
+                                              entry.folder_tree_allow_new_folders,
+                                          entry.target_folder_exists,
+                                          entry.target_folder_suggested_new,
+                                          resolved);
+            }
+        }
+        result.entries.push_back(std::move(entry_result));
+        return;
+    }
+
+    if (entry.folder_tree_mode) {
+        auto validation =
+            FolderTreeCatalog::validate_relative_folder_path(entry.target_folder_relative_path);
+        if (!validation.valid) {
+            entry_result.message = validation.error;
+            append_skipped(result, std::move(entry_result));
+            return;
+        }
+
+        const auto target_dir =
+            Utils::utf8_to_path(options.base_dir) / Utils::utf8_to_path(validation.normalized_path);
+        const std::string target_dir_text = Utils::path_to_utf8(target_dir);
+        const bool target_exists = storage_provider_.path_exists(target_dir_text);
+        const bool allow_new = options.allow_new_folder_targets || entry.folder_tree_allow_new_folders;
+        entry_result.target_folder = validation.normalized_path;
+        entry_result.target_folder_exists = target_exists;
+        entry_result.target_folder_suggested_new = !target_exists;
+        entry_result.destination =
+            Utils::path_to_utf8(target_dir / Utils::utf8_to_path(destination_name));
+        if (!target_exists && !allow_new) {
+            entry_result.message = "Target folder does not exist.";
+            append_skipped(result, std::move(entry_result));
+            return;
+        }
+
+        if (!options.apply_changes) {
+            entry_result.message = "Waiting for review approval.";
+            result.entries.push_back(std::move(entry_result));
+            return;
+        }
+
+        std::vector<std::string> created_directories;
+        if (!target_exists) {
+            const auto missing_directories =
+                StorageUndoCleanup::missing_directories_for_target(storage_provider_, target_dir_text);
+            std::string ensure_error;
+            if (!storage_provider_.ensure_directory(target_dir_text, &ensure_error)) {
+                entry_result.message = ensure_error.empty() ? "Could not create target folder." : ensure_error;
+                append_skipped(result, std::move(entry_result));
+                return;
+            }
+            run_created_directories.insert(run_created_directories.end(),
+                                           missing_directories.begin(),
+                                           missing_directories.end());
+        }
+        created_directories =
+            StorageUndoCleanup::recorded_directories_for_target(run_created_directories, target_dir_text);
+
+        const auto move_result = storage_provider_.move_entry(entry_result.source,
+                                                              entry_result.destination);
+        if (!move_result.success) {
+            entry_result.message = move_result.message.empty() ? "Move failed." : move_result.message;
+            append_skipped(result, std::move(entry_result));
+            return;
+        }
+
+        const auto derived = FolderTreeCatalog::derive_category_pair(validation.normalized_path);
+        entry_result.category = derived.first;
+        entry_result.subcategory = derived.second;
+        entry_result.moved = true;
+        entry_result.renamed = rename_active;
+        ++result.moved_count;
+        if (rename_active) {
+            ++result.renamed_count;
+        }
+        move_history.push_back(MoveRecord{entry_result.source,
+                                          entry_result.destination,
+                                          move_result.metadata.size_bytes,
+                                          move_result.metadata.mtime,
+                                          move_result.metadata.stable_identity,
+                                          move_result.metadata.revision_token,
+                                          created_directories});
+        record_history_entry(entry,
+                             rename_active ? ReviewHistoryStore::Operation::RenameAndCategorize
+                                           : ReviewHistoryStore::Operation::Categorize,
+                             entry_result.source,
+                             entry_result.destination,
+                             destination_name,
+                             entry_result.category,
+                             entry_result.subcategory,
+                             move_result.metadata,
+                             created_directories);
+
+        if (db_manager_) {
+            const std::string category = display_category(entry);
+            const std::string subcategory = display_subcategory(entry);
+            const std::string effective_subcategory =
+                is_missing_category_label(subcategory) ? category : subcategory;
+            auto resolved = resolve_category_for_storage(*db_manager_,
+                                                         entry,
+                                                         category,
+                                                         effective_subcategory,
+                                                         options.category_language);
+            resolved.target_folder_relative_path = validation.normalized_path;
+            resolved.folder_tree_mode = true;
+            resolved.target_folder_suggested_new = false;
+            resolved.target_folder_exists = true;
+            resolved.folder_tree_allow_new_folders = allow_new;
+            const std::string source_db_dir = source_directory_for_database(entry);
+            std::string suggested_name = rename_active ? destination_name : entry.suggested_name;
+            const bool rename_applied = rename_active ? true : entry.rename_applied;
+            db_manager_->remove_file_categorization(source_db_dir, entry.file_name, entry.type);
+            db_manager_->insert_or_update_file_with_categorization(destination_name,
+                                                                   entry.type == FileType::Directory ? "D" : "F",
+                                                                   target_dir_text,
+                                                                   resolved,
+                                                                   entry.used_consistency_hints,
+                                                                   suggested_name,
+                                                                   false,
+                                                                   rename_applied);
+            persist_folder_tree_route(*db_manager_,
+                                      entry,
+                                      destination_name,
+                                      target_dir_text,
+                                      options.base_dir,
+                                      validation.normalized_path,
+                                      allow_new,
+                                      true,
+                                      false,
+                                      resolved);
         }
         result.entries.push_back(std::move(entry_result));
         return;
@@ -425,7 +638,17 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
             return;
         }
 
+        const std::string target_directory =
+            Utils::path_to_utf8(Utils::utf8_to_path(preview.destination).parent_path());
+        const auto missing_directories =
+            StorageUndoCleanup::missing_directories_for_target(storage_provider_, target_directory);
+
         movable.create_cat_dirs(options.use_subcategories);
+        run_created_directories.insert(run_created_directories.end(),
+                                       missing_directories.begin(),
+                                       missing_directories.end());
+        const auto created_directories =
+            StorageUndoCleanup::recorded_directories_for_target(run_created_directories, target_directory);
         const auto move_result = movable.move_file(options.use_subcategories);
         if (!move_result.success) {
             entry_result.message = move_result.message.empty() ? "Move failed." : move_result.message;
@@ -444,7 +667,8 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                                           move_result.metadata.size_bytes,
                                           move_result.metadata.mtime,
                                           move_result.metadata.stable_identity,
-                                          move_result.metadata.revision_token});
+                                          move_result.metadata.revision_token,
+                                          created_directories});
         record_history_entry(entry,
                              rename_active ? ReviewHistoryStore::Operation::RenameAndCategorize
                                            : ReviewHistoryStore::Operation::Categorize,
@@ -453,17 +677,19 @@ void HeadlessReviewApplyService::apply_entry(const CategorizedFile& entry,
                              destination_name,
                              category,
                              effective_subcategory,
-                             move_result.metadata);
+                             move_result.metadata,
+                             created_directories);
 
-        if (db_manager_ && (rename_active || options.include_subdirectories)) {
+        const bool destination_root_differs = !same_directory_path(entry.file_path, options.base_dir);
+        if (db_manager_ && (rename_active || options.include_subdirectories || destination_root_differs)) {
             auto resolved = resolve_category_for_storage(*db_manager_,
                                                          entry,
                                                          category,
                                                          effective_subcategory,
                                                          options.category_language);
-            const std::string source_db_dir = source_directory_for_database(entry, options);
+            const std::string source_db_dir = source_directory_for_database(entry);
             std::string destination_db_dir = options.base_dir;
-            if (options.include_subdirectories) {
+            if (options.include_subdirectories || destination_root_differs) {
                 destination_db_dir =
                     Utils::path_to_utf8(Utils::utf8_to_path(preview.destination).parent_path());
             }
@@ -505,7 +731,8 @@ bool HeadlessReviewApplyService::persist_undo_plan(const Options& options,
             record.size_bytes,
             record.mtime,
             record.stable_identity,
-            record.revision_token});
+            record.revision_token,
+            record.created_directories});
     }
 
     UndoManager manager(options.undo_dir);
@@ -522,7 +749,8 @@ void HeadlessReviewApplyService::record_history_entry(const CategorizedFile& ent
                                                       const std::string& destination_name,
                                                       const std::string& category,
                                                       const std::string& subcategory,
-                                                      const StorageEntryMetadata& metadata) const
+                                                      const StorageEntryMetadata& metadata,
+                                                      const std::vector<std::string>& created_directories) const
 {
     if (!history_store_ || !history_store_->is_open()) {
         return;
@@ -542,6 +770,7 @@ void HeadlessReviewApplyService::record_history_entry(const CategorizedFile& ent
     history_entry.mtime = metadata.mtime;
     history_entry.stable_identity = metadata.stable_identity;
     history_entry.revision_token = metadata.revision_token;
+    history_entry.created_directories = created_directories;
 
     std::string error;
     if (!history_store_->record_entry(history_entry, &error) && logger_) {

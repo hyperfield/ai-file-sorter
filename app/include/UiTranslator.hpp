@@ -19,6 +19,7 @@ class QMainWindow;
 class QMenu;
 class QPushButton;
 class QComboBox;
+class QLineEdit;
 class QStandardItemModel;
 class QToolButton;
 
@@ -41,11 +42,18 @@ public:
     struct PrimaryControls {
         QPointer<QLabel>& path_label;
         QPointer<QPushButton>& browse_button;
+        QPointer<QLabel>& destination_path_label;
+        QPointer<QLineEdit>& destination_path_entry;
+        QPointer<QPushButton>& destination_browse_button;
+        QPointer<QCheckBox>& use_analyzed_folder_as_destination_checkbox;
         QPointer<QPushButton>& analyze_button;
         QPointer<QCheckBox>& use_subcategories_checkbox;
         QPointer<QLabel>& categorization_style_heading;
         QPointer<QRadioButton>& categorization_style_refined_radio;
         QPointer<QRadioButton>& categorization_style_consistent_radio;
+        QPointer<QComboBox>& sorting_mode_selector;
+        QPointer<QCheckBox>& suggest_new_folders_checkbox;
+        QPointer<QPushButton>& create_folder_structure_button;
         QPointer<QCheckBox>& use_whitelist_checkbox;
         QPointer<QComboBox>& whitelist_selector;
         QPointer<QCheckBox>& categorize_files_checkbox;
@@ -65,6 +73,7 @@ public:
         QPointer<QCheckBox>& rename_documents_only_checkbox;
         QPointer<QCheckBox>& add_document_date_to_category_checkbox;
         QPointer<QToolButton>& document_options_toggle_button;
+        QPointer<QPushButton> sorting_rules_button;
     };
 
     /**
@@ -92,6 +101,7 @@ public:
     struct ActionControls {
         QAction*& file_quit_action;
         QAction*& run_benchmark_action;
+        QAction*& create_folder_structure_action;
         QAction*& copy_action;
         QAction*& cut_action;
         QAction*& undo_last_run_action;
@@ -100,6 +110,7 @@ public:
         QAction*& delete_action;
         QAction*& toggle_explorer_action;
         QAction*& toggle_llm_action;
+        QAction*& manage_folder_structure_plugins_action;
         QAction*& manage_storage_plugins_action;
         QAction*& windows_explorer_extension_install_action;
         QAction*& windows_explorer_extension_settings_action;
@@ -131,6 +142,7 @@ public:
         QAction*& about_qt_action;
         QAction*& about_agpl_action;
         QAction*& support_project_action;
+        QAction* sorting_rules_action{nullptr};
     };
 
     /**

@@ -34,6 +34,7 @@ app/scripts/git-private.manifest.example
 app/scripts/git-private.ps1
 app/scripts/git-private.README.md
 app/scripts/git_private_sync.py
+app/*.local.env
 
 # Virtual environments
 .venv/
@@ -155,10 +156,17 @@ changelog/
 !/docs/
 !/docs/architecture.md
 !/docs/headless-runtime-contract.md
+!/docs/folder-purposes.md
 !/docs/configuration-and-environment.md
 !/docs/testing.md
 !/docs/categorization-behavior.md
 !/docs/updater-contract.md
+!/docs/storage-plugin-protocol.md
+!/docs/schemas/
+!/docs/schemas/headless-settings-overrides.schema.json
+!/docs/schemas/headless-review-plan.schema.json
+!/docs/schemas/storage-plugin-v1/
+!/docs/schemas/storage-plugin-v1/*.schema.json
 
 # Build artifacts
 

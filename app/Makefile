@@ -7,10 +7,16 @@ OBJ_ROOT := ./obj
 OBJ_DIR := $(OBJ_ROOT)
 SRC_DIR := ./lib
 PLUGIN_SRC_DIR := ./plugins
+LOCAL_BUILD_ENV ?= build.local.env
+ifneq ($(wildcard $(LOCAL_BUILD_ENV)),)
+include $(LOCAL_BUILD_ENV)
+endif
 APP_NAME ?= AI File Sorter
-ONEDRIVE_PLUGIN_BINARY := aifs_onedrive_storage_plugin
-ONEDRIVE_PLUGIN_TARGET := $(BIN_DIR)/$(ONEDRIVE_PLUGIN_BINARY)
 AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL ?= https://filesorter.app/download/plugins/storage/catalog.json
+AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL ?= https://filesorter.app/api/plugins/folder-structures/catalog/
+AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS ?=
+AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS ?=
+AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS ?=
 MACOS_ADHOC_CODESIGN_SCRIPT := ./scripts/adhoc_codesign_macos.sh
 MACOS_CANONICAL_APP_NAME := AIFileSorter
 MACOS_CANONICAL_APP_BUNDLE := ./$(MACOS_CANONICAL_APP_NAME).app
@@ -60,7 +66,7 @@ else
 endif
 
     # --- Other dependencies ---
-	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lmtmd -lX11 -pthread
+	LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama-common -lllama -lggml -lggml-base -lmtmd -lX11 -pthread
 	LDFLAGS += -Wl,-rpath,'$$ORIGIN/../lib/precompiled/cpu/bin' -Wl,-rpath,'$$ORIGIN/../lib/precompiled'
 	LDFLAGS += -Wl,-rpath-link=./lib/precompiled/cpu/bin -Wl,-rpath-link=./lib/precompiled
 
@@ -102,7 +108,10 @@ endif
     export LDFLAGS += -L$(LIBFFI_PREFIX)/lib
     export CPPFLAGS += -I$(LIBFFI_PREFIX)/include
     PLATFORM := MacOS
-    CXXFLAGS += -DMACOS -DENABLE_METAL -DGGML_USE_METAL -DAI_FILE_SORTER_HAS_MTMD -Wno-deprecated -Iinclude/llama -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+    CXXFLAGS += -DMACOS -DAI_FILE_SORTER_HAS_MTMD -Wno-deprecated -Iinclude/llama -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+    ifneq ($(MACOS_ARCH),x86_64)
+    CXXFLAGS += -DENABLE_METAL -DGGML_USE_METAL
+    endif
     ifneq ($(strip $(MACOS_ARCH)),)
     CXXFLAGS := $(filter-out -arch arm64 -arch x86_64,$(CXXFLAGS))
     LDFLAGS := $(filter-out -arch arm64 -arch x86_64,$(LDFLAGS))
@@ -161,7 +170,7 @@ endif
     CXXFLAGS += $(QT_CXXFLAGS)
     LDFLAGS += $(QT_LDFLAGS)
 
-    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama -lggml -lggml-base -lmtmd -lintl -pthread
+    LDFLAGS += -lcurl -ljsoncpp -lsqlite3 -lcrypto -lfmt -lspdlog -lssl -lllama-common -lllama -lggml -lggml-base -lmtmd -lintl -pthread
 	LDFLAGS += -framework Metal -framework Foundation
     LDFLAGS += -Wl,-rpath,@loader_path/lib -Wl,-rpath,@loader_path/../lib/$(GGML_PRECOMPILED_SUBDIR)
     BIN_SUBDIR := $(patsubst ./bin/%,%,$(BIN_DIR))
@@ -233,7 +242,7 @@ CXX := clang++
 else
 CXX := g++
 endif
-CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"' '-DAI_FILE_SORTER_GGML_SUBDIR="$(GGML_PRECOMPILED_SUBDIR)"' '-DAIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$(ONEDRIVE_PLUGIN_BINARY)"' '-DAIFS_STORAGE_PLUGIN_CATALOG_URL="$(AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL)"'
+CXXFLAGS += -std=c++20 -Wall -O2 -fPIC '-DAI_FILE_SORTER_APP_NAME="$(APP_NAME)"' '-DAI_FILE_SORTER_GGML_SUBDIR="$(GGML_PRECOMPILED_SUBDIR)"' '-DAIFS_STORAGE_PLUGIN_CATALOG_URL="$(AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL)"' '-DAIFS_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL="$(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL)"' '-DAIFS_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS="$(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS)"' '-DAIFS_STORAGE_PLUGIN_PUBLIC_KEYS="$(AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS)"' '-DAIFS_PLUGIN_ENTITLEMENT_PUBLIC_KEYS="$(AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS)"'
 CXX_VERSION_INFO := $(shell $(CXX) --version 2>/dev/null)
 # Suppress GCC-only diagnostics; clang (macOS) does not support some of them
 ifneq (,$(findstring clang,$(CXX_VERSION_INFO)))
@@ -242,6 +251,7 @@ else
 CXXFLAGS += -Wno-array-bounds -Wno-stringop-overflow -Wno-stringop-overread
 endif
 INCLUDE_DIRS = -I./include -I./include/external/llama.cpp/include -I./include/external/llama.cpp/ggml/include -I./include/external/llama.cpp/tools/mtmd
+INCLUDE_DIRS += -I./include/external/llama.cpp/common -I./include/external/llama.cpp/vendor
 LIB_DIRS =
 ifeq ($(UNAME), Linux)
 LIB_DIRS += -L./lib/precompiled/cpu/bin -L./lib/precompiled
@@ -514,11 +524,7 @@ endif
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
 SRCS := $(filter-out $(SRC_DIR)/MainAppTestAccess.cpp,$(SRCS))
 OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
-ONEDRIVE_PLUGIN_MAIN_SRC := $(PLUGIN_SRC_DIR)/onedrive_storage_plugin_main.cpp
-ONEDRIVE_PLUGIN_MAIN_OBJ := $(OBJ_DIR)/onedrive_storage_plugin_main.o
-ONEDRIVE_PLUGIN_SHARED_OBJ_NAMES := CloudPathSupport.o FileScanner.o LocalFsProvider.o Logger.o OneDriveStorageProvider.o ProtectedProjectDetector.o Utils.o
-ONEDRIVE_PLUGIN_OBJS := $(ONEDRIVE_PLUGIN_MAIN_OBJ) $(addprefix $(OBJ_DIR)/,$(ONEDRIVE_PLUGIN_SHARED_OBJ_NAMES))
-DEPS = $(OBJS:.o=.d) $(ONEDRIVE_PLUGIN_OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
+DEPS = $(OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
 BUILD_CONFIG_STAMP := $(OBJ_DIR)/.build-config
 
 PRECOMPILED_LLAMA :=
@@ -531,7 +537,7 @@ endif
 .PHONY: all clean install uninstall doc_runtime_libs precompiled_llama MACOS_LLAMA_M1 MACOS_LLAMA_M2 MACOS_LLAMA_INTEL MACOS_RELEASE_M1 MACOS_RELEASE_M2 MACOS_RELEASE_INTEL MACOS_RELEASE_ALL
 
 # Main rules
-all: $(PRECOMPILED_LLAMA) doc_runtime_libs $(TARGET) $(ONEDRIVE_PLUGIN_TARGET)
+all: $(PRECOMPILED_LLAMA) doc_runtime_libs $(TARGET)
 
 define MACOS_RELEASE_TEMPLATE
 $1:
@@ -561,10 +567,6 @@ ifeq ($(PLATFORM), Linux)
 	@$(MAKE) create_run_wrapper
 endif
 
-$(ONEDRIVE_PLUGIN_TARGET): $(ONEDRIVE_PLUGIN_OBJS) $(DOC_LIBS) | doc_runtime_libs $(DOC_RUNTIME_DEPS)
-	mkdir -p $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIB_DIRS) $(LDFLAGS)
-
 $(BUILD_CONFIG_STAMP): Makefile
 	mkdir -p $(OBJ_DIR)
 	@tmp="$(BUILD_CONFIG_STAMP).tmp.$$"; \
@@ -584,10 +586,6 @@ $(BUILD_CONFIG_STAMP): Makefile
 	fi
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
-	mkdir -p $(OBJ_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
-
-$(ONEDRIVE_PLUGIN_MAIN_OBJ): $(ONEDRIVE_PLUGIN_MAIN_SRC) $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
@@ -681,7 +679,7 @@ ifeq ($(UNAME), Darwin)
 		echo "Using existing precompiled libs in ./lib/precompiled-intel"; \
 	else \
 		echo "Building llama.cpp for Intel (x86_64) macOS backends..."; \
-		LLAMA_MACOS_ARCH=x86_64 LLAMA_MACOS_ENABLE_METAL=1 LLAMA_MACOS_MULTI_VARIANT=0 LLAMA_PRECOMPILED_DIR=./lib/precompiled-intel ./scripts/build_llama_macos.sh; \
+		LLAMA_MACOS_ARCH=x86_64 LLAMA_MACOS_ENABLE_METAL=0 LLAMA_MACOS_MULTI_VARIANT=0 LLAMA_PRECOMPILED_DIR=./lib/precompiled-intel ./scripts/build_llama_macos.sh; \
 	fi
 	$(MAKE) LLAMA_MULTI_VARIANT=0 GGML_PRECOMPILED_SUBDIR=precompiled-intel APP_NAME="AI File Sorter for Mac Intel" BIN_DIR=./bin/intel MACOS_ARCH=x86_64 all
 else
@@ -731,13 +729,12 @@ create_run_wrapper:
 		--output '$(BIN_DIR)/run_aifilesorter.sh'
 	@chmod 755 $(BIN_DIR)/run_aifilesorter.sh
 
-install: $(TARGET) $(ONEDRIVE_PLUGIN_TARGET)
+install: $(TARGET)
 ifeq ($(PLATFORM), Linux)
 	@echo "Installing runtime payload into $(INSTALL_LIB_DIR)..."
 	mkdir -p $(INSTALL_LIB_DIR)/bin
 	mkdir -p $(INSTALL_LIB_DIR)/lib
 	cp $(TARGET) $(INSTALL_LIB_DIR)/bin/$(WRAPPED_BINARY)
-	cp $(ONEDRIVE_PLUGIN_TARGET) $(INSTALL_LIB_DIR)/bin/$(ONEDRIVE_PLUGIN_BINARY)
 	rm -rf $(INSTALL_LIB_DIR)/lib/$(GGML_PRECOMPILED_SUBDIR)
 	cp -a lib/$(GGML_PRECOMPILED_SUBDIR) $(INSTALL_LIB_DIR)/lib/
 	if [ -f ../external/pdfium/linux-x64/lib/libpdfium.so ]; then \
@@ -762,7 +759,6 @@ else ifeq ($(PLATFORM), MacOS)
 	@echo "Installing binary to $(INSTALL_DIR)..."
 	mkdir -p $(INSTALL_DIR)
 	cp $(TARGET) $(INSTALL_DIR)/aifilesorter
-	cp $(ONEDRIVE_PLUGIN_TARGET) $(INSTALL_DIR)/$(ONEDRIVE_PLUGIN_BINARY)
 
 	@echo "Installing libraries to $(INSTALL_LIB_DIR)..."
 	mkdir -p $(INSTALL_LIB_DIR)
@@ -773,6 +769,8 @@ else ifeq ($(PLATFORM), MacOS)
 	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libggml.dylib $(INSTALL_LIB_DIR)
 	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libmtmd.dylib $(INSTALL_LIB_DIR)
 	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libllama.dylib $(INSTALL_LIB_DIR)
+	cp lib/$(GGML_PRECOMPILED_SUBDIR)/libllama-common.dylib $(INSTALL_LIB_DIR)
+	ln -sf libllama-common.dylib $(INSTALL_LIB_DIR)/libllama-common.0.dylib
 	if [ -n "$(PDFIUM_LIB)" ] && [ -f "$(PDFIUM_LIB)" ]; then \
 		cp "$(PDFIUM_LIB)" $(INSTALL_LIB_DIR); \
 	fi
@@ -817,7 +815,6 @@ else ifeq ($(PLATFORM), MacOS)
 
 	@echo "Removing binary from $(INSTALL_DIR)..."
 	rm -f $(INSTALL_DIR)/aifilesorter
-	rm -f $(INSTALL_DIR)/$(ONEDRIVE_PLUGIN_BINARY)
 
 	@echo "Removing installed libraries..."
 	rm -rf $(INSTALL_LIB_DIR)

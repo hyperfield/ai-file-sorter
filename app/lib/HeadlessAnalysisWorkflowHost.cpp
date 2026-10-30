@@ -4,6 +4,7 @@
 #include "CategorizationService.hpp"
 #include "CategorizationSession.hpp"
 #include "DatabaseManager.hpp"
+#include "FolderStructurePluginManager.hpp"
 #include "GeminiClient.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
@@ -75,6 +76,9 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
     : options_(std::move(options))
 {
     settings_.load();
+    settings_.set_sort_folder(normalize_folder_path(options_.folder_path));
+    // Headless callers default to the analyzed root unless they explicitly override it.
+    settings_.set_destination_folder(std::string());
     if (options_.include_subdirectories) {
         settings_.set_include_subdirectories(*options_.include_subdirectories);
     }
@@ -85,11 +89,18 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
     db_manager_ = std::make_unique<DatabaseManager>(runtime_data_dir_);
     user_learning_store_ = std::make_unique<UserLearningStore>(runtime_data_dir_);
     whitelist_store_ = std::make_unique<WhitelistStore>(runtime_data_dir_);
+    folder_structure_plugin_manager_ =
+        std::make_unique<FolderStructurePluginManager>(runtime_data_dir_);
     categorization_service_ =
         std::make_unique<CategorizationService>(settings_,
                                                 *db_manager_,
                                                 core_logger_,
                                                 user_learning_store_.get());
+    categorization_service_->set_folder_structure_profile_provider([this]() {
+        return folder_structure_plugin_manager_
+            ? folder_structure_plugin_manager_->installed_profiles()
+            : std::vector<FolderStructurePluginProfile>{};
+    });
     results_coordinator_ = std::make_unique<ResultsCoordinator>(storage_provider_);
     using_local_llm_ = !is_remote_choice(settings_.get_llm_choice());
     initialize_whitelists();
@@ -173,6 +184,11 @@ std::string HeadlessAnalysisWorkflowHost::folder_path() const
     return normalize_folder_path(options_.folder_path);
 }
 
+std::string HeadlessAnalysisWorkflowHost::destination_folder() const
+{
+    return settings_.get_effective_destination_folder(folder_path());
+}
+
 bool HeadlessAnalysisWorkflowHost::use_subcategories() const
 {
     return settings_.get_use_subcategories();
@@ -181,6 +197,11 @@ bool HeadlessAnalysisWorkflowHost::use_subcategories() const
 bool HeadlessAnalysisWorkflowHost::include_subdirectories() const
 {
     return settings_.get_include_subdirectories();
+}
+
+bool HeadlessAnalysisWorkflowHost::suggest_new_folders() const
+{
+    return settings_.get_suggest_new_folders();
 }
 
 CategoryLanguage HeadlessAnalysisWorkflowHost::category_language() const
@@ -243,6 +264,7 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
             filter_file_entries_to_selected_paths(entries);
         },
         [this]() { notify_review_preview_changed(); },
+        []() { return false; },
         [](const std::vector<AnalysisWorkflowContext::StagePlan>&) {},
         [](AnalysisWorkflowContext::StageId, const std::vector<FileEntry>&) {},
         [](AnalysisWorkflowContext::StageId) {},
@@ -480,6 +502,18 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     if (overrides.use_subcategories) {
         settings_.set_use_subcategories(*overrides.use_subcategories);
     }
+    if (overrides.sorting_mode) {
+        settings_.set_sorting_mode(*overrides.sorting_mode);
+    }
+    if (overrides.destination_folder) {
+        settings_.set_destination_folder(overrides.destination_folder->empty()
+                                             ? std::string()
+                                             : normalize_folder_path(
+                                                   Utils::utf8_to_path(*overrides.destination_folder)));
+    }
+    if (overrides.suggest_new_folders) {
+        settings_.set_suggest_new_folders(*overrides.suggest_new_folders);
+    }
     if (overrides.use_consistency_hints) {
         settings_.set_use_consistency_hints(*overrides.use_consistency_hints);
     }
@@ -516,6 +550,9 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     if (overrides.offer_rename_images) {
         settings_.set_offer_rename_images(*overrides.offer_rename_images);
     }
+    if (overrides.image_filename_words) {
+        settings_.set_image_filename_words(*overrides.image_filename_words);
+    }
     if (overrides.rename_images_only) {
         settings_.set_rename_images_only(*overrides.rename_images_only);
     }
@@ -530,6 +567,9 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     }
     if (overrides.offer_rename_documents) {
         settings_.set_offer_rename_documents(*overrides.offer_rename_documents);
+    }
+    if (overrides.document_filename_words) {
+        settings_.set_document_filename_words(*overrides.document_filename_words);
     }
     if (overrides.rename_documents_only) {
         settings_.set_rename_documents_only(*overrides.rename_documents_only);

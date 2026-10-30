@@ -1,42 +1,150 @@
 name: Build
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
-    branches: [ main, dev ]
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-linux:
-    runs-on: ${{ matrix.os }}
+    name: Linux (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ${{ matrix.image }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        include:
+          - name: ubuntu-lts
+            image: ubuntu:latest
+            artifact_kind: deb
+            install: |
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential ca-certificates cmake git make ninja-build patchelf pkg-config python3 \
+                qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
+                libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
+                libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
+                gettext glslc g++-15 nvidia-cuda-toolkit
+
+          - name: debian-stable
+            image: debian:stable
+            artifact_kind: deb
+            install: |
+              export DEBIAN_FRONTEND=noninteractive
+              sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential ca-certificates cmake git make ninja-build patchelf pkg-config python3 \
+                qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
+                libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
+                libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
+                gettext glslc g++-14 nvidia-cuda-toolkit
+
+          - name: fedora-latest
+            image: fedora:latest
+            artifact_kind: rpm
+            install: |
+              dnf install -y ca-certificates dnf-plugins-core
+              distro="fedora$(rpm -E %fedora)"
+              dnf config-manager addrepo \
+                --from-repofile="https://developer.download.nvidia.com/compute/cuda/repos/${distro}/x86_64/cuda-${distro}.repo"
+              dnf clean expire-cache
+              dnf install -y \
+                cmake gcc-c++ gcc15-c++ git make ninja-build patchelf pkgconf-pkg-config python3 rpm-build \
+                qt6-qtbase-devel qt6-qttools-devel \
+                libcurl-devel jsoncpp-devel sqlite-devel openssl-devel \
+                fmt-devel spdlog-devel libmediainfo-devel openblas-devel zlib-devel \
+                gettext-devel glslc cuda-toolkit
+
+          - name: arch-latest
+            image: archlinux:latest
+            artifact_kind: tar
+            install: |
+              pacman -Sy --noconfirm archlinux-keyring
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm --needed \
+                base-devel ca-certificates cmake git ninja patchelf pkgconf python zstd \
+                qt6-base qt6-tools curl jsoncpp sqlite openssl \
+                fmt spdlog libmediainfo openblas zlib gettext \
+                shaderc cuda gcc15
+    defaults:
+      run:
+        shell: bash
+    env:
+      AI_FILE_SORTER_BUILD_JOBS: 2
+      AI_FILE_SORTER_LINUX_RUNTIME_JOBS: 2
+      CUDAARCHS: "75;80;86;89;90"
+      QT_QPA_PLATFORM: offscreen
     steps:
+      - name: Install build dependencies
+        run: ${{ matrix.install }}
+
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Set up Qt
-        uses: jurplel/install-qt-action@v3
+      - name: Show toolchain
+        run: |
+          cat /etc/os-release
+          cmake --version
+          c++ --version
+          export PATH="/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
+          nvcc --version
+          pkg-config --modversion Qt6Core
+          pkg-config --modversion libmediainfo
+          pkg-config --modversion openblas || pkg-config --modversion openblas64
+
+      - name: Build llama runtime variants
+        run: |
+          export PATH="/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
+          ./app/scripts/build_llama_linux.sh cuda=off vulkan=on blas=on
+          ./app/scripts/build_llama_linux.sh cuda=on vulkan=off blas=on cuda-arch="$CUDAARCHS"
+
+      - name: Build app
+        run: make -C app -j"$AI_FILE_SORTER_BUILD_JOBS"
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist/ci-artifacts
+          case "${{ matrix.artifact_kind }}" in
+            deb)
+              ./app/scripts/package_deb.sh --include-all
+              cp dist/aifilesorter_deb/*.deb dist/ci-artifacts/
+              ;;
+            rpm)
+              ./app/scripts/create_rpm.sh --include-all
+              cp dist/aifilesorter_rpm/final/*.rpm dist/ci-artifacts/
+              ;;
+            tar)
+              tar --zstd -cf "dist/ci-artifacts/aifilesorter-${{ matrix.name }}.tar.zst" \
+                app/bin \
+                app/lib/precompiled \
+                app/lib/ggml \
+                app/resources/certs/cacert.pem \
+                LICENSE \
+                README.md
+              ;;
+          esac
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          version: '6.6.3'
-          host: linux
-          target: desktop
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev
-
-      - name: Configure
-        run: |
-          cmake -S app -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Run ctest
-        run: cd build && ctest --output-on-failure
+          name: aifilesorter-linux-${{ matrix.name }}
+          path: dist/ci-artifacts/*
+          if-no-files-found: error
 
   build-windows:
     runs-on: windows-latest

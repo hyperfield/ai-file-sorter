@@ -1,0 +1,464 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://filesorter.app/schemas/storage-plugin-v1/response.schema.json",
+  "title": "AI File Sorter storage plugin response",
+  "description": "Responses returned by an external-process storage plugin to AI File Sorter.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/errorResponse"
+    },
+    {
+      "$ref": "#/$defs/probeSuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/detectSuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/capabilitiesSuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/listDirectorySuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/inspectPathSuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/preflightMoveSuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/pathExistsSuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/ensureDirectorySuccessResponse"
+    },
+    {
+      "$ref": "#/$defs/mutationSuccessResponse"
+    }
+  ],
+  "$defs": {
+    "protocol": {
+      "const": "aifs-storage-plugin-v1"
+    },
+    "baseResponse": {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "$ref": "#/$defs/protocol"
+        },
+        "success": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "baseSuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "success"
+          ],
+          "properties": {
+            "success": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "errorResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "success",
+            "error"
+          ],
+          "properties": {
+            "success": {
+              "const": false
+            },
+            "error_code": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "detection": {
+      "type": "object",
+      "required": [
+        "matched"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string"
+        },
+        "matched": {
+          "type": "boolean"
+        },
+        "needs_additional_support": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "detection_source": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "object",
+      "required": [
+        "supports_online_only_files",
+        "supports_atomic_rename",
+        "should_skip_reparse_points",
+        "should_relax_undo_mtime_validation"
+      ],
+      "properties": {
+        "supports_online_only_files": {
+          "type": "boolean"
+        },
+        "supports_atomic_rename": {
+          "type": "boolean"
+        },
+        "should_skip_reparse_points": {
+          "type": "boolean"
+        },
+        "should_relax_undo_mtime_validation": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "fileEntry": {
+      "type": "object",
+      "required": [
+        "full_path",
+        "file_name",
+        "type"
+      ],
+      "properties": {
+        "full_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "File",
+            "Directory"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "pathStatus": {
+      "type": "object",
+      "required": [
+        "exists",
+        "hydration_required",
+        "sync_locked",
+        "conflict_copy",
+        "should_retry",
+        "retry_after_ms",
+        "stable_identity",
+        "revision_token",
+        "message"
+      ],
+      "properties": {
+        "exists": {
+          "type": "boolean"
+        },
+        "hydration_required": {
+          "type": "boolean"
+        },
+        "sync_locked": {
+          "type": "boolean"
+        },
+        "conflict_copy": {
+          "type": "boolean"
+        },
+        "should_retry": {
+          "type": "boolean"
+        },
+        "retry_after_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stable_identity": {
+          "type": "string"
+        },
+        "revision_token": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "preflight": {
+      "type": "object",
+      "required": [
+        "allowed",
+        "skipped",
+        "hydration_required",
+        "sync_locked",
+        "destination_conflict",
+        "should_retry",
+        "retry_after_ms",
+        "source_status",
+        "destination_status",
+        "message"
+      ],
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "skipped": {
+          "type": "boolean"
+        },
+        "hydration_required": {
+          "type": "boolean"
+        },
+        "sync_locked": {
+          "type": "boolean"
+        },
+        "destination_conflict": {
+          "type": "boolean"
+        },
+        "should_retry": {
+          "type": "boolean"
+        },
+        "retry_after_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_status": {
+          "$ref": "#/$defs/pathStatus"
+        },
+        "destination_status": {
+          "$ref": "#/$defs/pathStatus"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mtime": {
+          "type": "integer"
+        },
+        "stable_identity": {
+          "type": "string"
+        },
+        "revision_token": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "probeSuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseSuccessResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "provider_ids"
+          ],
+          "properties": {
+            "plugin_id": {
+              "type": "string"
+            },
+            "provider_ids": {
+              "$ref": "#/$defs/stringList"
+            },
+            "supported_protocols": {
+              "$ref": "#/$defs/stringList"
+            }
+          }
+        }
+      ]
+    },
+    "detectSuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseSuccessResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "detection"
+          ],
+          "properties": {
+            "detection": {
+              "$ref": "#/$defs/detection"
+            }
+          }
+        }
+      ]
+    },
+    "capabilitiesSuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseSuccessResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "capabilities"
+          ],
+          "properties": {
+            "capabilities": {
+              "$ref": "#/$defs/capabilities"
+            }
+          }
+        }
+      ]
+    },
+    "listDirectorySuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseSuccessResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "entries"
+          ],
+          "properties": {
+            "entries": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/fileEntry"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "inspectPathSuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseSuccessResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/pathStatus"
+            }
+          }
+        }
+      ]
+    },
+    "preflightMoveSuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseSuccessResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "preflight"
+          ],
+          "properties": {
+            "preflight": {
+              "$ref": "#/$defs/preflight"
+            }
+          }
+        }
+      ]
+    },
+    "pathExistsSuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseSuccessResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "exists"
+          ],
+          "properties": {
+            "exists": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "ensureDirectorySuccessResponse": {
+      "$ref": "#/$defs/baseSuccessResponse"
+    },
+    "mutationSuccessResponse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseSuccessResponse"
+        },
+        {
+          "type": "object",
+          "required": [
+            "mutation_success",
+            "skipped",
+            "message",
+            "metadata"
+          ],
+          "properties": {
+            "mutation_success": {
+              "type": "boolean"
+            },
+            "skipped": {
+              "type": "boolean"
+            },
+            "message": {
+              "type": "string"
+            },
+            "metadata": {
+              "$ref": "#/$defs/metadata"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

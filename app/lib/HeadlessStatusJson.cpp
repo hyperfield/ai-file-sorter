@@ -186,6 +186,12 @@ QJsonObject categorized_file_to_json(const CategorizedFile& entry)
     object.insert(QStringLiteral("canonicalCategory"), from_utf8(entry.canonical_category));
     object.insert(QStringLiteral("canonicalSubcategory"), from_utf8(entry.canonical_subcategory));
     object.insert(QStringLiteral("learningContext"), from_utf8(entry.learning_context));
+    object.insert(QStringLiteral("targetFolder"), from_utf8(entry.target_folder_relative_path));
+    object.insert(QStringLiteral("folderTreeRoutingExplanation"), from_utf8(entry.folder_tree_routing_explanation));
+    object.insert(QStringLiteral("folderTreeMode"), entry.folder_tree_mode);
+    object.insert(QStringLiteral("targetFolderSuggestedNew"), entry.target_folder_suggested_new);
+    object.insert(QStringLiteral("targetFolderExists"), entry.target_folder_exists);
+    object.insert(QStringLiteral("folderTreeAllowNewFolders"), entry.folder_tree_allow_new_folders);
     return object;
 }
 
@@ -206,6 +212,15 @@ CategorizedFile categorized_file_from_json(const QJsonObject& object)
     entry.canonical_category = to_utf8(object.value(QStringLiteral("canonicalCategory")).toString());
     entry.canonical_subcategory = to_utf8(object.value(QStringLiteral("canonicalSubcategory")).toString());
     entry.learning_context = to_utf8(object.value(QStringLiteral("learningContext")).toString());
+    entry.target_folder_relative_path = to_utf8(object.value(QStringLiteral("targetFolder")).toString());
+    entry.folder_tree_routing_explanation =
+        to_utf8(object.value(QStringLiteral("folderTreeRoutingExplanation")).toString());
+    entry.folder_tree_mode = object.value(QStringLiteral("folderTreeMode")).toBool(false);
+    entry.target_folder_suggested_new =
+        object.value(QStringLiteral("targetFolderSuggestedNew")).toBool(false);
+    entry.target_folder_exists = object.value(QStringLiteral("targetFolderExists")).toBool(false);
+    entry.folder_tree_allow_new_folders =
+        object.value(QStringLiteral("folderTreeAllowNewFolders")).toBool(false);
     return entry;
 }
 
@@ -218,6 +233,7 @@ QJsonObject apply_options_to_json(const HeadlessReviewApplyService::Options& opt
     object.insert(QStringLiteral("includeSubdirectories"), options.include_subdirectories);
     object.insert(QStringLiteral("applySuggestedNames"), options.apply_suggested_names);
     object.insert(QStringLiteral("moveCategorizedEntries"), options.move_categorized_entries);
+    object.insert(QStringLiteral("allowNewFolderTargets"), options.allow_new_folder_targets);
     object.insert(QStringLiteral("categoryLanguage"), categoryLanguageToString(options.category_language));
     return object;
 }
@@ -231,6 +247,7 @@ HeadlessReviewApplyService::Options apply_options_from_json(const QJsonObject& o
     options.include_subdirectories = object.value(QStringLiteral("includeSubdirectories")).toBool(false);
     options.apply_suggested_names = object.value(QStringLiteral("applySuggestedNames")).toBool(false);
     options.move_categorized_entries = object.value(QStringLiteral("moveCategorizedEntries")).toBool(true);
+    options.allow_new_folder_targets = object.value(QStringLiteral("allowNewFolderTargets")).toBool(false);
     options.category_language =
         categoryLanguageFromString(object.value(QStringLiteral("categoryLanguage")).toString());
     options.apply_changes = true;
@@ -239,7 +256,8 @@ HeadlessReviewApplyService::Options apply_options_from_json(const QJsonObject& o
 
 QJsonObject review_plan_to_json(const HeadlessAnalysisCommand::Options& options,
                                 const std::vector<CategorizedFile>& entries,
-                                const HeadlessReviewApplyService::Options& apply_options)
+                                const HeadlessReviewApplyService::Options& apply_options,
+                                const HeadlessReviewApplyService::Result* preview_result)
 {
     QJsonArray paths;
     for (const auto& path : options.paths) {
@@ -247,8 +265,18 @@ QJsonObject review_plan_to_json(const HeadlessAnalysisCommand::Options& options,
     }
 
     QJsonArray serialized_entries;
-    for (const auto& entry : entries) {
-        serialized_entries.append(categorized_file_to_json(entry));
+    for (std::size_t index = 0; index < entries.size(); ++index) {
+        QJsonObject entry = categorized_file_to_json(entries[index]);
+        if (preview_result) {
+            const auto& preview = preview_result->entries[index];
+            entry.insert(QStringLiteral("plannedDestination"), from_utf8(preview.destination));
+            // Persist the dry run's collision-resolved name so selection changes keep the reviewed name.
+            if (apply_options.apply_suggested_names && !entries[index].rename_applied &&
+                !preview.destination.empty()) {
+                entry.insert(QStringLiteral("suggestedName"), from_utf8(preview.destination_name));
+            }
+        }
+        serialized_entries.append(entry);
     }
 
     QJsonObject object;
@@ -283,6 +311,11 @@ QJsonObject HeadlessStatusJson::apply_result_to_json(
         object.insert(QStringLiteral("destinationName"), from_utf8(entry.destination_name));
         object.insert(QStringLiteral("category"), from_utf8(entry.category));
         object.insert(QStringLiteral("subcategory"), from_utf8(entry.subcategory));
+        object.insert(QStringLiteral("targetFolder"), from_utf8(entry.target_folder));
+        object.insert(QStringLiteral("folderTreeMode"), entry.folder_tree_mode);
+        object.insert(QStringLiteral("folderTreeRoutingExplanation"), from_utf8(entry.folder_tree_routing_explanation));
+        object.insert(QStringLiteral("targetFolderSuggestedNew"), entry.target_folder_suggested_new);
+        object.insert(QStringLiteral("targetFolderExists"), entry.target_folder_exists);
         object.insert(QStringLiteral("message"), from_utf8(entry.message));
         object.insert(QStringLiteral("renameOnly"), entry.rename_only);
         object.insert(QStringLiteral("moved"), entry.moved);
@@ -372,9 +405,28 @@ bool HeadlessStatusJson::write_review_plan_file(
     const HeadlessAnalysisCommand::Options& options,
     const std::vector<CategorizedFile>& entries,
     const HeadlessReviewApplyService::Options& apply_options,
-    std::string* error)
+    std::string* error,
+    const HeadlessReviewApplyService::Result* preview_result)
 {
-    const QJsonDocument document(review_plan_to_json(options, entries, apply_options));
+    if (preview_result && preview_result->entries.size() != entries.size()) {
+        if (error) {
+            *error = "Review preview does not match the review entries.";
+        }
+        return false;
+    }
+    if (preview_result) {
+        for (std::size_t index = 0; index < entries.size(); ++index) {
+            const auto source = Utils::utf8_to_path(entries[index].file_path) /
+                                Utils::utf8_to_path(entries[index].file_name);
+            if (preview_result->entries[index].source != Utils::path_to_utf8(source)) {
+                if (error) {
+                    *error = "Review preview source does not match the review entry.";
+                }
+                return false;
+            }
+        }
+    }
+    const QJsonDocument document(review_plan_to_json(options, entries, apply_options, preview_result));
     return write_json_file(path, document, error);
 }
 

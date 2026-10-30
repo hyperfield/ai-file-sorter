@@ -141,6 +141,44 @@ void apply_download_toggle_style(QToolButton* button)
         .arg(normal, hover, pressed));
 }
 
+void apply_visual_backend_combo_style(QComboBox* combo)
+{
+    if (!combo) {
+        return;
+    }
+
+    combo->setObjectName(QStringLiteral("visualBackendCombo"));
+    combo->setMinimumHeight(std::max(32, combo->sizeHint().height() + 6));
+    combo->setMinimumContentsLength(28);
+    combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    combo->setStyleSheet(QStringLiteral(
+        "QComboBox#visualBackendCombo {"
+        " border: 2px solid #1f6feb;"
+        " border-radius: 4px;"
+        " padding: 5px 30px 5px 10px;"
+        " background-color: #eef6ff;"
+        " color: #111827;"
+        " font-weight: 600;"
+        " }"
+        "QComboBox#visualBackendCombo:hover {"
+        " border-color: #0f5bd2;"
+        " background-color: #e3f0ff;"
+        " }"
+        "QComboBox#visualBackendCombo:focus {"
+        " border-color: #084fb5;"
+        " background-color: #ffffff;"
+        " }"
+        "QComboBox#visualBackendCombo:disabled {"
+        " border-color: #c8d3df;"
+        " background-color: #f3f5f7;"
+        " color: #6b7280;"
+        " }"
+        "QComboBox#visualBackendCombo QAbstractItemView {"
+        " selection-background-color: #1f6feb;"
+        " selection-color: #ffffff;"
+        " }"));
+}
+
 } // namespace
 
 
@@ -202,6 +240,9 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
         break;
     case LLMChoice::Local_4b_Gemma:
         local3_radio->setChecked(true);
+        break;
+    case LLMChoice::Local_4b_Qwen35:
+        qwen35_radio->setChecked(true);
         break;
     case LLMChoice::Local_3b_legacy:
         if (local3_legacy_radio && !local3_legacy_radio->isHidden()) {
@@ -291,9 +332,13 @@ void LLMSelectionDialog::setup_ui()
         radio_container);
     local3_desc->setWordWrap(true);
 
+    qwen35_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_4b_Qwen35), radio_container);
+    qwen35_radio->setObjectName(QStringLiteral("qwen35Radio"));
+    qwen35_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
+
     local7_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_7b), radio_container);
     local7_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* local7_desc = new QLabel(
+    local7_desc = new QLabel(
         tr("Larger local model. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."),
         radio_container);
     local7_desc->setWordWrap(true);
@@ -310,9 +355,7 @@ void LLMSelectionDialog::setup_ui()
     local3_legacy_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     local3_legacy_desc = new QLabel(tr("Legacy model kept for existing downloads."), radio_container);
     local3_legacy_desc->setWordWrap(true);
-    const bool has_legacy_3b = legacy_local_3b_available();
-    local3_legacy_radio->setVisible(has_legacy_3b);
-    local3_legacy_desc->setVisible(has_legacy_3b);
+    update_legacy_local_choices_visibility();
 
     gemini_radio = new QRadioButton(tr("Gemini (Google AI Studio API key)"), radio_container);
     gemini_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
@@ -450,6 +493,7 @@ void LLMSelectionDialog::setup_ui()
 
     radio_layout->addWidget(local3_radio);
     radio_layout->addWidget(local3_desc);
+    radio_layout->addWidget(qwen35_radio);
     radio_layout->addWidget(local7_radio);
     radio_layout->addWidget(local7_desc);
     radio_layout->addWidget(local7_gemma_radio);
@@ -474,6 +518,7 @@ void LLMSelectionDialog::setup_ui()
     llm_group->addButton(gemini_radio);
     llm_group->addButton(custom_api_radio);
     llm_group->addButton(local3_radio);
+    llm_group->addButton(qwen35_radio);
     if (local3_legacy_radio) {
         llm_group->addButton(local3_legacy_radio);
     }
@@ -590,7 +635,7 @@ void LLMSelectionDialog::setup_ui()
     visual_backend_label->setStyleSheet(QStringLiteral("color: #1f6feb;"));
     visual_backend_combo = new QComboBox(visual_backend_row);
     visual_backend_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    visual_backend_combo->setMinimumContentsLength(18);
+    apply_visual_backend_combo_style(visual_backend_combo);
     visual_backend_layout->addWidget(visual_backend_label);
     visual_backend_layout->addWidget(visual_backend_combo, 1);
     visual_layout->addWidget(visual_backend_row);
@@ -630,6 +675,7 @@ void LLMSelectionDialog::connect_signals()
     connect(gemini_radio, &QRadioButton::toggled, this, update_handler);
     connect(custom_api_radio, &QRadioButton::toggled, this, update_handler);
     connect(local3_radio, &QRadioButton::toggled, this, update_handler);
+    connect(qwen35_radio, &QRadioButton::toggled, this, update_handler);
     if (local3_legacy_radio) {
         connect(local3_legacy_radio, &QRadioButton::toggled, this, update_handler);
     }
@@ -805,27 +851,29 @@ void LLMSelectionDialog::set_status_message(const QString& message)
     status_label->setText(message);
 }
 
-bool LLMSelectionDialog::legacy_local_3b_available() const
+void LLMSelectionDialog::update_legacy_local_choices_visibility()
 {
-    return builtin_llm_artifact_available(LLMChoice::Local_3b_legacy);
-}
-
-void LLMSelectionDialog::update_legacy_local_3b_visibility()
-{
-    if (!local3_legacy_radio || !local3_legacy_desc) {
-        return;
-    }
-    const bool available = legacy_local_3b_available();
-    local3_legacy_radio->setVisible(available);
-    local3_legacy_desc->setVisible(available);
-    if (!available && local3_legacy_radio->isChecked() && local3_radio) {
-        local3_radio->setChecked(true);
+    const struct {
+        LLMChoice choice;
+        QRadioButton* radio;
+        QLabel* description;
+    } legacy_choices[] = {
+        {LLMChoice::Local_3b_legacy, local3_legacy_radio, local3_legacy_desc},
+        {LLMChoice::Local_7b, local7_radio, local7_desc}
+    };
+    for (const auto& [choice, radio, description] : legacy_choices) {
+        const bool visible = builtin_llm_choice_visible(choice, settings.get_llm_choice());
+        radio->setVisible(visible);
+        description->setVisible(visible);
+        if (!visible && radio->isChecked()) {
+            local3_radio->setChecked(true);
+        }
     }
 }
 
 void LLMSelectionDialog::update_ui_for_choice()
 {
-    update_legacy_local_3b_visibility();
+    update_legacy_local_choices_visibility();
     update_custom_buttons();
     update_custom_api_buttons();
 
@@ -834,10 +882,7 @@ void LLMSelectionDialog::update_ui_for_choice()
     update_custom_api_choice_ui();
     update_visual_llm_downloads();
 
-    const bool is_local_builtin = (selected_choice == LLMChoice::Local_4b_Gemma
-        || selected_choice == LLMChoice::Local_3b_legacy
-        || selected_choice == LLMChoice::Local_7b
-        || selected_choice == LLMChoice::Local_7b_Gemma);
+    const bool is_local_builtin = default_llm_entry_for_choice(selected_choice) != nullptr;
 
     if (selected_choice == LLMChoice::Custom || is_remote_choice(selected_choice) || !is_local_builtin) {
         return;
@@ -858,6 +903,8 @@ void LLMSelectionDialog::update_radio_selection()
         selected_choice = LLMChoice::Local_3b_legacy;
     } else if (local3_radio->isChecked()) {
         selected_choice = LLMChoice::Local_4b_Gemma;
+    } else if (qwen35_radio->isChecked()) {
+        selected_choice = LLMChoice::Local_4b_Qwen35;
     } else if (local7_radio->isChecked()) {
         selected_choice = LLMChoice::Local_7b;
     } else if (local7_gemma_radio && local7_gemma_radio->isChecked()) {
@@ -872,10 +919,7 @@ void LLMSelectionDialog::update_custom_choice_ui()
     if (!ok_button && button_box) {
         ok_button = button_box->button(QDialogButtonBox::Ok);
     }
-    const bool is_local_builtin = (selected_choice == LLMChoice::Local_4b_Gemma
-        || selected_choice == LLMChoice::Local_3b_legacy
-        || selected_choice == LLMChoice::Local_7b
-        || selected_choice == LLMChoice::Local_7b_Gemma);
+    const bool is_local_builtin = default_llm_entry_for_choice(selected_choice) != nullptr;
     const bool is_remote_openai = selected_choice == LLMChoice::Remote_OpenAI;
     const bool is_remote_gemini = selected_choice == LLMChoice::Remote_Gemini;
     const bool is_remote_custom = selected_choice == LLMChoice::Remote_Custom;
@@ -1069,6 +1113,9 @@ void LLMSelectionDialog::update_local_download_choice_enabled_state()
     const bool allow_switch = !is_downloading.load();
     if (local3_radio) {
         local3_radio->setEnabled(allow_switch || local3_radio->isChecked());
+    }
+    if (qwen35_radio) {
+        qwen35_radio->setEnabled(allow_switch || qwen35_radio->isChecked());
     }
     if (local3_legacy_radio) {
         local3_legacy_radio->setEnabled(allow_switch || local3_legacy_radio->isChecked());
@@ -2309,6 +2356,11 @@ std::string LLMSelectionDialogTestAccess::selected_visual_model_label(const LLMS
     return dialog.visual_backend_combo->currentText().toStdString();
 }
 
+QComboBox* LLMSelectionDialogTestAccess::visual_model_combo(LLMSelectionDialog& dialog)
+{
+    return dialog.visual_backend_combo;
+}
+
 LLMDownloader* LLMSelectionDialogTestAccess::local_downloader(LLMSelectionDialog& dialog)
 {
     return dialog.downloader.get();
@@ -2318,16 +2370,18 @@ std::vector<std::string> LLMSelectionDialogTestAccess::local_builtin_labels(
     const LLMSelectionDialog& dialog)
 {
     std::vector<std::string> labels;
-    if (dialog.local3_radio) {
-        labels.push_back(dialog.local3_radio->text().toStdString());
-    }
-    if (dialog.local7_radio) {
-        labels.push_back(dialog.local7_radio->text().toStdString());
-    }
-    if (dialog.local7_gemma_radio) {
-        labels.push_back(dialog.local7_gemma_radio->text().toStdString());
+    for (const auto* radio : {dialog.local3_radio, dialog.qwen35_radio, dialog.local7_radio,
+                              dialog.local7_gemma_radio, dialog.local3_legacy_radio}) {
+        if (radio && !radio->isHidden()) {
+            labels.push_back(radio->text().toStdString());
+        }
     }
     return labels;
+}
+
+void LLMSelectionDialogTestAccess::refresh_local_choices(LLMSelectionDialog& dialog)
+{
+    dialog.update_ui_for_choice();
 }
 
 void LLMSelectionDialogTestAccess::select_visual_backend(LLMSelectionDialog& dialog,

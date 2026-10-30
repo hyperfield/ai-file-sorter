@@ -154,6 +154,11 @@ private:
     static constexpr int kCanonicalCategoryRole = Qt::UserRole + 12;
     static constexpr int kCanonicalSubcategoryRole = Qt::UserRole + 13;
     static constexpr int kLearningContextRole = Qt::UserRole + 14;
+    static constexpr int kTargetFolderRole = Qt::UserRole + 15;
+    static constexpr int kTargetFolderSuggestedNewRole = Qt::UserRole + 16;
+    static constexpr int kTargetFolderExistsRole = Qt::UserRole + 17;
+    static constexpr int kFolderTreeAllowNewFoldersRole = Qt::UserRole + 18;
+    static constexpr int kFolderTreeRoutingExplanationRole = Qt::UserRole + 19;
 
     enum Column {
         ColumnSelect = 0,
@@ -162,8 +167,9 @@ private:
         ColumnSuggestedName = 3,
         ColumnCategory = 4,
         ColumnSubcategory = 5,
-        ColumnStatus = 6,
-        ColumnPreview = 7
+        ColumnTargetFolder = 6,
+        ColumnStatus = 7,
+        ColumnPreview = 8
     };
 
     struct MoveRecord {
@@ -174,6 +180,7 @@ private:
         std::time_t mtime{0};
         std::string stable_identity;
         std::string revision_token;
+        std::vector<std::string> created_directories;
         long long history_id{0};
     };
     struct PreviewRecord {
@@ -183,6 +190,8 @@ private:
         std::string destination_file_name;
         std::string category;
         std::string subcategory;
+        std::string target_folder_relative_path;
+        bool target_folder_suggested_new{false};
         bool use_subcategory{false};
         bool rename_only{false};
     };
@@ -262,7 +271,8 @@ private:
                               std::time_t mtime,
                               const std::string& stable_identity,
                               const std::string& revision_token,
-                              long long history_id = 0);
+                              long long history_id = 0,
+                              std::vector<std::string> created_directories = {});
     void handle_selected_row(int row_index,
                              const std::string& file_name,
                              const std::string& rename_candidate,
@@ -274,11 +284,14 @@ private:
                              FileType file_type,
                              bool rename_only,
                              bool used_consistency_hints,
-                             bool dry_run);
+                             bool dry_run,
+                             std::vector<std::string>& run_created_directories);
     void persist_move_plan();
     bool undo_move_history();
     void update_status_after_undo();
-    bool move_file_back(const std::string& source, const std::string& destination);
+    bool move_file_back(const std::string& source,
+                        const std::string& destination,
+                        const std::vector<std::string>& created_directories);
     /**
      * @brief Records a successful row mutation in the persistent review history store.
      * @param row Row index in the model.
@@ -293,6 +306,7 @@ private:
      * @param mtime Modification timestamp captured after moving.
      * @param stable_identity Provider identity captured after moving.
      * @param revision_token Provider revision token captured after moving.
+     * @param created_directories Directories created by this review action.
      * @return Persisted history row id, or 0 when history was not recorded.
      */
     long long record_review_history(int row,
@@ -306,14 +320,14 @@ private:
                                     std::uintmax_t size_bytes,
                                     std::time_t mtime,
                                     const std::string& stable_identity,
-                                    const std::string& revision_token);
+                                    const std::string& revision_token,
+                                    const std::vector<std::string>& created_directories = {});
     /**
      * @brief Returns user-facing image/document description text for a row.
      * @param row Row index in the model.
      * @return Description or summary text captured during analysis.
      */
     std::string history_description_for_row(int row) const;
-    void remove_empty_parent_directories(const std::string& destination);
     void set_preview_status(int row, const std::string& destination);
     void update_preview_column(int row);
     std::optional<std::string> compute_preview_path(int row) const;
@@ -391,6 +405,8 @@ private:
     CategoryLanguage category_language_{CategoryLanguage::English};
     bool show_subcategory_column;
     bool include_subdirectories_{false};
+    bool folder_tree_mode_{false};
+    bool folder_tree_allow_new_folders_{false};
     bool allow_image_renames_{true};
     bool allow_document_renames_{true};
     bool show_rename_column{false};

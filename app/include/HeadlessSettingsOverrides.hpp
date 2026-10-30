@@ -2,6 +2,7 @@
 
 #include "CategoryLanguage.hpp"
 #include "Language.hpp"
+#include "Types.hpp"
 
 #include <optional>
 #include <string>
@@ -16,6 +17,12 @@
 struct HeadlessSettingsOverrides {
     /** @brief Override whether category moves create subcategory folders. */
     std::optional<bool> use_subcategories;
+    /** @brief Override destination-folder sorting mode. */
+    std::optional<SortingMode> sorting_mode;
+    /** @brief Override the destination root for category moves. Empty uses the analyzed folder. */
+    std::optional<std::string> destination_folder;
+    /** @brief Override whether existing-folder sorting may propose new folders. */
+    std::optional<bool> suggest_new_folders;
     /** @brief Override whether consistency hints should favor stable labels. */
     std::optional<bool> use_consistency_hints;
     /** @brief Override whether category whitelists are active. */
@@ -42,6 +49,8 @@ struct HeadlessSettingsOverrides {
     std::optional<bool> add_image_date_place_to_filename;
     /** @brief Override whether picture rename suggestions are generated. */
     std::optional<bool> offer_rename_images;
+    /** @brief Override the image filename word limit for this run, clamped to three through six. */
+    std::optional<int> image_filename_words;
     /** @brief Override whether picture files are rename-only. */
     std::optional<bool> rename_images_only;
     /** @brief Override whether audio/video metadata is used in suggested filenames. */
@@ -52,6 +61,8 @@ struct HeadlessSettingsOverrides {
     std::optional<bool> process_documents_only;
     /** @brief Override whether document rename suggestions are generated. */
     std::optional<bool> offer_rename_documents;
+    /** @brief Override the document filename word limit for this run, clamped to three through six. */
+    std::optional<int> document_filename_words;
     /** @brief Override whether document files are rename-only. */
     std::optional<bool> rename_documents_only;
     /** @brief Override whether document dates are appended to category labels. */

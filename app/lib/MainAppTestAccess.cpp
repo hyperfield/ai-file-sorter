@@ -5,6 +5,8 @@
 #include "AnalysisCoordinator.hpp"
 #include "AnalysisEntryRouter.hpp"
 #include "ExplorerExtensionEntitlement.hpp"
+#include "ExplorerExtensionManager.hpp"
+#include "FolderStructurePluginManager.hpp"
 #include "MainApp.hpp"
 #include "SupportCodeManager.hpp"
 #include "Utils.hpp"
@@ -12,6 +14,7 @@
 
 #include <QLabel>
 #include <QLineEdit>
+#include <QComboBox>
 #include <QPushButton>
 #include <QToolButton>
 
@@ -35,9 +38,29 @@ QPushButton* MainAppTestAccess::browse_button(MainApp& app)
     return app.browse_button;
 }
 
+QPushButton* MainAppTestAccess::destination_browse_button(MainApp& app)
+{
+    return app.destination_browse_button;
+}
+
+QCheckBox* MainAppTestAccess::use_analyzed_folder_as_destination_checkbox(MainApp& app)
+{
+    return app.use_analyzed_folder_as_destination_checkbox;
+}
+
 QPushButton* MainAppTestAccess::analyze_button(MainApp& app)
 {
     return app.analyze_button;
+}
+
+QComboBox* MainAppTestAccess::sorting_mode_selector(MainApp& app)
+{
+    return app.sorting_mode_selector;
+}
+
+QPushButton* MainAppTestAccess::create_folder_structure_button(MainApp& app)
+{
+    return app.create_folder_structure_button;
 }
 
 QAction* MainAppTestAccess::clear_cache_action(MainApp& app)
@@ -65,6 +88,11 @@ QMenu* MainAppTestAccess::plugins_menu(MainApp& app)
     return app.plugins_menu;
 }
 
+QAction* MainAppTestAccess::manage_folder_structure_plugins_action(MainApp& app)
+{
+    return app.manage_folder_structure_plugins_action;
+}
+
 QAction* MainAppTestAccess::manage_storage_plugins_action(MainApp& app)
 {
     return app.manage_storage_plugins_action;
@@ -78,6 +106,21 @@ QMenu* MainAppTestAccess::test_menu(MainApp& app)
 QAction* MainAppTestAccess::run_large_whitelist_llm_test_action(MainApp& app)
 {
     return app.run_large_whitelist_llm_test_action;
+}
+
+bool MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(MainApp& app, const QString& root)
+{
+    return app.should_offer_johnny_decimal_plugin_for_root(root);
+}
+
+void MainAppTestAccess::set_folder_structure_plugin_manager(
+    MainApp& app, std::shared_ptr<FolderStructurePluginManager> manager)
+{
+    app.folder_structure_plugin_manager_ = std::move(manager);
+    app.categorization_service.set_folder_structure_profile_provider(
+        [manager = app.folder_structure_plugin_manager_]() {
+            return manager ? manager->installed_profiles() : std::vector<FolderStructurePluginProfile>{};
+        });
 }
 
 QCheckBox* MainAppTestAccess::categorize_files_checkbox(MainApp& app) {
@@ -297,6 +340,11 @@ void MainAppTestAccess::simulate_support_prompt(Settings& settings,
     if (ExplorerExtensionEntitlement::has_paid_entitlement()) {
         (void)SupportCodeManager(Utils::utf8_to_path(settings.get_config_dir()))
             .disable_prompt_for_paid_product("explorer-extension");
+        return;
+    }
+    const ExplorerExtensionManager::State extension_state = ExplorerExtensionManager().state();
+    if (extension_state == ExplorerExtensionManager::State::Installed ||
+        extension_state == ExplorerExtensionManager::State::InstalledNeedsRepair) {
         return;
     }
 

@@ -1,5 +1,6 @@
 #include "LocalFsProvider.hpp"
 
+#include "StorageUndoCleanup.hpp"
 #include "Utils.hpp"
 
 #include <chrono>
@@ -30,24 +31,6 @@ StorageEntryMetadata read_metadata(const std::filesystem::path& path)
         std::to_string(metadata.size_bytes) + ":" + std::to_string(metadata.mtime);
 
     return metadata;
-}
-
-void remove_empty_parent_directories(const std::filesystem::path& moved_from)
-{
-    std::error_code ec;
-    auto parent = moved_from.parent_path();
-    while (!parent.empty()) {
-        if (!std::filesystem::exists(parent, ec) || ec) {
-            break;
-        }
-        if (std::filesystem::is_directory(parent, ec) &&
-            std::filesystem::is_empty(parent, ec) && !ec) {
-            std::filesystem::remove(parent, ec);
-            parent = parent.parent_path();
-            continue;
-        }
-        break;
-    }
 }
 
 } // namespace
@@ -189,6 +172,28 @@ StorageMutationResult LocalFsProvider::move_entry(const std::string& source,
 StorageMutationResult LocalFsProvider::undo_move(const std::string& source,
                                                  const std::string& destination) const
 {
+    auto result = restore_moved_entry(source, destination);
+    if (result.success) {
+        StorageUndoCleanup::remove_empty_parent_directories(destination);
+    }
+    return result;
+}
+
+StorageMutationResult LocalFsProvider::undo_move(
+    const std::string& source,
+    const std::string& destination,
+    const std::vector<std::string>& created_directories) const
+{
+    auto result = restore_moved_entry(source, destination);
+    if (result.success) {
+        StorageUndoCleanup::remove_empty_created_directories(created_directories);
+    }
+    return result;
+}
+
+StorageMutationResult LocalFsProvider::restore_moved_entry(const std::string& source,
+                                                           const std::string& destination) const
+{
     StorageMutationResult result;
     const auto source_path = Utils::utf8_to_path(source);
     const auto destination_path = Utils::utf8_to_path(destination);
@@ -220,7 +225,6 @@ StorageMutationResult LocalFsProvider::undo_move(const std::string& source,
         return result;
     }
 
-    remove_empty_parent_directories(destination_path);
     result.success = true;
     return result;
 }

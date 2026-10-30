@@ -43,6 +43,7 @@
 
 class QAction;
 class QCheckBox;
+class QDialog;
 class QRadioButton;
 class QComboBox;
 class QLabel;
@@ -67,6 +68,7 @@ class MenuMnemonicController;
 class WhitelistManagerDialog;
 class SuitabilityBenchmarkDialog;
 struct AnalysisWorkflowContext;
+class FolderStructurePluginManager;
 class StoragePluginManager;
 
 struct CategorizedFile;
@@ -165,6 +167,11 @@ public:
      */
     std::string get_folder_path() const;
     /**
+     * @brief Returns the destination root selected for categorization moves.
+     * @return Destination folder path as UTF-8 text.
+     */
+    std::string get_destination_folder_path() const;
+    /**
      * @brief Returns whether the window is running in development mode.
      * @return True when development-only features are enabled.
      */
@@ -250,6 +257,15 @@ private:
     void on_analyze_clicked();
     void on_directory_selected(const QString& path,
         bool user_initiated = false);
+    /**
+     * @brief Selects a custom destination root from the UI.
+     * @param path Destination folder selected by the user.
+     */
+    void on_destination_directory_selected(const QString& path);
+    /**
+     * @brief Enables and synchronizes destination-folder controls.
+     */
+    void update_destination_folder_controls();
     void ensure_one_checkbox_active(QCheckBox* changed_checkbox);
     void update_file_scan_option(FileScanOptions option, bool enabled);
     bool visual_llm_files_available() const;
@@ -295,6 +311,7 @@ private:
     void release_analysis_runtime_lock();
     void update_results_view_mode();
     void update_folder_contents(const QString& directory);
+    void update_folder_structure_plugin_status(const QString& directory);
     void focus_file_explorer_on_path(const QString& path);
     void rebuild_storage_provider_registry();
     void refresh_active_storage_provider(const std::string& directory_path,
@@ -370,10 +387,6 @@ private:
     void run_large_whitelist_llm_test();
     void record_categorized_metrics(int count);
     SupportPromptResult show_support_prompt_dialog(int categorized_files);
-    /**
-     * @brief Shows the post-success Windows Explorer extension install prompt when eligible.
-     */
-    void maybe_show_windows_explorer_extension_install_prompt();
     void undo_last_run();
     /**
      * @brief Opens the searchable rename/categorization history dialog.
@@ -381,6 +394,50 @@ private:
     void show_review_history_dialog();
     bool perform_undo_from_plan(const QString& plan_path);
     void show_suitability_benchmark_dialog(bool auto_start);
+    /**
+     * @brief Opens the built-in starter folder structure creation dialog.
+     */
+    void show_folder_structure_initializer_dialog();
+    /**
+     * @brief Opens the signed folder-structure plugin management dialog.
+     */
+    void show_folder_structure_plugin_dialog();
+    /**
+     * @brief Offers the Johnny.Decimal folder-structure plugin for compatible folder trees.
+     * @param matched_folder_description Optional user-facing folder role that triggered the offer.
+     * @return True when the user chose a flow that should stop the current analysis.
+     */
+    bool maybe_show_johnny_decimal_plugin_suggestion(const QString& matched_folder_description = {});
+    /**
+     * @brief Attempts to install Johnny.Decimal support from the configured plugin catalog.
+     * @return True when the plugin was installed and the current analysis should restart.
+     */
+    bool install_johnny_decimal_plugin_from_suggestion();
+    /**
+     * @brief Enables the installed Johnny.Decimal plugin after a disabled-plugin suggestion.
+     * @return True when the plugin was enabled and the current analysis should restart.
+     */
+    bool enable_johnny_decimal_plugin_from_suggestion();
+    /**
+     * @brief Refreshes the folder-structure plugin catalog for suggestion actions.
+     * @return True when the catalog refresh succeeded.
+     */
+    bool refresh_johnny_decimal_plugin_catalog_for_suggestion();
+    /**
+     * @brief Returns the best known Johnny.Decimal plugin page URL.
+     * @return Catalog-provided purchase/info URL, or the production fallback URL.
+     */
+    QString johnny_decimal_plugin_page_url();
+    /**
+     * @brief Checks the selected/destination folder tree and offers Johnny.Decimal support when relevant.
+     */
+    void maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
+    /**
+     * @brief Returns whether a folder tree should trigger the Johnny.Decimal plugin offer.
+     * @param root Folder tree root to inspect.
+     * @return True when the root looks Johnny.Decimal-like and no suppression applies.
+     */
+    bool should_offer_johnny_decimal_plugin_for_root(const QString& root) const;
     void maybe_show_suitability_benchmark();
     /**
      * @brief Shows the What's New popup once per app version when packaged notes exist.
@@ -467,15 +524,26 @@ private:
     std::vector<FileEntry> files_to_categorize;
     std::vector<CategorizedFile> new_files_to_sort;
 
+    QPointer<QDialog> sorting_rules_dialog;
+    QPointer<QPushButton> sorting_rules_button;
+    QAction* sorting_rules_action{nullptr};
     QPointer<QLineEdit> path_entry;
     QPointer<QPushButton> analyze_button;
     QPointer<QPushButton> browse_button;
     QPointer<QLabel> backend_status_label;
+    QPointer<QLabel> folder_structure_plugin_status_label;
     QPointer<QLabel> path_label;
+    QPointer<QLabel> destination_path_label;
+    QPointer<QLineEdit> destination_path_entry;
+    QPointer<QPushButton> destination_browse_button;
+    QPointer<QCheckBox> use_analyzed_folder_as_destination_checkbox;
     QPointer<QCheckBox> use_subcategories_checkbox;
     QPointer<QLabel> categorization_style_heading;
     QPointer<QRadioButton> categorization_style_refined_radio;
     QPointer<QRadioButton> categorization_style_consistent_radio;
+    QPointer<QComboBox> sorting_mode_selector;
+    QPointer<QCheckBox> suggest_new_folders_checkbox;
+    QPointer<QPushButton> create_folder_structure_button;
     QPointer<QCheckBox> use_whitelist_checkbox;
     QPointer<QComboBox> whitelist_selector;
     QPointer<QCheckBox> categorize_files_checkbox;
@@ -527,6 +595,7 @@ private:
     QMenu* help_menu{nullptr};
     QAction* file_quit_action{nullptr};
     QAction* run_benchmark_action{nullptr};
+    QAction* create_folder_structure_action{nullptr};
     QAction* copy_action{nullptr};
     QAction* cut_action{nullptr};
     QAction* paste_action{nullptr};
@@ -535,6 +604,7 @@ private:
     QAction* review_history_action{nullptr};
     QAction* toggle_explorer_action{nullptr};
     QAction* toggle_llm_action{nullptr};
+    QAction* manage_folder_structure_plugins_action{nullptr};
     QAction* manage_storage_plugins_action{nullptr};
     QAction* windows_explorer_extension_install_action{nullptr};
     QAction* windows_explorer_extension_settings_action{nullptr};
@@ -579,6 +649,7 @@ private:
     std::shared_ptr<spdlog::logger> ui_logger;
     WhitelistStore whitelist_store;
     std::unique_ptr<WhitelistManagerDialog> whitelist_dialog;
+    std::shared_ptr<FolderStructurePluginManager> folder_structure_plugin_manager_;
     std::shared_ptr<StoragePluginManager> storage_plugin_manager_;
     StoragePluginLoader storage_plugin_loader_;
     ExplorerExtensionManager explorer_extension_manager_;
@@ -609,7 +680,8 @@ private:
     bool backend_status_probe_completed_{false};
     bool category_language_refresh_pending_{false};
     bool donation_prompt_active_{false};
-    bool windows_explorer_extension_prompt_active_{false};
+    bool applying_theme_styles_{false};
+    std::string last_johnny_decimal_plugin_suggestion_root_;
     std::string last_storage_support_warning_key_;
     std::string last_storage_provider_notice_key_;
     std::optional<std::string> backend_status_probe_backend_key_;

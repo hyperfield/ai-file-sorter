@@ -111,17 +111,18 @@ const VisualModelArtifactDescriptor* find_visual_model_artifact(
 
 std::optional<SharedVisualArtifact> shared_visual_artifact_for_builtin(LLMChoice choice)
 {
-    if (choice != LLMChoice::Local_4b_Gemma) {
+    const auto* entry = default_llm_entry_for_choice(choice);
+    if (!entry || !entry->visual_backend_id || !entry->visual_model_url_env) {
         return std::nullopt;
     }
 
     const auto local_url = string_from_env_var(default_llm_download_env_var_for_choice(choice));
-    const auto visual_url = string_from_env_var("GEMMA3_4B_MODEL_URL");
+    const auto visual_url = string_from_env_var(entry->visual_model_url_env);
     if (!local_url || !visual_url || !urls_reference_same_artifact(*local_url, *visual_url)) {
         return std::nullopt;
     }
 
-    const auto* backend = find_visual_model_descriptor("gemma-3-4b-it");
+    const auto* backend = find_visual_model_descriptor(entry->visual_backend_id);
     if (!backend) {
         return std::nullopt;
     }
@@ -172,13 +173,17 @@ const std::vector<DefaultLlmEntry>& default_llm_entries()
 {
     static const std::vector<DefaultLlmEntry> entries = {
         {LLMChoice::Local_4b_Gemma, "LOCAL_LLM_3B_DOWNLOAD_URL", "LOCAL_LLM_3B_DISPLAY_NAME",
-         "Gemma 3 4B IT Q4_K_M"},
+         "Gemma 3 4B IT Q4_K_M", "gemma-3-4b-it", "GEMMA3_4B_MODEL_URL"},
+        {LLMChoice::Local_4b_Qwen35, "LOCAL_LLM_QWEN35_4B_DOWNLOAD_URL", "LOCAL_LLM_QWEN35_4B_DISPLAY_NAME",
+         "Qwen3.5 4B Q4_K_M", "qwen3.5-4b", "QWEN35_4B_MODEL_URL"},
         {LLMChoice::Local_7b, "LOCAL_LLM_7B_DOWNLOAD_URL", "LOCAL_LLM_7B_DISPLAY_NAME",
-         "Mistral 7B Instruct v0.2 Q5_K_M"},
+         "Mistral 7B Instruct v0.2 Q5_K_M", nullptr, nullptr,
+         BuiltinLlmVisibility::DownloadedOrSelected},
         {LLMChoice::Local_7b_Gemma, "LOCAL_LLM_7B_GEMMA_DOWNLOAD_URL",
          "LOCAL_LLM_7B_GEMMA_DISPLAY_NAME", "Gemma 1.1 7B IT Q5_K_M"},
         {LLMChoice::Local_3b_legacy, "LOCAL_LLM_3B_LEGACY_DOWNLOAD_URL",
-         "LOCAL_LLM_3B_LEGACY_DISPLAY_NAME", "LLaMa 3b v3.2 Instruct Q8, legacy"}};
+         "LOCAL_LLM_3B_LEGACY_DISPLAY_NAME", "LLaMa 3b v3.2 Instruct Q8, legacy", nullptr, nullptr,
+         BuiltinLlmVisibility::DownloadedOnly}};
     return entries;
 }
 
@@ -193,6 +198,21 @@ const DefaultLlmEntry* default_llm_entry_for_choice(LLMChoice choice)
         return nullptr;
     }
     return &(*it);
+}
+
+bool builtin_llm_choice_visible(LLMChoice choice, LLMChoice saved_choice)
+{
+    const auto* entry = default_llm_entry_for_choice(choice);
+    if (!entry) {
+        return false;
+    }
+    if (entry->visibility == BuiltinLlmVisibility::Always) {
+        return true;
+    }
+    if (entry->visibility == BuiltinLlmVisibility::DownloadedOrSelected && choice == saved_choice) {
+        return true;
+    }
+    return builtin_llm_artifact_available(choice);
 }
 
 QString default_llm_label(const DefaultLlmEntry& entry)

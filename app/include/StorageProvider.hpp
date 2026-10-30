@@ -148,10 +148,20 @@ public:
                                              const std::string& destination) const = 0;
     /**
      * @brief Reverses a previously recorded provider-owned move.
-     * @param source Current path of the moved entry.
-     * @param destination Original destination to restore.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
      * @return Mutation result describing the undo outcome.
      */
     virtual StorageMutationResult undo_move(const std::string& source,
                                             const std::string& destination) const = 0;
+    /**
+     * @brief Reverses a move and removes only directories recorded as app-created.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
+     * @param created_directories Directories the app created for the move.
+     * @return Mutation result describing the undo outcome.
+     */
+    virtual StorageMutationResult undo_move(const std::string& source,
+                                            const std::string& destination,
+                                            const std::vector<std::string>& created_directories) const = 0;
 };

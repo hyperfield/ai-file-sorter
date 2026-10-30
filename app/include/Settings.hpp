@@ -5,6 +5,7 @@
 #include <Types.hpp>
 #include <Language.hpp>
 #include <CategoryLanguage.hpp>
+#include "FilenameWordLimits.hpp"
 #include <string>
 #include <filesystem>
 #include <vector>
@@ -215,6 +216,28 @@ public:
     void set_use_subcategories(bool value);
 
     /**
+     * @brief Returns how categorization results should map to destination folders.
+     * @return Current sorting mode.
+     */
+    SortingMode get_sorting_mode() const;
+    /**
+     * @brief Sets how categorization results should map to destination folders.
+     * @param mode Sorting mode to use for future analysis runs.
+     */
+    void set_sorting_mode(SortingMode mode);
+
+    /**
+     * @brief Returns whether existing-folder mode may propose new target folders.
+     * @return True when new folder suggestions are allowed.
+     */
+    bool get_suggest_new_folders() const;
+    /**
+     * @brief Sets whether existing-folder mode may propose new target folders.
+     * @param value True to allow new folder suggestions.
+     */
+    void set_suggest_new_folders(bool value);
+
+    /**
      * @brief Returns whether consistency hints are enabled.
      * @return True when consistency hints should be used.
      */
@@ -278,6 +301,16 @@ public:
      * @param value True to enable image rename suggestions.
      */
     void set_offer_rename_images(bool value);
+    /**
+     * @brief Returns the word limit for content-derived image filenames.
+     * @return Maximum word count from three to six.
+     */
+    int get_image_filename_words() const;
+    /**
+     * @brief Sets the image filename word limit, clamped to the supported range.
+     * @param words Maximum word count from three to six.
+     */
+    void set_image_filename_words(int words);
     /**
      * @brief Returns whether image filename suggestions should include EXIF date/place prefixes.
      * @return True when EXIF date/place prefixes are enabled for image rename suggestions.
@@ -359,6 +392,16 @@ public:
      */
     void set_offer_rename_documents(bool value);
     /**
+     * @brief Returns the word limit for content-derived document filenames.
+     * @return Maximum word count from three to six.
+     */
+    int get_document_filename_words() const;
+    /**
+     * @brief Sets the document filename word limit, clamped to the supported range.
+     * @param words Maximum word count from three to six.
+     */
+    void set_document_filename_words(int words);
+    /**
      * @brief Returns whether the document options group is expanded.
      * @return True when the document options group should be expanded.
      */
@@ -400,15 +443,32 @@ public:
     void set_add_document_date_to_category(bool value);
 
     /**
-     * @brief Returns the current target sort folder path.
+     * @brief Returns the current folder selected for analysis.
      * @return Sort folder path as UTF-8 text.
      */
     std::string get_sort_folder() const;
     /**
-     * @brief Sets the target sort folder path.
+     * @brief Sets the folder selected for analysis.
      * @param path Sort folder path to store.
      */
     void set_sort_folder(const std::string &path);
+
+    /**
+     * @brief Returns the optional destination root for categorized files.
+     * @return Destination folder path, or empty to use the analyzed folder.
+     */
+    std::string get_destination_folder() const;
+    /**
+     * @brief Sets the optional destination root for categorized files.
+     * @param path Destination folder path, or empty to use the analyzed folder.
+     */
+    void set_destination_folder(const std::string& path);
+    /**
+     * @brief Resolves the destination root for a given analysis folder.
+     * @param analysis_folder Folder currently being analyzed.
+     * @return Destination folder when configured; otherwise analysis_folder.
+     */
+    std::string get_effective_destination_folder(const std::string& analysis_folder) const;
 
     /**
      * @brief Returns whether the consistency-pass feature is enabled.
@@ -606,25 +666,15 @@ public:
      */
     void set_next_support_prompt_threshold(int threshold);
     /**
-     * @brief Returns whether the Windows Explorer extension install prompt is suppressed.
-     * @return True when the prompt should no longer be shown.
+     * @brief Returns whether the Johnny.Decimal plugin suggestion is permanently hidden.
+     * @return True when the user chose not to see the suggestion again.
      */
-    bool get_windows_explorer_extension_prompt_dismissed() const;
+    bool get_hide_johnny_decimal_plugin_suggestion() const;
     /**
-     * @brief Sets whether the Windows Explorer extension install prompt is suppressed.
-     * @param value True to suppress future prompts.
+     * @brief Sets whether the Johnny.Decimal plugin suggestion is permanently hidden.
+     * @param value True to hide future Johnny.Decimal plugin suggestions.
      */
-    void set_windows_explorer_extension_prompt_dismissed(bool value);
-    /**
-     * @brief Returns the last UTC timestamp when the Windows Explorer extension prompt was shown.
-     * @return ISO timestamp string, or empty when never shown.
-     */
-    std::string get_windows_explorer_extension_prompt_last_shown_utc() const;
-    /**
-     * @brief Stores the last UTC timestamp when the Windows Explorer extension prompt was shown.
-     * @param value ISO timestamp string, or empty to clear.
-     */
-    void set_windows_explorer_extension_prompt_last_shown_utc(const std::string& value);
+    void set_hide_johnny_decimal_plugin_suggestion(bool value);
     /**
      * @brief Returns the configured allowed category whitelist.
      * @return Copy of the allowed category list.
@@ -691,11 +741,14 @@ private:
     std::string llm_storage_dir;
     std::string visual_model_id;
     bool use_subcategories;
+    SortingMode sorting_mode{SortingMode::GeneratedCategories};
+    bool suggest_new_folders{false};
     bool categorize_files;
     bool categorize_directories;
     bool include_subdirectories{false};
     bool analyze_images_by_content{false};
     bool offer_rename_images{false};
+    int image_filename_words{kDefaultFilenameWords};
     bool add_image_date_place_to_filename{false};
     bool add_audio_video_metadata_to_filename{true};
     bool add_image_date_to_category{false};
@@ -704,6 +757,7 @@ private:
     bool process_images_only{false};
     bool analyze_documents_by_content{false};
     bool offer_rename_documents{false};
+    int document_filename_words{kDefaultFilenameWords};
     bool document_options_expanded{false};
     bool rename_documents_only{false};
     bool process_documents_only{false};
@@ -712,6 +766,7 @@ private:
     bool use_whitelist{false};
     std::string default_sort_folder;
     std::string sort_folder;
+    std::string destination_folder;
     std::string skipped_version;
     std::string whats_new_version_shown;
     bool show_file_explorer{true};
@@ -729,8 +784,7 @@ private:
     bool review_auto_approve_categorization{false};
     int categorized_file_count{0};
     int next_support_prompt_threshold{50};
-    bool windows_explorer_extension_prompt_dismissed{false};
-    std::string windows_explorer_extension_prompt_last_shown_utc;
+    bool hide_johnny_decimal_plugin_suggestion{false};
     std::vector<std::string> allowed_categories;
     std::vector<std::string> allowed_subcategories;
     std::unordered_map<std::string, std::vector<std::string>> allowed_subcategories_by_category;

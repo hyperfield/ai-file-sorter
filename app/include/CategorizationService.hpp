@@ -3,21 +3,24 @@
 
 #include "Types.hpp"
 #include "DatabaseManager.hpp"
+#include "FolderStructurePluginProfile.hpp"
 
 #include <atomic>
 #include <deque>
-#include <future>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 class Settings;
 class ILLMClient;
+struct LLMResponseConstraint;
 class UserLearningStore;
+class FolderTreeRoutingPlan;
 namespace spdlog { class logger; }
 
 /**
@@ -40,6 +43,8 @@ public:
     using PromptOverrideProvider = std::function<std::optional<PromptOverride>(const FileEntry&)>;
     /** Supplies an optional suggested rename for an entry during categorization. */
     using SuggestedNameProvider = std::function<std::string(const FileEntry&)>;
+    /** Supplies verified folder-structure plugin profiles. */
+    using FolderStructureProfileProvider = std::function<std::vector<FolderStructurePluginProfile>()>;
 
     /**
      * @brief Constructs the service with settings, database access, and logging.
@@ -57,6 +62,21 @@ public:
      * @param store User-learning store, or nullptr to disable retrieval.
      */
     void set_user_learning_store(UserLearningStore* store) { user_learning_store_ = store; }
+
+    /**
+     * @brief Updates the optional provider for installed folder-structure plugin profiles.
+     * @param provider Callback returning verified installed profiles.
+     */
+    void set_folder_structure_profile_provider(FolderStructureProfileProvider provider)
+    {
+        folder_structure_profile_provider_ = std::move(provider);
+    }
+
+    /**
+     * @brief Returns currently available folder-structure plugin profiles.
+     * @return Verified profiles, or an empty vector when no provider is configured.
+     */
+    std::vector<FolderStructurePluginProfile> folder_structure_profiles() const;
 
     /**
      * @brief Verifies that required remote credentials are configured.
@@ -90,6 +110,7 @@ public:
      * @param llm_factory Factory for creating an LLM client.
      * @param prompt_override Optional prompt override provider.
      * @param suggested_name_provider Optional suggested-name provider.
+     * @param routing_plan Optional shared reservations across batches in one review.
      * @return Categorized entries that were successfully processed.
      */
     std::vector<CategorizedFile> categorize_entries(
@@ -103,7 +124,8 @@ public:
         std::function<std::unique_ptr<ILLMClient>()> llm_factory,
         const PromptOverrideProvider& prompt_override = {},
         const SuggestedNameProvider& suggested_name_provider = {},
-        const ResultCallback& result_callback = {}) const;
+        const ResultCallback& result_callback = {},
+        FolderTreeRoutingPlan* routing_plan = nullptr) const;
 
 private:
     using CategoryPair = std::pair<std::string, std::string>;
@@ -124,6 +146,7 @@ private:
      * @param progress_callback Progress updates callback.
      * @param consistency_context Consistency hints block.
      * @param remote_throttle_callback Optional callback invoked before remote cache misses.
+     * @param routing_plan Proposed folders shared across the review plan.
      * @return Resolved category for the item.
      */
     DatabaseManager::ResolvedCategory categorize_with_cache(
@@ -137,7 +160,8 @@ private:
         FileType file_type,
         const ProgressCallback& progress_callback,
         const std::string& consistency_context,
-        const RemoteThrottleCallback& remote_throttle_callback) const;
+        const RemoteThrottleCallback& remote_throttle_callback,
+        FolderTreeRoutingPlan& routing_plan) const;
 
     /**
      * @brief Categorizes a single entry and persists the result.
@@ -151,6 +175,7 @@ private:
      * @param recategorization_callback Callback for re-categorization events.
      * @param session_history Mutable session history for consistency hints.
      * @param remote_throttle_callback Optional callback invoked before remote cache misses.
+     * @param routing_plan Proposed folders shared across the review plan.
      * @return Categorized entry when successful.
      */
     std::optional<CategorizedFile> categorize_single_entry(
@@ -163,7 +188,8 @@ private:
         const ProgressCallback& progress_callback,
         const RecategorizationCallback& recategorization_callback,
         SessionHistoryMap& session_history,
-        const RemoteThrottleCallback& remote_throttle_callback) const;
+        const RemoteThrottleCallback& remote_throttle_callback,
+        FolderTreeRoutingPlan& routing_plan) const;
 
     /**
      * @brief Combines language, family-candidate, whitelist, and hint blocks into a single prompt context.
@@ -195,6 +221,7 @@ private:
      * @param progress_callback Progress updates callback.
      * @param combined_context Combined prompt context.
      * @param remote_throttle_callback Optional callback invoked before remote cache misses.
+     * @param routing_plan Proposed folders shared across the review plan.
      * @return Resolved category for the item.
      */
     DatabaseManager::ResolvedCategory run_categorization_with_cache(
@@ -207,7 +234,8 @@ private:
         const std::string& prompt_path,
         const ProgressCallback& progress_callback,
         const std::string& combined_context,
-        const RemoteThrottleCallback& remote_throttle_callback) const;
+        const RemoteThrottleCallback& remote_throttle_callback,
+        FolderTreeRoutingPlan& routing_plan) const;
     /**
      * @brief Handles empty or invalid categorization results.
      * @param entry File entry being categorized.
@@ -249,6 +277,7 @@ private:
      * @param file_type File or directory.
      * @param is_local_llm True when using a local LLM backend.
      * @param consistency_context Consistency hints block.
+     * @param constraint Optional response contract, copied into the timed request.
      * @return Raw LLM response string.
      */
     std::string run_llm_with_timeout(
@@ -257,7 +286,8 @@ private:
         const std::string& item_path,
         FileType file_type,
         bool is_local_llm,
-        const std::string& consistency_context) const;
+        const std::string& consistency_context,
+        const LLMResponseConstraint* constraint = nullptr) const;
     /**
      * @brief Resolves the LLM timeout based on runtime and environment settings.
      * @param is_local_llm True when using a local LLM backend.
@@ -269,20 +299,6 @@ private:
      * @return Maximum remote requests per minute, or 0 when disabled.
      */
     int resolve_remote_requests_per_minute() const;
-    /**
-     * @brief Launches an asynchronous LLM categorization request.
-     * @param llm LLM client used for the request.
-     * @param item_name Display name for the item.
-     * @param item_path Display path for the item.
-     * @param file_type File or directory.
-     * @param consistency_context Consistency hints block.
-     * @return Future that yields the raw LLM response.
-     */
-    std::future<std::string> start_llm_future(ILLMClient& llm,
-                                              const std::string& item_name,
-                                              const std::string& item_path,
-                                              FileType file_type,
-                                              const std::string& consistency_context) const;
     /**
      * @brief Builds a whitelist context block for the prompt.
      * @return Whitelist prompt section.
@@ -372,6 +388,35 @@ private:
         const std::string& dir_path,
         FileType file_type,
         const ProgressCallback& progress_callback) const;
+    /**
+     * @brief Routes a semantic category into the current existing destination folder tree.
+     * @param llm LLM client used when an existing-folder decision needs model help.
+     * @param is_local_llm True when using a local LLM backend.
+     * @param display_name Display name for logging.
+     * @param display_path Display path for logging.
+     * @param dir_path Directory path used for cache identity.
+     * @param prompt_name Name used in prompts.
+     * @param prompt_path Path/context payload used in prompts.
+     * @param file_type File or directory.
+     * @param semantic Semantic category result to route.
+     * @param progress_callback Progress updates callback.
+     * @param remote_throttle_callback Optional callback invoked before remote route requests.
+     * @param routing_plan Proposed folders shared across the review plan.
+     * @return Semantic category with folder-tree target metadata attached.
+     */
+    DatabaseManager::ResolvedCategory route_semantic_category_to_folder_tree(
+        ILLMClient& llm,
+        bool is_local_llm,
+        const std::string& display_name,
+        const std::string& display_path,
+        const std::string& dir_path,
+        const std::string& prompt_name,
+        const std::string& prompt_path,
+        FileType file_type,
+        const DatabaseManager::ResolvedCategory& semantic,
+        const ProgressCallback& progress_callback,
+        const RemoteThrottleCallback& remote_throttle_callback,
+        FolderTreeRoutingPlan& routing_plan) const;
 
     /**
      * @brief Ensures remote credentials are present and reports errors via progress callback.
@@ -464,6 +509,7 @@ private:
     DatabaseManager& db_manager;
     std::shared_ptr<spdlog::logger> core_logger;
     UserLearningStore* user_learning_store_{nullptr};
+    FolderStructureProfileProvider folder_structure_profile_provider_;
 };
 
 #endif

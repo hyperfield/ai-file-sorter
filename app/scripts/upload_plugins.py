@@ -376,6 +376,45 @@ def verify_archive(payload: LocalPluginPayload) -> None:
         names = set(archive.namelist())
         if "manifest.json" not in names:
             fail(f"Archive is missing manifest.json: {payload.package_path}")
+        if "plugin-signature.json" not in names or "plugin-signature.sig" not in names:
+            fail(f"Archive is missing storage plugin signature files: {payload.package_path}")
+
+        try:
+            signature_manifest = json.loads(archive.read("plugin-signature.json").decode("utf-8"))
+        except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            fail(f"Archive has an invalid plugin-signature.json: {payload.package_path}: {exc}")
+        if signature_manifest.get("algorithm") != "ed25519" or not signature_manifest.get("key_id"):
+            fail(f"Archive signature manifest has unsupported metadata: {payload.package_path}")
+        expected_hashes: dict[str, str] = {}
+        for file_entry in signature_manifest.get("files", []):
+            if not isinstance(file_entry, dict):
+                fail(f"Archive signature manifest contains a non-object file entry: {payload.package_path}")
+            relative = str(file_entry.get("path", "")).strip()
+            digest = str(file_entry.get("sha256", "")).strip().lower()
+            if not relative or relative.startswith("/") or "\\" in relative or ".." in relative.split("/"):
+                fail(f"Archive signature manifest contains an unsafe path: {relative}")
+            if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+                fail(f"Archive signature manifest contains an invalid SHA-256 hash: {relative}")
+            if relative in {"plugin-signature.json", "plugin-signature.sig"}:
+                fail(f"Archive signature manifest cannot list signature files as payload: {relative}")
+            expected_hashes[relative] = digest
+        if "manifest.json" not in expected_hashes:
+            fail(f"Archive signature manifest must cover manifest.json: {payload.package_path}")
+
+        payload_names = {
+            name for name in names
+            if name and not name.endswith("/") and name not in {"plugin-signature.json", "plugin-signature.sig"}
+        }
+        unsigned_names = payload_names - set(expected_hashes)
+        if unsigned_names:
+            fail(f"Archive contains unsigned payload files: {', '.join(sorted(unsigned_names))}")
+        for relative, expected_digest in expected_hashes.items():
+            if relative not in payload_names:
+                fail(f"Archive signature references a missing payload file: {relative}")
+            actual_digest = sha256(archive.read(relative)).hexdigest()
+            if actual_digest != expected_digest:
+                fail(f"Archive payload hash mismatch for {relative}: {payload.package_path}")
+
         if entry_point not in names:
             fail(f"Archive is missing plugin entry point {entry_point}: {payload.package_path}")
         for package_path in payload.manifest.get("package_paths", []):

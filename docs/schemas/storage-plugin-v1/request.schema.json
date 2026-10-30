@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://filesorter.app/schemas/storage-plugin-v1/request.schema.json",
+  "title": "AI File Sorter storage plugin request",
+  "description": "Requests sent by AI File Sorter to an external-process storage plugin.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/probeRequest"
+    },
+    {
+      "$ref": "#/$defs/detectRequest"
+    },
+    {
+      "$ref": "#/$defs/capabilitiesRequest"
+    },
+    {
+      "$ref": "#/$defs/listDirectoryRequest"
+    },
+    {
+      "$ref": "#/$defs/inspectPathRequest"
+    },
+    {
+      "$ref": "#/$defs/preflightMoveRequest"
+    },
+    {
+      "$ref": "#/$defs/pathExistsRequest"
+    },
+    {
+      "$ref": "#/$defs/ensureDirectoryRequest"
+    },
+    {
+      "$ref": "#/$defs/moveEntryRequest"
+    },
+    {
+      "$ref": "#/$defs/undoMoveRequest"
+    }
+  ],
+  "$defs": {
+    "protocol": {
+      "const": "aifs-storage-plugin-v1"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "baseRequest": {
+      "type": "object",
+      "required": [
+        "protocol",
+        "plugin_id",
+        "provider_id",
+        "action"
+      ],
+      "properties": {
+        "protocol": {
+          "$ref": "#/$defs/protocol"
+        },
+        "plugin_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "probe",
+            "detect",
+            "capabilities",
+            "list_directory",
+            "inspect_path",
+            "preflight_move",
+            "path_exists",
+            "ensure_directory",
+            "move_entry",
+            "undo_move"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "probeRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "probe"
+            }
+          }
+        }
+      ]
+    },
+    "detectRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "root_path"
+          ],
+          "properties": {
+            "action": {
+              "const": "detect"
+            },
+            "root_path": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        }
+      ]
+    },
+    "capabilitiesRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "capabilities"
+            }
+          }
+        }
+      ]
+    },
+    "listDirectoryRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "directory",
+            "options"
+          ],
+          "properties": {
+            "action": {
+              "const": "list_directory"
+            },
+            "directory": {
+              "$ref": "#/$defs/path"
+            },
+            "options": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15,
+              "description": "FileScanOptions bitmask: 1 files, 2 directories, 4 hidden files, 8 recursive."
+            }
+          }
+        }
+      ]
+    },
+    "inspectPathRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "action": {
+              "const": "inspect_path"
+            },
+            "path": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        }
+      ]
+    },
+    "preflightMoveRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "source",
+            "destination"
+          ],
+          "properties": {
+            "action": {
+              "const": "preflight_move"
+            },
+            "source": {
+              "$ref": "#/$defs/path"
+            },
+            "destination": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        }
+      ]
+    },
+    "pathExistsRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "action": {
+              "const": "path_exists"
+            },
+            "path": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        }
+      ]
+    },
+    "ensureDirectoryRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "directory"
+          ],
+          "properties": {
+            "action": {
+              "const": "ensure_directory"
+            },
+            "directory": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        }
+      ]
+    },
+    "moveEntryRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "source",
+            "destination"
+          ],
+          "properties": {
+            "action": {
+              "const": "move_entry"
+            },
+            "source": {
+              "$ref": "#/$defs/path"
+            },
+            "destination": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        }
+      ]
+    },
+    "undoMoveRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseRequest"
+        },
+        {
+          "type": "object",
+          "required": [
+            "source",
+            "destination",
+            "created_directories"
+          ],
+          "properties": {
+            "action": {
+              "const": "undo_move"
+            },
+            "source": {
+              "$ref": "#/$defs/path"
+            },
+            "destination": {
+              "$ref": "#/$defs/path"
+            },
+            "created_directories": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/path"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

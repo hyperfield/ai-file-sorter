@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI File Sorter headless review plan, version 1",
+  "description": "Integration-facing review/apply document. Additional properties allow compatible evolution; display metadata never authorizes a move or folder creation.",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "operation", "paths", "applyOptions", "entries"],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "aifs.headlessReviewPlan" },
+    "createdAtUtc": { "type": "string" },
+    "jobId": { "type": "string" },
+    "operation": { "enum": ["categorize", "rename", "categorize-and-rename"] },
+    "paths": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "applyOptions": { "$ref": "#/$defs/applyOptions" },
+    "entries": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/entry" } }
+  },
+  "$defs": {
+    "applyOptions": {
+      "type": "object",
+      "required": ["baseDir"],
+      "additionalProperties": true,
+      "properties": {
+        "baseDir": { "type": "string", "description": "Resolved destination root captured during analysis." },
+        "undoDir": { "type": "string" },
+        "useSubcategories": { "type": "boolean", "default": true },
+        "includeSubdirectories": { "type": "boolean", "default": false },
+        "applySuggestedNames": { "type": "boolean", "default": false },
+        "moveCategorizedEntries": { "type": "boolean", "default": true },
+        "allowNewFolderTargets": { "type": "boolean", "default": false },
+        "categoryLanguage": { "type": "string" }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["filePath", "fileName", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "filePath": { "type": "string", "description": "Source parent directory, not the full source filename." },
+        "fileName": { "type": "string" },
+        "type": { "enum": ["file", "directory"] },
+        "category": { "type": "string" },
+        "subcategory": { "type": "string" },
+        "taxonomyId": { "type": "integer" },
+        "fromCache": { "type": "boolean" },
+        "usedConsistencyHints": { "type": "boolean" },
+        "suggestedName": { "type": "string" },
+        "renameOnly": { "type": "boolean", "default": false },
+        "renameApplied": { "type": "boolean", "default": false },
+        "canonicalCategory": { "type": "string" },
+        "canonicalSubcategory": { "type": "string" },
+        "learningContext": { "type": "string" },
+        "folderTreeMode": { "type": "boolean", "default": false },
+        "targetFolder": { "type": "string", "description": "Literal relative path under baseDir. Empty means unresolved in folder-tree mode; absolute and traversing paths are rejected at apply." },
+        "targetFolderExists": { "type": "boolean", "default": false, "readOnly": true },
+        "targetFolderSuggestedNew": { "type": "boolean", "default": false, "readOnly": true },
+        "folderTreeAllowNewFolders": { "type": "boolean", "default": false },
+        "plannedDestination": { "type": "string", "readOnly": true, "description": "Optional full app-computed dry-run destination. Empty for unresolved/invalid entries. Display metadata; ignored during apply and stale after destination edits." },
+        "folderTreeRoutingExplanation": { "type": "string", "readOnly": true, "description": "Optional app-generated explanation of the original folder-tree route. Display text only; clear it after changing the destination." }
+      }
+    }
+  }
+}

@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap rescap desktop">
+  <Identity Name="Hyperfield.AIFileSorter"
+            Publisher="CN=814F4909-6349-4C32-8543-F4DEA91A8FD7"
+            Version="1.9.2.0"
+            ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>AI File Sorter</DisplayName>
+    <PublisherDisplayName>Hyperfield</PublisherDisplayName>
+    <Logo>assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+    <PackageDependency Name="Microsoft.VCLibs.140.00.UWPDesktop"
+                       MinVersion="14.0.32530.0"
+                       Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+    <Resource Language="fr" />
+    <Resource Language="de" />
+    <Resource Language="hi" />
+    <Resource Language="it" />
+    <Resource Language="es" />
+    <Resource Language="tr" />
+    <Resource Language="ko" />
+    <Resource Language="zh-cn" />
+    <Resource Language="nl" />
+    <Resource Language="sv" />
+    <Resource Language="is" />
+    <Resource Language="nb" />
+    <Resource Language="fi" />
+    <Resource Language="da" />
+  </Resources>
+  <Applications>
+    <Application Id="AIFileSorter"
+                 Executable="aifilesorter.exe"
+                 EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="AI File Sorter"
+                          Description="Organize files with local AI"
+                          Square150x150Logo="assets\Square150x150Logo.png"
+                          Square44x44Logo="assets\Square44x44Logo.png"
+                          BackgroundColor="transparent">
+        <uap:DefaultTile Wide310x150Logo="assets\Wide310x150Logo.png"
+                          Square310x310Logo="assets\Square310x310Logo.png" />
+        <!-- <uap:SplashScreen Image="assets\SplashScreen.png" /> -->
+      </uap:VisualElements>
+      <Extensions>
+        <desktop:Extension Category="windows.fullTrustProcess"
+                           Executable="aifilesorter.exe" />
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

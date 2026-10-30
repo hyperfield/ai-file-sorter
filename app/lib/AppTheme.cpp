@@ -364,6 +364,20 @@ QString file_listing_panel_style_sheet(const QPalette& palette)
                                     QStringLiteral("QTreeView#aifsFolderContentsView"));
 }
 
+QString folder_structure_plugin_status_style_sheet(const QPalette& palette)
+{
+    const QColor accent = palette_is_dark(palette) ? QColor(QStringLiteral("#7ab7ff"))
+                                                   : QColor(QStringLiteral("#0b67c2"));
+    return QStringLiteral(R"(
+        QLabel#aifsFolderStructurePluginStatusLabel {
+            color: %1;
+            font-weight: 600;
+            padding: 4px 6px 2px 6px;
+        }
+    )")
+        .arg(css_color(accent));
+}
+
 QString review_dialog_style_sheet(const QPalette& palette)
 {
     const ThemeColors colors = build_theme_colors(palette);

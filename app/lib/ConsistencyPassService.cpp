@@ -272,6 +272,11 @@ void apply_harmonized_update(
 {
     DatabaseManager::ResolvedCategory resolved =
         db_manager.resolve_category(update.category, update.subcategory);
+    resolved.target_folder_relative_path = update.target->target_folder_relative_path;
+    resolved.folder_tree_mode = update.target->folder_tree_mode;
+    resolved.target_folder_suggested_new = update.target->target_folder_suggested_new;
+    resolved.target_folder_exists = update.target->target_folder_exists;
+    resolved.folder_tree_allow_new_folders = update.target->folder_tree_allow_new_folders;
     const DatabaseManager::ResolvedCategory display_resolved =
         db_manager.localize_category(resolved, category_language);
 

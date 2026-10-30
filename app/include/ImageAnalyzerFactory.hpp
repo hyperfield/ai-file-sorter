@@ -9,6 +9,10 @@
 
 #include <memory>
 
+#if defined(AI_FILE_SORTER_TEST_BUILD) && defined(_WIN32)
+class QProcessEnvironment;
+#endif
+
 /**
  * @brief Creates image analyzers for resolved visual model backends.
  */
@@ -23,3 +27,16 @@ public:
     static std::unique_ptr<ImageAnalyzer> create(const VisualLlmRuntime::Backend& backend,
                                                  ImageAnalyzerSettings settings = {});
 };
+
+#if defined(AI_FILE_SORTER_TEST_BUILD) && defined(_WIN32)
+/**
+ * @brief Test hooks for visual analyzer factory internals.
+ */
+namespace ImageAnalyzerFactoryTestAccess {
+/**
+ * @brief Build the environment passed to the visual GPU preflight subprocess.
+ * @return Process environment used by the preflight child process.
+ */
+QProcessEnvironment visual_gpu_preflight_environment();
+} // namespace ImageAnalyzerFactoryTestAccess
+#endif

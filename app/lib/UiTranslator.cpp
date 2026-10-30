@@ -13,6 +13,7 @@
 #include <QComboBox>
 #include <QDockWidget>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMainWindow>
 #include <QMenu>
 #include <QObject>
@@ -46,6 +47,8 @@ constexpr auto kMenuTitleCategoryLanguage =
 constexpr auto kActionQuit = QT_TRANSLATE_NOOP("UiTranslator", "&Quit");
 constexpr auto kActionSystemCompatibilityCheck =
     QT_TRANSLATE_NOOP("UiTranslator", "System compatibility check…");
+constexpr auto kActionCreateFolderStructure =
+    QT_TRANSLATE_NOOP("UiTranslator", "Create folder structure...");
 constexpr auto kActionCopy = QT_TRANSLATE_NOOP("UiTranslator", "&Copy");
 constexpr auto kActionCut = QT_TRANSLATE_NOOP("UiTranslator", "Cu&t");
 constexpr auto kActionUndoLastRun = QT_TRANSLATE_NOOP("UiTranslator", "Undo last run");
@@ -55,6 +58,8 @@ constexpr auto kActionPaste = QT_TRANSLATE_NOOP("UiTranslator", "&Paste");
 constexpr auto kActionDelete = QT_TRANSLATE_NOOP("UiTranslator", "&Delete");
 constexpr auto kActionFileExplorer = QT_TRANSLATE_NOOP("UiTranslator", "File &Explorer");
 constexpr auto kActionSelectLlm = QT_TRANSLATE_NOOP("UiTranslator", "Select &LLM…");
+constexpr auto kActionManageFolderStructurePlugins =
+    QT_TRANSLATE_NOOP("UiTranslator", "Manage folder structure plugins...");
 constexpr auto kActionManageStoragePlugins =
     QT_TRANSLATE_NOOP("UiTranslator", "Manage storage plugins…");
 constexpr auto kActionManageCategoryWhitelists =
@@ -190,11 +195,28 @@ void UiTranslator::translate_window_title() const
 
 void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
 {
+    if (auto* button = raw_ptr(deps_.primary.sorting_rules_button)) {
+        button->setText(tr("Sorting rules..."));
+    }
+    const QString browse_text = tr("Browse…");
     if (auto* label = raw_ptr(deps_.primary.path_label)) {
         label->setText(tr("Folder:"));
     }
     if (auto* button = raw_ptr(deps_.primary.browse_button)) {
-        button->setText(tr("Browse…"));
+        button->setText(browse_text);
+    }
+    if (auto* label = raw_ptr(deps_.primary.destination_path_label)) {
+        label->setText(tr("Destination:"));
+    }
+    if (auto* edit = raw_ptr(deps_.primary.destination_path_entry)) {
+        edit->setToolTip(tr("Choose where categorized items will be placed."));
+    }
+    if (auto* button = raw_ptr(deps_.primary.destination_browse_button)) {
+        button->setText(browse_text);
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.use_analyzed_folder_as_destination_checkbox)) {
+        checkbox->setText(tr("Use analyzed folder"));
+        checkbox->setToolTip(tr("Use the folder being analyzed as the destination root."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_subcategories_checkbox)) {
         checkbox->setText(tr("Use subcategories"));
@@ -211,6 +233,21 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     if (auto* consistent_radio = raw_ptr(deps_.primary.categorization_style_consistent_radio)) {
         consistent_radio->setText(tr("More consistent"));
         consistent_radio->setToolTip(tr("Favor consistent labels across similar items."));
+    }
+    if (auto* selector = raw_ptr(deps_.primary.sorting_mode_selector)) {
+        if (selector->count() >= 2) {
+            selector->setItemText(0, tr("Create category folders"));
+            selector->setItemText(1, tr("Use existing folder structure"));
+        }
+        selector->setToolTip(tr("Choose whether AI creates category folders or sorts into the current folder tree."));
+    }
+    if (auto* checkbox = raw_ptr(deps_.primary.suggest_new_folders_checkbox)) {
+        checkbox->setText(tr("Suggest new folders when needed"));
+        checkbox->setToolTip(tr("Allow AI to propose new destination folders when no existing folder fits well."));
+    }
+    if (auto* button = raw_ptr(deps_.primary.create_folder_structure_button)) {
+        button->setText(tr("Create folder structure..."));
+        button->setToolTip(tr("Create a starter folder structure at a location you choose."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_whitelist_checkbox)) {
         checkbox->setText(tr("Use a whitelist"));
@@ -363,8 +400,10 @@ void UiTranslator::translate_menus_and_actions() const
     };
 
     const ActionEntry action_entries[] = {
+        {deps_.actions.sorting_rules_action, QT_TRANSLATE_NOOP("UiTranslator", "Sorting Rules...")},
         {deps_.actions.file_quit_action, kActionQuit},
         {deps_.actions.run_benchmark_action, kActionSystemCompatibilityCheck},
+        {deps_.actions.create_folder_structure_action, kActionCreateFolderStructure},
         {deps_.actions.copy_action, kActionCopy},
         {deps_.actions.cut_action, kActionCut},
         {deps_.actions.undo_last_run_action, kActionUndoLastRun},
@@ -373,6 +412,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.delete_action, kActionDelete},
         {deps_.actions.toggle_explorer_action, kActionFileExplorer},
         {deps_.actions.toggle_llm_action, kActionSelectLlm},
+        {deps_.actions.manage_folder_structure_plugins_action, kActionManageFolderStructurePlugins},
         {deps_.actions.manage_storage_plugins_action, kActionManageStoragePlugins},
         {deps_.actions.windows_explorer_extension_install_action, kActionInstallWindowsExplorerExtension},
         {deps_.actions.windows_explorer_extension_settings_action, kActionWindowsExplorerExtensionSettings},

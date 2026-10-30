@@ -5,6 +5,7 @@
 #include "AppInfo.hpp"
 
 #include "MainApp.hpp"
+#include "SortingRulesDialog.hpp"
 #include "MainAppEditActions.hpp"
 #include "MainAppHelpActions.hpp"
 #include "UiTranslator.hpp"
@@ -28,6 +29,7 @@
 #include <QComboBox>
 #include <QFontMetrics>
 #include <QFrame>
+#include <QGridLayout>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -336,41 +338,29 @@ QIcon whitelist_menu_icon(MainApp& app)
 } // namespace
 
 void MainAppUiBuilder::build(MainApp& app) {
+    build_sorting_rules(app);
     build_central_panel(app);
     build_menus(app);
     app.analysis_in_progress_ = false;
     app.status_is_ready_ = true;
 }
 
-void MainAppUiBuilder::build_central_panel(MainApp& app) {
-    app.setWindowTitle(app_display_name());
-    app.resize(1000, 800);
-
-    QWidget* central = new QWidget(&app);
+void MainAppUiBuilder::build_sorting_rules(MainApp& app) {
+    auto* dialog = new SortingRulesDialog(app.settings, &app);
+    app.sorting_rules_dialog = dialog;
+    QWidget* central = dialog->rules_widget();
     auto* main_layout = new QVBoxLayout(central);
-    main_layout->setContentsMargins(12, 12, 12, 12);
-    main_layout->setSpacing(8);
-
-    auto* path_layout = new QHBoxLayout();
-    app.path_label = new QLabel(central);
-    app.path_entry = new QLineEdit(central);
-    app.browse_button = new QPushButton(central);
-    path_layout->addWidget(app.path_label);
-    path_layout->addWidget(app.path_entry, 1);
-    path_layout->addWidget(app.browse_button);
-    main_layout->addLayout(path_layout);
-
-    auto* options_layout = new QHBoxLayout();
+    main_layout->setContentsMargins(0, 0, 0, 0);
+    auto* options_layout = new QGridLayout();
     app.use_subcategories_checkbox = new QCheckBox(central);
     app.categorize_files_checkbox = new QCheckBox(central);
     app.categorize_directories_checkbox = new QCheckBox(central);
     app.include_subdirectories_checkbox = new QCheckBox(central);
     app.categorize_files_checkbox->setChecked(true);
-    options_layout->addWidget(app.use_subcategories_checkbox);
-    options_layout->addWidget(app.categorize_files_checkbox);
-    options_layout->addWidget(app.categorize_directories_checkbox);
-    options_layout->addWidget(app.include_subdirectories_checkbox);
-    options_layout->addStretch(1);
+    options_layout->addWidget(app.use_subcategories_checkbox, 0, 0);
+    options_layout->addWidget(app.include_subdirectories_checkbox, 0, 1);
+    options_layout->addWidget(app.categorize_files_checkbox, 1, 0);
+    options_layout->addWidget(app.categorize_directories_checkbox, 1, 1);
     main_layout->addLayout(options_layout);
 
     auto* document_options_layout = new QVBoxLayout();
@@ -445,6 +435,69 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.categorization_style_heading = new QLabel(central);
     app.categorization_style_refined_radio = new QRadioButton(central);
     app.categorization_style_consistent_radio = new QRadioButton(central);
+    auto* categorization_layout = new QVBoxLayout();
+    auto* toggle_row = new QHBoxLayout();
+    toggle_row->addWidget(app.categorization_style_refined_radio);
+    toggle_row->addWidget(app.categorization_style_consistent_radio);
+    toggle_row->addStretch();
+    categorization_layout->addWidget(app.categorization_style_heading);
+    categorization_layout->addLayout(toggle_row);
+
+    main_layout->addLayout(categorization_layout);
+    QObject::connect(dialog, &QDialog::finished, &app, [&app](int) {
+        app.settings.save();
+    });
+}
+
+void MainAppUiBuilder::build_central_panel(MainApp& app) {
+    app.setWindowTitle(app_display_name());
+    app.resize(1000, 800);
+
+    QWidget* central = new QWidget(&app);
+    auto* main_layout = new QVBoxLayout(central);
+    main_layout->setContentsMargins(12, 12, 12, 12);
+    main_layout->setSpacing(8);
+
+    app.sorting_mode_selector = new QComboBox(central);
+    app.sorting_mode_selector->addItem(QString(), static_cast<int>(SortingMode::GeneratedCategories));
+    app.sorting_mode_selector->addItem(QString(), static_cast<int>(SortingMode::ExistingFolderTree));
+    app.sorting_mode_selector->setMinimumContentsLength(22);
+    app.sorting_mode_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    app.suggest_new_folders_checkbox = new QCheckBox(central);
+    app.sorting_rules_button = new QPushButton(central);
+    app.sorting_rules_button->setObjectName(QStringLiteral("sortingRulesButton"));
+    app.sorting_rules_button->setIcon(QIcon::fromTheme(QStringLiteral("preferences-system"),
+        app.style()->standardIcon(QStyle::SP_FileDialogDetailedView)));
+    QObject::connect(app.sorting_rules_button, &QPushButton::clicked,
+                     app.sorting_rules_dialog, &QDialog::open);
+    auto* sorting_mode_row = new QHBoxLayout();
+    sorting_mode_row->addWidget(app.sorting_mode_selector);
+    sorting_mode_row->addWidget(app.suggest_new_folders_checkbox);
+    sorting_mode_row->addStretch();
+    sorting_mode_row->addWidget(app.sorting_rules_button);
+    main_layout->addLayout(sorting_mode_row);
+
+    auto* path_layout = new QHBoxLayout();
+    app.path_label = new QLabel(central);
+    app.path_entry = new QLineEdit(central);
+    app.browse_button = new QPushButton(central);
+    path_layout->addWidget(app.path_label);
+    path_layout->addWidget(app.path_entry, 1);
+    path_layout->addWidget(app.browse_button);
+    main_layout->addLayout(path_layout);
+
+    auto* destination_layout = new QHBoxLayout();
+    app.destination_path_label = new QLabel(central);
+    app.destination_path_entry = new QLineEdit(central);
+    app.destination_browse_button = new QPushButton(central);
+    app.create_folder_structure_button = new QPushButton(central);
+    app.create_folder_structure_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    destination_layout->addWidget(app.destination_path_label);
+    destination_layout->addWidget(app.destination_path_entry, 1);
+    destination_layout->addWidget(app.destination_browse_button);
+    destination_layout->addWidget(app.create_folder_structure_button);
+    main_layout->addLayout(destination_layout);
+
     app.use_whitelist_checkbox = new QCheckBox(central);
     app.whitelist_selector = new QComboBox(central);
     app.whitelist_selector->setEnabled(false);
@@ -466,22 +519,12 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.analyze_button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
     app.analyze_button->setMinimumWidth(160);
     auto* analyze_layout = new QHBoxLayout();
-    auto* categorization_layout = new QVBoxLayout();
-    auto* toggle_row = new QHBoxLayout();
-    toggle_row->addWidget(app.categorization_style_refined_radio);
-    toggle_row->addWidget(app.categorization_style_consistent_radio);
-    toggle_row->addStretch();
-    categorization_layout->addWidget(app.categorization_style_heading);
-    categorization_layout->addLayout(toggle_row);
-
     auto* whitelist_row = new QHBoxLayout();
     whitelist_row->addWidget(app.use_whitelist_checkbox);
     whitelist_row->addWidget(app.whitelist_selector);
     whitelist_row->addStretch();
 
     auto* control_block = new QVBoxLayout();
-    control_block->addLayout(categorization_layout);
-    control_block->addSpacing(4);
     control_block->addLayout(whitelist_row);
 
     analyze_layout->addLayout(control_block);
@@ -530,6 +573,13 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     file_listing_layout->setContentsMargins(2, 2, 2, 2);
     file_listing_layout->setSpacing(0);
     file_listing_layout->addWidget(app.results_stack);
+    app.folder_structure_plugin_status_label = new QLabel(app.file_listing_panel);
+    app.folder_structure_plugin_status_label->setObjectName(QStringLiteral("aifsFolderStructurePluginStatusLabel"));
+    app.folder_structure_plugin_status_label->setVisible(false);
+    app.folder_structure_plugin_status_label->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+    app.folder_structure_plugin_status_label->setStyleSheet(
+        AppTheme::folder_structure_plugin_status_style_sheet(app.palette()));
+    file_listing_layout->addWidget(app.folder_structure_plugin_status_label, 0, Qt::AlignLeft);
     main_layout->addWidget(app.file_listing_panel, 1);
 
     app.setCentralWidget(central);
@@ -542,11 +592,18 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
         .primary = UiTranslator::PrimaryControls{
             app.path_label,
             app.browse_button,
+            app.destination_path_label,
+            app.destination_path_entry,
+            app.destination_browse_button,
+            app.use_analyzed_folder_as_destination_checkbox,
             app.analyze_button,
             app.use_subcategories_checkbox,
             app.categorization_style_heading,
             app.categorization_style_refined_radio,
             app.categorization_style_consistent_radio,
+            app.sorting_mode_selector,
+            app.suggest_new_folders_checkbox,
+            app.create_folder_structure_button,
             app.use_whitelist_checkbox,
             app.whitelist_selector,
             app.categorize_files_checkbox,
@@ -565,7 +622,8 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.offer_rename_documents_checkbox,
             app.rename_documents_only_checkbox,
             app.add_document_date_to_category_checkbox,
-            app.document_options_toggle_button},
+            app.document_options_toggle_button,
+            app.sorting_rules_button},
         .tree_model = app.tree_model,
         .menus = UiTranslator::MenuControls{
             app.file_menu,
@@ -584,6 +642,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
         .actions = UiTranslator::ActionControls{
             app.file_quit_action,
             app.run_benchmark_action,
+            app.create_folder_structure_action,
             app.copy_action,
             app.cut_action,
             app.undo_last_run_action,
@@ -592,6 +651,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.delete_action,
             app.toggle_explorer_action,
             app.toggle_llm_action,
+            app.manage_folder_structure_plugins_action,
             app.manage_storage_plugins_action,
             app.windows_explorer_extension_install_action,
             app.windows_explorer_extension_settings_action,
@@ -622,7 +682,8 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.faq_action,
             app.about_qt_action,
             app.about_agpl_action,
-            app.support_project_action},
+            app.support_project_action,
+            app.sorting_rules_action},
         .language = UiTranslator::LanguageControls{
             app.language_group,
             app.english_action,
@@ -658,8 +719,8 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
 #ifdef _WIN32
     build_extensions_menu(app);
 #endif
+    build_plugins_menu(app);
     if (app.is_development_mode()) {
-        build_plugins_menu(app);
         build_development_menu(app);
     }
     if (app.is_test_mode()) {
@@ -670,6 +731,14 @@ void MainAppUiBuilder::build_menus(MainApp& app) {
 
 void MainAppUiBuilder::build_file_menu(MainApp& app) {
     app.file_menu = app.menuBar()->addMenu(QString());
+    app.create_folder_structure_action =
+        app.file_menu->addAction(icon_for(app, "folder-new", QStyle::SP_DirIcon), QString());
+    QObject::connect(app.create_folder_structure_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::show_folder_structure_initializer_dialog);
+    app.file_menu->addSeparator();
+
     app.run_benchmark_action = app.file_menu->addAction(icon_for(app, "view-statistics", QStyle::SP_MediaPlay), QString());
     QObject::connect(app.run_benchmark_action, &QAction::triggered, &app, [&app]() {
         app.show_suitability_benchmark_dialog(false);
@@ -739,6 +808,11 @@ void MainAppUiBuilder::build_view_menu(MainApp& app) {
 
 void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.settings_menu = app.menuBar()->addMenu(QString());
+    app.sorting_rules_action = app.settings_menu->addAction(app.sorting_rules_button->icon(), QString());
+    app.sorting_rules_action->setObjectName(QStringLiteral("sortingRulesAction"));
+    QObject::connect(app.sorting_rules_action, &QAction::triggered,
+                     app.sorting_rules_dialog, &QDialog::open);
+    app.settings_menu->addSeparator();
     app.toggle_llm_action = app.settings_menu->addAction(llm_menu_icon(app), QString());
     QObject::connect(app.toggle_llm_action, &QAction::triggered, &app, &MainApp::show_llm_selection_dialog);
 
@@ -917,6 +991,19 @@ void MainAppUiBuilder::build_extensions_menu(MainApp& app) {
 
 void MainAppUiBuilder::build_plugins_menu(MainApp& app) {
     app.plugins_menu = app.menuBar()->addMenu(QString());
+    app.manage_folder_structure_plugins_action = app.plugins_menu->addAction(
+        icon_for(app, "preferences-plugin", QStyle::SP_DriveFDIcon),
+        QString());
+    QObject::connect(app.manage_folder_structure_plugins_action,
+                     &QAction::triggered,
+                     &app,
+                     &MainApp::show_folder_structure_plugin_dialog);
+
+    if (!app.is_development_mode()) {
+        return;
+    }
+
+    app.plugins_menu->addSeparator();
     app.manage_storage_plugins_action = app.plugins_menu->addAction(
         icon_for(app, "preferences-plugin", QStyle::SP_DriveFDIcon),
         QString());

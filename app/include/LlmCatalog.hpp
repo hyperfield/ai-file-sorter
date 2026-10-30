@@ -9,19 +9,32 @@
 #include <string>
 #include <vector>
 
+/** @brief Controls when a built-in local model is offered in the selection dialog. */
+enum class BuiltinLlmVisibility {
+    Always,
+    DownloadedOnly,
+    DownloadedOrSelected
+};
+
 /**
- * @brief Metadata for default local LLM downloads and labels.
+ * @brief Metadata for built-in local LLM downloads, labels, and offering policies.
  */
 struct DefaultLlmEntry {
     LLMChoice choice;
     const char* url_env;
     const char* name_env;
     const char* fallback_name;
+    /** @brief Optional visual backend that can share this model's text weights. */
+    const char* visual_backend_id{nullptr};
+    /** @brief URL setting used to verify that the shared artifacts match. */
+    const char* visual_model_url_env{nullptr};
+    /** @brief Availability policy for new and existing installations. */
+    BuiltinLlmVisibility visibility{BuiltinLlmVisibility::Always};
 };
 
 /**
- * @brief Returns the default local LLM entries in priority order.
- * @return List of default local LLM entries.
+ * @brief Returns built-in local LLM entries in priority order, including retired models.
+ * @return Model catalog; consult visibility policies before offering a model.
  */
 const std::vector<DefaultLlmEntry>& default_llm_entries();
 
@@ -31,6 +44,14 @@ const std::vector<DefaultLlmEntry>& default_llm_entries();
  * @return Matching entry, or `nullptr` when the choice is not a built-in local model.
  */
 const DefaultLlmEntry* default_llm_entry_for_choice(LLMChoice choice);
+
+/**
+ * @brief Determines whether a built-in model should be offered to this user.
+ * @param choice Built-in local model to consider.
+ * @param saved_choice Model selection saved before opening the dialog.
+ * @return True when the catalog policy allows offering this model.
+ */
+bool builtin_llm_choice_visible(LLMChoice choice, LLMChoice saved_choice);
 
 /**
  * @brief Builds the UI label for a default local LLM entry.

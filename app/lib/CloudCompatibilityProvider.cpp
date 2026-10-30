@@ -104,3 +104,11 @@ StorageMutationResult CloudCompatibilityProvider::undo_move(const std::string& s
 {
     return fallback_provider_.undo_move(source, destination);
 }
+
+StorageMutationResult CloudCompatibilityProvider::undo_move(
+    const std::string& source,
+    const std::string& destination,
+    const std::vector<std::string>& created_directories) const
+{
+    return fallback_provider_.undo_move(source, destination, created_directories);
+}

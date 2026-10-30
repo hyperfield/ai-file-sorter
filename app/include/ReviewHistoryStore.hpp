@@ -42,6 +42,7 @@ public:
         std::time_t mtime{0};
         std::string stable_identity;
         std::string revision_token;
+        std::vector<std::string> created_directories;
         bool undone{false};
         std::string undone_at_utc;
     };

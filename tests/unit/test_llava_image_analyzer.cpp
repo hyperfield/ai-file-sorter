@@ -102,7 +102,7 @@ TEST_CASE("LlavaImageAnalyzer exposes structured multimodal prompt policy") {
         VisualPromptPolicy::StructuredVisionInstruct,
         "Invoice with handwritten totals and customer notes.");
     CHECK(filename_prompt.find("maximum 3 words") != std::string::npos);
-    CHECK(filename_prompt.find("lowercase letters only") != std::string::npos);
+    CHECK(filename_prompt.find("lowercase letters and numbers only") != std::string::npos);
     CHECK(filename_prompt.find("Output only the filename stem.") != std::string::npos);
 }
 

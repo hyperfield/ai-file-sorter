@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.9.1-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-1.10.0-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -34,6 +34,10 @@ AI File Sorter helps tidy up cluttered folders such as Downloads, external drive
 Instead of relying only on fixed rules, the app combines AI suggestions with optional whitelists, recent similar results, and your approved review decisions. This helps keep sorting more consistent over time while still letting you review and adjust everything before anything is changed.
 
 Categories (and optional subcategories) are suggested for each file, and for supported file types, rename suggestions are provided as well. Once you confirm, the required folders are created automatically and files are sorted accordingly.
+
+You can also sort into an existing folder structure, choose a separate destination,
+and decide whether the app may suggest new folders. Starter structures and optional
+folder-structure plugins help you set up and maintain archives such as Johnny.Decimal.
 
 Privacy-first by design:
 AI File Sorter can run entirely on your device. When you use a local model, your files, filenames, images, and metadata stay on your computer, and no telemetry is sent. An internet connection is only needed if you choose to use a remote model.
@@ -79,6 +83,8 @@ This keeps the first run low risk: your files stay on your computer when you use
   - [Changelog](#changelog)
   - [Features](#features)
   - [Categorization](#categorization)
+    - [Sorting modes and destinations](#sorting-modes-and-destinations)
+    - [Folder structures and plugins](#folder-structures-and-plugins)
     - [Categorization modes](#categorization-modes)
     - [Category language selection](#category-language-selection)
     - [Category whitelists](#category-whitelists)
@@ -131,6 +137,19 @@ the main entry page, use these technical references:
 
 ## Changelog
 
+## [1.10.0] - Unreleased
+
+- Sort into an existing folder structure, choose a separate destination, and review folder choices and routing explanations before applying changes.
+- Create starter folder structures and use optional Johnny.Decimal plugins for numbered folders, archive indexes, and validation reports.
+- Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
+- Use Qwen3.5 4B for local text and image analysis, alongside the default Gemma 3 4B IT.
+- Added support for the sorting settings and destination previews in AI File Sorter for File Explorer 1.1.0.
+- Improved local analysis, cancellation, GPU compatibility, review editing, and undo reliability.
+
+## [1.9.2] - 2026-08-14
+
+- Fixed a Windows startup crash in Qt GUI theme refresh handling.
+
 ## [1.9.1] - 2026-08-06
 
 - Fixed bundled Windows local-LLM runtime builds so the packaged GGML libraries run on generic SSE4.2-capable x64 CPUs instead of requiring AVX2.
@@ -167,6 +186,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 ## Features
 
 - **AI-powered categorization**: Sort files using either local AI models on your computer or remote models with your own API key.
+- **Flexible destinations**: Generate category folders or sort into an existing folder structure, with a separate destination and optional new-folder suggestions.
+- **Folder structures and plugins**: Create starter layouts and add optional Johnny.Decimal guidance, numbered-folder tools, archive indexes, and validation reports.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
 - **Robust categorization**: Built-in rules and category matching help keep results more consistent across runs.
 - **Configurable categorization controls**: Use whitelists, taxonomy normalization, consistency modes, and review-time edits to steer categories and subcategories.
@@ -174,14 +195,16 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, including smart branching lists where each main category has its own allowed subcategories. Manage them under **Settings → Manage category whitelists…**, then toggle/select them in the main window when you want to constrain model output for a session.
 - **Category and rename languages**: Categories are chosen in English behind the scenes and then shown in your selected category language. Suggested filenames for images, documents, and supported audio/video files are localized the same way. The available languages depend on the selected local model.
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog. Add a matching MMProj file to make a custom model available for image analysis as well.
-- **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends such as the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
+- **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends including the default Gemma 3 4B IT, Qwen3.5 4B, and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
 - **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
 - **Document content analysis (Text LLM)**: Analyze supported document files to summarize content and suggest filenames; uses the same selected LLM (local or remote).
+- **Filename length controls**: Set independent maximum word limits for image and document name suggestions, from 3 to 6 words, defaulting to 3.
 - **Audio/video metadata filename suggestions**: Turn embedded media tags into clean, library-style filenames for supported audio and video files, with full review before anything is renamed.
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Simplified Chinese, Spanish, Swedish, and Turkish.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
+- **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 1.10.0.
 - **Local Database Caching**: Speeds up repeated categorization, preserves approved labels and rename suggestions, and provides recent-category hints for consistency.
 - **Local learning from approved reviews**: Approved category decisions can be stored locally and reused as hints for future runs without modifying the underlying model.
 - **Cache maintenance tools**: Use **Settings → Clear cache…** to inspect and clear categorization cache, image location cache, and logs, or **Settings → Reset learned behavior…** to remove the separate learned-review database.
@@ -197,6 +220,32 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 ---
 
 ## Categorization
+
+### Sorting modes and destinations
+
+Choose whether the app should generate category folders or place files into an
+existing folder structure. You can use the analyzed folder as the destination or
+select a separate destination folder.
+
+In existing-folder mode, the app considers the destination's folder names and
+structure when choosing a target. Enable **Suggest new folders when needed** if
+you want it to propose missing folders. Review the target folder and routing
+explanation before applying changes; rename-only entries stay in their source folder.
+
+Open **Sorting rules...** to adjust categorization preferences and the separate
+image and document filename word limits. Both limits range from 3 to 6 words and
+default to 3. You can edit each suggested name during review.
+
+### Folder structures and plugins
+
+Use **Create folder structure...** to preview and create an available starter
+layout. Johnny.Decimal support includes tools for creating the next numbered
+folder, browsing an archive index, and checking the archive for structural issues.
+
+Optional folder-structure plugins provide additional guidance for supported
+archives. Install and manage them from the **Plugins** menu. The app can suggest
+Johnny.Decimal support when it recognizes a matching archive; some plugins require
+a separate license and activation.
 
 ### Categorization modes
 
@@ -222,7 +271,8 @@ More consistent
 
 - Category labels are chosen in English first behind the scenes, then shown in the category language you selected under **Settings → Category language**.
 - Suggested filenames for image, document, and supported audio/video rename flows are also localized into the selected **Settings → Category language** target before review/apply.
-- The list is model-dependent for built-in local models. **Gemma 3 4B IT** and **Custom** local models expose the full app-supported category-language list, **Mistral 7B** exposes a smaller supported subset, and **Gemma 1.1 7B** stays English-only.
+- Image and document naming prompts initially request English descriptive words while preserving proper nouns and identifiers. The desktop app can then localize the suggestions before review.
+- The list is model-dependent for built-in local models. **Gemma 3 4B IT**, **Qwen3.5 4B**, and **Custom** local models expose the full app-supported category-language list. Legacy **Mistral 7B** configurations expose a smaller supported subset, and **Gemma 1.1 7B** stays English-only.
 - When the supported list is long, the menu is grouped into alphabetical submenus to keep it usable on smaller screens.
 
 ### Category whitelists
@@ -244,7 +294,7 @@ Image analysis can run locally to understand what a picture shows and suggest a 
 
 As of 1.9.0, **Gemma 3 4B IT** is the default visual backend. The app also gives screenshots, webpage captures, dashboards, forms, mockups, and other UI-like images extra prompt guidance so categories describe what is shown on screen instead of misclassifying the image as the software artifact itself.
 
-The app currently exposes two built-in visual backends: the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B. In the current embedded runtime, all supported local visual backends require two GGUF files: the main text model and a matching `mmproj` projector file.
+The app exposes three built-in visual backends: the default Gemma 3 4B IT, Qwen3.5 4B, and LLaVA 1.6 Mistral 7B. All supported local visual backends require two GGUF files: the main text model and a matching `mmproj` projector file.
 
 The Gemma 3 4B IT GGUF is also available as a built-in local text/categorization model. When used only for categorization or document analysis, it runs as a normal text model and does not need `mmproj`. If you already downloaded the Gemma 3 text GGUF for image analysis, the local text-model entry reuses that same file automatically. The extra `mmproj` file is only required for visual image analysis.
 
@@ -257,7 +307,7 @@ The **Select LLM** dialog includes an "Image analysis models" section with backe
 - **Visual text model (GGUF)**: The language model that produces the description and the filename suggestion.
 - **Matching `mmproj` file (GGUF)**: The multimodal projector that maps image embeddings into the model token space so the backend can accept images.
 
-Both files are required for the selected backend. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL` or `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+Both files are required for the selected backend. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL`, `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL`, or `QWEN35_4B_MODEL_URL` / `QWEN35_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
 
 The same dialog also includes **Model storage**, which changes where built-in local text and visual model downloads are stored. Leave it empty to use the platform default.
 
@@ -283,11 +333,11 @@ Document analysis uses the same selected LLM (local or remote) to extract text f
 ### Supported document formats
 
 - Plain text: `.txt`, `.md`, `.rtf`, `.csv`, `.tsv`, `.json`, `.xml`, `.yml`/`.yaml`, `.ini`/`.cfg`/`.conf`, `.log`, `.html`/`.htm`, `.tex`, `.rst`
-- PDF: `.pdf` (embedded PDFium by default; CLI fallback via `pdftotext` is available only if you explicitly configure `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF`)
+- PDF: `.pdf` (embedded PDFium by default for upstream builds; distro builds default to the `pdftotext` CLI fallback)
 - Office/OpenOffice: `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` (embedded libzip+pugixml in bundled builds; CLI fallback uses `unzip` if you build without vendored libs)
 - Legacy binary formats like `.doc`, `.xls`, `.ppt` are not currently supported.
 
-Source builds: embedded extractors are used by default. If the vendored PDFium artifacts are missing for your target platform, CMake now fails loudly instead of silently disabling PDF content extraction. You can opt back into the old CLI fallback with `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF`.
+Source builds: embedded extractors are used by default. If the vendored PDFium artifacts are missing for your target platform, CMake now fails loudly instead of silently disabling PDF content extraction. Use `-DAI_FILE_SORTER_PDF_BACKEND=pdftotext` for the CLI fallback, `system-pdfium` for a distro-provided PDFium, or `auto` to try PDFium and fall back to `pdftotext`.
 
 ### Main window options (documents)
 
@@ -340,7 +390,7 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS, or a Qt 6 MSVC kit / `qtbase` via vcpkg on Windows).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled` on Linux/Windows or `app/lib/precompiled-*` for macOS variant builds. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
 - **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
-- **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. PDFium is required by default so packaged/source builds keep PDF extraction embedded on Windows, macOS, and Linux; set `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF` only if you intentionally want the `pdftotext` fallback.
+- **Document analysis libraries**: PDFium, libzip, and pugixml. PDFium is embedded by default for upstream builds so PDF extraction stays in-process on Windows, macOS, and Linux. Set `-DAI_FILE_SORTER_PDF_BACKEND=pdftotext` for the CLI fallback or `-DAI_FILE_SORTER_PDF_BACKEND=system-pdfium` when a distro ships a compatible PDFium package.
 - **Optional GPU backends**: CUDA 12.x for NVIDIA cards or a Vulkan 1.2+ runtime. On Windows installer/standalone builds, `aifilesorter.exe` auto-detects the best available backend and now prefers CUDA over Vulkan when both are available, falling back to CPU/OpenBLAS automatically. On Linux, the same applies through `run_aifilesorter.sh`; when a dedicated CPU runtime bundle is absent, the launcher can also reuse the staged Vulkan payload for CPU/OpenBLAS fallback, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **Remote model credentials** (optional): Required only when using ChatGPT, Gemini, or a custom OpenAI-compatible API endpoint.
@@ -505,8 +555,17 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 4. **Build the llama runtime variants** (run once per backend you plan to ship/test)
 
+   The submodule is pinned to llama.cpp `b11669` (`620d2225`). Rebuild all shipped
+   runtime variants after updating it; do not mix old and new `llama`, `llama-common`,
+   `ggml`, or `mtmd` libraries. Native chat formatting uses the embedded Jinja
+   template with thinking disabled. Gemma remains the default; Qwen3.5 4B and its
+   matching projector are separate choices in model selection.
+
    The Linux helper accepts either `cuda=on` / `vulkan=on` / `blas=on` or the GNU-style
    `--cuda=on` / `--vulkan=on` / `--blas=on` forms.
+   It defaults to four build workers. Set `AI_FILE_SORTER_LINUX_RUNTIME_JOBS=8`
+   to use eight, and compile the app with `make -j8`. Variant build directories
+   are retained for incremental rebuilds.
 
    ```bash
    # CPU / OpenBLAS
@@ -617,6 +676,7 @@ Apple Silicon Macs running macOS 15 or later are supported for macOS source buil
    ./app/scripts/build_llama_macos.sh --arm64   # Apple Silicon
    ```
    The macOS app and `.app` bundles use the runtime staged under `app/lib/precompiled*`; they do not need Homebrew `ggml` or `llama.cpp` libraries.
+   The runtime helper defaults to four build workers; set `AI_FILE_SORTER_MACOS_RUNTIME_JOBS=8` for eight.
    If you have older `ggml` / `llama.cpp` copies installed in generic library locations, prefer unlinking or removing them instead of relying on them implicitly.
 7. **Compile the application**
 
@@ -707,6 +767,8 @@ Option A - CMake + vcpkg (recommended)
 5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **Visual Studio Developer PowerShell** shell). Invoke the script once per backend you need. The script accepts `cuda=on|off`, `vulkan=on|off`, `blas=on|off`, `vcpkgroot=<path>`, `openblasroot=<path>`, and `cudaarch=<value>`. `vcpkgroot=<path>` is optional and only needed when auto-discovery misses your install. `blas` defaults to `AUTO`: it is enabled automatically for CPU-only builds and disabled automatically for CUDA/Vulkan builds unless you force it on. For Windows builds, the helper now keeps the shared ggml runtime generic and SSE4.2-safe instead of forcing AVX2 across every DLL. For CUDA builds, the helper prefers a valid `CUDA_PATH` and otherwise auto-selects the newest installed toolkit it can validate under `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA`. Make sure `nvcc --version` and `nvidia-smi` succeed in this same shell before running `cuda=on`. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
 
    ```powershell
+   # Optional: override the default four build workers
+   $env:AI_FILE_SORTER_WINDOWS_RUNTIME_JOBS = "8"
    # CPU / OpenBLAS only
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=off
    # CUDA (requires matching NVIDIA toolkit/driver)
@@ -717,7 +779,7 @@ Option A - CMake + vcpkg (recommended)
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=on
    ```
   
-  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). The helper also stages OpenSSL runtime DLLs and, for OpenBLAS-backed builds, the MinGW companion DLLs needed beside `libopenblas.dll`. Windows ggml runtimes built by this helper target SSE4.2 and leave AVX, AVX2, BMI2, and newer x86 extensions disabled so the packaged DLLs remain usable on older x64 CPUs. If the vendored `llama.cpp` UI assets are missing, the helper downloads a prebuilt UI bundle before configuring and removes the temporary extracted assets after the build completes. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
+  Each run emits `llama.dll`, `llama-common.dll`, `mtmd.dll`, and `ggml*.dll` under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). Rebuild every shipped variant from the pinned submodule before rebuilding the application. The helper also stages OpenSSL runtime DLLs and, for OpenBLAS-backed builds, the MinGW companion DLLs needed beside `libopenblas.dll`. Windows ggml runtimes built by this helper target SSE4.2 and leave AVX, AVX2, BMI2, and newer x86 extensions disabled so the packaged DLLs remain usable on older x64 CPUs. Only runtime libraries are built; server/UI assets are not downloaded. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
 
 6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt` and shares one dependency install tree across builds:
 
@@ -957,6 +1019,8 @@ Visual LLM:
 - `LLAVA_MMPROJ_URL` - download URL for the LLaVA 1.6 Mistral 7B mmproj file.
 - `GEMMA3_4B_MODEL_URL` - download URL for the default/recommended Gemma 3 4B IT text model.
 - `GEMMA3_4B_MMPROJ_URL` - download URL for the default/recommended Gemma 3 4B IT mmproj file.
+- `QWEN35_4B_MODEL_URL` - download URL for the Qwen3.5 4B text model.
+- `QWEN35_4B_MMPROJ_URL` - download URL for the matching Qwen3.5 4B mmproj file.
 - `AI_FILE_SORTER_VISUAL_USE_GPU` - force visual encoder GPU usage (`1`) or CPU (`0`). Defaults to auto; Vulkan may fall back to CPU if VRAM is low.
 
 Timeouts and logging:
@@ -1308,7 +1372,7 @@ Suggested support levels:
 - **$30**: Help fund release maintenance, signing/listing costs, and user support.
 - **$100+**: Sponsor heavier development work or commercial/organizational use.
 
-You can still choose any amount from **$1 and up**. Donation codes are supporter markers that hide the periodic support reminder; they are not used to take away the free local core.
+You can still choose any amount from **$1 and up**. Donation codes are supporter markers that hide the periodic support reminder; they are not used to take away the free local core. On Windows, installing the File Explorer extension also hides that reminder.
 
 - **[Donate](https://filesorter.app/donate/)**
 

@@ -1,9 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "AppTheme.hpp"
+#include "CategorizationProgressDialog.hpp"
 #include "TestHelpers.hpp"
 
+#include <QApplication>
 #include <QColor>
+#include <QEvent>
 #include <QPalette>
 
 TEST_CASE("AppTheme appends Windows dark-mode opt-in only when appropriate")
@@ -72,4 +75,20 @@ TEST_CASE("AppTheme ignores broken light-mode alternate row colors")
 
     CHECK(style_sheet.contains(QStringLiteral("#fefefe")));
     CHECK_FALSE(style_sheet.contains(QStringLiteral("#000000")));
+}
+
+TEST_CASE("Progress dialog palette changes do not recursively rewrite styles")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    CategorizationProgressDialog dialog(nullptr, nullptr, false);
+    const QString initial_style_sheet = dialog.styleSheet();
+    REQUIRE_FALSE(initial_style_sheet.isEmpty());
+
+    for (int i = 0; i < 20; ++i) {
+        QEvent palette_change(QEvent::PaletteChange);
+        QApplication::sendEvent(&dialog, &palette_change);
+        CHECK(dialog.styleSheet() == initial_style_sheet);
+    }
 }
