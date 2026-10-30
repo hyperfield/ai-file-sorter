@@ -2,13 +2,24 @@
 
 #include "DatabaseManager.hpp"
 #include "DatabaseTaxonomyNormalizer.hpp"
+#include "CloudCompatibilityProvider.hpp"
+#include "ExternalProcessStorageProvider.hpp"
+#include "LocalFsProvider.hpp"
 #include "TestHelpers.hpp"
 
+#include <QString>
 #include <sqlite3.h>
 
 #include <memory>
 
 namespace {
+class NormalizingStorageProvider : public LocalFsProvider {
+public:
+    std::string comparison_key(const std::string& path) const override {
+        return QString::fromStdString(path).normalized(QString::NormalizationForm_C).toStdString();
+    }
+};
+
 using RawDatabase = std::unique_ptr<sqlite3, decltype(&sqlite3_close)>;
 using RawStatement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
 
@@ -105,6 +116,178 @@ TEST_CASE("DatabaseManager matches canonical Unicode forms without merging disti
     REQUIRE(meetings.taxonomy_id > 0);
     REQUIRE(accounting.taxonomy_id > 0);
     CHECK(meetings.taxonomy_id != accounting.taxonomy_id);
+}
+
+TEST_CASE("DatabaseManager reuses cached Unicode paths for native filesystems", "[storage-cache]") {
+    TempDir root;
+    DatabaseManager db(root.path().string());
+    const std::string composed_dir = "/sample/caf\xc3\xa9_%";
+    const std::string decomposed_dir = "/sample/cafe\xcc\x81_%";
+    const std::string composed_name = "caf\xc3\xa9.txt";
+    const std::string decomposed_name = "cafe\xcc\x81.txt";
+    const DatabaseManager::ResolvedCategory labels{0, "Documents", "Notes"};
+    REQUIRE(db.insert_or_update_file_with_categorization(composed_name, "F", composed_dir, labels, true));
+    REQUIRE(db.insert_or_update_file_with_categorization("nested.txt", "F", composed_dir + "/nested", labels, false));
+    REQUIRE(db.insert_or_update_file_with_categorization("sibling.txt", "F", composed_dir + "-other", labels, false));
+    REQUIRE(db.insert_or_update_file_with_categorization("wildcard.txt", "F", "/sample/café_AX/nested", labels, false));
+#if defined(__APPLE__)
+    REQUIRE(db.get_categorized_files(decomposed_dir).size() == 1);
+    CHECK(db.get_categorized_files_recursive(decomposed_dir).size() == 2);
+    const auto cached = db.get_categorized_file(decomposed_dir, decomposed_name, FileType::File);
+    REQUIRE(cached);
+    CHECK(cached->file_name == composed_name);
+    CHECK(cached->file_path == composed_dir);
+    CHECK(db.get_categorization_from_db(decomposed_dir, decomposed_name, FileType::File).size() == 2);
+    CHECK(db.get_dir_contents_from_db(decomposed_dir) == std::vector<std::string>{composed_name});
+    CHECK(db.is_file_already_categorized(decomposed_name));
+    CHECK(db.get_directory_categorization_style(decomposed_dir) == std::optional<bool>{true});
+    CHECK(db.has_categorization_style_conflict(decomposed_dir, false));
+    CHECK(db.has_categorization_style_conflict(decomposed_dir, true, true));
+    REQUIRE(db.remove_file_categorization(decomposed_dir, decomposed_name, FileType::File));
+    CHECK(db.get_categorized_files(composed_dir).empty());
+    REQUIRE(db.clear_directory_categorizations(decomposed_dir, true));
+    CHECK(db.get_categorized_files_recursive(composed_dir).empty());
+    CHECK(db.get_categorized_files(composed_dir + "-other").size() == 1);
+    CHECK(db.get_categorized_files_recursive("/sample/café_AX").size() == 1);
+#else
+    CHECK(db.get_categorized_files(decomposed_dir).empty());
+    CHECK_FALSE(db.get_categorized_file(composed_dir, decomposed_name, FileType::File));
+    CHECK(db.get_categorized_files_recursive(composed_dir).size() == 2);
+#endif
+}
+
+TEST_CASE("DatabaseManager upserts equivalent native filenames without duplicate cache rows", "[storage-cache]") {
+    TempDir root;
+    DatabaseManager db(root.path().string());
+    const std::string composed = "caf\xc3\xa9";
+    const std::string decomposed = "cafe\xcc\x81";
+    const DatabaseManager::ResolvedCategory first{0, "Documents", "Notes"};
+    const DatabaseManager::ResolvedCategory updated{0, "Documents", "Reports"};
+    REQUIRE(db.insert_or_update_file_with_categorization(composed + ".txt", "F", "/sample/" + composed,
+                                                       first, false, "renamed.txt", false, true));
+    REQUIRE(db.insert_or_update_file_with_categorization(decomposed + ".txt", "F", "/sample/" + decomposed,
+                                                       updated, true));
+    const auto cached = db.get_categorized_file("/sample/" + decomposed, decomposed + ".txt", FileType::File);
+    REQUIRE(cached);
+    CHECK(cached->subcategory == "Reports");
+    CHECK(cached->file_name == decomposed + ".txt");
+#if defined(__APPLE__)
+    CHECK(cached->rename_applied);
+    CHECK(db.get_categorized_files_recursive("/sample").size() == 1);
+#else
+    CHECK_FALSE(cached->rename_applied);
+    CHECK(db.get_categorized_files_recursive("/sample").size() == 2);
+#endif
+}
+
+TEST_CASE("DatabaseManager follows provider comparison rules without rewriting legacy names", "[storage-cache]") {
+    TempDir root;
+    DatabaseManager db(root.path().string());
+    ExternalProcessStorageProvider remote(StoragePluginManifest{}, "remote", "remote", false);
+    CloudCompatibilityProvider cloud("custom_sync", "Sync", {"sync"});
+    NormalizingStorageProvider unicode_provider;
+    const std::string composed = "caf\xc3\xa9.txt";
+    const std::string decomposed = "cafe\xcc\x81.txt";
+    db.set_storage_provider(remote);
+    REQUIRE(db.insert_or_update_file_with_categorization(composed, "F", "/sample", {0, "Documents", "Notes"},
+                                                       false, "done.txt", false, true));
+    CHECK_FALSE(db.get_categorized_file("/sample", decomposed, FileType::File));
+    REQUIRE(db.insert_or_update_file_with_categorization(decomposed, "F", "/sample", {0, "Documents", "Reports"}, false));
+    CHECK(db.get_categorized_files("/sample").size() == 2);
+    db.set_storage_provider(cloud);
+#if defined(__APPLE__)
+    CHECK(db.get_categorized_files("/sample").size() == 1);
+#else
+    CHECK(db.get_categorized_files("/sample").size() == 2);
+#endif
+    db.set_storage_provider(unicode_provider);
+    auto entries = db.get_categorized_files("/sample");
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().file_name == decomposed);
+    CHECK(entries.front().subcategory == "Reports");
+    CHECK(entries.front().rename_applied);
+    const auto equivalent = db.get_categorized_file("/sample", composed, FileType::File);
+    REQUIRE(equivalent);
+    CHECK(equivalent->file_name == decomposed);
+    CHECK(equivalent->rename_applied);
+    db.set_storage_provider(remote);
+    CHECK(db.get_categorized_files("/sample").size() == 2);
+    // Merely switching provider rules must not merge or rewrite persistent rows.
+    CHECK(db.get_categorized_file("/sample", composed, FileType::File)->subcategory == "Notes");
+}
+
+TEST_CASE("DatabaseManager cleans empty legacy duplicates without removing valid Unicode entries", "[storage-cache]") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager db(root.path().string());
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    RawDatabase raw(connection, sqlite3_close);
+    execute_sql(raw.get(), R"sql(
+        INSERT INTO file_categorization(file_name, file_type, dir_path, category, subcategory)
+        VALUES ('café.txt', 'F', '/sample/café', 'Documents', 'Notes'),
+               ('café.txt', 'F', '/sample/café', '', '');
+    )sql");
+    NormalizingStorageProvider provider;
+    db.set_storage_provider(provider);
+    REQUIRE(db.remove_empty_categorizations("/sample/café").size() == 1);
+    const auto entries = db.get_categorized_files("/sample/cafe\xcc\x81");
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().subcategory == "Notes");
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM file_categorization;") == 1);
+}
+
+TEST_CASE("DatabaseManager matches and updates Unicode folder routing identities", "[storage-cache]") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager db(root.path().string());
+    NormalizingStorageProvider provider;
+    db.set_storage_provider(provider);
+    DatabaseManager::FolderTreeRoutingRecord route;
+    route.destination_root = "/target/café";
+    route.tree_fingerprint = "tree:v1";
+    route.semantic_category = "Documents";
+    route.semantic_subcategory = "Notes";
+    route.target_folder_relative_path = "Notes";
+    REQUIRE(db.insert_or_update_folder_tree_routing("café.txt", "F", "/source/café", route));
+    auto lookup = [&](const std::string& fingerprint) {
+        return db.get_folder_tree_routing("cafe\xcc\x81.txt", FileType::File, "/source/cafe\xcc\x81",
+            "/target/cafe\xcc\x81", fingerprint, false, "Documents", "Notes");
+    };
+    REQUIRE(lookup("tree:v1"));
+    route.destination_root = "/target/cafe\xcc\x81";
+    route.target_folder_relative_path = "Updated Notes";
+    REQUIRE(db.insert_or_update_folder_tree_routing("cafe\xcc\x81.txt", "F", "/source/cafe\xcc\x81", route));
+    CHECK(lookup("tree:v1")->target_folder_relative_path == "Updated Notes");
+    route.tree_fingerprint = "tree:v2";
+    REQUIRE(db.insert_or_update_folder_tree_routing("café.txt", "F", "/source/café", route));
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    RawDatabase raw(connection, sqlite3_close);
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM folder_tree_routing;") == 2);
+    REQUIRE(db.remove_file_categorization("/source/café", "café.txt", FileType::File));
+    CHECK_FALSE(lookup("tree:v1"));
+    CHECK_FALSE(lookup("tree:v2"));
+}
+
+TEST_CASE("DatabaseManager rolls back Unicode upserts if duplicate cleanup fails", "[storage-cache]") {
+    TempDir root;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager db(root.path().string());
+    NormalizingStorageProvider provider;
+    db.set_storage_provider(provider);
+    REQUIRE(db.insert_or_update_file_with_categorization("café.txt", "F", "/sample", {0, "Documents", "Notes"}, false));
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    RawDatabase raw(connection, sqlite3_close);
+    execute_sql(raw.get(), "CREATE TRIGGER reject_cache_cleanup BEFORE DELETE ON file_categorization "
+                          "BEGIN SELECT RAISE(ABORT, 'test cache cleanup failure'); END;");
+    CHECK_FALSE(db.insert_or_update_file_with_categorization("cafe\xcc\x81.txt", "F", "/sample",
+                                                          {0, "Documents", "Reports"}, false));
+    CHECK(query_integer(raw.get(), "SELECT COUNT(*) FROM file_categorization;") == 1);
+    const auto cached = db.get_categorized_file("/sample", "café.txt", FileType::File);
+    REQUIRE(cached);
+    CHECK(cached->subcategory == "Notes");
 }
 
 TEST_CASE("DatabaseManager repairs stored Unicode taxonomy keys and preserves references on reopen") {

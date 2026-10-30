@@ -319,6 +319,7 @@ HeadlessReviewApplyService::HeadlessReviewApplyService(DatabaseManager* db_manag
       logger_(std::move(logger)),
       history_store_(history_store)
 {
+    if (db_manager_) db_manager_->set_storage_provider(storage_provider_);
 }
 
 HeadlessReviewApplyService::Result

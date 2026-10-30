@@ -7,6 +7,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 
 namespace {
 void write_source(const std::filesystem::path& path, const std::string& text)
@@ -41,6 +42,61 @@ TEST_CASE("ContentAnalysisCache preserves full evidence across database reopen",
         *ContentAnalysisCache::make_key(path, "image:test-model-v1")));
     CHECK_FALSE(reopened.content_analysis_cache().find(
         *ContentAnalysisCache::make_key(path, "document:test-model-v2")));
+}
+
+TEST_CASE("ContentAnalysisCache shares native Unicode identity across lookup upsert and clear", "[storage-cache]")
+{
+    TempDir config;
+    TempDir source;
+    EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
+    DatabaseManager database(config.path().string());
+    const auto composed_dir = source.path() / Utils::utf8_to_path("caf\xc3\xa9_%");
+    const auto decomposed_dir = source.path() / Utils::utf8_to_path("cafe\xcc\x81_%");
+    const auto composed_path = composed_dir / Utils::utf8_to_path("caf\xc3\xa9.txt");
+    const auto decomposed_path = decomposed_dir / Utils::utf8_to_path("cafe\xcc\x81.txt");
+    const auto nested_path = composed_dir / "nested" / "notes.txt";
+    write_source(composed_path, "Same source");
+    write_source(decomposed_path, "Same source");
+    write_source(nested_path, "Nested source");
+    const auto original = ContentAnalysisCache::make_key(composed_path, "document:v1");
+    const auto equivalent = ContentAnalysisCache::make_key(decomposed_path, "document:v1");
+    const auto nested = ContentAnalysisCache::make_key(nested_path, "document:v1");
+    REQUIRE(original);
+    REQUIRE(equivalent);
+    REQUIRE(nested);
+    auto cache = database.content_analysis_cache();
+    REQUIRE(cache.store(*original, {"first.txt", "First evidence"}));
+    REQUIRE(cache.store(*nested, {"notes.txt", "Nested evidence"}));
+#if defined(__APPLE__)
+    REQUIRE(cache.find(*equivalent));
+#else
+    CHECK_FALSE(cache.find(*equivalent));
+#endif
+    REQUIRE(cache.store(*equivalent, {"updated.txt", "Updated evidence"}));
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((config.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    std::unique_ptr<sqlite3, decltype(&sqlite3_close)> raw(connection, sqlite3_close);
+    sqlite3_stmt* statement = nullptr;
+    REQUIRE(sqlite3_prepare_v2(raw.get(), "SELECT COUNT(*) FROM content_analysis_cache;", -1, &statement, nullptr) == SQLITE_OK);
+    std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> count(statement, sqlite3_finalize);
+    REQUIRE(sqlite3_step(count.get()) == SQLITE_ROW);
+#if defined(__APPLE__)
+    CHECK(sqlite3_column_int(count.get(), 0) == 2);
+    CHECK(cache.find(*original)->description == "Updated evidence");
+#else
+    CHECK(sqlite3_column_int(count.get(), 0) == 3);
+    CHECK(cache.find(*original)->description == "First evidence");
+#endif
+    count.reset();
+    REQUIRE(database.clear_directory_categorizations(Utils::path_to_utf8(decomposed_dir), false));
+    CHECK_FALSE(cache.find(*equivalent));
+    REQUIRE(cache.find(*nested));
+    REQUIRE(database.clear_directory_categorizations(Utils::path_to_utf8(decomposed_dir), true));
+#if defined(__APPLE__)
+    CHECK_FALSE(cache.find(*nested));
+#else
+    CHECK(cache.find(*nested));
+#endif
 }
 
 TEST_CASE("ContentAnalysisCache rejects changed and incomplete evidence", "[content-cache]")

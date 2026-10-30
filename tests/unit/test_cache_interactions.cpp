@@ -285,6 +285,36 @@ TEST_CASE("CategorizationService uses cached categorization without calling LLM"
     CHECK(*calls == 0);
 }
 
+TEST_CASE("CategorizationService reuses native Unicode cache entries without extra LLM calls", "[storage-cache]") {
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    DatabaseManager db(settings.get_config_dir());
+    TempDir source;
+    const auto directory = source.path() / Utils::utf8_to_path("cafe\xcc\x81");
+    const std::string filename = "cafe\xcc\x81.png";
+    write_file(directory / Utils::utf8_to_path(filename));
+    const auto cached_directory = Utils::path_to_utf8(source.path() / Utils::utf8_to_path("caf\xc3\xa9"));
+    const auto resolved = db.resolve_category("Images", "Photos");
+    REQUIRE(db.insert_or_update_file_with_categorization("caf\xc3\xa9.png", "F", cached_directory, resolved, false));
+    CategorizationService service(settings, db, nullptr);
+    auto calls = std::make_shared<int>(0);
+    auto factory = [calls]() { return std::make_unique<CountingLLM>(calls, "Documents : Reports"); };
+    const std::vector<FileEntry> files = {
+        FileEntry{Utils::path_to_utf8(directory / Utils::utf8_to_path(filename)), filename, FileType::File}};
+    std::atomic<bool> stop{false};
+    const auto result = service.categorize_entries(files, true, stop, {}, {}, {}, {}, factory);
+    REQUIRE(result.size() == 1);
+    CHECK(result.front().file_name == filename);
+#if defined(__APPLE__)
+    CHECK(service.load_cached_entries(Utils::path_to_utf8(directory)).size() == 1);
+    CHECK(result.front().category == "Images");
+    CHECK(*calls == 0);
+#else
+    CHECK(*calls == 1);
+#endif
+}
+
 TEST_CASE("CategorizationService uses cached folder-tree target without calling LLM") {
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());

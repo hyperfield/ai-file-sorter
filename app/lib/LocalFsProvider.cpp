@@ -3,7 +3,6 @@
 #include "StorageUndoCleanup.hpp"
 #include "Utils.hpp"
 
-#include <QString>
 #include <chrono>
 #include <filesystem>
 
@@ -43,11 +42,7 @@ std::string LocalFsProvider::id() const
 
 std::string LocalFsProvider::comparison_key(const std::string& path) const
 {
-#if defined(__APPLE__)
-    return QString::fromStdString(path).normalized(QString::NormalizationForm_C).toStdString();
-#else
-    return path;
-#endif
+    return Utils::filesystem_comparison_key(path);
 }
 
 StorageProviderDetection LocalFsProvider::detect(const std::string& root_path) const

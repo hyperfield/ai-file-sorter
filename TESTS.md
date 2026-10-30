@@ -139,6 +139,7 @@ These deterministic tests use temporary files and injected LLMs, not live infere
 - `ContentAnalysisCache preserves full evidence across database reopen`: full multiline descriptions survive restart and remain scoped to the analyzer/model version.
 - `ContentAnalysisCache rejects changed and incomplete evidence`: name-only entries are unusable, changed bytes invalidate a cache hit even with unchanged size/mtime, and results cannot be stored against a changed source.
 - `ContentAnalysisCache follows directory and global cache cleanup`: nonrecursive and recursive clearing respect escaped directory names and include content-only rows in the cache-size estimate.
+- `ContentAnalysisCache shares native Unicode identity across lookup upsert and clear`: equivalent macOS source paths share evidence and directory cleanup; literal filesystem names remain distinct on other platforms.
 
 `tests/unit/test_content_context_routing.cpp` covers:
 - `Content evidence reaches classification and routing independently of renaming`: image/document evidence survives a cache round trip and reaches both LLM stages separately from the path, including when preliminary labels differ from the model-selected destination.
@@ -2045,6 +2046,16 @@ Run: `./build-tests/ai_file_sorter_tests "English-only built-in local models exp
 
 ### `tests/unit/test_database_manager_rename_only.cpp`
 
+#### Storage cache path identity regressions
+Run: `./build-tests/ai_file_sorter_tests "[storage-cache]"`
+
+- `DatabaseManager reuses cached Unicode paths for native filesystems`: flat and recursive reads, direct lookups, style checks, and deletion recognize equivalent macOS paths while retaining stored spellings. Recursive matching respects directory boundaries and literal `%`/`_` characters.
+- `DatabaseManager upserts equivalent native filenames without duplicate cache rows`: updating an equivalent macOS path keeps one row, writes the supplied spelling, and preserves the recorded rename state. Other platforms keep literal identities distinct.
+- `DatabaseManager follows provider comparison rules without rewriting legacy names`: external providers retain distinct Unicode names; switching comparison rules merges legacy duplicates only in returned results, preferring the newest labels while preserving rename state.
+- `DatabaseManager cleans empty legacy duplicates without removing valid Unicode entries`: pruning an empty legacy spelling leaves its valid equivalent entry intact.
+- `DatabaseManager matches and updates Unicode folder routing identities`: equivalent source and destination paths reuse a routing decision; upserts remove duplicate spellings while preserving decisions for other tree fingerprints, and deleting the source removes its routes.
+- `DatabaseManager rolls back Unicode upserts if duplicate cleanup fails`: a database trigger forces cleanup to fail; the original row and labels remain unchanged.
+
 #### Test case: DatabaseManager keeps rename-only entries with empty labels
 Purpose: Ensure rename-only entries are not removed when categories are empty.
 Setup: Insert one rename-only entry with a suggested name and one empty entry with no rename suggestion.
@@ -3590,6 +3601,13 @@ Setup: Seed the database with a resolved category for a file entry and prepare a
 Procedure: Call `categorize_entries` for that file.
 Expected outcome: The cached category is returned and the LLM call counter stays at zero.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses cached categorization without calling LLM"`
+
+#### Test case: CategorizationService reuses native Unicode cache entries without extra LLM calls
+Purpose: Verify equivalent macOS folder and filename spellings reuse the cached categorization before model inference.
+Setup: Seed a composed Unicode cache entry and create the corresponding decomposed filename, with a counting LLM stub.
+Procedure: Categorize the scanned file and load its directory cache.
+Expected outcome: On macOS the cached labels are reused with zero LLM calls and the scanned filename is preserved. Other platforms invoke the LLM for the distinct filename.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService reuses native Unicode cache entries without extra LLM calls"`
 
 #### Test case: CategorizationService uses cached folder-tree target without calling LLM
 Purpose: Ensure existing-folder sorting mode can reuse cached semantic labels and a cached routing decision without invoking the LLM.

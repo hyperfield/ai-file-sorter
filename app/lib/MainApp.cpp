@@ -2254,6 +2254,7 @@ void MainApp::rebuild_storage_provider_registry()
 
     active_storage_provider_ = local_provider;
     results_coordinator.set_storage_provider(*active_storage_provider_);
+    db_manager.set_storage_provider(*active_storage_provider_);
 }
 
 void MainApp::refresh_active_storage_provider(const std::string& directory_path,
@@ -2281,6 +2282,7 @@ void MainApp::refresh_active_storage_provider(const std::string& directory_path,
 
     active_storage_provider_ = resolved;
     results_coordinator.set_storage_provider(*active_storage_provider_);
+    db_manager.set_storage_provider(*active_storage_provider_);
 
     if (core_logger) {
         if (!detection.detection_source.empty()) {

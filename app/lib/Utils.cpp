@@ -1070,6 +1070,14 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
     return to_forward_slashes(Utils::path_to_utf8(normalized.filename()));
 }
 
+std::string Utils::filesystem_comparison_key(const std::string& path) {
+#if defined(__APPLE__)
+    return QString::fromStdString(path).normalized(QString::NormalizationForm_C).toStdString();
+#else
+    return path;
+#endif
+}
+
 std::string Utils::sanitize_path_label(const std::string& value) {
     const QString invalid = QStringLiteral("<>:\"/\\|?*");
     QString normalized = QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
