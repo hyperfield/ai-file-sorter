@@ -782,6 +782,18 @@ Procedure: Switch to existing-folder mode, inspect the destination row, toggle a
 Expected outcome: The old analyzed-folder destination checkbox is absent; the creator button is hidden in generated-category mode, visible beside destination Browse in existing-folder mode, and disabled while analysis is active.
 Run: `./build-tests/ai_file_sorter_tests "Existing folder mode places folder structure creator in destination row"`
 
+#### Test case: Existing folder mode recommends Qwen for less suitable local models
+Purpose: Recommend Qwen when existing-folder sorting is selected with Gemma 4B, Mistral 7B, legacy LLaMa, or a custom local GGUF model.
+Procedure: Select existing-folder mode for each LLM choice and dismiss any informational dialog, then return to generated categories.
+Expected outcome: The advisory recommends Qwen and mentions Gemma 7B and API alternatives without changing the selected model or sorting mode. Qwen, Gemma 7B, every API choice, and an unset selection do not trigger it; generated-category sorting never triggers it.
+Run: `./build-tests/ai_file_sorter_tests "Existing folder mode recommends Qwen for less suitable local models"`
+
+#### Test case: Changing the LLM checks the recommendation when existing folder mode is active
+Purpose: Cover choosing a less suitable local model after the sorting mode has already been selected.
+Procedure: Open the LLM selection dialog from the main app, accept a custom local model, and dismiss the resulting advisory in existing-folder mode; repeat in generated-category mode.
+Expected outcome: Only existing-folder mode shows the recommendation, and the newly selected custom model remains saved.
+Run: `./build-tests/ai_file_sorter_tests "Changing the LLM checks the recommendation when existing folder mode is active"`
+
 #### Test case: Johnny.Decimal plugin offer only triggers for existing-tree archives
 Purpose: Verify the main window only offers the Johnny.Decimal plugin for likely Johnny.Decimal archives in existing-folder mode.
 Setup: Build temporary Johnny.Decimal-like and plain folder trees, configure existing-folder sorting, and construct `MainApp`.

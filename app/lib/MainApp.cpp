@@ -2674,6 +2674,27 @@ bool MainApp::should_offer_johnny_decimal_plugin_for_root(const QString& root) c
     return profile.has_johnny_decimal_like_ranges;
 }
 
+void MainApp::maybe_recommend_existing_folder_llm()
+{
+    const auto choice = settings.get_llm_choice();
+    if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree
+        || choice == LLMChoice::Unset
+        || is_recommended_for_existing_folder_sorting(choice)) {
+        return;
+    }
+
+    QMessageBox dialog(QMessageBox::Information,
+                       tr("Recommended model for existing folders"),
+                       tr("Not all LLMs handle existing folder structures equally well. "
+                          "We recommend Qwen3.5 4B for the best results when choosing destination folders.\n\n"
+                          "Gemma 1.1 7B and LLMs accessed through an API are also suitable options.\n\n"
+                          "You can continue with your current model or change it in Select LLM."),
+                       QMessageBox::Ok,
+                       this);
+    dialog.setObjectName(QStringLiteral("existingFolderLlmRecommendation"));
+    dialog.exec();
+}
+
 void MainApp::maybe_suggest_johnny_decimal_plugin_for_current_folder_tree()
 {
     if (settings.get_sorting_mode() != SortingMode::ExistingFolderTree) {
@@ -3746,6 +3767,7 @@ void MainApp::show_llm_selection_dialog()
             settings.save();
             refresh_backend_status_label();
             schedule_backend_status_probe();
+            maybe_recommend_existing_folder_llm();
         }
     } catch (const std::exception& ex) {
         show_error_dialog(fmt::format("LLM selection error: {}", ex.what()));

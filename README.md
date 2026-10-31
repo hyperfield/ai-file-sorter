@@ -252,6 +252,12 @@ structure when choosing a target. Enable **Suggest new folders when needed** if
 you want it to propose missing folders. Review the target folder and routing
 explanation before applying changes; rename-only entries stay in their source folder.
 
+When you select existing-folder sorting with another local model, the app recommends
+**Qwen3.5 4B** for more reliable folder choices. **Gemma 1.1 7B** and models accessed
+through an API are also suitable choices and do not trigger this advisory. The
+recommendation is informational; you can keep your current model. The app also
+checks after accepting an LLM selection while existing-folder sorting is active.
+
 Open **Sorting rules...** to adjust categorization preferences and the separate
 image and document filename word limits. Both limits range from 3 to 6 words and
 default to 3. You can edit each suggested name during review.

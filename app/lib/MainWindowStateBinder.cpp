@@ -90,6 +90,7 @@ void MainWindowStateBinder::connect_checkbox_signals()
                              update_document_analysis_controls();
                              app_.update_folder_structure_plugin_status(app_.path_entry ? app_.path_entry->text()
                                                                                          : QString());
+                             app_.maybe_recommend_existing_folder_llm();
                              app_.maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
                          });
     }

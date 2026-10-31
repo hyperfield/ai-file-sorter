@@ -22,6 +22,12 @@ inline bool is_remote_choice(LLMChoice choice) {
         || choice == LLMChoice::Remote_Custom;
 }
 
+inline bool is_recommended_for_existing_folder_sorting(LLMChoice choice) {
+    return choice == LLMChoice::Local_4b_Qwen35
+        || choice == LLMChoice::Local_7b_Gemma
+        || is_remote_choice(choice);
+}
+
 enum class FileType {File, Directory};
 
 /**

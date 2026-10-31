@@ -432,6 +432,8 @@ private:
      * @brief Checks the selected/destination folder tree and offers Johnny.Decimal support when relevant.
      */
     void maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
+    /** @brief Recommend Qwen when the selected local model may be less suitable for existing folders. */
+    void maybe_recommend_existing_folder_llm();
     /**
      * @brief Returns whether a folder tree should trigger the Johnny.Decimal plugin offer.
      * @param root Folder tree root to inspect.

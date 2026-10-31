@@ -10,11 +10,14 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QToolButton>
+#include <QTimer>
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -154,6 +157,124 @@ TEST_CASE("Existing folder mode places folder structure creator in destination r
     QApplication::processEvents();
 
     CHECK_FALSE(create_button->isVisible());
+}
+
+TEST_CASE("Existing folder mode recommends Qwen for less suitable local models") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    const std::vector<std::pair<LLMChoice, bool>> cases = {
+        {LLMChoice::Local_4b_Gemma, true},
+        {LLMChoice::Local_7b, true},
+        {LLMChoice::Local_3b_legacy, true},
+        {LLMChoice::Custom, true},
+        {LLMChoice::Local_4b_Qwen35, false},
+        {LLMChoice::Local_7b_Gemma, false},
+        {LLMChoice::Remote_OpenAI, false},
+        {LLMChoice::Remote_Gemini, false},
+        {LLMChoice::Remote_Custom, false},
+        {LLMChoice::Unset, false},
+    };
+    for (const auto& [choice, expected_recommendation] : cases) {
+        DYNAMIC_SECTION("Selected LLM " << static_cast<int>(choice)) {
+            Settings settings;
+            settings.set_llm_choice(choice);
+            settings.set_sorting_mode(SortingMode::GeneratedCategories);
+            REQUIRE(settings.save());
+            MainApp window(settings, /*development_mode=*/false);
+            auto* sorting_mode = MainAppTestAccess::sorting_mode_selector(window);
+            REQUIRE(sorting_mode != nullptr);
+            bool recommendation_shown = false;
+            QTimer dismiss_dialog;
+            QObject::connect(&dismiss_dialog, &QTimer::timeout, &window, [&]() {
+                auto* message = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                if (!message) {
+                    return;
+                }
+                recommendation_shown = true;
+                CHECK(message->objectName() == QStringLiteral("existingFolderLlmRecommendation"));
+                CHECK(message->icon() == QMessageBox::Information);
+                CHECK(message->text().contains(QStringLiteral("Not all LLMs")));
+                CHECK(message->text().contains(QStringLiteral("recommend Qwen3.5 4B")));
+                CHECK(message->text().contains(QStringLiteral("Gemma 1.1 7B")));
+                CHECK(message->text().contains(QStringLiteral("API")));
+                message->accept();
+            });
+            dismiss_dialog.start(0);
+            sorting_mode->setCurrentIndex(
+                sorting_mode->findData(static_cast<int>(SortingMode::ExistingFolderTree)));
+            CHECK(recommendation_shown == expected_recommendation);
+            CHECK(settings.get_sorting_mode() == SortingMode::ExistingFolderTree);
+            CHECK(settings.get_llm_choice() == choice);
+
+            recommendation_shown = false;
+            sorting_mode->setCurrentIndex(
+                sorting_mode->findData(static_cast<int>(SortingMode::GeneratedCategories)));
+            dismiss_dialog.stop();
+            CHECK_FALSE(recommendation_shown);
+        }
+    }
+}
+
+TEST_CASE("Changing the LLM checks the recommendation when existing folder mode is active") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    for (const auto mode : {SortingMode::GeneratedCategories, SortingMode::ExistingFolderTree}) {
+        DYNAMIC_SECTION("Sorting mode " << static_cast<int>(mode)) {
+            Settings settings;
+            settings.set_llm_choice(LLMChoice::Local_4b_Qwen35);
+            settings.set_sorting_mode(mode);
+            CustomLLM custom;
+            custom.name = "Custom local model";
+            custom.path = (temp.path() / "custom.gguf").string();
+            const auto custom_id = settings.upsert_custom_llm(custom);
+            REQUIRE_FALSE(custom_id.empty());
+            REQUIRE(settings.save());
+            MainApp window(settings, /*development_mode=*/false);
+            bool selection_accepted = false;
+            bool recommendation_shown = false;
+            QTimer handle_dialogs;
+            QObject::connect(&handle_dialogs, &QTimer::timeout, &window, [&]() {
+                auto* modal = QApplication::activeModalWidget();
+                if (auto* message = qobject_cast<QMessageBox*>(modal)) {
+                    recommendation_shown = true;
+                    CHECK(message->objectName() == QStringLiteral("existingFolderLlmRecommendation"));
+                    message->accept();
+                } else if (modal) {
+                    auto* local = modal->findChild<QComboBox*>(QStringLiteral("localModelCombo"));
+                    auto* buttons = modal->findChild<QDialogButtonBox*>();
+                    CHECK(local != nullptr);
+                    CHECK(buttons != nullptr);
+                    if (!local || !buttons) {
+                        modal->close();
+                        return;
+                    }
+                    local->setCurrentIndex(local->findData(static_cast<int>(LLMChoice::Custom)));
+                    auto* ok = buttons->button(QDialogButtonBox::Ok);
+                    CHECK(ok->isEnabled());
+                    selection_accepted = ok->isEnabled();
+                    if (selection_accepted) {
+                        ok->click();
+                    } else {
+                        modal->close();
+                    }
+                }
+            });
+            handle_dialogs.start(0);
+            window.show_llm_selection_dialog();
+            handle_dialogs.stop();
+            CHECK(selection_accepted);
+            CHECK(recommendation_shown == (mode == SortingMode::ExistingFolderTree));
+            CHECK(settings.get_llm_choice() == LLMChoice::Custom);
+            CHECK(settings.get_active_custom_llm_id() == custom_id);
+            CHECK(settings.get_sorting_mode() == mode);
+        }
+    }
 }
 
 TEST_CASE("Johnny.Decimal plugin offer only triggers for existing-tree archives") {
