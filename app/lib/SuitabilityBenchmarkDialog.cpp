@@ -804,16 +804,34 @@ double median_seconds(std::vector<double> seconds)
     return (seconds[mid - 1] + seconds[mid]) / 2.0;
 }
 
-bool has_visual_llm_files(std::string_view visual_backend_id,
-                          const std::vector<CustomLLM>& custom_llms)
+struct VisualModel {
+    std::string id;
+    std::string label;
+    VisualLlmRuntime::Backend backend;
+};
+
+std::vector<VisualModel> collect_visual_models(const std::vector<CustomLLM>& custom_llms)
 {
-    return VisualLlmRuntime::resolve_paths(visual_backend_id, custom_llms).has_value();
+    std::vector<VisualModel> models;
+    const auto add_model = [&](std::string id, std::string label) {
+        if (auto backend = VisualLlmRuntime::resolve_active_backend(id, custom_llms)) {
+            models.push_back({std::move(id), std::move(label), std::move(*backend)});
+        }
+    };
+    for (const auto& descriptor : visual_model_descriptors()) {
+        add_model(descriptor.id, descriptor.display_name);
+    }
+    for (const auto& custom : custom_llms) {
+        if (!is_visual_custom_llm(custom)) continue;
+        add_model(custom_visual_model_id_for_llm(custom.id),
+                  QObject::tr("Custom: %1").arg(QString::fromStdString(custom.name)).toStdString());
+    }
+    return models;
 }
 
-bool has_any_llm_available(std::string_view visual_backend_id,
-                           const std::vector<CustomLLM>& custom_llms)
+bool has_any_llm_available(const std::vector<CustomLLM>& custom_llms)
 {
-    return !collect_local_models(custom_llms).empty() || has_visual_llm_files(visual_backend_id, custom_llms);
+    return !collect_local_models(custom_llms).empty() || !collect_visual_models(custom_llms).empty();
 }
 
 std::filesystem::path create_temp_dir()
@@ -1571,8 +1589,7 @@ std::string file_identity(const std::filesystem::path& path)
             modified.time_since_epoch()).count());
 }
 
-SuitabilityBenchmark::Results collect_candidates(const std::vector<CustomLLM>& customs,
-                                                 const std::string& visual_id)
+SuitabilityBenchmark::Results collect_candidates(const std::vector<CustomLLM>& customs)
 {
     SuitabilityBenchmark::Results candidates;
     for (const auto& model : collect_local_models(customs)) {
@@ -1585,16 +1602,19 @@ SuitabilityBenchmark::Results collect_candidates(const std::vector<CustomLLM>& c
         result.choice = model.choice;
         candidates.push_back(std::move(result));
     }
-    if (const auto visual = VisualLlmRuntime::resolve_active_backend(visual_id, customs)) {
-        const auto model = visual->path_for(VisualModelArtifactKind::Model);
-        const auto projector = visual->path_for(VisualModelArtifactKind::Mmproj);
+    for (const auto& visual : collect_visual_models(customs)) {
+        const auto model = visual.backend.path_for(VisualModelArtifactKind::Model);
+        const auto projector = visual.backend.path_for(VisualModelArtifactKind::Mmproj);
         if (model && projector) {
+            const auto model_identity = file_identity(*model);
+            const auto projector_identity = file_identity(*projector);
+            if (model_identity.empty() || projector_identity.empty()) continue;
             SuitabilityBenchmark::Result result;
-            result.model_key = "visual:" + visual_id + "|" + file_identity(*model) + "|" + file_identity(*projector);
+            result.model_key = "visual:" + visual.id + "|" + model_identity + "|" + projector_identity;
             result.model_path = Utils::path_to_utf8(*model);
-            result.visual_id = visual_id;
+            result.visual_id = visual.id;
             result.label = QObject::tr("Image analysis: %1")
-                .arg(QString::fromUtf8(visual->descriptor->display_name)).toStdString();
+                .arg(QString::fromStdString(visual.label)).toStdString();
             result.visual = true;
             candidates.push_back(std::move(result));
         }
@@ -2000,7 +2020,7 @@ void SuitabilityBenchmarkDialog::retranslate_ui()
     if (try_backend_button_) try_backend_button_->setText(QObject::tr("Try chosen backend"));
     if (intro_label_) {
         const QString intro_main = QObject::tr("Run a quick performance check to estimate how image analysis, document analysis, and file categorization will perform on your system.");
-        const QString local_scope = QObject::tr("Tests downloaded local models, including custom GGUF models. API services and folder-routing accuracy are not benchmarked.");
+        const QString local_scope = QObject::tr("Tests all downloaded local text and visual models, including custom GGUF models. API services and folder-routing accuracy are not benchmarked.");
         const QString intro_warning = QObject::tr("It is recommended to quit any CPU- and GPU-intensive applications before running this test.");
         intro_label_->setText(QStringLiteral("%1<br><br>%2<br><br><span style=\"color:#d73a49; font-weight:600;\">%3</span>")
                                   .arg(intro_main.toHtmlEscaped(), local_scope.toHtmlEscaped(), intro_warning.toHtmlEscaped()));
@@ -2084,7 +2104,7 @@ void SuitabilityBenchmarkDialog::closeEvent(QCloseEvent* event)
 
 bool SuitabilityBenchmarkDialog::models_available(const Settings& settings)
 {
-    return has_any_llm_available(settings.get_visual_model_id(), settings.get_custom_llms());
+    return has_any_llm_available(settings.get_custom_llms());
 }
 
 void SuitabilityBenchmarkDialog::reject()
@@ -2198,8 +2218,8 @@ void SuitabilityBenchmarkDialog::start_attempts(SuitabilityBenchmark::Results re
     stop_requested_ = false;
     set_running_state(true);
 
-    inputs_ = BenchmarkInputs{settings_.get_llm_storage_dir(), settings_.get_visual_model_id(),
-                              settings_.get_custom_llms(), settings_.get_sorting_mode()};
+    inputs_ = BenchmarkInputs{settings_.get_llm_storage_dir(), settings_.get_custom_llms(),
+                              settings_.get_sorting_mode()};
     inputs_.requests = std::move(requests);
     inputs_.retry = retry;
     inputs_.backend_mode = backend_combo_->currentData().toString().toStdString();
@@ -2377,7 +2397,7 @@ void SuitabilityBenchmarkDialog::run_benchmark_worker()
         if (temp_dir.empty()) {
             post_line(QObject::tr("Temporary directory setup failed; benchmark sample file creation may fail."));
         }
-        const auto candidates = collect_candidates(inputs_.custom_llms, inputs_.visual_model_id);
+        const auto candidates = collect_candidates(inputs_.custom_llms);
         // Model identity includes file size and modification time: changed weights need new measurements.
         std::erase_if(pending_results_, [&](const auto& previous) {
             return std::none_of(candidates.begin(), candidates.end(), [&](const auto& candidate) {

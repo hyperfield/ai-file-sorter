@@ -1219,6 +1219,19 @@ Run: `./build-tests/ai_file_sorter_tests "CacheMaintenanceDialog disables cache 
 
 ### `tests/unit/test_suitability_benchmark_dialog.cpp`
 
+#### Test case: Suitability benchmark discovers all installed visual models
+Purpose: Benchmark every installed built-in and custom visual model independently of the selected visual model.
+Setup: Install all built-in visual model/projector pairs, register two named custom visual models, a text-only model, and entries with missing or corrupt projectors.
+Procedure: Run the CPU benchmark with an injected runner, then reopen the dialog from saved settings.
+Expected outcome: Every complete visual pair is tested and persisted, incomplete pairs are excluded, custom result rows have distinct registered names, and the saved visual selection is unchanged.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark discovers all installed visual models"`
+
+#### Test case: Suitability benchmark detects unselected visual models without text models
+Purpose: Allow an installed visual model to make the check available even when the selected visual model and all text models are unavailable.
+Procedure: Install only the LLaVA visual pair with Qwen selected, remove or corrupt its projector, restore it, and run the benchmark with an injected runner.
+Expected outcome: The check is available only with both valid artifacts, and LLaVA image analysis runs without changing the selected Qwen model.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark detects unselected visual models without text models"`
+
 #### Test case: Suitability benchmark tracks and persists model backend pairs independently
 Purpose: Keep successful CPU results eligible even when CUDA and Vulkan fail, and restore the pair table after reopening.
 Expected outcome: Each backend has its own result; only successful pairs are recommended and failed pairs remain retryable after settings reload.
@@ -1251,7 +1264,8 @@ Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark result storage v
 
 #### Test case: Suitability benchmark retries visual model backend pairs without rerunning text checks
 Purpose: Keep image-analysis retries scoped to the selected visual model/backend pair.
-Expected outcome: Retry failed repeats only the failed visual pair and preserves successful text checks and other image backends.
+Procedure: Benchmark two custom visual models on CPU and CUDA, switch the saved visual selection, then retry failed and selected pairs for the other model.
+Expected outcome: Only the requested visual pair is repeated; successful text checks, other visual models, and other backends retain their measurements and timestamps. Changing the visual selection does not invalidate another model's results or retry.
 Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark retries visual model backend pairs without rerunning text checks"`
 
 #### Test case: Suitability benchmark invalidates measurements when model weights change

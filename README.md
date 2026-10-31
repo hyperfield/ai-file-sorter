@@ -398,16 +398,16 @@ The **System compatibility check** runs a quick benchmark that estimates how wel
 - **Document analysis** by content
 - **Image analysis** (visual LLM)
 
-You can launch it from the menu (**File → System compatibility check…**). It runs when a built-in, custom GGUF, or selected visual model is available. A completed check prevents future automatic prompts; stopping an initial check does not mark it completed. You can rerun it manually after changing models or hardware.
+You can launch it from the menu (**File → System compatibility check…**). It runs when any built-in, custom GGUF, or visual model is available, regardless of the selected text or visual model. A completed check prevents future automatic prompts; stopping an initial check does not mark it completed. You can rerun it manually after changing models or hardware.
 
 What it does:
 
 - Detects available CPU threads and GPU backends (CUDA, Vulkan, and Metal)
 - Times a small categorization and document-analysis workload per available local text model
-- Times a single image-analysis pass if visual LLM files are present
+- Times an image-analysis pass for every installed built-in or custom visual model with both a valid model file and its matching projector
 - Reports speed tiers (optimal / acceptable / a bit long) and suggests a recommended local LLM
 
-Results are tracked separately for every model/backend pair, including the selected image-analysis model. Failed pairs are excluded from recommendations; a successful CPU, CUDA, Vulkan, or Metal result for the same model remains eligible. Recommendations show the backend alongside the model name. In existing-folder sorting mode, local recommendations are limited to Qwen3.5 4B and Gemma 1.1 7B. The benchmark measures local performance, not API service speed or folder-routing accuracy.
+Results are tracked separately for every model/backend pair, including every available image-analysis model. Custom visual rows show the registered model's name. Changing the selected visual model does not discard other models' measurements or prevent their retries. Failed pairs are excluded from recommendations; a successful CPU, CUDA, Vulkan, or Metal result for the same model remains eligible. Recommendations show the backend alongside the model name. In existing-folder sorting mode, local recommendations are limited to Qwen3.5 4B and Gemma 1.1 7B. The benchmark measures local performance, not API service speed or folder-routing accuracy.
 
 Use the **Backend** dropdown to choose a specific backend or **All available backends**. **Automatic** tries the preferred GPU first and tests CPU separately if the GPU attempt fails. Explicit backend tests never count a silent CPU fallback as a GPU success. Only backends available in the running app can be measured.
 

@@ -4,6 +4,7 @@
 #include "TestHelpers.hpp"
 #include "Settings.hpp"
 #include "Utils.hpp"
+#include "VisualModelCatalog.hpp"
 
 #include <QApplication>
 #include <QTextEdit>
@@ -18,6 +19,8 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <memory>
+#include <set>
 
 namespace {
 struct StorageOverrideGuard {
@@ -30,6 +33,29 @@ void write_gguf(const std::filesystem::path& path)
     std::filesystem::create_directories(path.parent_path());
     std::ofstream(path, std::ios::binary).write("GGUF\0\0\0\0", 8);
 }
+
+struct VisualModelFiles {
+    std::vector<std::unique_ptr<EnvVarGuard>> urls;
+
+    VisualModelFiles()
+    {
+        for (const auto& descriptor : visual_model_descriptors()) {
+            for (const auto& artifact : descriptor.artifacts) {
+                urls.push_back(std::make_unique<EnvVarGuard>(artifact.url_env,
+                    "https://example.com/" + std::string(descriptor.id) + "/" + artifact.local_storage_name));
+            }
+        }
+    }
+
+    void install(std::string_view id)
+    {
+        const auto* descriptor = find_visual_model_descriptor(id);
+        REQUIRE(descriptor != nullptr);
+        for (const auto& artifact : descriptor->artifacts) {
+            write_gguf(visual_artifact_storage_path(*descriptor, artifact));
+        }
+    }
+};
 
 void wait_for_benchmark(SuitabilityBenchmarkDialog& dialog)
 {
@@ -205,6 +231,112 @@ TEST_CASE("Suitability benchmark detects custom text models and rejects invalid 
     REQUIRE(paths.size() == 1);
     CHECK(paths.front() == Utils::path_to_utf8(model));
     CHECK(SuitabilityBenchmarkDialog::models_available(settings));
+}
+
+TEST_CASE("Suitability benchmark discovers all installed visual models")
+{
+    QtAppContext qt;
+    StorageOverrideGuard storage;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings settings;
+    add_custom_model(settings, temp.path());
+    VisualModelFiles files;
+    for (const auto& descriptor : visual_model_descriptors()) files.install(descriptor.id);
+
+    std::set<std::string> expected;
+    for (const auto& descriptor : visual_model_descriptors()) expected.insert(descriptor.id);
+    for (const auto* name : {"First visual model", "Second visual model"}) {
+        CustomLLM custom;
+        custom.name = name;
+        custom.path = Utils::path_to_utf8(temp.path() / name / "model.gguf");
+        custom.mmproj_path = Utils::path_to_utf8(temp.path() / name / "mmproj.gguf");
+        write_gguf(Utils::utf8_to_path(custom.path));
+        write_gguf(Utils::utf8_to_path(custom.mmproj_path));
+        expected.insert(custom_visual_model_id_for_llm(settings.upsert_custom_llm(custom)));
+    }
+    CustomLLM incomplete;
+    incomplete.name = "Missing projector";
+    incomplete.path = settings.get_custom_llms().front().path;
+    incomplete.mmproj_path = Utils::path_to_utf8(temp.path() / "missing.gguf");
+    settings.upsert_custom_llm(incomplete);
+    incomplete.id.clear();
+    incomplete.name = "Corrupt projector";
+    incomplete.mmproj_path = Utils::path_to_utf8(temp.path() / "corrupt.gguf");
+    std::ofstream(Utils::utf8_to_path(incomplete.mmproj_path)).put('x');
+    settings.upsert_custom_llm(incomplete);
+    settings.set_visual_model_id("gemma-3-4b-it");
+
+    SuitabilityBenchmarkDialog dialog(settings);
+    using Access = SuitabilityBenchmarkDialogTestAccess::DialogAccess;
+    Access::set_runner(dialog, [](const auto& request) { return measured(request, true, 1.0); }, {"cpu"});
+    auto* backend = dialog.findChild<QComboBox*>(QStringLiteral("benchmarkBackendCombo"));
+    REQUIRE(backend != nullptr);
+    backend->setCurrentIndex(backend->findData(QStringLiteral("cpu")));
+    Access::start(dialog);
+    wait_for_benchmark(dialog);
+    std::set<std::string> discovered;
+    std::set<std::string> labels;
+    for (const auto& result : Access::results(dialog)) {
+        if (!result.visual) continue;
+        discovered.insert(result.visual_id);
+        labels.insert(result.label);
+        CHECK(result.success());
+        CHECK(result.backend == "cpu");
+    }
+    CHECK(discovered == expected);
+    CHECK(labels.size() == expected.size());
+    CHECK(labels.contains("Image analysis: Custom: First visual model"));
+    CHECK(labels.contains("Image analysis: Custom: Second visual model"));
+    CHECK(settings.get_visual_model_id() == "gemma-3-4b-it");
+
+    Settings restored;
+    REQUIRE(restored.load());
+    SuitabilityBenchmarkDialog reopened(restored);
+    std::set<std::string> persisted;
+    for (const auto& result : Access::results(reopened)) {
+        if (result.visual) persisted.insert(result.visual_id);
+    }
+    CHECK(persisted == expected);
+}
+
+TEST_CASE("Suitability benchmark detects unselected visual models without text models")
+{
+    QtAppContext qt;
+    StorageOverrideGuard storage;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings settings;
+    settings.set_llm_storage_dir(Utils::path_to_utf8(temp.path() / "models"));
+    settings.set_visual_model_id("qwen3.5-4b");
+    VisualModelFiles files;
+    CHECK_FALSE(SuitabilityBenchmarkDialog::models_available(settings));
+    files.install("llava-v1.6-mistral-7b");
+    const auto* descriptor = find_visual_model_descriptor("llava-v1.6-mistral-7b");
+    REQUIRE(descriptor != nullptr);
+    const auto projector = visual_artifact_storage_path(*descriptor, descriptor->artifacts[1]);
+    CHECK(SuitabilityBenchmarkDialogTestAccess::local_model_paths_for_testing({}).empty());
+    CHECK(SuitabilityBenchmarkDialog::models_available(settings));
+    REQUIRE(std::filesystem::remove(projector));
+    CHECK_FALSE(SuitabilityBenchmarkDialog::models_available(settings));
+    std::ofstream(projector).put('x');
+    CHECK_FALSE(SuitabilityBenchmarkDialog::models_available(settings));
+    write_gguf(projector);
+
+    SuitabilityBenchmarkDialog dialog(settings);
+    using Access = SuitabilityBenchmarkDialogTestAccess::DialogAccess;
+    Access::set_runner(dialog, [](const auto& request) { return measured(request, true, 1.0); }, {"cpu"});
+    auto* backend = dialog.findChild<QComboBox*>(QStringLiteral("benchmarkBackendCombo"));
+    REQUIRE(backend != nullptr);
+    backend->setCurrentIndex(backend->findData(QStringLiteral("cpu")));
+    Access::start(dialog);
+    wait_for_benchmark(dialog);
+    const auto results = Access::results(dialog);
+    REQUIRE(results.size() == 1);
+    CHECK(results.front().visual);
+    CHECK(results.front().visual_id == "llava-v1.6-mistral-7b");
+    CHECK(results.front().success());
+    CHECK(settings.get_visual_model_id() == "qwen3.5-4b");
 }
 
 TEST_CASE("Suitability benchmark gives Qwen explicit four billion parameter speed targets")
@@ -536,18 +668,28 @@ TEST_CASE("Suitability benchmark retries visual model backend pairs without reru
     write_gguf(projector);
     custom.mmproj_path = Utils::path_to_utf8(projector);
     settings.upsert_custom_llm(custom);
-    settings.set_visual_model_id("custom:" + custom.id);
+    const auto first_visual_id = custom_visual_model_id_for_llm(custom.id);
+    auto second = custom;
+    second.id.clear();
+    second.name = "Another visual model";
+    second.path = Utils::path_to_utf8(temp.path() / "models" / "another.gguf");
+    write_gguf(Utils::utf8_to_path(second.path));
+    const auto second_visual_id = custom_visual_model_id_for_llm(settings.upsert_custom_llm(second));
+    settings.set_visual_model_id(first_visual_id);
     SuitabilityBenchmarkDialog dialog(settings);
     using Access = SuitabilityBenchmarkDialogTestAccess::DialogAccess;
-    Access::set_runner(dialog, [](const auto& request) {
-        return measured(request, !request.visual || request.backend == "cpu", 1.0);
+    Access::set_runner(dialog, [&](const auto& request) {
+        return measured(request, request.visual_id != first_visual_id || request.backend == "cpu", 1.0);
     }, {"cpu", "cuda"});
     auto* backend = dialog.findChild<QComboBox*>(QStringLiteral("benchmarkBackendCombo"));
     REQUIRE(backend != nullptr);
     backend->setCurrentIndex(backend->findData(QStringLiteral("all")));
     Access::start(dialog);
     wait_for_benchmark(dialog);
-    REQUIRE(Access::results(dialog).size() == 4);
+    const auto before = Access::results(dialog);
+    REQUIRE(before.size() == 8);
+    // Changing the selected visual model must not discard another model's retry or measurements.
+    settings.set_visual_model_id(second_visual_id);
     std::vector<SuitabilityBenchmark::Result> retried;
     Access::set_runner(dialog, [&](const auto& request) {
         retried.push_back(request);
@@ -559,9 +701,36 @@ TEST_CASE("Suitability benchmark retries visual model backend pairs without reru
     wait_for_benchmark(dialog);
     REQUIRE(retried.size() == 1);
     CHECK(retried[0].visual);
+    CHECK(retried[0].visual_id == first_visual_id);
     CHECK(retried[0].backend == "cuda");
     const auto results = Access::results(dialog);
+    REQUIRE(results.size() == before.size());
     CHECK(std::all_of(results.begin(), results.end(), [](const auto& result) { return result.success(); }));
+    for (size_t row = 0; row < before.size(); ++row) {
+        if (!before[row].success()) continue;
+        CHECK(results[row].model_key == before[row].model_key);
+        CHECK(results[row].image_seconds == before[row].image_seconds);
+        CHECK(results[row].categorization_seconds == before[row].categorization_seconds);
+        CHECK(results[row].tested_at == before[row].tested_at);
+    }
+
+    auto* table = dialog.findChild<QTableWidget*>(QStringLiteral("benchmarkResultsTable"));
+    REQUIRE(table != nullptr);
+    const auto first_visual = std::find_if(results.begin(), results.end(), [&](const auto& result) {
+        return result.visual_id == first_visual_id && result.backend == "cpu";
+    });
+    REQUIRE(first_visual != results.end());
+    table->selectRow(static_cast<int>(std::distance(results.begin(), first_visual)));
+    retried.clear();
+    auto* retry_selected = dialog.findChild<QPushButton*>(QStringLiteral("benchmarkRetrySelected"));
+    REQUIRE(retry_selected != nullptr);
+    retry_selected->click();
+    wait_for_benchmark(dialog);
+    REQUIRE(retried.size() == 1);
+    CHECK(retried[0].visual_id == first_visual_id);
+    CHECK(retried[0].backend == "cpu");
+    CHECK(Access::results(dialog).size() == before.size());
+    CHECK(settings.get_visual_model_id() == second_visual_id);
 }
 
 TEST_CASE("Suitability benchmark invalidates measurements when model weights change")

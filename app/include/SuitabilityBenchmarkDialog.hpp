@@ -51,7 +51,7 @@ public:
     SuitabilityBenchmarkDialog(Settings& settings,
                                QWidget* parent = nullptr,
                                std::filesystem::path runtime_directory = {});
-    /** @brief Check for usable downloaded built-in, custom, or selected visual model files. */
+    /** @brief Check for any usable local text or visual model files, including custom models. */
     static bool models_available(const Settings& settings);
     void reject() override;
     /**
@@ -77,7 +77,6 @@ private:
 #endif
     struct BenchmarkInputs {
         std::string storage_dir;
-        std::string visual_model_id;
         std::vector<CustomLLM> custom_llms;
         SortingMode sorting_mode{SortingMode::GeneratedCategories};
         std::string backend_mode{"auto"};
