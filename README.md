@@ -160,7 +160,7 @@ the main entry page, use these technical references:
 - Sort into an existing folder structure, choose a separate destination, and review folder choices and routing explanations before applying changes.
 - Create starter folder structures and use optional Johnny.Decimal plugins for numbered folders, archive indexes, and validation reports.
 - Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
-- Use Qwen3.5 4B for local text and image analysis, alongside the default Gemma 3 4B IT.
+- Use Qwen3.5 4B by default for local text and image analysis, with Gemma 3 4B IT also available.
 - Added support for the sorting settings and destination previews in AI File Sorter for File Explorer 1.1.0.
 - Improved local analysis, cancellation, GPU compatibility, review editing, and undo reliability.
 - Fixed macOS Metal backend detection and hardened image-analysis startup and benchmark fallback.
@@ -214,7 +214,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, including smart branching lists where each main category has its own allowed subcategories. Manage them under **Settings → Manage category whitelists…**, then toggle/select them in the main window when you want to constrain model output for a session.
 - **Category and rename languages**: Categories are chosen in English behind the scenes and then shown in your selected category language. Suggested filenames for images, documents, and supported audio/video files are localized the same way. The available languages depend on the selected local model.
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog. Add a matching MMProj file to make a custom model available for image analysis as well.
-- **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends including the default Gemma 3 4B IT, Qwen3.5 4B, and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
+- **Grouped model selection**: The **Select LLM** dialog has a **Local LLMs** tab for built-in models and custom GGUF files, and an **API connections** tab for Gemini, OpenAI, and custom OpenAI-compatible endpoints. Each tab uses a dropdown and shows the selected option's description and settings.
+- **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends including the default Qwen3.5 4B, Gemma 3 4B IT, and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
 - **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
 - **Document content analysis (Text LLM)**: Analyze supported document files to summarize content and suggest filenames; uses the same selected LLM (local or remote).
 - **Filename length controls**: Set independent maximum word limits for image and document name suggestions, from 3 to 6 words, defaulting to 3.
@@ -311,9 +312,9 @@ More consistent
 
 Image analysis can run locally to understand what a picture shows and suggest a better category or filename. It does not require an API key.
 
-As of 1.9.0, **Gemma 3 4B IT** is the default visual backend. The app also gives screenshots, webpage captures, dashboards, forms, mockups, and other UI-like images extra prompt guidance so categories describe what is shown on screen instead of misclassifying the image as the software artifact itself.
+**Qwen3.5 4B** is the default local text and visual backend and appears first in model selection, marked **Recommended**. Its description highlights high precision and its suitability for sorting into existing folder structures. The app also gives screenshots, webpage captures, dashboards, forms, mockups, and other UI-like images extra prompt guidance so categories describe what is shown on screen instead of misclassifying the image as the software artifact itself.
 
-The app exposes three built-in visual backends: the default Gemma 3 4B IT, Qwen3.5 4B, and LLaVA 1.6 Mistral 7B. All supported local visual backends require two GGUF files: the main text model and a matching `mmproj` projector file.
+The app exposes three built-in visual backends: the default Qwen3.5 4B, Gemma 3 4B IT, and LLaVA 1.6 Mistral 7B. All supported local visual backends require two GGUF files: the main text model and a matching `mmproj` projector file.
 
 The Gemma 3 4B IT GGUF is also available as a built-in local text/categorization model. When used only for categorization or document analysis, it runs as a normal text model and does not need `mmproj`. If you already downloaded the Gemma 3 text GGUF for image analysis, the local text-model entry reuses that same file automatically. The extra `mmproj` file is only required for visual image analysis.
 
@@ -327,6 +328,8 @@ The **Select LLM** dialog includes an "Image analysis models" section with backe
 - **Matching `mmproj` file (GGUF)**: The multimodal projector that maps image embeddings into the model token space so the backend can accept images.
 
 Both files are required for the selected backend. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL`, `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL`, or `QWEN35_4B_MODEL_URL` / `QWEN35_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+
+Download sections show file size, status, and actions. Expand **See details** for a file's download URL, local path, model identifier, file type, runtime, and download URL setting. Details are collapsed by default, and long values wrap within the dialog.
 
 The same dialog also includes **Model storage**, which changes where built-in local text and visual model downloads are stored. Leave it empty to use the platform default.
 
@@ -577,8 +580,8 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    The submodule is pinned to llama.cpp `b11669` (`620d2225`). Rebuild all shipped
    runtime variants after updating it; do not mix old and new `llama`, `llama-common`,
    `ggml`, or `mtmd` libraries. Native chat formatting uses the embedded Jinja
-   template with thinking disabled. Gemma remains the default; Qwen3.5 4B and its
-   matching projector are separate choices in model selection.
+   template with thinking disabled. Qwen3.5 4B is the default local text and visual
+   model; image analysis also requires its matching projector.
 
    The Linux helper accepts either `cuda=on` / `vulkan=on` / `blas=on` or the GNU-style
    `--cuda=on` / `--vulkan=on` / `--blas=on` forms.
@@ -1036,10 +1039,10 @@ Visual LLM:
 
 - `LLAVA_MODEL_URL` - download URL for the LLaVA 1.6 Mistral 7B text model.
 - `LLAVA_MMPROJ_URL` - download URL for the LLaVA 1.6 Mistral 7B mmproj file.
-- `GEMMA3_4B_MODEL_URL` - download URL for the default/recommended Gemma 3 4B IT text model.
-- `GEMMA3_4B_MMPROJ_URL` - download URL for the default/recommended Gemma 3 4B IT mmproj file.
-- `QWEN35_4B_MODEL_URL` - download URL for the Qwen3.5 4B text model.
-- `QWEN35_4B_MMPROJ_URL` - download URL for the matching Qwen3.5 4B mmproj file.
+- `GEMMA3_4B_MODEL_URL` - download URL for the Gemma 3 4B IT text model.
+- `GEMMA3_4B_MMPROJ_URL` - download URL for the Gemma 3 4B IT mmproj file.
+- `QWEN35_4B_MODEL_URL` - download URL for the default/recommended Qwen3.5 4B text model.
+- `QWEN35_4B_MMPROJ_URL` - download URL for the default/recommended Qwen3.5 4B mmproj file.
 - `AI_FILE_SORTER_VISUAL_USE_GPU` - force visual encoder GPU usage (`1`) or CPU (`0`). Defaults to auto; Vulkan may fall back to CPU if VRAM is low.
 
 Timeouts and logging:

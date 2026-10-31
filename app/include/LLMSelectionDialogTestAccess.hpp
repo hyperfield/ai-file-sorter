@@ -43,7 +43,7 @@ public:
      */
     static LLMDownloader* local_downloader(LLMSelectionDialog& dialog);
     /**
-     * @brief Returns the visible built-in local model labels in top-to-bottom dialog order.
+     * @brief Returns the offered built-in local model labels in dropdown order.
      * @param dialog Selection dialog instance under test.
      * @return Ordered list of built-in local model labels.
      */

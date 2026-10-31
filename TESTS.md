@@ -1402,8 +1402,8 @@ Run: `./build-tests/ai_file_sorter_tests "Native chat templates*"`
 #### Test case: LLM selection dialog hides retired models on fresh installations
 Purpose: Keep retired Mistral and LLaMa models out of fresh categorization-model offerings.
 Setup: Construct the dialog with clean settings and an empty isolated model directory.
-Procedure: Collect the visible built-in local-model labels through test access.
-Expected outcome: Only Gemma 4B, Qwen3.5 4B, and Gemma 7B appear, in that order, without a separate recommended badge.
+Procedure: Collect the offered built-in local-model labels in dropdown order through test access.
+Expected outcome: Only Qwen3.5 4B, Gemma 4B, and Gemma 7B appear, in that order, with Qwen marked Recommended.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog hides retired models on fresh installations"`
 
 #### Test case: LLM selection dialog retains installed Mistral without changing the saved model
@@ -1424,19 +1424,41 @@ Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog restores saved Mi
 Purpose: Refresh retired-model availability when the qualifying download disappears.
 Setup: Keep Gemma as the saved choice, install Mistral, and select it temporarily in the dialog.
 Procedure: Remove the test artifact and refresh local choices.
-Expected outcome: Mistral disappears and the dialog falls back to Gemma 4B.
+Expected outcome: Mistral disappears and the dialog falls back to Qwen 4B.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog hides unsaved Mistral after its weights are removed"`
 
 #### Test case: LLM selection dialog restores Qwen and shares its visual text weights
 Purpose: Round-trip the Qwen choice through settings without duplicating its text weights.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog restores Qwen and shares its visual text weights"`
 
-#### Test case: LLM selection dialog defaults to the Gemma 4B local model
-Purpose: Verify the built-in local categorization choice defaults to Gemma 4B when no prior selection is stored.
+#### Test case: LLM selection dialog defaults to the Qwen 4B local model
+Purpose: Verify the built-in local categorization choice defaults to Qwen 4B when no prior selection is stored.
 Setup: Construct the dialog with default settings on a clean config directory.
 Procedure: Read the selected LLM choice from the dialog.
-Expected outcome: The selected built-in choice is `Local_4b_Gemma`.
-Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog defaults to the Gemma 4B local model"`
+Expected outcome: The selected built-in choice is `Local_4b_Qwen35`.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog defaults to the Qwen 4B local model"`
+
+#### Test case: LLM selection dialog switches between grouped model dropdowns
+Purpose: Verify Local LLMs and API connections select the active model, update descriptions and credentials, and preserve each group's choice while switching tabs.
+Expected outcome: Qwen is first and recommended, local descriptions follow the selected model, only the selected provider's inputs appear, and API acceptance requires a key and model. Changing the dialog does not overwrite saved settings.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog switches between grouped model dropdowns"`
+
+#### Test case: LLM selection dialog keeps technical download details collapsed and compact
+Purpose: Keep long URLs and local paths behind See details in the text-model and visual-file download sections.
+Setup: Configure Qwen text and projector URLs containing a long path segment, open Downloads, and show the dialog.
+Procedure: Expand and collapse each details panel, inspect the URL, local path, and metadata, then switch to Gemma with its URL unset.
+Expected outcome: Details start hidden, show selectable technical information when expanded, and do not significantly widen the dialog. Switching models updates metadata and clears the previous URL when the new model has no configured download.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog keeps technical download details collapsed and compact"`
+
+#### Test case: LLM selection dialog restores saved API and custom dropdown selections
+Purpose: Restore Gemini, OpenAI, custom API, and custom local choices into the correct tab and dropdown.
+Expected outcome: The saved provider or model and custom entry ids are selected, including custom entries that are not first in their lists, and the corresponding management controls appear.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog restores saved API and custom dropdown selections"`
+
+#### Test case: LLM selection dialog requires a custom entry when its dropdown is empty
+Purpose: Keep empty custom local and API choices available for adding entries without accepting an incomplete selection.
+Expected outcome: The selected custom controls appear, the selected id is empty, and OK is disabled until an entry is available.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog requires a custom entry when its dropdown is empty"`
 
 #### Test case: LLM selection dialog emphasizes the visual model selector
 Purpose: Keep the image-analysis visual model selector visually discoverable.
@@ -1465,7 +1487,7 @@ Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog downloads Gemma 4
 Purpose: Verify the extracted visual backend combo model lists built-in backends and only custom LLMs that have visual artifacts.
 Setup: Create one text-only custom LLM and one custom visual LLM.
 Procedure: Build visual backend combo items with fixed localized label strings.
-Expected outcome: Built-in backends are listed, the default Gemma backend is marked recommended, and only the visual custom LLM appears.
+Expected outcome: Qwen is listed first and marked recommended among the built-in backends, and only the visual custom LLM appears.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model builds built-in and visual custom items"`
 
 #### Test case: LLM selection visual backend model chooses requested default and fallback ids
@@ -1479,7 +1501,7 @@ Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model cho
 Purpose: Verify selected visual model ids map to the descriptor used by dialog/runtime code.
 Setup: Use a custom visual id and an unknown built-in id.
 Procedure: Resolve descriptors and canonical ids through the helper.
-Expected outcome: Custom ids use the custom descriptor and unknown ids fall back to the default Gemma descriptor.
+Expected outcome: Custom ids use the custom descriptor and unknown ids fall back to the default Qwen descriptor.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model resolves canonical descriptors"`
 
 ### `tests/unit/test_llm_selection_dialog_visual.cpp` (non-Windows only)
@@ -1507,17 +1529,17 @@ Run: `./build-tests/ai_file_sorter_tests "Visual model entry reports download er
 
 #### Test case: Visual backend selection switches descriptor-driven download state
 Purpose: Verify the visual download UI is driven by the selected backend descriptor rather than hardcoded LLaVA rows.
-Setup: Clear both the default Gemma env vars and the alternate LLaVA env vars, initialize settings with the legacy LLaVA backend, and construct the dialog.
-Procedure: Confirm the default backend id and missing-env state, switch the dialog to the Gemma backend through the test access layer, and inspect the active model entry again.
-Expected outcome: The selected backend id changes to `gemma-3-4b-it`, and the visible model entry now reports the missing `GEMMA3_4B_MODEL_URL` variable instead of the default backend env var.
+Setup: Clear both the Gemma and LLaVA env vars, initialize settings with the legacy LLaVA backend, and construct the dialog.
+Procedure: Confirm the saved LLaVA backend id and missing-env state, switch the dialog to the Gemma backend through the test access layer, and inspect the active model entry again.
+Expected outcome: The selected backend id changes to `gemma-3-4b-it`, and the visible model entry now reports the missing `GEMMA3_4B_MODEL_URL` variable instead of the LLaVA backend env var.
 Run: `./build-tests/ai_file_sorter_tests "Visual backend selection switches descriptor-driven download state"`
 
-#### Test case: Visual dialog defaults to recommended Gemma backend
-Purpose: Verify the visual-model combo defaults to Gemma and marks it as recommended in the download dialog.
+#### Test case: Visual dialog defaults to recommended Qwen backend
+Purpose: Verify the visual-model combo defaults to Qwen, lists it first, and marks it as recommended in the download dialog.
 Setup: Construct the dialog with default settings on a clean config directory.
 Procedure: Read the selected visual backend id and the current combo-box label through the test access layer.
-Expected outcome: The selected backend id is `gemma-3-4b-it`, and the visible combo label is `Gemma 3 4B IT (Recommended)`.
-Run: `./build-tests/ai_file_sorter_tests "Visual dialog defaults to recommended Gemma backend"`
+Expected outcome: The selected backend id is `qwen3.5-4b`, and the first combo item is selected with the label `Qwen3.5 4B (Recommended)`.
+Run: `./build-tests/ai_file_sorter_tests "Visual dialog defaults to recommended Qwen backend"`
 
 #### Test case: Visual dialog does not mark another backend's legacy generic mmproj as downloaded
 Purpose: Ensure generic legacy mmproj filenames are not attributed to the wrong visual backend.
@@ -1543,7 +1565,7 @@ Run: `./build-tests/ai_file_sorter_tests "Visual dialog does not mark invalid pr
 ### `tests/unit/test_visual_llm_runtime.cpp`
 
 #### Test case: VisualLlmRuntime resolves the Qwen model and matching projector
-Purpose: Resolve the independent Qwen visual backend without changing the Gemma default.
+Purpose: Resolve the Qwen visual backend and its matching projector with Qwen as the default.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the Qwen model and matching projector"`
 
 #### Test case: Qwen projector lookup rejects ambiguous legacy files without matching metadata
@@ -1555,14 +1577,14 @@ Run: `./build-tests/ai_file_sorter_tests "Qwen projector lookup rejects ambiguou
 Purpose: Verify the built-in visual model catalog exposes the expected default backend descriptor and the alternate backend entries used by the selector UI.
 Setup: Load the default visual model descriptor from the catalog.
 Procedure: Inspect the backend id, display name, architecture, prompt policy, required artifact env vars, and the presence of the supported LLaVA Mistral and Gemma backend descriptors.
-Expected outcome: The default backend resolves to the Gemma descriptor with separate model and mmproj artifact entries and the structured multimodal prompt policy, while the catalog also exposes `llava-v1.6-mistral-7b`; the disabled Vicuna backend is not registered.
+Expected outcome: The default backend resolves to the Qwen descriptor with separate model and mmproj artifact entries and the structured multimodal prompt policy, while the catalog also exposes `llava-v1.6-mistral-7b`; the disabled Vicuna backend is not registered.
 Run: `./build-tests/ai_file_sorter_tests "Default visual model descriptor exposes the MTMD backend catalog"`
 
 #### Test case: VisualLlmRuntime resolves the active backend through descriptor artifacts
-Purpose: Ensure runtime resolution goes through the descriptor catalog and can satisfy the mmproj artifact via fallback filenames.
-Setup: Set `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`, create the main model file at its default destination, and create a fallback mmproj file in the default LLM directory.
+Purpose: Ensure default runtime resolution goes through the descriptor catalog and resolves both model and mmproj artifacts.
+Setup: Set `QWEN35_4B_MODEL_URL` and `QWEN35_4B_MMPROJ_URL`, then create the model and mmproj files at their preferred storage paths.
 Procedure: Call `resolve_active_backend()` and `resolve_paths()`.
-Expected outcome: The backend resolves successfully, returns the LLaVA descriptor, maps the model artifact to the primary file, and maps the mmproj artifact to the fallback file.
+Expected outcome: The backend resolves successfully, returns the Qwen descriptor, and maps both artifacts to their preferred storage paths.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the active backend through descriptor artifacts"`
 
 #### Test case: VisualLlmRuntime resolves built-in Gemma after Settings restores custom storage
@@ -1588,7 +1610,7 @@ Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime rejects custom visual
 
 #### Test case: VisualLlmRuntime reports missing backend URLs before resolving artifacts
 Purpose: Confirm runtime resolution fails early when the configured visual backend is missing its required URL environment variables.
-Setup: Clear `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`.
+Setup: Clear `QWEN35_4B_MODEL_URL` and `QWEN35_4B_MMPROJ_URL`.
 Procedure: Call `resolve_active_backend()` with an error string output.
 Expected outcome: Resolution fails and reports the existing missing-URL guidance message.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime reports missing backend URLs before resolving artifacts"`
@@ -1602,7 +1624,7 @@ Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves a non-defaul
 
 #### Test case: VisualLlmRuntime rejects invalid preferred GGUF artifacts
 Purpose: Ensure preferred backend artifact paths are only accepted when they contain a valid GGUF header.
-Setup: Configure the default Gemma backend and create invalid placeholder files at the preferred model and mmproj storage paths.
+Setup: Configure the default Qwen backend and create invalid placeholder files at the preferred model and mmproj storage paths.
 Procedure: Call `resolve_active_backend()` with an error string output.
 Expected outcome: Resolution fails and reports the preferred model artifact as missing, because invalid GGUF placeholders are ignored.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime rejects invalid preferred GGUF artifacts"`

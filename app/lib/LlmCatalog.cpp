@@ -172,10 +172,10 @@ bool path_exists(const std::filesystem::path& path)
 const std::vector<DefaultLlmEntry>& default_llm_entries()
 {
     static const std::vector<DefaultLlmEntry> entries = {
-        {LLMChoice::Local_4b_Gemma, "LOCAL_LLM_3B_DOWNLOAD_URL", "LOCAL_LLM_3B_DISPLAY_NAME",
-         "Gemma 3 4B IT Q4_K_M", "gemma-3-4b-it", "GEMMA3_4B_MODEL_URL"},
         {LLMChoice::Local_4b_Qwen35, "LOCAL_LLM_QWEN35_4B_DOWNLOAD_URL", "LOCAL_LLM_QWEN35_4B_DISPLAY_NAME",
          "Qwen3.5 4B Q4_K_M", "qwen3.5-4b", "QWEN35_4B_MODEL_URL"},
+        {LLMChoice::Local_4b_Gemma, "LOCAL_LLM_3B_DOWNLOAD_URL", "LOCAL_LLM_3B_DISPLAY_NAME",
+         "Gemma 3 4B IT Q4_K_M", "gemma-3-4b-it", "GEMMA3_4B_MODEL_URL"},
         {LLMChoice::Local_7b, "LOCAL_LLM_7B_DOWNLOAD_URL", "LOCAL_LLM_7B_DISPLAY_NAME",
          "Mistral 7B Instruct v0.2 Q5_K_M", nullptr, nullptr,
          BuiltinLlmVisibility::DownloadedOrSelected},
@@ -217,7 +217,12 @@ bool builtin_llm_choice_visible(LLMChoice choice, LLMChoice saved_choice)
 
 QString default_llm_label(const DefaultLlmEntry& entry)
 {
-    return QObject::tr("Local LLM (%1)").arg(resolved_llm_name(entry));
+    return QObject::tr("Local LLM (%1)").arg(default_llm_name(entry));
+}
+
+QString default_llm_name(const DefaultLlmEntry& entry)
+{
+    return resolved_llm_name(entry);
 }
 
 QString default_llm_label_for_choice(LLMChoice choice)

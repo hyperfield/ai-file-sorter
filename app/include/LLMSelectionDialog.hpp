@@ -20,7 +20,7 @@
 class QLabel;
 class QProgressBar;
 class QPushButton;
-class QRadioButton;
+class QTabWidget;
 class QDialogButtonBox;
 class QWidget;
 class QString;
@@ -72,6 +72,15 @@ private:
     friend class LLMSelectionDialogTestAccess;
 #endif
 
+    struct DownloadDetails {
+        QWidget* container{nullptr};
+        QWidget* content{nullptr};
+        QToolButton* toggle{nullptr};
+        QLabel* remote_url_label{nullptr};
+        QLabel* local_path_label{nullptr};
+        QLabel* metadata_label{nullptr};
+    };
+
     struct VisualLlmDownloadEntry {
         const VisualModelDescriptor* backend_descriptor{nullptr};
         const VisualModelArtifactDescriptor* artifact_descriptor{nullptr};
@@ -80,8 +89,7 @@ private:
         std::string display_name;
         QWidget* container{nullptr};
         QLabel* title_label{nullptr};
-        QLabel* remote_url_label{nullptr};
-        QLabel* local_path_label{nullptr};
+        DownloadDetails details;
         QLabel* file_size_label{nullptr};
         QLabel* status_label{nullptr};
         QProgressBar* progress_bar{nullptr};
@@ -93,13 +101,15 @@ private:
     };
 
     void setup_ui();
+    void setup_download_details(DownloadDetails& details, QWidget* parent, const QString& object_name);
     void connect_signals();
     void showEvent(QShowEvent* event) override;
     void accept() override;
     void update_ui_for_choice();
-    /** @brief Refresh retired model choices while preserving supported existing selections. */
-    void update_legacy_local_choices_visibility();
-    void update_radio_selection();
+    /** @brief Refresh local dropdown choices while preserving supported existing selections. */
+    void refresh_local_model_choices();
+    void select_llm_choice(LLMChoice choice);
+    void update_dropdown_selection();
     void update_custom_choice_ui();
     /**
      * @brief Update UI state for the custom API selection.
@@ -209,15 +219,11 @@ private:
     std::string original_model_storage_dir_;
     bool accepted_{false};
 
-    QRadioButton* openai_radio{nullptr};
-    QRadioButton* gemini_radio{nullptr};
-    QRadioButton* custom_api_radio{nullptr};
-    QRadioButton* local3_radio{nullptr};
-    QRadioButton* qwen35_radio{nullptr};
-    QRadioButton* local3_legacy_radio{nullptr};
-    QRadioButton* local7_radio{nullptr};
-    QRadioButton* local7_gemma_radio{nullptr};
-    QRadioButton* custom_radio{nullptr};
+    QTabWidget* llm_source_tabs{nullptr};
+    QComboBox* local_model_combo{nullptr};
+    QComboBox* api_provider_combo{nullptr};
+    QLabel* local_model_description{nullptr};
+    QLabel* api_provider_description{nullptr};
     QToolButton* download_toggle_button{nullptr};
     QScrollArea* scroll_area_{nullptr};
     QComboBox* custom_combo{nullptr};
@@ -228,12 +234,9 @@ private:
     QPushButton* add_custom_api_button{nullptr};
     QPushButton* edit_custom_api_button{nullptr};
     QPushButton* delete_custom_api_button{nullptr};
-    QLabel* remote_url_label{nullptr};
-    QLabel* local_path_label{nullptr};
+    DownloadDetails local_download_details;
     QLabel* file_size_label{nullptr};
     QLabel* status_label{nullptr};
-    QLabel* local3_legacy_desc{nullptr};
-    QLabel* local7_desc{nullptr};
     QProgressBar* progress_bar{nullptr};
     QPushButton* download_button{nullptr};
     QPushButton* delete_download_button{nullptr};

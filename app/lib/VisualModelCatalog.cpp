@@ -86,6 +86,24 @@ const std::vector<VisualModelDescriptor>& visual_model_descriptors()
 {
     static const std::vector<VisualModelDescriptor> descriptors = {
         {
+            "qwen3.5-4b",
+            "Qwen3.5 4B",
+            VisualModelArchitecture::MtmdProjector,
+            VisualPromptPolicy::StructuredVisionInstruct,
+            {
+                {VisualModelArtifactKind::Model,
+                 "Qwen3.5 4B (text model)",
+                 "QWEN35_4B_MODEL_URL",
+                 "model.gguf",
+                 {}},
+                {VisualModelArtifactKind::Mmproj,
+                 "Qwen3.5 4B mmproj (vision encoder)",
+                 "QWEN35_4B_MMPROJ_URL",
+                 "mmproj.gguf",
+                 {"mmproj-F16.gguf"}},
+            },
+        },
+        {
             "llava-v1.6-mistral-7b",
             "LLaVA 1.6 Mistral 7B",
             VisualModelArchitecture::MtmdProjector,
@@ -126,24 +144,6 @@ const std::vector<VisualModelDescriptor>& visual_model_descriptors()
                   "mmproj-gemma-3-4b-it-Q8_0.gguf"}},
             },
         },
-        {
-            "qwen3.5-4b",
-            "Qwen3.5 4B",
-            VisualModelArchitecture::MtmdProjector,
-            VisualPromptPolicy::StructuredVisionInstruct,
-            {
-                {VisualModelArtifactKind::Model,
-                 "Qwen3.5 4B (text model)",
-                 "QWEN35_4B_MODEL_URL",
-                 "model.gguf",
-                 {}},
-                {VisualModelArtifactKind::Mmproj,
-                 "Qwen3.5 4B mmproj (vision encoder)",
-                 "QWEN35_4B_MMPROJ_URL",
-                 "mmproj.gguf",
-                 {"mmproj-F16.gguf"}},
-            },
-        },
     };
     return descriptors;
 }
@@ -163,9 +163,9 @@ const VisualModelDescriptor* find_visual_model_descriptor(std::string_view id)
 
 const VisualModelDescriptor& default_visual_model_descriptor()
 {
-    const auto* gemma = find_visual_model_descriptor("gemma-3-4b-it");
-    if (gemma) {
-        return *gemma;
+    const auto* qwen = find_visual_model_descriptor("qwen3.5-4b");
+    if (qwen) {
+        return *qwen;
     }
     return visual_model_descriptors().front();
 }

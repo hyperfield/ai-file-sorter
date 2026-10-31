@@ -59,6 +59,8 @@ bool builtin_llm_choice_visible(LLMChoice choice, LLMChoice saved_choice);
  * @return Localized label for display in UI/benchmark output.
  */
 QString default_llm_label(const DefaultLlmEntry& entry);
+/** @brief Return the model's display name without the local LLM label. */
+QString default_llm_name(const DefaultLlmEntry& entry);
 
 /**
  * @brief Builds the UI label for a default local LLM choice.

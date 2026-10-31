@@ -14,7 +14,6 @@
 #endif
 
 #include <QApplication>
-#include <QButtonGroup>
 #include <QCheckBox>
 #include <QColor>
 #include <QDialogButtonBox>
@@ -25,7 +24,8 @@
 #include <QMetaObject>
 #include <QProgressBar>
 #include <QPushButton>
-#include <QRadioButton>
+#include <QSignalBlocker>
+#include <QTabWidget>
 #include <QToolButton>
 #include <QScreen>
 #include <QSizePolicy>
@@ -206,7 +206,6 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     setWindowTitle(tr("Choose LLM Mode"));
     setModal(true);
     setup_ui();
-    connect_signals();
 
     openai_api_key = settings.get_openai_api_key();
     openai_model = settings.get_openai_model();
@@ -228,49 +227,6 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
     selected_choice = settings.get_llm_choice();
     selected_custom_id = settings.get_active_custom_llm_id();
     selected_custom_api_id = settings.get_active_custom_api_id();
-    switch (selected_choice) {
-    case LLMChoice::Remote_OpenAI:
-        openai_radio->setChecked(true);
-        break;
-    case LLMChoice::Remote_Gemini:
-        gemini_radio->setChecked(true);
-        break;
-    case LLMChoice::Remote_Custom:
-        custom_api_radio->setChecked(true);
-        break;
-    case LLMChoice::Local_4b_Gemma:
-        local3_radio->setChecked(true);
-        break;
-    case LLMChoice::Local_4b_Qwen35:
-        qwen35_radio->setChecked(true);
-        break;
-    case LLMChoice::Local_3b_legacy:
-        if (local3_legacy_radio && !local3_legacy_radio->isHidden()) {
-            local3_legacy_radio->setChecked(true);
-        } else {
-            local3_radio->setChecked(true);
-            selected_choice = LLMChoice::Local_4b_Gemma;
-        }
-        break;
-    case LLMChoice::Local_7b:
-        local7_radio->setChecked(true);
-        break;
-    case LLMChoice::Local_7b_Gemma:
-        if (local7_gemma_radio) {
-            local7_gemma_radio->setChecked(true);
-        } else {
-            local3_radio->setChecked(true);
-            selected_choice = LLMChoice::Local_4b_Gemma;
-        }
-        break;
-    case LLMChoice::Custom:
-        custom_radio->setChecked(true);
-        break;
-    default:
-        local3_radio->setChecked(true);
-        selected_choice = LLMChoice::Local_4b_Gemma;
-        break;
-    }
     refresh_custom_lists();
     refresh_custom_api_lists();
     if (selected_choice == LLMChoice::Custom) {
@@ -280,7 +236,9 @@ LLMSelectionDialog::LLMSelectionDialog(Settings& settings, QWidget* parent)
         select_custom_api_by_id(selected_custom_api_id);
     }
 
+    select_llm_choice(selected_choice);
     update_ui_for_choice();
+    connect_signals();
     adjust_dialog_size();
     const int min_width = 620;
     if (width() < min_width) {
@@ -321,52 +279,54 @@ void LLMSelectionDialog::setup_ui()
 
     layout->setSpacing(8);
 
-    auto* radio_container = new QWidget(this);
-    auto* radio_layout = new QVBoxLayout(radio_container);
-    radio_layout->setSpacing(10);
+    llm_source_tabs = new QTabWidget(content);
+    llm_source_tabs->setObjectName(QStringLiteral("llmSourceTabs"));
+    auto* local_page = new QWidget(llm_source_tabs);
+    auto* local_layout = new QVBoxLayout(local_page);
+    auto* local_label = new QLabel(tr("Model"), local_page);
+    local_model_combo = new QComboBox(local_page);
+    local_model_combo->setObjectName(QStringLiteral("localModelCombo"));
+    local_model_combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    local_model_combo->setMinimumContentsLength(28);
+    local_label->setBuddy(local_model_combo);
+    local_layout->addWidget(local_label);
+    local_layout->addWidget(local_model_combo);
+    local_model_description = new QLabel(local_page);
+    local_model_description->setObjectName(QStringLiteral("localModelDescription"));
+    local_model_description->setWordWrap(true);
+    local_layout->addWidget(local_model_description);
 
-    local3_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_4b_Gemma), radio_container);
-    local3_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* local3_desc = new QLabel(
-        tr("Balanced local model for categorization with lower hardware requirements than 7B models.\nSupports many languages for categorization.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."),
-        radio_container);
-    local3_desc->setWordWrap(true);
+    auto* api_page = new QWidget(llm_source_tabs);
+    auto* api_layout = new QVBoxLayout(api_page);
+    auto* provider_label = new QLabel(tr("Provider"), api_page);
+    api_provider_combo = new QComboBox(api_page);
+    api_provider_combo->setObjectName(QStringLiteral("apiProviderCombo"));
+    api_provider_combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    api_provider_combo->addItem(tr("Gemini (Google AI Studio API key)"),
+                                static_cast<int>(LLMChoice::Remote_Gemini));
+    api_provider_combo->addItem(tr("ChatGPT (OpenAI API key)"),
+                                static_cast<int>(LLMChoice::Remote_OpenAI));
+    api_provider_combo->addItem(tr("Custom OpenAI-compatible API (advanced)"),
+                                static_cast<int>(LLMChoice::Remote_Custom));
+    provider_label->setBuddy(api_provider_combo);
+    api_layout->addWidget(provider_label);
+    api_layout->addWidget(api_provider_combo);
+    api_provider_description = new QLabel(api_page);
+    api_provider_description->setObjectName(QStringLiteral("apiProviderDescription"));
+    api_provider_description->setWordWrap(true);
+    api_layout->addWidget(api_provider_description);
+    llm_source_tabs->addTab(local_page, tr("Local LLMs"));
+    llm_source_tabs->addTab(api_page, tr("API connections"));
+    refresh_local_model_choices();
 
-    qwen35_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_4b_Qwen35), radio_container);
-    qwen35_radio->setObjectName(QStringLiteral("qwen35Radio"));
-    qwen35_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-
-    local7_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_7b), radio_container);
-    local7_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    local7_desc = new QLabel(
-        tr("Larger local model. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."),
-        radio_container);
-    local7_desc->setWordWrap(true);
-
-    local7_gemma_radio =
-        new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_7b_Gemma), radio_container);
-    local7_gemma_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* local7_gemma_desc = new QLabel(
-        tr("Alternative 7B local model with strong instruction following. Best with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."),
-        radio_container);
-    local7_gemma_desc->setWordWrap(true);
-
-    local3_legacy_radio = new QRadioButton(default_llm_label_for_choice(LLMChoice::Local_3b_legacy), radio_container);
-    local3_legacy_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    local3_legacy_desc = new QLabel(tr("Legacy model kept for existing downloads."), radio_container);
-    local3_legacy_desc->setWordWrap(true);
-    update_legacy_local_choices_visibility();
-
-    gemini_radio = new QRadioButton(tr("Gemini (Google AI Studio API key)"), radio_container);
-    gemini_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* gemini_desc = new QLabel(tr("Use Google's Gemini models with your AI Studio API key (internet required)."), radio_container);
-    gemini_desc->setWordWrap(true);
-    gemini_inputs = new QWidget(radio_container);
+    gemini_inputs = new QWidget(api_page);
+    gemini_inputs->setObjectName(QStringLiteral("geminiInputs"));
     auto* gemini_form = new QFormLayout(gemini_inputs);
-    gemini_form->setContentsMargins(24, 0, 0, 0);
+    gemini_form->setContentsMargins(0, 0, 0, 0);
     gemini_form->setHorizontalSpacing(10);
     gemini_form->setVerticalSpacing(6);
     gemini_api_key_edit = new QLineEdit(gemini_inputs);
+    gemini_api_key_edit->setObjectName(QStringLiteral("geminiApiKeyEdit"));
     gemini_api_key_edit->setEchoMode(QLineEdit::Password);
     gemini_api_key_edit->setClearButtonEnabled(true);
     gemini_api_key_edit->setPlaceholderText(tr("AIza..."));
@@ -381,6 +341,7 @@ void LLMSelectionDialog::setup_ui()
     gemini_form->addRow(gemini_key_label, gemini_key_row);
 
     gemini_model_edit = new QLineEdit(gemini_inputs);
+    gemini_model_edit->setObjectName(QStringLiteral("geminiModelEdit"));
     gemini_model_edit->setPlaceholderText(tr("e.g. gemini-2.5-flash-lite, gemini-2.5-flash, gemini-2.5-pro"));
     auto* gemini_model_label = new QLabel(tr("Model"), gemini_inputs);
     gemini_model_label->setStyleSheet(QStringLiteral("color: #1f6feb;"));
@@ -397,16 +358,14 @@ void LLMSelectionDialog::setup_ui()
     gemini_form->addRow(gemini_link_label);
     gemini_inputs->setVisible(false);
 
-    openai_radio = new QRadioButton(tr("ChatGPT (OpenAI API key)"), radio_container);
-    openai_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* openai_desc = new QLabel(tr("Use your own OpenAI API key to access ChatGPT models (internet required)."), radio_container);
-    openai_desc->setWordWrap(true);
-    openai_inputs = new QWidget(radio_container);
+    openai_inputs = new QWidget(api_page);
+    openai_inputs->setObjectName(QStringLiteral("openaiInputs"));
     auto* openai_form = new QFormLayout(openai_inputs);
-    openai_form->setContentsMargins(24, 0, 0, 0);
+    openai_form->setContentsMargins(0, 0, 0, 0);
     openai_form->setHorizontalSpacing(10);
     openai_form->setVerticalSpacing(6);
     openai_api_key_edit = new QLineEdit(openai_inputs);
+    openai_api_key_edit->setObjectName(QStringLiteral("openaiApiKeyEdit"));
     openai_api_key_edit->setEchoMode(QLineEdit::Password);
     openai_api_key_edit->setClearButtonEnabled(true);
     openai_api_key_edit->setPlaceholderText(tr("sk-..."));
@@ -421,6 +380,7 @@ void LLMSelectionDialog::setup_ui()
     openai_form->addRow(openai_key_label, openai_key_row);
 
     openai_model_edit = new QLineEdit(openai_inputs);
+    openai_model_edit->setObjectName(QStringLiteral("openaiModelEdit"));
     openai_model_edit->setPlaceholderText(
         tr("e.g. gpt-4o-mini, gpt-4.1, o3-mini"));
     auto* openai_model_label = new QLabel(tr("Model"), openai_inputs);
@@ -441,92 +401,55 @@ void LLMSelectionDialog::setup_ui()
     openai_form->addRow(openai_link_label);
     openai_inputs->setVisible(false);
 
-    custom_api_radio = new QRadioButton(
-        tr("Custom OpenAI-compatible API (advanced)"), radio_container);
-    custom_api_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* custom_api_desc = new QLabel(
-        tr("Use OpenAI-compatible endpoints such as LM Studio or Ollama (local or remote)."),
-        radio_container);
-    custom_api_desc->setWordWrap(true);
-    auto* custom_api_row = new QWidget(radio_container);
+    auto* custom_api_row = new QWidget(api_page);
+    custom_api_row->setObjectName(QStringLiteral("customApiControls"));
     auto* custom_api_layout = new QHBoxLayout(custom_api_row);
-    custom_api_layout->setContentsMargins(24, 0, 0, 0);
+    custom_api_layout->setContentsMargins(0, 0, 0, 0);
     custom_api_combo = new QComboBox(custom_api_row);
+    custom_api_combo->setPlaceholderText(tr("Choose or add a custom API endpoint."));
     custom_api_combo->setMinimumContentsLength(10);
-    custom_api_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    custom_api_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    custom_api_combo->setFixedWidth(360);
+    custom_api_combo->setObjectName(QStringLiteral("customApiCombo"));
+    custom_api_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    custom_api_combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     add_custom_api_button = new QPushButton(tr("Add…"), custom_api_row);
     edit_custom_api_button = new QPushButton(tr("Edit…"), custom_api_row);
     delete_custom_api_button = new QPushButton(tr("Delete"), custom_api_row);
     add_custom_api_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     edit_custom_api_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     delete_custom_api_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    custom_api_layout->addWidget(custom_api_combo);
+    custom_api_layout->addWidget(custom_api_combo, 1);
     custom_api_layout->addWidget(add_custom_api_button);
     custom_api_layout->addWidget(edit_custom_api_button);
     custom_api_layout->addWidget(delete_custom_api_button);
-    custom_api_layout->addStretch(1);
 
-    custom_radio = new QRadioButton(
-        tr("Custom local LLM (gguf)"), radio_container);
-    custom_radio->setStyleSheet(QStringLiteral("color: #1f6feb;"));
-    auto* custom_row = new QWidget(radio_container);
+    auto* custom_row = new QWidget(local_page);
+    custom_row->setObjectName(QStringLiteral("customLocalControls"));
     auto* custom_layout = new QHBoxLayout(custom_row);
-    custom_layout->setContentsMargins(24, 0, 0, 0);
+    custom_layout->setContentsMargins(0, 0, 0, 0);
     custom_combo = new QComboBox(custom_row);
+    custom_combo->setPlaceholderText(tr("Choose or add a custom model."));
     custom_combo->setMinimumContentsLength(10);
-    custom_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    custom_combo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    custom_combo->setFixedWidth(360);
+    custom_combo->setObjectName(QStringLiteral("customLocalCombo"));
+    custom_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    custom_combo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     add_custom_button = new QPushButton(tr("Add…"), custom_row);
     edit_custom_button = new QPushButton(tr("Edit…"), custom_row);
     delete_custom_button = new QPushButton(tr("Delete"), custom_row);
     add_custom_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     edit_custom_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     delete_custom_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    custom_layout->addWidget(custom_combo);
+    custom_layout->addWidget(custom_combo, 1);
     custom_layout->addWidget(add_custom_button);
     custom_layout->addWidget(edit_custom_button);
     custom_layout->addWidget(delete_custom_button);
-    custom_layout->addStretch(1);
 
-    radio_layout->addWidget(local3_radio);
-    radio_layout->addWidget(local3_desc);
-    radio_layout->addWidget(qwen35_radio);
-    radio_layout->addWidget(local7_radio);
-    radio_layout->addWidget(local7_desc);
-    radio_layout->addWidget(local7_gemma_radio);
-    radio_layout->addWidget(local7_gemma_desc);
-    radio_layout->addWidget(local3_legacy_radio);
-    radio_layout->addWidget(local3_legacy_desc);
-    radio_layout->addWidget(gemini_radio);
-    radio_layout->addWidget(gemini_desc);
-    radio_layout->addWidget(gemini_inputs);
-    radio_layout->addWidget(openai_radio);
-    radio_layout->addWidget(openai_desc);
-    radio_layout->addWidget(openai_inputs);
-    radio_layout->addWidget(custom_api_radio);
-    radio_layout->addWidget(custom_api_desc);
-    radio_layout->addWidget(custom_api_row);
-    radio_layout->addWidget(custom_radio);
-    radio_layout->addWidget(custom_row);
-
-    auto* llm_group = new QButtonGroup(this);
-    llm_group->setExclusive(true);
-    llm_group->addButton(openai_radio);
-    llm_group->addButton(gemini_radio);
-    llm_group->addButton(custom_api_radio);
-    llm_group->addButton(local3_radio);
-    llm_group->addButton(qwen35_radio);
-    if (local3_legacy_radio) {
-        llm_group->addButton(local3_legacy_radio);
-    }
-    llm_group->addButton(local7_radio);
-    llm_group->addButton(local7_gemma_radio);
-    llm_group->addButton(custom_radio);
-
-    layout->addWidget(radio_container);
+    local_layout->addWidget(custom_row);
+    local_layout->addStretch(1);
+    api_layout->addWidget(gemini_inputs);
+    api_layout->addWidget(openai_inputs);
+    api_layout->addWidget(custom_api_row);
+    api_layout->addStretch(1);
+    layout->addWidget(llm_source_tabs);
 
     download_toggle_button = new QToolButton(this);
     download_toggle_button->setText(tr("Downloads"));
@@ -578,11 +501,8 @@ void LLMSelectionDialog::setup_ui()
     auto* download_layout = new QVBoxLayout(download_section);
     download_layout->setSpacing(6);
 
-    remote_url_label = new QLabel(download_section);
-    remote_url_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
-
-    local_path_label = new QLabel(download_section);
-    local_path_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    setup_download_details(local_download_details, download_section,
+                           QStringLiteral("localDownloadDetails"));
 
     file_size_label = new QLabel(download_section);
     file_size_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -611,12 +531,11 @@ void LLMSelectionDialog::setup_ui()
     download_actions_layout->addWidget(delete_download_button);
     download_actions_layout->addStretch(1);
 
-    download_layout->addWidget(remote_url_label);
-    download_layout->addWidget(local_path_label);
     download_layout->addWidget(file_size_label);
     download_layout->addWidget(status_label);
     download_layout->addWidget(progress_bar);
     download_layout->addWidget(download_actions, 0, Qt::AlignLeft);
+    download_layout->addWidget(local_download_details.container);
 
     downloads_layout->addWidget(download_section);
     download_section->setVisible(false);
@@ -668,19 +587,58 @@ void LLMSelectionDialog::setup_ui()
 }
 
 
+void LLMSelectionDialog::setup_download_details(DownloadDetails& details,
+                                               QWidget* parent,
+                                               const QString& object_name)
+{
+    details.container = new QWidget(parent);
+    details.container->setObjectName(object_name);
+    auto* layout = new QVBoxLayout(details.container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(6);
+    details.toggle = new QToolButton(details.container);
+    details.toggle->setObjectName(object_name + QStringLiteral("Toggle"));
+    details.toggle->setText(tr("See details"));
+    details.toggle->setCheckable(true);
+    details.toggle->setArrowType(Qt::RightArrow);
+    details.toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    apply_download_toggle_style(details.toggle);
+    layout->addWidget(details.toggle, 0, Qt::AlignLeft);
+
+    details.content = new QWidget(details.container);
+    details.content->setObjectName(object_name + QStringLiteral("Content"));
+    auto* content_layout = new QVBoxLayout(details.content);
+    content_layout->setContentsMargins(18, 0, 0, 0);
+    details.remote_url_label = new QLabel(details.content);
+    details.remote_url_label->setObjectName(object_name + QStringLiteral("RemoteUrl"));
+    details.local_path_label = new QLabel(details.content);
+    details.local_path_label->setObjectName(object_name + QStringLiteral("LocalPath"));
+    details.metadata_label = new QLabel(details.content);
+    details.metadata_label->setObjectName(object_name + QStringLiteral("Metadata"));
+    for (auto* label : {details.remote_url_label, details.local_path_label, details.metadata_label}) {
+        label->setTextFormat(Qt::RichText);
+        label->setWordWrap(true);
+        label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+        content_layout->addWidget(label);
+    }
+    layout->addWidget(details.content);
+    details.content->hide();
+    auto* details_ptr = &details;
+    connect(details.toggle, &QToolButton::toggled, this, [this, details_ptr](bool expanded) {
+        details_ptr->content->setVisible(expanded);
+        details_ptr->toggle->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+        details_ptr->toggle->setText(expanded ? tr("Hide details") : tr("See details"));
+        adjust_dialog_size();
+    });
+}
+
 void LLMSelectionDialog::connect_signals()
 {
     auto update_handler = [this]() { update_ui_for_choice(); };
-    connect(openai_radio, &QRadioButton::toggled, this, update_handler);
-    connect(gemini_radio, &QRadioButton::toggled, this, update_handler);
-    connect(custom_api_radio, &QRadioButton::toggled, this, update_handler);
-    connect(local3_radio, &QRadioButton::toggled, this, update_handler);
-    connect(qwen35_radio, &QRadioButton::toggled, this, update_handler);
-    if (local3_legacy_radio) {
-        connect(local3_legacy_radio, &QRadioButton::toggled, this, update_handler);
-    }
-    connect(local7_radio, &QRadioButton::toggled, this, update_handler);
-    connect(custom_radio, &QRadioButton::toggled, this, update_handler);
+    connect(llm_source_tabs, &QTabWidget::currentChanged, this, update_handler);
+    connect(local_model_combo, &QComboBox::currentIndexChanged, this, update_handler);
+    connect(api_provider_combo, &QComboBox::currentIndexChanged, this, update_handler);
     connect(custom_combo, &QComboBox::currentTextChanged, this, update_handler);
     connect(custom_api_combo, &QComboBox::currentTextChanged, this, update_handler);
     connect(openai_api_key_edit, &QLineEdit::textChanged, this, update_handler);
@@ -851,66 +809,89 @@ void LLMSelectionDialog::set_status_message(const QString& message)
     status_label->setText(message);
 }
 
-void LLMSelectionDialog::update_legacy_local_choices_visibility()
+void LLMSelectionDialog::refresh_local_model_choices()
 {
-    const struct {
-        LLMChoice choice;
-        QRadioButton* radio;
-        QLabel* description;
-    } legacy_choices[] = {
-        {LLMChoice::Local_3b_legacy, local3_legacy_radio, local3_legacy_desc},
-        {LLMChoice::Local_7b, local7_radio, local7_desc}
-    };
-    for (const auto& [choice, radio, description] : legacy_choices) {
-        const bool visible = builtin_llm_choice_visible(choice, settings.get_llm_choice());
-        radio->setVisible(visible);
-        description->setVisible(visible);
-        if (!visible && radio->isChecked()) {
-            local3_radio->setChecked(true);
+    const QVariant previous_choice = local_model_combo->currentData();
+    const QSignalBlocker blocker(local_model_combo);
+    local_model_combo->clear();
+    for (const auto& entry : default_llm_entries()) {
+        if (!builtin_llm_choice_visible(entry.choice, settings.get_llm_choice())) {
+            continue;
         }
+        QString label = default_llm_name(entry);
+        if (entry.choice == LLMChoice::Local_4b_Qwen35) {
+            label = QStringLiteral("%1 (%2)").arg(label, tr("Recommended"));
+        }
+        local_model_combo->addItem(label, static_cast<int>(entry.choice));
     }
+    local_model_combo->addItem(tr("Custom local LLM (gguf)"), static_cast<int>(LLMChoice::Custom));
+    const int previous_index = local_model_combo->findData(previous_choice);
+    local_model_combo->setCurrentIndex(previous_index >= 0 ? previous_index : 0);
+}
+
+void LLMSelectionDialog::select_llm_choice(LLMChoice choice)
+{
+    const QSignalBlocker tabs_blocker(llm_source_tabs);
+    QComboBox* combo = is_remote_choice(choice) ? api_provider_combo : local_model_combo;
+    const QSignalBlocker combo_blocker(combo);
+    const int index = combo->findData(static_cast<int>(choice));
+    combo->setCurrentIndex(index >= 0 ? index : 0);
+    llm_source_tabs->setCurrentIndex(is_remote_choice(choice) ? 1 : 0);
+    selected_choice = static_cast<LLMChoice>(combo->currentData().toInt());
 }
 
 void LLMSelectionDialog::update_ui_for_choice()
 {
-    update_legacy_local_choices_visibility();
+    refresh_local_model_choices();
+    update_dropdown_selection();
     update_custom_buttons();
     update_custom_api_buttons();
-
-    update_radio_selection();
+    update_local_download_choice_enabled_state();
     update_custom_choice_ui();
     update_custom_api_choice_ui();
     update_visual_llm_downloads();
 
-    const bool is_local_builtin = default_llm_entry_for_choice(selected_choice) != nullptr;
-
-    if (selected_choice == LLMChoice::Custom || is_remote_choice(selected_choice) || !is_local_builtin) {
-        return;
+    if (default_llm_entry_for_choice(selected_choice)) {
+        update_local_choice_ui();
     }
-
-    update_local_choice_ui();
+    adjust_dialog_size();
 }
 
-void LLMSelectionDialog::update_radio_selection()
+void LLMSelectionDialog::update_dropdown_selection()
 {
-    if (openai_radio->isChecked()) {
-        selected_choice = LLMChoice::Remote_OpenAI;
-    } else if (gemini_radio->isChecked()) {
-        selected_choice = LLMChoice::Remote_Gemini;
-    } else if (custom_api_radio->isChecked()) {
-        selected_choice = LLMChoice::Remote_Custom;
-    } else if (local3_legacy_radio && local3_legacy_radio->isChecked()) {
-        selected_choice = LLMChoice::Local_3b_legacy;
-    } else if (local3_radio->isChecked()) {
-        selected_choice = LLMChoice::Local_4b_Gemma;
-    } else if (qwen35_radio->isChecked()) {
-        selected_choice = LLMChoice::Local_4b_Qwen35;
-    } else if (local7_radio->isChecked()) {
-        selected_choice = LLMChoice::Local_7b;
-    } else if (local7_gemma_radio && local7_gemma_radio->isChecked()) {
-        selected_choice = LLMChoice::Local_7b_Gemma;
-    } else if (custom_radio->isChecked()) {
-        selected_choice = LLMChoice::Custom;
+    const auto* combo = llm_source_tabs->currentIndex() == 1 ? api_provider_combo : local_model_combo;
+    selected_choice = static_cast<LLMChoice>(combo->currentData().toInt());
+
+    switch (selected_choice) {
+    case LLMChoice::Local_4b_Qwen35:
+        local_model_description->setText(tr("High precision local model for categorization. Best suited for sorting into existing folder structures.\nSupports many languages for categorization.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."));
+        break;
+    case LLMChoice::Local_4b_Gemma:
+        local_model_description->setText(tr("Balanced local model for categorization with lower hardware requirements than 7B models.\nSupports many languages for categorization.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."));
+        break;
+    case LLMChoice::Local_7b:
+        local_model_description->setText(tr("Larger local model. Slower on CPU, but performs much better with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."));
+        break;
+    case LLMChoice::Local_7b_Gemma:
+        local_model_description->setText(tr("Alternative 7B local model with strong instruction following. Best with GPU acceleration.\nSupports: Nvidia (CUDA), Apple (Metal), CPU."));
+        break;
+    case LLMChoice::Local_3b_legacy:
+        local_model_description->setText(tr("Legacy model kept for existing downloads."));
+        break;
+    case LLMChoice::Custom:
+        local_model_description->setText(tr("Use a local GGUF model from your computer."));
+        break;
+    case LLMChoice::Remote_Gemini:
+        api_provider_description->setText(tr("Use Google's Gemini models with your AI Studio API key (internet required)."));
+        break;
+    case LLMChoice::Remote_OpenAI:
+        api_provider_description->setText(tr("Use your own OpenAI API key to access ChatGPT models (internet required)."));
+        break;
+    case LLMChoice::Remote_Custom:
+        api_provider_description->setText(tr("Use OpenAI-compatible endpoints such as LM Studio or Ollama (local or remote)."));
+        break;
+    default:
+        break;
     }
 }
 
@@ -947,6 +928,7 @@ void LLMSelectionDialog::update_custom_choice_ui()
         gemini_inputs->setEnabled(is_remote_gemini);
     }
 
+    custom_combo->parentWidget()->setVisible(is_custom);
     custom_combo->setEnabled(is_custom);
     edit_custom_button->setEnabled(is_custom && custom_combo->currentIndex() >= 0 && custom_combo->count() > 0);
     delete_custom_button->setEnabled(is_custom && custom_combo->currentIndex() >= 0 && custom_combo->count() > 0);
@@ -994,6 +976,7 @@ void LLMSelectionDialog::update_custom_api_choice_ui()
 
     const bool is_custom_api = selected_choice == LLMChoice::Remote_Custom;
     if (custom_api_combo) {
+        custom_api_combo->parentWidget()->setVisible(is_custom_api);
         custom_api_combo->setEnabled(is_custom_api);
     }
     if (edit_custom_api_button) {
@@ -1111,21 +1094,8 @@ bool LLMSelectionDialog::gemini_inputs_valid() const
 void LLMSelectionDialog::update_local_download_choice_enabled_state()
 {
     const bool allow_switch = !is_downloading.load();
-    if (local3_radio) {
-        local3_radio->setEnabled(allow_switch || local3_radio->isChecked());
-    }
-    if (qwen35_radio) {
-        qwen35_radio->setEnabled(allow_switch || qwen35_radio->isChecked());
-    }
-    if (local3_legacy_radio) {
-        local3_legacy_radio->setEnabled(allow_switch || local3_legacy_radio->isChecked());
-    }
-    if (local7_radio) {
-        local7_radio->setEnabled(allow_switch || local7_radio->isChecked());
-    }
-    if (local7_gemma_radio) {
-        local7_gemma_radio->setEnabled(allow_switch || local7_gemma_radio->isChecked());
-    }
+    local_model_combo->setEnabled(allow_switch);
+    llm_source_tabs->setTabEnabled(1, allow_switch);
 }
 
 void LLMSelectionDialog::update_local_choice_ui()
@@ -1135,14 +1105,16 @@ void LLMSelectionDialog::update_local_choice_ui()
     }
     update_local_download_choice_enabled_state();
     refresh_downloader();
+    update_download_info();
 
     if (!downloader) {
         if (ok_button) ok_button->setEnabled(false);
+        progress_bar->setVisible(false);
+        download_button->setVisible(true);
         download_button->setEnabled(false);
+        delete_download_button->setEnabled(false);
         return;
     }
-
-    update_download_info();
 
     const auto status = downloader->get_download_status();
     switch (status) {
@@ -1308,15 +1280,35 @@ void LLMSelectionDialog::handle_delete_download()
 
 void LLMSelectionDialog::update_download_info()
 {
+    const auto* entry = default_llm_entry_for_choice(selected_choice);
+    if (entry) {
+        const QString text_color = palette().color(QPalette::Text).name();
+        QString metadata = format_markup_label(tr("Model"), default_llm_name(*entry), text_color)
+            + QStringLiteral("<br>")
+            + format_markup_label(tr("File type"), tr("GGUF text model"), text_color)
+            + QStringLiteral("<br>")
+            + format_markup_label(tr("Runtime"), QStringLiteral("llama.cpp"), text_color)
+            + QStringLiteral("<br>")
+            + format_markup_label(tr("Download URL setting"), QString::fromUtf8(entry->url_env), text_color);
+        if (entry->visual_backend_id) {
+            metadata += QStringLiteral("<br>")
+                + format_markup_label(tr("Model ID"), QString::fromUtf8(entry->visual_backend_id), text_color);
+        }
+        local_download_details.metadata_label->setText(metadata);
+    }
+
     if (!downloader) {
+        local_download_details.remote_url_label->setText(tr("Remote URL: unknown"));
+        local_download_details.local_path_label->setText(tr("Local path: unavailable"));
+        file_size_label->setText(tr("File size: unknown"));
         return;
     }
 
-    remote_url_label->setText(format_markup_label(tr("Remote URL"),
+    local_download_details.remote_url_label->setText(format_markup_label(tr("Remote URL"),
                                                   QString::fromStdString(downloader->get_download_url()),
                                                   QStringLiteral("#1565c0")));
 
-    local_path_label->setText(format_markup_label(tr("Local path"),
+    local_download_details.local_path_label->setText(format_markup_label(tr("Local path"),
                                                  QString::fromStdString(downloader->get_download_destination()),
                                                  QStringLiteral("#2e7d32")));
 
@@ -1420,7 +1412,7 @@ void LLMSelectionDialog::handle_add_custom()
     refresh_custom_lists();
     refresh_visual_backend_combo();
     select_custom_by_id(selected_custom_id);
-    custom_radio->setChecked(true);
+    select_llm_choice(LLMChoice::Custom);
     update_ui_for_choice();
 }
 
@@ -1434,7 +1426,7 @@ void LLMSelectionDialog::handle_add_custom_api()
     selected_custom_api_id = settings.upsert_custom_api_endpoint(entry);
     refresh_custom_api_lists();
     select_custom_api_by_id(selected_custom_api_id);
-    custom_api_radio->setChecked(true);
+    select_llm_choice(LLMChoice::Remote_Custom);
     update_ui_for_choice();
 }
 
@@ -1459,7 +1451,7 @@ void LLMSelectionDialog::handle_edit_custom()
     refresh_custom_lists();
     refresh_visual_backend_combo();
     select_custom_by_id(selected_custom_id);
-    custom_radio->setChecked(true);
+    select_llm_choice(LLMChoice::Custom);
     update_ui_for_choice();
 }
 
@@ -1483,7 +1475,7 @@ void LLMSelectionDialog::handle_edit_custom_api()
     selected_custom_api_id = settings.upsert_custom_api_endpoint(updated);
     refresh_custom_api_lists();
     select_custom_api_by_id(selected_custom_api_id);
-    custom_api_radio->setChecked(true);
+    select_llm_choice(LLMChoice::Remote_Custom);
     update_ui_for_choice();
 }
 
@@ -1507,7 +1499,6 @@ void LLMSelectionDialog::handle_delete_custom()
     }
     refresh_custom_lists();
     refresh_visual_backend_combo();
-    custom_radio->setChecked(custom_combo->count() > 0);
     update_ui_for_choice();
 }
 
@@ -1530,7 +1521,6 @@ void LLMSelectionDialog::handle_delete_custom_api()
         selected_custom_api_id.clear();
     }
     refresh_custom_api_lists();
-    custom_api_radio->setChecked(custom_api_combo->count() > 0);
     update_ui_for_choice();
 }
 
@@ -1594,10 +1584,10 @@ void LLMSelectionDialog::update_custom_buttons()
 {
     const bool has_selection = custom_combo && custom_combo->currentIndex() >= 0 && custom_combo->count() > 0;
     if (edit_custom_button) {
-        edit_custom_button->setEnabled(has_selection && custom_radio->isChecked());
+        edit_custom_button->setEnabled(has_selection && selected_choice == LLMChoice::Custom);
     }
     if (delete_custom_button) {
-        delete_custom_button->setEnabled(has_selection && custom_radio->isChecked());
+        delete_custom_button->setEnabled(has_selection && selected_choice == LLMChoice::Custom);
     }
 }
 
@@ -1605,10 +1595,10 @@ void LLMSelectionDialog::update_custom_api_buttons()
 {
     const bool has_selection = custom_api_combo && custom_api_combo->currentIndex() >= 0 && custom_api_combo->count() > 0;
     if (edit_custom_api_button) {
-        edit_custom_api_button->setEnabled(has_selection && custom_api_radio->isChecked());
+        edit_custom_api_button->setEnabled(has_selection && selected_choice == LLMChoice::Remote_Custom);
     }
     if (delete_custom_api_button) {
-        delete_custom_api_button->setEnabled(has_selection && custom_api_radio->isChecked());
+        delete_custom_api_button->setEnabled(has_selection && selected_choice == LLMChoice::Remote_Custom);
     }
 }
 
@@ -1628,11 +1618,21 @@ void LLMSelectionDialog::setup_visual_llm_download_entry(VisualLlmDownloadEntry&
     auto* entry_layout = new QVBoxLayout(group);
     entry_layout->setSpacing(6);
 
-    entry.remote_url_label = new QLabel(group);
-    entry.remote_url_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
-
-    entry.local_path_label = new QLabel(group);
-    entry.local_path_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    setup_download_details(entry.details, group,
+                           QStringLiteral("visualDownloadDetails_%1").arg(QString::fromUtf8(artifact.url_env)));
+    entry.details.metadata_label->setText(
+        format_markup_label(tr("Model ID"), QString::fromUtf8(backend.id),
+                            palette().color(QPalette::Text).name())
+        + QStringLiteral("<br>")
+        + format_markup_label(tr("File type"), artifact.kind == VisualModelArtifactKind::Mmproj
+                                  ? tr("GGUF vision projector") : tr("GGUF text model"),
+                              palette().color(QPalette::Text).name())
+        + QStringLiteral("<br>")
+        + format_markup_label(tr("Runtime"), QStringLiteral("llama.cpp (MTMD)"),
+                              palette().color(QPalette::Text).name())
+        + QStringLiteral("<br>")
+        + format_markup_label(tr("Download URL setting"), QString::fromUtf8(artifact.url_env),
+                              palette().color(QPalette::Text).name()));
 
     entry.file_size_label = new QLabel(group);
     entry.file_size_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -1661,12 +1661,11 @@ void LLMSelectionDialog::setup_visual_llm_download_entry(VisualLlmDownloadEntry&
     action_layout->addWidget(entry.delete_button);
     action_layout->addStretch(1);
 
-    entry_layout->addWidget(entry.remote_url_label);
-    entry_layout->addWidget(entry.local_path_label);
     entry_layout->addWidget(entry.file_size_label);
     entry_layout->addWidget(entry.status_label);
     entry_layout->addWidget(entry.progress_bar);
     entry_layout->addWidget(action_row, 0, Qt::AlignLeft);
+    entry_layout->addWidget(entry.details.container);
 
     if (entry.delete_button) {
         auto* entry_ptr = &entry;
@@ -1687,11 +1686,11 @@ void LLMSelectionDialog::refresh_visual_llm_download_entry(VisualLlmDownloadEntr
 {
     entry.resolved_artifact_path.reset();
 
-    if (entry.remote_url_label) {
-        entry.remote_url_label->setText(tr("Remote URL: unknown"));
+    if (entry.details.remote_url_label) {
+        entry.details.remote_url_label->setText(tr("Remote URL: unknown"));
     }
-    if (entry.local_path_label) {
-        entry.local_path_label->setText(tr("Local path: unavailable"));
+    if (entry.details.local_path_label) {
+        entry.details.local_path_label->setText(tr("Local path: unavailable"));
     }
     if (entry.file_size_label) {
         entry.file_size_label->setText(tr("File size: unknown"));
@@ -1718,8 +1717,8 @@ void LLMSelectionDialog::refresh_visual_llm_download_entry(VisualLlmDownloadEntr
         return;
     }
 
-    if (entry.remote_url_label) {
-        entry.remote_url_label->setText(format_markup_label(tr("Remote URL"),
+    if (entry.details.remote_url_label) {
+        entry.details.remote_url_label->setText(format_markup_label(tr("Remote URL"),
                                                             QString::fromStdString(env_url),
                                                             QStringLiteral("#1565c0")));
     }
@@ -1741,11 +1740,11 @@ void LLMSelectionDialog::refresh_visual_llm_download_entry(VisualLlmDownloadEntr
         entry.downloader->set_download_url(env_url);
     }
 
-    if (entry.local_path_label) {
+    if (entry.details.local_path_label) {
         const std::string path_text = entry.resolved_artifact_path.has_value()
                                           ? entry.resolved_artifact_path->string()
                                           : entry.downloader->get_download_destination();
-        entry.local_path_label->setText(format_markup_label(tr("Local path"),
+        entry.details.local_path_label->setText(format_markup_label(tr("Local path"),
                                                             QString::fromStdString(path_text),
                                                             QStringLiteral("#2e7d32")));
     }
@@ -1777,16 +1776,16 @@ void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry
         return;
     }
 
-    if (entry.remote_url_label) {
-        entry.remote_url_label->setText(format_markup_label(tr("Remote URL"),
+    if (entry.details.remote_url_label) {
+        entry.details.remote_url_label->setText(format_markup_label(tr("Remote URL"),
                                                             QString::fromStdString(entry.downloader->get_download_url()),
                                                             QStringLiteral("#1565c0")));
     }
-    if (entry.local_path_label) {
+    if (entry.details.local_path_label) {
         const std::string path_text = entry.resolved_artifact_path.has_value()
                                           ? entry.resolved_artifact_path->string()
                                           : entry.downloader->get_download_destination();
-        entry.local_path_label->setText(format_markup_label(tr("Local path"),
+        entry.details.local_path_label->setText(format_markup_label(tr("Local path"),
                                                             QString::fromStdString(path_text),
                                                             QStringLiteral("#2e7d32")));
     }
@@ -2370,10 +2369,10 @@ std::vector<std::string> LLMSelectionDialogTestAccess::local_builtin_labels(
     const LLMSelectionDialog& dialog)
 {
     std::vector<std::string> labels;
-    for (const auto* radio : {dialog.local3_radio, dialog.qwen35_radio, dialog.local7_radio,
-                              dialog.local7_gemma_radio, dialog.local3_legacy_radio}) {
-        if (radio && !radio->isHidden()) {
-            labels.push_back(radio->text().toStdString());
+    for (int index = 0; index < dialog.local_model_combo->count(); ++index) {
+        const auto choice = static_cast<LLMChoice>(dialog.local_model_combo->itemData(index).toInt());
+        if (default_llm_entry_for_choice(choice)) {
+            labels.push_back(dialog.local_model_combo->itemText(index).toStdString());
         }
     }
     return labels;

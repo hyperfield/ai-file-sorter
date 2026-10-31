@@ -8,6 +8,7 @@
 #include "TestHooks.hpp"
 #include "Utils.hpp"
 
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QLabel>
@@ -205,7 +206,7 @@ TEST_CASE("Visual backend selection switches descriptor-driven download state") 
           QStringLiteral("Missing download URL environment variable (GEMMA3_4B_MODEL_URL)."));
 }
 
-TEST_CASE("Visual dialog defaults to recommended Gemma backend") {
+TEST_CASE("Visual dialog defaults to recommended Qwen backend") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt_context;
 
@@ -216,9 +217,13 @@ TEST_CASE("Visual dialog defaults to recommended Gemma backend") {
     Settings settings;
     LLMSelectionDialog dialog(settings);
 
-    CHECK(LLMSelectionDialogTestAccess::selected_visual_model_id(dialog) == "gemma-3-4b-it");
+    CHECK(settings.get_visual_model_id() == "qwen3.5-4b");
+    CHECK(LLMSelectionDialogTestAccess::selected_visual_model_id(dialog) == "qwen3.5-4b");
     CHECK(LLMSelectionDialogTestAccess::selected_visual_model_label(dialog) ==
-          "Gemma 3 4B IT (Recommended)");
+          "Qwen3.5 4B (Recommended)");
+    auto* combo = LLMSelectionDialogTestAccess::visual_model_combo(dialog);
+    REQUIRE(combo != nullptr);
+    CHECK(combo->currentIndex() == 0);
 }
 
 TEST_CASE("Visual dialog does not mark another backend's legacy generic mmproj as downloaded") {
