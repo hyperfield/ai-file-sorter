@@ -1,8 +1,8 @@
 # Schnellstartanleitung
 
-AI File Sorter hilft Ihnen, Dateien mit einem Pruefung-zuerst-Ablauf und optionaler automatischer Genehmigung fuer Aenderungen zu organisieren, denen Sie vertrauen.
+AI File Sorter hilft Ihnen, Dateien vor dem Anwenden von Änderungen zu prüfen. Die optionale automatische Genehmigung kann Änderungen in der Prüfliste vorauswählen.
 
-Die KI steuert die Analyse und schlaegt Kategorien, Unterkategorien und Namen vor. Sie aendert Ihre Dateien nicht direkt. Die App fuehrt Verschiebungen oder Umbenennungen aus, nachdem Sie die geprueften Aenderungen bestaetigt haben, oder automatisch nur dann, wenn Sie die passende Auto-Genehmigung aktiviert haben.
+Die KI schlägt Kategorien, Zielordner und Namen vor. Die App verschiebt Dateien oder benennt sie erst um, nachdem Sie die ausgewählten Änderungen im Prüfdialog bestätigt haben.
 
 ## Sicherer erster Durchlauf
 
@@ -16,6 +16,28 @@ Gute Ordner fuer den ersten Durchlauf sind:
 
 So bleibt der erste Durchlauf leicht zu pruefen. Ihre Dateien bleiben auf Ihrem Computer, wenn Sie lokale Modelle verwenden, und die KI schlaegt nur Kategorien und Namen vor. Lassen Sie Auto-Genehmigungen beim ersten Durchlauf ausgeschaltet, damit nichts verschoben oder umbenannt wird, bevor Sie die Pruefliste genehmigen.
 
+## Ein LLM einrichten
+
+Öffnen Sie **Settings -> Select LLM**. Wählen Sie ein Modell aus der Dropdown-Liste **Local LLMs** oder einen Anbieter unter **API connections**.
+
+**Qwen3.5 4B (Recommended)** ist die erste lokale Option und der Standard für neue Einrichtungen. Es bietet hohe Präzision bei der Kategorisierung und wird für vorhandene Ordnerstrukturen empfohlen. Ihre zuvor gespeicherte Modellauswahl bleibt erhalten. Für eine eigene GGUF-Datei wählen Sie **Custom local LLM (gguf)** und dann **Add**.
+
+Für ein von der App angebotenes lokales Modell klappen Sie **Downloads** auf, klicken auf **Download** und warten auf **Model ready**, bevor Sie mit **OK** bestätigen. Unter **Model storage** wählen Sie den Download-Ordner. **See details** zeigt die Download-URL, den lokalen Pfad und technische Informationen.
+
+Wählen Sie für die Bildanalyse außerdem ein **Visual model** unter **Image analysis models** und laden Sie alle benötigten Dateien herunter. Diese Auswahl ist unabhängig vom Textmodell.
+
+Wählen Sie unter **API connections** Gemini, ChatGPT (OpenAI) oder einen eigenen OpenAI-kompatiblen Endpunkt und geben Sie die erforderlichen Verbindungsdaten und den Modellnamen ein. Cloud-APIs benötigen Internet und senden die Analyseeingaben an den eingerichteten Dienst. Eigene Endpunkte können auch lokal laufen.
+
+## Lokale Leistung prüfen (optional)
+
+Öffnen Sie nach dem Herunterladen der Modelle **File -> System compatibility check** und klicken Sie auf **Run benchmark**. Schließen Sie vorher andere CPU- oder GPU-intensive Apps. Die Prüfung testet heruntergeladene lokale Modelle einschließlich eigener GGUF-Modelle.
+
+Belassen Sie **Backend** auf **Automatic (try CPU if GPU fails)** oder wählen Sie **All available backends**, um CPU und unterstützte GPU-Optionen zu vergleichen. Ergebnisse werden für jedes Modell und Backend getrennt gespeichert; ein Fehler auf einem Backend schließt eine funktionierende Kombination auf einem anderen nicht aus.
+
+Wählen Sie ein Ergebnis und verwenden Sie **Retry selected** zum Wiederholen dieser Kombination, **Retry failed** zum Wiederholen fehlgeschlagener Kombinationen oder **Try chosen backend**, um das ausgewählte Modell mit einem bestimmten Backend aus der Dropdown-Liste zu testen.
+
+Die Empfehlungen schätzen die lokale Leistung ein. Die Prüfung testet weder API-Dienste noch die Genauigkeit bei der Auswahl vorhandener Ordner und ändert Ihr ausgewähltes Modell nicht automatisch.
+
 ## 1. Einen Ordner auswaehlen
 
 Verwenden Sie **Browse** oder den **File Explorer**-Bereich, um den Ordner auszuwaehlen, den Sie sortieren moechten.
@@ -28,6 +50,8 @@ Typische Beispiele:
 - ein Netzwerk- oder Cloud-synchronisierter Ordner
 - ein Projektarchiv
 
+**Destination** bestimmt, wohin sortierte Dateien gelangen. Lassen Sie **Use analyzed folder** aktiviert, um im ausgewählten Ordner zu sortieren, oder deaktivieren Sie es und wählen Sie ein anderes Ziel.
+
 ## 2. Festlegen, was die App tun soll
 
 Mit den Hauptoptionen legen Sie fest, ob die App:
@@ -39,9 +63,16 @@ Mit den Hauptoptionen legen Sie fest, ob die App:
 
 Wenn Sie nur Umbenennungsvorschlaege moechten, aktivieren Sie den entsprechenden Nur-Umbenennen-Modus.
 
-## 3. Den Kategorisierungsstil waehlen
+## 3. Die Sortierung wählen
 
-Waehlen Sie den Stil, der am besten zu Ihrem Ziel passt:
+Wählen Sie einen Sortiermodus:
+
+- **Create category folders** erstellt Ordner aus vorgeschlagenen Kategorienamen.
+- **Use existing folder structure** wählt Ordner innerhalb des Verzeichnisbaums von **Destination**. Aktivieren Sie **Suggest new folders when needed**, um neue Ziele zuzulassen, wenn keines gut passt; lassen Sie es deaktiviert, um nur vorhandene Ordner zu verwenden.
+
+Für vorhandene Ordner empfehlen wir **Qwen3.5 4B**. **Gemma 1.1 7B** und über eine API verwendete Modelle sind ebenfalls geeignet. Andere lokale Modelle zeigen einen Hinweis; Sie können Ihr Modell beibehalten oder unter **Settings -> Select LLM** ändern.
+
+Wählen Sie im Modus **Create category folders** einen Kategorisierungsstil:
 
 - **More refined** fuer den allgemeinen Einsatz und feinere Gruppierungen
 - **More consistent**, wenn Sie eine staerkere Konsistenz bei aehnlichen Dateien wollen
@@ -50,7 +81,7 @@ Sie koennen auch Kategorie-Whitelists aktivieren, wenn die App nur innerhalb ein
 
 ## 4. Analyse starten
 
-Klicken Sie auf **Analyze and categorize files**.
+Klicken Sie auf **Analyze folder**.
 
 Die App durchsucht den ausgewaehlten Ordner, sammelt die benoetigten Informationen und erstellt eine Pruefliste.
 
@@ -66,13 +97,17 @@ Im Pruefdialog koennen Sie Folgendes kontrollieren:
 
 Sie koennen Vorschlaege anpassen oder ablehnen, bevor Sie etwas bestaetigen.
 
+Aktivieren Sie **Dry run (preview only, do not move files)**, um geplante Verschiebungen und Umbenennungen anzusehen, ohne sie anzuwenden.
+
 ## 6. Aenderungen anwenden
 
-Nach der Bestaetigung erstellt die App die benoetigten Ordner und fuehrt die Verschiebungen oder Umbenennungen aus. Wenn Auto-Genehmigung aktiviert ist, koennen geeignete Kategorie- oder Dateinamensaenderungen angewendet werden, ohne beim Pruefdialog anzuhalten.
+Wählen Sie die zu verarbeitenden Zeilen aus und klicken Sie auf **Confirm and Process**. Die App erstellt erforderliche Ordner und führt die ausgewählten Verschiebungen oder Umbenennungen aus.
+
+**Auto-approve filename changes** und **Auto-approve categorization** wählen geeignete Zeilen vorab aus. Sie müssen weiterhin bestätigen, bevor diese Änderungen angewendet werden.
 
 ## 7. Letzten Durchlauf rueckgaengig machen
 
-Wenn Sie Aenderungen angewendet haben und sie danach zuruecknehmen moechten, verwenden Sie **Undo last run** im Menu.
+Wenn Sie Aenderungen angewendet haben und sie danach zuruecknehmen moechten, verwenden Sie **Edit -> Undo last run** im Menu.
 
 Die Rueckgaengig-Funktion ist fuer den letzten bestaetigten Sortierdurchlauf gedacht. Sie nutzt den von der App gespeicherten Verlauf, um Dateien soweit moeglich zurueckzuschieben und unterstuetzte Umbenennungen rueckgaengig zu machen.
 

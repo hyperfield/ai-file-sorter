@@ -1318,7 +1318,7 @@ For log locations, rotation details, and common troubleshooting notes, see [TROU
 
 ## Help and onboarding
 
-If you want an in-app walkthrough before your first run, open **Help → Quick Start Guide**. The Quick Start guide is localized and covers a safe small-folder trial, the review flow, undo, local learning, and the most common settings you may want to change.
+If you want an in-app walkthrough before your first run, open **Help → Quick Start Guide**. The localized guide covers model setup, the local compatibility check and retries, sorting into new or existing folders, a safe small-folder trial, dry-run previews, review and confirmation, undo, and local learning.
 
 If something looks wrong or you want troubleshooting tips, open **Help → FAQ**.
 
