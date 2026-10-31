@@ -105,22 +105,30 @@ QIcon draw_menu_icon(MainApp& app, const MenuIconPainter& painter_fn)
     if (target_size <= 0) {
         target_size = 16;
     }
+#ifdef __APPLE__
+    // Native menus already provide spacing around the icon slot.
+    const int padding = 0;
+#else
     const int padding = std::max(4, target_size / 4);
+#endif
     const QSize canvas_size(target_size + padding * 2, target_size + padding * 2);
 
     QIcon icon;
     for (QIcon::Mode mode : {QIcon::Normal, QIcon::Disabled}) {
         const bool enabled = mode != QIcon::Disabled;
-        QPixmap canvas(canvas_size);
-        canvas.fill(Qt::transparent);
+        for (int scale : {1, 2}) {
+            QPixmap canvas(canvas_size * scale);
+            canvas.setDevicePixelRatio(scale);
+            canvas.fill(Qt::transparent);
 
-        QPainter painter(&canvas);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setRenderHint(QPainter::TextAntialiasing, true);
-        painter_fn(painter, QRectF(padding, padding, target_size, target_size), enabled);
-        painter.end();
+            QPainter painter(&canvas);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.setRenderHint(QPainter::TextAntialiasing, true);
+            painter_fn(painter, QRectF(padding, padding, target_size, target_size), enabled);
+            painter.end();
 
-        icon.addPixmap(canvas, mode);
+            icon.addPixmap(canvas, mode);
+        }
     }
 
     return icon;
@@ -1083,6 +1091,7 @@ QIcon MainAppUiBuilder::icon_for(MainApp& app, const char* name, QStyle::Standar
     if (icon.isNull()) {
         icon = app.style()->standardIcon(fallback);
     }
+#ifndef __APPLE__
     if (!icon.isNull()) {
         const int targetSize = app.style()->pixelMetric(QStyle::PM_SmallIconSize);
         if (targetSize > 0) {
@@ -1102,5 +1111,6 @@ QIcon MainAppUiBuilder::icon_for(MainApp& app, const char* name, QStyle::Standar
             }
         }
     }
+#endif
     return icon;
 }
