@@ -25,6 +25,8 @@ public:
          * @brief Force this local client to load and run on CPU regardless of process GPU settings.
          */
         bool force_cpu_backend{false};
+        /** Require this exact execution backend for compatibility measurements. */
+        std::string required_backend;
         /** @brief Injected controls, or empty to resolve opt-in environment settings. */
         std::optional<LocalInferenceOptions> inference;
     };
@@ -136,6 +138,7 @@ private:
     llama_context_params ctx_params;
     bool prompt_logging_enabled{false};
     Options options_;
+    ggml_backend_dev_t required_devices_[2]{nullptr, nullptr};
     LocalInferenceOptions inference_;
     StatusCallback status_callback_;
     FallbackDecisionCallback fallback_decision_callback_;

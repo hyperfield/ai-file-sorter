@@ -153,7 +153,7 @@ std::string collect_probe_output(QProcess& process)
     return trim_copy(combined.toStdString());
 }
 
-void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend)
+void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend, const std::string& required_backend)
 {
     auto logger = Logger::get_logger("core_logger");
     const std::string executable_path = Utils::get_executable_path();
@@ -166,7 +166,12 @@ void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend)
 
     const int timeout_ms = visual_gpu_preflight_timeout_ms();
     QProcess process;
-    process.setProcessEnvironment(visual_gpu_preflight_environment());
+    auto environment = visual_gpu_preflight_environment();
+    if (!required_backend.empty()) {
+        environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_REQUIRED_BACKEND"),
+                           QString::fromStdString(required_backend));
+    }
+    process.setProcessEnvironment(environment);
     process.setProgram(QString::fromStdString(executable_path));
     process.setArguments({visual_gpu_probe_argument(backend)});
 
@@ -229,7 +234,7 @@ std::unique_ptr<ImageAnalyzer> ImageAnalyzerFactory::create(const VisualLlmRunti
 
 #if defined(_WIN32) || defined(__APPLE__)
     if (settings.use_gpu && !should_skip_visual_gpu_preflight()) {
-        run_visual_gpu_preflight(backend);
+        run_visual_gpu_preflight(backend, settings.required_backend);
     }
 #endif
 

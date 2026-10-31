@@ -79,6 +79,8 @@ struct ImageAnalysisResult {
  * @brief Shared configuration for local image analyzers.
  */
 struct ImageAnalyzerSettings {
+    /** Require an exact backend when measuring a model/backend pair. */
+    std::string required_backend;
     /** @brief Maximum words in a suggested filename, independent of its description. */
     size_t max_filename_words = kDefaultFilenameWords;
     /** @brief Context length (tokens). */

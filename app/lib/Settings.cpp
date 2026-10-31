@@ -587,6 +587,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     suitability_benchmark_suppressed = load_bool("SuitabilityBenchmarkSuppressed", false);
     benchmark_last_report = decode_multiline(config.getValue("Settings", "BenchmarkLastReport", ""));
     benchmark_last_run = config.getValue("Settings", "BenchmarkLastRun", "");
+    benchmark_results_json = decode_multiline(config.getValue("Settings", "BenchmarkResults", ""));
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
     headless_review_before_apply = load_bool("HeadlessReviewBeforeApply", true);
@@ -737,6 +738,7 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "SuitabilityBenchmarkSuppressed", suitability_benchmark_suppressed);
     set_optional_setting(config, settings_section, "BenchmarkLastReport", encode_multiline(benchmark_last_report));
     set_optional_setting(config, settings_section, "BenchmarkLastRun", benchmark_last_run);
+    set_optional_setting(config, settings_section, "BenchmarkResults", encode_multiline(benchmark_results_json));
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
     set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
     set_bool_setting(config, settings_section, "HeadlessReviewBeforeApply", headless_review_before_apply);
@@ -1555,6 +1557,9 @@ void Settings::set_benchmark_last_run(const std::string& value)
 {
     benchmark_last_run = value;
 }
+
+std::string Settings::get_benchmark_results_json() const { return benchmark_results_json; }
+void Settings::set_benchmark_results_json(const std::string& value) { benchmark_results_json = value; }
 
 
 Language Settings::get_language() const

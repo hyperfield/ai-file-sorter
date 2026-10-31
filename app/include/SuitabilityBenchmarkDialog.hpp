@@ -1,14 +1,24 @@
 #ifndef SUITABILITY_BENCHMARK_DIALOG_HPP
 #define SUITABILITY_BENCHMARK_DIALOG_HPP
 
+#include "AnalysisRuntimeLock.hpp"
+#include "Types.hpp"
+#include "SuitabilityBenchmarkResults.hpp"
+
 #include <QCoreApplication>
 #include <QDialog>
 #include <QStringList>
 
 #include <atomic>
 #include <memory>
+#include <filesystem>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
+#include <vector>
+#include <functional>
 
 class QLabel;
 class QTextEdit;
@@ -18,6 +28,12 @@ class QCheckBox;
 class Settings;
 class QCloseEvent;
 class QEvent;
+class QComboBox;
+class QTableWidget;
+
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+namespace SuitabilityBenchmarkDialogTestAccess { struct DialogAccess; }
+#endif
 
 /**
  * @brief Dialog that runs a suitability benchmark for categorization and analysis features.
@@ -30,9 +46,14 @@ public:
      * @brief Create a suitability benchmark dialog.
      * @param settings Settings store used for persistence.
      * @param parent Parent widget.
+     * @param runtime_directory Shared analysis lock directory, or empty for the settings default.
      */
     SuitabilityBenchmarkDialog(Settings& settings,
-                               QWidget* parent = nullptr);
+                               QWidget* parent = nullptr,
+                               std::filesystem::path runtime_directory = {});
+    /** @brief Check for usable downloaded built-in, custom, or selected visual model files. */
+    static bool models_available(const Settings& settings);
+    void reject() override;
     /**
      * @brief Destructor that joins any running benchmark thread.
      */
@@ -51,6 +72,18 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+    friend struct SuitabilityBenchmarkDialogTestAccess::DialogAccess;
+#endif
+    struct BenchmarkInputs {
+        std::string storage_dir;
+        std::string visual_model_id;
+        std::vector<CustomLLM> custom_llms;
+        SortingMode sorting_mode{SortingMode::GeneratedCategories};
+        std::string backend_mode{"auto"};
+        bool retry{false};
+        SuitabilityBenchmark::Results requests;
+    };
     /**
      * @brief Build and connect the dialog UI elements.
      */
@@ -67,6 +100,11 @@ private:
      * @brief Start the benchmark worker thread and clear prior output.
      */
     void start_benchmark();
+    void start_attempts(SuitabilityBenchmark::Results requests, bool retry);
+    void retry_selected(bool change_backend);
+    void retry_failed();
+    void refresh_results_table();
+    void update_retry_controls();
     /**
      * @brief Request the benchmark to stop after the current step finishes.
      */
@@ -88,8 +126,9 @@ private:
     void set_running_state(bool running);
     /**
      * @brief Finish the benchmark and persist results to settings.
+     * @param completed True only after every benchmark stage has finished normally.
      */
-    void finish_benchmark();
+    void finish_benchmark(bool completed);
     /**
      * @brief Load the most recent benchmark results from settings.
      */
@@ -100,6 +139,17 @@ private:
     void render_previous_results();
 
     Settings& settings_;
+    AnalysisRuntimeLock runtime_lock_;
+    std::optional<AnalysisRuntimeLock::Lease> runtime_lease_;
+    BenchmarkInputs inputs_;
+    SuitabilityBenchmark::Results results_;
+    SuitabilityBenchmark::Results pending_results_;
+    bool pending_results_ready_{false};
+    QComboBox* backend_combo_{nullptr};
+    QTableWidget* results_table_{nullptr};
+    QPushButton* retry_selected_button_{nullptr};
+    QPushButton* retry_failed_button_{nullptr};
+    QPushButton* try_backend_button_{nullptr};
     QLabel* intro_label_{nullptr};
     QTextEdit* output_view_{nullptr};
     QProgressBar* progress_bar_{nullptr};
@@ -115,6 +165,10 @@ private:
     QString last_run_stamp_;
     QString last_report_;
     QStringList current_report_;
+#if defined(AI_FILE_SORTER_TEST_BUILD)
+    std::function<SuitabilityBenchmark::Result(const SuitabilityBenchmark::Result&)> runner_override_;
+    std::vector<std::string> available_backends_override_;
+#endif
 };
 
 #if defined(AI_FILE_SORTER_TEST_BUILD)
@@ -122,6 +176,29 @@ private:
  * @brief Test hooks for suitability benchmark backend reporting decisions.
  */
 namespace SuitabilityBenchmarkDialogTestAccess {
+struct MeasuredModel {
+    LLMChoice choice;
+    std::string label;
+    bool categorization_success;
+    bool document_success;
+    double categorization_seconds;
+    double document_seconds;
+};
+QStringList result_lines_for_testing(const std::vector<MeasuredModel>& models, SortingMode mode);
+std::vector<std::string> local_model_paths_for_testing(const std::vector<CustomLLM>& custom_llms);
+std::pair<double, double> thresholds_for_testing(LLMChoice choice, bool document);
+struct DialogAccess {
+    static void start(SuitabilityBenchmarkDialog& dialog);
+    static void set_running(SuitabilityBenchmarkDialog& dialog, bool running);
+    static void finish(SuitabilityBenchmarkDialog& dialog, bool completed);
+    static void seed_results(SuitabilityBenchmarkDialog& dialog, SuitabilityBenchmark::Results results);
+    static SuitabilityBenchmark::Results results(const SuitabilityBenchmarkDialog& dialog);
+    static void set_runner(SuitabilityBenchmarkDialog& dialog,
+        std::function<SuitabilityBenchmark::Result(const SuitabilityBenchmark::Result&)> runner,
+        std::vector<std::string> available_backends);
+    static QStringList summary(const SuitabilityBenchmarkDialog& dialog);
+    static bool running(const SuitabilityBenchmarkDialog& dialog);
+};
 bool backend_alias_matches(std::string_view actual, std::string_view requested);
 /**
  * @brief Build the benchmark backend note for a requested backend and probed accelerators.

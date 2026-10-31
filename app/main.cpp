@@ -936,6 +936,9 @@ int run_visual_gpu_probe_mode(const ParsedArguments& parsed_args) {
     try {
         ImageAnalyzerSettings analyzer_settings;
         analyzer_settings.use_gpu = true;
+        if (const char* required = std::getenv("AI_FILE_SORTER_VISUAL_REQUIRED_BACKEND")) {
+            analyzer_settings.required_backend = required;
+        }
         auto analyzer = ImageAnalyzerFactory::create(*backend, analyzer_settings);
         (void) analyzer;
         return EXIT_SUCCESS;

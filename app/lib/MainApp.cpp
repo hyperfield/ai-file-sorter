@@ -3837,7 +3837,8 @@ void MainApp::show_suitability_benchmark_dialog(bool /*auto_start*/)
         return;
     }
 
-    benchmark_dialog = std::make_unique<SuitabilityBenchmarkDialog>(settings, this);
+    benchmark_dialog = std::make_unique<SuitabilityBenchmarkDialog>(
+        settings, this, Utils::utf8_to_path(runtime_data_dir_) / "runtime");
     QObject::connect(benchmark_dialog.get(), &QDialog::finished, this, [this]() {
         benchmark_dialog.reset();
     });
@@ -3891,7 +3892,7 @@ void MainApp::maybe_show_suitability_benchmark()
     if (settings.get_suitability_benchmark_suppressed()) {
         return;
     }
-    if (!VisualLlmRuntime::default_text_llm_files_available() && !visual_llm_files_available()) {
+    if (!SuitabilityBenchmarkDialog::models_available(settings)) {
         return;
     }
 

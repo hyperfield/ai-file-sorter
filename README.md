@@ -394,18 +394,28 @@ Let AI File Sorter turn embedded media tags into clean, consistent filenames for
 
 The **System compatibility check** runs a quick benchmark that estimates how well your system can handle:
 
-- **Categorization** with the selected local LLMs
+- **Categorization** with downloaded built-in models and registered custom GGUF models
 - **Document analysis** by content
 - **Image analysis** (visual LLM)
 
-You can launch it from the menu (**File → System compatibility check…**). It only runs if at least one local or visual LLM is downloaded, and it won’t auto-rerun if it's already been run.
+You can launch it from the menu (**File → System compatibility check…**). It runs when a built-in, custom GGUF, or selected visual model is available. A completed check prevents future automatic prompts; stopping an initial check does not mark it completed. You can rerun it manually after changing models or hardware.
 
 What it does:
 
-- Detects available CPU threads and GPU backends (e.g., Vulkan/CUDA)
-- Times a small categorization and document-analysis workload per default model
+- Detects available CPU threads and GPU backends (CUDA, Vulkan, and Metal)
+- Times a small categorization and document-analysis workload per available local text model
 - Times a single image-analysis pass if visual LLM files are present
 - Reports speed tiers (optimal / acceptable / a bit long) and suggests a recommended local LLM
+
+Results are tracked separately for every model/backend pair, including the selected image-analysis model. Failed pairs are excluded from recommendations; a successful CPU, CUDA, Vulkan, or Metal result for the same model remains eligible. Recommendations show the backend alongside the model name. In existing-folder sorting mode, local recommendations are limited to Qwen3.5 4B and Gemma 1.1 7B. The benchmark measures local performance, not API service speed or folder-routing accuracy.
+
+Use the **Backend** dropdown to choose a specific backend or **All available backends**. **Automatic** tries the preferred GPU first and tests CPU separately if the GPU attempt fails. Explicit backend tests never count a silent CPU fallback as a GPU success. Only backends available in the running app can be measured.
+
+Select a row in the results table to **Retry selected**, or use **Retry failed** to rerun only failed pairs. **Try chosen backend** tests the selected model using the backend chosen above. Retrying replaces that pair's latest measurement and preserves other pairs. Results and retry choices survive reopening the dialog. Changed or removed model files invalidate their previous measurements when the next check starts.
+
+The check shares the analysis runtime lock and cannot run alongside active analysis. Finish the active job before starting the check. **Stop Benchmark** or Escape requests a stop after the current step, with temporary files cleaned up when the worker finishes.
+
+Qwen3.5 4B uses the same default speed targets as Gemma 4B: 2/5 seconds per categorization and 4/7 seconds per document for the optimal/acceptable limits. Override these with `BENCH_CAT_LOCAL_QWEN35_4B_OPTIMAL_MAX`, `BENCH_CAT_LOCAL_QWEN35_4B_ACCEPTABLE_MAX`, `BENCH_DOC_LOCAL_QWEN35_4B_OPTIMAL_MAX`, and `BENCH_DOC_LOCAL_QWEN35_4B_ACCEPTABLE_MAX`. Values must be finite positive seconds.
 
 Tip: quit CPU/GPU‑intensive apps before running the check for more accurate results.
 

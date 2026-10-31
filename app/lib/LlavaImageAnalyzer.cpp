@@ -1429,6 +1429,7 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     };
 
     llama_model_params model_params = llama_model_default_params();
+    std::array<ggml_backend_dev_t, 2> required_devices{};
     const std::string model_path_utf8 = Utils::path_to_utf8(model_path);
     const std::string mmproj_path_utf8 = Utils::path_to_utf8(mmproj_path);
     if (settings_.use_gpu) {
@@ -1436,6 +1437,20 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
             build_visual_model_params_for_path(model_path_utf8, mmproj_path_utf8, logger);
     } else {
         model_params.n_gpu_layers = 0;
+    }
+
+    if (!settings_.required_backend.empty()) {
+        if (settings_.required_backend != "cpu") {
+            required_devices[0] = GgmlRuntimePaths::find_gpu_device(settings_.required_backend);
+            if (!required_devices[0] || model_params.n_gpu_layers == 0) {
+                throw std::runtime_error("Requested visual backend " + settings_.required_backend
+                    + " cannot run this model with the current GPU settings.");
+            }
+        } else {
+            model_params.n_gpu_layers = 0;
+        }
+        model_params.devices = required_devices.data();
+        model_params.split_mode = LLAMA_SPLIT_MODE_NONE;
     }
 
     auto try_load_visual_model = [&](const llama_model_params& params) -> bool {

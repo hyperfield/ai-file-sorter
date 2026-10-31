@@ -17,6 +17,25 @@
 
 namespace GgmlRuntimePaths {
 
+ggml_backend_device* find_gpu_device(std::string_view backend)
+{
+#ifdef AI_FILE_SORTER_GGML_RUNTIME_PATHS_NO_BACKEND_LOADING
+    (void)backend;
+#else
+    ensure_ggml_backends_loaded();
+    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
+        auto* device = ggml_backend_dev_get(i);
+        if (ggml_backend_dev_type(device) != GGML_BACKEND_DEVICE_TYPE_GPU) continue;
+        const auto reg = ggml_backend_dev_backend_reg(device);
+        std::string name = reg ? ggml_backend_reg_name(reg) : "";
+        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (name == "mtl") name = "metal";
+        if (name == backend) return device;
+    }
+#endif
+    return nullptr;
+}
+
 namespace {
 
 bool ends_with(const std::string& value, const std::string& suffix) {

@@ -1219,6 +1219,81 @@ Run: `./build-tests/ai_file_sorter_tests "CacheMaintenanceDialog disables cache 
 
 ### `tests/unit/test_suitability_benchmark_dialog.cpp`
 
+#### Test case: Suitability benchmark tracks and persists model backend pairs independently
+Purpose: Keep successful CPU results eligible even when CUDA and Vulkan fail, and restore the pair table after reopening.
+Expected outcome: Each backend has its own result; only successful pairs are recommended and failed pairs remain retryable after settings reload.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark tracks and persists model backend pairs independently"`
+
+#### Test case: Suitability benchmark retries only failed pairs and preserves successful backends
+Purpose: Verify Retry failed targets failed pairs without discarding working backends.
+Expected outcome: Only failed backend keys are executed; successful prior timings and timestamps remain unchanged.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark retries only failed pairs and preserves successful backends"`
+
+#### Test case: Suitability benchmark can try a selected model on another backend
+Purpose: Exercise Try chosen backend and Retry selected through the dialog controls.
+Expected outcome: A new backend result is added for the selected model, failed attempts preserve other backends, and selected retries replace only the selected pair.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark can try a selected model on another backend"`
+
+#### Test case: Suitability benchmark automatic CPU fallback records a separate backend result
+Purpose: Keep automatic fallback from being misreported as successful GPU execution.
+Expected outcome: GPU failure and CPU success occupy separate rows, and runtime environment overrides are restored afterward.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark automatic CPU fallback records a separate backend result"`
+
+#### Test case: Suitability benchmark cancellation preserves existing pair measurements
+Purpose: Avoid replacing a completed measurement with a cancelled retry.
+Expected outcome: Existing success, timing, and timestamp remain intact after cancellation.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark cancellation preserves existing pair measurements"`
+
+#### Test case: Suitability benchmark result storage validates data and replaces only matching pairs
+Purpose: Round-trip structured model/backend results and reject malformed or unsupported data.
+Expected outcome: Pair identities and successful results survive serialization; invalid backends, unsupported schema versions, and negative durations are rejected.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark result storage validates data and replaces only matching pairs"`
+
+#### Test case: Suitability benchmark retries visual model backend pairs without rerunning text checks
+Purpose: Keep image-analysis retries scoped to the selected visual model/backend pair.
+Expected outcome: Retry failed repeats only the failed visual pair and preserves successful text checks and other image backends.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark retries visual model backend pairs without rerunning text checks"`
+
+#### Test case: Suitability benchmark invalidates measurements when model weights change
+Purpose: Prevent measurements for old weights from being reused after a model file changes.
+Expected outcome: A stale retry request is rejected without inference, its old row is removed, and the dialog explains that the models need to be rediscovered.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark invalidates measurements when model weights change"`
+
+#### Test case: Suitability benchmark never recommends failed models
+Purpose: Prevent quick failures from appearing as optimal speed results or recommended models.
+Expected outcome: Recommendations require successful categorization and document checks; a feature with no successful checks is reported as failed.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark never recommends failed models"`
+
+#### Test case: Suitability benchmark recommendations respect existing folder sorting
+Purpose: Align compatibility recommendations with the model advice for existing folder structures.
+Expected outcome: Existing-folder recommendations exclude Gemma 4B and custom models even when they are fast, while Qwen and Gemma 7B remain eligible. The report distinguishes speed testing from routing accuracy.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark recommendations respect existing folder sorting"`
+
+#### Test case: Suitability benchmark detects custom text models and rejects invalid or duplicate files
+Purpose: Allow a custom text GGUF model to make the benchmark available without built-in model downloads.
+Expected outcome: Available custom GGUF files are included once; missing files, invalid headers, and alternate paths to the same file are excluded.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark detects custom text models and rejects invalid or duplicate files"`
+
+#### Test case: Suitability benchmark gives Qwen explicit four billion parameter speed targets
+Purpose: Apply explicit Qwen categorization and document budgets with validated environment overrides.
+Expected outcome: Defaults match the existing Gemma 4B budgets, valid overrides are used, and non-finite, zero, negative, or malformed values fall back to defaults.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark gives Qwen explicit four billion parameter speed targets"`
+
+#### Test case: Suitability benchmark only marks completed checks as completed
+Purpose: Keep an interrupted first run from suppressing future automatic compatibility prompts.
+Expected outcome: Incomplete runs do not set the completed flag; completed runs set and persist it, and a subsequent incomplete run preserves that previous completion.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark only marks completed checks as completed"`
+
+#### Test case: Suitability benchmark Escape requests stop without hiding a running check
+Purpose: Prevent Escape from bypassing the close guard and hiding a dialog whose worker is still running.
+Expected outcome: Escape requests a stop and leaves the running dialog visible; it can be dismissed after running state ends.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark Escape requests stop without hiding a running check"`
+
+#### Test case: Suitability benchmark respects the shared analysis runtime lock
+Purpose: Protect runtime settings and hardware measurements from concurrent analysis.
+Expected outcome: An active runtime lease prevents starting the benchmark. A no-model attempt releases its own lease and leaves analysis available.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark respects the shared analysis runtime lock"`
+
 #### Test case: Suitability benchmark reports Vulkan GPU when CUDA is unavailable
 Purpose: Ensure CUDA unavailability does not make the benchmark describe all GPU acceleration as unavailable when Vulkan is usable.
 Setup: Build backend notes with CUDA unavailable and Vulkan available.

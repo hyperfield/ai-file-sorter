@@ -635,6 +635,8 @@ public:
      * @param value Timestamp to store.
      */
     void set_benchmark_last_run(const std::string& value);
+    std::string get_benchmark_results_json() const;
+    void set_benchmark_results_json(const std::string& value);
     /**
      * @brief Returns the selected UI language.
      * @return Current interface language.
@@ -775,6 +777,7 @@ private:
     bool suitability_benchmark_suppressed{false};
     std::string benchmark_last_report;
     std::string benchmark_last_run;
+    std::string benchmark_results_json;
     Language language{Language::English};
     CategoryLanguage category_language{CategoryLanguage::English};
     bool consistency_pass_enabled{false};

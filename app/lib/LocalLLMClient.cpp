@@ -1992,7 +1992,20 @@ llama_model_params build_model_params_for_path(const std::string& model_path,
 
 llama_model_params LocalLLMClient::prepare_model_params(const std::shared_ptr<spdlog::logger>& logger)
 {
-    const ModelPreparationResult preparation = build_model_preparation_result_for_path(model_path, logger);
+    ModelPreparationResult preparation = build_model_preparation_result_for_path(model_path, logger);
+    if (!options_.required_backend.empty()) {
+        if (options_.required_backend != "cpu") {
+            required_devices_[0] = GgmlRuntimePaths::find_gpu_device(options_.required_backend);
+            if (!required_devices_[0] || preparation.params.n_gpu_layers == 0) {
+                throw std::runtime_error("Requested backend " + options_.required_backend
+                    + " cannot run this model with the current GPU settings.");
+            }
+        } else {
+            preparation.params.n_gpu_layers = 0;
+        }
+        preparation.params.devices = required_devices_;
+        preparation.params.split_mode = LLAMA_SPLIT_MODE_NONE;
+    }
     if (preparation.status.has_value()) {
         notify_status(*preparation.status);
     }
