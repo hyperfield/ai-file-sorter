@@ -1,0 +1,15 @@
+# Johnny.Decimal archive index
+
+- [10-19 Admin](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/10-19%20Admin>)
+  - [11 Finance](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/10-19%20Admin/11%20Finance>)
+    - [11.01 Budget and bills](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/10-19%20Admin/11%20Finance/11.01%20Budget%20and%20bills>)
+- [20-29 Work](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/20-29%20Work>)
+  - [21 Projects](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/20-29%20Work/21%20Projects>)
+    - [21.01 Brand refresh](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/20-29%20Work/21%20Projects/21.01%20Brand%20refresh>)
+    - [21.01 Website development](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/20-29%20Work/21%20Projects/21.01%20Website%20development>)
+    - [21.4 Research notes](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/20-29%20Work/21%20Projects/21.4%20Research%20notes>)
+    - [22.03 Conference planning](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/20-29%20Work/21%20Projects/22.03%20Conference%20planning>)
+    - [Meeting notes](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/20-29%20Work/21%20Projects/Meeting%20notes>)
+- [30-39 Personal](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/30-39%20Personal>)
+  - [31 Travel](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/30-39%20Personal/31%20Travel>)
+    - [31.01 National park trips](<file:///Users/theuser/Files/Johnny.Decimal/Archive%20checks%20(intentional%20errors)/30-39%20Personal/31%20Travel/31.01%20National%20park%20trips>)

@@ -1,4 +1,9 @@
-# Windows screenshot gallery
+# Screenshot galleries
+
+The [Johnny.Decimal macOS gallery](johnny-decimal/macos/README.md) compares the
+built-in folder-structure tools with the plugin's additional capabilities.
+
+## Windows
 
 The Windows captures show a collection of 60 real files being sorted into an
 existing library: photos, park guides, books, research data, fonts, videos, and
