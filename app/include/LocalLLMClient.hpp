@@ -110,6 +110,9 @@ public:
     void set_fallback_decision_callback(FallbackDecisionCallback callback);
 
 private:
+    std::string generate_response_with_options(const std::string& prompt, int n_predict,
+        bool apply_sanitizer, const std::string& system_prompt, const LLMResponseConstraint& constraint,
+        const LocalInferenceOptions& request_options);
     /**
      * @brief Check the request deadline without touching backend objects from another thread.
      * @param client Owning LocalLLMClient, passed through the llama.cpp callback.

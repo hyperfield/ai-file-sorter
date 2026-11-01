@@ -5,10 +5,12 @@
 #include <limits>
 #include <optional>
 
-/** @brief Validated per-client text inference controls; defaults preserve shipped behavior. */
+/** @brief Validated per-client text inference controls with task-specific sampling defaults. */
 struct LocalInferenceOptions {
     /** @brief Sampling temperature; zero selects greedily. */
     float temperature{0.8f};
+    /** @brief Temperature for existing-folder selection; independent of other text tasks. */
+    float existing_folder_temperature{0.0f};
     /** @brief Minimum relative token probability. */
     float min_p{0.05f};
     /** @brief Sampling seed; maximum uint32 requests a random seed. */
@@ -32,6 +34,8 @@ struct LocalInferenceOptions {
      * @throws std::invalid_argument For malformed, nonfinite or out-of-range values.
      */
     static LocalInferenceOptions from_environment(const Environment& read = {});
+    /** @brief Resolve a request's sampling without mutating the owning client's options. */
+    LocalInferenceOptions for_request(bool existing_folder_selection) const;
     /** @brief Validate injected controls. @throws std::invalid_argument For invalid values. */
     void validate() const;
 };

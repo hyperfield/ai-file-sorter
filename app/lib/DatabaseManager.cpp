@@ -27,7 +27,7 @@
 namespace {
 constexpr double kSimilarityThreshold = 0.85;
 // Keep routes chosen by the previous lexical override policy out of model-driven reviews.
-constexpr std::string_view kRoutingCachePolicy = "compact-production-llm-v7:";
+constexpr std::string_view kRoutingCachePolicy = "greedy-folder-llm-v8:";
 constexpr char kLegacyMusicCategoryNormalized[] = "music";
 constexpr char kCanonicalAudioCategoryDisplay[] = "Audio";
 constexpr char kLegacyInstallerBuildersNormalized[] = "installer builders";

@@ -542,7 +542,7 @@ TEST_CASE("CategorizationService leaves failed model routing unresolved instead 
 
 TEST_CASE("Folder route cache excludes legacy lexical-policy decisions", "[content-routing][llm-routing]")
 {
-    const std::string old_fingerprint = GENERATE("tree-hash", "content-llm-v2:tree-hash", "staged-constrained-llm-v3:tree-hash", "purpose-aware-llm-v4:tree-hash", "described-path-llm-v5:tree-hash", "stage-specific-llm-v6:tree-hash");
+    const std::string old_fingerprint = GENERATE("tree-hash", "content-llm-v2:tree-hash", "staged-constrained-llm-v3:tree-hash", "purpose-aware-llm-v4:tree-hash", "described-path-llm-v5:tree-hash", "stage-specific-llm-v6:tree-hash", "compact-production-llm-v7:tree-hash");
     TempDir config;
     DatabaseManager database(config.path().string());
     DatabaseManager::FolderTreeRoutingRecord route;

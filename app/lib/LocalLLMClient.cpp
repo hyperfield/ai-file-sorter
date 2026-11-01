@@ -2239,8 +2239,15 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
                                               const std::string& system_prompt,
                                               const LLMResponseConstraint& constraint)
 {
+    return generate_response_with_options(prompt, n_predict, apply_sanitizer, system_prompt, constraint, inference_);
+}
+
+std::string LocalLLMClient::generate_response_with_options(const std::string& prompt, int n_predict,
+    bool apply_sanitizer, const std::string& system_prompt, const LLMResponseConstraint& constraint,
+    const LocalInferenceOptions& request_options)
+{
     const auto output_grammar = NativeJsonSchemaGrammar::compile(constraint.json_schema);
-    n_predict = inference_.output_tokens.value_or(n_predict);
+    n_predict = request_options.output_tokens.value_or(n_predict);
     auto logger = Logger::get_logger("core_logger");
     if (logger) {
         logger->debug("Generating response with prompt length {} chars target {} tokens", prompt.size(), n_predict);
@@ -2393,16 +2400,16 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
                 if (audit) audit->set_response_constraint(constraint.json_schema, output_grammar);
                 if (logger) logger->debug("Installed per-request JSON response grammar");
             }
-            llama_sampler_chain_add(smpl, llama_sampler_init_min_p(inference_.min_p, 1));
-            llama_sampler_chain_add(smpl, llama_sampler_init_temp(inference_.temperature));
-            llama_sampler_chain_add(smpl, llama_sampler_init_dist(inference_.seed));
+            llama_sampler_chain_add(smpl, llama_sampler_init_min_p(request_options.min_p, 1));
+            llama_sampler_chain_add(smpl, llama_sampler_init_temp(request_options.temperature));
+            llama_sampler_chain_add(smpl, llama_sampler_init_dist(request_options.seed));
 
             std::vector<llama_token> prompt_tokens;
             int n_prompt = 0;
             std::string final_prompt;
             const int context_budget =
                 LocalLLMPromptBuilder::prompt_token_budget(static_cast<int>(resolved_params.n_ctx), n_predict);
-            audit_runtime(audit.get(), ctx, smpl, context_budget, n_predict, inference_);
+            audit_runtime(audit.get(), ctx, smpl, context_budget, n_predict, request_options);
             const auto fitted = LocalLLMPromptBuilder::fit_user_prompt(prompt, context_budget,
                 [&](const std::string& user_prompt) -> std::size_t {
                     final_prompt = NativeChatTemplate::format(model, system_prompt, user_prompt);
@@ -2540,7 +2547,10 @@ std::string LocalLLMClient::categorize_file_constrained(const std::string& file_
     const bool folder_tree_mode =
         consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos;
     const int max_tokens = folder_tree_mode ? 128 : 64;
-    std::string response = generate_response(prompt, max_tokens, !folder_tree_mode, system_prompt, constraint);
+    const auto request_options = inference_.for_request(
+        LocalLLMPromptBuilder::is_existing_folder_selection(consistency_context));
+    std::string response = generate_response_with_options(prompt, max_tokens, !folder_tree_mode,
+        system_prompt, constraint, request_options);
     if (prompt_logging_enabled) {
         std::cout << "[DEV][RESPONSE] Categorization reply\n" << response << "\n";
     }

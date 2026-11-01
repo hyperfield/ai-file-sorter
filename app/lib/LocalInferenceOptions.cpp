@@ -47,6 +47,7 @@ LocalInferenceOptions LocalInferenceOptions::from_environment(const Environment&
     const Environment read = lookup ? lookup : Environment{[](const char* key) { return std::getenv(key); }};
     LocalInferenceOptions result;
     read_control(read, "AI_FILE_SORTER_LLM_TEMPERATURE", result.temperature);
+    read_control(read, "AI_FILE_SORTER_LLM_EXISTING_FOLDER_TEMPERATURE", result.existing_folder_temperature);
     read_control(read, "AI_FILE_SORTER_LLM_MIN_P", result.min_p);
     read_control(read, "AI_FILE_SORTER_LLM_SEED", result.seed);
     read_control(read, "AI_FILE_SORTER_LLM_THREADS", result.threads);
@@ -64,9 +65,17 @@ LocalInferenceOptions LocalInferenceOptions::from_environment(const Environment&
     return result;
 }
 
+LocalInferenceOptions LocalInferenceOptions::for_request(bool existing_folder_selection) const
+{
+    auto resolved = *this;
+    if (existing_folder_selection) resolved.temperature = existing_folder_temperature;
+    return resolved;
+}
+
 void LocalInferenceOptions::validate() const
 {
     require(finite_fraction(temperature, kMaximumTemperature), "temperature");
+    require(finite_fraction(existing_folder_temperature, kMaximumTemperature), "existing_folder_temperature");
     require(finite_fraction(min_p, 1), "min_p");
     require(within_range(threads, 0, kMaximumWorkers), "threads");
     require(within_range(batch_tokens, 0, kMaximumTokenControl), "batch_tokens");
