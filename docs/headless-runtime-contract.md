@@ -11,13 +11,15 @@ allow compatible evolution. Applying a review always runs the app's validation a
 
 ## Reproducible Local Inference
 
-Optional, per-process controls apply to native local text inference. They do not
-change persisted preferences or shipped defaults. Invalid values fail before
-model loading. Unset controls retain the existing behavior.
+Optional, per-process controls apply to native local text inference without
+changing persisted preferences. Existing-folder selection defaults to greedy
+decoding (temperature `0`); other text tasks retain temperature `0.8`. Invalid
+values fail before model loading.
 
 | Environment variable | Meaning |
 | --- | --- |
-| `AI_FILE_SORTER_LLM_TEMPERATURE` | Sampling temperature; `0` for greedy inference; default `0.8`. |
+| `AI_FILE_SORTER_LLM_TEMPERATURE` | General text temperature, including classification, summaries, filenames and folder proposals; default `0.8`. |
+| `AI_FILE_SORTER_LLM_EXISTING_FOLDER_TEMPERATURE` | Existing-folder comparisons and reconsideration only; default `0` for greedy selection. Overrides the selection default independently of the general text temperature. |
 | `AI_FILE_SORTER_LLM_MIN_P` | Relative probability cutoff, from `0` to `1`; default `0.05`. |
 | `AI_FILE_SORTER_LLM_SEED` | Unsigned 32-bit seed; unset uses a random seed. |
 | `AI_FILE_SORTER_LLM_THREADS` | Generation and batch workers; `0` retains the runtime default. |
@@ -30,7 +32,32 @@ These controls do not configure the image encoder/decoder. Context and GPU layer
 controls remain separate. Input audits record the resolved sampling, workers and
 actual token budgets; a fixed seed alone does not establish native/server parity.
 
+Temperature selection is scoped to each request. A folder comparison cannot
+change a later summary, classification or proposal request on the same client.
+Use the existing-folder override for later routing-temperature experiments;
+the native audit records the effective per-request temperature. API-provider
+sampling is not configured by these native controls.
+
 ## Existing-Folder Response Contract
+
+Classification and folder-routing requests exclude the item's source directory.
+Models receive the filename, available content evidence, and relevant destination
+folders. The filename alone is passed as the backend's path/context argument so
+prompt specialization can still recognize file types. Filesystem paths remain
+available to the app for cache identity, progress, review, and applying changes.
+
+Local, OpenAI-compatible, and Gemini clients share the same prompt builder.
+Existing-folder requests use one compact message containing the filename,
+content evidence, optional topic labels, matched plugin guidance and candidate
+paths. Internal mode markers, repeated JSON footers, detected-convention
+descriptions and the extra content-over-filename rule are omitted from this
+selection message. Johnny.Decimal trees retain their concise numbered-folder
+system instruction. Creation instructions and plugin `new_folder_guidance` appear only in the proposal
+stage. Johnny.Decimal IDs stay in the literal destination paths, without an
+additional numbered list. Preliminary labels are optional clues, and category
+label prompts impose no word-count or plural-form rule. User-selected whitelist
+labels still constrain classification. Routing caches use a versioned policy so
+entries produced by the earlier mixed-stage prompts are not reused.
 
 Existing-tree routing first compares actual catalog paths (including pending
 review proposals) and requires JSON with exactly `targetFolder` and `createFolder`.
@@ -38,8 +65,8 @@ Native text inference installs a per-request decoding grammar compiled by the
 pinned llama.cpp JSON-schema converter. `targetFolder` is an enum of the literal
 offered paths plus JSON `null`; `createFolder` must be `false`. Null explicitly
 means no suitable offered destination, not the destination root. Comparisons that
-exceed the measured input budget split whole candidate groups, never truncate
-mandatory content evidence or paths.
+exceed the measured input budget split whole candidate groups. Evidence excerpts
+may be shortened to fit; required instructions and literal paths remain intact.
 
 The native converter follows the schema's `required` field sequence, retaining
 `targetFolder` before `createFolder` as shown in the prompt examples, even when

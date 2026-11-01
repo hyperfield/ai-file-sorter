@@ -14,6 +14,17 @@ evidence is rejected after the visual input policy advances to `image-v2`.
 This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. UI-centric tests use a headless Qt platform plugin so they can run without a visible display: `minimal` on Windows and `offscreen` on other platforms.
 
 ## How to run tests
+
+Frozen routing-prompt experiments and their offline Python checks are documented
+in [PROMPT_REPLAY.md](tests/live_llm/PROMPT_REPLAY.md).
+
+Run `[sampling],[folder-response]` for the request-scoped greedy-selection
+policy: existing-folder comparisons and reconsideration default to temperature
+zero, proposals and ordinary classification retain the general temperature,
+quoted proposal markers in evidence do not change the stage, and explicit
+folder-temperature overrides do not leak into later requests. Invalid override
+values are rejected before native model loading.
+
 - Configure tests on Linux/macOS (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
 - Build and run all tests on Linux/macOS: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
 - On Windows, configure from a Visual Studio Developer PowerShell with the vcpkg toolchain and a Qt 6 MSVC kit, for example: `$env:VCPKG_ROOT="D:\path\to\vcpkg"; $qt="C:\Qt\6.6.3\msvc2019_64"; $toolchain=Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"; cmake -S app -B build-tests -G "Ninja" -DCMAKE_PREFIX_PATH=$qt "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_MANIFEST_DIR=app -DVCPKG_TARGET_TRIPLET=x64-windows -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
@@ -52,6 +63,22 @@ Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "Taxonomy*,Dat
 ## Sorting Rules And Filename Length
 
 Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[sorting-rules],[content-routing]"`.
+
+Prompt regressions in `test_local_llm_prompt_builder.cpp`,
+`test_folder_tree_catalog.cpp`, and `test_folder_tree_llm_router.cpp` also run
+with `[folder-response],[llm-routing]`. They cover separate selection/proposal
+instructions, creation guidance omitted from selection, intact Johnny.Decimal
+paths, whitelist precedence over default image labels, evidence containing a
+proposal marker, and invalid-response retries. Routing-cache tests reject the
+earlier prompt policy while preserving current entries.
+
+`Production folder routing renders the compact experimental template` exercises
+the production router, evidence wrapper and message builder with absent,
+document and image evidence. It checks the messages against the successful
+compact template fixtures, including folder IDs and literal evidence, and
+rejects leaked internal markers, allocation instructions and categorization
+wrappers. The live production replay uses those same compiled app objects and
+records both the native response and the router's accepted destination.
 
 `tests/unit/test_sorting_rules.cpp` covers:
 - `Filename word limits default independently and persist within bounds`: image and
@@ -143,6 +170,7 @@ These deterministic tests use temporary files and injected LLMs, not live infere
 
 `tests/unit/test_content_context_routing.cpp` covers:
 - `Content evidence reaches classification and routing independently of renaming`: image/document evidence survives a cache round trip and reaches both LLM stages separately from the path, including when preliminary labels differ from the model-selected destination.
+- `Source directories do not affect classification or routing requests`: identical image/document evidence and filenames in unrelated source directories produce identical classification and routing requests. Source paths remain distinct in review/cache records, content evidence is preserved, and destination choices remain available.
 - `Review plan reserves new numbers across batches and reuses proposed destinations`: deferred batches allocate distinct numbers for distinct labels, reuse an equivalent pending folder, preserve true on-disk existence flags, and do not create directories during analysis.
 - `Review plan matches pending labels only within the same literal parent`: equivalent code-prefixed labels reuse the first proposal with case, spacing, and Unicode normalization, without merging different roots, literal parents, or distinct labels.
 - `Review plan preserves meaningful numbers in literal and human labels`: literal year names, bare numeric names, and years inside convention-prefixed labels remain distinct.
