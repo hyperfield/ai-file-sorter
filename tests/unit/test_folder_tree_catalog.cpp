@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "FolderStructurePattern.hpp"
+#include "FolderStructurePluginProfile.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "FolderTreeRoutingExplanation.hpp"
 #include "JohnnyDecimalArchiveIndex.hpp"
@@ -155,7 +156,7 @@ TEST_CASE("FolderTreeCatalog plain paths retain validation and creation permissi
     }
 }
 
-TEST_CASE("FolderTreeCatalog prompt guides new folders over weak fallbacks")
+TEST_CASE("FolderTreeCatalog proposal prompt describes only the proposal stage")
 {
     FolderTreeCatalog::Catalog catalog({
         {"Images", 1},
@@ -172,11 +173,11 @@ TEST_CASE("FolderTreeCatalog prompt guides new folders over weak fallbacks")
         "D:/Incoming/invoice_q2_2026.pdf",
         true);
 
-    CHECK(prompt.find("Return JSON with targetFolder") != std::string::npos);
-    CHECK(prompt.find("createFolder:false") != std::string::npos);
+    CHECK(prompt.find("New destination proposal:") != std::string::npos);
+    CHECK(prompt.find("createFolder:false") == std::string::npos);
     CHECK(prompt.find("createFolder:true") != std::string::npos);
-    CHECK(prompt.find("existing matches are weak, generic, or unrelated") != std::string::npos);
-    CHECK(prompt.find("do not force an unrelated catch-all") != std::string::npos);
+    CHECK(prompt.find("weak, generic") == std::string::npos);
+    CHECK(prompt.find("catch-all") == std::string::npos);
     CHECK(prompt.find("Other/Unsorted Review") != std::string::npos);
 }
 
@@ -188,6 +189,32 @@ TEST_CASE("FolderTreeCatalog scores prefixed folders by human labels")
     CHECK(FolderTreeCatalog::semantic_match_score("AC Documents",
                                                   "Documents",
                                                   "Invoices") >= 8);
+}
+
+TEST_CASE("FolderTreeCatalog omits creation guidance while preserving existing numbered paths", "[folder-response]")
+{
+    const FolderTreeCatalog::Catalog catalog({
+        {"10-19 Admin", 1}, {"10-19 Admin/11 Finance", 2},
+        {"20-29 Work", 1}, {"20-29 Work/21 Projects", 2}});
+    FolderStructurePluginProfile plugin;
+    plugin.id = "jd";
+    plugin.name = "Johnny.Decimal";
+    plugin.structure_kind = "johnny_decimal";
+    plugin.prompt_guidance = "Read the label after the Johnny.Decimal ID.\n";
+    plugin.new_folder_guidance = "Allocate the next free ID for a new child.\n";
+    for (const bool proposal : {false, true}) {
+        const auto context = FolderTreeCatalog::build_candidate_prompt_context(
+            catalog, catalog.entries(), proposal, "Finance", "Budgets", std::span(&plugin, 1));
+        CHECK(context.find(plugin.prompt_guidance) != std::string::npos);
+        CHECK((context.find(plugin.new_folder_guidance) != std::string::npos) == proposal);
+        CHECK((context.find("proposing a missing folder") != std::string::npos) == proposal);
+        CHECK((context.find("Detected folder structure conventions") != std::string::npos) == proposal);
+        CHECK(context.find("20-29 Work/21 Projects\n") != std::string::npos);
+        CHECK(context.find("1. 10-19") == std::string::npos);
+        CHECK((context.find("createFolder:true") != std::string::npos) == proposal);
+        CHECK(context.find("createFolder:false") == std::string::npos);
+        CHECK(context.find("weak, generic") == std::string::npos);
+    }
 }
 
 TEST_CASE("FolderStructurePattern suggests missing child inside numbered parent")
@@ -445,7 +472,7 @@ TEST_CASE("FolderTreeCatalog prompt includes detected structure conventions")
 
     CHECK(prompt.find("Detected folder structure conventions") != std::string::npos);
     CHECK(prompt.find("Johnny.Decimal-like") != std::string::npos);
-    CHECK(prompt.find("Preliminary labels (not a required destination): Finance / Budgets") != std::string::npos);
+    CHECK(prompt.find("Preliminary labels (optional clues): Finance / Budgets") != std::string::npos);
     CHECK(prompt.find("deterministic new-folder candidate") == std::string::npos);
 }
 

@@ -1,6 +1,6 @@
 #include "GeminiClient.hpp"
 
-#include "FolderTreeCatalog.hpp"
+#include "LocalLLMPromptBuilder.hpp"
 
 #include "Logger.hpp"
 #include "RemoteApiError.hpp"
@@ -319,39 +319,11 @@ std::string GeminiClient::make_categorization_payload(const std::string& file_na
                                                       FileType file_type,
                                                       const std::string& consistency_context)
 {
-    std::string prompt;
-    std::string sanitized_path = file_path;
-
-    if (!sanitized_path.empty()) {
-        prompt = "Categorize the item with full path: " + sanitized_path + "\n";
-        prompt += "File name: " + file_name;
-    } else {
-        prompt = "Categorize file: " + file_name;
-    }
-
-    if (file_type == FileType::Directory) {
-        if (!sanitized_path.empty()) {
-            prompt = "Categorize the directory with full path: " + sanitized_path + "\nDirectory name: " + file_name;
-        } else {
-            prompt = "Categorize directory: " + file_name;
-        }
-    }
-
-    if (!consistency_context.empty()) {
-        prompt += "\n\n" + consistency_context;
-    }
-
+    const auto prompt = LocalLLMPromptBuilder::build_user_prompt(
+        file_name, file_path, file_type, consistency_context);
     last_prompt_ = prompt;
-    const bool folder_tree_mode =
-        consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos;
-    const std::string system_prompt = folder_tree_mode
-        ? std::string(FolderTreeCatalog::selection_system_prompt())
-        : "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
-          "Consider the filename, extension, and any directory context provided. If the user prompt includes an "
-          "'Allowed main categories' list, choose the main category from that list only. Use Other only when it is "
-          "listed and none of the other listed main categories clearly fits. Always reply with one line in the "
-          "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). "
-          "Subcategory must be specific, relevant, and must not repeat the main category.";
+    const auto system_prompt = LocalLLMPromptBuilder::build_system_prompt(
+        file_path, file_type, consistency_context);
 
     std::ostringstream payload;
     const std::string merged_prompt = system_prompt + "\n\n" + prompt;

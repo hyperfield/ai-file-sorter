@@ -66,7 +66,8 @@ std::optional<ProposedChild> proposed_child_location(
  */
 Profile infer_profile(
     const FolderTreeCatalog::Catalog& catalog,
-    std::span<const FolderStructurePluginProfile> plugin_profiles = {});
+    std::span<const FolderStructurePluginProfile> plugin_profiles = {},
+    bool include_new_folder_guidance = true);
 
 /**
  * @brief Suggest a new relative folder path while preserving recognized tree conventions.

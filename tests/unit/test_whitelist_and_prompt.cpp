@@ -775,7 +775,7 @@ TEST_CASE("CategorizationService builds category language context when non-Engli
     const std::string context = CategorizationServiceTestAccess::build_category_language_context(service);
 
     REQUIRE_FALSE(context.empty());
-    REQUIRE(context.find("English only") != std::string::npos);
+    REQUIRE(context.find("in English") != std::string::npos);
     REQUIRE(context.find("French") != std::string::npos);
 }
 
@@ -790,7 +790,7 @@ TEST_CASE("CategorizationService builds category language context for Spanish") 
     const std::string context = CategorizationServiceTestAccess::build_category_language_context(service);
 
     REQUIRE_FALSE(context.empty());
-    REQUIRE(context.find("English only") != std::string::npos);
+    REQUIRE(context.find("in English") != std::string::npos);
     REQUIRE(context.find("Spanish") != std::string::npos);
 }
 
@@ -1256,7 +1256,7 @@ TEST_CASE("CategorizationService routes into existing folder-tree targets") {
     CHECK(categorized.front().category == "Admin");
     CHECK(categorized.front().subcategory == "Reports");
     CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
-    CHECK(captured_context->find("Preliminary labels (not a required destination): Admin / Reports") !=
+    CHECK(captured_context->find("Preliminary topic labels (supporting clues): Admin / Reports") !=
           std::string::npos);
     CHECK(captured_context->find("10-19 Admin/11 Reports") != std::string::npos);
 }

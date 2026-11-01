@@ -15,6 +15,8 @@ namespace FolderTreeCatalog {
  * @brief Marker injected into LLM prompt context when folder-tree routing is active.
  */
 inline constexpr std::string_view kPromptMarker = "[[AI_FILE_SORTER_FOLDER_TREE_MODE]]";
+/** @brief Internal convention hint; removed before the request is sent to a model. */
+inline constexpr std::string_view kJohnnyDecimalPromptMarker = "[[AI_FILE_SORTER_JOHNNY_DECIMAL_TREE]]";
 
 /**
  * @brief One existing folder that may be selected as a sorting target.
@@ -130,15 +132,16 @@ ValidationResult validate_relative_folder_path(std::string_view relative_path);
 
 /**
  * @brief Shared system instructions for JSON folder selection on every backend.
- * @return Static prompt text; new-folder permission remains in the candidate context.
+ * @param proposal_stage True only for an authorized new-folder proposal request.
+ * @return Instructions for the current stage only.
  */
-std::string_view selection_system_prompt();
+std::string_view selection_system_prompt(bool proposal_stage = false, bool johnny_decimal = false);
 
 /**
  * @brief State the JSON response contract with a relative path and creation flag.
  * @return Static response instructions appended to folder-selection user prompts.
  */
-std::string_view selection_response_instruction();
+std::string_view selection_response_instruction(bool proposal_stage = false);
 
 /**
  * @brief Parse a JSON folder-tree selection or a compatible plain-path reply.

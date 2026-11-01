@@ -55,10 +55,10 @@ TEST_CASE("Image categorization uses an image-specific system prompt") {
         prompt_path,
         FileType::File);
 
-    CHECK(prompt.find("always use Images as the main category") != std::string::npos);
+    CHECK(prompt.find("Without an allowed-category list, use Images as the main category") != std::string::npos);
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
-    CHECK(prompt.find("Reply with exactly one line in the format Images : <Subcategory>") != std::string::npos);
-    CHECK(prompt.find("Dashboards, Forms, Product Pages, Interfaces, File Managers") != std::string::npos);
+    CHECK(prompt.find("Reply with exactly one line in the format <Main category> : <Subcategory>") != std::string::npos);
+    CHECK(prompt.find("A screenshot depicts content") != std::string::npos);
     CHECK(prompt.find("Use any provided image description as the primary evidence") != std::string::npos);
     CHECK(prompt.find("If the file is an installer") == std::string::npos);
     CHECK(prompt.find("If uncertain, make your best guess from the name only") == std::string::npos);
@@ -83,7 +83,7 @@ TEST_CASE("Image categorization uses refined local prompts when refined mode is 
         FileType::File,
         consistency_context);
 
-    CHECK(system_prompt.find("always use Images as the main category") == std::string::npos);
+    CHECK(system_prompt.find("Without an allowed-category list, use Images as the main category") == std::string::npos);
     CHECK(system_prompt.find("you may also choose a more content-specific main category") != std::string::npos);
     CHECK(system_prompt.find("format <Main category> : <Subcategory>") != std::string::npos);
     CHECK(user_prompt.find("Answer with exactly one line:\n<Main category> : <Subcategory>") != std::string::npos);
@@ -97,7 +97,7 @@ TEST_CASE("Generic file categorization keeps the general system prompt") {
 
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
     CHECK(prompt.find("If the file is an installer") != std::string::npos);
-    CHECK(prompt.find("If uncertain, make your best guess from the name only") != std::string::npos);
+    CHECK(prompt.find("any content evidence provided") != std::string::npos);
 }
 
 TEST_CASE("Document categorization uses a document-specific system prompt") {
@@ -110,7 +110,7 @@ TEST_CASE("Document categorization uses a document-specific system prompt") {
         CHECK(prompt.find("Allowed main categories") != std::string::npos);
         CHECK(prompt.find("keep the main category broad and filesystem-friendly") != std::string::npos);
         CHECK(prompt.find("If the file is an installer") == std::string::npos);
-        CHECK(prompt.find("always use Images as the main category") == std::string::npos);
+        CHECK(prompt.find("Without an allowed-category list, use Images as the main category") == std::string::npos);
     };
 
     check_document_prompt("home/theuser/Downloads/pci_dss_quick_reference.pdf");
@@ -138,9 +138,9 @@ TEST_CASE("Image categorization uses a concise user prompt without guidance bloc
 
     CHECK(prompt.find("Categorize this image file for file organization.") == 0);
     CHECK(prompt.find("File name: samsung_qn90c_tv.jpeg") != std::string::npos);
-    CHECK(prompt.find("Path: home/theuser/Downloads/samsung_qn90c_tv.jpeg") != std::string::npos);
+    CHECK(prompt.find("home/theuser/Downloads/") == std::string::npos);
     CHECK(prompt.find("Image description: Product page screenshot showing Samsung QN90C televisions arranged in a grid, with specifications and prices.") != std::string::npos);
-    CHECK(prompt.find("Answer with exactly one line:\nImages : <Subcategory>") != std::string::npos);
+    CHECK(prompt.find("Answer with exactly one line:\n<Main category> : <Subcategory>") != std::string::npos);
     CHECK(prompt.find("Image categorization guidance:") == std::string::npos);
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
     CHECK(prompt.find("Full path:") == std::string::npos);
@@ -167,7 +167,7 @@ TEST_CASE("Document categorization uses a document-specific user prompt") {
 
     CHECK(prompt.find("Categorize this document file for file organization.") == 0);
     CHECK(prompt.find("File name: pci_dss_quick_reference.pdf") != std::string::npos);
-    CHECK(prompt.find("Path: home/theuser/Downloads/pci_dss_quick_reference.pdf") != std::string::npos);
+    CHECK(prompt.find("home/theuser/Downloads/") == std::string::npos);
     CHECK(prompt.find("Document summary: Quick reference to PCI DSS controls for merchants and service providers.") != std::string::npos);
     CHECK(prompt.find("Document categorization guidance:") != std::string::npos);
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
@@ -184,7 +184,7 @@ TEST_CASE("Document categorization uses a document-specific user prompt") {
 
     CHECK(legacy_prompt.find("Categorize this document file for file organization.") == 0);
     CHECK(legacy_prompt.find("File name: file-sample_100kB.doc") != std::string::npos);
-    CHECK(legacy_prompt.find("Path: home/theuser/Downloads/file-sample_100kB.doc") != std::string::npos);
+    CHECK(legacy_prompt.find("home/theuser/Downloads/") == std::string::npos);
     CHECK(legacy_prompt.find("Document summary:") == std::string::npos);
     CHECK(legacy_prompt.find("Allowed main categories") != std::string::npos);
     CHECK(legacy_prompt.find("Full path:") == std::string::npos);

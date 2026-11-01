@@ -9,6 +9,12 @@
 
 namespace LocalLLMPromptBuilder {
 
+/** @brief Combine content evidence with routing or classification context without source metadata. */
+std::string build_request_context(const std::string& evidence, const std::string& context);
+
+/** @brief True for existing-folder comparisons/reconsideration, excluding separate proposals. */
+bool is_existing_folder_selection(std::string_view context);
+
 /**
  * @brief Build the system prompt for local categorization.
  * @param file_path Prompt path/context, optionally including image or document analysis text.

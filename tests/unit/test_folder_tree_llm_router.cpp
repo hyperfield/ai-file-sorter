@@ -93,10 +93,10 @@ TEST_CASE("FolderTreeLLMRouter proposes only after explicit existing-folder abst
         const std::string target = allow_new ? "Finance/Forecasts" : "Finance/Invoices";
         int calls = 0;
         const auto result = FolderTreeLLMRouter::select(catalog, allow_new, "Finance", "", {},
-            [&](const auto& context, const auto&) {
+            [&](const auto& context, const auto& constraint) {
                 ++calls;
-                CHECK(context.find("Return JSON with targetFolder") != std::string::npos);
-                CHECK(context.find("createFolder (boolean)") != std::string::npos);
+                CHECK(constraint.json_schema.find("targetFolder") != std::string::npos);
+                CHECK(constraint.json_schema.find("createFolder") != std::string::npos);
                 if (allow_new && calls == 1) return std::string(R"({"targetFolder":null,"createFolder":false})");
                 CHECK((context.find(FolderTreeSelectionContract::kProposalMarker) != std::string::npos) == allow_new);
                 return selected(target, allow_new);
@@ -117,7 +117,8 @@ TEST_CASE("FolderTreeLLMRouter retries keep the JSON response contract", "[llm-r
         ++calls;
         if (calls == 1) return std::string("../outside");
         CHECK(context.find("return exactly targetFolder") != std::string::npos);
-        CHECK(context.find("Never suggest or invent a new folder; return createFolder:false") != std::string::npos);
+        CHECK(context.find("return exactly targetFolder and createFolder:false") != std::string::npos);
+        CHECK(context.find("createFolder:true") == std::string::npos);
         return selected("Finance/Invoices");
     });
     REQUIRE(result);

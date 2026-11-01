@@ -75,34 +75,18 @@ std::optional<FolderTreeCatalog::Selection> FolderTreeSelectionContract::parse_p
     return selection;
 }
 
-std::string_view FolderTreeSelectionContract::existing_instruction()
-{
-    return "\nExisting-folder selection stage: compare every listed destination by content and purpose. "
-        "Do not create or propose a new folder in this stage. Return exactly one JSON object. "
-        "For a suitable existing choice, copy its full literal path exactly, including numbers, "
-        "with createFolder:false. If all listed choices are weak, generic, or unrelated, return "
-        "{\"targetFolder\":null,\"createFolder\":false}. Null means no suitable listed choice, not the sorting root. "
-        "Do not force an unrelated catch-all merely to avoid abstaining.\n";
-}
-
 std::string_view FolderTreeSelectionContract::proposal_instruction()
 {
     return "\n[[AI_FILE_SORTER_NEW_FOLDER_PROPOSAL]]\n"
         "The existing-folder comparison explicitly found no suitable destination. "
         "Now propose one concise new relative folder path, following the listed parent names and conventions. "
-        "Return exactly one JSON object with targetFolder as a nonempty string and createFolder:true. "
-        "Do not transcribe an existing destination with changed numbers or claim an existing path is new.\n";
+        "Return exactly one JSON object with targetFolder as a nonempty string and createFolder:true.\n";
 }
 
 std::string_view FolderTreeSelectionContract::purpose_comparison_instruction()
 {
     return "\nPurpose-aware comparison:\n"
-        "Distinguish three evidence dimensions before choosing: what kind of artifact this is; "
-        "its intended function and audience; and its subject matter. Leave unstated facts unknown. "
-        "Compare the strongest competing destinations against these dimensions and the archive's folder purposes. "
-        "Require positive content evidence for the destination's intended use, not just an associated topic or shared word. "
-        "Do not infer an audience, workflow or artifact type from a broad preliminary category. "
-        "Respect whether this archive organizes by project, topic or artifact kind; do not apply an extension-to-folder rule. "
-        "Prefer the most specific supported folder purpose. Explicit folder intent and direct content evidence outweigh "
-        "preliminary labels when they conflict. Do not invent missing content or explanations in the JSON reply.\n";
+        "Use any folder-purpose descriptions to interpret the archive's organization. "
+        "Consider the file's type, use, and subject where the evidence describes them. "
+        "Preliminary labels are supporting clues; unstated details remain unknown.\n";
 }

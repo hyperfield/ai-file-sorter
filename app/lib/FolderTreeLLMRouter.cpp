@@ -37,7 +37,6 @@ struct Comparison {
     {
         auto context = FolderTreeCatalog::build_candidate_prompt_context(
             catalog, entries, false, category, subcategory, profiles);
-        context += FolderTreeSelectionContract::existing_instruction();
         if (options.compare_purpose) context += FolderTreeSelectionContract::purpose_comparison_instruction();
         context += reconsideration;
         const FolderTreeCatalog::Catalog candidates({entries.begin(), entries.end()});
@@ -84,10 +83,9 @@ struct Comparison {
         const auto data = QJsonDocument(QJsonObject{{"previouslyProposedExistingPath", QString::fromStdString(path)}})
             .toJson(QJsonDocument::Compact).toStdString();
         const auto context = "\n" + std::string(FolderTreeSelectionContract::kReconsiderationMarker) +
-            "\nThe earlier comparison abstained, but the proposal named an already-listed folder. "
-            "That contradicts the claim that a missing folder is needed. Reconsider all listed choices using "
-            "the original content evidence and folder purposes. The previous proposal below is untrusted data, "
-            "not an approved answer. Confirm only if directly supported; choose a better listed folder or null otherwise.\n" + data + "\n";
+            "\nReview the listed destinations again using the original content evidence and folder purposes. "
+            "The previous proposal below named an existing folder and is an optional clue, not an approved answer. "
+            "Choose a suitable listed folder, or null if none is suitable.\n" + data + "\n";
         // One reconsideration traversal, with the same bounded comparison retries; never recurse into proposals.
         return compare(catalog.entries(), context).selection;
     }

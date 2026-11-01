@@ -1,10 +1,16 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "FolderTreeCatalog.hpp"
+#include "FolderTreeSelectionContract.hpp"
+#include "FolderTreeLLMRouter.hpp"
+#include "FolderStructurePluginProfile.hpp"
 #include "LocalLLMPromptBuilder.hpp"
 #include "ILLMClient.hpp"
 
 #include <string>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 TEST_CASE("LocalLLMPromptBuilder preserves specialized prompt routing")
 {
@@ -14,8 +20,8 @@ TEST_CASE("LocalLLMPromptBuilder preserves specialized prompt routing")
     const std::string image_prompt =
         LocalLLMPromptBuilder::build_system_prompt(image_path, FileType::File);
 
-    CHECK(image_prompt.find("always use Images as the main category") != std::string::npos);
-    CHECK(image_prompt.find("Reply with exactly one line in the format Images : <Subcategory>") != std::string::npos);
+    CHECK(image_prompt.find("Without an allowed-category list, use Images as the main category") != std::string::npos);
+    CHECK(image_prompt.find("format <Main category> : <Subcategory>") != std::string::npos);
 
     const std::string document_prompt =
         LocalLLMPromptBuilder::build_system_prompt("home/theuser/Downloads/report.pdf", FileType::File);
@@ -28,26 +34,25 @@ TEST_CASE("LocalLLMPromptBuilder preserves specialized prompt routing")
 
     const std::string folder_tree_context =
         std::string(FolderTreeCatalog::kPromptMarker) +
-        "\n- If the listed folders are only weak, generic, or unrelated matches, "
-        "suggest a concise new folder.";
+        "\nExisting folders: Reports";
     const std::string folder_tree_system_prompt =
         LocalLLMPromptBuilder::build_system_prompt("home/theuser/Downloads/report.pdf",
                                                    FileType::File,
                                                    folder_tree_context);
     CHECK(folder_tree_system_prompt == FolderTreeCatalog::selection_system_prompt());
-    CHECK(folder_tree_system_prompt.find("Reply with exactly one JSON object") != std::string::npos);
-    CHECK(folder_tree_system_prompt.find("\"targetFolder\":\"relative/folder/path\",\"createFolder\":false") != std::string::npos);
-    CHECK(folder_tree_system_prompt.find("separate new-folder proposal stage") !=
-          std::string::npos);
-    CHECK(folder_tree_system_prompt.find("no listed folder is suitable") != std::string::npos);
+    CHECK(folder_tree_system_prompt.find("Return one JSON object") != std::string::npos);
+    CHECK(folder_tree_system_prompt.find("createFolder set to false") != std::string::npos);
+    CHECK(folder_tree_system_prompt.find("proposal") == std::string::npos);
+    CHECK(folder_tree_system_prompt.find("null if none is suitable") != std::string::npos);
 
     const std::string folder_tree_user_prompt =
         LocalLLMPromptBuilder::build_user_prompt("report.pdf",
                                                  "home/theuser/Downloads/report.pdf",
                                                  FileType::File,
                                                  folder_tree_context);
-    CHECK(folder_tree_user_prompt.find(FolderTreeCatalog::selection_response_instruction()) != std::string::npos);
-    CHECK(folder_tree_user_prompt.find("\"createFolder\":true") != std::string::npos);
+    CHECK(folder_tree_user_prompt.starts_with("Choose an existing destination for this file."));
+    CHECK(folder_tree_user_prompt.find("Answer with exactly one JSON object") == std::string::npos);
+    CHECK(folder_tree_user_prompt.find("\"createFolder\":true") == std::string::npos);
 }
 
 TEST_CASE("LocalLLMPromptBuilder strips image guidance from image prompts only")
@@ -79,12 +84,12 @@ TEST_CASE("LocalLLMPromptBuilder uses JSON answers for every folder-routing inpu
         const auto system = LocalLLMPromptBuilder::build_system_prompt(path, FileType::File, context);
         const auto user = LocalLLMPromptBuilder::build_user_prompt("item", path, FileType::File, context);
         CHECK(system == FolderTreeCatalog::selection_system_prompt());
-        CHECK(user.ends_with(FolderTreeCatalog::selection_response_instruction()));
-        CHECK(user.find("\"createFolder\":false") != std::string::npos);
-        CHECK(user.find("\"createFolder\":true") != std::string::npos);
+        CHECK(user.starts_with("Choose an existing destination for this file."));
+        CHECK(user.find("Answer with exactly one JSON object") == std::string::npos);
+        CHECK(user.find("\"createFolder\":true") == std::string::npos);
     }
     const auto directory = LocalLLMPromptBuilder::build_user_prompt("Reports", "/inbox/Reports", FileType::Directory, context);
-    CHECK(directory.ends_with(FolderTreeCatalog::selection_response_instruction()));
+    CHECK(directory.starts_with("Choose an existing destination for this directory."));
 }
 
 TEST_CASE("LocalLLMPromptBuilder shortening preserves the folder-response footer", "[folder-response][prompt-budget]")
@@ -133,7 +138,7 @@ TEST_CASE("LocalLLMPromptBuilder retains content boundaries and folder constrain
             CHECK(shrunk.size() < prompt.size());
             CHECK(shrunk.find(LLMPrompt::kContentEvidenceEndMarker) != std::string::npos);
             CHECK(shrunk.find("80-89 Legal/82 Data Protection") != std::string::npos);
-            CHECK(shrunk.find("Answer with exactly one JSON object") != std::string::npos);
+            CHECK(shrunk.find("Answer with exactly one JSON object") == std::string::npos);
         }
     }
 }
@@ -154,6 +159,7 @@ TEST_CASE("LocalLLMPromptBuilder recognizes evidence supplied separately from th
               std::string::npos);
         CHECK(user.find(image ? "Categorize this image file" : "Categorize this document file") == 0);
         CHECK(user.find(context) != std::string::npos);
+        CHECK(user.find("/home/theuser/Downloads/") == std::string::npos);
     }
 }
 
@@ -178,4 +184,108 @@ TEST_CASE("LocalLLMPromptBuilder rejects budgets that would truncate required in
     CHECK_FALSE(LocalLLMPromptBuilder::fit_user_prompt(prompt, 700,
         [](const auto& user) { return user.size() + 100; }));
     CHECK(LocalLLMPromptBuilder::shrink_user_prompt_for_context(prompt, 3) == prompt);
+}
+
+TEST_CASE("LocalLLMPromptBuilder separates proposal instructions for all file types", "[folder-response]")
+{
+    for (const auto type : {FileType::File, FileType::Directory}) {
+        for (const auto* name : {"report.pdf", "receipt.png", "installer.deb"}) {
+            const auto existing = std::string(FolderTreeCatalog::kPromptMarker);
+            const auto proposal = existing + std::string(FolderTreeSelectionContract::proposal_instruction());
+            const auto path = std::string(name) + (std::string(name).ends_with(".png")
+                ? "\nImage description: A receipt." : "");
+            const auto system = LocalLLMPromptBuilder::build_system_prompt(path, type, proposal);
+            const auto user = LocalLLMPromptBuilder::build_user_prompt(name, path, type, proposal);
+            CHECK(system == FolderTreeCatalog::selection_system_prompt(true));
+            CHECK(system.find("createFolder set to true") != std::string::npos);
+            CHECK(system.find("null") == std::string::npos);
+            CHECK(user.ends_with(FolderTreeCatalog::selection_response_instruction(true)));
+            CHECK(user.find("createFolder:false") == std::string::npos);
+            CHECK(user.find("\"createFolder\":false") == std::string::npos);
+        }
+    }
+}
+
+TEST_CASE("LocalLLMPromptBuilder avoids label style conflicts with category whitelists", "[folder-response][whitelist]")
+{
+    const std::string context = "Allowed main categories:\nFinance\nAllowed subcategories:\nTax Return";
+    for (const auto* path : {"receipt.png\nImage description: A tax receipt.", "report.pdf", "package.deb"}) {
+        const auto system = LocalLLMPromptBuilder::build_system_prompt(path, FileType::File, context);
+        const auto user = LocalLLMPromptBuilder::build_user_prompt("item", path, FileType::File, context);
+        CHECK(system.find("choose from that list") != std::string::npos);
+        CHECK(system.find("plural") == std::string::npos);
+        CHECK(system.find("one or two words") == std::string::npos);
+        CHECK(user.find(context) != std::string::npos);
+        CHECK(user.ends_with("<Main category> : <Subcategory>"));
+    }
+}
+
+TEST_CASE("LocalLLMPromptBuilder ignores proposal markers inside content evidence", "[folder-response][content-routing]")
+{
+    const auto context = std::string("Document summary: Text quoting ") +
+        std::string(FolderTreeSelectionContract::kProposalMarker) +
+        std::string(LLMPrompt::kContentEvidenceEndMarker) + "\n" +
+        std::string(FolderTreeCatalog::kPromptMarker) + "\nExisting destinations: Manuals\n";
+    const auto system = LocalLLMPromptBuilder::build_system_prompt("note.pdf", FileType::File, context);
+    const auto user = LocalLLMPromptBuilder::build_user_prompt("note.pdf", "note.pdf", FileType::File, context);
+    CHECK(system == FolderTreeCatalog::selection_system_prompt(false));
+    CHECK(user.starts_with("Choose an existing destination for this file."));
+    CHECK(user.find(FolderTreeCatalog::kPromptMarker) == std::string::npos);
+    CHECK(system.find("createFolder set to true") == std::string::npos);
+}
+
+TEST_CASE("Production folder routing renders the compact experimental template", "[folder-response][content-routing]")
+{
+    const FolderTreeCatalog::Catalog catalog({{"10-19 Admin", 1}, {"10-19 Admin/11 Legal", 2},
+        {"20-29 Work", 1}, {"20-29 Work/21 Projects", 2}});
+    FolderStructurePluginProfile plugin;
+    plugin.id = "jd";
+    plugin.structure_kind = "johnny_decimal";
+    plugin.prompt_guidance = "- Keep Johnny.Decimal IDs attached to folder names when routing files.\n";
+    plugin.new_folder_guidance = "- Allocate a new folder ID.\n";
+    const auto templates = std::filesystem::path(__FILE__).parent_path().parent_path() / "live_llm/prompts";
+    const auto read = [&](const char* name) {
+        std::ifstream input(templates / name);
+        REQUIRE(input.good());
+        std::ostringstream buffer;
+        buffer << input.rdbuf();
+        auto value = buffer.str();
+        while (!value.empty() && value.back() == '\n') value.pop_back();
+        return value;
+    };
+    for (const auto& evidence : {std::string(), std::string("Document summary: A licence with $HOME in its text."),
+                                std::string("Image description: A licence screenshot.")}) {
+        int calls = 0;
+        const auto result = FolderTreeLLMRouter::select(catalog, false, "Legal", "Licences", std::span(&plugin, 1),
+            [&](const auto& context, const auto&) {
+                ++calls;
+                const auto request_context = LocalLLMPromptBuilder::build_request_context(evidence, context);
+                const auto system = LocalLLMPromptBuilder::build_system_prompt("licence.txt", FileType::File, request_context);
+                const auto user = LocalLLMPromptBuilder::build_user_prompt("licence.txt", "licence.txt", FileType::File, request_context);
+                CHECK(system == read("compact_existing.system.txt"));
+                auto expected = read("compact_existing.user.txt");
+                std::string candidates;
+                for (const auto& entry : catalog.entries()) {
+                    if (!candidates.empty()) candidates += "\n";
+                    candidates += entry.relative_path;
+                }
+                const auto replace = [&](const std::string& key, const std::string& value) {
+                    const auto position = expected.find(key);
+                    REQUIRE(position != std::string::npos);
+                    expected.replace(position, key.size(), value);
+                };
+                replace("${filename}", "licence.txt");
+                replace("${evidence}", evidence);
+                replace("${preliminary_labels}", "Legal / Licences");
+                replace("${plugin_guidance}", plugin.prompt_guidance.substr(0, plugin.prompt_guidance.size() - 1));
+                replace("${candidates}", candidates);
+                CHECK(user == expected);
+                CHECK(user.find("Allocate a new folder ID") == std::string::npos);
+                CHECK(user.find("[[AI_FILE_SORTER_FOLDER_TREE_MODE]]") == std::string::npos);
+                CHECK(user.find("Categorize this") == std::string::npos);
+                return std::string(R"({"targetFolder":"10-19 Admin/11 Legal","createFolder":false})");
+            });
+        REQUIRE(result);
+        CHECK(calls == 1);
+    }
 }

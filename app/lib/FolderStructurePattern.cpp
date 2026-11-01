@@ -661,7 +661,8 @@ bool profile_matches_tree(const FolderStructurePluginProfile& profile,
 }
 
 void append_plugin_profile_guidance(FolderStructurePattern::Profile& inferred,
-                                    std::span<const FolderStructurePluginProfile> plugin_profiles)
+                                    std::span<const FolderStructurePluginProfile> plugin_profiles,
+                                    bool include_new_folder_guidance)
 {
     std::ostringstream prompt;
     bool appended_header = false;
@@ -679,7 +680,7 @@ void append_plugin_profile_guidance(FolderStructurePattern::Profile& inferred,
         if (!plugin_profile.prompt_guidance.empty()) {
             prompt << plugin_profile.prompt_guidance;
         }
-        if (!plugin_profile.new_folder_guidance.empty()) {
+        if (include_new_folder_guidance && !plugin_profile.new_folder_guidance.empty()) {
             prompt << plugin_profile.new_folder_guidance;
         }
     }
@@ -747,7 +748,8 @@ std::optional<ProposedChild> proposed_child_location(
 }
 
 Profile infer_profile(const FolderTreeCatalog::Catalog& catalog,
-                      std::span<const FolderStructurePluginProfile> plugin_profiles)
+                      std::span<const FolderStructurePluginProfile> plugin_profiles,
+                      bool include_new_folder_guidance)
 {
     const auto infos = make_path_infos(catalog);
     const auto top_level = top_level_infos(infos);
@@ -779,7 +781,7 @@ Profile infer_profile(const FolderTreeCatalog::Catalog& catalog,
         profile.has_alphabetic_prefixes;
 
     if (!profile.has_recognized_conventions) {
-        append_plugin_profile_guidance(profile, plugin_profiles);
+        append_plugin_profile_guidance(profile, plugin_profiles, include_new_folder_guidance);
         return profile;
     }
 
@@ -791,14 +793,18 @@ Profile infer_profile(const FolderTreeCatalog::Catalog& catalog,
         if (!examples.empty()) {
             prompt << " (examples: " << join_examples(examples) << ")";
         }
-        prompt << ". Child folders commonly use numbers inside the parent range. Preserve those range and number prefixes when creating a missing folder.\n";
+        prompt << ". Child folders commonly use numbers inside the parent range.";
+        if (include_new_folder_guidance) prompt << " Preserve those prefixes when proposing a missing folder.";
+        prompt << "\n";
     } else if (profile.has_numbered_prefixes) {
         prompt << "- Sibling folders commonly use leading numeric prefixes before human labels";
         const auto examples = examples_for_kind(top_level, PrefixKind::Number, 3);
         if (!examples.empty()) {
             prompt << " (examples: " << join_examples(examples) << ")";
         }
-        prompt << ". Continue that prefix style when suggesting a new peer folder.\n";
+        prompt << ".";
+        if (include_new_folder_guidance) prompt << " Continue that prefix style when suggesting a new peer folder.";
+        prompt << "\n";
     }
 
     if (profile.has_alphabetic_prefixes) {
@@ -807,11 +813,13 @@ Profile infer_profile(const FolderTreeCatalog::Catalog& catalog,
         if (!examples.empty()) {
             prompt << " (examples: " << join_examples(examples) << ")";
         }
-        prompt << ". Treat those codes as literal folder-name prefixes and preserve the style when the pattern is clear.\n";
+        prompt << ". Treat those codes as literal folder-name prefixes.";
+        if (include_new_folder_guidance) prompt << " Preserve the style when proposing new folders.";
+        prompt << "\n";
     }
     prompt << "- Match content against the human label after any leading code/range prefix, but return the full literal folder path including prefixes.\n";
     profile.prompt_guidance = prompt.str();
-    append_plugin_profile_guidance(profile, plugin_profiles);
+    append_plugin_profile_guidance(profile, plugin_profiles, include_new_folder_guidance);
     return profile;
 }
 

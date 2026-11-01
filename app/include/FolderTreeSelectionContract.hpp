@@ -36,7 +36,6 @@ Decision parse_existing(const std::string& response, const FolderTreeCatalog::Ca
 std::optional<FolderTreeCatalog::Selection> parse_proposal(
     const std::string& response, const FolderTreeCatalog::Catalog& catalog);
 /** @brief Return stage-specific instructions for exact existing choices and abstention. */
-std::string_view existing_instruction();
 /** @brief Return stage-specific instructions authorizing only a new-folder proposal. */
 std::string_view proposal_instruction();
 /** @brief Separate evidence about artifact kind, function/audience and subject without inferring unknown facts. */

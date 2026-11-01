@@ -176,6 +176,66 @@ TEST_CASE("Content evidence reaches classification and routing independently of 
         CHECK(request.context.find(evidence->description) != std::string::npos);
         CHECK(request.context.find("Content evidence (primary") != std::string::npos);
         CHECK(request.path.find('\n') == std::string::npos);
+        CHECK(request.path == suggested);
+        CHECK(request.path.find(source.path().string()) == std::string::npos);
+        CHECK(request.context.find(source.path().string()) == std::string::npos);
+    }
+}
+
+TEST_CASE("Source directories do not affect classification or routing requests", "[content-routing][source-independent]")
+{
+    const bool image = GENERATE(false, true);
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_use_consistency_hints(false);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(false);
+    TempDir source;
+    TempDir archive;
+    std::filesystem::create_directories(archive.path() / "Legal" / "Data Protection");
+    settings.set_destination_folder(archive.path().string());
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    auto requests = std::make_shared<std::vector<Request>>();
+    const auto factory = [requests] {
+        return std::make_unique<RoutingLLM>(requests, [](const Request& request) {
+            return request.schema.empty() ? std::string("Legal : Data Protection")
+                : std::string(R"({"targetFolder":"Legal/Data Protection","createFolder":false})");
+        });
+    };
+    const std::string name = image ? "policy.png" : "policy.pdf";
+    const std::string evidence = "Customer data protection and privacy obligations.";
+    for (const auto* folder : {"Travel downloads", "Accounting archive"}) {
+        const auto parent = source.path() / folder;
+        std::filesystem::create_directories(parent);
+        const auto path = parent / name;
+        std::ofstream(path) << "identical file content";
+        settings.set_sort_folder(parent.string());
+        const auto payload = image
+            ? AnalysisCoordinator::build_image_prompt_path(path.string(), name, evidence)
+            : AnalysisCoordinator::build_document_prompt_path(path.string(), name, evidence);
+        std::atomic<bool> stop{false};
+        const auto result = service.categorize_entries(
+            {{path.string(), name, FileType::File}}, true, stop, {}, {}, {}, {}, factory,
+            [&](const FileEntry&) { return CategorizationService::PromptOverride{name, payload}; });
+        REQUIRE(result.size() == 1);
+        CHECK_FALSE(result.front().from_cache);
+        CHECK(result.front().file_path == parent.string());
+        CHECK(result.front().target_folder_relative_path == "Legal/Data Protection");
+    }
+    REQUIRE(requests->size() == 4);
+    for (size_t index = 0; index < 2; ++index) {
+        const auto& first = (*requests)[index];
+        const auto& second = (*requests)[index + 2];
+        CHECK(first.name == second.name);
+        CHECK(first.path == name);
+        CHECK(second.path == first.path);
+        CHECK(second.context == first.context);
+        CHECK(second.schema == first.schema);
+        CHECK(first.context.find(evidence) != std::string::npos);
+        CHECK(first.context.find(source.path().string()) == std::string::npos);
+        CHECK(first.context.find("source directory") == std::string::npos);
     }
 }
 
@@ -482,7 +542,7 @@ TEST_CASE("CategorizationService leaves failed model routing unresolved instead 
 
 TEST_CASE("Folder route cache excludes legacy lexical-policy decisions", "[content-routing][llm-routing]")
 {
-    const std::string old_fingerprint = GENERATE("tree-hash", "content-llm-v2:tree-hash", "staged-constrained-llm-v3:tree-hash", "purpose-aware-llm-v4:tree-hash");
+    const std::string old_fingerprint = GENERATE("tree-hash", "content-llm-v2:tree-hash", "staged-constrained-llm-v3:tree-hash", "purpose-aware-llm-v4:tree-hash", "described-path-llm-v5:tree-hash", "stage-specific-llm-v6:tree-hash");
     TempDir config;
     DatabaseManager database(config.path().string());
     DatabaseManager::FolderTreeRoutingRecord route;
