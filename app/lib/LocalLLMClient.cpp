@@ -2237,9 +2237,11 @@ std::string LocalLLMClient::generate_response(const std::string& prompt,
                                               int n_predict,
                                               bool apply_sanitizer,
                                               const std::string& system_prompt,
-                                              const LLMResponseConstraint& constraint)
+                                              const LLMResponseConstraint& constraint,
+                                              RequestKind kind)
 {
-    return generate_response_with_options(prompt, n_predict, apply_sanitizer, system_prompt, constraint, inference_);
+    const auto request_options = inference_.for_request(kind == RequestKind::ExistingFolderSelection);
+    return generate_response_with_options(prompt, n_predict, apply_sanitizer, system_prompt, constraint, request_options);
 }
 
 std::string LocalLLMClient::generate_response_with_options(const std::string& prompt, int n_predict,
@@ -2547,10 +2549,9 @@ std::string LocalLLMClient::categorize_file_constrained(const std::string& file_
     const bool folder_tree_mode =
         consistency_context.find(FolderTreeCatalog::kPromptMarker) != std::string::npos;
     const int max_tokens = folder_tree_mode ? 128 : 64;
-    const auto request_options = inference_.for_request(
-        LocalLLMPromptBuilder::is_existing_folder_selection(consistency_context));
-    std::string response = generate_response_with_options(prompt, max_tokens, !folder_tree_mode,
-        system_prompt, constraint, request_options);
+    const auto kind = LocalLLMPromptBuilder::is_existing_folder_selection(consistency_context)
+        ? RequestKind::ExistingFolderSelection : RequestKind::General;
+    std::string response = generate_response(prompt, max_tokens, !folder_tree_mode, system_prompt, constraint, kind);
     if (prompt_logging_enabled) {
         std::cout << "[DEV][RESPONSE] Categorization reply\n" << response << "\n";
     }

@@ -17,6 +17,8 @@ namespace spdlog { class logger; }
 
 class LocalLLMClient : public ILLMClient, public ILLMRequestControl {
 public:
+    /** @brief Select the request's sampling policy independently of its prompt wording. */
+    enum class RequestKind { General, ExistingFolderSelection };
     /**
      * @brief Per-client local runtime options.
      */
@@ -72,7 +74,8 @@ public:
                                   int n_predict,
                                   bool apply_sanitizer = true,
                                   const std::string& system_prompt = {},
-                                  const LLMResponseConstraint& constraint = {});
+                                  const LLMResponseConstraint& constraint = {},
+                                  RequestKind kind = RequestKind::General);
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,
                                 FileType file_type,
