@@ -18,7 +18,7 @@ both folders using that ID. Selecting a result enables the folder-opening action
 
 **Export the complete index.** The export action produces linked Markdown for
 the full folder snapshot, including folders with invalid or missing IDs. Filtering does not limit
-the export. See the [example Markdown export](archive-index.md).
+the export. Exported folder links point to the archive on the user's machine.
 
 [![Export Markdown index action](archive-export.png)](archive-export.png)
 

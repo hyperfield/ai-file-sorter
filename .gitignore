@@ -84,7 +84,20 @@ appcert-AIFileSorter.xml
 msix-layout/
 
 # References
-# includePaths.txt
+/app/includePaths.txt
+/images/screenshots/johnny-decimal/macos/archive-index.md
+
+# Private routing research; the generic headless live tests stay public.
+/tests/live_llm/build_prompt_replay.py
+/tests/live_llm/routing_prompt_replay.py
+/tests/live_llm/folder_creation_replay.py
+/tests/live_llm/test_routing_prompt_replay.py
+/tests/live_llm/test_folder_creation_replay.py
+/tests/live_llm/PROMPT_REPLAY.md
+/tests/live_llm/FOLDER_CREATION_REPLAY.md
+/tests/live_llm/prompts/
+/tests/tools/local_prompt_replay_main.cpp
+/tests/tools/folder_creation_replay_main.cpp
 
 ### VisualStudioCode ###
 .vscode/
@@ -137,6 +150,7 @@ app/scripts/__pycache__/
 app/include/llama/*.h
 
 # R & D
+/experiments/
 /assets/
 /plugins/
 /scripts/

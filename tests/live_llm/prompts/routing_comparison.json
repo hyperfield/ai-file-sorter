@@ -1,9 +1,0 @@
-{
-  "variants": [
-    {"id": "current-recorded-name", "prompt": "recorded", "filename": "recorded"},
-    {"id": "current-original-name", "prompt": "recorded", "filename": "original"},
-    {"id": "compact-recorded-name", "filename": "recorded", "systemTemplate": "compact_existing.system.txt", "userTemplate": "compact_existing.user.txt"},
-    {"id": "compact-original-name", "filename": "original", "systemTemplate": "compact_existing.system.txt", "userTemplate": "compact_existing.user.txt"}
-  ],
-  "repeatCases": ["gnu-make-manual.pdf", "spending-tracker.pdf", "Lora-variable.ttf"]
-}

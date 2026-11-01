@@ -15,9 +15,6 @@ This document provides a detailed description of every test case in the project.
 
 ## How to run tests
 
-Frozen routing-prompt experiments and their offline Python checks are documented
-in [PROMPT_REPLAY.md](tests/live_llm/PROMPT_REPLAY.md).
-
 Run `[sampling],[folder-response]` for the request-scoped greedy-selection
 policy: existing-folder comparisons and reconsideration default to temperature
 zero, proposals and ordinary classification retain the general temperature,
@@ -72,13 +69,13 @@ paths, whitelist precedence over default image labels, evidence containing a
 proposal marker, and invalid-response retries. Routing-cache tests reject the
 earlier prompt policy while preserving current entries.
 
-`Production folder routing renders the compact experimental template` exercises
+`Production folder routing keeps the complete selection prompt contract` exercises
 the production router, evidence wrapper and message builder with absent,
-document and image evidence. It checks the messages against the successful
-compact template fixtures, including folder IDs and literal evidence, and
+document and image evidence. It checks the complete expected messages directly,
+including folder IDs and literal evidence, and
 rejects leaked internal markers, allocation instructions and categorization
-wrappers. The live production replay uses those same compiled app objects and
-records both the native response and the router's accepted destination.
+wrappers. The regression runs without external prompt files, model weights or
+research tooling.
 
 `tests/unit/test_sorting_rules.cpp` covers:
 - `Filename word limits default independently and persist within bounds`: image and

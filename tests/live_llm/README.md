@@ -1,8 +1,5 @@
 # Headless Live LLM Tests
 
-For controlled routing-prompt comparisons using frozen evidence and editable
-templates, see [Frozen folder-routing prompt experiments](PROMPT_REPLAY.md).
-
 This directory contains optional black-box integration tests that run the built
 `aifilesorter` executable in headless mode against real files and real local
 LLM model artifacts.
