@@ -743,7 +743,7 @@ private:
     std::string llm_storage_dir;
     std::string visual_model_id;
     bool use_subcategories;
-    SortingMode sorting_mode{SortingMode::GeneratedCategories};
+    SortingMode sorting_mode{SortingMode::ExistingFolderTree};
     bool suggest_new_folders{false};
     bool categorize_files;
     bool categorize_directories;

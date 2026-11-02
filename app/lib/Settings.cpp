@@ -87,7 +87,11 @@ SortingMode sorting_mode_from_string(std::string value)
         value == "existing_folder_tree" || value == "foldertree" || value == "folder-tree") {
         return SortingMode::ExistingFolderTree;
     }
-    return SortingMode::GeneratedCategories;
+    if (value == "generatedcategories" || value == "generated-categories" ||
+        value == "generated_categories" || value == "categories") {
+        return SortingMode::GeneratedCategories;
+    }
+    return SortingMode::ExistingFolderTree;
 }
 
 std::string sorting_mode_to_string(SortingMode mode)
@@ -530,7 +534,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
         config.getValue("Settings", "VisualModelId", default_visual_model_descriptor().id));
     use_subcategories = load_bool("UseSubcategories", true);
     sorting_mode = sorting_mode_from_string(
-        config.getValue("Settings", "SortingMode", "GeneratedCategories"));
+        config.getValue("Settings", "SortingMode", "ExistingFolderTree"));
     suggest_new_folders = load_bool("SuggestNewFolders", false);
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);

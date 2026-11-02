@@ -70,6 +70,7 @@ void wait_for_benchmark(SuitabilityBenchmarkDialog& dialog)
 
 void add_custom_model(Settings& settings, const std::filesystem::path& root)
 {
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_llm_storage_dir((root / "models").string());
     const auto path = root / "models" / "custom.gguf";
     write_gguf(path);

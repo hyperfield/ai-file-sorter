@@ -486,6 +486,8 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorization for a folder")
     const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     settings.set_headless_review_before_apply(false);
     REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
@@ -544,6 +546,8 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, "input.txt", "Documents", "Reports");
 
@@ -630,6 +634,8 @@ TEST_CASE("HeadlessAnalysisCommand preserves UTF-8 filenames in review status")
     const std::filesystem::path source = make_file_at(target / Utils::utf8_to_path(file_name));
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, file_name, "Documents", "Reports");
 
@@ -688,6 +694,8 @@ TEST_CASE("HeadlessAnalysisCommand applies saved review plan")
     const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, "input.txt", "Documents", "Reports");
 
@@ -757,6 +765,8 @@ TEST_CASE("HeadlessAnalysisCommand categorizes only a selected file target")
         target / "Documents" / "Reports" / "sibling.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, "selected.txt", "Documents", "Reports");
 
@@ -804,6 +814,8 @@ TEST_CASE("HeadlessAnalysisCommand applies cached rename for a folder")
     const std::filesystem::path destination = target / "renamed_report.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     settings.set_offer_rename_documents(true);
     REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
@@ -863,6 +875,8 @@ TEST_CASE("HeadlessAnalysisCommand renames only a selected file target")
     const std::filesystem::path sibling_destination = target / "renamed_notes.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     settings.set_offer_rename_documents(true);
     REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
@@ -910,6 +924,8 @@ TEST_CASE("HeadlessAnalysisCommand skips rename when no cached suggestion exists
     const std::filesystem::path source = make_file_at(target / "archive.bin");
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     const auto resolved = db.resolve_category("Archives", "Binary");
     REQUIRE(db.insert_or_update_file_with_categorization("archive.bin",
@@ -958,6 +974,8 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
         target / "Documents" / "Reports" / "renamed_summary.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     settings.set_offer_rename_documents(true);
     REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
@@ -1020,6 +1038,8 @@ TEST_CASE("HeadlessAnalysisCommand applies same-folder multi-select only")
         target / "Documents" / "Reports" / "third.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, "first.txt", "Documents", "Reports");
     cache_categorization(db, target, "second.txt", "Documents", "Reports");
@@ -1081,6 +1101,8 @@ TEST_CASE("HeadlessReviewApplyService uses display folders and canonical storage
     entry.canonical_subcategory = "Monthly Statements";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     LocalFsProvider storage_provider;
     HeadlessReviewApplyService service(&db, storage_provider, nullptr);
@@ -1277,6 +1299,8 @@ TEST_CASE("HeadlessReviewApplyService moves generated categories into custom des
         destination_root / "Documents" / "Reports" / "statement.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, source_root, "statement.txt", "Inbox", "Inbox");
 

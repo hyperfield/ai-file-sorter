@@ -3,6 +3,12 @@
 This page summarizes the app's categorization model, especially the parts that
 are easy to lose inside a large README.
 
+## Destination sorting default
+
+New profiles use **Use existing folder structure**. New-folder suggestions are
+off by default. An existing saved sorting-mode choice is preserved, including
+**Create category folders**.
+
 ## Two categorization modes
 
 ### More refined

@@ -84,7 +84,7 @@ void MainWindowStateBinder::connect_checkbox_signals()
                              const QVariant data = app_.sorting_mode_selector->itemData(index);
                              const auto mode = data.isValid()
                                  ? static_cast<SortingMode>(data.toInt())
-                                 : SortingMode::GeneratedCategories;
+                                 : SortingMode::ExistingFolderTree;
                              app_.settings.set_sorting_mode(mode);
                              update_image_only_controls();
                              update_document_analysis_controls();
@@ -321,7 +321,9 @@ void MainWindowStateBinder::restore_tree_settings()
         QSignalBlocker blocker(app_.sorting_mode_selector);
         const int mode_value = static_cast<int>(app_.settings.get_sorting_mode());
         const int index = app_.sorting_mode_selector->findData(mode_value);
-        app_.sorting_mode_selector->setCurrentIndex(index >= 0 ? index : 0);
+        const int default_index = app_.sorting_mode_selector->findData(
+            static_cast<int>(SortingMode::ExistingFolderTree));
+        app_.sorting_mode_selector->setCurrentIndex(index >= 0 ? index : default_index);
     }
     if (app_.suggest_new_folders_checkbox) {
         QSignalBlocker blocker(app_.suggest_new_folders_checkbox);
@@ -501,7 +503,7 @@ void MainWindowStateBinder::sync_ui_to_settings()
         const QVariant data = app_.sorting_mode_selector->currentData();
         app_.settings.set_sorting_mode(data.isValid()
                                            ? static_cast<SortingMode>(data.toInt())
-                                           : SortingMode::GeneratedCategories);
+                                           : SortingMode::ExistingFolderTree);
     }
     if (app_.suggest_new_folders_checkbox) {
         app_.settings.set_suggest_new_folders(app_.suggest_new_folders_checkbox->isChecked());

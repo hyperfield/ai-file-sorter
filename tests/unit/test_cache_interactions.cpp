@@ -259,6 +259,7 @@ TEST_CASE("CategorizationService uses cached categorization without calling LLM"
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
 
     TempDir data_dir;
@@ -289,6 +290,7 @@ TEST_CASE("CategorizationService reuses native Unicode cache entries without ext
     TempDir config;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     TempDir source;
     const auto directory = source.path() / Utils::utf8_to_path("cafe\xcc\x81");
@@ -418,6 +420,7 @@ TEST_CASE("CategorizationService falls back to LLM when cache is empty") {
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
 
     TempDir data_dir;
@@ -451,6 +454,7 @@ TEST_CASE("CategorizationService invokes completion callback per entry") {
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -480,6 +484,7 @@ TEST_CASE("CategorizationService loads cached entries recursively for analysis")
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -515,6 +520,7 @@ TEST_CASE("Recursive recategorization clears stale subtree cache entries") {
     TempDir config_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 

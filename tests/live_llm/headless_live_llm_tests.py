@@ -1737,6 +1737,7 @@ def seed_config(config_root: Path, ctx: LiveContext) -> None:
                 ("CategoryLanguage", "English"),
                 ("HeadlessReviewBeforeApply", "true"),
                 ("UseSubcategories", "true"),
+                ("SortingMode", "GeneratedCategories"),
                 ("UseWhitelist", "false"),
                 ("CategorizeFiles", "true"),
                 ("CategorizeDirectories", "false"),

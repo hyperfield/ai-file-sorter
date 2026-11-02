@@ -65,6 +65,10 @@ If you only want rename suggestions, enable the relevant rename-only mode.
 
 ## 3. Choose How to Sort
 
+New profiles start with **Use existing folder structure**. Previously saved
+sorting-mode choices are preserved. Choose a **Destination** containing the
+folders you want to use, or select **Create category folders** to generate them.
+
 Choose a sorting mode:
 
 - **Create category folders** creates folders from suggested category names.

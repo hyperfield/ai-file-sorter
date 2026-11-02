@@ -131,6 +131,32 @@ TEST_CASE("Settings persists existing folder-tree sorting mode") {
     REQUIRE(reloaded.get_suggest_new_folders());
 }
 
+TEST_CASE("Settings defaults to existing folders while retaining an explicit sorting choice", "[sorting-rules]") {
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings defaults;
+    CHECK(defaults.get_sorting_mode() == SortingMode::ExistingFolderTree);
+    CHECK_FALSE(defaults.get_suggest_new_folders());
+
+    const auto path = std::filesystem::path(defaults.get_config_dir()) / "config.ini";
+    for (const auto* value : {"missing", "", "invalid", "ExistingFolderTree", "GeneratedCategories"}) {
+        QSettings config(QString::fromStdString(path.string()), QSettings::IniFormat);
+        config.clear();
+        config.setValue("Settings/CategorizeFiles", true);
+        if (std::string(value) != "missing") config.setValue("Settings/SortingMode", value);
+        config.sync();
+
+        Settings loaded;
+        REQUIRE(loaded.load());
+        CHECK(loaded.get_sorting_mode() == (std::string(value) == "GeneratedCategories"
+            ? SortingMode::GeneratedCategories : SortingMode::ExistingFolderTree));
+        REQUIRE(loaded.save());
+        Settings reloaded;
+        REQUIRE(reloaded.load());
+        CHECK(reloaded.get_sorting_mode() == loaded.get_sorting_mode());
+    }
+}
+
 TEST_CASE("Settings persists Johnny.Decimal plugin suggestion suppression") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
