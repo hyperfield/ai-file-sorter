@@ -182,7 +182,7 @@ PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view
             << "Use English descriptive words regardless of the description's language.\n"
             << "Preserve proper nouns and identifiers without translating them.\n"
             << "Limit the filename to a maximum of " << max_words
-            << " words. Use nouns and avoid starting with verbs like "
+            << " words. Use concise descriptive words and avoid starting with verbs like "
             << "'depicts', 'shows', 'presents', etc.\n"
             << "Do not include any data type words like 'image', 'jpg', 'png', 'webp', etc. Use only letters and numbers; "
             << "connect words with underscores.\n\n"
@@ -205,7 +205,7 @@ PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view
             << "- maximum " << max_words << " words\n"
             << "- lowercase letters and numbers only\n"
             << "- join words with underscores\n"
-            << "- prefer concrete nouns\n"
+            << "- use concise descriptive words that identify the subject\n"
             << "- do not include a file extension\n"
             << "- do not include quotes or extra commentary\n\n"
             << "Output only the filename stem.";

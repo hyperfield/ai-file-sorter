@@ -2567,7 +2567,8 @@ std::string LocalLLMClient::complete_prompt(const std::string& prompt,
         std::cout << "\n[DEV][PROMPT] Completion request\n"
                   << "[user]\n" << prompt << "\n";
     }
-    const std::string response = generate_response(prompt, capped, false);
+    const std::string response = generate_response(prompt, capped, false,
+        std::string(LLMPrompt::kCompletionSystemPrompt));
     if (prompt_logging_enabled) {
         std::cout << "[DEV][RESPONSE] Completion reply\n" << response << "\n";
     }

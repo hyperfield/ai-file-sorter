@@ -375,10 +375,11 @@ std::string LLMClient::make_payload(const std::string& file_name,
     return payload.str();
 }
 
-std::string LLMClient::make_generic_payload(const std::string& system_prompt,
+std::string LLMClient::make_completion_payload(
                                             const std::string& user_prompt,
                                             int max_tokens) const
 {
+    const std::string system_prompt(LLMPrompt::kCompletionSystemPrompt);
     std::ostringstream payload;
     payload << "{\"model\": \"" << escape_json(effective_model()) << "\",";
     payload << "\"messages\": [";
@@ -396,13 +397,11 @@ std::string LLMClient::make_generic_payload(const std::string& system_prompt,
 std::string LLMClient::complete_prompt(const std::string& prompt,
                                        int max_tokens)
 {
-    static const std::string kSystem =
-        "You are a precise assistant that returns well-formed JSON responses.";
     if (prompt_logging_enabled) {
         std::cout << "\n[DEV][PROMPT] Completion request\n"
                   << prompt << "\n";
     }
-    std::string json_payload = make_generic_payload(kSystem, prompt, max_tokens);
+    std::string json_payload = make_completion_payload(prompt, max_tokens);
     std::string response = send_api_request(json_payload);
     if (prompt_logging_enabled) {
         std::cout << "[DEV][RESPONSE] Completion reply\n" << response << "\n";

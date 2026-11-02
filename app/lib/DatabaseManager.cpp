@@ -28,6 +28,12 @@ namespace {
 constexpr double kSimilarityThreshold = 0.85;
 // Keep routes chosen by the previous lexical override policy out of model-driven reviews.
 constexpr std::string_view kRoutingCachePolicy = "greedy-folder-llm-v8:";
+constexpr std::string_view kLiteralCategoryPrefix = "literal:";
+
+std::string literal_category_key(const std::string& label) {
+    return std::string(kLiteralCategoryPrefix) + QString::fromStdString(label)
+        .normalized(QString::NormalizationForm_C).toCaseFolded().toStdString();
+}
 constexpr char kLegacyMusicCategoryNormalized[] = "music";
 constexpr char kCanonicalAudioCategoryDisplay[] = "Audio";
 constexpr char kLegacyInstallerBuildersNormalized[] = "installer builders";
@@ -468,6 +474,7 @@ void DatabaseManager::initialize_schema() {
             categorization_style INTEGER DEFAULT 0,
             rename_only INTEGER DEFAULT 0,
             rename_applied INTEGER DEFAULT 0,
+            categorization_policy TEXT NOT NULL DEFAULT '',
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(file_name, file_type, dir_path)
         );
@@ -487,6 +494,15 @@ void DatabaseManager::initialize_schema() {
         if (error_msg) {
             sqlite3_free(error_msg);
         }
+    }
+
+    error_msg = nullptr;
+    if (sqlite3_exec(db, "ALTER TABLE file_categorization ADD COLUMN categorization_policy TEXT NOT NULL DEFAULT '';",
+                     nullptr, nullptr, &error_msg) != SQLITE_OK) {
+        if (!is_duplicate_column_error(error_msg)) {
+            db_log(spdlog::level::warn, "Failed to add categorization_policy column: {}", error_msg ? error_msg : "");
+        }
+        sqlite3_free(error_msg);
     }
 
     const char *add_style_column_sql =
@@ -724,9 +740,10 @@ bool DatabaseManager::migrate_taxonomy_normalization() {
         int rc;
         while ((rc = sqlite3_step(stmt.get())) == SQLITE_ROW) {
             const int id = sqlite3_column_int(stmt.get(), 0);
-            const std::string category = normalize_label(text(stmt.get(), 1));
-            const std::string subcategory = DatabaseTaxonomyNormalizer::strip_trailing_stopwords(
-                normalize_label(text(stmt.get(), 2)));
+            const bool literal = text(stmt.get(), 3).starts_with(kLiteralCategoryPrefix);
+            const std::string category = literal ? text(stmt.get(), 3) : normalize_label(text(stmt.get(), 1));
+            const std::string subcategory = literal ? text(stmt.get(), 4) :
+                DatabaseTaxonomyNormalizer::strip_trailing_stopwords(normalize_label(text(stmt.get(), 2)));
             const auto [owner, inserted] = owners.emplace(make_key(category, subcategory), id);
             const int target = owner->second;
             redirects.emplace(id, target);
@@ -755,8 +772,8 @@ bool DatabaseManager::migrate_taxonomy_normalization() {
                 changed = true;
                 continue;
             }
-            const auto category_key = normalize_label(category);
-            const auto subcategory_key = normalize_label(subcategory);
+            const auto category_key = category.starts_with(kLiteralCategoryPrefix) ? category : normalize_label(category);
+            const auto subcategory_key = subcategory.starts_with(kLiteralCategoryPrefix) ? subcategory : normalize_label(subcategory);
             if (category_key.empty() || subcategory_key.empty() ||
                 owners.contains(make_key(category_key, subcategory_key))) {
                 changed = true;
@@ -1076,7 +1093,9 @@ bool DatabaseManager::migrate_legacy_taxonomy_labels() {
     static constexpr char kSelectLegacyFilesSql[] =
         "SELECT id, category, subcategory "
         "FROM file_categorization "
-        "WHERE lower(trim(category)) = ? OR lower(trim(subcategory)) = ?;";
+        "WHERE (lower(trim(category)) = ? OR lower(trim(subcategory)) = ?) "
+        "AND (taxonomy_id IS NULL OR taxonomy_id NOT IN "
+        "(SELECT id FROM category_taxonomy WHERE normalized_category LIKE 'literal:%'));";
     StatementPtr file_stmt = prepare_statement(db, kSelectLegacyFilesSql);
     if (!file_stmt) {
         db_log(spdlog::level::err, "Failed to prepare legacy file scan: {}", sqlite3_errmsg(db));
@@ -1352,6 +1371,7 @@ std::pair<int, double> DatabaseManager::find_fuzzy_match(
     double best_score = 0.0;
     int best_id = -1;
     for (const auto &entry : taxonomy_entries) {
+        if (entry.normalized_category.starts_with(kLiteralCategoryPrefix)) continue;
         double category_score = string_similarity(norm_category, entry.normalized_category);
         double subcategory_score =
             string_similarity(norm_subcategory, entry.normalized_subcategory);
@@ -1424,6 +1444,10 @@ DatabaseManager::resolve_category(const std::string &category,
         return result;
     }
 
+    // Preserve a previously selected literal identity through review, apply and cache round trips.
+    const auto literal = canonical_lookup.find(make_key(literal_category_key(category), literal_category_key(subcategory)));
+    if (literal != canonical_lookup.end()) return ResolvedCategory{literal->second, category, subcategory};
+
     const auto normalized = DatabaseTaxonomyNormalizer::normalize_category(category, subcategory);
     std::string key = make_key(normalized.normalized_category, normalized.match_subcategory);
 
@@ -1443,6 +1467,17 @@ DatabaseManager::resolve_category(const std::string &category,
                                    normalized.subcategory,
                                    normalized.normalized_category,
                                    normalized.match_subcategory);
+}
+
+DatabaseManager::ResolvedCategory
+DatabaseManager::resolve_literal_category(const std::string& category, const std::string& subcategory) {
+    if (!db || category.empty() || subcategory.empty()) return {-1, category, subcategory};
+    const auto main_key = literal_category_key(category);
+    const auto sub_key = literal_category_key(subcategory);
+    const auto found = canonical_lookup.find(make_key(main_key, sub_key));
+    const int id = found == canonical_lookup.end()
+        ? create_taxonomy_entry(category, subcategory, main_key, sub_key) : found->second;
+    return {id, category, subcategory};
 }
 
 DatabaseManager::ResolvedCategory
@@ -1621,6 +1656,7 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
         ON CONFLICT(file_name, file_type, dir_path)
         DO UPDATE SET
             category = excluded.category,
+            categorization_policy = '',
             subcategory = excluded.subcategory,
             suggested_name = excluded.suggested_name,
             taxonomy_id = excluded.taxonomy_id,
@@ -1681,6 +1717,45 @@ bool DatabaseManager::insert_or_update_file_with_categorization(
     }
 
     return success && write.commit();
+}
+
+std::string DatabaseManager::get_categorization_policy(const std::string& dir_path,
+                                                       const std::string& file_name,
+                                                       FileType file_type) {
+    if (!db) return {};
+    ConnectionLock lock(db);
+    if (!ensure_path_aliases()) return {};
+    auto statement = prepare_statement(db,
+        "SELECT categorization_policy FROM file_categorization "
+        "WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) "
+        "AND file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?2)) "
+        "AND file_type = ?3 ORDER BY timestamp DESC, id DESC LIMIT 1;");
+    if (!statement) return {};
+    sqlite3_bind_text(statement.get(), 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement.get(), 2, file_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement.get(), 3, file_type == FileType::File ? "F" : "D", -1, SQLITE_STATIC);
+    if (sqlite3_step(statement.get()) != SQLITE_ROW) return {};
+    const auto* value = sqlite3_column_text(statement.get(), 0);
+    return value ? reinterpret_cast<const char*>(value) : "";
+}
+
+bool DatabaseManager::set_categorization_policy(const std::string& dir_path,
+                                                const std::string& file_name,
+                                                FileType file_type, const std::string& policy) {
+    if (!db) return false;
+    ConnectionLock lock(db);
+    if (!ensure_path_aliases()) return false;
+    auto statement = prepare_statement(db,
+        "UPDATE file_categorization SET categorization_policy = ?4 "
+        "WHERE dir_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?1)) "
+        "AND file_name IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?2)) "
+        "AND file_type = ?3;");
+    if (!statement) return false;
+    sqlite3_bind_text(statement.get(), 1, dir_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement.get(), 2, file_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement.get(), 3, file_type == FileType::File ? "F" : "D", -1, SQLITE_STATIC);
+    sqlite3_bind_text(statement.get(), 4, policy.c_str(), -1, SQLITE_TRANSIENT);
+    return sqlite3_step(statement.get()) == SQLITE_DONE && sqlite3_changes(db) > 0;
 }
 
 bool DatabaseManager::insert_or_update_folder_tree_routing(

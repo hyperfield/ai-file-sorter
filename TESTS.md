@@ -21,6 +21,17 @@ Qt package replacements and link settings rebuild affected objects, while an
 identical invocation preserves the build stamp and avoids recompilation.
 Run `python3 tests/test_make_build_config.py -v`, or the matching CTest target.
 
+Run `[prompt-contract]` for completion-format, literal-whitelist, no-match,
+translation, cache-policy and opaque consistency-ID regressions. API payload
+tests serialize requests without sending network requests. Whitelist tests
+cover filtered learned examples, unchanged valid model choices, legacy-cache
+revalidation, literal aliases across reopen, and unassigned results without
+cached destinations. Consistency tests distinguish same-named files in separate
+directories without exposing source paths and preserve whitelist assignments.
+Unrestricted category prompts, including empty whitelists, must not offer
+`NO_MATCH`; nonempty whitelist prompts retain explicit abstention. Quoted rules
+inside content evidence do not activate whitelist instructions.
+
 Run `[sampling],[folder-response]` for the request-scoped greedy-selection
 policy: existing-folder comparisons and reconsideration default to temperature
 zero, proposals and ordinary classification retain the general temperature,

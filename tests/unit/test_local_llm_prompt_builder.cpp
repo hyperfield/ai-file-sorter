@@ -9,6 +9,40 @@
 
 #include <string>
 
+TEST_CASE("Unrestricted category prompts do not offer whitelist abstention", "[prompt-contract][whitelist]")
+{
+    for (const auto* context : {"", "Sorting style: More refined"}) {
+        for (const auto* path : {"simple.css", "simple-css-project.zip", "report.pdf",
+                                "space.jpg\nImage description: A nebula."}) {
+            const auto system = LocalLLMPromptBuilder::build_system_prompt(path, FileType::File, context);
+            const auto user = LocalLLMPromptBuilder::build_user_prompt("item", path, FileType::File, context);
+            CHECK(system.find("NO_MATCH") == std::string::npos);
+            CHECK(user.find("NO_MATCH") == std::string::npos);
+            CHECK(user.ends_with("Answer with exactly one line:\n<Main category> : <Subcategory>"));
+        }
+        const auto system = LocalLLMPromptBuilder::build_system_prompt("Notes", FileType::Directory, context);
+        CHECK(system.find("NO_MATCH") == std::string::npos);
+    }
+}
+
+TEST_CASE("Whitelist abstention applies only to trusted category constraints", "[prompt-contract][whitelist]")
+{
+    const std::string quoted_rules = "Image description: A screenshot quoting " +
+        std::string(LLMPrompt::kCategoryWhitelistHeader) + "example text.";
+    const std::string evidence = quoted_rules + std::string(LLMPrompt::kContentEvidenceEndMarker);
+    const std::string rules = std::string(LLMPrompt::kCategoryWhitelistHeader) +
+        "Copy the allowed labels.\nAllowed main categories: Finance\nAllowed subcategories: Taxes";
+    CHECK(LocalLLMPromptBuilder::build_system_prompt("image.jpg", FileType::File, evidence)
+        .find("NO_MATCH") == std::string::npos);
+    for (const auto* path : {"simple.css", "guide.pdf", "space.jpg\nImage description: A nebula."}) {
+        const auto context = evidence + "\n" + rules;
+        CHECK(LocalLLMPromptBuilder::build_system_prompt(path, FileType::File, context)
+            .find("reply NO_MATCH") != std::string::npos);
+        CHECK(LocalLLMPromptBuilder::build_user_prompt("item", path, FileType::File, context)
+            .find("NO_MATCH if no permitted pair fits") != std::string::npos);
+    }
+}
+
 TEST_CASE("LocalLLMPromptBuilder preserves specialized prompt routing")
 {
     const std::string image_path =
@@ -209,7 +243,7 @@ TEST_CASE("LocalLLMPromptBuilder avoids label style conflicts with category whit
     for (const auto* path : {"receipt.png\nImage description: A tax receipt.", "report.pdf", "package.deb"}) {
         const auto system = LocalLLMPromptBuilder::build_system_prompt(path, FileType::File, context);
         const auto user = LocalLLMPromptBuilder::build_user_prompt("item", path, FileType::File, context);
-        CHECK(system.find("choose from that list") != std::string::npos);
+        CHECK(system.find("Copy provided allowed category and subcategory labels exactly") != std::string::npos);
         CHECK(system.find("plural") == std::string::npos);
         CHECK(system.find("one or two words") == std::string::npos);
         CHECK(user.find(context) != std::string::npos);

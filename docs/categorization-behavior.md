@@ -38,12 +38,32 @@ are easy to lose inside a large README.
 - Whitelists apply in both categorization modes.
 - Narrow whitelists are easiest for smaller models, but large whitelists are
   reduced before prompting so the model sees a more relevant candidate set.
+- Allowed labels take precedence over learned examples and label-style defaults.
+  Their spelling and language are preserved as canonical identities.
+- If no permitted pair fits, the file remains unassigned for review. An invalid
+  answer is never replaced with the first allowed category or subcategory.
+  Abstention is offered only for a nonempty active whitelist. With unrestricted
+  category generation, the prompt asks for descriptive labels instead.
+- A valid image-category choice is preserved even when `Images` is also allowed.
+- The optional unconstrained consistency pass preserves active whitelist
+  assignments rather than rewriting them.
 
 ## Category language behavior
 
-- Categories are chosen canonically in English first.
+- Freely generated category labels are chosen canonically in English first;
+  explicit whitelist labels retain the user's language and spelling.
 - The UI then shows category labels in the selected category language.
 - Suggested filenames for supported rename flows are localized the same way.
+- Translation preserves proper names, acronyms and identifiers and does not
+  change the category's meaning or level of detail.
+
+## Suggested filenames
+
+Document and image names use concise descriptive words, with the selected word
+limit and filename extension preserved. Names are not restricted to nouns only.
+Completion requests follow the response format of their task; filename
+translation requests plain text, while document analysis requests JSON. A legacy
+JSON filename wrapper is unwrapped without adding its keys to the filename.
 
 ## Cache and learned behavior
 
@@ -53,6 +73,10 @@ are easy to lose inside a large README.
   decisions that the user explicitly approved.
 - The cache acts as local memory for consistency. It does not train or modify
   the underlying model.
+- Whitelist caches are checked against the current constraints and selection
+  policy. Older results and results from a different whitelist are reanalyzed;
+  user-approved learning data is retained. Unassigned results are not cached as
+  successful categorizations.
 
 ## Practical reading of the modes
 

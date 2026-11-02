@@ -594,8 +594,15 @@ bool looks_like_extension_label(const std::string& value)
 
 namespace CategorizationResponseParser {
 
+bool is_category_abstention(const std::string& response)
+{
+    const auto text = to_lower_copy_str(strip_wrapping_punctuation(strip_code_fence(response)));
+    return text == "no_match" || text == "no match";
+}
+
 std::pair<std::string, std::string> split_category_subcategory(const std::string& input)
 {
+    if (is_category_abstention(input)) return {};
     std::vector<std::string> lines;
     lines.reserve(4);
 

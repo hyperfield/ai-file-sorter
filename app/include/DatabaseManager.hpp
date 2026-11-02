@@ -43,6 +43,8 @@ public:
 
     ResolvedCategory resolve_category(const std::string& category,
                                       const std::string& subcategory);
+    /** @brief Store user-constrained labels without family aliases, fuzzy matching or style normalization. */
+    ResolvedCategory resolve_literal_category(const std::string& category, const std::string& subcategory);
     ResolvedCategory resolve_category_for_language(const std::string& category,
                                                    const std::string& subcategory,
                                                    CategoryLanguage language);
@@ -65,6 +67,11 @@ public:
                                                    const std::string& suggested_name = "",
                                                    bool rename_only = false,
                                                    bool rename_applied = false);
+    /** @brief Provenance for validated whitelist results; legacy/unvalidated rows have an empty policy. */
+    std::string get_categorization_policy(const std::string& dir_path, const std::string& file_name,
+                                         FileType file_type);
+    bool set_categorization_policy(const std::string& dir_path, const std::string& file_name,
+                                   FileType file_type, const std::string& policy);
     /**
      * @brief Cached routing decision for an existing destination folder tree.
      */

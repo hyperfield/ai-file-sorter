@@ -2,6 +2,41 @@
 
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
+#include "LLMClient.hpp"
+#include "GeminiClient.hpp"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+
+struct APICompletionTestAccess {
+    static std::string payload(LLMClient& client, const std::string& prompt) {
+        return client.make_completion_payload(prompt, 91);
+    }
+    static std::string payload(GeminiClient& client, const std::string& prompt) {
+        return client.make_completion_payload(prompt, 91);
+    }
+};
+
+TEST_CASE("API completions preserve each task's response format without a JSON persona", "[prompt-contract]")
+{
+    LLMClient openai("unused-test-key", "test-model");
+    GeminiClient gemini("unused-test-key", "test-model");
+    for (const std::string task : {"Return only the translated filename stem; no JSON.",
+                                  "Return JSON with summary and filename.",
+                                  "Return one line per item, followed by END."}) {
+        const auto first = QJsonDocument::fromJson(QByteArray::fromStdString(APICompletionTestAccess::payload(openai, task))).object();
+        const auto messages = first.value("messages").toArray();
+        REQUIRE(messages.size() == 2);
+        CHECK(messages[0].toObject().value("content").toString().toStdString() == LLMPrompt::kCompletionSystemPrompt);
+        CHECK(messages[1].toObject().value("content").toString().toStdString() == task);
+        CHECK(first.value("max_tokens").toInt() == 91);
+        const auto second = QJsonDocument::fromJson(QByteArray::fromStdString(APICompletionTestAccess::payload(gemini, task))).object();
+        const auto merged = second.value("contents").toArray()[0].toObject().value("parts").toArray()[0]
+            .toObject().value("text").toString().toStdString();
+        CHECK(merged == std::string(LLMPrompt::kCompletionSystemPrompt) + "\n\n" + task);
+        CHECK(second.value("generationConfig").toObject().value("maxOutputTokens").toInt() == 91);
+    }
+}
 
 TEST_CASE("Custom API endpoints persist across Settings load/save") {
     TempDir config_dir;

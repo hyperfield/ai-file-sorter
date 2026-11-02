@@ -133,6 +133,9 @@ private:
     using SessionHistoryMap = std::unordered_map<std::string, HintHistory>;
     using RemoteThrottleCallback = std::function<bool(const std::string&)>;
 
+    /** @brief Cache identity for the current literal whitelist and selection policy. */
+    std::string whitelist_cache_policy() const;
+
     /**
      * @brief Returns a cached categorization when available, otherwise calls the LLM.
      * @param llm LLM client used for the request.

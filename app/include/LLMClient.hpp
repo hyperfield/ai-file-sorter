@@ -21,13 +21,16 @@ public:
     void set_prompt_logging_enabled(bool enabled) override;
 
 private:
+#ifdef AI_FILE_SORTER_TEST_BUILD
+    friend struct APICompletionTestAccess;
+#endif
     std::string api_key;
     std::string send_api_request(std::string json_payload);
     std::string make_payload(const std::string &file_name,
                              const std::string &file_path,
                                 const FileType file_type,
                                 const std::string& consistency_context);
-    std::string make_generic_payload(const std::string& system_prompt,
+    std::string make_completion_payload(
                                      const std::string& user_prompt,
                                      int max_tokens) const;
     std::string effective_model() const;
