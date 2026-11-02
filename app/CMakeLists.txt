@@ -2147,6 +2147,15 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     endif()
 
     if(NOT WIN32)
+        find_package(Python3 COMPONENTS Interpreter QUIET)
+        find_program(AI_FILE_SORTER_MAKE_EXECUTABLE NAMES gmake make)
+        if(Python3_Interpreter_FOUND AND AI_FILE_SORTER_MAKE_EXECUTABLE)
+            add_test(
+                NAME make_build_config
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/../tests/test_make_build_config.py -v
+            )
+            set_tests_properties(make_build_config PROPERTIES LABELS "build" TIMEOUT 60)
+        endif()
         add_test(
             NAME integration_run_all
             COMMAND ${CMAKE_COMMAND} -E env bash ${CMAKE_SOURCE_DIR}/../tests/run_all_tests.sh

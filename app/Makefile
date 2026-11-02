@@ -527,6 +527,19 @@ OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
 DEPS = $(OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
 BUILD_CONFIG_STAMP := $(OBJ_DIR)/.build-config
 
+# Qt's inline container implementations must not be mixed across SDK versions.
+# Header/package upgrades can preserve old mtimes, so dependencies alone do not
+# invalidate every object. Resolve these identities again on each build.
+ifeq ($(NEEDS_BUILD_DEPS),1)
+CXX_BUILD_VERSION := $(CXX_VERSION_INFO)
+ifneq ($(strip $(PKG_CONFIG)),)
+QT_BUILD_PKG_ENV := PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(if $(strip $(PKG_CONFIG_LIBDIR)),PKG_CONFIG_LIBDIR="$(PKG_CONFIG_LIBDIR)")
+QT_BUILD_VERSION := $(shell $(QT_BUILD_PKG_ENV) $(PKG_CONFIG) --modversion Qt6Core 2>/dev/null)
+QT_BUILD_LIBRARY_ROOT := $(realpath $(shell $(QT_BUILD_PKG_ENV) $(PKG_CONFIG) --variable=libdir Qt6Core 2>/dev/null))
+QT_BUILD_CORE_LIBRARY := $(realpath $(QT_BUILD_LIBRARY_ROOT)/QtCore.framework/QtCore $(QT_BUILD_LIBRARY_ROOT)/libQt6Core.so $(QT_BUILD_LIBRARY_ROOT)/libQt6Core.dylib)
+endif
+endif
+
 PRECOMPILED_LLAMA :=
 ifeq ($(UNAME), Darwin)
 ifneq ($(LLAMA_MULTI_VARIANT),0)
@@ -534,7 +547,7 @@ PRECOMPILED_LLAMA := precompiled_llama
 endif
 endif
 
-.PHONY: all clean install uninstall doc_runtime_libs precompiled_llama MACOS_LLAMA_M1 MACOS_LLAMA_M2 MACOS_LLAMA_INTEL MACOS_RELEASE_M1 MACOS_RELEASE_M2 MACOS_RELEASE_INTEL MACOS_RELEASE_ALL
+.PHONY: all clean install uninstall doc_runtime_libs precompiled_llama FORCE_BUILD_CONFIG MACOS_LLAMA_M1 MACOS_LLAMA_M2 MACOS_LLAMA_INTEL MACOS_RELEASE_M1 MACOS_RELEASE_M2 MACOS_RELEASE_INTEL MACOS_RELEASE_ALL
 
 # Main rules
 all: $(PRECOMPILED_LLAMA) doc_runtime_libs $(TARGET)
@@ -567,13 +580,23 @@ ifeq ($(PLATFORM), Linux)
 	@$(MAKE) create_run_wrapper
 endif
 
-$(BUILD_CONFIG_STAMP): Makefile
+# Always compare the signature; preserve its mtime when nothing has changed so
+# an ordinary incremental build does not recompile or relink the application.
+FORCE_BUILD_CONFIG:
+
+$(BUILD_CONFIG_STAMP): Makefile FORCE_BUILD_CONFIG
 	mkdir -p $(OBJ_DIR)
-	@tmp="$(BUILD_CONFIG_STAMP).tmp.$$"; \
+	@tmp="$(BUILD_CONFIG_STAMP).tmp.$$$$"; \
 	printf '%s\n' \
 		'CXX=$(CXX)' \
+		'CXX_VERSION=$(CXX_BUILD_VERSION)' \
 		'CXXFLAGS=$(CXXFLAGS)' \
 		'INCLUDE_DIRS=$(INCLUDE_DIRS)' \
+		'LDFLAGS=$(LDFLAGS)' \
+		'LIB_DIRS=$(LIB_DIRS)' \
+		'QT_VERSION=$(QT_BUILD_VERSION)' \
+		'QT_LIBRARY_ROOT=$(QT_BUILD_LIBRARY_ROOT)' \
+		'QT_CORE_LIBRARY=$(QT_BUILD_CORE_LIBRARY)' \
 		'APP_NAME=$(APP_NAME)' \
 		'GGML_PRECOMPILED_SUBDIR=$(GGML_PRECOMPILED_SUBDIR)' \
 		'MACOS_ARCH=$(MACOS_ARCH)' \

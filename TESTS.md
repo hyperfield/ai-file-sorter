@@ -15,6 +15,12 @@ This document provides a detailed description of every test case in the project.
 
 ## How to run tests
 
+`make_build_config` exercises incremental Makefile builds with controlled compiler
+and Qt identities. It checks that compiler flags, compiler versions, Qt upgrades,
+Qt package replacements and link settings rebuild affected objects, while an
+identical invocation preserves the build stamp and avoids recompilation.
+Run `python3 tests/test_make_build_config.py -v`, or the matching CTest target.
+
 Run `[sampling],[folder-response]` for the request-scoped greedy-selection
 policy: existing-folder comparisons and reconsideration default to temperature
 zero, proposals and ordinary classification retain the general temperature,
