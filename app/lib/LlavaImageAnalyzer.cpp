@@ -1,4 +1,5 @@
 #include "LlavaImageAnalyzer.hpp"
+#include "ContentAnalysisUnavailable.hpp"
 
 #include "ImageDecodeUtils.hpp"
 #include "GgmlRuntimePaths.hpp"
@@ -1241,7 +1242,7 @@ BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
         if (!decode_error.empty()) {
             message += " (" + decode_error + ")";
         }
-        throw std::runtime_error(message);
+        throw ContentAnalysisUnavailable(message);
     }
 
     QByteArray png_bytes;
@@ -1692,7 +1693,7 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
     const auto bitmap_started = std::chrono::steady_clock::now();
     BitmapPtr bitmap = load_visual_bitmap(vision_ctx_, image_path, image_path_utf8);
     if (!bitmap) {
-        throw std::runtime_error("Failed to load image for visual analysis: " + image_path_utf8);
+        throw ContentAnalysisUnavailable("Failed to load image for visual analysis: " + image_path_utf8);
     }
     ImageAnalysisDiagnostics diagnostics;
     diagnostics.available = true;

@@ -1,4 +1,5 @@
 #include "AnalysisCoordinator.hpp"
+#include "ContentAnalysisUnavailable.hpp"
 
 #include "AnalysisEntryRouter.hpp"
 #include "AnalysisProgress.hpp"
@@ -392,18 +393,11 @@ std::string content_analyzer_id(const Settings& settings, bool image, bool using
         word_suffix(settings.get_document_filename_words());
 }
 
-std::optional<ContentAnalysisCache::Evidence> current_content_analysis(
-    DatabaseManager& database, const Settings& settings,
-    const CategorizedFile& entry, bool image, bool using_local_llm)
-{
-    const auto path = Utils::utf8_to_path(entry.file_path) / Utils::utf8_to_path(entry.file_name);
-    const auto key = ContentAnalysisCache::make_key(path, content_analyzer_id(settings, image, using_local_llm));
-    return key ? database.content_analysis_cache().find(*key) : std::nullopt;
-}
-
 std::vector<CategorizedFile> refresh_stale_content_entries(
     DatabaseManager& database, const Settings& settings,
-    std::vector<CategorizedFile> entries, bool using_local_llm)
+    std::vector<CategorizedFile> entries, bool using_local_llm,
+    const std::function<std::string(const CategorizedFile&)>& entry_key,
+    std::unordered_set<std::string>& pending_refresh)
 {
     std::vector<CategorizedFile> current;
     current.reserve(entries.size());
@@ -412,19 +406,20 @@ std::vector<CategorizedFile> refresh_stale_content_entries(
         const bool document = cached_entry_is_supported_document(entry);
         const bool needs_content = (settings.get_analyze_images_by_content() && image) ||
                                    (settings.get_analyze_documents_by_content() && document);
-        const auto evidence = needs_content
-            ? current_content_analysis(database, settings, entry, image, using_local_llm) : std::nullopt;
-        if (!needs_content || evidence) {
+        if (needs_content) {
+            const auto path = Utils::utf8_to_path(entry.file_path) / Utils::utf8_to_path(entry.file_name);
+            const auto key = ContentAnalysisCache::make_key(path, content_analyzer_id(settings, image, using_local_llm));
+            const auto cache = database.content_analysis_cache();
+            const auto evidence = key ? cache.find(*key) : std::nullopt;
             if (evidence) {
                 entry.learning_context = (image ? "Image description: " : "Document summary: ") + evidence->description;
+            } else {
+                entry.learning_context.clear();
+                if (key && !cache.find_unavailable(*key)) pending_refresh.insert(entry_key(entry));
             }
-            current.push_back(std::move(entry));
-            continue;
         }
-        database.remove_file_categorization(entry.file_path, entry.file_name, entry.type);
-        if (auto logger = Logger::get_logger("core_logger")) {
-            logger->info("Refreshing missing or stale content evidence for '{}'", entry.file_name);
-        }
+        // Keep the previous category and route until new content evidence succeeds.
+        current.push_back(std::move(entry));
     }
     return current;
 }
@@ -546,10 +541,14 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 renamed_files.insert(file_key(entry));
             }
         }
+        std::unordered_set<std::string> pending_content_refresh;
+        std::unordered_set<std::string> content_refresh_keys;
+        std::unordered_set<std::string> completed_content_refresh;
         auto cached_entries = prepare_cached_entries_for_sorting_mode(
             app_.db_manager,
             refresh_stale_content_entries(app_.db_manager, app_.settings,
-                                          std::move(raw_cached_entries), app_.using_local_llm),
+                                          std::move(raw_cached_entries), app_.using_local_llm,
+                                          file_key, pending_content_refresh),
             folder_tree_sorting,
             app_.settings.get_effective_destination_folder(directory_path),
             app_.settings.get_suggest_new_folders(),
@@ -855,7 +854,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 entry.suggested_name.clear();
                 entry.rename_only = false;
             }
-            if (rename_images_only && analyze_images && is_image_entry) {
+            const bool refresh_content = pending_content_refresh.contains(file_key(entry));
+            if (rename_images_only && analyze_images && is_image_entry && !refresh_content) {
                 if (!already_renamed && entry.suggested_name.empty()) {
                     continue;
                 }
@@ -864,7 +864,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 app_.already_categorized_files.push_back(std::move(adjusted));
                 continue;
             }
-            if (rename_documents_only && analyze_documents && is_document_entry) {
+            if (rename_documents_only && analyze_documents && is_document_entry && !refresh_content) {
                 if (!already_renamed && entry.suggested_name.empty()) {
                     continue;
                 }
@@ -873,20 +873,22 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 app_.already_categorized_files.push_back(std::move(adjusted));
                 continue;
             }
-            if (wants_visual_rename && is_image_entry && entry.suggested_name.empty() && !already_renamed) {
+            if (is_image_entry && (refresh_content || (wants_visual_rename && entry.suggested_name.empty() && !already_renamed))) {
                 const auto entry_index = app_.already_categorized_files.size();
                 app_.already_categorized_files.push_back(entry);
                 cached_visual_indices.emplace(file_key(entry), entry_index);
+                if (refresh_content) content_refresh_keys.insert(file_key(entry));
                 const auto full_path = Utils::utf8_to_path(entry.file_path) /
                                        Utils::utf8_to_path(entry.file_name);
                 cached_image_entries_for_visual.push_back(
                     FileEntry{Utils::path_to_utf8(full_path), entry.file_name, entry.type});
                 continue;
             }
-            if (wants_document_rename && is_document_entry && entry.suggested_name.empty() && !already_renamed) {
+            if (is_document_entry && (refresh_content || (wants_document_rename && entry.suggested_name.empty() && !already_renamed))) {
                 const auto entry_index = app_.already_categorized_files.size();
                 app_.already_categorized_files.push_back(entry);
                 cached_document_indices.emplace(file_key(entry), entry_index);
+                if (refresh_content) content_refresh_keys.insert(file_key(entry));
                 const auto full_path = Utils::utf8_to_path(entry.file_path) /
                                        Utils::utf8_to_path(entry.file_name);
                 cached_document_entries_for_analysis.push_back(
@@ -1207,7 +1209,18 @@ AnalysisRunResult AnalysisCoordinator::execute()
             }
         };
 
-        // Consume complete cache hits before initializing a visual backend.
+        auto complete_content_refresh = [&](const FileEntry& entry, bool rename_only) {
+            const auto key = entry_key(entry);
+            if (rename_only || !content_refresh_keys.contains(key) || app_.stop_analysis.load() || update_stop()) return false;
+            if (!app_.db_manager.remove_file_categorization(
+                    Utils::path_to_utf8(Utils::utf8_to_path(entry.full_path).parent_path()), entry.file_name, entry.type)) {
+                throw std::runtime_error("Could not refresh the cached categorization after content analysis.");
+            }
+            completed_content_refresh.insert(key);
+            return true;
+        };
+
+        // Consume recorded outcomes before initializing a visual backend.
         std::vector<FileEntry> uncached_images;
         for (const auto& entry : image_entries) {
             if (update_stop()) {
@@ -1221,6 +1234,23 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 content_analyzer_id(app_.settings, true, app_.using_local_llm));
             const auto evidence = key ? app_.db_manager.content_analysis_cache().find(*key) : std::nullopt;
             if (!evidence) {
+                if (key && app_.db_manager.content_analysis_cache().find_unavailable(*key)) {
+                    const auto suggested = already_renamed ? std::string() : enrich_image_suggestion(entry, entry.file_name);
+                    image_info.emplace(entry_key(entry), ImageAnalysisInfo{
+                        suggested, std::nullopt, entry.file_name, entry.full_path, false});
+                    analyzed_image_entries.push_back(entry);
+                    cache_image_date(entry);
+                    const auto cached_index = cached_visual_indices.find(entry_key(entry));
+                    if (cached_index != cached_visual_indices.end()) {
+                        auto& cached_entry = app_.already_categorized_files[cached_index->second];
+                        cached_entry.suggested_name = suggested;
+                        persist_cached_suggestion(cached_entry, suggested);
+                    }
+                    if (rename_images_only) persist_rename_only_progress(entry, suggested);
+                    else if (cached_index == cached_visual_indices.end()) other_entries.push_back(entry);
+                    app_.mark_progress_stage_item_skipped(ProgressStageId::ImageAnalysis, entry);
+                    continue;
+                }
                 uncached_images.push_back(entry);
                 continue;
             }
@@ -1237,7 +1267,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 build_image_prompt_path(entry.full_path, evidence->suggested_name, evidence->description),
                 !suggested.empty()});
             const auto cached_index = cached_visual_indices.find(entry_key(entry));
-            const bool visual_only = cached_index != cached_visual_indices.end();
+            const bool visual_only = cached_index != cached_visual_indices.end() &&
+                                     !complete_content_refresh(entry, rename_images_only);
             if (visual_only) {
                 auto& cached_entry = app_.already_categorized_files[cached_index->second];
                 cached_entry.suggested_name = suggested;
@@ -1385,6 +1416,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                                                      .arg(QString::fromStdString(entry.file_name),
                                                           QString::fromStdString(reason))));
                 }
+                if (visual_only && content_refresh_keys.contains(entry_key(entry))) return;
                 if (!rename_images_only && !visual_only) {
                     other_entries.push_back(entry);
                 }
@@ -1525,6 +1557,9 @@ AnalysisRunResult AnalysisCoordinator::execute()
                                 app_.tr("[VISION] Analyzing %1")
                                     .arg(QString::fromStdString(entry.file_name))));
                             const auto analysis = analyzer->analyze(entry.full_path);
+                            if (analysis.suggested_name.empty() || analysis.description.empty()) {
+                                throw std::runtime_error("Incomplete image content analysis.");
+                            }
                             emit_visual_diagnostics(entry, analysis);
                             if (evidence_key) {
                                 app_.db_manager.content_analysis_cache().store(
@@ -1538,6 +1573,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
 
                             const std::string suggested_name =
                                 already_renamed ? std::string() : enriched_name;
+                            const bool refreshed = complete_content_refresh(entry, rename_images_only);
                             if (!rename_images_only) {
                                 persist_llm_suggestion_progress(entry, suggested_name);
                             }
@@ -1551,16 +1587,20 @@ AnalysisRunResult AnalysisCoordinator::execute()
                             if (rename_images_only) {
                                 persist_rename_only_progress(entry, suggested_name);
                             }
-                            if (visual_only) {
+                            if (visual_only && !refreshed) {
                                 update_cached_image_suggestion(entry, suggested_name);
                             }
 
-                            if (!rename_images_only && !visual_only) {
+                            if (!rename_images_only && (!visual_only || refreshed)) {
                                 image_entries_for_llm.push_back(entry);
                             }
                             app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
                             break;
                         } catch (const std::exception& ex) {
+                            if (evidence_key && dynamic_cast<const ContentAnalysisUnavailable*>(&ex) &&
+                                !app_.stop_analysis.load() && !update_stop()) {
+                                app_.db_manager.content_analysis_cache().store_unavailable(*evidence_key, ex.what());
+                            }
                             const bool retry_on_cpu = should_retry_on_cpu(ex);
                             if (!visual_cpu_fallback_active &&
                                 allow_visual_cpu_fallback &&
@@ -1707,6 +1747,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                                                fallback_action);
                     }
                 }
+                if (document_only && content_refresh_keys.contains(entry_key(entry))) return;
                 if (!rename_documents_only && !document_only) {
                     other_entries.push_back(entry);
                 }
@@ -1764,7 +1805,13 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 app_.mark_progress_stage_item_in_progress(ProgressStageId::DocumentAnalysis, entry);
 
                 try {
+                    if (evidence_key && app_.db_manager.content_analysis_cache().find_unavailable(*evidence_key)) {
+                        handle_document_failure(entry, {}, already_renamed, false, document_only);
+                        app_.mark_progress_stage_item_skipped(ProgressStageId::DocumentAnalysis, entry);
+                        continue;
+                    }
                     if (cached_analysis) {
+                        const bool refreshed = complete_content_refresh(entry, rename_documents_only);
                         app_.append_progress(to_utf8(app_.tr("[DOC] Using cached suggestion for %1")
                                                          .arg(QString::fromStdString(entry.file_name))));
                         const std::string suggested_name =
@@ -1782,7 +1829,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                         if (rename_documents_only) {
                             persist_rename_only_progress(entry, suggested_name);
                         }
-                        if (!rename_documents_only && !document_only) {
+                        if (!rename_documents_only && (!document_only || refreshed)) {
                             document_entries_for_llm.push_back(entry);
                         }
                         app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis,
@@ -1804,6 +1851,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                         app_.db_manager.content_analysis_cache().store(
                             *evidence_key, {analysis.suggested_name, analysis.summary});
                     }
+                    const bool refreshed = complete_content_refresh(entry, rename_documents_only);
                     const std::string suggested_name =
                         already_renamed ? std::string() : analysis.suggested_name;
                     const std::string prompt_name =
@@ -1824,14 +1872,18 @@ AnalysisRunResult AnalysisCoordinator::execute()
                     if (rename_documents_only) {
                         persist_rename_only_progress(entry, suggested_name);
                     }
-                    if (document_only) {
+                    if (document_only && !refreshed) {
                         update_cached_document_suggestion(entry, suggested_name);
                     }
-                    if (!rename_documents_only && !document_only) {
+                    if (!rename_documents_only && (!document_only || refreshed)) {
                         document_entries_for_llm.push_back(entry);
                     }
                     app_.mark_progress_stage_item_completed(ProgressStageId::DocumentAnalysis, entry);
                 } catch (const std::exception& ex) {
+                    if (evidence_key && dynamic_cast<const ContentAnalysisUnavailable*>(&ex) &&
+                        !app_.stop_analysis.load() && !update_stop()) {
+                        app_.db_manager.content_analysis_cache().store_unavailable(*evidence_key, ex.what());
+                    }
                     handle_document_failure(entry, ex.what(), already_renamed, true, document_only);
                     app_.mark_progress_stage_item_skipped(ProgressStageId::DocumentAnalysis, entry);
                 }
@@ -1839,6 +1891,11 @@ AnalysisRunResult AnalysisCoordinator::execute()
         }
 
         update_stop();
+
+        app_.already_categorized_files.erase(std::remove_if(app_.already_categorized_files.begin(),
+            app_.already_categorized_files.end(), [&](const auto& entry) {
+                return completed_content_refresh.contains(file_key(entry));
+            }), app_.already_categorized_files.end());
 
         std::vector<FileEntry> categorization_stage_entries;
         std::unordered_set<std::string> categorization_stage_seen;

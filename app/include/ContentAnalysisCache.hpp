@@ -59,6 +59,12 @@ public:
      */
     bool store(const Key& key, const Evidence& evidence) const;
 
+    /** @brief Find a source-specific unavailable outcome for this exact file hash and analyzer. */
+    std::optional<std::string> find_unavailable(const Key& key) const;
+
+    /** @brief Remember failed decoding/extraction, without treating it as successful content evidence. */
+    bool store_unavailable(const Key& key, const std::string& reason) const;
+
     /**
      * @brief Remove evidence in a directory when its categorization cache is cleared.
      * @param directory Source directory to clear.
@@ -68,6 +74,7 @@ public:
     bool clear_directory(const std::string& directory, bool recursive) const;
 
 private:
+    bool write(const Key& key, const Evidence& evidence, const std::string& failure_reason) const;
     sqlite3* db_;
     std::function<bool()> ensure_paths_;
 };

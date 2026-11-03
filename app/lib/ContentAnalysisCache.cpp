@@ -49,13 +49,25 @@ bool ContentAnalysisCache::initialize() const
             sha256 TEXT NOT NULL,
             suggested_name TEXT NOT NULL,
             description TEXT NOT NULL,
+            failure_reason TEXT NOT NULL DEFAULT '',
             PRIMARY KEY(source_path, analyzer)
         );
     )";
     auto statement = prepare(db_, sql);
-    return statement && sqlite3_step(statement.get()) == SQLITE_DONE &&
-        sqlite3_exec(db_, "CREATE INDEX IF NOT EXISTS idx_content_analysis_cache_directory "
-                         "ON content_analysis_cache(dir_path);", nullptr, nullptr, nullptr) == SQLITE_OK;
+    if (!statement || sqlite3_step(statement.get()) != SQLITE_DONE) return false;
+    bool has_failure_reason = false;
+    {
+        auto columns = prepare(db_, "PRAGMA table_info(content_analysis_cache);");
+        if (!columns) return false;
+        while (sqlite3_step(columns.get()) == SQLITE_ROW) {
+            const auto* name = sqlite3_column_text(columns.get(), 1);
+            if (name && std::string(reinterpret_cast<const char*>(name)) == "failure_reason") has_failure_reason = true;
+        }
+    }
+    if (!has_failure_reason && sqlite3_exec(db_, "ALTER TABLE content_analysis_cache ADD COLUMN "
+        "failure_reason TEXT NOT NULL DEFAULT '';", nullptr, nullptr, nullptr) != SQLITE_OK) return false;
+    return sqlite3_exec(db_, "CREATE INDEX IF NOT EXISTS idx_content_analysis_cache_directory "
+                            "ON content_analysis_cache(dir_path);", nullptr, nullptr, nullptr) == SQLITE_OK;
 }
 
 std::optional<ContentAnalysisCache::Key> ContentAnalysisCache::make_key(
@@ -81,7 +93,7 @@ std::optional<ContentAnalysisCache::Evidence> ContentAnalysisCache::find(const K
 {
     if (ensure_paths_ && !ensure_paths_()) return std::nullopt;
     auto statement = prepare(db_, "SELECT suggested_name, description FROM content_analysis_cache "
-                                  "WHERE source_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND analyzer = ? AND sha256 = ? "
+                                  "WHERE source_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) AND analyzer = ? AND sha256 = ? AND failure_reason = '' "
                                   "ORDER BY rowid DESC LIMIT 1;");
     if (!statement) {
         return std::nullopt;
@@ -103,6 +115,28 @@ bool ContentAnalysisCache::store(const Key& key, const Evidence& evidence) const
     if (!complete(evidence)) {
         return false;
     }
+    return write(key, evidence, {});
+}
+
+std::optional<std::string> ContentAnalysisCache::find_unavailable(const Key& key) const
+{
+    if (ensure_paths_ && !ensure_paths_()) return std::nullopt;
+    auto statement = prepare(db_, "SELECT failure_reason FROM content_analysis_cache "
+        "WHERE source_path IN (SELECT path FROM temp.aifs_path_alias WHERE comparison_key = aifs_path_key(?)) "
+        "AND analyzer = ? AND sha256 = ? AND failure_reason != '' ORDER BY rowid DESC LIMIT 1;");
+    if (!statement) return std::nullopt;
+    bind_key(statement.get(), key);
+    if (sqlite3_step(statement.get()) != SQLITE_ROW) return std::nullopt;
+    return std::string(reinterpret_cast<const char*>(sqlite3_column_text(statement.get(), 0)));
+}
+
+bool ContentAnalysisCache::store_unavailable(const Key& key, const std::string& reason) const
+{
+    return !QString::fromStdString(reason).trimmed().isEmpty() && write(key, {}, reason);
+}
+
+bool ContentAnalysisCache::write(const Key& key, const Evidence& evidence, const std::string& failure_reason) const
+{
     const auto current = make_key(Utils::utf8_to_path(key.path), key.analyzer);
     if (!current || current->sha256 != key.sha256) {
         return false;
@@ -111,12 +145,13 @@ bool ContentAnalysisCache::store(const Key& key, const Evidence& evidence) const
     SqliteSavepoint write(db_);
     if (!write) return false;
     auto statement = prepare(db_, R"(
-        INSERT INTO content_analysis_cache(source_path, analyzer, sha256, suggested_name, description, dir_path)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO content_analysis_cache(source_path, analyzer, sha256, suggested_name, description, dir_path, failure_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(source_path, analyzer) DO UPDATE SET
             sha256 = excluded.sha256,
             suggested_name = excluded.suggested_name,
-            description = excluded.description;
+            description = excluded.description,
+            failure_reason = excluded.failure_reason;
     )");
     if (!statement) {
         return false;
@@ -126,6 +161,7 @@ bool ContentAnalysisCache::store(const Key& key, const Evidence& evidence) const
     sqlite3_bind_text(statement.get(), 5, evidence.description.c_str(), -1, SQLITE_TRANSIENT);
     const auto directory = Utils::path_to_utf8(Utils::utf8_to_path(key.path).parent_path());
     sqlite3_bind_text(statement.get(), 6, directory.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement.get(), 7, failure_reason.c_str(), -1, SQLITE_TRANSIENT);
     const bool stored = sqlite3_step(statement.get()) == SQLITE_DONE;
     if (!stored) {
         if (auto logger = Logger::get_logger("core_logger")) {

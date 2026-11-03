@@ -1,4 +1,5 @@
 #include "AnalysisCoordinator.hpp"
+#include "ContentAnalysisUnavailable.hpp"
 #include "CategorizationService.hpp"
 #include "DatabaseManager.hpp"
 #include "FolderStructurePattern.hpp"
@@ -36,8 +37,9 @@ struct Request {
 class RoutingLLM : public ILLMClient {
 public:
     RoutingLLM(std::shared_ptr<std::vector<Request>> requests,
-               std::function<std::string(const Request&)> respond)
-        : requests_(std::move(requests)), respond_(std::move(respond)) {}
+               std::function<std::string(const Request&)> respond,
+               std::function<std::string()> complete = {})
+        : requests_(std::move(requests)), respond_(std::move(respond)), complete_(std::move(complete)) {}
 
     std::string categorize_file(const std::string& name, const std::string& path,
                                 FileType, const std::string& context) override
@@ -51,12 +53,13 @@ public:
         requests_->push_back({name, path, context, constraint.json_schema});
         return respond_(requests_->back());
     }
-    std::string complete_prompt(const std::string&, int) override { return {}; }
+    std::string complete_prompt(const std::string&, int) override { return complete_ ? complete_() : std::string(); }
     void set_prompt_logging_enabled(bool) override {}
 
 private:
     std::shared_ptr<std::vector<Request>> requests_;
     std::function<std::string(const Request&)> respond_;
+    std::function<std::string()> complete_;
 };
 
 struct WorkflowResult {
@@ -64,8 +67,15 @@ struct WorkflowResult {
     std::vector<CategorizedFile> review;
 };
 
+struct WorkflowHooks {
+    std::shared_ptr<std::atomic<int>> clients;
+    std::function<std::string()> complete;
+    std::function<void(AnalysisWorkflowContext&)> configure;
+};
+
 WorkflowResult run_cached_image_workflow(Settings& settings, DatabaseManager& database,
-    const std::filesystem::path& source, const std::shared_ptr<std::vector<Request>>& requests)
+    const std::filesystem::path& source, const std::shared_ptr<std::vector<Request>>& requests,
+    WorkflowHooks hooks = {})
 {
     LocalFsProvider provider;
     ResultsCoordinator results(provider);
@@ -82,7 +92,7 @@ WorkflowResult run_cached_image_workflow(Settings& settings, DatabaseManager& da
     const auto ignore = [](auto&&...) {};
     context.get_folder_path = [&] { return source.string(); };
     context.tr = [](const char* text) { return QString::fromUtf8(text); };
-    context.should_abort_analysis = [] { return false; };
+    context.should_abort_analysis = [&] { return stop.load(); };
     context.append_progress = ignore;
     context.prune_empty_cached_entries_for = [&](const std::string& path) { database.remove_empty_categorizations(path); };
     context.log_cached_highlights = ignore;
@@ -102,13 +112,15 @@ WorkflowResult run_cached_image_workflow(Settings& settings, DatabaseManager& da
     context.prompt_visual_cpu_fallback = [](const std::string&) { return false; };
     context.prompt_continue_without_visual_analysis = [](const std::string&) { return false; };
     context.notify_recategorization_reset = ignore;
-    context.make_llm_client = [requests] {
+    context.make_llm_client = [requests, hooks] {
+        if (hooks.clients) ++*hooks.clients;
         return std::make_unique<RoutingLLM>(requests, [](const Request& request) {
             return request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos
                 ? std::string("Legal : Data Protection")
                 : std::string(R"({"targetFolder":"Legal/Data Protection","createFolder":false})");
-        });
+        }, hooks.complete);
     };
+    if (hooks.configure) hooks.configure(context);
     const auto result = AnalysisCoordinator(std::move(context)).execute();
     return {result, std::move(review)};
 }
@@ -758,7 +770,8 @@ TEST_CASE("AnalysisCoordinator reuses complete image evidence without a visual b
     if (state != EvidenceState::Current) {
         CHECK(run.result.status == AnalysisRunStatus::Failed);
         CHECK(requests->empty());
-        CHECK_FALSE(database.get_categorized_file(source.path().string(), "IMG_0001.png", FileType::File));
+        REQUIRE(database.get_categorized_file(source.path().string(), "IMG_0001.png", FileType::File));
+        CHECK(database.get_categorized_file(source.path().string(), "IMG_0001.png", FileType::File)->suggested_name == "policy_changes.png");
         return;
     }
     REQUIRE(run.result.status == AnalysisRunStatus::Completed);
@@ -784,6 +797,198 @@ TEST_CASE("AnalysisCoordinator reuses complete image evidence without a visual b
     CHECK(changed.result.status == AnalysisRunStatus::Failed);
     CHECK(requests->size() == 2);
     CHECK(std::filesystem::exists(image_path));
+}
+
+TEST_CASE("Unreadable documents keep their categorization across scans and retry changed sources", "[content-routing][content-fallback]")
+{
+    const bool previously_categorized = GENERATE(false, true);
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_analyze_documents_by_content(true);
+    settings.set_analyze_images_by_content(false);
+    settings.set_offer_rename_documents(previously_categorized);
+    settings.set_use_consistency_hints(false);
+    const auto path = source.path() / "empty.txt";
+    std::ofstream(path).close();
+    auto database = std::make_unique<DatabaseManager>(settings.get_config_dir());
+    if (previously_categorized) {
+        const auto resolved = database->resolve_category("Finance", "Receipts");
+        REQUIRE(database->insert_or_update_file_with_categorization(
+            "empty.txt", "F", source.path().string(), resolved, false, "saved_name.txt"));
+    }
+    auto requests = std::make_shared<std::vector<Request>>();
+    auto clients = std::make_shared<std::atomic<int>>(0);
+    int completions = 0;
+    WorkflowHooks hooks{clients, [&] {
+        ++completions;
+        return std::string(R"({"summary":"Customer privacy and data retention requirements.","filename":"privacy_policy"})");
+    }, {}};
+    const auto first = run_cached_image_workflow(settings, *database, source.path(), requests, hooks);
+    INFO(first.result.error_message);
+    REQUIRE(first.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(first.review.size() == 1);
+    const auto category = first.review.front().category;
+    if (previously_categorized) {
+        CHECK(category == "Finance");
+        CHECK(first.review.front().suggested_name == "saved_name.txt");
+        CHECK(requests->empty());
+    } else CHECK_FALSE(category.empty());
+    CHECK(completions == 0);
+    const auto initial_clients = clients->load();
+    const auto initial_requests = requests->size();
+    database.reset();
+    database = std::make_unique<DatabaseManager>(settings.get_config_dir());
+    const auto repeated = run_cached_image_workflow(settings, *database, source.path(), requests, hooks);
+    REQUIRE(repeated.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(repeated.review.size() == 1);
+    CHECK(repeated.review.front().category == category);
+    CHECK(clients->load() == initial_clients);
+    CHECK(requests->size() == initial_requests);
+    settings.set_document_filename_words(6);
+    const auto changed_settings = run_cached_image_workflow(settings, *database, source.path(), requests, hooks);
+    REQUIRE(changed_settings.result.status == AnalysisRunStatus::Completed);
+    CHECK(changed_settings.review.front().category == category);
+    CHECK(clients->load() > initial_clients);
+    CHECK(requests->size() == initial_requests);
+    std::ofstream(path) << "Customer privacy and data retention requirements.";
+    const auto repaired = run_cached_image_workflow(settings, *database, source.path(), requests, hooks);
+    REQUIRE(repaired.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(repaired.review.size() == 1);
+    CHECK(repaired.review.front().category == "Legal");
+    CHECK(completions == 1);
+    CHECK(requests->size() == initial_requests + 1);
+}
+
+TEST_CASE("Recorded image decoding failures reuse existing categories without loading vision", "[content-routing][content-fallback]")
+{
+    const bool rename = GENERATE(false, true);
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_analyze_images_by_content(true);
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_images(rename);
+    settings.set_use_consistency_hints(false);
+    settings.set_visual_model_id("custom:missing-failed-image-test");
+    const auto path = source.path() / "broken.png";
+    std::ofstream(path) << "Invalid image data";
+    DatabaseManager database(settings.get_config_dir());
+    REQUIRE(database.insert_or_update_file_with_categorization("broken.png", "F", source.path().string(),
+        database.resolve_category("Finance", "Receipts"), false));
+    const auto key = *ContentAnalysisCache::make_key(path, "image-v2:" + settings.get_visual_model_id());
+    REQUIRE(database.content_analysis_cache().store_unavailable(key, "Image cannot be decoded"));
+    auto requests = std::make_shared<std::vector<Request>>();
+    for (int pass = 0; pass < 2; ++pass) {
+        const auto result = run_cached_image_workflow(settings, database, source.path(), requests);
+        INFO(result.result.error_message);
+        REQUIRE(result.result.status == AnalysisRunStatus::Completed);
+        REQUIRE(result.review.size() == 1);
+        CHECK(result.review.front().category == "Finance");
+        CHECK(requests->empty());
+    }
+}
+
+TEST_CASE("Transient document failures preserve prior categories and remain retryable", "[content-routing][content-fallback]")
+{
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_analyze_documents_by_content(true);
+    settings.set_offer_rename_documents(false);
+    settings.set_use_consistency_hints(false);
+    std::ofstream(source.path() / "policy.txt") << "Customer privacy and retention requirements.";
+    DatabaseManager database(settings.get_config_dir());
+    REQUIRE(database.insert_or_update_file_with_categorization("policy.txt", "F", source.path().string(),
+        database.resolve_category("Finance", "Receipts"), false));
+    auto requests = std::make_shared<std::vector<Request>>();
+    int completions = 0;
+    WorkflowHooks hooks{{}, [&] {
+        if (++completions == 1) throw std::runtime_error("Temporary API failure");
+        return std::string(R"({"summary":"Customer privacy and data retention requirements.","filename":"privacy_policy"})");
+    }, {}};
+    const auto failed = run_cached_image_workflow(settings, database, source.path(), requests, hooks);
+    REQUIRE(failed.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(failed.review.size() == 1);
+    CHECK(failed.review.front().category == "Finance");
+    CHECK(requests->empty());
+    const auto retried = run_cached_image_workflow(settings, database, source.path(), requests, hooks);
+    REQUIRE(retried.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(retried.review.size() == 1);
+    CHECK(retried.review.front().category == "Legal");
+    CHECK(completions == 2);
+    CHECK(requests->size() == 1);
+}
+
+TEST_CASE("Failed document extraction preserves an existing-folder route", "[content-routing][content-fallback]")
+{
+    TempDir config, source, destination;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(false);
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(destination.path().string());
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_documents(false);
+    settings.set_use_consistency_hints(false);
+    std::filesystem::create_directories(destination.path() / "Legal" / "Data Protection");
+    std::ofstream(source.path() / "policy.txt").close();
+    DatabaseManager database(settings.get_config_dir());
+    auto requests = std::make_shared<std::vector<Request>>();
+    auto clients = std::make_shared<std::atomic<int>>(0);
+    WorkflowHooks hooks{clients, {}, {}};
+    const auto original = run_cached_image_workflow(settings, database, source.path(), requests, hooks);
+    REQUIRE(original.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(original.review.size() == 1);
+    REQUIRE(original.review.front().target_folder_relative_path == "Legal/Data Protection");
+    REQUIRE(requests->size() == 2);
+    settings.set_analyze_documents_by_content(true);
+    for (int pass = 0; pass < 2; ++pass) {
+        const auto repeated = run_cached_image_workflow(settings, database, source.path(), requests, hooks);
+        INFO(repeated.result.error_message);
+        REQUIRE(repeated.result.status == AnalysisRunStatus::Completed);
+        REQUIRE(repeated.review.size() == 1);
+        CHECK(repeated.review.front().target_folder_relative_path == "Legal/Data Protection");
+        CHECK(requests->size() == 2);
+    }
+    CHECK(clients->load() == 2); // Initial categorization client and one extraction attempt.
+}
+
+TEST_CASE("Cancelled content analysis does not persist an unavailable outcome", "[content-routing][content-fallback]")
+{
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_analyze_documents_by_content(true);
+    settings.set_offer_rename_documents(false);
+    settings.set_use_consistency_hints(false);
+    std::ofstream(source.path() / "policy.txt") << "Customer privacy and retention requirements.";
+    DatabaseManager database(settings.get_config_dir());
+    REQUIRE(database.insert_or_update_file_with_categorization("policy.txt", "F", source.path().string(),
+        database.resolve_category("Finance", "Receipts"), false));
+    auto requests = std::make_shared<std::vector<Request>>();
+    std::atomic<bool>* stop = nullptr;
+    int completions = 0;
+    WorkflowHooks hooks{{}, [&] {
+        if (++completions == 1) {
+            stop->store(true);
+            throw ContentAnalysisUnavailable("No extractable text");
+        }
+        return std::string(R"({"summary":"Customer privacy and data retention requirements.","filename":"privacy_policy"})");
+    }, [&](AnalysisWorkflowContext& context) { stop = &context.stop_analysis; }};
+    run_cached_image_workflow(settings, database, source.path(), requests, hooks);
+    REQUIRE(database.get_categorized_file(source.path().string(), "policy.txt", FileType::File));
+    CHECK(database.get_categorized_file(source.path().string(), "policy.txt", FileType::File)->category == "Finance");
+    const auto retried = run_cached_image_workflow(settings, database, source.path(), requests, hooks);
+    REQUIRE(retried.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(retried.review.size() == 1);
+    CHECK(retried.review.front().category == "Legal");
+    CHECK(completions == 2);
 }
 
 TEST_CASE("Numbered folder allocation stays within exhausted ranges", "[content-routing]")

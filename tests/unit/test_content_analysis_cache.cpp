@@ -19,6 +19,86 @@ void write_source(const std::filesystem::path& path, const std::string& text)
 }
 } // namespace
 
+TEST_CASE("ContentAnalysisCache retains unavailable outcomes without pretending they are evidence", "[content-cache][content-fallback]")
+{
+    TempDir config, source;
+    const auto path = source.path() / "empty.txt";
+    write_source(path, "");
+    const auto key = *ContentAnalysisCache::make_key(path, "document:v1");
+    {
+        DatabaseManager database(config.path().string());
+        REQUIRE(database.content_analysis_cache().store_unavailable(key, "No extractable text"));
+        CHECK_FALSE(database.content_analysis_cache().find(key));
+    }
+    DatabaseManager database(config.path().string());
+    auto cache = database.content_analysis_cache();
+    CHECK(cache.find_unavailable(key) == "No extractable text");
+    CHECK_FALSE(cache.find_unavailable({key.path, "document:v2", key.sha256}));
+    write_source(path, "Now contains readable text");
+    const auto changed = *ContentAnalysisCache::make_key(path, key.analyzer);
+    CHECK_FALSE(cache.find_unavailable(changed));
+    CHECK_FALSE(cache.store_unavailable(key, "Outdated failure"));
+    REQUIRE(cache.store_unavailable(changed, "Temporary extraction result"));
+    REQUIRE(cache.store(changed, {"readable.txt", "A readable document."}));
+    CHECK_FALSE(cache.find_unavailable(changed));
+    REQUIRE(cache.find(changed));
+    CHECK(cache.find(changed)->description == "A readable document.");
+}
+
+TEST_CASE("ContentAnalysisCache migrates legacy evidence while adding unavailable outcomes", "[content-cache][content-fallback]")
+{
+    TempDir config, source;
+    sqlite3* connection = nullptr;
+    REQUIRE(sqlite3_open((config.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
+    {
+        std::unique_ptr<sqlite3, decltype(&sqlite3_close)> db(connection, sqlite3_close);
+        REQUIRE(sqlite3_exec(db.get(), R"(
+            CREATE TABLE content_analysis_cache (
+                source_path TEXT NOT NULL, dir_path TEXT NOT NULL, analyzer TEXT NOT NULL,
+                sha256 TEXT NOT NULL, suggested_name TEXT NOT NULL, description TEXT NOT NULL,
+                PRIMARY KEY(source_path, analyzer));
+            INSERT INTO content_analysis_cache VALUES
+                ('/tmp/legacy', '/tmp', 'image:v1', 'hash', 'legacy.png', 'Existing complete evidence');
+        )", nullptr, nullptr, nullptr) == SQLITE_OK);
+    }
+    DatabaseManager database(config.path().string());
+    auto cache = database.content_analysis_cache();
+    const ContentAnalysisCache::Key legacy{"/tmp/legacy", "image:v1", "hash"};
+    REQUIRE(cache.find(legacy));
+    CHECK(cache.find(legacy)->description == "Existing complete evidence");
+    CHECK_FALSE(cache.find_unavailable(legacy));
+    const auto path = source.path() / "broken.png";
+    write_source(path, "invalid image bytes");
+    const auto key = *ContentAnalysisCache::make_key(path, "image:v1");
+    REQUIRE(cache.store_unavailable(key, "Image cannot be decoded"));
+    CHECK(cache.find_unavailable(key) == "Image cannot be decoded");
+    CHECK_FALSE(cache.find(key));
+}
+
+TEST_CASE("ContentAnalysisCache clears unavailable outcomes with categorization caches", "[content-cache][content-fallback]")
+{
+    TempDir config, source;
+    DatabaseManager database(config.path().string());
+    const auto direct = source.path() / "direct.txt";
+    const auto nested = source.path() / "nested" / "child.txt";
+    const auto other = source.path() / "other" / "file.txt";
+    const auto root = source.path() / "nested";
+    for (const auto& path : {direct, nested, other}) {
+        write_source(path, "");
+        REQUIRE(database.content_analysis_cache().store_unavailable(
+            *ContentAnalysisCache::make_key(path, "document:v1"), "No extractable text"));
+    }
+    auto cache = database.content_analysis_cache();
+    REQUIRE(database.clear_directory_categorizations(source.path().string(), false));
+    CHECK_FALSE(cache.find_unavailable(*ContentAnalysisCache::make_key(direct, "document:v1")));
+    CHECK(cache.find_unavailable(*ContentAnalysisCache::make_key(nested, "document:v1")));
+    REQUIRE(database.clear_directory_categorizations(root.string(), true));
+    CHECK_FALSE(cache.find_unavailable(*ContentAnalysisCache::make_key(nested, "document:v1")));
+    CHECK(cache.find_unavailable(*ContentAnalysisCache::make_key(other, "document:v1")));
+    REQUIRE(database.clear_all_categorizations());
+    CHECK_FALSE(cache.find_unavailable(*ContentAnalysisCache::make_key(other, "document:v1")));
+}
+
 TEST_CASE("ContentAnalysisCache preserves full evidence across database reopen", "[content-cache]")
 {
     TempDir config;

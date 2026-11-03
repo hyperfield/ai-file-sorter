@@ -1,4 +1,5 @@
 #include "DocumentTextAnalyzer.hpp"
+#include "ContentAnalysisUnavailable.hpp"
 
 #include "ILLMClient.hpp"
 #include "Utils.hpp"
@@ -520,7 +521,7 @@ DocumentAnalysisResult DocumentTextAnalyzer::analyze(const std::filesystem::path
     DocumentAnalysisResult result;
     const std::string raw_text = extract_text(document_path);
     if (raw_text.empty()) {
-        throw std::runtime_error("No extractable text");
+        throw ContentAnalysisUnavailable("No extractable text");
     }
 
     const std::string excerpt = truncate_excerpt(raw_text, settings_.max_characters);

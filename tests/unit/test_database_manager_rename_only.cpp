@@ -327,7 +327,7 @@ TEST_CASE("DatabaseManager avoids per-row comparison work for indexed cache oper
         SELECT file_name,file_type,dir_path,'/target',
             (SELECT tree_fingerprint FROM folder_tree_routing LIMIT 1),'Documents','Notes','Notes'
         FROM file_categorization WHERE file_name != 'file-9000.txt';
-        INSERT INTO content_analysis_cache
+        INSERT INTO content_analysis_cache(source_path,dir_path,analyzer,sha256,suggested_name,description)
         SELECT '/sample/' || file_name,dir_path,'document:v1','hash',file_name,'Evidence'
         FROM file_categorization;
     )sql");
@@ -362,7 +362,7 @@ TEST_CASE("DatabaseManager rolls back cache clearing when a dependent deletion f
     sqlite3* connection = nullptr;
     REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
     RawDatabase raw(connection, sqlite3_close);
-    execute_sql(raw.get(), "INSERT INTO content_analysis_cache VALUES "
+    execute_sql(raw.get(), "INSERT INTO content_analysis_cache(source_path,dir_path,analyzer,sha256,suggested_name,description) VALUES "
         "('/sample/notes.txt', '/sample', 'document:v1', 'hash', 'notes.txt', 'Evidence');");
     std::string rejection_table = "folder_tree_routing";
     std::function<bool()> clear;

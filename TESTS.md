@@ -15,6 +15,10 @@ This document provides a detailed description of every test case in the project.
 
 ## How to run tests
 
+Run `[content-fallback]` for unavailable-content cache migration and cleanup,
+unchanged-file reuse, category/route preservation on failed extraction, changed
+source/settings retries, and retryable transient or cancelled requests.
+
 `make_build_config` exercises incremental Makefile builds with controlled compiler
 and Qt identities. It checks that compiler flags, compiler versions, Qt upgrades,
 Qt package replacements and link settings rebuild affected objects, while an

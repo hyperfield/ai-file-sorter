@@ -83,6 +83,12 @@ JSON filename wrapper is unwrapped without adding its keys to the filename.
   policy. Older results and results from a different whitelist are reanalyzed;
   user-approved learning data is retained. Unassigned results are not cached as
   successful categorizations.
+- Missing content evidence does not discard an existing category or destination.
+  The app refreshes that evidence first and recategorizes only after successful
+  content analysis. Failed decoding or text extraction is remembered for the
+  unchanged source and analyzer settings; temporary runtime/API errors remain
+  retryable. Changed files, changed analyzer settings, or clearing the
+  categorization cache allow another content-analysis attempt.
 
 ## Practical reading of the modes
 
