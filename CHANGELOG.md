@@ -1,18 +1,20 @@
 ﻿# Changelog
 
-## [1.10.0] - Unreleased
+## [2.0.0] - Unreleased
 
-- Sort files into an existing folder structure as well as generated category folders. Choose a separate destination, control whether new folders may be suggested, and review the chosen folder and routing explanation before applying changes.
-- Create starter folder structures, including Johnny.Decimal archives. Optional folder-structure plugins add guidance for numbered folders, tools to create the next folder, an archive index, and validation reports. Plugins can be installed and managed from the app; some require a separate license.
-- Added a **Sorting rules...** dialog with separate maximum filename word limits for images and documents. Each limit can be set from 3 to 6 words and defaults to 3.
-- Added **Qwen3.5 4B** for local text and image analysis. Gemma 3 4B IT remains the default. Mistral 7B is no longer offered for new text-model downloads, while existing configurations and downloads remain supported.
-- Added support for the new sorting settings and richer destination previews in **AI File Sorter for File Explorer 1.1.0**. Explorer jobs can use their own filename limits without changing the desktop app's saved preferences.
-- Storage integrations, including OneDrive support, now use separately installed, verified plugin packages.
-- Improved local analysis reliability, cancellation, and handling of large images, with more reliable GPU startup and fallback across Windows, Linux, and macOS.
-- Improved review editing and undo behavior. Undo removes only folders created by the app and preserves existing folders.
-- Fixed macOS Metal compatibility checks on Apple Silicon systems where llama.cpp reports the backend as `MTL`, preventing false "Metal unavailable" results in the compatibility benchmark.
-- Hardened macOS image-analysis startup by running the visual GPU preflight in a subprocess before creating the analyzer, so GPU initialization failures can fall back cleanly instead of crashing the app.
-- Fixed the macOS release build by keeping the Qt `arm_acle.h` workaround out of raw assembly sources, allowing vendored llama.cpp's embedded Metal library assembly to build with the local Xcode/SDK.
+- Sort into an existing folder structure by default, with a separate destination, optional new-folder suggestions, and explanations for folder choices.
+- Refined folder routing, categorization, filename suggestions, and whitelist handling for more consistent results.
+- Create starter structures and add optional Johnny.Decimal plugins for numbered folders, archive indexes, and validation reports. Some plugins require a separate license.
+- Start with a broader Downloads layout and choose the language of new folder names independently of your category language.
+- Use **Qwen3.5 4B** by default for local text and image analysis, with simpler, grouped model drop-downs. Gemma models remain available.
+- Existing Mistral 7B setups remain supported, while new Mistral downloads are no longer offered.
+- Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
+- Analyze larger and densely formatted documents more reliably, and preserve completed categories when content analysis is unavailable.
+- Compare downloaded text and image-analysis models in the system compatibility check, with saved results and retries for individual models and backends.
+- Use the new sorting settings and destination previews with **AI File Sorter for File Explorer 1.1.0**.
+- Storage integrations, including OneDrive support, now use separately installed, verified plugins.
+- Improved cancellation, cache reuse, handling of non-English filenames, review editing, and undo reliability.
+- Improved GPU compatibility and macOS stability, including menu icons, Metal backend detection, and the image-analysis benchmark. macOS 26.0 or later is now required.
 
 ## [1.9.2] - 2026-08-14
 

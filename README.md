@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.10.0-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-2.0.0-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
@@ -155,15 +155,20 @@ the main entry page, use these technical references:
 
 ## Changelog
 
-## [1.10.0] - Unreleased
+## [2.0.0] - Unreleased
 
-- Sort into an existing folder structure, choose a separate destination, and review folder choices and routing explanations before applying changes.
-- Create starter folder structures and use optional Johnny.Decimal plugins for numbered folders, archive indexes, and validation reports.
+- Sort into an existing folder structure by default, with a separate destination, optional new-folder suggestions, and explanations for folder choices.
+- Refined folder routing, categorization, filename suggestions, and whitelist handling for more consistent results.
+- Create starter structures and add optional Johnny.Decimal tools for numbered folders, archive indexes, and validation reports.
+- Start with a broader Downloads layout and choose the language of new folder names independently of your category language.
+- Use **Qwen3.5 4B** by default for local text and image analysis, with simpler, grouped model drop-downs.
 - Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
-- Use Qwen3.5 4B by default for local text and image analysis, with Gemma 3 4B IT also available.
-- Added support for the sorting settings and destination previews in AI File Sorter for File Explorer 1.1.0.
-- Improved local analysis, cancellation, GPU compatibility, review editing, and undo reliability.
-- Fixed macOS Metal backend detection and hardened image-analysis startup and benchmark fallback.
+- Analyze larger and densely formatted documents more reliably, and preserve completed categories when content analysis is unavailable.
+- Compare downloaded text and image-analysis models in the system compatibility check, with saved results and retries for individual models and backends.
+- Use the new sorting settings and destination previews with **AI File Sorter for File Explorer 1.1.0**.
+- Storage integrations, including OneDrive support, now use separately installed, verified plugins.
+- Improved cancellation, cache reuse, handling of non-English filenames, review editing, and undo reliability.
+- Improved GPU compatibility and macOS stability, including menu icons, Metal backend detection, and the image-analysis benchmark. macOS 26.0 or later is now required.
 
 ## [1.9.2] - 2026-08-14
 
@@ -224,7 +229,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Simplified Chinese, Spanish, Swedish, and Turkish.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
-- **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 1.10.0.
+- **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 2.0.0.
 - **Local Database Caching**: Speeds up repeated categorization, preserves approved labels and rename suggestions, and provides recent-category hints for consistency.
 - **Local learning from approved reviews**: Approved category decisions can be stored locally and reused as hints for future runs without modifying the underlying model.
 - **Cache maintenance tools**: Use **Settings → Clear cache…** to inspect and clear categorization cache, image location cache, and logs, or **Settings → Reset learned behavior…** to remove the separate learned-review database.
