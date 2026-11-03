@@ -22,6 +22,11 @@ normal setup and usage.
 - `AI_FILE_SORTER_GPU_BACKEND` selects `auto`, `cuda`, `vulkan`, or `cpu`.
 - `AI_FILE_SORTER_N_GPU_LAYERS` overrides llama.cpp GPU offload selection.
 - `AI_FILE_SORTER_CTX_TOKENS` overrides local LLM context length.
+- `AI_FILE_SORTER_DOCUMENT_MAX_CONTEXT_TOKENS` lowers the adaptive document-summary
+  context ceiling. The default ceiling is 8,192 tokens, further bounded by model
+  metadata and available memory. Oversized excerpts are summarized in chunks;
+  document requests restore the ordinary context afterward. See
+  [document evidence budgets](categorization-behavior.md#document-evidence-and-context-budgets).
 - `AI_FILE_SORTER_GGML_DIR` points to a custom ggml runtime directory when the
   packaged/default discovery path is not the right one.
 

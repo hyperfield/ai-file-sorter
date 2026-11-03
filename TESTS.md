@@ -15,6 +15,15 @@ This document provides a detailed description of every test case in the project.
 
 ## How to run tests
 
+Run `[document-budget]` for full-chat budget accounting, adaptive document
+completion, memory-limited and provider-limit chunking, UTF-8 evidence coverage,
+summary merging, cancellation, extractive fallback, and Office XML whose useful
+text appears after large style definitions. The tests use injected LLMs and
+temporary ZIP fixtures. Native verification uses the production analyzer and
+client directly; no experimental prompt or character-budget copies are needed.
+The analyzer delegates chunk fitting and merging to `DocumentSummaryService`;
+the same cases exercise that component through its production caller.
+
 Run `[content-fallback]` for unavailable-content cache migration and cleanup,
 unchanged-file reuse, category/route preservation on failed extraction, changed
 source/settings retries, and retryable transient or cancelled requests.

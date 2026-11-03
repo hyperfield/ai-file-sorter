@@ -44,15 +44,7 @@
 
 namespace {
 
-constexpr int kDefaultLocalDocumentContextTokens = 2048;
-constexpr int kDefaultRemoteDocumentContextTokens = 4096;
-constexpr int kMinimumDocumentContextTokens = 512;
-constexpr int kMaximumDocumentContextTokens = 8192;
-constexpr int kMinimumDocumentReserveTokens = 192;
-constexpr int kMinimumPromptBudgetTokens = 256;
 constexpr int kDefaultDocumentOutputTokens = 256;
-constexpr int kLocalDocumentCharsPerToken = 2;
-constexpr int kRemoteDocumentCharsPerToken = 4;
 
 class AnalysisCancelled : public std::runtime_error {
 public:
@@ -329,52 +321,7 @@ std::optional<bool> read_env_bool(const char* key)
     return std::nullopt;
 }
 
-std::optional<int> read_env_int(const char* key)
-{
-    const char* value = std::getenv(key);
-    if (!value || value[0] == '\0') {
-        return std::nullopt;
-    }
-    char* end_ptr = nullptr;
-    long parsed = std::strtol(value, &end_ptr, 10);
-    if (end_ptr == value || (end_ptr && *end_ptr != '\0')) {
-        return std::nullopt;
-    }
-    if (parsed <= 0 || parsed > 100000) {
-        return std::nullopt;
-    }
-    return static_cast<int>(parsed);
-}
-
-int resolve_local_context_tokens()
-{
-    if (auto parsed = read_env_int("AI_FILE_SORTER_CTX_TOKENS")) {
-        return *parsed;
-    }
-    if (auto parsed = read_env_int("LLAMA_CPP_MAX_CONTEXT")) {
-        return *parsed;
-    }
-    return kDefaultLocalDocumentContextTokens;
-}
-
-size_t resolve_document_char_budget(bool using_local_llm, int max_output_tokens)
-{
-    int context_tokens =
-        using_local_llm ? resolve_local_context_tokens() : kDefaultRemoteDocumentContextTokens;
-    context_tokens = std::clamp(context_tokens,
-                                kMinimumDocumentContextTokens,
-                                kMaximumDocumentContextTokens);
-    const int reserve_tokens =
-        std::max(kMinimumDocumentReserveTokens, context_tokens / 6);
-    const int output_tokens = std::clamp(max_output_tokens, 0, context_tokens / 2);
-    const int prompt_tokens =
-        std::max(kMinimumPromptBudgetTokens, context_tokens - reserve_tokens - output_tokens);
-    const size_t chars_per_token =
-        using_local_llm ? kLocalDocumentCharsPerToken : kRemoteDocumentCharsPerToken;
-    return static_cast<size_t>(prompt_tokens) * chars_per_token;
-}
-
-std::string content_analyzer_id(const Settings& settings, bool image, bool using_local_llm)
+std::string content_analyzer_id(const Settings& settings, bool image)
 {
     const auto word_suffix = [](int words) {
         return words == kDefaultFilenameWords ? std::string() : ":words=" + std::to_string(words);
@@ -384,18 +331,19 @@ std::string content_analyzer_id(const Settings& settings, bool image, bool using
     }
     const auto endpoint = settings.find_custom_api_endpoint(settings.get_active_custom_api_id());
     const auto custom = settings.find_custom_llm(settings.get_active_custom_llm_id());
-    const auto character_limit = std::min(DocumentTextAnalyzer::Settings{}.max_characters,
-        resolve_document_char_budget(using_local_llm, kDefaultDocumentOutputTokens));
-    return "document-v1:" + std::to_string(static_cast<int>(settings.get_llm_choice())) +
+    const auto character_limit = DocumentTextAnalyzer::Settings{}.max_characters;
+    const char* context_cap = std::getenv("AI_FILE_SORTER_DOCUMENT_MAX_CONTEXT_TOKENS");
+    return "document-v2:" + std::to_string(static_cast<int>(settings.get_llm_choice())) +
         ":" + settings.get_openai_model() + ":" + settings.get_gemini_model() +
         ":" + custom.id + ":" + custom.path + ":" + endpoint.id +
         ":" + endpoint.base_url + ":" + endpoint.model + ":" + std::to_string(character_limit) +
+        ":context-cap=" + (context_cap ? context_cap : "auto") +
         word_suffix(settings.get_document_filename_words());
 }
 
 std::vector<CategorizedFile> refresh_stale_content_entries(
     DatabaseManager& database, const Settings& settings,
-    std::vector<CategorizedFile> entries, bool using_local_llm,
+    std::vector<CategorizedFile> entries,
     const std::function<std::string(const CategorizedFile&)>& entry_key,
     std::unordered_set<std::string>& pending_refresh)
 {
@@ -408,7 +356,7 @@ std::vector<CategorizedFile> refresh_stale_content_entries(
                                    (settings.get_analyze_documents_by_content() && document);
         if (needs_content) {
             const auto path = Utils::utf8_to_path(entry.file_path) / Utils::utf8_to_path(entry.file_name);
-            const auto key = ContentAnalysisCache::make_key(path, content_analyzer_id(settings, image, using_local_llm));
+            const auto key = ContentAnalysisCache::make_key(path, content_analyzer_id(settings, image));
             const auto cache = database.content_analysis_cache();
             const auto evidence = key ? cache.find(*key) : std::nullopt;
             if (evidence) {
@@ -547,7 +495,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
         auto cached_entries = prepare_cached_entries_for_sorting_mode(
             app_.db_manager,
             refresh_stale_content_entries(app_.db_manager, app_.settings,
-                                          std::move(raw_cached_entries), app_.using_local_llm,
+                                          std::move(raw_cached_entries),
                                           file_key, pending_content_refresh),
             folder_tree_sorting,
             app_.settings.get_effective_destination_folder(directory_path),
@@ -1231,7 +1179,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 continue;
             }
             const auto key = ContentAnalysisCache::make_key(Utils::utf8_to_path(entry.full_path),
-                content_analyzer_id(app_.settings, true, app_.using_local_llm));
+                content_analyzer_id(app_.settings, true));
             const auto evidence = key ? app_.db_manager.content_analysis_cache().find(*key) : std::nullopt;
             if (!evidence) {
                 if (key && app_.db_manager.content_analysis_cache().find_unavailable(*key)) {
@@ -1546,7 +1494,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                     const bool visual_only = cached_visual_indices.contains(entry_key(entry));
                     const auto evidence_key = ContentAnalysisCache::make_key(
                         Utils::utf8_to_path(entry.full_path),
-                        content_analyzer_id(app_.settings, true, app_.using_local_llm));
+                        content_analyzer_id(app_.settings, true));
                     analyzed_image_entries.push_back(entry);
                     cache_image_date(entry);
                     app_.mark_progress_stage_item_in_progress(ProgressStageId::ImageAnalysis, entry);
@@ -1772,11 +1720,9 @@ AnalysisRunResult AnalysisCoordinator::execute()
             DocumentTextAnalyzer::Settings doc_settings;
             doc_settings.max_filename_words = app_.settings.get_document_filename_words();
             doc_settings.max_tokens = kDefaultDocumentOutputTokens;
-            const size_t char_budget =
-                resolve_document_char_budget(app_.using_local_llm, doc_settings.max_tokens);
-            doc_settings.max_characters = std::min(doc_settings.max_characters, char_budget);
+            doc_settings.should_stop = [&] { return app_.stop_analysis.load() || update_stop(); };
             DocumentTextAnalyzer doc_analyzer(doc_settings);
-            const auto document_analyzer_id = content_analyzer_id(app_.settings, false, app_.using_local_llm);
+            const auto document_analyzer_id = content_analyzer_id(app_.settings, false);
 
             std::unique_ptr<ILLMClient> llm;
 

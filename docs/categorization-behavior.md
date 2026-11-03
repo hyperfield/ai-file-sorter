@@ -71,6 +71,31 @@ Completion requests follow the response format of their task; filename
 translation requests plain text, while document analysis requests JSON. A legacy
 JSON filename wrapper is unwrapped without adding its keys to the filename.
 
+## Document evidence and context budgets
+
+Document analysis extracts up to 8,000 bytes of useful UTF-8 text by default.
+Office XML is streamed past style definitions before applying that text limit;
+raw XML scanning is separately bounded at 64 MiB. Text is kept on UTF-8 boundaries.
+
+Local models count the complete chat prompt with their native tokenizer and
+reserve response tokens. Document requests can grow from the configured context
+through 4,096 and 8,192 tokens, bounded by model metadata and successful context
+allocation. Smaller batch buffers are tried before reducing context. These
+document sizes do not change the context configured for later categorization.
+
+If the bounded text still does not fit, the same document analyzer summarizes
+token-fitted chunks and combines their summaries. Providers without local token
+metadata can split after explicit input-limit errors. Cancellation and request
+counts are bounded; when model summarization cannot produce usable output,
+bounded extracted text remains available as evidence instead of using only the
+filename. Other runtime/API errors retain the existing retry behavior.
+
+Production and native document experiments use this same analyzer and client
+budget policy. `AI_FILE_SORTER_DOCUMENT_MAX_CONTEXT_TOKENS` can lower the document
+ceiling for experiments or constrained hardware; `AI_FILE_SORTER_CTX_TOKENS`
+continues to set the ordinary context. The document-evidence cache version is
+updated so old extraction failures are retried with the new reader.
+
 ## Cache and learned behavior
 
 - The categorization cache stores past results, rename suggestions, and

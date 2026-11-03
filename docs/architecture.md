@@ -14,7 +14,9 @@ UI-neutral headless flow used by integrations.
 - **Categorization and naming**: `CategorizationService`,
   `LocalLLMPromptBuilder`, LLM client implementations, whitelist handling, and
   file-type policy code decide categories, subcategories, and supported rename
-  suggestions.
+  suggestions. `DocumentTextAnalyzer` extracts useful text and normalizes document
+  names; `DocumentSummaryService` handles budget fitting, chunking, and summary
+  merging independently of extraction and filename cleanup.
 - **Persistence and settings**: `Settings`, `DatabaseManager`, cache
   maintenance, learned behavior, and undo-plan storage persist local state.
 - **Headless/integration contract**: `HeadlessAnalysisCommand`,
