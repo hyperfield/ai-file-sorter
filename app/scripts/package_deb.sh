@@ -117,69 +117,12 @@ if [[ ! -x "$BIN_PATH" ]]; then
     exit 1
 fi
 
-get_needed_soname() {
-    local binary="$1"
-    local pattern="$2"
-    if ! command -v readelf >/dev/null 2>&1; then
-        return 0
+for tool in dpkg-shlibdeps readelf pkg-config c++ getconf python3; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "Required packaging tool '$tool' was not found. Install dpkg-dev, binutils, build-essential, pkg-config, and python3." >&2
+        exit 1
     fi
-    readelf -d "$binary" 2>/dev/null | awk -v pat="$pattern" '
-        /NEEDED/ {
-            gsub(/\[|\]/, "", $5);
-            if ($5 ~ pat) { print $5; exit }
-        }'
-}
-
-resolve_fmt_dep() {
-    local soname
-    soname="$(get_needed_soname "$BIN_PATH" '^libfmt[.]so')"
-    case "$soname" in
-        libfmt.so.10) echo "libfmt10" ;;
-        libfmt.so.9) echo "libfmt9" ;;
-        libfmt.so.8) echo "libfmt8" ;;
-        *) echo "libfmt10" ;;
-    esac
-}
-
-resolve_jsoncpp_dep() {
-    local soname
-    soname="$(get_needed_soname "$BIN_PATH" '^libjsoncpp[.]so')"
-    case "$soname" in
-        libjsoncpp.so.26) echo "libjsoncpp26" ;;
-        libjsoncpp.so.25) echo "libjsoncpp25" ;;
-        libjsoncpp.so.24) echo "libjsoncpp24" ;;
-        *) echo "libjsoncpp26" ;;
-    esac
-}
-
-resolve_mediainfo_dep() {
-    local soname
-    soname="$(get_needed_soname "$BIN_PATH" '^libmediainfo[.]so')"
-    case "$soname" in
-        libmediainfo.so.0) echo "libmediainfo0v5" ;;
-        *) echo "libmediainfo0v5" ;;
-    esac
-}
-
-join_by_comma_space() {
-    local first=1
-    local item
-    for item in "$@"; do
-        if [[ "$first" == "1" ]]; then
-            printf '%s' "$item"
-            first=0
-        else
-            printf ', %s' "$item"
-        fi
-    done
-    printf '\n'
-}
-
-FMT_DEP="$(resolve_fmt_dep)"
-JSONCPP_DEP="$(resolve_jsoncpp_dep)"
-CURL_DEP="libcurl4 | libcurl4t64"
-MEDIAINFO_DEP="$(resolve_mediainfo_dep)"
-ZLIB_DEP="zlib1g"
+done
 
 OUT_DIR="$REPO_ROOT/dist/aifilesorter_deb"
 PKG_NAME="aifilesorter_${VERSION}"
@@ -272,28 +215,12 @@ if [[ "$INCLUDE_CUDA" == "1" ]]; then SELECTED_VARIANTS+=("cuda"); fi
 if [[ "$INCLUDE_VULKAN" == "1" ]]; then SELECTED_VARIANTS+=("vulkan"); fi
 echo "Included precompiled variants: ${SELECTED_VARIANTS[*]}"
 
-PACKAGE_DEPENDS=(
-    "libc6 (>= 2.31)"
-    "libstdc++6 (>= 12)"
-    "libgcc-s1 (>= 12)"
-    "libqt6widgets6 (>= 6.2)"
-    "libqt6gui6 (>= 6.2)"
-    "libqt6core6 (>= 6.2)"
-    "libqt6dbus6 (>= 6.2)"
-    "qt6-wayland"
-    "$CURL_DEP"
-    "$JSONCPP_DEP"
-    "libsqlite3-0"
-    "$FMT_DEP"
-    "libssl3"
-    "libopenblas0-pthread"
-    "$MEDIAINFO_DEP"
-    "$ZLIB_DEP"
-)
-if [[ "$INCLUDE_VULKAN" == "1" ]]; then
-    PACKAGE_DEPENDS+=("libvulkan1")
-fi
-PACKAGE_DEPENDS_STR="$(join_by_comma_space "${PACKAGE_DEPENDS[@]}")"
+SYSTEM_DEPENDS="$(python3 "$SCRIPT_DIR/deb_dependencies.py" "$PKG_ROOT" \
+    --library-dir "$APP_DIR/include/external/llama.cpp/build-cuda-link" \
+    --library-dir /usr/local/cuda/lib64 \
+    --library-dir /opt/cuda/lib64)"
+# Platform plugins are loaded by Qt rather than linked into the executable.
+PACKAGE_DEPENDS_STR="$SYSTEM_DEPENDS, qt6-wayland"
 
 DESCRIPTION_TEXT="AI-powered file categorization tool. Requires the listed runtime libraries from the host system."
 if [[ "$INCLUDE_VULKAN" == "1" ]]; then

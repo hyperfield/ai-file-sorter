@@ -26,17 +26,18 @@ jobs:
       matrix:
         include:
           - name: ubuntu-lts
-            image: ubuntu:latest
+            image: ubuntu:24.04
             artifact_kind: deb
+            cuda_host_compiler: /usr/bin/g++-12
             install: |
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
               apt-get install -y --no-install-recommends \
                 build-essential ca-certificates cmake git make ninja-build patchelf pkg-config python3 \
                 qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
-                libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
+                libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
-                gettext glslc g++-15 nvidia-cuda-toolkit
+                gettext glslc libvulkan-dev spirv-headers g++-12 nvidia-cuda-toolkit
 
           - name: debian-stable
             image: debian:stable
@@ -86,6 +87,7 @@ jobs:
       AI_FILE_SORTER_BUILD_JOBS: 2
       AI_FILE_SORTER_LINUX_RUNTIME_JOBS: 2
       CUDAARCHS: "75;80;86;89;90"
+      NVCC_CCBIN: ${{ matrix.cuda_host_compiler }}
       QT_QPA_PLATFORM: offscreen
     steps:
       - name: Install build dependencies
@@ -106,6 +108,9 @@ jobs:
           pkg-config --modversion Qt6Core
           pkg-config --modversion libmediainfo
           pkg-config --modversion openblas || pkg-config --modversion openblas64
+
+      - name: Check Debian dependency handling
+        run: python3 -m unittest discover -s tests/packaging -v
 
       - name: Build llama runtime variants
         run: |
@@ -145,6 +150,39 @@ jobs:
           name: aifilesorter-linux-${{ matrix.name }}
           path: dist/ci-artifacts/*
           if-no-files-found: error
+
+  verify-ubuntu-package:
+    name: Install and start package on Ubuntu 24.04
+    needs: build-linux
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:24.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      QT_QPA_PLATFORM: offscreen
+      AI_FILE_SORTER_GPU_BACKEND: cpu
+    steps:
+      - name: Download Ubuntu package
+        uses: actions/download-artifact@v4
+        with:
+          name: aifilesorter-linux-ubuntu-lts
+          path: /tmp/aifs-packages
+
+      - name: Install with runtime dependencies only
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends /tmp/aifs-packages/*.deb
+
+      - name: Verify CPU libraries, launcher, and headless startup
+        shell: bash
+        run: |
+          for library in /opt/aifilesorter/lib/precompiled/cpu/bin/*.so*; do
+            /lib64/ld-linux-x86-64.so.2 --list "$library"
+          done
+          aifilesorter --cuda=off --vulkan=off --self-test
+          aifilesorter --cuda=off --vulkan=off --headless-help
 
   build-windows:
     runs-on: windows-latest
