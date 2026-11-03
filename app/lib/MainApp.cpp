@@ -3861,9 +3861,13 @@ void MainApp::show_folder_structure_initializer_dialog()
     const auto plugin_profiles = folder_structure_plugin_manager_
         ? folder_structure_plugin_manager_->installed_profiles()
         : std::vector<FolderStructurePluginProfile>{};
+    FolderStructureInitializerDialog::LanguageOptions language_options;
+    language_options.initial_language = settings.get_category_language();
+    language_options.supported_languages = supported_category_languages_for_llm_choice(settings.get_llm_choice());
+    language_options.llm_factory = [this]() { return make_llm_client(); };
+    language_options.runtime_directory = Utils::utf8_to_path(runtime_data_dir_) / "runtime";
     FolderStructureInitializerDialog dialog(Utils::utf8_to_path(to_utf8(start_directory)),
-                                            plugin_profiles,
-                                            this);
+                                            plugin_profiles, std::move(language_options), this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }

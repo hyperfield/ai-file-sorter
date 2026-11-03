@@ -1872,6 +1872,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_purpose_metadata.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_structure_plugins.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_structure_templates.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_structure_localization.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_johnny_decimal_tools.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_protected_project_detector.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"

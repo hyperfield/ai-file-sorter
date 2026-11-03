@@ -2724,6 +2724,14 @@ Procedure: Attempt to install the archive.
 Expected outcome: Installation fails because executable payload files are forbidden.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects executable payload files"`
 
+### `tests/unit/test_folder_structure_localization.cpp`
+
+Run `[folder-language]` for starter-language defaults, independent language
+selection, translated-preview creation, numeric-prefix and parent preservation,
+invalid/incomplete/colliding translation rejection, retry, and cancellation that
+holds the analysis runtime until the worker has finished. These tests use
+injected clients; they do not download models or contact API services.
+
 ### `tests/unit/test_folder_structure_templates.cpp`
 
 #### Test case: FolderStructureTemplates exposes requested starter structures

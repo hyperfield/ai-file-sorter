@@ -74,6 +74,12 @@ Choose a sorting mode:
 - **Create category folders** creates folders from suggested category names.
 - **Use existing folder structure** chooses folders within your **Destination** tree. Enable **Suggest new folders when needed** to allow new destinations when none fits well; leave it off to use existing folders only.
 
+Use **Create folder structure** to add a starter tree to your destination. Its
+**Folder language** starts with your category language and can be changed for
+that structure alone. Non-English folder names are translated with the selected
+LLM. Review the translated preview before clicking **Create**; folder numbering
+and nesting are preserved.
+
 For existing folders, we recommend **Qwen3.5 4B**. **Gemma 1.1 7B** and models accessed through an API are also suitable options. Other local models show an advisory; you can keep your model or change it in **Settings -> Select LLM**.
 
 In **Create category folders** mode, choose a categorization style:

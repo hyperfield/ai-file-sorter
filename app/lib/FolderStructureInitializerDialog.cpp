@@ -2,6 +2,7 @@
 
 #include <QAbstractItemView>
 #include <QByteArray>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
@@ -16,8 +17,10 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <string>
 #include <utility>
@@ -28,6 +31,9 @@
 #include "JohnnyDecimalValidationHighlighter.hpp"
 #include "JohnnyDecimalValidator.hpp"
 #include "Utils.hpp"
+#include "CategoryLanguageSupport.hpp"
+#include "FolderStructureLocalizationService.hpp"
+#include "ILLMClient.hpp"
 
 namespace {
 
@@ -49,7 +55,14 @@ QString path_to_qstring(const std::filesystem::path& path) {
 FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     const std::filesystem::path& start_directory, const std::vector<FolderStructurePluginProfile>& plugin_profiles,
     QWidget* parent)
+    : FolderStructureInitializerDialog(start_directory, plugin_profiles, LanguageOptions{}, parent)
+{}
+
+FolderStructureInitializerDialog::FolderStructureInitializerDialog(
+    const std::filesystem::path& start_directory, const std::vector<FolderStructurePluginProfile>& plugin_profiles,
+    LanguageOptions language_options, QWidget* parent)
     : QDialog(parent),
+      language_options_(std::move(language_options)),
       plugin_profiles_(plugin_profiles),
       descriptors_(FolderStructureTemplates::all_with_plugins(plugin_profiles)) {
     johnny_decimal_tools_enabled_ = std::any_of(plugin_profiles_.begin(), plugin_profiles_.end(), [](const auto& profile) {
@@ -79,7 +92,35 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     root_layout->addWidget(tab_widget_, 1);
 
     starter_tab_ = new QWidget(tab_widget_);
-    auto* starter_layout = new QHBoxLayout(starter_tab_);
+    auto* starter_root_layout = new QVBoxLayout(starter_tab_);
+    auto* language_layout = new QFormLayout();
+    language_selector_ = new QComboBox(starter_tab_);
+    language_selector_->setObjectName(QStringLiteral("folderStructureLanguageSelector"));
+    language_selector_->setMaximumWidth(280);
+    language_selector_->setToolTip(tr("Choose the language for starter folder names. "
+                                      "Translation uses the selected LLM and does not change your category language."));
+    auto languages = language_options_.supported_languages;
+    if (languages.empty()) languages = all_category_languages();
+    if (std::find(languages.begin(), languages.end(), language_options_.initial_language) == languages.end()) {
+        languages.push_back(language_options_.initial_language);
+    }
+    for (const auto language : languages) {
+        language_selector_->addItem(categoryLanguageToString(language), static_cast<int>(language));
+    }
+    language_selector_->setCurrentIndex(language_selector_->findData(static_cast<int>(language_options_.initial_language)));
+    language_layout->addRow(tr("Folder language:"), language_selector_);
+    starter_root_layout->addLayout(language_layout);
+    auto* translation_row = new QHBoxLayout();
+    translation_status_ = new QLabel(starter_tab_);
+    translation_status_->setObjectName(QStringLiteral("folderStructureTranslationStatus"));
+    translation_status_->setWordWrap(true);
+    translation_row->addWidget(translation_status_, 1);
+    retry_translation_button_ = new QPushButton(tr("Retry translation"), starter_tab_);
+    retry_translation_button_->setObjectName(QStringLiteral("folderStructureRetryTranslationButton"));
+    translation_row->addWidget(retry_translation_button_);
+    starter_root_layout->addLayout(translation_row);
+    auto* starter_layout = new QHBoxLayout();
+    starter_root_layout->addLayout(starter_layout, 1);
 
     template_list_ = new QListWidget(this);
     template_list_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -169,7 +210,21 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     create_button_->setObjectName(QStringLiteral("folderStructureCreateButton"));
     root_layout->addWidget(buttons);
 
-    connect(template_list_, &QListWidget::currentItemChanged, this, [this]() { update_selection(); });
+    connect(template_list_, &QListWidget::currentItemChanged, this, [this]() {
+        if (translation_stop_) translation_stop_->store(true);
+        update_selection();
+    });
+    connect(language_selector_, &QComboBox::currentIndexChanged, this, [this]() {
+        if (translation_stop_) translation_stop_->store(true);
+        update_selection();
+    });
+    connect(retry_translation_button_, &QPushButton::clicked, this, [this]() {
+        translation_errors_.erase(translation_key());
+        update_selection();
+    });
+    translation_timer_ = new QTimer(this);
+    translation_timer_->setInterval(25);
+    connect(translation_timer_, &QTimer::timeout, this, [this]() { finish_translation(); });
     connect(destination_edit_, &QLineEdit::textChanged, this, [this]() { update_selection(); });
     connect(next_area_edit_, &QLineEdit::textChanged, this, [this]() { update_selection(); });
     connect(next_folder_edit_, &QLineEdit::textChanged, this, [this]() { update_selection(); });
@@ -189,6 +244,93 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     populate_templates();
+    update_selection();
+}
+
+FolderStructureInitializerDialog::~FolderStructureInitializerDialog()
+{
+    if (translation_stop_) translation_stop_->store(true);
+    if (translation_future_.valid()) translation_future_.wait();
+}
+
+CategoryLanguage FolderStructureInitializerDialog::folder_language() const
+{
+    return static_cast<CategoryLanguage>(language_selector_->currentData().toInt());
+}
+
+FolderStructureInitializerDialog::TranslationKey FolderStructureInitializerDialog::translation_key() const
+{
+    const auto* item = template_list_->currentItem();
+    return {item ? item->data(Qt::UserRole).toInt() : -1, folder_language()};
+}
+
+void FolderStructureInitializerDialog::reject()
+{
+    if (translation_future_.valid()) {
+        closing_after_translation_ = true;
+        translation_stop_->store(true);
+        translation_status_->setText(tr("Finishing the current translation request…"));
+        return;
+    }
+    QDialog::reject();
+}
+
+void FolderStructureInitializerDialog::begin_translation()
+{
+    translation_scheduled_ = false;
+    const auto* source = selected_template();
+    const auto key = translation_key();
+    if (closing_after_translation_ || translation_future_.valid() ||
+        tab_widget_->currentWidget() != starter_tab_ || !source || !source->available ||
+        folder_language() == CategoryLanguage::English || translated_templates_.contains(key) ||
+        translation_errors_.contains(key)) return;
+
+    try {
+        if (!language_options_.llm_factory) {
+            throw std::runtime_error("Select an LLM in Settings > Select LLM to translate folder names.");
+        }
+        if (!language_options_.runtime_directory.empty()) {
+            AnalysisRuntimeLock runtime_lock(language_options_.runtime_directory);
+            AnalysisRuntimeLock::Metadata metadata;
+            metadata.owner = AnalysisRuntimeLock::Owner::Gui;
+            metadata.description = "Folder structure translation";
+            auto lease = runtime_lock.try_acquire(std::move(metadata));
+            if (!lease) throw std::runtime_error("Another analysis or compatibility check is running. Try again when it finishes.");
+            translation_lease_.emplace(std::move(*lease));
+        }
+        active_translation_key_ = key;
+        translation_stop_ = std::make_shared<std::atomic<bool>>(false);
+        translation_future_ = std::async(std::launch::async,
+            [source = *source, language = folder_language(), factory = language_options_.llm_factory,
+             stop = translation_stop_]() {
+                auto llm = factory();
+                if (!llm) throw std::runtime_error("Could not load the selected LLM for folder-name translation.");
+                return FolderStructureLocalizationService::localize(source, language, *llm, stop.get());
+            });
+        translation_timer_->start();
+    } catch (const std::exception& error) {
+        translation_lease_.reset();
+        translation_errors_[key] = from_utf8(error.what());
+    }
+    update_selection();
+}
+
+void FolderStructureInitializerDialog::finish_translation()
+{
+    if (!translation_future_.valid() ||
+        translation_future_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) return;
+    try {
+        auto descriptor = translation_future_.get();
+        if (!translation_stop_->load()) translated_templates_[active_translation_key_] = std::move(descriptor);
+    } catch (const std::exception& error) {
+        if (!translation_stop_->load()) translation_errors_[active_translation_key_] = from_utf8(error.what());
+    }
+    translation_timer_->stop();
+    translation_lease_.reset();
+    if (closing_after_translation_) {
+        QDialog::reject();
+        return;
+    }
     update_selection();
 }
 
@@ -231,8 +373,21 @@ void FolderStructureInitializerDialog::populate_templates() {
 
 void FolderStructureInitializerDialog::update_selection() {
     const auto* descriptor = selected_template();
+    const auto* creation_descriptor = selected_creation_template();
     const bool available = descriptor && descriptor->available;
     const bool has_destination = destination_edit_ && !destination_edit_->text().trimmed().isEmpty();
+    const bool translating = translation_future_.valid();
+    const auto key = translation_key();
+    const auto error = translation_errors_.find(key);
+    const bool needs_translation = available && folder_language() != CategoryLanguage::English && !creation_descriptor;
+    retry_translation_button_->setVisible(error != translation_errors_.end() && !translating);
+    translation_status_->setVisible(needs_translation || translating);
+    translation_status_->setText(error != translation_errors_.end() ? error->second : tr("Translating folder names…"));
+    if (needs_translation && !translating && error == translation_errors_.end() && !translation_scheduled_ &&
+        !closing_after_translation_ && tab_widget_->currentWidget() == starter_tab_) {
+        translation_scheduled_ = true;
+        QTimer::singleShot(0, this, [this]() { begin_translation(); });
+    }
 
     if (create_button_) {
         create_button_->setText(archive_index_tab_active()
@@ -247,8 +402,8 @@ void FolderStructureInitializerDialog::update_selection() {
     }
     if (preview_list_) {
         preview_list_->clear();
-        if (descriptor) {
-            for (const std::string& relative : descriptor->relative_directories) {
+        if (creation_descriptor) {
+            for (const std::string& relative : creation_descriptor->relative_directories) {
                 preview_list_->addItem(from_utf8(relative));
             }
         }
@@ -283,26 +438,26 @@ void FolderStructureInitializerDialog::update_selection() {
             next_preview_status_label_->setText(status);
         }
         if (create_button_) {
-            create_button_->setEnabled(can_create_next_folder);
+            create_button_->setEnabled(can_create_next_folder && !translating);
         }
         return;
     }
     if (archive_index_tab_active()) {
         refresh_archive_index();
         if (create_button_) {
-            create_button_->setEnabled(has_destination);
+            create_button_->setEnabled(has_destination && !translating);
         }
         return;
     }
     if (validation_tab_active()) {
         refresh_validation_report();
         if (create_button_) {
-            create_button_->setEnabled(has_destination);
+            create_button_->setEnabled(has_destination && !translating);
         }
         return;
     }
     if (create_button_) {
-        create_button_->setEnabled(available && has_destination);
+        create_button_->setEnabled(available && has_destination && creation_descriptor && !translating);
     }
 }
 
@@ -317,8 +472,8 @@ void FolderStructureInitializerDialog::browse_destination() {
 }
 
 void FolderStructureInitializerDialog::create_selected_structure() {
-    const auto* descriptor = selected_template();
-    if (!descriptor || !descriptor->available) {
+    const auto* descriptor = selected_creation_template();
+    if (!descriptor || !descriptor->available || translation_future_.valid()) {
         QMessageBox::warning(this, tr("Create folder structure"), tr("Choose an available folder structure."));
         return;
     }
@@ -337,6 +492,13 @@ void FolderStructureInitializerDialog::create_selected_structure() {
                                  .arg(static_cast<qulonglong>(created_count_))
                                  .arg(static_cast<qulonglong>(existing_count_)));
     accept();
+}
+
+const FolderStructureTemplates::Descriptor* FolderStructureInitializerDialog::selected_creation_template() const
+{
+    if (folder_language() == CategoryLanguage::English) return selected_template();
+    const auto found = translated_templates_.find(translation_key());
+    return found == translated_templates_.end() ? nullptr : &found->second;
 }
 
 void FolderStructureInitializerDialog::create_next_johnny_decimal_folder() {

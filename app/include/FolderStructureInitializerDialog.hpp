@@ -2,14 +2,25 @@
 
 #include <QCoreApplication>
 #include <QDialog>
+#include <atomic>
 #include <cstddef>
 #include <filesystem>
+#include <functional>
+#include <future>
+#include <map>
+#include <memory>
+#include <optional>
 #include <vector>
 
+#include "AnalysisRuntimeLock.hpp"
+#include "CategoryLanguage.hpp"
 #include "FolderStructurePluginProfile.hpp"
 #include "FolderStructureTemplates.hpp"
 
 class QLabel;
+class QComboBox;
+class QTimer;
+class ILLMClient;
 class QLineEdit;
 class QListWidget;
 class QPlainTextEdit;
@@ -25,6 +36,13 @@ class FolderStructureInitializerDialog : public QDialog {
     Q_DECLARE_TR_FUNCTIONS(FolderStructureInitializerDialog)
 
    public:
+    /** @brief Independent starter-language settings; no category preference is modified. */
+    struct LanguageOptions {
+        CategoryLanguage initial_language{CategoryLanguage::English};
+        std::vector<CategoryLanguage> supported_languages;
+        std::function<std::unique_ptr<ILLMClient>()> llm_factory;
+        std::filesystem::path runtime_directory;
+    };
     /**
      * @brief Constructs the folder-structure initializer dialog.
      * @param start_directory Initial destination directory shown in the dialog.
@@ -34,6 +52,15 @@ class FolderStructureInitializerDialog : public QDialog {
     explicit FolderStructureInitializerDialog(const std::filesystem::path& start_directory = {},
                                               const std::vector<FolderStructurePluginProfile>& plugin_profiles = {},
                                               QWidget* parent = nullptr);
+
+    FolderStructureInitializerDialog(const std::filesystem::path& start_directory,
+                                     const std::vector<FolderStructurePluginProfile>& plugin_profiles,
+                                     LanguageOptions language_options, QWidget* parent = nullptr);
+    ~FolderStructureInitializerDialog() override;
+
+    /** @brief Language selected for this dialog only. */
+    CategoryLanguage folder_language() const;
+    void reject() override;
 
     /**
      * @brief Return the destination root entered by the user.
@@ -56,6 +83,8 @@ class FolderStructureInitializerDialog : public QDialog {
    private:
     void populate_templates();
     void update_selection();
+    void begin_translation();
+    void finish_translation();
     void browse_destination();
     void create_selected_structure();
     void create_next_johnny_decimal_folder();
@@ -66,7 +95,23 @@ class FolderStructureInitializerDialog : public QDialog {
     bool validation_tab_active() const;
 
     const FolderStructureTemplates::Descriptor* selected_template() const;
+    const FolderStructureTemplates::Descriptor* selected_creation_template() const;
+    using TranslationKey = std::pair<int, CategoryLanguage>;
+    TranslationKey translation_key() const;
 
+    LanguageOptions language_options_;
+    QComboBox* language_selector_{nullptr};
+    QLabel* translation_status_{nullptr};
+    QPushButton* retry_translation_button_{nullptr};
+    QTimer* translation_timer_{nullptr};
+    std::map<TranslationKey, FolderStructureTemplates::Descriptor> translated_templates_;
+    std::map<TranslationKey, QString> translation_errors_;
+    TranslationKey active_translation_key_;
+    std::future<FolderStructureTemplates::Descriptor> translation_future_;
+    std::shared_ptr<std::atomic<bool>> translation_stop_;
+    std::optional<AnalysisRuntimeLock::Lease> translation_lease_;
+    bool translation_scheduled_{false};
+    bool closing_after_translation_{false};
     QTabWidget* tab_widget_{nullptr};
     QWidget* starter_tab_{nullptr};
     QWidget* next_folder_tab_{nullptr};
