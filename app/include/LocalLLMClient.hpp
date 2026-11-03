@@ -31,6 +31,8 @@ public:
         std::string required_backend;
         /** @brief Injected controls, or empty to resolve opt-in environment settings. */
         std::optional<LocalInferenceOptions> inference;
+        /** @brief Maximum adaptive document context, or zero for the shared environment/default policy. */
+        int document_context_limit_tokens{0};
     };
 
     /**
@@ -95,6 +97,21 @@ public:
         const LLMResponseConstraint& constraint) override;
     std::string complete_prompt(const std::string& prompt,
                                 int max_tokens) override;
+    /**
+     * @brief Count the complete native chat template and document response reserve.
+     * @param prompt User completion task including document evidence.
+     * @param max_tokens Requested output reserve before inference overrides.
+     * @return Exact token count, ordinary context, and model/runtime document ceiling.
+     */
+    std::optional<CompletionBudget> completion_budget(const std::string& prompt, int max_tokens) const override;
+    /**
+     * @brief Grow only this document request's context within model and allocation limits.
+     * @param prompt Full user task and evidence to retain.
+     * @param max_tokens Requested maximum completion tokens.
+     * @return Raw document completion; ordinary context settings are restored afterward.
+     * @throws PromptBudgetError When the caller must split the document evidence.
+     */
+    std::string complete_document_prompt(const std::string& prompt, int max_tokens) override;
     void set_prompt_logging_enabled(bool enabled) override;
     /**
      * @brief Set or clear the cooperative deadline for a timed inference request.
@@ -142,6 +159,7 @@ private:
     llama_sampler* smpl;
     std::string sanitize_output(const std::string& output);
     llama_context_params ctx_params;
+    int document_context_limit_tokens_{0};
     bool prompt_logging_enabled{false};
     Options options_;
     ggml_backend_dev_t required_devices_[2]{nullptr, nullptr};

@@ -139,6 +139,9 @@ constexpr int kFirstBatchFallbackTokens = 1024;
 constexpr int kSecondBatchFallbackTokens = 512;
 constexpr int kThirdBatchFallbackTokens = 256;
 constexpr int kDefaultCompletionTokens = 256;
+constexpr int kMinimumCompletionReserveTokens = 32;
+constexpr std::array<int, 3> kDocumentContextLadder = {
+    kDefaultLocalLlmContextTokens, 4096, kMaximumRuntimeContextTokens};
 constexpr std::size_t kTokenPieceBufferBytes = 128;
 constexpr std::size_t kMetadataScanBytes = 8ULL * 1024ULL * 1024ULL;
 constexpr double kBytesPerMiB = 1024.0 * 1024.0;
@@ -1880,7 +1883,15 @@ LocalLLMClient::LocalLLMClient(const std::string& model_path,
     }
 
     model_params = load_model_or_throw(model_params, logger);
-    configure_context(context_length, model_params);
+    const auto trained_context = llama_model_n_ctx_train(model);
+    const int supported_context = trained_context > 0
+        ? static_cast<int>(std::min<std::uint32_t>(trained_context, kMaximumRuntimeContextTokens))
+        : context_length;
+    document_context_limit_tokens_ = supported_context;
+    int document_override = options_.document_context_limit_tokens;
+    if (document_override <= 0) try_parse_env_int("AI_FILE_SORTER_DOCUMENT_MAX_CONTEXT_TOKENS", document_override);
+    if (document_override > 0) document_context_limit_tokens_ = std::min(document_context_limit_tokens_, document_override);
+    configure_context(std::min(context_length, supported_context), model_params);
     backend_env_guard.restore_now();
 }
 
@@ -2281,6 +2292,10 @@ std::string LocalLLMClient::generate_response_with_options(const std::string& pr
             attempts.push_back({ctx, batch});
         };
 
+        // Reduce scratch buffers at the requested context before shrinking its KV cache.
+        add_attempt(n_ctx, std::min(n_batch, kFirstBatchFallbackTokens));
+        add_attempt(n_ctx, std::min(n_batch, kSecondBatchFallbackTokens));
+        add_attempt(n_ctx, std::min(n_batch, kThirdBatchFallbackTokens));
         add_attempt(std::min(n_ctx, kFirstContextFallbackTokens),
                     std::min(n_batch, kFirstBatchFallbackTokens));
         add_attempt(std::min(n_ctx, kSecondContextFallbackTokens),
@@ -2422,7 +2437,7 @@ std::string LocalLLMClient::generate_response_with_options(const std::string& pr
                     return static_cast<std::size_t>(n_prompt);
                 });
             if (!fitted) {
-                throw PromptBudgetError("Required instructions and folder candidates exceed the input token budget");
+                throw PromptBudgetError("The complete request exceeds the input token budget", context_budget);
             }
 
             auto generated = run_generation_loop(ctx,
@@ -2573,6 +2588,66 @@ std::string LocalLLMClient::complete_prompt(const std::string& prompt,
         std::cout << "[DEV][RESPONSE] Completion reply\n" << response << "\n";
     }
     return response;
+}
+
+std::optional<ILLMClient::CompletionBudget> LocalLLMClient::completion_budget(
+    const std::string& prompt, int max_tokens) const
+{
+    const auto formatted = NativeChatTemplate::format(model, LLMPrompt::kCompletionSystemPrompt, prompt);
+    std::vector<llama_token> tokens;
+    int count = 0;
+    if (!tokenize_prompt(vocab, formatted, tokens, count, Logger::get_logger("core_logger"))) {
+        throw PromptBudgetError("Unable to tokenize the complete document request");
+    }
+    const int response_tokens = std::max(kMinimumCompletionReserveTokens, inference_.output_tokens.value_or(
+        max_tokens > 0 ? max_tokens : kDefaultCompletionTokens));
+    return CompletionBudget{static_cast<std::size_t>(count), ctx_params.n_ctx,
+        static_cast<std::size_t>(document_context_limit_tokens_), static_cast<std::size_t>(response_tokens)};
+}
+
+std::string LocalLLMClient::complete_document_prompt(const std::string& prompt, int max_tokens)
+{
+    struct RestoreContextSize {
+        llama_context_params& params;
+        uint32_t context;
+        uint32_t batch;
+        ~RestoreContextSize() { params.n_ctx = context; params.n_batch = batch; }
+    } restore{ctx_params, ctx_params.n_ctx, ctx_params.n_batch};
+    const auto budget = *completion_budget(prompt, max_tokens);
+    std::vector<int> attempts;
+    const int initial = std::min<int>(ctx_params.n_ctx, document_context_limit_tokens_);
+    attempts.push_back(initial);
+    attempts.push_back(document_context_limit_tokens_);
+    for (const int size : kDocumentContextLadder) {
+        if (size >= initial) attempts.push_back(std::min(size, document_context_limit_tokens_));
+    }
+    std::sort(attempts.begin(), attempts.end());
+    attempts.erase(std::unique(attempts.begin(), attempts.end()), attempts.end());
+    for (const int size : attempts) {
+        if (budget.prompt_tokens + budget.response_tokens > static_cast<std::size_t>(size)) continue;
+        ctx_params.n_ctx = size;
+        ctx_params.n_batch = std::min<uint32_t>(restore.batch, size);
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->debug("Document request: {} prompt tokens, {} response tokens, context {} (model/runtime cap {})",
+                budget.prompt_tokens, budget.response_tokens, size, document_context_limit_tokens_);
+        }
+        try {
+            auto response = complete_prompt(prompt, max_tokens);
+            if (ctx_params.n_ctx < static_cast<uint32_t>(size)) {
+                document_context_limit_tokens_ = std::min<int>(document_context_limit_tokens_, ctx_params.n_ctx);
+            }
+            return response;
+        } catch (const PromptBudgetError&) {
+            if (ctx_params.n_ctx < static_cast<uint32_t>(size)) {
+                document_context_limit_tokens_ = std::min<int>(document_context_limit_tokens_, ctx_params.n_ctx);
+                break;
+            }
+            throw;
+        }
+    }
+    const auto available = document_context_limit_tokens_ > static_cast<int>(budget.response_tokens)
+        ? document_context_limit_tokens_ - budget.response_tokens : 0;
+    throw PromptBudgetError("Document evidence needs chunking within the available model context", available);
 }
 
 
