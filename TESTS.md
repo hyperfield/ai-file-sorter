@@ -1,5 +1,28 @@
 # Test Suite Guide
 
+## Debian packaging compatibility
+
+Run `python3 -m unittest discover -s tests/packaging -v`.
+`tests/packaging/test_deb_dependencies.py` covers numeric ABI version ordering,
+the separation of imported versions from exported definitions, rejection of
+the published GLIBC 2.43 runtime requirements on Ubuntu 24.04, newer Qt/C++ ABI
+rejection, compatible payloads, and optional CUDA toolkit/driver dependencies
+without exempting ordinary system libraries.
+
+`tests/packaging/test_run_wrapper.py` generates and executes installed launchers
+against temporary package layouts. It covers packaged CPU/CUDA/Vulkan directory
+selection, CUDA priority when both GPU runtimes are available, shared-library
+search paths, legacy CPU directory support, and CPU
+fallback using the Vulkan payload.
+
+The `verify-ubuntu-package` GitHub Actions job installs the Ubuntu artifact in
+a fresh `ubuntu:24.04` container with runtime dependencies only, then runs the
+system loader against every bundled CPU shared library and runs the installed
+`aifilesorter --self-test` and `aifilesorter --headless-help` commands.
+Both commands pass `--cuda=off --vulkan=off` to the installed launcher to force CPU mode.
+This verifies installation, CPU library dependencies, the launcher, dynamic
+linking, and deterministic startup. It does not test GPU hardware or model inference.
+
 ## Visual input context budgets
 
 `tests/unit/test_visual_input_budget.cpp` covers the complete image/text prompt

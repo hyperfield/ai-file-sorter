@@ -169,6 +169,8 @@ the main entry page, use these technical references:
 - Storage integrations, including OneDrive support, now use separately installed, verified plugins.
 - Improved cancellation, cache reuse, handling of non-English filenames, review editing, and undo reliability.
 - Improved GPU compatibility and macOS stability, including menu icons, Metal backend detection, and the image-analysis benchmark. macOS 26.0 or later is now required.
+- Pinned Ubuntu release builds to 24.04, generated Debian dependencies from the shipped binaries, and added package installation and startup checks in a clean runtime container.
+- Fixed Linux launcher discovery of packaged CPU, CUDA, and Vulkan runtime directories.
 
 ## [1.9.2] - 2026-08-14
 
@@ -478,8 +480,8 @@ File categorization with local LLMs is completely free of charge. If you prefer 
     ```bash
     sudo apt update && sudo apt install -y \
       build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
-      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev libmediainfo-dev \
-      zlib1g-dev patchelf
+      libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev libmediainfo-dev \
+      zlib1g-dev patchelf dpkg-dev
     ```
    - Fedora / RHEL:
 
@@ -654,7 +656,31 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    `./app/scripts/build_llama_linux.sh cuda=off vulkan=on`). Use
    `./app/scripts/package_deb.sh --cpu-only` for a smaller CPU-only package, or
    `--include-vulkan` / `--include-cuda` if you want the script to fail when a specific
-   staged variant is missing.
+   staged variant is missing. Use `--include-all` for a combined CPU + Vulkan + CUDA
+   package that requires all three staged variants. The installed launcher selects
+   the runtime at startup, so separate GPU downloads are optional.
+
+   Ubuntu release packages target **Ubuntu 24.04 / Linux Mint 22**. Build the app
+   and every bundled llama/ggml runtime on that baseline; compiling on a newer
+   distribution and repacking the files does not lower their library requirements.
+   The Ubuntu CI container is pinned to `ubuntu:24.04` and uses GCC 12 as the
+   host compiler for Noble's CUDA 12 toolkit. MediaInfo's development package
+   requires the GnuTLS curl development package on this baseline.
+   For a manual CUDA build on Ubuntu 24.04, install `g++-12` and set
+   `NVCC_CCBIN=/usr/bin/g++-12` when running `build_llama_linux.sh`.
+
+   Debian packaging requires `dpkg-dev`, `binutils`, `pkg-config`, Python 3, and
+   the build dependencies above. `app/scripts/deb_dependencies.py` validates
+   every staged ELF file against the build system's glibc, C++ and Qt ABIs,
+   then runs `dpkg-shlibdeps` across the executable and bundled libraries.
+   CUDA toolkit/driver libraries remain optional so the package can run on CPU-only
+   machines. For CUDA acceleration with the Ubuntu 24.04 build, install the CUDA 12
+   runtime packages `libcudart12` and `libcublas12` alongside a compatible NVIDIA
+   driver; the full CUDA development toolkit is not required. The CI package check
+   installs the generated `.deb` into a separate
+   Ubuntu 24.04 container with runtime dependencies only, checks bundled CPU
+   library dependencies with the system loader, and runs `--self-test` and
+   `--headless-help` through the installed launcher.
 
 8. **Build an RPM package (optional; Fedora / RHEL)**
 
