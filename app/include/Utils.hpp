@@ -54,6 +54,11 @@ public:
     static std::string get_default_llm_destination();
     static std::string get_file_name_from_url(std::string url);
     static std::string make_default_path_to_file_from_download_url(std::string url);
+    /**
+     * @brief Check the usable CUDA stack and its own payload, independent of CPU/Vulkan selection.
+     * @return True for a usable driver/runtime and, when present, a loadable CUDA payload.
+     * Callers requiring CUDA inference must also check the registered ggml CUDA device.
+     */
     static bool is_cuda_available();
     static int get_installed_cuda_runtime_version();
     static std::string get_cudart_dll_name();

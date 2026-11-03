@@ -905,8 +905,9 @@ bool Utils::is_cuda_available() {
     std::optional<std::filesystem::path> ggml_directory;
     if (const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
         ggml_dir && ggml_dir[0] != '\0') {
-        ggml_directory = std::filesystem::path(std::string(ggml_dir));
+        ggml_directory = Utils::utf8_to_path(ggml_dir);
     }
+    ggml_directory = WindowsCudaProbe::resolve_backend_directory({}, ggml_directory);
 
     const auto probe_result = WindowsCudaProbe::probe(ggml_directory);
     if (!probe_result.driver_present) {
@@ -928,8 +929,9 @@ bool Utils::is_cuda_available() {
         return false;
     }
     if (ggml_directory.has_value() && !probe_result.backend_loadable) {
-        log_core(spdlog::level::warn,
-                 "[CUDA] ggml-cuda.dll could not be loaded with the discovered CUDA runtime.");
+        log_core(spdlog::level::warn, "[CUDA] Backend '{}' could not load with runtime '{}' (Win32 error {}).",
+                 Utils::path_to_utf8(*ggml_directory / "ggml-cuda.dll"),
+                 Utils::path_to_utf8(probe_result.runtime_library_path), probe_result.backend_load_error);
         return false;
     }
 

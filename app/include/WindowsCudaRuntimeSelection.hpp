@@ -9,6 +9,7 @@ namespace WindowsCudaRuntimeSelection {
 
 /** @brief Discovery source, ordered from highest to lowest priority. */
 enum class DirectorySource {
+    Bundled,
     ToolkitHint,
     Path,
 };

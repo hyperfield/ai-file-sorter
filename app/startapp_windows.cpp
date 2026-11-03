@@ -703,6 +703,7 @@ BackendAvailability detect_backend_availability(const QString& exeDir, const Win
                              << (availability.detectedCudaRuntime.isEmpty() ? QStringLiteral("<unknown>")
                                                                             : availability.detectedCudaRuntime)
                              << "but the bundled ggml-cuda backend could not be loaded."
+                             << "Win32 loader error:" << cudaProbe.backend_load_error
                              << "Falling back to alternate backend.";
     }
     return availability;

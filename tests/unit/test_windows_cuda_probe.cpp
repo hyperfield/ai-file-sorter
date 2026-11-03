@@ -1,12 +1,71 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <fstream>
+#include <vector>
 
+#include "TestHelpers.hpp"
 #include "WindowsCudaProbe.hpp"
 #include "WindowsCudaRuntimeSelection.hpp"
 
-#include <filesystem>
-#include <vector>
-
 namespace Selection = WindowsCudaRuntimeSelection;
+
+TEST_CASE("WindowsCudaProbe resolves CUDA payload independently of the active backend") {
+    TempDir temp;
+    const auto executable = temp.path() / "aifilesorter-bin.exe";
+    const auto cuda = temp.path() / "lib" / "ggml" / "wcuda";
+    const auto vulkan = temp.path() / "lib" / "ggml" / "wvulkan";
+    const auto cpu = temp.path() / "lib" / "ggml" / "wocuda";
+    std::filesystem::create_directories(cuda);
+    std::filesystem::create_directories(vulkan);
+    std::filesystem::create_directories(cpu);
+    std::ofstream(cuda / "ggml-cuda.dll").put('x');
+    std::ofstream(vulkan / "ggml-vulkan.dll").put('x');
+
+    CHECK(WindowsCudaProbe::resolve_backend_directory(executable, vulkan) == cuda);
+    CHECK(WindowsCudaProbe::resolve_backend_directory(executable, cpu) == cuda);
+    CHECK(WindowsCudaProbe::resolve_backend_directory(executable) == cuda);
+
+    const auto custom = temp.path() / std::filesystem::path(u8"Custom CUDA \u00e9");
+    std::filesystem::create_directories(custom);
+    std::ofstream(custom / "ggml-cuda.dll").put('x');
+    CHECK(WindowsCudaProbe::resolve_backend_directory(executable, custom) == custom);
+
+    REQUIRE(std::filesystem::remove(cuda / "ggml-cuda.dll"));
+    std::filesystem::create_directory(cuda / "ggml-cuda.dll");
+    CHECK_FALSE(WindowsCudaProbe::resolve_backend_directory(executable, vulkan).has_value());
+    const auto flat = temp.path() / "ggml" / "wcuda";
+    std::filesystem::create_directories(flat);
+    std::ofstream(flat / "ggml-cuda.dll").put('x');
+    CHECK(WindowsCudaProbe::resolve_backend_directory(executable, vulkan) == flat);
+    CHECK_FALSE(WindowsCudaProbe::resolve_backend_directory(temp.path() / "missing" / "app.exe").has_value());
+}
+
+TEST_CASE("Windows CUDA runtime selection prefers bundled dependencies over newer toolkits") {
+    const auto bundled = Selection::candidate_for_path("C:/AI File Sorter/lib/ggml/wcuda/cudart64_12.dll",
+                                                       Selection::DirectorySource::Bundled);
+    const auto toolkit =
+        Selection::candidate_for_path("C:/CUDA/v13.3/bin/x64/cudart64_13.dll", Selection::DirectorySource::ToolkitHint);
+    REQUIRE(bundled.has_value());
+    REQUIRE(toolkit.has_value());
+    const auto ranked = Selection::rank_candidates({*toolkit, *bundled});
+    REQUIRE(ranked.size() == 2);
+    CHECK(ranked.front().path == bundled->path);
+}
+
+#ifdef _WIN32
+TEST_CASE("WindowsCudaProbe discovers runtime DLLs bundled beside the CUDA backend") {
+    TempDir temp;
+    const auto runtime = temp.path() / "cudart64_13.dll";
+    std::ofstream(runtime).put('x');
+    std::ofstream(temp.path() / "cudart64_13.dll.old").put('x');
+    const auto candidates = WindowsCudaProbe::TestAccess::runtime_candidates_for_directory(temp.path());
+    REQUIRE_FALSE(candidates.empty());
+    CHECK(candidates.front() == runtime);
+    CHECK(candidates.size() == 1);
+    CHECK(std::find(candidates.begin(), candidates.end(), temp.path() / "cudart64_13.dll.old") == candidates.end());
+}
+#endif
 
 TEST_CASE("WindowsCudaProbe normalizes mixed-era runtime suffixes") {
     CHECK(WindowsCudaProbe::TestAccess::runtime_version_rank("cudart64_13.dll") >

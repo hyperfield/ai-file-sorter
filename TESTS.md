@@ -1528,6 +1528,15 @@ Windows path strings with backslashes, forward slashes, and mixed separators.
 Production Windows discovery and the test-access wrappers share that policy.
 DLL discovery/loading and CUDA driver calls remain compiled only on Windows.
 
+Issue #4 regressions:
+- `WindowsCudaProbe resolves CUDA payload independently of the active backend`:
+  CPU/Vulkan selection resolves the packaged CUDA sibling, custom CUDA overrides
+  remain preferred, both Windows layouts work, and directories posing as DLLs are rejected.
+- `Windows CUDA runtime selection prefers bundled dependencies over newer toolkits`:
+  a matching bundled runtime wins over an unrelated, newer system toolkit.
+- `WindowsCudaProbe discovers runtime DLLs bundled beside the CUDA backend` (Windows only):
+  bundle discovery precedes installed toolkits and ignores backup files without loading a GPU.
+
 #### Additional selection-policy cases
 - `Windows CUDA runtime selection validates DLL names without filesystem access`:
   checks suffix formats, malformed/overflowing input, and toolkit-version fallback.
