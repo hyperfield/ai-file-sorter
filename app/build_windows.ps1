@@ -24,6 +24,7 @@ $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $appDir = $scriptDir
+. (Join-Path $scriptDir 'scripts/stage_windows_cuda_runtime.ps1')
 $llamaDir = Join-Path $appDir "include/external/llama.cpp"
 $legacySharedVcpkgInstalledDir = Join-Path $appDir "build-windows\\vcpkg_installed"
 $dedicatedSharedVcpkgInstalledDir = Join-Path $appDir "build-windows-vcpkg_installed"
@@ -919,6 +920,7 @@ function Stage-BuildOutput {
                 if ($_.Name -ieq "libcurl.dll") { return }
                 Copy-Item $_.FullName -Destination $destWcuda -Force
             }
+        Copy-WindowsCudaRuntime -RuntimeDirectory $destWcuda -SourceDirectories @($precompiledCudaBin)
     }
 
     if (Test-Path $precompiledVulkanBin) {

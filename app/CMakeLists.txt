@@ -2150,6 +2150,16 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         endif()
     endif()
 
+    if(WIN32)
+        find_program(AI_FILE_SORTER_POWERSHELL_EXECUTABLE NAMES pwsh powershell REQUIRED)
+        add_test(
+            NAME windows_cuda_runtime_staging
+            COMMAND ${AI_FILE_SORTER_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass
+                -File ${CMAKE_SOURCE_DIR}/../tests/test_windows_cuda_runtime.ps1
+        )
+        set_tests_properties(windows_cuda_runtime_staging PROPERTIES LABELS "build;cuda" TIMEOUT 60)
+    endif()
+
     if(NOT WIN32)
         find_package(Python3 COMPONENTS Interpreter QUIET)
         find_program(AI_FILE_SORTER_MAKE_EXECUTABLE NAMES gmake make)

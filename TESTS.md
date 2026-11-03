@@ -1537,6 +1537,15 @@ Issue #4 regressions:
 - `WindowsCudaProbe discovers runtime DLLs bundled beside the CUDA backend` (Windows only):
   bundle discovery precedes installed toolkits and ignores backup files without loading a GPU.
 
+`tests/test_windows_cuda_runtime.ps1` checks Windows CUDA packaging with temporary
+toolkit fixtures and injected dependency lists. It covers CUDA 12 `bin` and CUDA 13
+`bin/x64` layouts, exact imported DLL versions, the cuBLASLt companion, cudart for
+device/memory probes, license copying, reuse without a toolkit, and rejection of
+missing libraries/licenses or mismatched major versions before copying a partial set.
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_windows_cuda_runtime.ps1`
+or `ctest --test-dir build-tests-entitlement -R windows_cuda_runtime_staging --output-on-failure`.
+The CTest case is registered only on Windows and needs neither a CUDA toolkit nor a GPU.
+
 #### Additional selection-policy cases
 - `Windows CUDA runtime selection validates DLL names without filesystem access`:
   checks suffix formats, malformed/overflowing input, and toolkit-version fallback.

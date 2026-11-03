@@ -44,6 +44,7 @@ if ($cudaArchArg) {
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+. (Join-Path $scriptDir 'stage_windows_cuda_runtime.ps1')
 $llamaDir = Join-Path $scriptDir "..\include\external\llama.cpp"
 
 if (-not (Test-Path $llamaDir)) {
@@ -1325,6 +1326,11 @@ foreach ($dll in $dllList) {
     if ($dll -ne "libcurl.dll") {
         Copy-Item $src -Destination $runtimeDir -Force
     }
+}
+
+if ($useCuda -eq "ON") {
+    Copy-WindowsCudaRuntime -RuntimeDirectory $variantBin -ToolkitRoots @($cudaRoot)
+    Copy-WindowsCudaRuntime -RuntimeDirectory $runtimeDir -SourceDirectories @($variantBin) -ToolkitRoots @()
 }
 
 if ($enableBlas -and $openBlasDll -and (Test-Path $openBlasDll)) {

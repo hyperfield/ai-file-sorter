@@ -850,6 +850,19 @@ Option A - CMake + vcpkg (recommended)
   
   Each run emits `llama.dll`, `llama-common.dll`, `mtmd.dll`, and `ggml*.dll` under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). Rebuild every shipped variant from the pinned submodule before rebuilding the application. The helper also stages OpenSSL runtime DLLs and, for OpenBLAS-backed builds, the MinGW companion DLLs needed beside `libopenblas.dll`. Windows ggml runtimes built by this helper target SSE4.2 and leave AVX, AVX2, BMI2, and newer x86 extensions disabled so the packaged DLLs remain usable on older x64 CPUs. Only runtime libraries are built; server/UI assets are not downloaded. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
 
+   CUDA builds also stage the matching `cudart64_*.dll`, `cublas64_*.dll`, and
+   `cublasLt64_*.dll` redistributables plus `CUDA-EULA.txt` under `lib/ggml/wcuda`.
+   The shared staging helper reads the backend's imported cuBLAS DLL name and
+   copies a complete matching set from the selected toolkit's `bin/x64` or `bin`.
+   Application packaging can reuse the staged set without a toolkit installed;
+   older incomplete runtime builds need a matching toolkit through `CUDA_PATH`
+   or a runtime rebuild. Packaging fails if the CUDA libraries or license are missing.
+   Detection uses the bundled runtime instead of unrelated toolkits or PhysX copies,
+   and retains Vulkan/CPU fallback when the bundled runtime cannot initialize.
+   End users need a compatible NVIDIA display driver, rather than a development
+   toolkit. See [NVIDIA's deployment guidance](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#cuda-toolkit-library-redistribution).
+   The CUDA 13.3 libraries add about 500 MiB before compression to the CUDA payload.
+
 6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt` and shares one dependency install tree across builds:
 
    ```powershell
