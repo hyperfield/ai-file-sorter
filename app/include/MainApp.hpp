@@ -255,6 +255,13 @@ private:
     void sync_whitelists_to_learning_store();
 
     void on_analyze_clicked();
+    /**
+     * @brief Validates the selected analysis connection before starting work.
+     * @param network_available Probe for the built-in providers' internet requirement.
+     * @return A user-facing validation error, or no value when analysis may start.
+     */
+    std::optional<std::string> analysis_connection_error(
+        const std::function<bool()>& network_available) const;
     void on_directory_selected(const QString& path,
         bool user_initiated = false);
     /**

@@ -8,6 +8,7 @@
 - Start with a broader Downloads layout and choose the language of new folder names independently of your category language.
 - Use **Qwen3.5 4B** by default for local text and image analysis, with simpler, grouped model drop-downs. Gemma models remain available.
 - Existing Mistral 7B setups remain supported, while new Mistral downloads are no longer offered.
+- Fixed custom API connections, including local LM Studio and Ollama servers, being blocked by an unrelated internet connectivity check.
 - Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
 - Analyze larger and densely formatted documents more reliably, and preserve completed categories when content analysis is unavailable.
 - Compare downloaded text and image-analysis models in the system compatibility check, with saved results and retries for individual models and backends.

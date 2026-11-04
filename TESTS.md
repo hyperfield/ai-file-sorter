@@ -921,6 +921,40 @@ Procedure: Run `split_entries_for_analysis()` in two sections: (a) normal catego
 Expected outcome: In normal mode, the already-renamed image is routed to filename-based categorization ("other" bucket). In rename-only mode, the already-renamed image is excluded entirely.
 Run: `./build-tests/ai_file_sorter_tests "Already-renamed images skip vision analysis"`
 
+### `tests/unit/test_main_app_connection.cpp`
+
+#### Test case: Custom API analysis does not require public internet
+Purpose: Keep local, private-network, and custom hosted API connections independent of the general internet probe.
+Setup: Save valid custom endpoints using IPv4/IPv6 loopback, localhost, a private address, and a hosted URL, with no API key.
+Procedure: Run the GUI analysis connection validation with a probe that reports no internet.
+Expected outcome: Validation succeeds without calling the internet probe for any custom endpoint.
+Run: `./build-tests/ai_file_sorter_tests "Custom API analysis does not require public internet"`
+
+#### Test case: Custom API analysis still validates endpoint settings without internet
+Purpose: Preserve clear configuration errors when a custom API entry is missing.
+Setup: Select a custom API with an active ID that has no matching endpoint.
+Procedure: Run connection validation with an offline network probe.
+Expected outcome: Validation returns the missing-endpoint settings error without probing public internet.
+Run: `./build-tests/ai_file_sorter_tests "Custom API analysis still validates endpoint settings without internet"`
+
+#### Test case: Built-in API analysis reports unavailable internet
+Purpose: Preserve the existing internet requirement for the built-in OpenAI and Gemini connections.
+Procedure: Validate each built-in provider with a probe that reports no internet.
+Expected outcome: The probe runs once and validation returns the existing internet connection error.
+Run: `./build-tests/ai_file_sorter_tests "Built-in API analysis reports unavailable internet"`
+
+#### Test case: Remote analysis still requires credentials when internet is available
+Purpose: Prevent the custom API connectivity fix from bypassing built-in API credential validation.
+Procedure: Validate OpenAI and Gemini without API keys while the network probe reports internet access.
+Expected outcome: The probe runs once and validation returns the missing API key error.
+Run: `./build-tests/ai_file_sorter_tests "Remote analysis still requires credentials when internet is available"`
+
+#### Test case: Local model analysis does not require internet
+Purpose: Keep downloaded local models independent of network availability.
+Procedure: Validate a local Qwen selection with an offline network probe.
+Expected outcome: Validation succeeds without calling the network probe or loading a model.
+Run: `./build-tests/ai_file_sorter_tests "Local model analysis does not require internet"`
+
 ### `tests/unit/test_main_app_visual_fallback.cpp`
 
 #### Test case: Visual CPU fallback detection recognizes retryable GPU failures

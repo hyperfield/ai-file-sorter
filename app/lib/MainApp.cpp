@@ -1623,6 +1623,29 @@ void MainApp::refresh_category_language_menu()
 }
 
 
+std::optional<std::string> MainApp::analysis_connection_error(
+    const std::function<bool()>& network_available) const
+{
+    const LLMChoice choice = settings.get_llm_choice();
+    if (!is_remote_choice(choice)) {
+        return std::nullopt;
+    }
+
+    // Custom endpoints may be local or private; their requests determine reachability.
+    if (choice != LLMChoice::Remote_Custom && !network_available()) {
+        return ERR_NO_INTERNET_CONNECTION;
+    }
+
+    std::string credential_error;
+    if (!categorization_service.ensure_remote_credentials(&credential_error)) {
+        return credential_error.empty()
+            ? "Remote model credentials are missing or invalid. Please configure your API key and try again."
+            : credential_error;
+    }
+    return std::nullopt;
+}
+
+
 void MainApp::on_analyze_clicked()
 {
     if (analyze_thread.joinable()) {
@@ -1650,19 +1673,12 @@ void MainApp::on_analyze_clicked()
                                         ? std::string()
                                         : destination_folder);
 
-    if (!using_local_llm) {
-        if (!Utils::is_network_available()) {
-            show_error_dialog(ERR_NO_INTERNET_CONNECTION);
-            core_logger->warn("Network unavailable when attempting to analyze '{}'", folder_path);
-            return;
+    if (const auto error = analysis_connection_error(Utils::is_network_available)) {
+        show_error_dialog(*error);
+        if (core_logger) {
+            core_logger->warn("Cannot start analysis for '{}': {}", folder_path, *error);
         }
-        std::string credential_error;
-        if (!categorization_service.ensure_remote_credentials(&credential_error)) {
-            show_error_dialog(credential_error.empty()
-                                  ? "Remote model credentials are missing or invalid. Please configure your API key and try again."
-                                  : credential_error);
-            return;
-        }
+        return;
     }
 
     if (!ensure_folder_categorization_style(folder_path)) {

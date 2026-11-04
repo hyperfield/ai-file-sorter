@@ -53,6 +53,12 @@ QPushButton* MainAppTestAccess::analyze_button(MainApp& app)
     return app.analyze_button;
 }
 
+std::optional<std::string> MainAppTestAccess::analysis_connection_error(
+    const MainApp& app, const std::function<bool()>& network_available)
+{
+    return app.analysis_connection_error(network_available);
+}
+
 QComboBox* MainAppTestAccess::sorting_mode_selector(MainApp& app)
 {
     return app.sorting_mode_selector;

@@ -162,6 +162,7 @@ the main entry page, use these technical references:
 - Create starter structures and add optional Johnny.Decimal tools for numbered folders, archive indexes, and validation reports.
 - Start with a broader Downloads layout and choose the language of new folder names independently of your category language.
 - Use **Qwen3.5 4B** by default for local text and image analysis, with simpler, grouped model drop-downs.
+- Fixed custom API connections, including local LM Studio and Ollama servers, being blocked by an unrelated internet connectivity check.
 - Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
 - Analyze larger and densely formatted documents more reliably, and preserve completed categories when content analysis is unavailable.
 - Compare downloaded text and image-analysis models in the system compatibility check, with saved results and retries for individual models and backends.
@@ -1326,6 +1327,8 @@ Prefer an OpenAI-compatible endpoint such as **LM Studio**, **Ollama**, or your 
 3. Click **Add…**, then enter a friendly name, the endpoint base URL, the model name to use, and an API key if your endpoint requires one.
 4. Save the endpoint, select it from the list, and click **OK**.
 5. The endpoint configuration is stored locally in your AI File Sorter config and can be edited or removed later from the same dialog.
+
+Local and private-network API servers do not require public internet access. AI File Sorter connects directly to the configured custom endpoint and reports any connection errors from that request.
 
 Use this option for local servers or remote providers that follow the OpenAI-style API shape. Response time can be tuned with `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`; rate-limited providers can be paced with `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE` or `[Settings] RemoteRequestsPerMinute` (see [Environment variables](#environment-variables)).
 

@@ -86,6 +86,14 @@ public:
      */
     static QPushButton* analyze_button(MainApp& app);
     /**
+     * @brief Runs the GUI analysis connection validation with a supplied network probe.
+     * @param app MainApp instance.
+     * @param network_available Probe returning whether public internet is available.
+     * @return A validation error, or no value when analysis may start.
+     */
+    static std::optional<std::string> analysis_connection_error(
+        const MainApp& app, const std::function<bool()>& network_available);
+    /**
      * @brief Access the sorting mode selector.
      * @param app MainApp instance.
      * @return Pointer to the selector, or nullptr if unavailable.
