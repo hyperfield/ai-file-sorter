@@ -38,6 +38,13 @@ std::string to_utf8(const QString& value)
 
 QString translate_main_app(const char* text)
 {
+    // Progress strings live in AnalysisCoordinator.cpp, so lupdate files them under the
+    // "AnalysisCoordinator" context; fall back to "MainApp" for the shared labels.
+    const QString source = QString::fromUtf8(text);
+    const QString coordinator = QCoreApplication::translate("AnalysisCoordinator", text);
+    if (coordinator != source) {
+        return coordinator;
+    }
     return QCoreApplication::translate("MainApp", text);
 }
 

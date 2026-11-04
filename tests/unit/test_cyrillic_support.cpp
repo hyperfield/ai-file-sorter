@@ -206,6 +206,27 @@ TEST_CASE("Label length limits count characters instead of UTF-8 bytes") {
     CHECK_FALSE(CategorizationResponseParser::validate_labels(too_long, u8s(u8"Подкатегория")).valid);
 }
 
+TEST_CASE("UTF-8 truncation never splits a Cyrillic letter") {
+    const std::string word = u8s(u8"Привет"); // 6 letters, 12 bytes
+    for (std::size_t limit = 0; limit <= word.size() + 2; ++limit) {
+        std::string copy = word;
+        Utils::utf8_truncate(copy, limit);
+        INFO(limit);
+        CHECK(copy.size() <= limit);
+        CHECK(copy.size() % 2 == 0); // only whole 2-byte letters remain
+        CHECK(word.compare(0, copy.size(), copy) == 0);
+    }
+
+    std::string broken_tail = u8s(u8"Отчёт");
+    broken_tail.pop_back(); // leave half of the last letter, as a fixed-size read may
+    Utils::utf8_truncate(broken_tail, broken_tail.size());
+    CHECK(broken_tail == u8s(u8"Отчё"));
+
+    CHECK(Utils::utf8_boundary_at_or_after(word, 1) == 2);
+    CHECK(Utils::utf8_boundary_at_or_after(word, 2) == 2);
+    CHECK(Utils::utf8_length(word) == 6);
+}
+
 TEST_CASE("Image place prefixes keep Cyrillic letters") {
     CHECK(ImageRenameMetadataService::apply_prefix_to_filename(
               u8s(u8"закат.jpg"), std::string("2026-06-01"), u8s(u8"Москва, Россия"))

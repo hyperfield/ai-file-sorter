@@ -12,6 +12,9 @@
 - Category label length limits (80) now count characters instead of UTF-8 bytes, so Cyrillic/CJK labels longer than 40 letters are no longer rejected.
 - Fixed translated category labels collapsing into one folder name such as "Logiciel , subcategory Navigateur" when the model wraps its JSON answer in Markdown fences or adds a lead-in sentence; such labels previously fell back to English for non-English category languages.
 - Added Russian cases to the live LLM test suite, including sorting Cyrillic-named files from a Cyrillic folder into Russian category folders.
+- Fixed the first-run LLM selection dialog always appearing in English: the UI translation is now installed before any startup dialog.
+- Fixed analysis progress log lines (`[DOC] Analyzing …`, `[SORT] …`, etc.) never being translated: they are now looked up in the `AnalysisCoordinator` context where lupdate stores them.
+- Document text excerpts are now truncated on UTF-8 character boundaries, so long Cyrillic/CJK documents no longer reach the LLM with a split character.
 
 ## [1.9.2] - 2026-08-14
 

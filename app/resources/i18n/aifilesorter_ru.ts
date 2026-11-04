@@ -115,7 +115,7 @@
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="+393" />
             <source>Tip: Click %1 cells to rename them.</source>
-            <translation>Совет: щёлкните по ячейкам «%1», чтобы переименовать.</translation>
+            <translation>Совет: нажмите на ячейку со значком %1, чтобы изменить значение.</translation>
         </message>
         <message>
             <location line="+1505" />

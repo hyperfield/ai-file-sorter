@@ -10,6 +10,7 @@
 #include "LlmCatalog.hpp"
 #include "MainApp.hpp"
 #include "SingleInstanceCoordinator.hpp"
+#include "TranslationManager.hpp"
 #include "UpdaterBuildConfig.hpp"
 #include "UpdaterLaunchOptions.hpp"
 #include "UpdaterLiveTestConfig.hpp"
@@ -799,6 +800,10 @@ int run_application(const ParsedArguments& parsed_args)
     }
 
     const auto finish_splash = [&]() {};
+
+    // Install the UI translation before any startup dialog (e.g. the first-run
+    // LLM selection) is shown; otherwise it appears in English for every user.
+    TranslationManager::instance().initialize_for_app(&app, settings.get_language());
 
     const bool llm_selection_needed_at_startup = !llm_choice_is_ready(settings);
     if (!ensure_llm_choice(settings, finish_splash)) {
