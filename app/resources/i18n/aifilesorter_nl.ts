@@ -467,6 +467,26 @@
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
             <translation>Voer een basis-URL in (bijv. http://localhost:1234/v1) of een volledig /chat/completions-eindpunt.</translation>
         </message>
+        <message>
+            <source>Vision-capable model</source>
+            <translation>Model met beeldherkenning</translation>
+        </message>
+        <message>
+            <source>Makes this connection available in the visual model selector. Image contents are sent to the selected server.</source>
+            <translation>Maakt deze verbinding beschikbaar in de keuzelijst voor visuele modellen. De inhoud van afbeeldingen wordt naar de geselecteerde server verzonden.</translation>
+        </message>
+        <message>
+            <source>Send images to server?</source>
+            <translation>Afbeeldingen naar de server verzenden?</translation>
+        </message>
+        <message>
+            <source>When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.
+
+Click OK to enable this setting or Cancel to leave it disabled.</source>
+            <translation>Wanneer deze verbinding voor afbeeldingsanalyse is geselecteerd, worden de gescande afbeeldingen voor verwerking naar de ingestelde API-server verzonden.
+
+Klik op OK om deze instelling in te schakelen of op Annuleren om deze uitgeschakeld te laten.</translation>
+        </message>
     </context>
     <context>
         <name>CustomLLMDialog</name>
@@ -1158,11 +1178,6 @@ Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <translation>Beeldanalysemodellen</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="619"></location>
-            <source>Download the visual LLM files required for image analysis.</source>
-            <translation>Download de visuele LLM-bestanden die nodig zijn voor beeldanalyse.</translation>
-        </message>
-        <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="627"></location>
             <source>Visual model</source>
             <translation>Visueel model</translation>
@@ -1403,6 +1418,14 @@ Ondersteunt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1563"></location>
             <source>Custom: %1</source>
             <translation>Aangepast: %1</translation>
+        </message>
+        <message>
+            <source>Connection: %1</source>
+            <translation>Verbinding: %1</translation>
+        </message>
+        <message>
+            <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
+            <translation>Kies een gedownload visueel model of een API-verbinding met beeldherkenning. Schakel beeldondersteuning in bij het toevoegen of bewerken van een aangepaste API-verbinding.</translation>
         </message>
     </context>
     <context>

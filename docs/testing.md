@@ -46,6 +46,10 @@ is missing or stale, rebuild the relevant test target before rerunning `ctest`.
   tests first.
 - Headless or Explorer-adjacent changes: run focused `Headless*` tests and keep
   `TESTS.md` in sync.
+- API image analysis: run `./build-tests/ai_file_sorter_tests "[http-vision]"`.
+  Loopback HTTP fixtures cover actual image uploads, API errors, cancellation,
+  persisted settings, GUI selection, shared workflow caching and headless renaming;
+  no downloaded model or external API is required.
 - Updater/feed changes: run the updater and update-feed tests.
 - Packaging/build-script changes: validate the relevant platform build path in
   addition to unit tests.

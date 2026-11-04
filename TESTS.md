@@ -2931,6 +2931,34 @@ Procedure: Advance categorized files to the support prompt threshold.
 Expected outcome: The support prompt callback is not invoked, the threshold is unchanged, and no donation-code suppression blob is written.
 Run: `./build-tests/ai_file_sorter_tests "Installed Explorer extension suppresses support prompts"`
 
+### API image analysis (`tests/unit/test_http_image_analyzer.cpp` and related regression cases)
+
+Run: `./build-tests/ai_file_sorter_tests "[http-vision]"` after rebuilding
+`ai_file_sorter_tests`. These tests use an ephemeral loopback HTTP server and
+generated images; no live provider or downloaded GGUF/MMProj is needed.
+
+| Test case | Coverage and expected outcome |
+| --- | --- |
+| HTTP vision uploads image pixels and requests a safe filename without local models | Inspect both HTTP requests. Base and full URLs normalize correctly; authentication, model selection, PNG pixels, bounded dimensions, word limits and original extensions are preserved. Only the first request contains image data. |
+| HTTP vision derives a filename from its description when the filename request fails | Return a valid description followed by HTTP 503. Preserve the description and derive a safe filename using the configured six-word policy. Omit authentication when no key is configured. |
+| HTTP vision rejects unusable responses and preserves server diagnostics | Reject HTTP 401/400, malformed JSON, empty choices and reasoning-only replies. Preserve provider errors without treating API failures as unreadable images. |
+| HTTP vision cancels an in-flight request and never sends a filename request | Hold the HTTP reply, signal cancellation and verify cancellation without a second request. |
+| HTTP vision fails unreadable images before contacting the server | Decode an invalid PNG and report a source-specific failure without an upload. |
+| Text and vision clients share chat transport and accept typed text responses | Run the text client against the shared transport and concatenate typed assistant text parts. |
+| Chat transport preserves Retry-After and obeys custom endpoint timeouts | Preserve a 429 retry delay and interrupt a stalled endpoint at the configured timeout. |
+| Headless image renaming uses the persisted vision API and supports external cancellation | Load saved API visual settings through the production headless host. Generate review names without local models, or cancel a held request through the external stop probe. Source images remain untouched. |
+| Existing API connections require explicit opt-in for image uploads | Load a legacy connection without the capability key and verify vision stays disabled for that connection. |
+| Custom API dialog edits vision capability explicitly | Check default opt-out and loading/toggling of the capability checkbox. |
+| Enabling API vision asks for upload confirmation and honors OK and Cancel | Click the vision capability checkbox and inspect the informational dialog's OK/Cancel buttons. OK leaves vision enabled; Cancel leaves it disabled. Disabling needs no confirmation, and enabling again shows the notice again. Loading a saved enabled connection is covered by the preceding case and requires no prompt. |
+| Visual model selector includes only explicitly enabled valid API connections | Include valid vision connections, exclude text-only/invalid entries, and retain the selected connection id. |
+| Visual runtime resolves API connections without artifacts and rejects missing or disabled connections | Require the vision capability and fail explicitly when the selected connection disappears. |
+| API visual selection stays independent of the text model and hides local downloads | Restore API vision alongside Gemini text, switch between local/API visual models and verify local download controls are hidden for API selections. |
+| A configured vision API enables image analysis without a model download prompt | Toggle the main-window image checkbox with a saved API visual backend and no availability stub. |
+| Shared image workflow uploads through the selected API and refreshes changed endpoint models | Generate evidence and review names through the shared workflow, reuse evidence on rescan, and upload again after changing the endpoint's model. |
+
+The existing **Custom API endpoints persist across Settings load/save** case also
+round-trips the vision capability and independent visual backend id.
+
 ### `tests/unit/test_custom_api_endpoint.cpp`
 
 #### Test case: Custom API endpoints persist across Settings load/save

@@ -1,4 +1,5 @@
 #include "AnalysisCoordinator.hpp"
+#include "ChatCompletionTransport.hpp"
 #include "ContentAnalysisUnavailable.hpp"
 
 #include "AnalysisEntryRouter.hpp"
@@ -327,6 +328,12 @@ std::string content_analyzer_id(const Settings& settings, bool image)
         return words == kDefaultFilenameWords ? std::string() : ":words=" + std::to_string(words);
     };
     if (image) {
+        if (const auto id = http_endpoint_id_from_visual_model_id(settings.get_visual_model_id())) {
+            const auto endpoint = settings.find_custom_api_endpoint(*id);
+            return "image-http-v1:" + endpoint.id + ":" + endpoint.base_url + ":" + endpoint.model +
+                ":enabled=" + std::to_string(endpoint.image_analysis_enabled) +
+                word_suffix(settings.get_image_filename_words());
+        }
         return "image-v2:" + settings.get_visual_model_id() + word_suffix(settings.get_image_filename_words());
     }
     const auto endpoint = settings.find_custom_api_endpoint(settings.get_active_custom_api_id());
@@ -1240,6 +1247,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
             auto visual_backend =
                 VisualLlmRuntime::resolve_active_backend(app_.settings.get_visual_model_id(),
                                                          app_.settings.get_custom_llms(),
+                                                         app_.settings.get_custom_api_endpoints(),
                                                          &error);
             if (!visual_backend) {
                 throw std::runtime_error(error);
@@ -1256,6 +1264,12 @@ AnalysisRunResult AnalysisCoordinator::execute()
             const auto visual_gpu_override = read_env_bool("AI_FILE_SORTER_VISUAL_USE_GPU");
             if (visual_gpu_override.has_value()) {
                 vision_settings.use_gpu = *visual_gpu_override;
+            }
+            if (visual_backend->api_endpoint) {
+                vision_settings.use_gpu = false;
+                vision_settings.should_cancel = [this] {
+                    return app_.stop_analysis.load() || app_.should_abort_analysis();
+                };
             }
             vision_settings.batch_progress = [this](int current_batch, int total_batches) {
                 if (total_batches <= 0 || current_batch <= 0) {
@@ -1545,6 +1559,9 @@ AnalysisRunResult AnalysisCoordinator::execute()
                             app_.mark_progress_stage_item_completed(ProgressStageId::ImageAnalysis, entry);
                             break;
                         } catch (const std::exception& ex) {
+                            if (dynamic_cast<const ChatCompletionCancelled*>(&ex)) {
+                                throw AnalysisCancelled(ex.what());
+                            }
                             if (evidence_key && dynamic_cast<const ContentAnalysisUnavailable*>(&ex) &&
                                 !app_.stop_analysis.load() && !update_stop()) {
                                 app_.db_manager.content_analysis_cache().store_unavailable(*evidence_key, ex.what());

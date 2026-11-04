@@ -381,7 +381,7 @@ std::string normalize_visual_model_id(const std::string& value)
     if (trimmed.empty()) {
         return default_visual_model_descriptor().id;
     }
-    if (is_custom_visual_model_id(trimmed)) {
+    if (is_custom_visual_model_id(trimmed) || is_http_visual_model_id(trimmed)) {
         return trimmed;
     }
     if (find_visual_model_descriptor(trimmed)) {
@@ -658,6 +658,7 @@ void Settings::load_custom_api_settings()
         entry.base_url = config.getValue(section, "BaseUrl", "");
         entry.api_key = config.getValue(section, "ApiKey", "");
         entry.model = config.getValue(section, "Model", "");
+        entry.image_analysis_enabled = config.getValue(section, "ImageAnalysisEnabled", "false") == "true";
         entry.name = trim_copy(entry.name);
         entry.description = trim_copy(entry.description);
         entry.base_url = trim_copy(entry.base_url);
@@ -818,6 +819,7 @@ void Settings::save_custom_api_endpoints()
         config.setValue(section, "BaseUrl", entry.base_url);
         config.setValue(section, "ApiKey", entry.api_key);
         config.setValue(section, "Model", entry.model);
+        config.setValue(section, "ImageAnalysisEnabled", to_bool_string(entry.image_analysis_enabled));
     }
     config.setValue(api_section, "CustomApiIds", join_list(ids));
 }

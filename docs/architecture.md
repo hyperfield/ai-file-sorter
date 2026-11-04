@@ -17,6 +17,13 @@ UI-neutral headless flow used by integrations.
   suggestions. `DocumentTextAnalyzer` extracts useful text and normalizes document
   names; `DocumentSummaryService` handles budget fitting, chunking, and summary
   merging independently of extraction and filename cleanup.
+- **Visual backends**: `VisualLlmRuntime` resolves either local model/projector
+  artifacts or an explicitly enabled custom API connection. `ImageAnalyzerFactory`
+  selects `LlavaImageAnalyzer` or `HttpImageAnalyzer`; both use
+  `ImageFilenamePolicy`. `ChatCompletionTransport` owns HTTP authentication,
+  timeouts, cancellation, HTTP errors and assistant-text parsing for compatible
+  text and vision clients. The workflow caches API image evidence by connection,
+  URL, model and filename word limit, without including credentials.
 - **Persistence and settings**: `Settings`, `DatabaseManager`, cache
   maintenance, learned behavior, and undo-plan storage persist local state.
 - **Headless/integration contract**: `HeadlessAnalysisCommand`,

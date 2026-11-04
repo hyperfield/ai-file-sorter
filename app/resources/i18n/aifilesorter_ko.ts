@@ -467,6 +467,26 @@
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
             <translation>기본 URL(예: http://localhost:1234/v1) 또는 전체 /chat/completions 엔드포인트를 입력하세요.</translation>
         </message>
+        <message>
+            <source>Vision-capable model</source>
+            <translation>이미지를 지원하는 모델</translation>
+        </message>
+        <message>
+            <source>Makes this connection available in the visual model selector. Image contents are sent to the selected server.</source>
+            <translation>시각 모델 선택기에서 이 연결을 사용할 수 있습니다. 이미지 내용은 선택한 서버로 전송됩니다.</translation>
+        </message>
+        <message>
+            <source>Send images to server?</source>
+            <translation>이미지를 서버로 전송할까요?</translation>
+        </message>
+        <message>
+            <source>When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.
+
+Click OK to enable this setting or Cancel to leave it disabled.</source>
+            <translation>이 연결을 이미지 분석에 사용하면 스캔한 이미지가 처리를 위해 설정된 API 서버로 전송됩니다.
+
+이 설정을 활성화하려면 확인을, 비활성화 상태로 두려면 취소를 클릭하세요.</translation>
+        </message>
     </context>
     <context>
         <name>CustomLLMDialog</name>
@@ -1158,11 +1178,6 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <translation>이미지 분석 모델</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="619"></location>
-            <source>Download the visual LLM files required for image analysis.</source>
-            <translation>이미지 분석에 필요한 비전 LLM 파일을 다운로드합니다.</translation>
-        </message>
-        <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="627"></location>
             <source>Visual model</source>
             <translation>비주얼 모델</translation>
@@ -1403,6 +1418,14 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1563"></location>
             <source>Custom: %1</source>
             <translation>사용자 지정: %1</translation>
+        </message>
+        <message>
+            <source>Connection: %1</source>
+            <translation>연결: %1</translation>
+        </message>
+        <message>
+            <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
+            <translation>다운로드한 시각 모델 또는 이미지를 지원하는 API 연결을 선택하세요. 사용자 지정 API 연결을 추가하거나 편집할 때 이미지 지원을 활성화하세요.</translation>
         </message>
     </context>
     <context>

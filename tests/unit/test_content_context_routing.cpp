@@ -1,4 +1,6 @@
 #include "AnalysisCoordinator.hpp"
+#include "ChatCompletionTestServer.hpp"
+#include "VisualModelCatalog.hpp"
 #include "ContentAnalysisUnavailable.hpp"
 #include "CategorizationService.hpp"
 #include "DatabaseManager.hpp"
@@ -125,6 +127,54 @@ WorkflowResult run_cached_image_workflow(Settings& settings, DatabaseManager& da
     return {result, std::move(review)};
 }
 } // namespace
+
+TEST_CASE("Shared image workflow uploads through the selected API and refreshes changed endpoint models", "[http-vision][content-routing]")
+{
+    QtAppContext qt;
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_analyze_images_by_content(true);
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_images(true);
+    settings.set_use_consistency_hints(false);
+    settings.set_sort_folder(source.path().string());
+    ChatCompletionTestServer server;
+    CustomApiEndpoint endpoint{"vision", "Image server", "", server.url(), "", "first-model", true};
+    endpoint.id = settings.upsert_custom_api_endpoint(endpoint);
+    settings.set_visual_model_id(http_visual_model_id(endpoint.id));
+    const auto path = source.path() / "IMG_0001.png";
+    QImage image(16, 16, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    REQUIRE(image.save(QString::fromStdString(path.string())));
+    server.respond = [](const auto& request) {
+        const auto content = request.json.value("messages").toArray()[0].toObject().value("content");
+        return ChatCompletionTestServer::answer(content.isArray()
+            ? QStringLiteral("A red boat crosses a quiet lake.") : QStringLiteral("red_boat_lake"));
+    };
+    DatabaseManager database(settings.get_config_dir());
+    auto requests = std::make_shared<std::vector<Request>>();
+    const auto run = [&] { return server.run([&] { return run_cached_image_workflow(settings, database, source.path(), requests); }); };
+    const auto first = run();
+    INFO(first.result.error_message);
+    REQUIRE(first.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(first.review.size() == 1);
+    CHECK(first.review.front().suggested_name == "red_boat_lake.png");
+    REQUIRE_FALSE(requests->empty());
+    CHECK(requests->front().context.find("red boat") != std::string::npos);
+    CHECK(server.requests.size() == 2);
+    const auto resumed = run();
+    REQUIRE(resumed.result.status == AnalysisRunStatus::Completed);
+    CHECK(server.requests.size() == 2);
+    endpoint.model = "replacement-model";
+    settings.upsert_custom_api_endpoint(endpoint);
+    const auto changed = run();
+    INFO(changed.result.error_message);
+    REQUIRE(changed.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(server.requests.size() == 4);
+    CHECK(server.requests[2].json.value("model").toString() == QStringLiteral("replacement-model"));
+    CHECK(std::filesystem::exists(path));
+}
 
 TEST_CASE("Content evidence reaches classification and routing independently of renaming", "[content-routing]")
 {

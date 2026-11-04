@@ -467,6 +467,26 @@
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
             <translation>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</translation>
         </message>
+        <message>
+            <source>Vision-capable model</source>
+            <translation>चित्रों को समझने वाला मॉडल</translation>
+        </message>
+        <message>
+            <source>Makes this connection available in the visual model selector. Image contents are sent to the selected server.</source>
+            <translation>इस कनेक्शन को विज़ुअल मॉडल चयनकर्ता में उपलब्ध करता है। चित्रों की सामग्री चुने गए सर्वर पर भेजी जाती है।</translation>
+        </message>
+        <message>
+            <source>Send images to server?</source>
+            <translation>चित्र सर्वर पर भेजें?</translation>
+        </message>
+        <message>
+            <source>When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.
+
+Click OK to enable this setting or Cancel to leave it disabled.</source>
+            <translation>जब चित्र विश्लेषण के लिए यह कनेक्शन चुना जाता है, तो स्कैन किए गए चित्र प्रोसेसिंग के लिए कॉन्फ़िगर किए गए API सर्वर पर भेजे जाएंगे।
+
+इस सेटिंग को सक्षम करने के लिए ठीक पर क्लिक करें या इसे अक्षम रखने के लिए रद्द करें पर क्लिक करें।</translation>
+        </message>
     </context>
     <context>
         <name>CustomLLMDialog</name>
@@ -1158,11 +1178,6 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <translation>छवि विश्लेषण मॉडल</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="619"></location>
-            <source>Download the visual LLM files required for image analysis.</source>
-            <translation>छवि विश्लेषण के लिए आवश्यक विजुअल LLM फ़ाइलें डाउनलोड करें।</translation>
-        </message>
-        <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="627"></location>
             <source>Visual model</source>
             <translation>विजुअल मॉडल</translation>
@@ -1403,6 +1418,14 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1563"></location>
             <source>Custom: %1</source>
             <translation>कस्टम: %1</translation>
+        </message>
+        <message>
+            <source>Connection: %1</source>
+            <translation>कनेक्शन: %1</translation>
+        </message>
+        <message>
+            <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
+            <translation>डाउनलोड किया गया विज़ुअल मॉडल या चित्रों का समर्थन करने वाला API कनेक्शन चुनें। कस्टम API कनेक्शन जोड़ते या संपादित करते समय चित्रों का समर्थन सक्षम करें।</translation>
         </message>
     </context>
     <context>

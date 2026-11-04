@@ -467,6 +467,26 @@
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
             <translation>输入基本 URL（例如 http://localhost:1234/v1) 或完整的 /chat/completions 端点。</translation>
         </message>
+        <message>
+            <source>Vision-capable model</source>
+            <translation>支持视觉的模型</translation>
+        </message>
+        <message>
+            <source>Makes this connection available in the visual model selector. Image contents are sent to the selected server.</source>
+            <translation>使此连接可在视觉模型选择器中使用。图像内容将发送到所选服务器。</translation>
+        </message>
+        <message>
+            <source>Send images to server?</source>
+            <translation>将图像发送到服务器？</translation>
+        </message>
+        <message>
+            <source>When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.
+
+Click OK to enable this setting or Cancel to leave it disabled.</source>
+            <translation>选择此连接进行图像分析时，扫描的图像将发送到已配置的 API 服务器进行处理。
+
+点击“确定”启用此设置，或点击“取消”使其保持禁用状态。</translation>
+        </message>
     </context>
     <context>
         <name>CustomLLMDialog</name>
@@ -1158,11 +1178,6 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <translation>图像分析模型</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="619"></location>
-            <source>Download the visual LLM files required for image analysis.</source>
-            <translation>下载图像分析所需的视觉 LLM 文件。</translation>
-        </message>
-        <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="627"></location>
             <source>Visual model</source>
             <translation>视觉模型</translation>
@@ -1403,6 +1418,14 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1563"></location>
             <source>Custom: %1</source>
             <translation>自定义：%1</translation>
+        </message>
+        <message>
+            <source>Connection: %1</source>
+            <translation>连接：%1</translation>
+        </message>
+        <message>
+            <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
+            <translation>选择已下载的视觉模型或支持视觉的 API 连接。添加或编辑自定义 API 连接时，请启用视觉支持。</translation>
         </message>
     </context>
     <context>

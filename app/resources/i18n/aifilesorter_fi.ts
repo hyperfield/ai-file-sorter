@@ -467,6 +467,26 @@
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
             <translation>Anna perus-URL-osoite (esim. http://localhost:1234/v1) tai täydellinen /chat/completions-päätepiste.</translation>
         </message>
+        <message>
+            <source>Vision-capable model</source>
+            <translation>Kuvia ymmärtävä malli</translation>
+        </message>
+        <message>
+            <source>Makes this connection available in the visual model selector. Image contents are sent to the selected server.</source>
+            <translation>Tuo yhteyden valittavaksi visuaalisten mallien luetteloon. Kuvien sisältö lähetetään valitulle palvelimelle.</translation>
+        </message>
+        <message>
+            <source>Send images to server?</source>
+            <translation>Lähetetäänkö kuvat palvelimelle?</translation>
+        </message>
+        <message>
+            <source>When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.
+
+Click OK to enable this setting or Cancel to leave it disabled.</source>
+            <translation>Kun tämä yhteys on valittu kuva-analyysiin, skannatut kuvat lähetetään määritetylle API-palvelimelle käsiteltäviksi.
+
+Ota asetus käyttöön valitsemalla OK tai jätä se pois käytöstä valitsemalla Peruuta.</translation>
+        </message>
     </context>
     <context>
         <name>CustomLLMDialog</name>
@@ -1158,11 +1178,6 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <translation>Kuva-analyysimallit</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="619"></location>
-            <source>Download the visual LLM files required for image analysis.</source>
-            <translation>Lataa kuva-analyysiin tarvittavat visuaaliset LLM-tiedostot.</translation>
-        </message>
-        <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="627"></location>
             <source>Visual model</source>
             <translation>Visuaalinen malli</translation>
@@ -1403,6 +1418,14 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1563"></location>
             <source>Custom: %1</source>
             <translation>Mukautettu: %1</translation>
+        </message>
+        <message>
+            <source>Connection: %1</source>
+            <translation>Yhteys: %1</translation>
+        </message>
+        <message>
+            <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
+            <translation>Valitse ladattu visuaalinen malli tai kuvia tukeva API-yhteys. Ota kuvatuki käyttöön, kun lisäät tai muokkaat mukautettua API-yhteyttä.</translation>
         </message>
     </context>
     <context>

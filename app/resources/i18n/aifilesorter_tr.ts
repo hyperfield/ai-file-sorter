@@ -467,6 +467,26 @@
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
             <translation>Bir temel URL girin (ör. http://localhost:1234/v1) ya da tam bir /chat/completions uç noktası girin.</translation>
         </message>
+        <message>
+            <source>Vision-capable model</source>
+            <translation>Görüntü destekleyen model</translation>
+        </message>
+        <message>
+            <source>Makes this connection available in the visual model selector. Image contents are sent to the selected server.</source>
+            <translation>Bu bağlantıyı görsel model seçicisinde kullanılabilir yapar. Görüntü içerikleri seçilen sunucuya gönderilir.</translation>
+        </message>
+        <message>
+            <source>Send images to server?</source>
+            <translation>Görüntüler sunucuya gönderilsin mi?</translation>
+        </message>
+        <message>
+            <source>When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.
+
+Click OK to enable this setting or Cancel to leave it disabled.</source>
+            <translation>Bu bağlantı görüntü analizi için seçildiğinde, taranan görüntüler işlenmek üzere yapılandırılmış API sunucusuna gönderilir.
+
+Bu ayarı etkinleştirmek için Tamam’a, devre dışı bırakmak için İptal’e tıklayın.</translation>
+        </message>
     </context>
     <context>
         <name>CustomLLMDialog</name>
@@ -1158,11 +1178,6 @@ Destekler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <translation>Görüntü analizi modelleri</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="619"></location>
-            <source>Download the visual LLM files required for image analysis.</source>
-            <translation>Görüntü analizi için gerekli görsel LLM dosyalarını indirin.</translation>
-        </message>
-        <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="627"></location>
             <source>Visual model</source>
             <translation>Görsel model</translation>
@@ -1403,6 +1418,14 @@ Destekler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1563"></location>
             <source>Custom: %1</source>
             <translation>Özel: %1</translation>
+        </message>
+        <message>
+            <source>Connection: %1</source>
+            <translation>Bağlantı: %1</translation>
+        </message>
+        <message>
+            <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
+            <translation>İndirilmiş bir görsel model veya görüntü destekleyen bir API bağlantısı seçin. Özel API bağlantısı eklerken ya da düzenlerken görüntü desteğini etkinleştirin.</translation>
         </message>
     </context>
     <context>

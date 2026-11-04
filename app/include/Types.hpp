@@ -104,6 +104,8 @@ struct CustomApiEndpoint {
     std::string base_url;
     std::string api_key;
     std::string model;
+    /** @brief Allow this connection to be selected for image-content analysis. */
+    bool image_analysis_enabled{false};
 };
 
 /**

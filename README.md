@@ -40,7 +40,7 @@ and decide whether the app may suggest new folders. Starter structures and optio
 folder-structure plugins help you set up and maintain archives such as Johnny.Decimal.
 
 Privacy-first by design:
-AI File Sorter can run entirely on your device. When you use a local model, your files, filenames, images, and metadata stay on your computer, and no telemetry is sent. An internet connection is only needed if you choose to use a remote model.
+AI File Sorter can run entirely on your device. With local text and visual models, your files, filenames, images, and metadata stay on your computer, and no telemetry is sent. API connections send analysis data to the configured server; selecting an API visual backend also sends image contents there. A server on your own computer can work without public internet access.
 
 ---
 
@@ -334,6 +334,10 @@ The Gemma 3 4B IT GGUF is also available as a built-in local text/categorization
 
 Custom local GGUF models can also be used for image analysis when their custom LLM entry includes a matching MMProj file. Those entries appear in the **Visual model** selector as custom visual backends and use the files you selected instead of the built-in download controls.
 
+You can also use a vision-capable **OpenAI-compatible API connection**, including a local llama.cpp, LM Studio, or Ollama server. Add or edit the connection in **Select LLM**, check **Vision-capable model**, then expand **Downloads** and choose **Connection: &lt;name&gt;** in **Image analysis models → Visual model**. Click **OK** and enable image-content analysis in the main window. The text/categorization model and visual model are selected independently. Existing API connections require this explicit vision opt-in. Enabling **Vision-capable model** opens an **OK / Cancel** notice explaining that images will be sent to the configured server. **Cancel** leaves the option off. Saved enabled connections do not prompt again during scans.
+
+For an API visual backend, AI File Sorter sends the image contents to that connection; the server must already have a vision model and any required projector loaded. No local GGUF or MMProj download is required in AI File Sorter. Requests use `/chat/completions` with an embedded PNG image, resized to at most 1536 pixels on its longest side with orientation applied and source metadata removed. A second, text-only request creates the filename from the description. Original file extensions and the configured filename word limit are preserved. API keys are optional for servers that do not require authentication, and `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT` applies to each request (60 seconds by default).
+
 ### Required visual LLM files
 
 The **Select LLM** dialog includes an "Image analysis models" section with backend-specific downloads:
@@ -341,7 +345,7 @@ The **Select LLM** dialog includes an "Image analysis models" section with backe
 - **Visual text model (GGUF)**: The language model that produces the description and the filename suggestion.
 - **Matching `mmproj` file (GGUF)**: The multimodal projector that maps image embeddings into the model token space so the backend can accept images.
 
-Both files are required for the selected backend. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL`, `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL`, or `QWEN35_4B_MODEL_URL` / `QWEN35_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+Both files are required for a local visual backend. API visual backends use the server's model instead. If either local file is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL`, `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL`, or `QWEN35_4B_MODEL_URL` / `QWEN35_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
 
 Download sections show file size, status, and actions. Expand **See details** for a file's download URL, local path, model identifier, file type, runtime, and download URL setting. Details are collapsed by default, and long values wrap within the dialog.
 

@@ -2,6 +2,26 @@
 
 #include "LLMSelectionVisualBackendModel.hpp"
 
+TEST_CASE("Visual model selector includes only explicitly enabled valid API connections", "[http-vision]")
+{
+    CustomApiEndpoint vision{"vision", "My vision server", "", "http://localhost:1234/v1", "", "vision-model", true};
+    auto text = vision;
+    text.id = "text";
+    text.image_analysis_enabled = false;
+    auto invalid = vision;
+    invalid.model.clear();
+    const auto items = LLMSelectionVisualBackendModel::build_visual_backend_items({},
+        QStringLiteral("Recommended"), QStringLiteral("Custom: %1"), {vision, text, invalid},
+        QStringLiteral("Connection: %1"));
+    REQUIRE(items.size() == visual_model_descriptors().size() + 1);
+    CHECK(items.back().id == http_visual_model_id(vision.id));
+    CHECK(items.back().label == QStringLiteral("Connection: My vision server"));
+    CHECK(LLMSelectionVisualBackendModel::choose_visual_backend_id(items.back().id, items) == items.back().id);
+    CHECK(LLMSelectionVisualBackendModel::canonical_visual_backend_id(items.back().id) == items.back().id);
+    CHECK(LLMSelectionVisualBackendModel::selected_visual_model_descriptor(items.back().id)->architecture
+          == VisualModelArchitecture::HttpChatCompletion);
+}
+
 TEST_CASE("LLM selection visual backend model builds built-in and visual custom items")
 {
     CustomLLM text_only;

@@ -76,7 +76,7 @@ struct ImageAnalysisResult {
 };
 
 /**
- * @brief Shared configuration for local image analyzers.
+ * @brief Shared configuration for local and API image analyzers.
  */
 struct ImageAnalyzerSettings {
     /** Require an exact backend when measuring a model/backend pair. */
@@ -95,6 +95,8 @@ struct ImageAnalyzerSettings {
     bool use_gpu = true;
     /** @brief Enable verbose visual model logging. */
     bool log_visual_output = false;
+    /** @brief Optional cancellation probe for in-flight API requests. */
+    std::function<bool()> should_cancel;
     /**
      * @brief Optional callback for image batch progress.
      * @param current_batch Batch index (1-based).

@@ -6,6 +6,7 @@
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
+#include "VisualModelCatalog.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -24,6 +25,25 @@
 #include <fstream>
 #include <unordered_set>
 #include <vector>
+
+TEST_CASE("A configured vision API enables image analysis without a model download prompt", "[http-vision]")
+{
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    CustomApiEndpoint vision{"vision", "Image server", "", "http://127.0.0.1:1234/v1", "", "vision-model", true};
+    const auto id = settings.upsert_custom_api_endpoint(vision);
+    settings.set_visual_model_id(http_visual_model_id(id));
+    settings.set_analyze_images_by_content(false);
+    REQUIRE(settings.save());
+    MainApp window(settings, false);
+    auto* checkbox = MainAppTestAccess::analyze_images_checkbox(window);
+    REQUIRE(checkbox);
+    checkbox->setChecked(true);
+    CHECK(checkbox->isChecked());
+    CHECK(settings.get_analyze_images_by_content());
+}
 
 TEST_CASE("Processing documents only disables image analysis controls") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());

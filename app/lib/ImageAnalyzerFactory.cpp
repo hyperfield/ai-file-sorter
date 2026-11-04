@@ -1,4 +1,5 @@
 #include "ImageAnalyzerFactory.hpp"
+#include "HttpImageAnalyzer.hpp"
 
 #include "GgufFileValidation.hpp"
 #include "LlavaImageAnalyzer.hpp"
@@ -223,6 +224,15 @@ std::unique_ptr<ImageAnalyzer> ImageAnalyzerFactory::create(const VisualLlmRunti
     if (!backend.descriptor) {
         throw std::runtime_error("Visual backend descriptor is missing.");
     }
+    if (backend.descriptor->architecture == VisualModelArchitecture::HttpChatCompletion) {
+        if (!backend.api_endpoint) {
+            throw std::runtime_error("Visual API connection configuration is missing.");
+        }
+        if (!settings.required_backend.empty()) {
+            throw std::runtime_error("Local GPU backend tests cannot use an API connection.");
+        }
+        return std::make_unique<HttpImageAnalyzer>(*backend.api_endpoint, std::move(settings));
+    }
 
     const auto model_path =
         require_artifact_path(backend, VisualModelArtifactKind::Model, "model");
@@ -246,6 +256,8 @@ std::unique_ptr<ImageAnalyzer> ImageAnalyzerFactory::create(const VisualLlmRunti
             backend.descriptor->prompt_policy,
             std::move(settings));
     }
+    case VisualModelArchitecture::HttpChatCompletion:
+        break;
     }
 
     throw std::runtime_error("Unsupported visual model architecture.");

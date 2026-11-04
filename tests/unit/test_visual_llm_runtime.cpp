@@ -10,6 +10,24 @@
 #include <fstream>
 #include <vector>
 
+TEST_CASE("Visual runtime resolves API connections without artifacts and rejects missing or disabled connections", "[http-vision]")
+{
+    CustomApiEndpoint endpoint{"vision", "My server", "", "http://127.0.0.1:1234/v1", "", "vision-model", true};
+    const auto id = http_visual_model_id(endpoint.id);
+    std::string error;
+    const auto backend = VisualLlmRuntime::resolve_active_backend(id, {}, {endpoint}, &error);
+    REQUIRE(backend);
+    REQUIRE(backend->api_endpoint);
+    CHECK(backend->api_endpoint->model == endpoint.model);
+    CHECK(backend->artifacts.empty());
+    CHECK(error.empty());
+    CHECK_FALSE(VisualLlmRuntime::resolve_active_backend(id, {}, {}, &error));
+    CHECK(error.find("missing") != std::string::npos);
+    endpoint.image_analysis_enabled = false;
+    CHECK_FALSE(VisualLlmRuntime::resolve_active_backend(id, {}, {endpoint}, &error));
+    CHECK_FALSE(VisualLlmRuntime::resolve_active_backend(id, &error));
+}
+
 namespace {
 
 void write_gguf_file(const std::filesystem::path& path, std::size_t size = 16)

@@ -467,6 +467,26 @@
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
             <translation>Sláðu inn grunnslóð (t.d. http://localhost:1234/v1) eða fullan /chat/completions endapunkt.</translation>
         </message>
+        <message>
+            <source>Vision-capable model</source>
+            <translation>Líkan með myndskilningi</translation>
+        </message>
+        <message>
+            <source>Makes this connection available in the visual model selector. Image contents are sent to the selected server.</source>
+            <translation>Gerir þessa tengingu tiltæka í vali á myndlíkani. Innihald mynda er sent á valinn þjón.</translation>
+        </message>
+        <message>
+            <source>Send images to server?</source>
+            <translation>Senda myndir á þjóninn?</translation>
+        </message>
+        <message>
+            <source>When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.
+
+Click OK to enable this setting or Cancel to leave it disabled.</source>
+            <translation>Þegar þessi tenging er valin fyrir myndgreiningu verða skönnuðu myndirnar sendar á stilltan API-þjón til vinnslu.
+
+Smelltu á Í lagi til að virkja þessa stillingu eða Hætta við til að hafa hana áfram óvirka.</translation>
+        </message>
     </context>
     <context>
         <name>CustomLLMDialog</name>
@@ -1158,11 +1178,6 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <translation>Myndgreiningarlíkön</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="619"></location>
-            <source>Download the visual LLM files required for image analysis.</source>
-            <translation>Sæktu sjónrænu LLM skrárnar sem þarf til myndgreiningar.</translation>
-        </message>
-        <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="627"></location>
             <source>Visual model</source>
             <translation>Sjónræn líkan</translation>
@@ -1403,6 +1418,14 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1563"></location>
             <source>Custom: %1</source>
             <translation>Sérsniðið: %1</translation>
+        </message>
+        <message>
+            <source>Connection: %1</source>
+            <translation>Tenging: %1</translation>
+        </message>
+        <message>
+            <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
+            <translation>Veldu sótt myndlíkan eða API-tengingu með myndstuðningi. Virkjaðu myndstuðning þegar þú bætir við eða breytir sérsniðinni API-tengingu.</translation>
         </message>
     </context>
     <context>

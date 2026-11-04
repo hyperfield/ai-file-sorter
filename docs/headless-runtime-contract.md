@@ -9,6 +9,15 @@ The schemas describe recommended producer payloads. Individual settings are opti
 the parser tolerates invalid individual values as described below. Additional properties
 allow compatible evolution. Applying a review always runs the app's validation again.
 
+Image analysis also honors persisted custom API visual selections. Enable
+`ImageAnalysisEnabled=true` in `[CustomApi_<id>]` and select
+`VisualModelId=http-vision:<id>` in `[Settings]`, or configure these through the
+GUI's vision-capable connection and visual model controls. Text and visual
+connections are independent. The API backend needs no app-local GGUF or projector;
+the configured server receives image contents through chat completions. Headless
+cancellation can interrupt an active image API request. Existing settings-override,
+review-plan and status JSON formats are unchanged.
+
 ## Reproducible Local Inference
 
 Optional, per-process controls apply to native local text inference without

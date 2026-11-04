@@ -467,6 +467,26 @@
             <source>Enter a base URL (e.g. http://localhost:1234/v1) or a full /chat/completions endpoint.</source>
             <translation>Introduce una URL base (p. ej. http://localhost:1234/v1) o un endpoint completo de /chat/completions.</translation>
         </message>
+        <message>
+            <source>Vision-capable model</source>
+            <translation>Modelo con capacidad de visión</translation>
+        </message>
+        <message>
+            <source>Makes this connection available in the visual model selector. Image contents are sent to the selected server.</source>
+            <translation>Permite seleccionar esta conexión como modelo visual. El contenido de las imágenes se envía al servidor seleccionado.</translation>
+        </message>
+        <message>
+            <source>Send images to server?</source>
+            <translation>¿Enviar imágenes al servidor?</translation>
+        </message>
+        <message>
+            <source>When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.
+
+Click OK to enable this setting or Cancel to leave it disabled.</source>
+            <translation>Cuando se seleccione esta conexión para analizar imágenes, las imágenes escaneadas se enviarán al servidor API configurado para su procesamiento.
+
+Haga clic en Aceptar para activar esta opción o en Cancelar para dejarla desactivada.</translation>
+        </message>
     </context>
     <context>
         <name>CustomLLMDialog</name>
@@ -1158,11 +1178,6 @@ Compatible con: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <translation>Modelos de análisis de imágenes</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="619"></location>
-            <source>Download the visual LLM files required for image analysis.</source>
-            <translation>Descarga los archivos LLM visuales necesarios para el análisis de imágenes.</translation>
-        </message>
-        <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="627"></location>
             <source>Visual model</source>
             <translation>Modelo visual</translation>
@@ -1403,6 +1418,14 @@ Compatible con: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1563"></location>
             <source>Custom: %1</source>
             <translation>Personalizado: %1</translation>
+        </message>
+        <message>
+            <source>Connection: %1</source>
+            <translation>Conexión: %1</translation>
+        </message>
+        <message>
+            <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
+            <translation>Elija un modelo visual descargado o una conexión API con capacidad de visión. Active la compatibilidad con imágenes al añadir o editar una conexión API personalizada.</translation>
         </message>
     </context>
     <context>

@@ -45,6 +45,11 @@ private:
      */
     void wire_signals();
     /**
+     * @brief Explain image uploads when the user enables vision support.
+     * @return True when OK is chosen, false when the setting should remain disabled.
+     */
+    bool confirm_image_upload();
+    /**
      * @brief Apply existing values to the input fields.
      * @param existing Existing custom API values to load.
      */
@@ -60,6 +65,7 @@ private:
     QLineEdit* model_edit{nullptr};
     QLineEdit* api_key_edit{nullptr};
     QCheckBox* show_api_key_checkbox{nullptr};
+    QCheckBox* image_analysis_checkbox{nullptr};
     QPushButton* ok_button{nullptr};
 };
 

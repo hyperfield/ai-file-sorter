@@ -452,6 +452,7 @@ void LLMSelectionDialog::setup_ui()
     layout->addWidget(llm_source_tabs);
 
     download_toggle_button = new QToolButton(this);
+    download_toggle_button->setObjectName(QStringLiteral("modelDownloadsToggle"));
     download_toggle_button->setText(tr("Downloads"));
     download_toggle_button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     download_toggle_button->setArrowType(Qt::RightArrow);
@@ -542,7 +543,7 @@ void LLMSelectionDialog::setup_ui()
 
     visual_llm_download_section = new QGroupBox(tr("Image analysis models"), downloads_container);
     auto* visual_layout = new QVBoxLayout(visual_llm_download_section);
-    auto* visual_hint = new QLabel(tr("Download the visual LLM files required for image analysis."), visual_llm_download_section);
+    auto* visual_hint = new QLabel(tr("Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection."), visual_llm_download_section);
     visual_hint->setWordWrap(true);
     visual_layout->addWidget(visual_hint);
 
@@ -794,7 +795,7 @@ std::string LLMSelectionDialog::get_llm_storage_dir() const
 
 std::string LLMSelectionDialog::get_selected_visual_model_id() const
 {
-    if (is_custom_visual_model_id(selected_visual_model_id_)) {
+    if (is_custom_visual_model_id(selected_visual_model_id_) || is_http_visual_model_id(selected_visual_model_id_)) {
         return selected_visual_model_id_;
     }
     if (const auto* descriptor = selected_visual_model_descriptor()) {
@@ -905,7 +906,7 @@ void LLMSelectionDialog::update_custom_choice_ui()
     const bool is_remote_gemini = selected_choice == LLMChoice::Remote_Gemini;
     const bool is_remote_custom = selected_choice == LLMChoice::Remote_Custom;
     const bool is_custom = selected_choice == LLMChoice::Custom;
-    const bool show_model_sections = is_local_builtin || is_custom;
+    const bool show_model_sections = is_local_builtin || is_custom || is_remote_choice(selected_choice);
     if (download_toggle_button) {
         download_toggle_button->setVisible(show_model_sections);
     }
@@ -1425,6 +1426,7 @@ void LLMSelectionDialog::handle_add_custom_api()
     CustomApiEndpoint entry = editor.result();
     selected_custom_api_id = settings.upsert_custom_api_endpoint(entry);
     refresh_custom_api_lists();
+    refresh_visual_backend_combo();
     select_custom_api_by_id(selected_custom_api_id);
     select_llm_choice(LLMChoice::Remote_Custom);
     update_ui_for_choice();
@@ -1474,6 +1476,7 @@ void LLMSelectionDialog::handle_edit_custom_api()
     updated.id = entry.id;
     selected_custom_api_id = settings.upsert_custom_api_endpoint(updated);
     refresh_custom_api_lists();
+    refresh_visual_backend_combo();
     select_custom_api_by_id(selected_custom_api_id);
     select_llm_choice(LLMChoice::Remote_Custom);
     update_ui_for_choice();
@@ -1521,6 +1524,7 @@ void LLMSelectionDialog::handle_delete_custom_api()
         selected_custom_api_id.clear();
     }
     refresh_custom_api_lists();
+    refresh_visual_backend_combo();
     update_ui_for_choice();
 }
 
@@ -1559,7 +1563,9 @@ void LLMSelectionDialog::refresh_visual_backend_combo()
     const auto items = LLMSelectionVisualBackendModel::build_visual_backend_items(
         settings.get_custom_llms(),
         tr("Recommended"),
-        tr("Custom: %1"));
+        tr("Custom: %1"),
+        settings.get_custom_api_endpoints(),
+        tr("Connection: %1"));
     const std::string target_id =
         LLMSelectionVisualBackendModel::choose_visual_backend_id(previous_id, items);
 

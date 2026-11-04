@@ -1,4 +1,5 @@
 #include "LlavaImageAnalyzer.hpp"
+#include "ImageFilenamePolicy.hpp"
 #include "ContentAnalysisUnavailable.hpp"
 
 #include "ImageDecodeUtils.hpp"
@@ -72,7 +73,6 @@ MTMD_API void mtmd_helper_log_set(ggml_log_callback log_callback, void* user_dat
 #endif
 
 namespace {
-constexpr size_t kMaxFilenameLength = 50;
 constexpr int32_t kDefaultVisualCpuBatchSize = 512;
 constexpr int32_t kDefaultVisualGpuBatchSize = 512;
 constexpr int32_t kDefaultMetalVisualBatchSize = 1024;
@@ -354,40 +354,11 @@ std::string trim_copy(const std::string& value) {
     return result;
 }
 
-QString sanitize_utf8_text(const std::string& value) {
-    QString cleaned = QString::fromUtf8(value.c_str());
-    cleaned.remove(QChar::ReplacementCharacter);
-    return cleaned.normalized(QString::NormalizationForm_C);
-}
 
 double elapsed_ms(const std::chrono::steady_clock::time_point start,
                   const std::chrono::steady_clock::time_point end) {
     return std::chrono::duration<double, std::milli>(end - start).count();
 }
-
-std::vector<std::string> split_words(const QString& value) {
-    std::vector<std::string> words;
-    QString current;
-    for (const QChar ch : value) {
-        if (ch.isLetterOrNumber()) {
-            current.append(ch.toLower());
-        } else if (!current.isEmpty()) {
-            words.emplace_back(current.toUtf8().toStdString());
-            current.clear();
-        }
-    }
-    if (!current.isEmpty()) {
-        words.emplace_back(current.toUtf8().toStdString());
-    }
-    return words;
-}
-
-const std::unordered_set<std::string> kStopwords = {
-    "a", "an", "and", "are", "as", "at", "based", "be", "by", "category", "describes",
-    "description", "depicts", "details", "document", "file", "filename", "for", "from",
-    "gif", "has", "image", "in", "is", "it", "jpeg", "jpg", "of", "on", "only",
-    "photo", "picture", "png", "shows", "the", "this", "to", "txt", "unknown", "webp", "with"
-};
 
 bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     if (needle.empty()) {
@@ -1361,7 +1332,7 @@ std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view des
 }
 
 std::string sanitize_filename(const std::string& value, size_t max_words) {
-    return LlavaImageAnalyzer::sanitize_filename(value, max_words, kMaxFilenameLength);
+    return LlavaImageAnalyzer::sanitize_filename(value, max_words, ImageFilenamePolicy::kMaxFilenameLength);
 }
 
 bool can_transcode_webp_for_visual_analysis(const std::filesystem::path& path) {
@@ -1719,9 +1690,9 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
     if (logger) {
         logger->info("Visual raw filename: {}", raw_filename);
     }
-    std::string filename_base = sanitize_filename(raw_filename, settings_.max_filename_words, kMaxFilenameLength);
+    std::string filename_base = sanitize_filename(raw_filename, settings_.max_filename_words, ImageFilenamePolicy::kMaxFilenameLength);
     if (filename_base.empty()) {
-        filename_base = sanitize_filename(description, settings_.max_filename_words, kMaxFilenameLength);
+        filename_base = sanitize_filename(description, settings_.max_filename_words, ImageFilenamePolicy::kMaxFilenameLength);
     }
     if (filename_base.empty()) {
         filename_base = "image_" + slugify(Utils::path_to_utf8(image_path.stem()));
@@ -1973,66 +1944,7 @@ std::string LlavaImageAnalyzer::infer_text(void* bitmap,
 std::string LlavaImageAnalyzer::sanitize_filename(const std::string& value,
                                                   size_t max_words,
                                                   size_t max_length) {
-    QString cleaned = sanitize_utf8_text(value).trimmed();
-    const QString prefix = QStringLiteral("filename:");
-    if (cleaned.startsWith(prefix, Qt::CaseInsensitive)) {
-        cleaned = cleaned.mid(prefix.size()).trimmed();
-    }
-    const int newline = cleaned.indexOf('\n');
-    if (newline != -1) {
-        cleaned = cleaned.left(newline);
-    }
-    const int carriage = cleaned.indexOf('\r');
-    if (carriage != -1) {
-        cleaned = cleaned.left(carriage);
-    }
-    if (cleaned.size() >= 2) {
-        const QChar first = cleaned.front();
-        const QChar last = cleaned.back();
-        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-            cleaned = cleaned.mid(1, cleaned.size() - 2);
-        }
-    }
-
-    auto words = split_words(cleaned);
-    std::vector<std::string> filtered;
-    filtered.reserve(words.size());
-    std::unordered_set<std::string> seen;
-    for (const auto& word : words) {
-        if (word.empty()) {
-            continue;
-        }
-        if (kStopwords.find(word) != kStopwords.end()) {
-            continue;
-        }
-        if (seen.insert(word).second) {
-            filtered.push_back(word);
-        }
-        if (filtered.size() >= max_words) {
-            break;
-        }
-    }
-
-    if (filtered.empty()) {
-        return std::string();
-    }
-
-    QString joined;
-    for (size_t i = 0; i < filtered.size(); ++i) {
-        if (i > 0) {
-            joined.append('_');
-        }
-        joined.append(QString::fromUtf8(filtered[i].c_str()));
-    }
-
-    if (joined.size() > static_cast<int>(max_length)) {
-        joined = joined.left(static_cast<int>(max_length));
-    }
-    while (!joined.isEmpty() && joined.endsWith('_')) {
-        joined.chop(1);
-    }
-
-    return joined.toUtf8().toStdString();
+    return ImageFilenamePolicy::sanitize_filename(value, max_words, max_length);
 }
 
 std::string LlavaImageAnalyzer::trim(std::string value) {
@@ -2040,33 +1952,10 @@ std::string LlavaImageAnalyzer::trim(std::string value) {
 }
 
 std::string LlavaImageAnalyzer::slugify(const std::string& value) {
-    const QString input = sanitize_utf8_text(value);
-    QString slug;
-    slug.reserve(input.size());
-    bool last_sep = false;
-    for (const QChar ch : input) {
-        if (ch.isLetterOrNumber()) {
-            slug.append(ch.toLower());
-            last_sep = false;
-        } else if (!last_sep && !slug.isEmpty()) {
-            slug.append('_');
-            last_sep = true;
-        }
-    }
-    if (!slug.isEmpty() && slug.endsWith('_')) {
-        slug.chop(1);
-    }
-    if (slug.isEmpty()) {
-        slug = QStringLiteral("item");
-    }
-    return slug.toUtf8().toStdString();
+    return ImageFilenamePolicy::slugify(value);
 }
 
 std::string LlavaImageAnalyzer::normalize_filename(const std::string& base,
                                                    const std::filesystem::path& original_path) {
-    const std::string ext = Utils::path_to_utf8(original_path.extension());
-    if (base.empty()) {
-        return Utils::path_to_utf8(original_path.filename());
-    }
-    return ext.empty() ? base : base + ext;
+    return ImageFilenamePolicy::normalize_filename(base, original_path);
 }

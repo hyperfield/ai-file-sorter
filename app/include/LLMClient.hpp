@@ -2,6 +2,7 @@
 #define LLMCLIENT_HPP
 
 #include "ILLMClient.hpp"
+#include "ChatCompletionTransport.hpp"
 #include <Types.hpp>
 #include <string>
 
@@ -24,7 +25,7 @@ private:
 #ifdef AI_FILE_SORTER_TEST_BUILD
     friend struct APICompletionTestAccess;
 #endif
-    std::string api_key;
+    ChatCompletionTransport transport_;
     std::string send_api_request(std::string json_payload);
     std::string make_payload(const std::string &file_name,
                              const std::string &file_path,
@@ -34,14 +35,9 @@ private:
                                      const std::string& user_prompt,
                                      int max_tokens) const;
     std::string effective_model() const;
-    /**
-     * @brief Resolve the final /chat/completions URL from the base URL or default.
-     */
-    std::string resolve_api_url() const;
     bool prompt_logging_enabled{false};
     std::string last_prompt;
     std::string model;
-    std::string base_url;
 };
 
 #endif

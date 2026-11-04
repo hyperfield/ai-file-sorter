@@ -10,6 +10,7 @@ namespace {
 
 constexpr std::string_view kLegacyDefaultLlavaBackendId = "llava-v1.6-mistral-7b";
 constexpr std::string_view kCustomVisualModelIdPrefix = "custom:";
+constexpr std::string_view kHttpVisualPrefix = "http-vision:";
 
 std::optional<std::string> read_cached_download_url(const std::filesystem::path& candidate)
 {
@@ -256,4 +257,31 @@ std::optional<std::filesystem::path> resolve_visual_artifact_path(
     }
 
     return std::nullopt;
+}
+
+const VisualModelDescriptor& http_visual_model_descriptor()
+{
+    static const VisualModelDescriptor descriptor{
+        "http-vision", "OpenAI-compatible vision API", VisualModelArchitecture::HttpChatCompletion,
+        VisualPromptPolicy::StructuredVisionInstruct, {}};
+    return descriptor;
+}
+
+std::string http_visual_model_id(std::string_view endpoint_id)
+{
+    return endpoint_id.empty() ? std::string() : std::string(kHttpVisualPrefix) + std::string(endpoint_id);
+}
+
+std::optional<std::string> http_endpoint_id_from_visual_model_id(std::string_view visual_model_id)
+{
+    if (visual_model_id.size() <= kHttpVisualPrefix.size() ||
+        visual_model_id.substr(0, kHttpVisualPrefix.size()) != kHttpVisualPrefix) {
+        return std::nullopt;
+    }
+    return std::string(visual_model_id.substr(kHttpVisualPrefix.size()));
+}
+
+bool is_http_visual_model_id(std::string_view visual_model_id)
+{
+    return http_endpoint_id_from_visual_model_id(visual_model_id).has_value();
 }
