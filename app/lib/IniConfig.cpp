@@ -1,6 +1,9 @@
 #include "IniConfig.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <utility>
@@ -15,6 +18,17 @@ void ini_log(spdlog::level::level_enum level, const char* fmt, Args&&... args) {
         logger->log(level, "{}", message);
     } else {
         std::fprintf(stderr, "%s\n", message.c_str());
+    }
+}
+
+// Config paths are UTF-8; opening a stream from a narrow std::string on Windows
+// would reinterpret them in the ANSI code page and fail for non-ASCII profiles.
+std::filesystem::path ini_path_from_utf8(const std::string& filename)
+{
+    try {
+        return Utils::utf8_to_path(filename);
+    } catch (const std::exception&) {
+        return std::filesystem::path(filename);
     }
 }
 
@@ -59,7 +73,7 @@ std::optional<std::pair<std::string, std::string>> parse_key_value(const std::st
 
 
 bool IniConfig::load(const std::string &filename) {
-    std::ifstream file(filename);
+    std::ifstream file(ini_path_from_utf8(filename));
     if (!file.is_open()) {
         ini_log(spdlog::level::err, "Failed to open config file: {}", filename);
         return false;
@@ -102,8 +116,8 @@ void IniConfig::setValue(const std::string &section, const std::string &key, con
 
 bool IniConfig::save(const std::string &filename) const
 {
-    std::ofstream file(filename);
-    
+    std::ofstream file(ini_path_from_utf8(filename));
+
     if (!file.is_open()) {
         ini_log(spdlog::level::err, "Failed to open config file: {}", filename);
         return false;

@@ -15,6 +15,9 @@
 
 #include <sqlite3.h>
 
+#include <QChar>
+#include <QString>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -914,7 +917,7 @@ bool ImageRenameMetadataService::open_cache_db()
     }
 
     const auto db_path = config_path / "image_place_cache.db";
-    if (sqlite3_open(db_path.string().c_str(), &cache_db_) != SQLITE_OK) {
+    if (sqlite3_open(Utils::path_to_utf8(db_path).c_str(), &cache_db_) != SQLITE_OK) {
         if (cache_db_) {
             sqlite3_close(cache_db_);
             cache_db_ = nullptr;
@@ -1239,28 +1242,31 @@ std::string ImageRenameMetadataService::apply_prefix_to_filename(
 
 std::string ImageRenameMetadataService::slugify(const std::string& value)
 {
-    std::string output;
-    output.reserve(value.size());
+    // Unicode-aware: keep Cyrillic/CJK/etc. letters (e.g. place "Москва" -> "москва")
+    // instead of dropping every non-ASCII byte.
+    const QString input = QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
+    QString slug;
+    slug.reserve(input.size());
 
     bool last_sep = true;
-    for (unsigned char ch : value) {
-        if (std::isalnum(ch)) {
-            output.push_back(static_cast<char>(std::tolower(ch)));
+    for (const QChar ch : input) {
+        if (ch.isLetterOrNumber()) {
+            slug.append(ch.toLower());
             last_sep = false;
             continue;
         }
 
-        if (!last_sep && !output.empty()) {
-            output.push_back('_');
+        if (!last_sep && !slug.isEmpty()) {
+            slug.append(QLatin1Char('_'));
             last_sep = true;
         }
     }
 
-    while (!output.empty() && output.back() == '_') {
-        output.pop_back();
+    while (!slug.isEmpty() && slug.endsWith(QLatin1Char('_'))) {
+        slug.chop(1);
     }
 
-    return output;
+    return slug.toUtf8().toStdString();
 }
 
 std::optional<std::string> ImageRenameMetadataService::normalize_exif_date(const std::string& value)

@@ -1,4 +1,5 @@
 #include "StoragePluginManager.hpp"
+#include "Utils.hpp"
 #include "StoragePluginArchiveExtractor.hpp"
 
 #include <QCoreApplication>
@@ -581,7 +582,7 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
 
     const auto staging_root =
         std::filesystem::path(config_dir_) / "plugins" / "storage" / "staging";
-    QDir staging_dir(QString::fromStdString(staging_root.string()));
+    QDir staging_dir(QString::fromStdString(Utils::path_to_utf8(staging_root)));
     if (!staging_dir.exists() && !staging_dir.mkpath(QStringLiteral("."))) {
         if (error) {
             *error = "Failed to create plugin staging directory.";
@@ -589,7 +590,7 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
         return false;
     }
 
-    QTemporaryDir temp_dir(QString::fromStdString((staging_root / "archive-XXXXXX").string()));
+    QTemporaryDir temp_dir(QString::fromStdString(Utils::path_to_utf8((staging_root / "archive-XXXXXX"))));
     if (!temp_dir.isValid()) {
         if (error) {
             *error = "Failed to create a temporary plugin extraction directory.";

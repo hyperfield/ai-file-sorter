@@ -730,8 +730,16 @@ int run_application(const ParsedArguments& parsed_args)
     ensure_windows_ggml_backend_env();
 #endif
     setlocale(LC_ALL, "");
+    // Keep character classification and number formatting locale-independent.
+    // All text in the app is UTF-8; with a legacy user locale (e.g. Russian/CP1251)
+    // byte-wise std::tolower/std::isalpha would rewrite UTF-8 lead bytes of
+    // Cyrillic letters (0xD0/0xD1 are "Р"/"С" in CP1251) and corrupt names, and
+    // LC_NUMERIC would switch the decimal separator to ',' breaking std::stod etc.
+    setlocale(LC_CTYPE, "C");
+    setlocale(LC_NUMERIC, "C");
     const std::string locale_path = Utils::get_executable_path() + "/locale";
     bindtextdomain("dev.hfstudio.AIFileSorter", locale_path.c_str());
+    bind_textdomain_codeset("dev.hfstudio.AIFileSorter", "UTF-8");
 
     const QString display_name = app_display_name();
     QCoreApplication::setApplicationName(display_name);

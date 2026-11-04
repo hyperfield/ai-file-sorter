@@ -26,13 +26,14 @@ struct QuickStartLanguageSuffix {
     const char* suffix;
 };
 
-constexpr std::array<QuickStartLanguageSuffix, 14> kQuickStartLanguageSuffixes{{
+constexpr std::array<QuickStartLanguageSuffix, 15> kQuickStartLanguageSuffixes{{
     {Language::Dutch, "_nl"},
     {Language::Swedish, "_sv"},
     {Language::Icelandic, "_is"},
     {Language::Norwegian, "_nb"},
     {Language::Finnish, "_fi"},
     {Language::Danish, "_da"},
+    {Language::Russian, "_ru"},
     {Language::French, "_fr"},
     {Language::German, "_de"},
     {Language::Hindi, "_hi"},

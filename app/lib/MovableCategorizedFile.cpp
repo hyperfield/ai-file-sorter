@@ -77,7 +77,7 @@ bool validate_labels(const std::string& category,
         error = "Category or subcategory is empty";
         return false;
     }
-    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+    if (Utils::utf8_length(category) > kMaxLabelLength || Utils::utf8_length(subcategory) > kMaxLabelLength) {
         error = "Category or subcategory exceeds max length";
         return false;
     }

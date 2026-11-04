@@ -184,7 +184,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Audio/video metadata filename suggestions**: Turn embedded media tags into clean, library-style filenames for supported audio and video files, with full review before anything is renamed.
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
-- **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Simplified Chinese, Spanish, Swedish, and Turkish.
+- **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Russian, Simplified Chinese, Spanish, Swedish, and Turkish.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
 - **Local Database Caching**: Speeds up repeated categorization, preserves approved labels and rename suggestions, and provides recent-category hints for consistency.
 - **Local learning from approved reviews**: Approved category decisions can be stored locally and reused as hints for future runs without modifying the underlying model.

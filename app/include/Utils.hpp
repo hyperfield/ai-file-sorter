@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <cstddef>
 #include <filesystem>
@@ -61,6 +62,21 @@ public:
     static std::filesystem::path ensure_ca_bundle();
     static std::string path_to_utf8(const std::filesystem::path& path);
     static std::filesystem::path utf8_to_path(const std::string& utf8_path);
+    /**
+     * @brief Read an environment variable as UTF-8 regardless of the process ANSI code page.
+     * @param name ASCII variable name.
+     * @return The UTF-8 value, or std::nullopt when the variable is unset or empty.
+     *
+     * On Windows std::getenv returns text in the ANSI code page (e.g. CP1251), which breaks
+     * non-ASCII user profile paths such as C:\Users\Иван. This reads the wide value instead.
+     */
+    static std::optional<std::string> getenv_utf8(const char* name);
+    /**
+     * @brief Count Unicode code points in a UTF-8 string (not bytes).
+     *
+     * Use for user-visible length limits: a Cyrillic letter is 2 bytes in UTF-8.
+     */
+    static std::size_t utf8_length(std::string_view utf8);
     static std::string sanitize_path_label(const std::string& value);
 
 private:

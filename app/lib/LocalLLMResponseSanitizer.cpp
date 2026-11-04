@@ -92,7 +92,7 @@ std::string strip_trailing_parenthetical_gloss(std::string value) {
         }
 
         const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
-            return std::isalpha(ch);
+            return ch >= 0x80 || std::isalpha(ch); // UTF-8 multibyte => non-Latin letter (Cyrillic, CJK, ...)
         });
         if (!has_alpha_chars) {
             break;
@@ -277,7 +277,7 @@ std::string normalize_candidate_label(std::string value, bool category_label) {
 
 bool has_alpha(std::string_view value) {
     return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
+        return ch >= 0x80 || std::isalpha(ch); // UTF-8 multibyte => non-Latin letter (Cyrillic, CJK, ...)
     });
 }
 
@@ -435,12 +435,12 @@ std::string sanitize_categorization_output(std::string output) {
     std::string subcategory;
     for (auto it = lines.rbegin(); it != lines.rend(); ++it) {
         if (subcategory.empty()) {
-            if (auto value = extract_labeled_value(*it, {"subcategory", "sub category"}, false)) {
+            if (auto value = extract_labeled_value(*it, {"subcategory", "sub category", "подкатегория", "Подкатегория"}, false)) {
                 subcategory = std::move(*value);
             }
         }
         if (category.empty()) {
-            if (auto value = extract_labeled_value(*it, {"category", "main category"}, true)) {
+            if (auto value = extract_labeled_value(*it, {"category", "main category", "категория", "Категория", "основная категория", "Основная категория"}, true)) {
                 category = std::move(*value);
             }
         }

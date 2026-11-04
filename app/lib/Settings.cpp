@@ -20,7 +20,12 @@
 #include <random>
 #ifdef _WIN32
     #include <shlobj.h>
+    #include <knownfolders.h>
     #include <windows.h>
+    #if defined(_MSC_VER)
+        #pragma comment(lib, "shell32.lib")
+        #pragma comment(lib, "ole32.lib")
+    #endif
 #endif
 
 
@@ -373,6 +378,7 @@ Language system_default_language()
             }
             return Language::English;
         case QLocale::Danish: return Language::Danish;
+        case QLocale::Russian: return Language::Russian;
         case QLocale::Finnish: return Language::Finnish;
         case QLocale::French: return Language::French;
         case QLocale::German: return Language::German;
@@ -428,7 +434,7 @@ Settings::Settings()
     std::string AppName = "AIFileSorter";
     config_path = define_config_path();
 
-    config_dir = std::filesystem::path(config_path).parent_path();
+    config_dir = Utils::utf8_to_path(config_path).parent_path();
 
     try {
         if (!std::filesystem::exists(config_dir)) {
@@ -788,19 +794,31 @@ void Settings::save_custom_api_endpoints()
 std::string Settings::define_config_path()
 {
     std::string AppName = "AIFileSorter";
-    if (const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR")) {
-        std::filesystem::path base = override_root;
-        return (base / AppName / "config.ini").string();
+    // All paths are kept as UTF-8 std::string; never use ANSI (…A) Win32 APIs or
+    // std::getenv for user paths, because profile folders may contain Cyrillic etc.
+    if (const auto override_root = Utils::getenv_utf8("AI_FILE_SORTER_CONFIG_DIR")) {
+        const std::filesystem::path base = Utils::utf8_to_path(*override_root);
+        return Utils::path_to_utf8(base / AppName / "config.ini");
     }
 #ifdef _WIN32
-    char appDataPath[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
-        return std::string(appDataPath) + "\\" + AppName + "\\config.ini";
+    PWSTR app_data_path = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, nullptr, &app_data_path))
+        && app_data_path) {
+        const std::filesystem::path base(app_data_path);
+        CoTaskMemFree(app_data_path);
+        return Utils::path_to_utf8(base / AppName / "config.ini");
+    }
+    if (app_data_path) {
+        CoTaskMemFree(app_data_path);
     }
 #elif defined(__APPLE__)
-    return std::string(getenv("HOME")) + "/Library/Application Support/" + AppName + "/config.ini";
+    if (const auto home = Utils::getenv_utf8("HOME")) {
+        return *home + "/Library/Application Support/" + AppName + "/config.ini";
+    }
 #else
-    return std::string(getenv("HOME")) + "/.config/" + AppName + "/config.ini";
+    if (const auto home = Utils::getenv_utf8("HOME")) {
+        return *home + "/.config/" + AppName + "/config.ini";
+    }
 #endif
     return "config.ini";
 }
@@ -808,7 +826,7 @@ std::string Settings::define_config_path()
 
 std::string Settings::get_config_dir()
 {
-    return config_dir.string();
+    return Utils::path_to_utf8(config_dir);
 }
 
 

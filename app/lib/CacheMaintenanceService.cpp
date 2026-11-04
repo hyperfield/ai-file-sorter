@@ -1,6 +1,7 @@
 #include "CacheMaintenanceService.hpp"
 
 #include "Logger.hpp"
+#include "Utils.hpp"
 
 #include <array>
 #include <cstdio>
@@ -21,17 +22,17 @@ std::filesystem::path categorization_cache_path_for_config_dir(const std::string
 {
     const char* cache_file = std::getenv("CATEGORIZATION_CACHE_FILE");
     const char* file_name = (cache_file && *cache_file) ? cache_file : "categorization_results.db";
-    return std::filesystem::path(config_dir) / file_name;
+    return Utils::utf8_to_path(config_dir) / Utils::utf8_to_path(file_name);
 }
 
 std::filesystem::path image_location_cache_path_for_config_dir(const std::string& config_dir)
 {
-    return std::filesystem::path(config_dir) / "image_place_cache.db";
+    return Utils::utf8_to_path(config_dir) / "image_place_cache.db";
 }
 
 bool is_known_log_filename(const std::filesystem::path& path)
 {
-    const auto filename = path.filename().string();
+    const auto filename = Utils::path_to_utf8(path.filename());
     for (const char* known : kKnownLogFiles) {
         if (filename == known) {
             return true;
@@ -194,7 +195,7 @@ std::uintmax_t CacheMaintenanceService::compute_sqlite_cache_size(
     }
 
     sqlite3* db = nullptr;
-    if (sqlite3_open_v2(path.string().c_str(), &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK) {
+    if (sqlite3_open_v2(Utils::path_to_utf8(path).c_str(), &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK) {
         if (db) {
             sqlite3_close(db);
         }
@@ -232,7 +233,7 @@ bool CacheMaintenanceService::remove_file_cache(const std::filesystem::path& pat
     }
     if (ec) {
         if (error) {
-            *error = "Failed to inspect cache path '" + path.string() + "'.";
+            *error = "Failed to inspect cache path '" + Utils::path_to_utf8(path) + "'.";
         }
         return false;
     }
@@ -240,7 +241,7 @@ bool CacheMaintenanceService::remove_file_cache(const std::filesystem::path& pat
     const bool removed = std::filesystem::remove(path, ec);
     if (ec || !removed) {
         if (error) {
-            *error = "Failed to remove cache file '" + path.string() + "'.";
+            *error = "Failed to remove cache file '" + Utils::path_to_utf8(path) + "'.";
         }
         return false;
     }
@@ -262,7 +263,7 @@ bool CacheMaintenanceService::clear_directory_cache(const std::filesystem::path&
     }
     if (ec) {
         if (error) {
-            *error = "Failed to inspect cache path '" + path.string() + "'.";
+            *error = "Failed to inspect cache path '" + Utils::path_to_utf8(path) + "'.";
         }
         return false;
     }
@@ -270,7 +271,7 @@ bool CacheMaintenanceService::clear_directory_cache(const std::filesystem::path&
     for (const auto& entry : std::filesystem::directory_iterator(path, ec)) {
         if (ec) {
             if (error) {
-                *error = "Failed to enumerate cache directory '" + path.string() + "'.";
+                *error = "Failed to enumerate cache directory '" + Utils::path_to_utf8(path) + "'.";
             }
             return false;
         }
@@ -289,7 +290,7 @@ bool CacheMaintenanceService::clear_directory_cache(const std::filesystem::path&
 
         if (ec) {
             if (error) {
-                *error = "Failed to clear cache entry '" + entry_path.string() + "'.";
+                *error = "Failed to clear cache entry '" + Utils::path_to_utf8(entry_path) + "'.";
             }
             return false;
         }

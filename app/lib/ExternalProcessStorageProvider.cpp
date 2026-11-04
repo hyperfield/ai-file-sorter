@@ -1,4 +1,5 @@
 #include "ExternalProcessStorageProvider.hpp"
+#include "Utils.hpp"
 
 #include <QCoreApplication>
 #include <QJsonArray>
@@ -18,14 +19,14 @@ QString path_to_program(const StoragePluginManifest& manifest)
 {
     const std::filesystem::path entry_path(manifest.entry_point);
     if (entry_path.is_absolute()) {
-        return QString::fromStdString(entry_path.string());
+        return QString::fromStdString(Utils::path_to_utf8(entry_path));
     }
 
     if (!manifest.source_path.empty()) {
         const auto relative_candidate = manifest.source_path.parent_path() / entry_path;
         std::error_code ec;
         if (std::filesystem::exists(relative_candidate, ec) && !ec) {
-            return QString::fromStdString(relative_candidate.string());
+            return QString::fromStdString(Utils::path_to_utf8(relative_candidate));
         }
     }
 
@@ -35,7 +36,7 @@ QString path_to_program(const StoragePluginManifest& manifest)
             std::filesystem::path(app_dir.toStdString()) / entry_path;
         std::error_code ec;
         if (std::filesystem::exists(app_candidate, ec) && !ec) {
-            return QString::fromStdString(app_candidate.string());
+            return QString::fromStdString(Utils::path_to_utf8(app_candidate));
         }
     }
 
@@ -89,7 +90,7 @@ bool invoke_process(const StoragePluginManifest& manifest,
     QProcess process;
     process.setProcessEnvironment(plugin_process_environment());
     if (!manifest.source_path.empty()) {
-        process.setWorkingDirectory(QString::fromStdString(manifest.source_path.parent_path().string()));
+        process.setWorkingDirectory(QString::fromStdString(Utils::path_to_utf8(manifest.source_path.parent_path())));
     }
 
     process.start(program, {});

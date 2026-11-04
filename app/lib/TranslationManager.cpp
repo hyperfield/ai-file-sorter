@@ -28,6 +28,7 @@ std::vector<LanguageInfo> build_languages()
         {Language::Spanish, QStringLiteral("es"), QStringLiteral("Spanish"), QStringLiteral(":/i18n/aifilesorter_es.qm")},
         {Language::Turkish, QStringLiteral("tr"), QStringLiteral("Turkish"), QStringLiteral(":/i18n/aifilesorter_tr.qm")},
         {Language::Korean, QStringLiteral("ko"), QStringLiteral("Korean"), QStringLiteral(":/i18n/aifilesorter_ko.qm")},
+        {Language::Russian, QStringLiteral("ru"), QStringLiteral("Russian"), QStringLiteral(":/i18n/aifilesorter_ru.qm")},
         {Language::SimplifiedChinese, QStringLiteral("zh-CN"), QStringLiteral("Simplified Chinese"), QStringLiteral(":/i18n/aifilesorter_zh_cn.qm")},
     };
 }

@@ -617,6 +617,7 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.spanish_action,
             app.turkish_action,
             app.korean_action,
+            app.russian_action,
             app.about_action,
             app.quick_start_action,
             app.faq_action,
@@ -639,7 +640,8 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.danish_action,
             app.spanish_action,
             app.turkish_action,
-            app.korean_action},
+            app.korean_action,
+            app.russian_action},
         .category_language = UiTranslator::CategoryLanguageControls{
             app.category_language_group,
             &app.category_language_actions_},
@@ -815,6 +817,10 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.turkish_action->setCheckable(true);
     app.turkish_action->setData(static_cast<int>(Language::Turkish));
     app.language_group->addAction(app.turkish_action);
+    app.russian_action = app.language_menu->addAction(QString());
+    app.russian_action->setCheckable(true);
+    app.russian_action->setData(static_cast<int>(Language::Russian));
+    app.language_group->addAction(app.russian_action);
 
     QObject::connect(app.language_group, &QActionGroup::triggered, &app, [&app](QAction* action) {
         if (!action) {

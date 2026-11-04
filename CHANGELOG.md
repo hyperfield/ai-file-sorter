@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+## [Unreleased]
+
+- Added Russian as an interface language, including a localized Quick Start guide and automatic selection on Russian-locale systems.
+- Fixed Windows handling of non-ASCII (e.g. Cyrillic) user profiles, folders and file names:
+  - The Windows executables now embed an `activeCodePage=UTF-8` manifest, so narrow Win32/CRT APIs and `std::filesystem::path::string()` use UTF-8 instead of the legacy ANSI code page (CP1251 etc.). This fixes "MultiByteToWideChar failed while converting UTF-8 to path" errors.
+  - Config, log, model-storage and SQLite database paths are resolved through wide/UTF-8 APIs (`SHGetKnownFolderPath`, `_wgetenv`), so a profile such as `C:\Users\Иван` works.
+  - MSVC now compiles sources with `/utf-8`, so non-ASCII string literals are not corrupted when building on machines with a non-Latin system code page.
+  - `LC_CTYPE`/`LC_NUMERIC` stay in the "C" locale after `setlocale(LC_ALL, "")`, preventing byte-wise `tolower`/`isalpha` from rewriting UTF-8 Cyrillic bytes and avoiding decimal-comma parsing issues.
+- LLM responses with Cyrillic labels are now parsed correctly (including `Категория:` / `Подкатегория:` field names), and photo place prefixes keep Cyrillic place names instead of dropping them.
+- Category label length limits (80) now count characters instead of UTF-8 bytes, so Cyrillic/CJK labels longer than 40 letters are no longer rejected.
+- Fixed translated category labels collapsing into one folder name such as "Logiciel , subcategory Navigateur" when the model wraps its JSON answer in Markdown fences or adds a lead-in sentence; such labels previously fell back to English for non-English category languages.
+- Added Russian cases to the live LLM test suite, including sorting Cyrillic-named files from a Cyrillic folder into Russian category folders.
+
 ## [1.9.2] - 2026-08-14
 
 - Fixed a Windows startup crash in Qt GUI theme refresh handling by preventing recursive palette-triggered stylesheet updates.

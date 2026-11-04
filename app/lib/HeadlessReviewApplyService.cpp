@@ -112,7 +112,7 @@ bool validate_label_pair(const std::string& category,
         }
         return false;
     }
-    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+    if (Utils::utf8_length(category) > kMaxLabelLength || Utils::utf8_length(subcategory) > kMaxLabelLength) {
         if (error) {
             *error = "Category or subcategory exceeds max length.";
         }

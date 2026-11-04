@@ -1,4 +1,5 @@
 #include "StoragePluginManifest.hpp"
+#include "Utils.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -459,7 +460,7 @@ std::optional<StoragePluginManifest> load_storage_plugin_manifest_from_file(
     const std::filesystem::path& manifest_path,
     std::string* error)
 {
-    QFile file(QString::fromStdString(manifest_path.string()));
+    QFile file(QString::fromStdString(Utils::path_to_utf8(manifest_path)));
     if (!file.open(QIODevice::ReadOnly)) {
         if (error) {
             *error = file.errorString().toStdString();
@@ -505,7 +506,7 @@ std::vector<StoragePluginManifest> load_storage_plugin_manifests_from_directory(
         return manifests;
     }
 
-    QDir dir(QString::fromStdString(manifest_directory.string()));
+    QDir dir(QString::fromStdString(Utils::path_to_utf8(manifest_directory)));
     if (!dir.exists()) {
         return manifests;
     }
@@ -547,7 +548,7 @@ bool save_storage_plugin_manifest_to_file(
 {
     const auto parent_directory = manifest_path.parent_path();
     if (!parent_directory.empty()) {
-        QDir dir(QString::fromStdString(parent_directory.string()));
+        QDir dir(QString::fromStdString(Utils::path_to_utf8(parent_directory)));
         if (!dir.exists() && !dir.mkpath(QStringLiteral("."))) {
             if (error) {
                 *error = "Failed to create plugin manifest directory.";
@@ -556,7 +557,7 @@ bool save_storage_plugin_manifest_to_file(
         }
     }
 
-    QFile file(QString::fromStdString(manifest_path.string()));
+    QFile file(QString::fromStdString(Utils::path_to_utf8(manifest_path)));
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         if (error) {
             *error = file.errorString().toStdString();

@@ -561,6 +561,7 @@ private:
     QAction* spanish_action{nullptr};
     QAction* turkish_action{nullptr};
     QAction* korean_action{nullptr};
+    QAction* russian_action{nullptr};
     QActionGroup* category_language_group{nullptr};
     std::array<QAction*, kCategoryLanguageCount> category_language_actions_{};
     std::vector<QMenu*> category_language_submenus_;

@@ -45,7 +45,7 @@ QString to_qstring(const std::filesystem::path& path)
 #ifdef _WIN32
     return QString::fromStdWString(path.wstring());
 #else
-    return QString::fromStdString(path.string());
+    return QString::fromStdString(Utils::path_to_utf8(path));
 #endif
 }
 

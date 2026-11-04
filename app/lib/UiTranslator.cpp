@@ -90,6 +90,7 @@ constexpr auto kActionDanish = QT_TRANSLATE_NOOP("UiTranslator", "&Danish");
 constexpr auto kActionSpanish = QT_TRANSLATE_NOOP("UiTranslator", "&Spanish");
 constexpr auto kActionTurkish = QT_TRANSLATE_NOOP("UiTranslator", "&Turkish");
 constexpr auto kActionKorean = QT_TRANSLATE_NOOP("UiTranslator", "&Korean");
+constexpr auto kActionRussian = QT_TRANSLATE_NOOP("UiTranslator", "&Russian");
 constexpr auto kActionAboutAiFileSorter =
     QT_TRANSLATE_NOOP("UiTranslator", "&About AI File Sorter");
 constexpr auto kActionQuickStartGuide =
@@ -153,6 +154,7 @@ QAction* shared_interface_language_action(const UiTranslator::Dependencies& deps
     case CategoryLanguage::Italian: return deps.actions.italian_action;
     case CategoryLanguage::Korean: return deps.actions.korean_action;
     case CategoryLanguage::Norwegian: return deps.actions.norwegian_action;
+    case CategoryLanguage::Russian: return deps.actions.russian_action;
     case CategoryLanguage::SimplifiedChinese: return deps.actions.simplified_chinese_action;
     case CategoryLanguage::Spanish: return deps.actions.spanish_action;
     case CategoryLanguage::Swedish: return deps.actions.swedish_action;
@@ -398,6 +400,7 @@ void UiTranslator::translate_menus_and_actions() const
         {deps_.actions.spanish_action, kActionSpanish},
         {deps_.actions.turkish_action, kActionTurkish},
         {deps_.actions.korean_action, kActionKorean},
+        {deps_.actions.russian_action, kActionRussian},
         {deps_.actions.about_action, kActionAboutAiFileSorter},
         {deps_.actions.quick_start_action, kActionQuickStartGuide},
         {deps_.actions.faq_action, kActionFaq},
@@ -519,6 +522,9 @@ void UiTranslator::update_language_group_checks(Language configured) const
     }
     if (deps_.language.korean_action) {
         deps_.language.korean_action->setChecked(configured == Language::Korean);
+    }
+    if (deps_.language.russian_action) {
+        deps_.language.russian_action->setChecked(configured == Language::Russian);
     }
 }
 
