@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QLibraryInfo>
 
 #include <algorithm>
 
@@ -28,6 +29,7 @@ std::vector<LanguageInfo> build_languages()
         {Language::Spanish, QStringLiteral("es"), QStringLiteral("Spanish"), QStringLiteral(":/i18n/aifilesorter_es.qm")},
         {Language::Turkish, QStringLiteral("tr"), QStringLiteral("Turkish"), QStringLiteral(":/i18n/aifilesorter_tr.qm")},
         {Language::Korean, QStringLiteral("ko"), QStringLiteral("Korean"), QStringLiteral(":/i18n/aifilesorter_ko.qm")},
+        {Language::Russian, QStringLiteral("ru"), QStringLiteral("Russian"), QStringLiteral(":/i18n/aifilesorter_ru.qm")},
         {Language::SimplifiedChinese, QStringLiteral("zh-CN"), QStringLiteral("Simplified Chinese"), QStringLiteral(":/i18n/aifilesorter_zh_cn.qm")},
     };
 }
@@ -110,10 +112,15 @@ void TranslationManager::set_language(Language language)
         app_->removeTranslator(translator_.get());
         translator_ = std::make_unique<QTranslator>();
     }
+    if (qt_translator_) {
+        app_->removeTranslator(qt_translator_.get());
+        qt_translator_.reset();
+    }
 
     if (info && language != Language::English) {
         if (load_translation(*info)) {
             app_->installTranslator(translator_.get());
+            load_qt_translation(*info);
         } else {
             language = Language::English;
         }
@@ -130,6 +137,29 @@ Language TranslationManager::current_language() const
 const std::vector<TranslationManager::LanguageInfo>& TranslationManager::available_languages() const
 {
     return languages_;
+}
+
+void TranslationManager::load_qt_translation(const LanguageInfo& info)
+{
+    // Qt catalogs use '_' (zh_CN) while the app uses BCP-47 style codes (zh-CN).
+    QString code = info.code;
+    code.replace(QLatin1Char('-'), QLatin1Char('_'));
+    const QString file_name = QStringLiteral("qtbase_%1.qm").arg(code);
+
+    auto translator = std::make_unique<QTranslator>();
+    bool loaded = translator->load(QStringLiteral(":/qt_i18n/") + file_name);
+    if (!loaded) {
+        const QString qt_dir = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
+        loaded = translator->load(file_name, qt_dir);
+    }
+    if (!loaded && QCoreApplication::instance()) {
+        loaded = translator->load(file_name,
+                                  QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("translations")));
+    }
+    if (loaded) {
+        qt_translator_ = std::move(translator);
+        app_->installTranslator(qt_translator_.get());
+    }
 }
 
 bool TranslationManager::load_translation(const LanguageInfo& info)

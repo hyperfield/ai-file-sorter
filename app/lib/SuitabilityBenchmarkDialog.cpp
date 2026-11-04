@@ -805,7 +805,7 @@ bool write_sample_image(const std::filesystem::path& path)
     QPainter painter(&image);
     painter.fillRect(QRect(18, 18, 60, 60), QColor(240, 200, 60));
     painter.end();
-    return image.save(QString::fromStdString(path.string()), "PNG");
+    return image.save(QString::fromStdString(Utils::path_to_utf8(path)), "PNG");
 }
 
 std::optional<std::pair<std::string, std::string>> parse_category_pair(const std::string& response)

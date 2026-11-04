@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <cstddef>
 #include <filesystem>
@@ -61,6 +62,32 @@ public:
     static std::filesystem::path ensure_ca_bundle();
     static std::string path_to_utf8(const std::filesystem::path& path);
     static std::filesystem::path utf8_to_path(const std::string& utf8_path);
+    /**
+     * @brief Read an environment variable as UTF-8 regardless of the process ANSI code page.
+     * @param name ASCII variable name.
+     * @return The UTF-8 value, or std::nullopt when the variable is unset or empty.
+     *
+     * On Windows std::getenv returns text in the ANSI code page (e.g. CP1251), which breaks
+     * non-ASCII user profile paths such as C:\Users\Иван. This reads the wide value instead.
+     */
+    static std::optional<std::string> getenv_utf8(const char* name);
+    /**
+     * @brief Count Unicode code points in a UTF-8 string (not bytes).
+     *
+     * Use for user-visible length limits: a Cyrillic letter is 2 bytes in UTF-8.
+     */
+    static std::size_t utf8_length(std::string_view utf8);
+    /**
+     * @brief Shrink a UTF-8 string to at most @p max_bytes without splitting a character.
+     *
+     * Also drops an incomplete multi-byte sequence left at the end (e.g. after reading a
+     * fixed-size block from a file), so Cyrillic/CJK text never ends in broken bytes.
+     */
+    static void utf8_truncate(std::string& utf8, std::size_t max_bytes);
+    /**
+     * @brief Return the index of the first UTF-8 character boundary at or after @p pos.
+     */
+    static std::size_t utf8_boundary_at_or_after(std::string_view utf8, std::size_t pos);
     static std::string sanitize_path_label(const std::string& value);
 
 private:

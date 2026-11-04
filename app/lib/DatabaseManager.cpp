@@ -244,9 +244,7 @@ DatabaseManager::DatabaseManager(std::string config_dir)
     : db(nullptr),
       config_dir(std::move(config_dir)),
       db_file(this->config_dir + "/" +
-              (std::getenv("CATEGORIZATION_CACHE_FILE")
-                   ? std::getenv("CATEGORIZATION_CACHE_FILE")
-                   : "categorization_results.db")) {
+              Utils::getenv_utf8("CATEGORIZATION_CACHE_FILE").value_or("categorization_results.db")) {
     if (db_file.empty()) {
         db_log(spdlog::level::err, "Error: Database path is empty");
         return;

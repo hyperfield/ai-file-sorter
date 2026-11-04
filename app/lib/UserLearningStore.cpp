@@ -2,6 +2,7 @@
 
 #include "Logger.hpp"
 #include "TextEmbeddingService.hpp"
+#include "Utils.hpp"
 
 #include <sqlite3.h>
 
@@ -195,7 +196,7 @@ int embedding_score(double similarity)
 
 std::filesystem::path UserLearningStore::database_path_for_config_dir(const std::string& config_dir)
 {
-    return std::filesystem::path(config_dir) / "user_learning.db";
+    return Utils::utf8_to_path(config_dir) / "user_learning.db";
 }
 
 UserLearningStore::UserLearningStore(std::string config_dir)
@@ -206,16 +207,16 @@ UserLearningStore::UserLearningStore(std::string config_dir)
     if (ec) {
         if (auto logger = Logger::get_logger("db_logger")) {
             logger->error("Failed to create user learning database directory '{}': {}",
-                          db_file_.parent_path().string(),
+                          Utils::path_to_utf8(db_file_.parent_path()),
                           ec.message());
         }
         return;
     }
 
-    if (sqlite3_open(db_file_.string().c_str(), &db_) != SQLITE_OK) {
+    if (sqlite3_open(Utils::path_to_utf8(db_file_).c_str(), &db_) != SQLITE_OK) {
         if (auto logger = Logger::get_logger("db_logger")) {
             logger->error("Can't open user learning database '{}': {}",
-                          db_file_.string(),
+                          Utils::path_to_utf8(db_file_),
                           db_ ? sqlite3_errmsg(db_) : "unknown error");
         }
         if (db_) {
@@ -230,13 +231,13 @@ UserLearningStore::UserLearningStore(std::string config_dir)
     if (!initialize_schema(&error)) {
         if (auto logger = Logger::get_logger("db_logger")) {
             logger->error("Failed to initialize user learning database '{}': {}",
-                          db_file_.string(),
+                          Utils::path_to_utf8(db_file_),
                           error);
         }
     } else if (!rebuild_taxonomy_embeddings(&error)) {
         if (auto logger = Logger::get_logger("db_logger")) {
             logger->warn("Failed to refresh user learning embeddings '{}': {}",
-                         db_file_.string(),
+                         Utils::path_to_utf8(db_file_),
                          error);
         }
     }

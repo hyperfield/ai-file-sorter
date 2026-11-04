@@ -6,6 +6,7 @@
   "dependencies": [
     "qtbase",
     "qttools",
+    "qttranslations",
     "curl",
     "jsoncpp",
     "sqlite3",

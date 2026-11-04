@@ -90,11 +90,11 @@ std::optional<std::filesystem::path> try_utf8_to_path(const std::string& value) 
 std::vector<std::string> collect_user_prefixes() {
     std::vector<std::string> prefixes;
 
-    auto append = [&](const char* candidate) {
-        if (!candidate || *candidate == '\0') {
+    auto append = [&](const std::optional<std::string>& candidate) {
+        if (!candidate || candidate->empty()) {
             return;
         }
-        const std::string raw(candidate);
+        const std::string& raw = *candidate;
         if (auto converted = try_utf8_to_path(raw)) {
             prefixes.push_back(to_forward_slashes(Utils::path_to_utf8(*converted)));
         } else {
@@ -102,12 +102,12 @@ std::vector<std::string> collect_user_prefixes() {
         }
     };
 
-    append(std::getenv("HOME"));
-    append(std::getenv("USERPROFILE"));
+    append(Utils::getenv_utf8("HOME"));
+    append(Utils::getenv_utf8("USERPROFILE"));
 
     if (prefixes.empty() && Utils::is_os_windows()) {
-        if (const char* username = std::getenv("USERNAME")) {
-            prefixes.emplace_back(std::string("C:/Users/") + username);
+        if (const auto username = Utils::getenv_utf8("USERNAME")) {
+            prefixes.emplace_back(std::string("C:/Users/") + *username);
         }
     }
 
@@ -189,7 +189,7 @@ QString path_to_qstring(const std::filesystem::path& path)
 #ifdef _WIN32
     return QString::fromStdWString(path.wstring());
 #else
-    return QString::fromStdString(path.string());
+    return QString::fromStdString(path.native());
 #endif
 }
 
@@ -238,9 +238,8 @@ std::optional<std::filesystem::path> packaged_local_cache_root()
 std::filesystem::path user_writable_app_data_dir()
 {
     constexpr const char* kAppName = "AIFileSorter";
-    if (const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR");
-        override_root && *override_root) {
-        return std::filesystem::path(override_root) / kAppName;
+    if (const auto override_root = Utils::getenv_utf8("AI_FILE_SORTER_CONFIG_DIR")) {
+        return Utils::utf8_to_path(*override_root) / kAppName;
     }
 
 #ifdef _WIN32
@@ -248,7 +247,7 @@ std::filesystem::path user_writable_app_data_dir()
         return *packaged_root;
     }
 
-    if (const char* app_data = std::getenv("APPDATA"); app_data && *app_data) {
+    if (const wchar_t* app_data = _wgetenv(L"APPDATA"); app_data && *app_data) {
         return std::filesystem::path(app_data) / kAppName;
     }
 #elif defined(__APPLE__)
@@ -524,6 +523,95 @@ std::filesystem::path Utils::utf8_to_path(const std::string& utf8_path) {
 }
 
 
+std::size_t Utils::utf8_length(std::string_view utf8)
+{
+    std::size_t count = 0;
+    for (const char ch : utf8) {
+        // Count every byte that is not a UTF-8 continuation byte (10xxxxxx).
+        if ((static_cast<unsigned char>(ch) & 0xC0u) != 0x80u) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+
+namespace {
+bool is_utf8_continuation(char ch)
+{
+    return (static_cast<unsigned char>(ch) & 0xC0u) == 0x80u;
+}
+
+std::size_t utf8_sequence_length(char lead)
+{
+    const auto byte = static_cast<unsigned char>(lead);
+    if (byte < 0x80u) return 1;
+    if ((byte & 0xE0u) == 0xC0u) return 2;
+    if ((byte & 0xF0u) == 0xE0u) return 3;
+    if ((byte & 0xF8u) == 0xF0u) return 4;
+    return 1; // invalid lead byte: treat as a single unit
+}
+} // namespace
+
+void Utils::utf8_truncate(std::string& utf8, std::size_t max_bytes)
+{
+    std::size_t cut = std::min(utf8.size(), max_bytes);
+    // Step back to the start of the character that straddles the cut point.
+    while (cut > 0 && cut < utf8.size() && is_utf8_continuation(utf8[cut])) {
+        --cut;
+    }
+    utf8.resize(cut);
+    // Drop an incomplete trailing sequence (lead byte without all continuation bytes).
+    std::size_t start = utf8.size();
+    while (start > 0 && is_utf8_continuation(utf8[start - 1])) {
+        --start;
+    }
+    if (start > 0) {
+        const std::size_t lead = start - 1;
+        if (utf8.size() - lead < utf8_sequence_length(utf8[lead])) {
+            utf8.resize(lead);
+        }
+    }
+}
+
+std::size_t Utils::utf8_boundary_at_or_after(std::string_view utf8, std::size_t pos)
+{
+    while (pos < utf8.size() && is_utf8_continuation(utf8[pos])) {
+        ++pos;
+    }
+    return std::min(pos, utf8.size());
+}
+
+
+std::optional<std::string> Utils::getenv_utf8(const char* name)
+{
+    if (!name || *name == '\0') {
+        return std::nullopt;
+    }
+#ifdef _WIN32
+    std::wstring wide_name;
+    for (const char* it = name; *it; ++it) {
+        wide_name.push_back(static_cast<wchar_t>(static_cast<unsigned char>(*it)));
+    }
+    const wchar_t* value = _wgetenv(wide_name.c_str());
+    if (!value || *value == L'\0') {
+        return std::nullopt;
+    }
+    try {
+        return path_to_utf8(std::filesystem::path(value));
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+#else
+    const char* value = std::getenv(name);
+    if (!value || *value == '\0') {
+        return std::nullopt;
+    }
+    return std::string(value);
+#endif
+}
+
+
 bool Utils::is_valid_directory(const char *path)
 {
     if (!path || *path == '\0') {
@@ -595,8 +683,9 @@ const char* Utils::to_cstr(const std::u8string& u8str) {
 void Utils::ensure_directory_exists(const std::string &dir)
 {
     try {
-        if (!std::filesystem::exists(dir)) {
-            std::filesystem::create_directories(dir);
+        const std::filesystem::path fs_dir = utf8_to_path(dir);
+        if (!std::filesystem::exists(fs_dir)) {
+            std::filesystem::create_directories(fs_dir);
         }
     } catch (const std::exception &e) {
         log_core(spdlog::level::err, "Error creating log directory: {}", e.what());
@@ -801,41 +890,39 @@ std::string Utils::get_default_llm_destination()
         return configured;
     }
 
-    if (const char* env_override = std::getenv("AI_FILE_SORTER_LLM_STORAGE_DIR");
-        env_override && *env_override) {
-        return trim_copy(env_override);
+    if (const auto env_override = getenv_utf8("AI_FILE_SORTER_LLM_STORAGE_DIR")) {
+        return trim_copy(*env_override);
     }
-    if (const char* env_override = std::getenv("AI_FILE_SORTER_LLM_DIR");
-        env_override && *env_override) {
-        return trim_copy(env_override);
+    if (const auto env_override = getenv_utf8("AI_FILE_SORTER_LLM_DIR")) {
+        return trim_copy(*env_override);
     }
-
-    const char* home = std::getenv("HOME");
 
     if (Utils::is_os_windows()) {
-        const char* appdata = std::getenv("APPDATA");
+        const auto appdata = getenv_utf8("APPDATA");
         if (!appdata) throw std::runtime_error("APPDATA not set");
-        std::filesystem::path legacy = std::filesystem::path(appdata) / "aifilesorter" / "llms";
+        std::filesystem::path legacy = utf8_to_path(*appdata) / "aifilesorter" / "llms";
 
 #ifdef _WIN32
         if (auto packaged = packaged_llm_path()) {
             // Prefer the packaged LocalCache path; fall back to legacy if it already exists (backward compatibility).
-            if (std::filesystem::exists(legacy)) {
-                return legacy.string();
+            std::error_code ec;
+            if (std::filesystem::exists(legacy, ec)) {
+                return path_to_utf8(legacy);
             }
-            return packaged->string();
+            return path_to_utf8(*packaged);
         }
 #endif
-        return legacy.string();
+        return path_to_utf8(legacy);
     }
 
+    const auto home = getenv_utf8("HOME");
     if (!home) throw std::runtime_error("HOME not set");
 
     if (Utils::is_os_macos()) {
-        return (std::filesystem::path(home) / "Library" / "Application Support" / "aifilesorter" / "llms").string();
+        return path_to_utf8(std::filesystem::path(*home) / "Library" / "Application Support" / "aifilesorter" / "llms");
     }
 
-    return (std::filesystem::path(home) / ".local" / "share" / "aifilesorter" / "llms").string();
+    return path_to_utf8(std::filesystem::path(*home) / ".local" / "share" / "aifilesorter" / "llms");
 }
 
 
@@ -854,8 +941,7 @@ std::string Utils::get_file_name_from_url(std::string url)
 std::string Utils::make_default_path_to_file_from_download_url(std::string url)
 {
     std::string filename = get_file_name_from_url(url);
-    std::string path_to_file = (std::filesystem::path(get_default_llm_destination()) / filename).string();
-    return path_to_file;
+    return path_to_utf8(utf8_to_path(get_default_llm_destination()) / utf8_to_path(filename));
 }
 
 

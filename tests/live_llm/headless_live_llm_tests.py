@@ -232,6 +232,16 @@ LOCALIZED_DOCUMENTS = {
             "# परियोजना बैठक नोट्स\nटीम निर्णय, कार्य सूची, समय सीमा और जोखिम समीक्षा।",
         ),
     ],
+    "Russian": [
+        (
+            "скан_без_имени_01.txt",
+            "Счёт поставщика за офисную мебель, доставка в Москву, оплата до 15 сентября 2026 года.",
+        ),
+        (
+            "итоговый_вариант.md",
+            "# Протокол совещания\nРешения команды, список задач, сроки и оценка рисков проекта.",
+        ),
+    ],
 }
 
 
@@ -252,6 +262,10 @@ LOCALIZED_EXTRA_DOCUMENTS = {
         "कॉन्फ़िग_जांच.yml",
         "पर्यावरण: परीक्षण\nविषय: स्थानीयकृत नामकरण\nस्वामी: हिंदी गुणवत्ता टीम\n",
     ),
+    "Russian": (
+        "конфиг_проверка.yml",
+        "окружение: тестовое\nтема: локализованное переименование\nответственный: команда качества\n",
+    ),
 }
 
 
@@ -260,12 +274,17 @@ LOCALIZED_IMAGE_NAMES = {
     "French": ["photo_sans_nom_été.png", "image_brute_0002.jpeg"],
     "Simplified Chinese": ["照片_未命名_001.png", "扫描_图像_0002.jpeg"],
     "Hindi": ["तस्वीर_नामहीन_001.png", "फोटो_कच्ची_0002.jpeg"],
+    "Russian": ["фото_без_имени_001.png", "снимок_черновик_0002.jpeg"],
 }
+
+
+CYRILLIC_PATTERN = re.compile(r"[\u0400-\u04ff]")
 
 
 LANGUAGE_SCRIPT_CHECKS = {
     "Simplified Chinese": re.compile(r"[\u4e00-\u9fff]"),
     "Hindi": re.compile(r"[\u0900-\u097f]"),
+    "Russian": re.compile(r"[\u0400-\u04ff]"),
 }
 
 
@@ -1047,10 +1066,13 @@ def run_cases(ctx: LiveContext, only: str) -> int:
         ("rename_documents_french", lambda c: case_rename_documents_language(c, "French")),
         ("rename_documents_simplified_chinese", lambda c: case_rename_documents_language(c, "Simplified Chinese")),
         ("rename_documents_hindi", lambda c: case_rename_documents_language(c, "Hindi")),
+        ("rename_documents_russian", lambda c: case_rename_documents_language(c, "Russian")),
+        ("categorize_russian_cyrillic_paths", case_categorize_russian_cyrillic_paths),
         ("rename_images_english", lambda c: case_rename_images_language(c, "English")),
         ("rename_images_french", lambda c: case_rename_images_language(c, "French")),
         ("rename_images_simplified_chinese", lambda c: case_rename_images_language(c, "Simplified Chinese")),
         ("rename_images_hindi", lambda c: case_rename_images_language(c, "Hindi")),
+        ("rename_images_russian", lambda c: case_rename_images_language(c, "Russian")),
         ("rename_media_metadata_flac", case_rename_media_metadata_flac),
         ("categorize_and_rename_review_plan", case_categorize_and_rename_review_plan),
     ]
@@ -1253,6 +1275,55 @@ def case_whitelist_restrictions(ctx: LiveContext) -> None:
             raise LiveTestFailure(f"category escaped whitelist: {entry}")
         if subcategory and subcategory not in {normalized_label(value) for value in allowed_subcategories}:
             raise LiveTestFailure(f"subcategory escaped whitelist: {entry}")
+
+
+def case_categorize_russian_cyrillic_paths(ctx: LiveContext) -> None:
+    """Sort a Cyrillic-named folder of Cyrillic-named files into Russian category folders."""
+    case_root = make_case_dir(ctx, "categorize_russian_cyrillic_paths")
+    target_dir = case_root / "Входящие документы"
+    fixtures = [
+        write_fixture(
+            target_dir,
+            "счёт_поставщика_июнь.txt",
+            "Счёт на оплату офисной бумаги и картриджей. Сумма 12 400 рублей, оплатить до 30 июня 2026 года.",
+        ),
+        write_fixture(
+            target_dir,
+            "отпуск_маршрут.md",
+            "# План поездки\nПерелёт Москва — Сочи, бронь гостиницы на семь ночей, экскурсии и бюджет отпуска.",
+        ),
+        write_fixture(
+            target_dir,
+            "договор_аренды_квартиры.txt",
+            "Договор аренды квартиры: стороны договора, срок аренды 11 месяцев, ежемесячная плата и залог.",
+        ),
+    ]
+    overrides = base_categorization_overrides(use_subcategories=False, use_whitelist=False)
+    overrides["categoryLanguage"] = "Russian"
+    result = run_headless(
+        ctx,
+        case_name="categorize_russian_cyrillic_paths",
+        operation="categorize",
+        paths=[target_dir],
+        overrides=overrides,
+        auto_apply=True,
+    )
+    assert_completed(result.status)
+    entries = review_entries(result.status)
+    assert_count_at_least(entries, 3, "Russian categorization entries")
+    cyrillic_categories = [
+        entry for entry in entries if CYRILLIC_PATTERN.search(str(entry.get("category") or ""))
+    ]
+    if len(cyrillic_categories) < 2:
+        raise LiveTestFailure(f"expected Russian (Cyrillic) category labels, got: {entries}")
+    for fixture in fixtures:
+        if fixture.exists():
+            raise LiveTestFailure(f"Cyrillic-named file was not moved: {fixture}")
+    moved = [path for path in target_dir.rglob("*") if path.is_file()]
+    if len(moved) < len(fixtures):
+        raise LiveTestFailure(f"moved files missing under {target_dir}: {moved}")
+    if not any(CYRILLIC_PATTERN.search(path.parent.name) for path in moved):
+        raise LiveTestFailure(f"no file landed in a Cyrillic category folder: {moved}")
 
 
 def case_rename_documents_language(ctx: LiveContext, language: str) -> None:

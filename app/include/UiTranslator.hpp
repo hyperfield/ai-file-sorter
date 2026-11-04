@@ -125,6 +125,7 @@ public:
         QAction*& spanish_action;
         QAction*& turkish_action;
         QAction*& korean_action;
+        QAction*& russian_action;
         QAction*& about_action;
         QAction*& quick_start_action;
         QAction*& faq_action;
@@ -153,6 +154,7 @@ public:
         QAction*& spanish_action;
         QAction*& turkish_action;
         QAction*& korean_action;
+        QAction*& russian_action;
     };
 
     /**

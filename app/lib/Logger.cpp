@@ -11,7 +11,7 @@ namespace {
 
 bool is_active_log_filename(const std::filesystem::path& path)
 {
-    const std::string filename = path.filename().string();
+    const std::string filename = Utils::path_to_utf8(path.filename());
     return filename == "core.log" || filename == "db.log" || filename == "ui.log";
 }
 
@@ -23,7 +23,7 @@ bool truncate_log_file(const std::filesystem::path& path, std::string* error)
     }
 
     if (error) {
-        *error = "Failed to truncate log file '" + path.string() + "'.";
+        *error = "Failed to truncate log file '" + Utils::path_to_utf8(path) + "'.";
     }
     return false;
 }
@@ -57,9 +57,8 @@ std::string Logger::get_xdg_cache_home()
 
 
 std::string Logger::get_windows_log_directory() {
-    const char* appdata = std::getenv("APPDATA");
-    if (appdata && *appdata) {
-        return std::string(appdata) + "\\" + APP_NAME_DIR + "\\logs";
+    if (const auto appdata = Utils::getenv_utf8("APPDATA")) {
+        return *appdata + "\\" + APP_NAME_DIR + "\\logs";
     }
     throw std::runtime_error("Failed to determine APPDATA environment variable.");
 }
@@ -67,14 +66,14 @@ std::string Logger::get_windows_log_directory() {
 bool Logger::clear_logs(std::string* error)
 {
     std::error_code ec;
-    const std::filesystem::path log_dir = get_log_directory();
+    const std::filesystem::path log_dir = Utils::utf8_to_path(get_log_directory());
     if (!std::filesystem::exists(log_dir, ec)) {
         return true;
     }
 
     if (ec) {
         if (error) {
-            *error = "Failed to inspect log directory '" + log_dir.string() + "'.";
+            *error = "Failed to inspect log directory '" + Utils::path_to_utf8(log_dir) + "'.";
         }
         return false;
     }
@@ -88,7 +87,7 @@ bool Logger::clear_logs(std::string* error)
     for (const auto& entry : std::filesystem::directory_iterator(log_dir, ec)) {
         if (ec) {
             if (error) {
-                *error = "Failed to enumerate log directory '" + log_dir.string() + "'.";
+                *error = "Failed to enumerate log directory '" + Utils::path_to_utf8(log_dir) + "'.";
             }
             return false;
         }
@@ -98,7 +97,7 @@ bool Logger::clear_logs(std::string* error)
             std::filesystem::remove_all(path, ec);
             if (ec) {
                 if (error) {
-                    *error = "Failed to remove log directory '" + path.string() + "'.";
+                    *error = "Failed to remove log directory '" + Utils::path_to_utf8(path) + "'.";
                 }
                 return false;
             }
@@ -114,7 +113,7 @@ bool Logger::clear_logs(std::string* error)
                 std::filesystem::remove(path, ec);
                 if (ec) {
                     if (error) {
-                        *error = "Failed to remove log file '" + path.string() + "'.";
+                        *error = "Failed to remove log file '" + Utils::path_to_utf8(path) + "'.";
                     }
                     return false;
                 }
@@ -125,7 +124,7 @@ bool Logger::clear_logs(std::string* error)
         std::filesystem::remove(path, ec);
         if (ec) {
             if (error) {
-                *error = "Failed to remove log entry '" + path.string() + "'.";
+                *error = "Failed to remove log entry '" + Utils::path_to_utf8(path) + "'.";
             }
             return false;
         }

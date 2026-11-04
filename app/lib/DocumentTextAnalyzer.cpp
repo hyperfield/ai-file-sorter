@@ -190,7 +190,7 @@ std::optional<std::string> run_process(const QString& program,
     const QByteArray output = process.readAllStandardOutput();
     std::string result(output.constData(), static_cast<size_t>(output.size()));
     if (result.size() > kMaxProcessOutput) {
-        result.resize(kMaxProcessOutput);
+        Utils::utf8_truncate(result, kMaxProcessOutput);
     }
     return result;
 }
@@ -225,7 +225,7 @@ std::optional<std::string> extract_zip_member_libzip(const std::filesystem::path
         while ((read = zip_fread(file, buffer.data(), buffer.size())) > 0) {
             output.append(buffer.data(), static_cast<size_t>(read));
             if (output.size() >= kMaxProcessOutput) {
-                output.resize(kMaxProcessOutput);
+                Utils::utf8_truncate(output, kMaxProcessOutput);
                 break;
             }
         }
@@ -273,6 +273,8 @@ std::string read_file_prefix(const std::filesystem::path& path, size_t max_chars
     buffer.resize(max_chars);
     file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
     buffer.resize(static_cast<size_t>(file.gcount()));
+    // A fixed-size read can end in the middle of a multi-byte UTF-8 letter.
+    Utils::utf8_truncate(buffer, buffer.size());
     buffer.erase(std::remove(buffer.begin(), buffer.end(), '\0'), buffer.end());
     return buffer;
 }
@@ -283,7 +285,11 @@ std::string truncate_excerpt(const std::string& text, size_t max_chars) {
     }
     const size_t head = max_chars * 3 / 4;
     const size_t tail = max_chars - head;
-    return text.substr(0, head) + "\n...\n" + text.substr(text.size() - tail);
+    // Cut on UTF-8 character boundaries so Cyrillic/CJK text is not split mid-letter.
+    std::string head_text = text.substr(0, head);
+    Utils::utf8_truncate(head_text, head);
+    const size_t tail_start = Utils::utf8_boundary_at_or_after(text, text.size() - tail);
+    return head_text + "\n...\n" + text.substr(tail_start);
 }
 
 std::optional<std::string> normalize_date(const std::string& input) {
@@ -394,7 +400,7 @@ std::string extract_pdf_text_pdfium(const std::filesystem::path& path, size_t ma
             const QByteArray bytes = text.toUtf8();
             result.append(bytes.constData(), static_cast<size_t>(bytes.size()));
             if (result.size() >= max_chars) {
-                result.resize(max_chars);
+                Utils::utf8_truncate(result, max_chars);
                 break;
             }
             offset += take;
@@ -602,7 +608,7 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
             return {};
         }
         if (output->size() > settings_.max_characters) {
-            output->resize(settings_.max_characters);
+            Utils::utf8_truncate(*output, settings_.max_characters);
         }
         return collapse_whitespace(*output);
     }
@@ -615,7 +621,7 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
         std::string text = extract_xml_text(*xml);
         text = decode_basic_entities(text);
         if (text.size() > settings_.max_characters) {
-            text.resize(settings_.max_characters);
+            Utils::utf8_truncate(text, settings_.max_characters);
         }
         return collapse_whitespace(text);
     }
@@ -633,7 +639,7 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
         std::string text = extract_xml_text(*xml);
         text = decode_basic_entities(text);
         if (text.size() > settings_.max_characters) {
-            text.resize(settings_.max_characters);
+            Utils::utf8_truncate(text, settings_.max_characters);
         }
         return collapse_whitespace(text);
     }
@@ -650,7 +656,7 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
         std::string text = extract_xml_text(*xml);
         text = decode_basic_entities(text);
         if (text.size() > settings_.max_characters) {
-            text.resize(settings_.max_characters);
+            Utils::utf8_truncate(text, settings_.max_characters);
         }
         return collapse_whitespace(text);
     }
@@ -663,7 +669,7 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
         std::string text = extract_xml_text(*xml);
         text = decode_basic_entities(text);
         if (text.size() > settings_.max_characters) {
-            text.resize(settings_.max_characters);
+            Utils::utf8_truncate(text, settings_.max_characters);
         }
         return collapse_whitespace(text);
     }

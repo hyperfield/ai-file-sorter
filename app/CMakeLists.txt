@@ -280,7 +280,26 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         "$<$<COMPILE_LANGUAGE:C>:/MP>"
         "$<$<COMPILE_LANGUAGE:CXX>:/MP>"
     )
+    # Sources are UTF-8. Without /utf-8 MSVC decodes them using the build
+    # machine's ANSI code page (e.g. CP1251 on Russian Windows), which corrupts
+    # every non-ASCII string literal (Cyrillic, CJK, Devanagari, ...).
+    add_compile_options(
+        "$<$<COMPILE_LANGUAGE:C>:/utf-8>"
+        "$<$<COMPILE_LANGUAGE:CXX>:/utf-8>"
+    )
 endif()
+
+# Windows application manifest that switches the process ANSI code page to
+# UTF-8 (Windows 10 1903+). This makes narrow-char Win32/CRT APIs (getenv,
+# SHGetFolderPathA, std::filesystem::path::string(), QString::fromLocal8Bit,
+# setlocale) operate in UTF-8, so non-ASCII user names, folders and file names
+# (e.g. Cyrillic) round-trip correctly through std::string.
+set(AIFS_WINDOWS_UTF8_MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/utf8.manifest")
+function(aifs_apply_windows_utf8_manifest target_name)
+    if(WIN32 AND MSVC)
+        target_sources(${target_name} PRIVATE "${AIFS_WINDOWS_UTF8_MANIFEST}")
+    endif()
+endfunction()
 
 if(APPLE)
     set(_aifs_macos_arches "${CMAKE_OSX_ARCHITECTURES}")
@@ -676,6 +695,7 @@ set(AIFS_TRANSLATION_TS_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_da.ts"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_tr.ts"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_ko.ts"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/aifilesorter_ru.ts"
 )
 set(AIFS_TRANSLATION_QM_DIR "${CMAKE_CURRENT_BINARY_DIR}/i18n")
 set(AIFS_TRANSLATION_QM_FILES)
@@ -691,6 +711,7 @@ else()
 endif()
 
 aifs_apply_update_mode(aifilesorter)
+aifs_apply_windows_utf8_manifest(aifilesorter)
 
 target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -733,6 +754,45 @@ endfunction()
 
 aifs_add_translation_resources(aifilesorter)
 
+# Qt's own catalogs (qtbase_<lang>.qm) translate standard dialog buttons such as
+# OK / Cancel / Yes / No. They come from the qttranslations package; embed the
+# ones matching the app's interface languages when they are available.
+set(AIFS_QT_TRANSLATION_LANGS da de es fi fr hi is it ko nb nl ru sv tr zh_CN)
+set(AIFS_QT_TRANSLATION_FILES)
+set(AIFS_QT_TRANSLATION_DIR "")
+foreach(_aifs_qt_tr_dir
+        "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/translations/Qt6"
+        "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/share/qt6/translations"
+        "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_TRANSLATIONS}")
+    if(EXISTS "${_aifs_qt_tr_dir}/qtbase_de.qm")
+        set(AIFS_QT_TRANSLATION_DIR "${_aifs_qt_tr_dir}")
+        break()
+    endif()
+endforeach()
+if(AIFS_QT_TRANSLATION_DIR)
+    foreach(_aifs_qt_lang IN LISTS AIFS_QT_TRANSLATION_LANGS)
+        if(EXISTS "${AIFS_QT_TRANSLATION_DIR}/qtbase_${_aifs_qt_lang}.qm")
+            list(APPEND AIFS_QT_TRANSLATION_FILES "${AIFS_QT_TRANSLATION_DIR}/qtbase_${_aifs_qt_lang}.qm")
+        endif()
+    endforeach()
+    message(STATUS "Embedding Qt translations from ${AIFS_QT_TRANSLATION_DIR}")
+else()
+    message(STATUS "Qt translations (qttranslations) not found; standard dialog buttons stay in English")
+endif()
+
+function(aifs_add_qt_translation_resources target_name)
+    if(NOT AIFS_QT_TRANSLATION_FILES)
+        return()
+    endif()
+    qt_add_resources(${target_name} "${target_name}_qt_translations"
+        PREFIX "/qt_i18n"
+        BASE "${AIFS_QT_TRANSLATION_DIR}"
+        FILES ${AIFS_QT_TRANSLATION_FILES}
+    )
+endfunction()
+
+aifs_add_qt_translation_resources(aifilesorter)
+
 # Resources (equivalent to rcc generation in Makefile)
 set(AIFS_IMAGE_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
@@ -765,6 +825,7 @@ set(AIFS_HELP_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_ko.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nb.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_ru.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_sv.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_tr.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows.md"
@@ -779,6 +840,7 @@ set(AIFS_HELP_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_ko.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_nb.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_ru.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_sv.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_tr.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/help/quick_start_windows_zh_cn.md"
@@ -1070,6 +1132,7 @@ if(WIN32 AND _aifs_windows_enable_starter)
         OUTPUT_NAME "aifilesorter"
     )
     aifs_apply_update_mode(${STARTER_TARGET})
+    aifs_apply_windows_utf8_manifest(${STARTER_TARGET})
     target_include_directories(${STARTER_TARGET} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
     )
@@ -1467,6 +1530,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             set(VCPKG_APPLOCAL_DEPS OFF)
         endif()
         add_executable(${target_name} ${ARGN})
+        aifs_apply_windows_utf8_manifest(${target_name})
     endfunction()
 
     function(aifs_set_windows_test_runtime_output target_name)
@@ -1552,6 +1616,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_settings_image_options.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_network_locations.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cyrillic_support.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_cache_action.cpp"
@@ -1621,6 +1686,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     )
 
     aifs_add_translation_resources(ai_file_sorter_tests)
+    aifs_add_qt_translation_resources(ai_file_sorter_tests)
 
     target_compile_definitions(ai_file_sorter_tests PRIVATE
         AI_FILE_SORTER_TEST_BUILD=1

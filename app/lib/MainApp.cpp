@@ -2835,7 +2835,13 @@ AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
         stop_analysis,
         text_cpu_fallback_choice_,
         [this]() { return get_folder_path(); },
-        [this](const char* text) { return tr(text); },
+        [this](const char* text) {
+            // Progress strings are defined in AnalysisCoordinator.cpp, so lupdate stores
+            // them under the "AnalysisCoordinator" context; previously they were looked up
+            // as "MainApp" only and stayed untranslated in every language.
+            const QString coordinator = QCoreApplication::translate("AnalysisCoordinator", text);
+            return coordinator != QString::fromUtf8(text) ? coordinator : tr(text);
+        },
         [this]() { return should_abort_analysis(); },
         [this](const std::string& message) { append_progress(message); },
         [this](const std::string& directory_path) { prune_empty_cached_entries_for(directory_path); },

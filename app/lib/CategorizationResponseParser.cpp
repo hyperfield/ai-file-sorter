@@ -106,7 +106,7 @@ std::string strip_trailing_parenthetical_gloss(std::string value)
         }
 
         const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
-            return std::isalpha(ch);
+            return ch >= 0x80 || std::isalpha(ch); // UTF-8 multibyte => non-Latin letter (Cyrillic, CJK, ...)
         });
         if (!has_alpha_chars) {
             break;
@@ -370,7 +370,7 @@ std::string strip_list_prefix(std::string line)
 bool has_alpha(const std::string& value)
 {
     return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
+        return ch >= 0x80 || std::isalpha(ch); // UTF-8 multibyte => non-Latin letter (Cyrillic, CJK, ...)
     });
 }
 
@@ -585,9 +585,38 @@ bool looks_like_extension_label(const std::string& value)
     if (ext.empty() || ext.size() > 5) {
         return false;
     }
+    // File extensions are ASCII; a Cyrillic tail such as "т.д" is not an extension.
     return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
+        return ch < 0x80 && std::isalpha(ch);
     });
+}
+
+// Splits a collapsed "Category , subcategory Subcategory" label (seen when a model's
+// JSON answer could not be parsed) into its two parts.
+std::optional<std::pair<std::string, std::string>> split_inline_subcategory_marker(const std::string& value)
+{
+    static const std::vector<std::string_view> markers = {
+        ", subcategory", "; subcategory", " - subcategory",
+        ", sub category", "; sub category", " - sub category"
+    };
+    for (const std::string_view marker : markers) {
+        const auto pos = find_case_insensitive(value, marker);
+        if (pos == std::string::npos) {
+            continue;
+        }
+        std::string tail = trim_copy(value.substr(pos + marker.size()));
+        while (!tail.empty() && (tail.front() == ':' || tail.front() == '=' ||
+                                 std::isspace(static_cast<unsigned char>(tail.front())))) {
+            tail.erase(tail.begin());
+        }
+        const std::string head = normalize_candidate_label(value.substr(0, pos), true);
+        tail = normalize_candidate_label(std::move(tail), false);
+        if (head.empty() || tail.empty()) {
+            return std::nullopt;
+        }
+        return std::make_pair(Utils::sanitize_path_label(head), Utils::sanitize_path_label(tail));
+    }
+    return std::nullopt;
 }
 
 } // namespace
@@ -618,7 +647,7 @@ std::pair<std::string, std::string> split_category_subcategory(const std::string
 
     for (const auto& entry : lines) {
         if (category.empty()) {
-            if (auto value = extract_labeled_value(entry, {"category", "main category"}, true)) {
+            if (auto value = extract_labeled_value(entry, {"category", "main category", "категория", "Категория", "основная категория", "Основная категория"}, true)) {
                 category = std::move(*value);
             } else if (auto value = extract_relaxed_labeled_value(
                            entry,
@@ -628,7 +657,7 @@ std::pair<std::string, std::string> split_category_subcategory(const std::string
             }
         }
         if (subcategory.empty()) {
-            if (auto value = extract_labeled_value(entry, {"subcategory", "sub category"}, false)) {
+            if (auto value = extract_labeled_value(entry, {"subcategory", "sub category", "подкатегория", "Подкатегория"}, false)) {
                 subcategory = std::move(*value);
             } else if (auto value = extract_relaxed_labeled_value(
                            entry,
@@ -671,16 +700,35 @@ std::pair<std::string, std::string> split_category_subcategory(const std::string
 std::optional<std::pair<std::string, std::string>> parse_translated_category_response(
     const std::string& response)
 {
-    Json::Value root;
-    Json::CharReaderBuilder reader;
-    std::string errors;
-    std::istringstream stream(response);
-    if (Json::parseFromStream(reader, stream, &root, &errors) && root.isObject()) {
+    // Models frequently wrap the requested JSON in ```json fences or prefix it with a
+    // sentence ("Here is the translation:"). Try the whole response first, then the
+    // outermost {...} object embedded in it.
+    std::vector<std::string> json_candidates{response};
+    const auto open = response.find('{');
+    const auto close = response.rfind('}');
+    if (open != std::string::npos && close != std::string::npos && close > open) {
+        json_candidates.push_back(response.substr(open, close - open + 1));
+    }
+    for (const std::string& candidate : json_candidates) {
+        Json::Value root;
+        Json::CharReaderBuilder reader;
+        std::string errors;
+        std::istringstream stream(candidate);
+        if (!Json::parseFromStream(reader, stream, &root, &errors) || !root.isObject()) {
+            continue;
+        }
         const std::string category = normalize_candidate_label(root.get("category", "").asString(), true);
         const std::string subcategory = normalize_candidate_label(root.get("subcategory", "").asString(), false);
         if (!category.empty()) {
             return std::make_pair(Utils::sanitize_path_label(category),
                                   Utils::sanitize_path_label(subcategory.empty() ? category : subcategory));
+        }
+    }
+
+    const std::string single_line = trim_copy(response);
+    if (single_line.find('\n') == std::string::npos) {
+        if (auto inline_pair = split_inline_subcategory_marker(single_line)) {
+            return inline_pair;
         }
     }
 
@@ -700,7 +748,8 @@ LabelValidationResult validate_labels(const std::string& category,
     if (category.empty() || subcategory.empty()) {
         return {false, "Category or subcategory is empty"};
     }
-    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+    if (Utils::utf8_length(category) > kMaxLabelLength ||
+        Utils::utf8_length(subcategory) > kMaxLabelLength) {
         return {false, "Category or subcategory exceeds max length"};
     }
     if (!contains_only_allowed_chars(category) || !contains_only_allowed_chars(subcategory)) {
