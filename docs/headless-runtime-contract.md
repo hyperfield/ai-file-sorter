@@ -317,7 +317,15 @@ files. A routing explanation or `targetFolderSuggestedNew: true` cannot bypass t
 
 - Machine-readable status is emitted to stdout and, when provided, to the status
   file path.
+- Stdout is newline-delimited JSON: parse each nonempty line as one status object.
+  Startup logs, runtime diagnostics and errors go to stderr, including when
+  `--console-log` is supplied. The status file contains the latest status object.
+- `--headless-help` is the intentional exception: it prints usage text to stdout.
+  Argument errors print diagnostics/usage to stderr and return a nonzero exit code;
+  they may exit before emitting any JSON status.
 - Treat stdout/status-file JSON as the contract. Stderr is diagnostic output.
+- A nonempty stderr stream alone does not indicate failure; check the exit code
+  and terminal JSON status.
 - Stable status values include `running`, `review_required`, `completed`, and
   `failed`.
 - Review/apply payloads include review details plus `entryCount`,

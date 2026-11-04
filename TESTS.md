@@ -536,6 +536,25 @@ Procedure: Convert owners to strings and parse strings back to owners.
 Expected outcome: `gui`, `explorerWorker`, and `headless` round-trip to the expected owners, while unknown strings parse as `Unknown`.
 Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock owner strings are stable"`
 
+### `tests/integration/test_headless_stdout.py`
+
+Run: `ctest --test-dir build-tests -C Release -R '^headless_stdout_contract$' --output-on-failure`
+after rebuilding `ai_file_sorter_tests` with Python 3 available at configure time.
+That target also builds the production executable used by these tests. For a direct
+run: `python3 tests/integration/test_headless_stdout.py --app build-tests/aifilesorter -v`
+(use the built configuration's executable path on Windows).
+
+All cases launch the real app with isolated settings, logs and temporary files;
+no model, network API or existing user files are needed.
+
+| Test case | Procedure and expected outcome |
+| --- | --- |
+| `test_review_only_stdout_is_json_and_diagnostics_use_stderr` | Analyze an empty folder in review-only mode, with and without development/console-log flags. Every nonempty stdout line is a versioned JSON object, the final record matches the status file, startup/runtime logs appear on stderr, and the source folder stays empty. |
+| `test_analysis_failure_preserves_json_stdout` | Submit files from different source folders. The app rejects this unsupported selection and emits valid JSON status records ending in `failed`, with diagnostics on stderr. |
+| `test_saved_plan_apply_stdout_is_json` | Apply a saved rename plan to a temporary fixture. Only JSON status records appear on stdout, the status file matches the final record, and the expected rename preserves the file contents. |
+| `test_help_is_usage_text_without_log_lines` | Request `--headless-help`. Stdout starts with usage text and contains no startup logs; those appear on stderr. |
+| `test_invalid_arguments_use_stderr` | Supply an unsupported operation. Stdout is empty, stderr contains diagnostics/usage, and the exit code is the usage-error code. |
+
 ### `tests/unit/test_headless_analysis_command.cpp`
 
 #### Test case: HeadlessAnalysisCommand parses operation paths and status file

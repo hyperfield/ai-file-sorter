@@ -2113,6 +2113,18 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     if(BUILD_TESTING)
         add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)
+        find_package(Python3 COMPONENTS Interpreter QUIET)
+        if(Python3_Interpreter_FOUND)
+            # Exercise startup/logging in the production executable, not only the test-linked services.
+            add_dependencies(ai_file_sorter_tests aifilesorter)
+            add_test(
+                NAME headless_stdout_contract
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/../tests/integration/test_headless_stdout.py
+                    --app $<TARGET_FILE:aifilesorter> -v
+            )
+            set_tests_properties(headless_stdout_contract PROPERTIES LABELS "headless;integration" TIMEOUT 120)
+        endif()
         set(_aifs_storage_plugin_stub_for_conformance "$<TARGET_FILE:aifs_storage_plugin_stub>")
         if(WIN32)
             set(_aifs_storage_plugin_stub_for_conformance

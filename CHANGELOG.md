@@ -16,6 +16,7 @@
 - Use the new sorting settings and destination previews with **AI File Sorter for File Explorer 1.1.0**.
 - Storage integrations, including OneDrive support, now use separately installed, verified plugins.
 - Improved cancellation, cache reuse, handling of non-English filenames, review editing, and undo reliability.
+- Keep headless JSON status output on stdout and route startup and runtime diagnostics to stderr for scripting and integrations.
 - Improved GPU compatibility and macOS stability, including menu icons, Metal backend detection, and the image-analysis benchmark. macOS 26.0 or later is now required.
 
 ## [1.9.2] - 2026-08-14

@@ -63,9 +63,9 @@ using SetProcessDpiAwarenessContextFn = BOOL(WINAPI*)(HANDLE);
 using SetProcessDpiAwarenessFn = HRESULT(WINAPI*)(int);  // 2 = PROCESS_PER_MONITOR_DPI_AWARE
 #endif
 
-bool initialize_loggers() {
+bool initialize_loggers(Logger::ConsoleOutput console_output) {
     try {
-        Logger::setup_loggers();
+        Logger::setup_loggers(console_output);
         return true;
     } catch (const std::exception& e) {
         if (auto logger = Logger::get_logger("core_logger")) {
@@ -1082,10 +1082,12 @@ int main(int argc, char** argv) {
 
 #ifdef _WIN32
     enable_per_monitor_dpi_awareness();
-    attach_console_if_requested(parsed.console_log);
+    attach_console_if_requested(parsed.console_log && !parsed.headless.requested);
 #endif
 
-    if (!initialize_loggers()) {
+    const auto console_output = parsed.headless.requested ? Logger::ConsoleOutput::Stderr
+                                                         : Logger::ConsoleOutput::Stdout;
+    if (!initialize_loggers(console_output)) {
         return EXIT_FAILURE;
     }
     curl_global_init(CURL_GLOBAL_DEFAULT);

@@ -1563,7 +1563,6 @@ bool ensure_cuda_available(llama_model_params& params,
         return true;
     }
     disable_cuda_backend(params, logger, "CUDA backend unavailable; using CPU backend");
-    std::cout << "No supported GPU backend detected. Running on CPU.\n";
     return false;
 }
 
@@ -1615,7 +1614,6 @@ bool apply_ngl_override(int override_layers,
                 gpu_layers_to_string(override_layers));
         }
     }
-    std::cout << "ngl override: " << params.n_gpu_layers << std::endl;
     return true;
 }
 
@@ -1773,7 +1771,6 @@ bool configure_cuda_backend(const std::string& model_path,
         disable_cuda_backend(params,
                              logger,
                              "CUDA backend memory metrics unavailable; using CPU backend");
-        std::cout << "CUDA memory metrics unavailable, falling back to CPU.\n";
         return true;
     }
 
@@ -1782,7 +1779,9 @@ bool configure_cuda_backend(const std::string& model_path,
     const int ngl = estimation.candidate_layers;
     if (ngl > 0) {
         params.n_gpu_layers = ngl;
-        std::cout << "ngl: " << params.n_gpu_layers << std::endl;
+        if (logger) {
+            logger->info("Using estimated CUDA n_gpu_layers {}", params.n_gpu_layers);
+        }
     } else {
         disable_cuda_backend(
             params,
@@ -1793,7 +1792,6 @@ bool configure_cuda_backend(const std::string& model_path,
         if (estimation.low_memory) {
             mark_preflight_low_memory(preflight_status);
         }
-        std::cout << "CUDA not usable, falling back to CPU.\n";
     }
     return true;
 }

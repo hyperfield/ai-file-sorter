@@ -9,6 +9,14 @@
 
 namespace {
 
+spdlog::sink_ptr make_console_sink(Logger::ConsoleOutput output)
+{
+    if (output == Logger::ConsoleOutput::Stderr) {
+        return std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+    }
+    return std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+}
+
 bool is_active_log_filename(const std::filesystem::path& path)
 {
     const std::string filename = path.filename().string();
@@ -137,6 +145,11 @@ bool Logger::clear_logs(std::string* error)
 
 void Logger::setup_loggers()
 {
+    setup_loggers(ConsoleOutput::Stdout);
+}
+
+void Logger::setup_loggers(ConsoleOutput console_output)
+{
     std::string log_dir = get_log_directory();
     Utils::ensure_directory_exists(log_dir);
 
@@ -144,13 +157,13 @@ void Logger::setup_loggers()
     auto db_log_path = log_dir + "/db.log";
     auto ui_log_path = log_dir + "/ui.log";
     
-    auto core_console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    auto core_console_sink = make_console_sink(console_output);
     auto core_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(core_log_path, 1048576 * 5, 3);
 
-    auto db_console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    auto db_console_sink = make_console_sink(console_output);
     auto db_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(db_log_path, 1048576 * 5, 3);
 
-    auto ui_console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    auto ui_console_sink = make_console_sink(console_output);
     auto ui_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(ui_log_path, 1048576 * 5, 3);
 
     auto core_logger = std::make_shared<spdlog::logger>("core_logger", spdlog::sinks_init_list{core_console_sink, core_file_sink});
@@ -160,6 +173,10 @@ void Logger::setup_loggers()
     spdlog::register_logger(core_logger);
     spdlog::register_logger(db_logger);
     spdlog::register_logger(ui_logger);
+    if (console_output == ConsoleOutput::Stderr) {
+        // Include early/default spdlog calls in the headless diagnostic stream.
+        spdlog::set_default_logger(core_logger);
+    }
 
     core_logger->set_level(spdlog::level::debug);
     db_logger->set_level(spdlog::level::debug);
