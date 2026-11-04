@@ -1413,7 +1413,8 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 ## Contributing
 
 - Fork the repository and submit pull requests.
-- Report issues or suggest features on the GitHub issue tracker.
+- Report ordinary bugs or suggest features on the GitHub issue tracker.
+- Report suspected security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 - Follow the existing code style and documentation format.
 
 ---
