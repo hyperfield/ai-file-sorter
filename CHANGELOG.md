@@ -14,6 +14,7 @@
 - Added Russian cases to the live LLM test suite, including sorting Cyrillic-named files from a Cyrillic folder into Russian category folders.
 - Fixed the first-run LLM selection dialog always appearing in English: the UI translation is now installed before any startup dialog.
 - Fixed analysis progress log lines (`[DOC] Analyzing …`, `[SORT] …`, etc.) never being translated: they are now looked up in the `AnalysisCoordinator` context where lupdate stores them.
+- Standard dialog buttons (OK / Cancel / Yes / No …) are now translated: Qt's own `qtbase_<lang>.qm` catalogs from the `qttranslations` package are embedded and loaded alongside the app translation.
 - Document text excerpts are now truncated on UTF-8 character boundaries, so long Cyrillic/CJK documents no longer reach the LLM with a split character.
 
 ## [1.9.2] - 2026-08-14

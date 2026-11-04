@@ -754,6 +754,45 @@ endfunction()
 
 aifs_add_translation_resources(aifilesorter)
 
+# Qt's own catalogs (qtbase_<lang>.qm) translate standard dialog buttons such as
+# OK / Cancel / Yes / No. They come from the qttranslations package; embed the
+# ones matching the app's interface languages when they are available.
+set(AIFS_QT_TRANSLATION_LANGS da de es fi fr hi is it ko nb nl ru sv tr zh_CN)
+set(AIFS_QT_TRANSLATION_FILES)
+set(AIFS_QT_TRANSLATION_DIR "")
+foreach(_aifs_qt_tr_dir
+        "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/translations/Qt6"
+        "${AIFS_VCPKG_INSTALLED_ROOT}/${VCPKG_TARGET_TRIPLET}/share/qt6/translations"
+        "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_TRANSLATIONS}")
+    if(EXISTS "${_aifs_qt_tr_dir}/qtbase_de.qm")
+        set(AIFS_QT_TRANSLATION_DIR "${_aifs_qt_tr_dir}")
+        break()
+    endif()
+endforeach()
+if(AIFS_QT_TRANSLATION_DIR)
+    foreach(_aifs_qt_lang IN LISTS AIFS_QT_TRANSLATION_LANGS)
+        if(EXISTS "${AIFS_QT_TRANSLATION_DIR}/qtbase_${_aifs_qt_lang}.qm")
+            list(APPEND AIFS_QT_TRANSLATION_FILES "${AIFS_QT_TRANSLATION_DIR}/qtbase_${_aifs_qt_lang}.qm")
+        endif()
+    endforeach()
+    message(STATUS "Embedding Qt translations from ${AIFS_QT_TRANSLATION_DIR}")
+else()
+    message(STATUS "Qt translations (qttranslations) not found; standard dialog buttons stay in English")
+endif()
+
+function(aifs_add_qt_translation_resources target_name)
+    if(NOT AIFS_QT_TRANSLATION_FILES)
+        return()
+    endif()
+    qt_add_resources(${target_name} "${target_name}_qt_translations"
+        PREFIX "/qt_i18n"
+        BASE "${AIFS_QT_TRANSLATION_DIR}"
+        FILES ${AIFS_QT_TRANSLATION_FILES}
+    )
+endfunction()
+
+aifs_add_qt_translation_resources(aifilesorter)
+
 # Resources (equivalent to rcc generation in Makefile)
 set(AIFS_IMAGE_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/logo.png"
@@ -1647,6 +1686,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     )
 
     aifs_add_translation_resources(ai_file_sorter_tests)
+    aifs_add_qt_translation_resources(ai_file_sorter_tests)
 
     target_compile_definitions(ai_file_sorter_tests PRIVATE
         AI_FILE_SORTER_TEST_BUILD=1

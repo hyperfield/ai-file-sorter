@@ -32,8 +32,11 @@ private:
     TranslationManager();
     bool load_translation(const LanguageInfo& info);
 
+    void load_qt_translation(const LanguageInfo& info);
+
     QApplication* app_{nullptr};
     std::unique_ptr<QTranslator> translator_;
+    std::unique_ptr<QTranslator> qt_translator_; // Qt's own strings (OK/Cancel/Yes/No)
     Language current_language_{Language::English};
     std::vector<LanguageInfo> languages_;
 };

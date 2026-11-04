@@ -248,5 +248,13 @@ TEST_CASE("Russian interface language is available") {
     CHECK(QCoreApplication::translate("UiTranslator", "&File") == QString::fromUtf8(u8s(u8"&Файл").c_str()));
     CHECK(QCoreApplication::translate("UiTranslator", "Analyze folder")
           == QString::fromUtf8(u8s(u8"Анализировать папку").c_str()));
+    // Standard dialog buttons come from Qt's own qtbase catalog (when bundled).
+    const QString cancel = QCoreApplication::translate("QPlatformTheme", "Cancel");
+    if (cancel != QStringLiteral("Cancel")) {
+        CHECK(cancel == QString::fromUtf8(u8s(u8"Отмена").c_str()));
+    } else {
+        WARN("qtbase_ru.qm is not bundled in this build; standard buttons stay in English");
+    }
     manager.set_language(Language::English);
+    CHECK(QCoreApplication::translate("QPlatformTheme", "Cancel") == QStringLiteral("Cancel"));
 }
