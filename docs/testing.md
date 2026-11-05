@@ -19,7 +19,7 @@ complement, not replace, the detailed case catalog in `TESTS.md`.
 Build and run the normal test suite:
 
 ```text
-cmake --build build-tests --config Release --target ai_file_sorter_tests --parallel
+cmake --build build-tests --config Release --parallel
 ctest --test-dir build-tests -C Release --output-on-failure
 ```
 
@@ -39,6 +39,14 @@ On Windows multi-config builds, the direct executable lives under
 Windows test targets copy the matching vcpkg runtime DLLs beside each test
 executable after the target builds. If a direct `ctest` run fails because a DLL
 is missing or stale, rebuild the relevant test target before rerunning `ctest`.
+Build all default targets before running the full CTest suite so the storage
+conformance executable and Windows updater variants are available too.
+
+Translation tests require generated Qt catalogs. Install the Qt Linguist
+development files before configuring, including `qt6-tools-dev` and
+`qt6-l10n-tools` on Debian/Ubuntu. CMake rejects configurations without them.
+WebP decoding also requires a runtime decoder; Debian/Ubuntu build environments
+and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent.
 
 ## When to run what
 
@@ -56,9 +64,16 @@ is missing or stale, rebuild the relevant test target before rerunning `ctest`.
   Loopback HTTP fixtures cover actual image uploads, API errors, cancellation,
   persisted settings, GUI selection, shared workflow caching and headless renaming;
   no downloaded model or external API is required.
+- Live-runner timeout cleanup: run CTest's `live_llm_process_cleanup`. It uses
+  real parent/child processes to check output, exit codes and complete process
+  termination after a timeout; no model is required.
 - Updater/feed changes: run the updater and update-feed tests.
 - Packaging/build-script changes: validate the relevant platform build path in
   addition to unit tests.
+- Windows Vulkan startup: build the production app, its launcher when present,
+  and `aifs_incompatible_vulkan_loader`, then run CTest's `windows_vulkan_startup`.
+  Isolated process checks cover loader precedence, CPU fallback before GGML
+  imports, direct/Store layouts, and explicit runtime load failures.
 
 ## Live headless LLM tests
 
