@@ -727,6 +727,31 @@ Click OK to enable this setting or Cancel to leave it disabled.</source>
             <source>Created %1.</source>
             <translation>已创建 %1。</translation>
         </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="100"></location>
+            <source>Choose the language for starter folder names. Translation uses the selected LLM and does not change your category language.</source>
+            <translation>选择初始文件夹名称的语言。翻译使用所选 LLM，不会更改类别语言。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="111"></location>
+            <source>Folder language:</source>
+            <translation>文件夹语言：</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="118"></location>
+            <source>Retry translation</source>
+            <translation>重试翻译</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="272"></location>
+            <source>Finishing the current translation request…</source>
+            <translation>正在完成当前翻译请求…</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="385"></location>
+            <source>Translating folder names…</source>
+            <translation>正在翻译文件夹名称…</translation>
+        </message>
     </context>
     <context>
         <name>FolderStructurePluginDialog</name>
@@ -1427,6 +1452,81 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
             <translation>选择已下载的视觉模型或支持视觉的 API 连接。添加或编辑自定义 API 连接时，请启用视觉支持。</translation>
         </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="301"></location>
+            <source>Provider</source>
+            <translation>提供商</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="318"></location>
+            <source>Local LLMs</source>
+            <translation>本地 LLM</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="319"></location>
+            <source>API connections</source>
+            <translation>API 连接</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="602"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="632"></location>
+            <source>See details</source>
+            <translation>查看详情</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="632"></location>
+            <source>Hide details</source>
+            <translation>隐藏详情</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="868"></location>
+            <source>High precision local model for categorization. Best suited for sorting into existing folder structures.
+Supports many languages for categorization.
+Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
+            <translation>用于分类的高精度本地模型，特别适合整理到现有文件夹结构中。
+支持多种语言的分类。
+支持：Nvidia (CUDA)、Apple (Metal)、CPU。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="883"></location>
+            <source>Use a local GGUF model from your computer.</source>
+            <translation>使用计算机上的本地 GGUF 模型。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1289"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1633"></location>
+            <source>File type</source>
+            <translation>文件类型</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1289"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1634"></location>
+            <source>GGUF text model</source>
+            <translation>GGUF 文本模型</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1291"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1637"></location>
+            <source>Runtime</source>
+            <translation>运行时</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1293"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1640"></location>
+            <source>Download URL setting</source>
+            <translation>下载 URL 设置</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1296"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1630"></location>
+            <source>Model ID</source>
+            <translation>模型 ID</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1634"></location>
+            <source>GGUF vision projector</source>
+            <translation>GGUF 视觉投影器</translation>
+        </message>
     </context>
     <context>
         <name>MainApp</name>
@@ -2115,6 +2215,24 @@ A valid code will permanently hide this support reminder.</translation>
         <source>The %1 looks like a Johnny.Decimal archive.</source>
         <translation>%1 似乎是一个 Johnny.Decimal 归档。</translation>
     </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2710"></location>
+            <source>Recommended model for existing folders</source>
+            <translation>适用于现有文件夹的推荐模型</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2711"></location>
+            <source>Not all LLMs handle existing folder structures equally well. We recommend Qwen3.5 4B for the best results when choosing destination folders.
+
+Gemma 1.1 7B and LLMs accessed through an API are also suitable options.
+
+You can continue with your current model or change it in Select LLM.</source>
+            <translation>并非所有 LLM 都能同样出色地处理现有文件夹结构。为在选择目标文件夹时获得最佳结果，我们推荐使用 Qwen3.5 4B。
+
+Gemma 1.1 7B 和通过 API 访问的 LLM 也是合适的选择。
+
+您可以继续使用当前模型，也可以在“选择 LLM”中更改模型。</translation>
+        </message>
 </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -2858,6 +2976,156 @@ Tried:
 Please update to continue. If you choose to quit, the application will close.</source>
             <translation>有新的更新可用。由于重大改进，因此需要它。
 请更新以继续。如果您选择退出，应用程序将关闭。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="581"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="827"></location>
+            <source>Custom: %1</source>
+            <translation>自定义：%1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1183"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1185"></location>
+            <source>Local model: %1</source>
+            <translation>本地模型：%1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1568"></location>
+            <source>For existing folder structures, we recommend Qwen3.5 4B. Gemma 1.1 7B and API models are alternatives. These speed tests do not measure folder-routing accuracy.</source>
+            <translation>对于现有文件夹结构，我们推荐使用 Qwen3.5 4B。Gemma 1.1 7B 和 API 模型也是备选方案。这些速度测试不衡量文件夹选择的准确性。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1838"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1854"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2004"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2014"></location>
+            <source>Backend</source>
+            <translation>后端</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1842"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2007"></location>
+            <source>Automatic (try CPU if GPU fails)</source>
+            <translation>自动（GPU 失败时尝试 CPU）</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1843"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2008"></location>
+            <source>All available backends</source>
+            <translation>所有可用后端</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1854"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2014"></location>
+            <source>Model</source>
+            <translation>模型</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1855"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2015"></location>
+            <source>Categorization</source>
+            <translation>分类</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1855"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2015"></location>
+            <source>Documents</source>
+            <translation>文档</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1855"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2015"></location>
+            <source>Images</source>
+            <translation>图片</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1868"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2018"></location>
+            <source>Retry selected</source>
+            <translation>重试所选项</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1870"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2019"></location>
+            <source>Retry failed</source>
+            <translation>重试失败项</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1872"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2020"></location>
+            <source>Try chosen backend</source>
+            <translation>尝试所选后端</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1874"></location>
+            <source>Test the selected model using the backend chosen above.</source>
+            <translation>使用上方选择的后端测试所选模型。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2023"></location>
+            <source>Tests all downloaded local text and visual models, including custom GGUF models. API services and folder-routing accuracy are not benchmarked.</source>
+            <translation>测试所有已下载的本地文本和视觉模型，包括自定义 GGUF 模型。不对 API 服务和文件夹选择准确性进行基准测试。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2137"></location>
+            <source>Passed (%1)</source>
+            <translation>通过（%1）</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2138"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2151"></location>
+            <source>Failed</source>
+            <translation>失败</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2145"></location>
+            <source>Last tested: %1</source>
+            <translation>上次测试：%1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2199"></location>
+            <source>The analysis runtime is busy. Wait for the current analysis or compatibility check to finish, then try again.</source>
+            <translation>分析运行时正忙。请等待当前分析或兼容性检查完成后重试。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2207"></location>
+            <source>No usable local LLM files detected. Download a model or add a valid custom GGUF model to run the benchmark.</source>
+            <translation>未检测到可用的本地 LLM 文件。请下载模型或添加有效的自定义 GGUF 模型以运行基准测试。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2231"></location>
+            <source>Could not start the compatibility check: %1</source>
+            <translation>无法启动兼容性检查：%1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2425"></location>
+            <source>The selected model files changed or are no longer available. Run the benchmark again to discover current models.</source>
+            <translation>所选模型文件已更改或不再可用。请重新运行基准测试以发现当前可用的模型。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2434"></location>
+            <source>No matching model/backend pairs are available to test.</source>
+            <translation>没有可供测试的匹配模型/后端组合。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2449"></location>
+            <source>Testing %1 on %2</source>
+            <translation>正在 %2 上测试 %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2492"></location>
+            <source>Model/backend check passed.</source>
+            <translation>模型/后端检查通过。</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2493"></location>
+            <source>Model/backend check failed: %1</source>
+            <translation>模型/后端检查失败：%1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2506"></location>
+            <source>The GPU attempt failed. Testing this model on CPU as a separate result.</source>
+            <translation>GPU 尝试失败。正在 CPU 上测试此模型，结果将单独记录。</translation>
         </message>
     </context>
     <context>

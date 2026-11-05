@@ -727,6 +727,31 @@ Klik på OK for at aktivere indstillingen eller Annuller for at lade den være d
             <source>Created %1.</source>
             <translation>Oprettet %1.</translation>
         </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="100"></location>
+            <source>Choose the language for starter folder names. Translation uses the selected LLM and does not change your category language.</source>
+            <translation>Vælg sprog til navnene på startmapperne. Oversættelsen bruger den valgte LLM og ændrer ikke dit kategorisprog.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="111"></location>
+            <source>Folder language:</source>
+            <translation>Mappesprog:</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="118"></location>
+            <source>Retry translation</source>
+            <translation>Prøv oversættelsen igen</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="272"></location>
+            <source>Finishing the current translation request…</source>
+            <translation>Afslutter den igangværende oversættelsesanmodning…</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="385"></location>
+            <source>Translating folder names…</source>
+            <translation>Oversætter mappenavne…</translation>
+        </message>
     </context>
     <context>
         <name>FolderStructurePluginDialog</name>
@@ -1427,6 +1452,81 @@ Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <source>Choose a downloaded visual model or a vision-capable API connection. Enable vision support when adding or editing a custom API connection.</source>
             <translation>Vælg en downloadet visuel model eller en API-forbindelse med billedforståelse. Aktivér billedstøtte, når du tilføjer eller redigerer en brugerdefineret API-forbindelse.</translation>
         </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="301"></location>
+            <source>Provider</source>
+            <translation>Udbyder</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="318"></location>
+            <source>Local LLMs</source>
+            <translation>Lokale LLM'er</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="319"></location>
+            <source>API connections</source>
+            <translation>API-forbindelser</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="602"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="632"></location>
+            <source>See details</source>
+            <translation>Vis detaljer</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="632"></location>
+            <source>Hide details</source>
+            <translation>Skjul detaljer</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="868"></location>
+            <source>High precision local model for categorization. Best suited for sorting into existing folder structures.
+Supports many languages for categorization.
+Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
+            <translation>Lokal model med høj præcision til kategorisering. Særligt velegnet til sortering i eksisterende mappestrukturer.
+Understøtter mange sprog til kategorisering.
+Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="883"></location>
+            <source>Use a local GGUF model from your computer.</source>
+            <translation>Brug en lokal GGUF-model fra din computer.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1289"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1633"></location>
+            <source>File type</source>
+            <translation>Filtype</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1289"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1634"></location>
+            <source>GGUF text model</source>
+            <translation>GGUF-tekstmodel</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1291"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1637"></location>
+            <source>Runtime</source>
+            <translation>Kørselsmiljø</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1293"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1640"></location>
+            <source>Download URL setting</source>
+            <translation>Indstilling for downloadadresse</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1296"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1630"></location>
+            <source>Model ID</source>
+            <translation>Model-ID</translation>
+        </message>
+        <message>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1634"></location>
+            <source>GGUF vision projector</source>
+            <translation>GGUF-billedprojektor</translation>
+        </message>
     </context>
     <context>
         <name>MainApp</name>
@@ -2115,6 +2215,24 @@ A valid code will permanently hide this support reminder.</translation>
         <source>The %1 looks like a Johnny.Decimal archive.</source>
         <translation>%1 ligner et Johnny.Decimal-arkiv.</translation>
     </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2710"></location>
+            <source>Recommended model for existing folders</source>
+            <translation>Anbefalet model til eksisterende mapper</translation>
+        </message>
+        <message>
+            <location filename="../../lib/MainApp.cpp" line="2711"></location>
+            <source>Not all LLMs handle existing folder structures equally well. We recommend Qwen3.5 4B for the best results when choosing destination folders.
+
+Gemma 1.1 7B and LLMs accessed through an API are also suitable options.
+
+You can continue with your current model or change it in Select LLM.</source>
+            <translation>Ikke alle LLM'er håndterer eksisterende mappestrukturer lige godt. Vi anbefaler Qwen3.5 4B for de bedste resultater ved valg af destinationsmapper.
+
+Gemma 1.1 7B og LLM'er, der er tilgængelige via en API, er også egnede muligheder.
+
+Du kan fortsætte med din nuværende model eller skifte den i Vælg LLM.</translation>
+        </message>
 </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -2858,6 +2976,156 @@ Forsøgte:
 Please update to continue. If you choose to quit, the application will close.</source>
             <translation>En ny opdatering er tilgængelig. Det er påkrævet på grund af store forbedringer.
 Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikationen.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="581"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="827"></location>
+            <source>Custom: %1</source>
+            <translation>Brugerdefineret: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1183"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1185"></location>
+            <source>Local model: %1</source>
+            <translation>Lokal model: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1568"></location>
+            <source>For existing folder structures, we recommend Qwen3.5 4B. Gemma 1.1 7B and API models are alternatives. These speed tests do not measure folder-routing accuracy.</source>
+            <translation>Til eksisterende mappestrukturer anbefaler vi Qwen3.5 4B. Gemma 1.1 7B og API-modeller er alternativer. Disse hastighedstest måler ikke præcisionen i mappevalg.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1838"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1854"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2004"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2014"></location>
+            <source>Backend</source>
+            <translation>Backend</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1842"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2007"></location>
+            <source>Automatic (try CPU if GPU fails)</source>
+            <translation>Automatisk (prøv CPU, hvis GPU fejler)</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1843"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2008"></location>
+            <source>All available backends</source>
+            <translation>Alle tilgængelige backends</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1854"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2014"></location>
+            <source>Model</source>
+            <translation>Model</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1855"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2015"></location>
+            <source>Categorization</source>
+            <translation>Kategorisering</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1855"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2015"></location>
+            <source>Documents</source>
+            <translation>Dokumenter</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1855"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2015"></location>
+            <source>Images</source>
+            <translation>Billeder</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1868"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2018"></location>
+            <source>Retry selected</source>
+            <translation>Prøv valgte igen</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1870"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2019"></location>
+            <source>Retry failed</source>
+            <translation>Prøv mislykkede igen</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1872"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2020"></location>
+            <source>Try chosen backend</source>
+            <translation>Prøv valgt backend</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1874"></location>
+            <source>Test the selected model using the backend chosen above.</source>
+            <translation>Test den valgte model med den backend, der er valgt ovenfor.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2023"></location>
+            <source>Tests all downloaded local text and visual models, including custom GGUF models. API services and folder-routing accuracy are not benchmarked.</source>
+            <translation>Tester alle downloadede lokale tekst- og billedmodeller, herunder brugerdefinerede GGUF-modeller. API-tjenester og præcisionen i mappevalg bliver ikke målt.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2137"></location>
+            <source>Passed (%1)</source>
+            <translation>Bestået (%1)</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2138"></location>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2151"></location>
+            <source>Failed</source>
+            <translation>Mislykkedes</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2145"></location>
+            <source>Last tested: %1</source>
+            <translation>Sidst testet: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2199"></location>
+            <source>The analysis runtime is busy. Wait for the current analysis or compatibility check to finish, then try again.</source>
+            <translation>Analysemiljøet er optaget. Vent, til den aktuelle analyse eller kompatibilitetskontrol er færdig, og prøv igen.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2207"></location>
+            <source>No usable local LLM files detected. Download a model or add a valid custom GGUF model to run the benchmark.</source>
+            <translation>Ingen brugbare lokale LLM-filer fundet. Download en model, eller tilføj en gyldig brugerdefineret GGUF-model for at køre ydelsestesten.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2231"></location>
+            <source>Could not start the compatibility check: %1</source>
+            <translation>Kunne ikke starte kompatibilitetskontrollen: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2425"></location>
+            <source>The selected model files changed or are no longer available. Run the benchmark again to discover current models.</source>
+            <translation>De valgte modelfiler er ændret eller ikke længere tilgængelige. Kør ydelsestesten igen for at finde de aktuelle modeller.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2434"></location>
+            <source>No matching model/backend pairs are available to test.</source>
+            <translation>Ingen matchende model/backend-par er tilgængelige til test.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2449"></location>
+            <source>Testing %1 on %2</source>
+            <translation>Tester %1 på %2</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2492"></location>
+            <source>Model/backend check passed.</source>
+            <translation>Model/backend-kontrollen bestod.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2493"></location>
+            <source>Model/backend check failed: %1</source>
+            <translation>Model/backend-kontrollen mislykkedes: %1</translation>
+        </message>
+        <message>
+            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="2506"></location>
+            <source>The GPU attempt failed. Testing this model on CPU as a separate result.</source>
+            <translation>GPU-forsøget mislykkedes. Tester denne model på CPU som et separat resultat.</translation>
         </message>
     </context>
     <context>

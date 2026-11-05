@@ -451,7 +451,6 @@ endif()
 
 # Qt6
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
-set(_aifs_enable_translation_generation TRUE)
 find_package(Qt6LinguistTools CONFIG QUIET)
 if(NOT Qt6LinguistTools_FOUND)
     set(_aifs_qttools_hints "")
@@ -470,15 +469,12 @@ if(NOT Qt6LinguistTools_FOUND)
         endif()
     endforeach()
     list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
-    if(AI_FILE_SORTER_BUILD_TESTS)
-        find_package(Qt6LinguistTools CONFIG QUIET)
-        if(NOT Qt6LinguistTools_FOUND)
-            set(_aifs_enable_translation_generation FALSE)
-            message(STATUS
-                "Qt6LinguistTools not found; skipping translation generation for test build.")
-        endif()
-    else()
-        find_package(Qt6LinguistTools CONFIG REQUIRED)
+    find_package(Qt6LinguistTools CONFIG QUIET)
+    if(NOT Qt6LinguistTools_FOUND)
+        message(FATAL_ERROR
+            "Qt6LinguistTools development files are required, including for the translation tests. "
+            "On Debian/Ubuntu install qt6-tools-dev and qt6-l10n-tools; "
+            "on macOS install qttools, or add its prefix to CMAKE_PREFIX_PATH.")
     endif()
 endif()
 
@@ -895,26 +891,24 @@ target_include_directories(aifilesorter PRIVATE
     ${DOC_DEPS_INCLUDE_DIRS}
 )
 
-if(_aifs_enable_translation_generation)
-    qt_add_lupdate(
-        aifilesorter
-        NO_GLOBAL_TARGET
-        TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-        SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
-        OPTIONS -no-obsolete
-    )
+qt_add_lupdate(
+    aifilesorter
+    NO_GLOBAL_TARGET
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
+    OPTIONS -no-obsolete
+)
 
-    set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
-        PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
+set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
+    PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
 
-    qt_add_lrelease(
-        aifilesorter
-        TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-        QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
-    )
+qt_add_lrelease(
+    aifilesorter
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
+)
 
-    set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
-endif()
+set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
 
 function(aifs_add_translation_resources target_name)
     if(NOT AIFS_TRANSLATION_QM_FILES)

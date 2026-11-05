@@ -284,7 +284,8 @@ for ts_file in "${TS_FILES[@]}"; do
     cp "$ts_file" "$sync_tmp_dir/"
 done
 
-"$LUPDATE" "${LUPDATE_SOURCES[@]}" -ts "$sync_tmp_dir"/aifilesorter_*.ts -no-obsolete >/dev/null
+"$LUPDATE" "-I$ROOT_DIR/app/include" "${LUPDATE_SOURCES[@]}" \
+    -ts "$sync_tmp_dir"/aifilesorter_*.ts -no-obsolete >/dev/null
 
 if rg -n '<translation type="unfinished"' "$sync_tmp_dir"/aifilesorter_*.ts >/dev/null; then
     echo "Current GUI source contains strings missing from the translation catalogs" >&2

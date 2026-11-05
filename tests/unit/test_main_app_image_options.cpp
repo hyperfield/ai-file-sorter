@@ -200,6 +200,7 @@ TEST_CASE("Existing folder mode recommends Qwen for less suitable local models")
     for (const auto& [choice, expected_recommendation] : cases) {
         DYNAMIC_SECTION("Selected LLM " << static_cast<int>(choice)) {
             Settings settings;
+            settings.set_language(Language::English);
             settings.set_llm_choice(choice);
             settings.set_sorting_mode(SortingMode::GeneratedCategories);
             REQUIRE(settings.save());
