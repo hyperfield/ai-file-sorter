@@ -6,12 +6,14 @@
 #include "ExternalProcessStorageProvider.hpp"
 #include "LocalFsProvider.hpp"
 #include "TestHelpers.hpp"
+#include "Utils.hpp"
 
 #include <QString>
 #include <sqlite3.h>
 
 #include <memory>
 #include <functional>
+#include <fstream>
 
 namespace {
 class NormalizingStorageProvider : public LocalFsProvider {
@@ -350,34 +352,39 @@ TEST_CASE("DatabaseManager rolls back cache clearing when a dependent deletion f
     TempDir root;
     EnvVarGuard cache_file("CATEGORIZATION_CACHE_FILE", std::nullopt);
     DatabaseManager db(root.path().string());
+    const auto sample = root.path() / "sample";
+    std::filesystem::create_directory(sample);
+    std::ofstream(sample / "notes.txt") << "Evidence";
+    const auto directory = Utils::path_to_utf8(sample);
     const auto labels = db.resolve_category("Documents", "Notes");
-    REQUIRE(db.insert_or_update_file_with_categorization("notes.txt", "F", "/sample", labels, false));
+    REQUIRE(db.insert_or_update_file_with_categorization("notes.txt", "F", directory, labels, false));
     DatabaseManager::FolderTreeRoutingRecord route;
     route.destination_root = "/target";
     route.tree_fingerprint = "tree:v1";
     route.semantic_category = "Documents";
     route.semantic_subcategory = "Notes";
     route.target_folder_relative_path = "Notes";
-    REQUIRE(db.insert_or_update_folder_tree_routing("notes.txt", "F", "/sample", route));
+    REQUIRE(db.insert_or_update_folder_tree_routing("notes.txt", "F", directory, route));
+    const auto key = ContentAnalysisCache::make_key(sample / "notes.txt", "document:v1");
+    REQUIRE(key);
+    REQUIRE(db.content_analysis_cache().store(*key, {"notes.txt", "Evidence"}));
     sqlite3* connection = nullptr;
     REQUIRE(sqlite3_open((root.path() / "categorization_results.db").string().c_str(), &connection) == SQLITE_OK);
     RawDatabase raw(connection, sqlite3_close);
-    execute_sql(raw.get(), "INSERT INTO content_analysis_cache(source_path,dir_path,analyzer,sha256,suggested_name,description) VALUES "
-        "('/sample/notes.txt', '/sample', 'document:v1', 'hash', 'notes.txt', 'Evidence');");
     std::string rejection_table = "folder_tree_routing";
     std::function<bool()> clear;
     bool single_file = false;
     bool clear_taxonomy = false;
     SECTION("Single-file routing failure") {
         single_file = true;
-        clear = [&] { return db.remove_file_categorization("/sample", "notes.txt", FileType::File); };
+        clear = [&] { return db.remove_file_categorization(directory, "notes.txt", FileType::File); };
     }
     SECTION("Nonrecursive directory routing failure") {
-        clear = [&] { return db.clear_directory_categorizations("/sample"); };
+        clear = [&] { return db.clear_directory_categorizations(directory); };
     }
     SECTION("Recursive directory evidence failure") {
         rejection_table = "content_analysis_cache";
-        clear = [&] { return db.clear_directory_categorizations("/sample", true); };
+        clear = [&] { return db.clear_directory_categorizations(directory, true); };
     }
     SECTION("Global routing failure") {
         clear = [&] { return db.clear_all_categorizations(); };

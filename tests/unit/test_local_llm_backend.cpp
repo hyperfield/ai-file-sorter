@@ -56,8 +56,8 @@ TEST_CASE("Image categorization uses an image-specific system prompt") {
         FileType::File);
 
     CHECK(prompt.find("Without an allowed-category list, use Images as the main category") != std::string::npos);
-    CHECK(prompt.find("Allowed main categories") != std::string::npos);
-    CHECK(prompt.find("Reply with exactly one line in the format <Main category> : <Subcategory>") != std::string::npos);
+    CHECK(prompt.find("Copy provided allowed category and subcategory labels exactly") != std::string::npos);
+    CHECK(prompt.find("Reply with one line in the format <Main category> : <Subcategory>") != std::string::npos);
     CHECK(prompt.find("A screenshot depicts content") != std::string::npos);
     CHECK(prompt.find("Use any provided image description as the primary evidence") != std::string::npos);
     CHECK(prompt.find("If the file is an installer") == std::string::npos);
@@ -95,7 +95,7 @@ TEST_CASE("Generic file categorization keeps the general system prompt") {
         "home/theuser/Downloads/freetube_0.23.5_amd64.deb",
         FileType::File);
 
-    CHECK(prompt.find("Allowed main categories") != std::string::npos);
+    CHECK(prompt.find("Copy provided allowed category and subcategory labels exactly") != std::string::npos);
     CHECK(prompt.find("If the file is an installer") != std::string::npos);
     CHECK(prompt.find("any content evidence provided") != std::string::npos);
 }
@@ -107,7 +107,7 @@ TEST_CASE("Document categorization uses a document-specific system prompt") {
             FileType::File);
 
         CHECK(prompt.find("filesystem organization") != std::string::npos);
-        CHECK(prompt.find("Allowed main categories") != std::string::npos);
+        CHECK(prompt.find("Copy provided allowed category and subcategory labels exactly") != std::string::npos);
         CHECK(prompt.find("keep the main category broad and filesystem-friendly") != std::string::npos);
         CHECK(prompt.find("If the file is an installer") == std::string::npos);
         CHECK(prompt.find("Without an allowed-category list, use Images as the main category") == std::string::npos);
@@ -203,7 +203,7 @@ TEST_CASE("Generic file categorization user prompt includes explicit answer form
         "5) Other");
 
     CHECK(prompt.find("Categorize this file.") == 0);
-    CHECK(prompt.find("Full path: home/theuser/Downloads/Git-2.50.0.2-64-bit.exe") != std::string::npos);
+    CHECK(prompt.find("home/theuser/Downloads/") == std::string::npos);
     CHECK(prompt.find("File name: Git-2.50.0.2-64-bit.exe") != std::string::npos);
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
     CHECK(prompt.find("Answer with exactly one line:\n<Main category> : <Subcategory>") != std::string::npos);

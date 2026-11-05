@@ -420,7 +420,7 @@ Run: `./build-tests/ai_file_sorter_tests "Image categorization uses refined loca
 Purpose: Keep the generic file prompt short while still forcing the model back into the strict `<Main category> : <Subcategory>` response shape.
 Setup: Provide a representative software-like file name and a sample allowed-main-category block.
 Procedure: Build the generic categorization user prompt through the local LLM test access layer.
-Expected outcome: The prompt includes the full path, file name, allowed main categories, and an explicit one-line answer template.
+Expected outcome: The prompt includes the file name, allowed main categories, and an explicit one-line answer template, while omitting the parent path.
 Run: `./build-tests/ai_file_sorter_tests "Generic file categorization user prompt includes explicit answer format"`
 
 #### Test case: CPU backend is honored when forced

@@ -247,8 +247,9 @@ TEST_CASE("JohnnyDecimalIndexWidget filters conflicts and opens only existing ar
     REQUIRE(open->isEnabled());
     open->click();
     REQUIRE(opened.size() == 1);
-    CHECK(opened.front().toLocalFile().toStdString() == std::filesystem::canonical(
-        root.path() / "20-29 Work/21 Projects/21.03 Alpha").string());
+    CHECK(std::filesystem::equivalent(
+        Utils::utf8_to_path(opened.front().toLocalFile().toUtf8().toStdString()),
+        root.path() / "20-29 Work/21 Projects/21.03 Alpha"));
     std::filesystem::remove_all(root.path() / "20-29 Work/21 Projects/21.03 Alpha");
     open->click();
     CHECK(opened.size() == 1);
