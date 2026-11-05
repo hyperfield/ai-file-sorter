@@ -13,6 +13,7 @@
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
+#include "Utils.hpp"
 
 #include <atomic>
 #include <QImage>
@@ -143,10 +144,13 @@ TEST_CASE("Shared image workflow uploads through the selected API and refreshes 
     CustomApiEndpoint endpoint{"vision", "Image server", "", server.url(), "", "first-model", true};
     endpoint.id = settings.upsert_custom_api_endpoint(endpoint);
     settings.set_visual_model_id(http_visual_model_id(endpoint.id));
-    const auto path = source.path() / "IMG_0001.png";
+    const bool unicode_filename = GENERATE(false, true);
+    const auto filename = unicode_filename
+        ? QStringLiteral("IMG_0001_東京_été.png") : QStringLiteral("IMG_0001.png");
+    const auto path = source.path() / Utils::utf8_to_path(filename.toUtf8().toStdString());
     QImage image(16, 16, QImage::Format_RGB32);
     image.fill(Qt::red);
-    REQUIRE(image.save(QString::fromStdString(path.string())));
+    REQUIRE(image.save(QString::fromStdString(Utils::path_to_utf8(path))));
     server.respond = [](const auto& request) {
         const auto content = request.json.value("messages").toArray()[0].toObject().value("content");
         return ChatCompletionTestServer::answer(content.isArray()

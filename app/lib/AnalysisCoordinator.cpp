@@ -1518,7 +1518,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
                             app_.append_progress(to_utf8(
                                 app_.tr("[VISION] Analyzing %1")
                                     .arg(QString::fromStdString(entry.file_name))));
-                            const auto analysis = analyzer->analyze(entry.full_path);
+                            const auto analysis = analyzer->analyze(Utils::utf8_to_path(entry.full_path));
                             if (analysis.suggested_name.empty() || analysis.description.empty()) {
                                 throw std::runtime_error("Incomplete image content analysis.");
                             }

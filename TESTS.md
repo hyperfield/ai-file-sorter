@@ -2997,7 +2997,7 @@ generated images; no live provider or downloaded GGUF/MMProj is needed.
 | Visual runtime resolves API connections without artifacts and rejects missing or disabled connections | Require the vision capability and fail explicitly when the selected connection disappears. |
 | API visual selection stays independent of the text model and hides local downloads | Restore API vision alongside Gemini text, switch between local/API visual models and verify local download controls are hidden for API selections. |
 | A configured vision API enables image analysis without a model download prompt | Toggle the main-window image checkbox with a saved API visual backend and no availability stub. |
-| Shared image workflow uploads through the selected API and refreshes changed endpoint models | Generate evidence and review names through the shared workflow, reuse evidence on rescan, and upload again after changing the endpoint's model. |
+| Shared image workflow uploads through the selected API and refreshes changed endpoint models | Generate evidence and review names through the shared workflow for ASCII and Japanese/accented filenames, reuse evidence on rescan, and upload again after changing the endpoint's model. |
 
 The existing **Custom API endpoints persist across Settings load/save** case also
 round-trips the vision capability and independent visual backend id.
