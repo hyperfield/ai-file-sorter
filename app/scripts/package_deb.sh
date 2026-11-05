@@ -219,8 +219,8 @@ SYSTEM_DEPENDS="$(python3 "$SCRIPT_DIR/deb_dependencies.py" "$PKG_ROOT" \
     --library-dir "$APP_DIR/include/external/llama.cpp/build-cuda-link" \
     --library-dir /usr/local/cuda/lib64 \
     --library-dir /opt/cuda/lib64)"
-# Platform plugins are loaded by Qt rather than linked into the executable.
-PACKAGE_DEPENDS_STR="$SYSTEM_DEPENDS, qt6-wayland"
+# Qt platform plugins and the WebP fallback decoder are loaded dynamically.
+PACKAGE_DEPENDS_STR="$SYSTEM_DEPENDS, qt6-wayland, libwebp7"
 
 DESCRIPTION_TEXT="AI-powered file categorization tool. Requires the listed runtime libraries from the host system."
 if [[ "$INCLUDE_VULKAN" == "1" ]]; then
