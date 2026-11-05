@@ -3355,7 +3355,14 @@ Procedure: Build the suggested target directory with subcategories enabled.
 Expected outcome: The returned path is under the destination root rather than the source folder.
 Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses the destination root for generated category folders"`
 
-### `tests/unit/test_main_app_translation.cpp` (non-Windows only)
+### `tests/unit/test_main_app_translation.cpp`
+
+#### Test case: MainApp loads default settings without registered application loggers
+Purpose: Prevent a null logger crash when constructing the main window before application loggers have been registered.
+Setup: Use a fresh isolated configuration directory and temporarily remove the named application loggers.
+Procedure: Construct the main window with default settings and inspect its English analyze-button label and the logger registry.
+Expected outcome: Construction succeeds using the default logger without registering replacement named loggers.
+Run: `./build-tests/ai_file_sorter_tests "MainApp loads default settings without registered application loggers"`
 
 #### Test case: MainApp retranslate reflects language changes
 Purpose: Validate that main window labels update for all supported UI languages.

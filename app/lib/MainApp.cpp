@@ -137,6 +137,13 @@ const QEvent::Type kAnalysisFailureEventType =
 constexpr char kJohnnyDecimalPluginId[] = "johnny_decimal_support";
 constexpr char kJohnnyDecimalPluginFallbackUrl[] = "https://filesorter.app/plugins/johnny-decimal-support/";
 
+/** @brief Keep GUI services usable when application loggers have not been registered. */
+std::shared_ptr<spdlog::logger> resolve_app_logger(const std::string& name)
+{
+    const auto logger = Logger::get_logger(name);
+    return logger ? logger : spdlog::default_logger();
+}
+
 class AnalysisFailureEvent final : public QEvent {
 public:
     explicit AnalysisFailureEvent(std::string message)
@@ -623,8 +630,8 @@ MainApp::MainApp(Settings& settings,
       analysis_runtime_lock_(Utils::utf8_to_path(runtime_data_dir_) / "runtime"),
       db_manager(runtime_data_dir_),
       user_learning_store_(runtime_data_dir_),
-      core_logger(Logger::get_logger("core_logger")),
-      ui_logger(Logger::get_logger("ui_logger")),
+      core_logger(resolve_app_logger("core_logger")),
+      ui_logger(resolve_app_logger("ui_logger")),
       whitelist_store(runtime_data_dir_),
       folder_structure_plugin_manager_(std::make_shared<FolderStructurePluginManager>(runtime_data_dir_)),
       storage_plugin_manager_(std::make_shared<StoragePluginManager>(runtime_data_dir_)),
