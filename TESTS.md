@@ -194,6 +194,13 @@ Covered cases include categorization with and without subcategories, whitelist-r
 
 Run directly with: `python tests/live_llm/headless_live_llm_tests.py --app app\build-windows\Release\aifilesorter.exe --model C:\models\text-model.gguf --backend cpu --keep-work-dir --verbose`. See `tests/live_llm/README.md` for all environment variables and public fixture sources.
 
+The model-free `live_llm_process_cleanup` CTest group runs
+`tests/live_llm/test_headless_live_llm_processes.py`. It checks that normal
+completion preserves output and exit status, then times out a real parent/child
+job and verifies its descendant cannot write a delayed marker. Windows uses
+`taskkill /T`; POSIX launches an isolated process group and kills that group.
+Run directly with `python -m unittest discover -s tests/live_llm -p test_headless_live_llm_processes.py -v`.
+
 Manual Windows GUI smoke validation for issue #95: launch a normal visible build, switch the UI/category language to French, scan a folder containing non-CP1252 filenames, open the Review dialog, sort columns, toggle subcategory visibility, change UI language while the dialog is open, apply `Logiciels / Navigateur`, and undo. Expected outcome: no `Qt6Widgets.dll` crash, no Windows code-page path exception, no literal `subcategory` folder, and the file is restored by undo.
 
 ## Local inference input audits

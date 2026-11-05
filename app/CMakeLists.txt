@@ -2131,6 +2131,13 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                     --app $<TARGET_FILE:aifilesorter> -v
             )
             set_tests_properties(headless_stdout_contract PROPERTIES LABELS "headless;integration" TIMEOUT 120)
+            add_test(
+                NAME live_llm_process_cleanup
+                COMMAND ${Python3_EXECUTABLE} -m unittest discover
+                    -s ${CMAKE_SOURCE_DIR}/../tests/live_llm
+                    -p test_headless_live_llm_processes.py -v)
+            set_tests_properties(live_llm_process_cleanup PROPERTIES
+                LABELS "headless;integration" TIMEOUT 60)
             if(WIN32 AND MSVC AND AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
                 add_library(aifs_incompatible_vulkan_loader SHARED
                     "${CMAKE_SOURCE_DIR}/../tests/fixtures/incompatible_vulkan_loader.cpp")
