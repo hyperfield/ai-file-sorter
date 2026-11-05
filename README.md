@@ -171,6 +171,7 @@ the main entry page, use these technical references:
 - Storage integrations, including OneDrive support, now use separately installed, verified plugins.
 - Improved cancellation, cache reuse, handling of non-English filenames, review editing, and undo reliability.
 - Improved GPU compatibility and macOS stability, including menu icons, Metal backend detection, and the image-analysis benchmark. macOS 26.0 or later is now required.
+- Fixed Windows startup failures with incompatible Vulkan loaders by validating the loader before importing GPU libraries and allowing CPU fallback.
 - Pinned Ubuntu release builds to 24.04, generated Debian dependencies from the shipped binaries, and added package installation and startup checks in a clean runtime container.
 - Fixed Linux launcher discovery of packaged CPU, CUDA, and Vulkan runtime directories.
 

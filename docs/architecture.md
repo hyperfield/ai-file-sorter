@@ -44,6 +44,10 @@ UI-neutral headless flow used by integrations.
   only the app-side runtime and status behavior that the extension depends on.
 - Windows-specific integration behavior must be guarded so macOS and Linux
   builds do not regress.
+- MSVC/precompiled Windows builds delay the main executable's GGML/llama imports
+  until Vulkan validation and CPU fallback complete, then preload the libraries
+  explicitly from the selected runtime directory. This also protects the direct
+  Store executable from Vulkan import failures before `main`.
 - New registry/settings/integration paths should use `HFStudio`. Compatibility
   code may still need to read or clean legacy `Quicknode` locations.
 

@@ -1,5 +1,29 @@
 # Test Suite Guide
 
+## Windows Vulkan startup (#125)
+
+With `AI_FILE_SORTER_BUILD_TESTS=ON`, build `aifilesorter`,
+`aifs_incompatible_vulkan_loader`, and `StartAiFileSorter` (when the package uses
+the bootstrapper), then run:
+
+```text
+ctest --test-dir app/build-windows -C Release -R "^(windows_vulkan_startup|headless_stdout_contract)$" --output-on-failure
+```
+
+`tests/integration/test_windows_vulkan_startup.py` runs the rebuilt production
+executables in temporary layouts with isolated configuration and logs. It covers
+a compatible validated Vulkan loader competing with an incompatible executable-
+directory DLL, rejection and CPU fallback for an incompatible bundled loader
+(including forced Vulkan), the CPU override, direct/Store-style startup with
+compatible and incompatible root loaders, a missing validated loader, CPU runtime
+selection despite a conflicting root GGML DLL, and a missing selected runtime
+reported as a normal application failure. Successful startup must actually load
+the selected GGML/llama libraries before printing clean headless help. The CMake
+fixture exports `vkGetInstanceProcAddr` but lacks `vkGetPhysicalDeviceFeatures2`.
+These Windows/MSVC precompiled-runtime tests require staged CPU and Vulkan
+payloads; launcher cases skip for direct-executable packages. No model or GPU is
+required. They do not test installation or MSIX activation.
+
 ## Debian packaging compatibility
 
 Run `python3 -m unittest discover -s tests/packaging -v`.

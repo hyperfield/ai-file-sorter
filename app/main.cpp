@@ -54,6 +54,9 @@
 #include "UpdaterLiveTestConfig.hpp"
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
+#ifdef AI_FILE_SORTER_DELAY_LOAD_GGML
+#include "WindowsGgmlRuntime.hpp"
+#endif
 #ifdef _WIN32
 #include <windows.h>
 #ifndef DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
@@ -535,6 +538,28 @@ void preload_windows_vulkan_runtime_if_requested() {
     }
 }
 
+#ifdef AI_FILE_SORTER_DELAY_LOAD_GGML
+void preload_windows_ggml_runtime() {
+    auto runtime_directory = windows_env_path("AI_FILE_SORTER_GGML_DIR");
+    if (!runtime_directory) {
+        const auto exe_path = Utils::utf8_to_path(Utils::get_executable_path());
+        runtime_directory = GgmlRuntimePaths::resolve_windows_cpu_runtime_dir(exe_path);
+        if (!runtime_directory) {
+            throw std::runtime_error("Could not find the packaged Windows ggml runtime.");
+        }
+        set_process_env("AI_FILE_SORTER_GGML_DIR", Utils::path_to_utf8(*runtime_directory));
+    }
+    if (const auto error = WindowsGgmlRuntime::preload(*runtime_directory)) {
+        throw std::runtime_error("Could not load Windows ggml runtime library '" +
+                                 Utils::path_to_utf8(error->library_path) +
+                                 "' (Win32 loader error " + std::to_string(error->code) + ").");
+    }
+    if (auto logger = Logger::get_logger("core_logger")) {
+        logger->info("Loaded Windows ggml runtime from '{}'", Utils::path_to_utf8(*runtime_directory));
+    }
+}
+#endif
+
 void enable_per_monitor_dpi_awareness() {
     HMODULE user32 = GetModuleHandleW(L"user32.dll");
     if (user32) {
@@ -976,6 +1001,9 @@ int run_application(const ParsedArguments& parsed_args) {
 #elif defined(_WIN32)
     ensure_windows_ggml_backend_env();
     preload_windows_vulkan_runtime_if_requested();
+#ifdef AI_FILE_SORTER_DELAY_LOAD_GGML
+    preload_windows_ggml_runtime();
+#endif
 #endif
     setlocale(LC_ALL, "");
     const std::string locale_path = Utils::get_executable_path() + "/locale";

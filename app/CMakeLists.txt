@@ -1400,6 +1400,19 @@ if(WIN32)
     target_link_libraries(aifilesorter PRIVATE ggml ggml_base ggml_cpu)
 endif()
 
+if(WIN32 AND MSVC AND AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
+    # Vulkan payloads can import vulkan-1.dll through ggml.dll. Resolve these
+    # imports only after main has validated Vulkan and selected a safe runtime.
+    target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_DELAY_LOAD_GGML)
+    target_link_libraries(aifilesorter PRIVATE delayimp)
+    foreach(_aifs_delayed_runtime IN ITEMS ggml ggml-base llama llama-common)
+        target_link_options(aifilesorter PRIVATE "/DELAYLOAD:${_aifs_delayed_runtime}.dll")
+    endforeach()
+    if(TARGET mtmd)
+        target_link_options(aifilesorter PRIVATE "/DELAYLOAD:mtmd.dll")
+    endif()
+endif()
+
 if(_aifs_pdfium_uses_embedded_runtime)
     if(PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
         add_custom_command(TARGET aifilesorter POST_BUILD
@@ -2124,6 +2137,28 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                     --app $<TARGET_FILE:aifilesorter> -v
             )
             set_tests_properties(headless_stdout_contract PROPERTIES LABELS "headless;integration" TIMEOUT 120)
+            if(WIN32 AND MSVC AND AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
+                add_library(aifs_incompatible_vulkan_loader SHARED
+                    "${CMAKE_SOURCE_DIR}/../tests/fixtures/incompatible_vulkan_loader.cpp")
+                set_target_properties(aifs_incompatible_vulkan_loader PROPERTIES
+                    OUTPUT_NAME "vulkan-1"
+                    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/vulkan-fixture/$<CONFIG>")
+                add_dependencies(ai_file_sorter_tests aifs_incompatible_vulkan_loader)
+                set(_aifs_startup_launcher_args "")
+                if(STARTER_TARGET)
+                    add_dependencies(ai_file_sorter_tests ${STARTER_TARGET})
+                    list(APPEND _aifs_startup_launcher_args --launcher $<TARGET_FILE:${STARTER_TARGET}>)
+                endif()
+                add_test(
+                    NAME windows_vulkan_startup
+                    COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_SOURCE_DIR}/../tests/integration/test_windows_vulkan_startup.py
+                        --app $<TARGET_FILE:aifilesorter>
+                        --incompatible-loader $<TARGET_FILE:aifs_incompatible_vulkan_loader>
+                        ${_aifs_startup_launcher_args} -v)
+                set_tests_properties(windows_vulkan_startup PROPERTIES
+                    LABELS "windows;packaging;integration" TIMEOUT 180)
+            endif()
         endif()
         set(_aifs_storage_plugin_stub_for_conformance "$<TARGET_FILE:aifs_storage_plugin_stub>")
         if(WIN32)
