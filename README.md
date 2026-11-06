@@ -455,6 +455,10 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 ### Linux
 
+HTTPS uses the distribution's certificate trust store. Install and keep the
+`ca-certificates` package updated, including when running a tarball or a manual
+source install. Debian and RPM packages declare this runtime dependency.
+
 #### Prebuilt Debian/Ubuntu package
 
 1. **Install runtime prerequisites** (Qt6, networking, database, math libraries):
@@ -705,6 +709,13 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 ### macOS
 
 Apple Silicon Macs running macOS 26 or later are supported for macOS source builds and release bundles.
+
+HTTPS uses Apple's certificate trust service. The selected libcurl must provide
+Secure Transport or AppleSecTrust support; both CMake and Make check the actual
+linked runtime and reject unsupported builds. CMake accepts `CURL_ROOT` to select
+a compatible libcurl. Release packaging also runs the signed application's
+`--self-test=tls` with its packaged libraries and no developer library search
+overrides. Linux/macOS builds do not embed or install a separate CA bundle.
 
 1. **Install Xcode command-line tools** (`xcode-select --install`) with a macOS 26 or newer SDK.
 2. **Install Homebrew** (if required).
@@ -1207,6 +1218,7 @@ Headless self-test mode:
 
 - `--self-test` runs deterministic self-tests from the production executable and exits with a pass/fail status instead of opening the main window.
 - `--self-test=whitelist` runs the deterministic large-whitelist suite explicitly. `--self-test=whitelists` is accepted as an alias.
+- On Linux/macOS, `--self-test=tls` checks the linked TLS runtime and trust configuration without contacting a server. The default `--self-test` includes this check.
 - The headless whitelist suite uses temporary app data, a large synthetic category list, learned-behavior fixtures, and a deterministic LLM stub. It verifies that large whitelists are reduced to relevant candidates, learned categories can outrank generic model output, and Unicode labels such as emoji survive the flow.
 - The full Catch2 unit suite extends this coverage with smart branching whitelist persistence, prompt construction, and valid category/subcategory pair enforcement.
 - On Windows GUI builds, add `--console-log` if you want to see the self-test output in the launching console.

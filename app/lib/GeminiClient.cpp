@@ -1,3 +1,4 @@
+#include "CurlTls.hpp"
 #include "GeminiClient.hpp"
 
 #include "LocalLLMPromptBuilder.hpp"
@@ -143,6 +144,8 @@ CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
     } catch (const std::exception& ex) {
         throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
     }
+#else
+    CurlTls::configure(request.handle);
 #endif
     return request;
 }

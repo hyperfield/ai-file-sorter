@@ -51,6 +51,7 @@ TEST_CASE("LLM storage override changes default download destination") {
     CHECK(resolved == temp_dir.path() / "custom.gguf");
 }
 
+#ifdef _WIN32
 TEST_CASE("ensure_ca_bundle stages embedded certificate under writable app data") {
     CaBundleCacheGuard cache_guard;
     TempDir config_dir;
@@ -63,6 +64,7 @@ TEST_CASE("ensure_ca_bundle stages embedded certificate under writable app data"
     CHECK(std::filesystem::file_size(cert_path) > 0);
     CHECK_FALSE(cert_path.string().find("WindowsApps") != std::string::npos);
 }
+#endif
 
 TEST_CASE("is_cuda_available honors probe overrides") {
     struct ProbeGuard {

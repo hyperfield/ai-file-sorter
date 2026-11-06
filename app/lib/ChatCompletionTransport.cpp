@@ -1,3 +1,4 @@
+#include "CurlTls.hpp"
 #include "ChatCompletionTransport.hpp"
 
 #include "Logger.hpp"
@@ -147,6 +148,8 @@ std::string ChatCompletionTransport::complete(const std::string& payload,
 #ifdef _WIN32
     const auto cert_path = Utils::ensure_ca_bundle().string();
     curl_easy_setopt(handle, CURLOPT_CAINFO, cert_path.c_str());
+#else
+    CurlTls::configure(handle);
 #endif
     const auto url = completion_url(base_url_);
     Response response;

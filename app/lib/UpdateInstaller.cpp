@@ -1,3 +1,4 @@
+#include "CurlTls.hpp"
 #include "UpdateInstaller.hpp"
 
 #include "UpdateArchiveExtractor.hpp"
@@ -57,7 +58,7 @@ void configure_tls(CURL* curl)
     const auto cert_path = Utils::ensure_ca_bundle();
     curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
 #else
-    (void)curl;
+    CurlTls::configure(curl);
 #endif
 }
 
@@ -367,7 +368,11 @@ void UpdateInstaller::default_download(const std::string& url,
     } catch (const std::exception& ex) {
         std::fclose(file);
         curl_easy_cleanup(curl);
+#ifdef _WIN32
         throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
+#else
+        throw;
+#endif
     }
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());

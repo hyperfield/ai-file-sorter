@@ -8,8 +8,9 @@ complement, not replace, the detailed case catalog in `TESTS.md`.
 - **Catch2/CTest unit and integration tests**: the normal automated test suite.
 - **`TESTS.md`**: detailed case-by-case intent, setup, procedure, and expected
   outcomes.
-- **Production self-test mode**: `--self-test` and `--self-test=whitelist`
-  provide deterministic checks from the built app.
+- **Production self-test mode**: `--self-test` runs all deterministic checks
+  from the built app. `--self-test=whitelist` selects the whitelist checks;
+  Linux/macOS also support `--self-test=tls` for the linked TLS trust policy.
 - **Opt-in live headless LLM tests**:
   `tests/live_llm/headless_live_llm_tests.py` runs the production headless path
   with a real local model and real/generated fixtures.
@@ -71,6 +72,11 @@ and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent
   real parent/child processes to check output, exit codes and complete process
   termination after a timeout; no model is required.
 - Updater/feed changes: run the updater and update-feed tests.
+- TLS trust changes: rebuild `aifs_curl_tls_probe` and `ai_file_sorter_tests`, run
+  CTest's `curl_tls_trust`, the Catch2 `[tls]` cases, and the production app's
+  `--self-test=tls` on Linux/macOS. See `TESTS.md` for the local certificate fixtures
+  and the macOS build/package checks. Use Python 3.10 or newer for integration
+  tests; set `Python3_EXECUTABLE` if an existing CMake cache selects an older one.
 - Packaging/build-script changes: validate the relevant platform build path in
   addition to unit tests.
 - Windows Vulkan startup: build the production app, its launcher when present,

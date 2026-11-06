@@ -32,6 +32,17 @@ UI-neutral headless flow used by integrations.
   future integrations.
 - **Update and packaging surfaces**: updater/feed parsing, launcher behavior,
   build scripts, and platform-specific packaging support release flows.
+- **TLS trust on Linux/macOS**: `CurlTls` configures certificate and hostname
+  verification for HTTP clients and HTTPS proxies. Linux retains libcurl's
+  distribution-configured CA locations; runtime packages require
+  `ca-certificates`. macOS requires Secure Transport or AppleSecTrust, clears
+  file/blob trust overrides, and validates through Apple's trust service.
+  Startup selects Secure Transport before curl initialization when available;
+  capability checks inspect the active backend, excluding parenthesized inactive
+  entries reported by MultiSSL builds. Startup logs the platform trust policy
+  and linked curl backend; macOS initialization failures reach the core log.
+  CMake, Make, and macOS packaging check the selected runtime. POSIX builds do
+  not embed or install the Windows certificate bundle.
 
 ## Architectural boundaries
 

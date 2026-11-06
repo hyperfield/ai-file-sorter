@@ -1,5 +1,37 @@
 # Test Suite Guide
 
+## Linux and macOS TLS trust
+
+Build `aifs_curl_tls_probe` and `ai_file_sorter_tests`, then run:
+
+```text
+ctest --test-dir build-tests -R '^curl_tls_trust$' --output-on-failure
+./build-tests/ai_file_sorter_tests '[tls]'
+./build-tests/aifilesorter --cuda=off --vulkan=off --self-test=tls
+```
+
+Make builds can run the same loopback checks with `make -C app test_tls`.
+The Linux release CI matrix runs this target with each distribution's libcurl.
+
+`tests/integration/test_curl_tls.py` uses temporary certificate authorities and
+loopback HTTPS servers. It checks untrusted-certificate rejection, redirects to
+untrusted HTTPS, ordinary HTTP, and platform runtime support. Linux also checks
+successful validation with an administrator-specified CA and rejection of a
+hostname mismatch signed by that same trusted CA. macOS instead checks that a
+file override cannot add a test CA to Apple native trust. No system trust store
+is modified and no external server, account, or API key is required. OpenSSL's
+command-line tool generates the temporary fixtures. The C++ `[tls]` cases cover
+native-backend capability detection, older libcurl runtime layouts, null handles,
+the absence of the bundled CA resource on POSIX, and the production self-test.
+
+The `tls` self-test performs no network request. It checks the production-linked
+libcurl using the same policy as the HTTP clients. macOS CMake configuration and
+Make builds reject unsupported TLS backends. macOS packaging runs the signed app's
+self-test from `/` with library/framework search overrides removed, ensuring the
+packaged runtime supports native trust. Native macOS execution is still needed to
+validate Apple trust decisions; compiling the platform branch elsewhere is not
+equivalent.
+
 ## Windows Vulkan startup (#125)
 
 With `AI_FILE_SORTER_BUILD_TESTS=ON`, build `aifilesorter`,
@@ -184,7 +216,7 @@ the controls now hosted in Sorting Rules.
 The production executable supports two developer-oriented test modes:
 
 - `--test` launches the normal GUI, implies development mode, and adds a Tests menu. The current GUI preset creates a larger sample whitelist and sample files, then runs the normal analysis flow with the selected real LLM for manual review in the Review dialog. It reuses the user's selected LLM settings, but test-mode whitelists, categorization cache, learned behavior, undo data, and sample files are stored under an isolated `test_mode_profile` directory inside the normal config directory.
-- `--self-test` runs deterministic headless checks and exits with a pass/fail status. The current suite is `whitelist`, which builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite.
+- `--self-test` runs deterministic headless checks and exits with a pass/fail status. The `whitelist` suite builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. On Linux/macOS, the `tls` suite also checks the production-linked curl runtime and platform trust policy without contacting a server. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite, and `--self-test=tls` selects only the Linux/macOS TLS check.
 
 ## Optional live LLM headless tests
 
@@ -1520,7 +1552,7 @@ Run: `./build-tests/ai_file_sorter_tests "LLM storage override changes default d
 
 #### Test case: ensure_ca_bundle stages embedded certificate under writable app data
 Purpose: Prevent Store/MSIX builds from trying to create runtime certificate files under the read-only package install directory.
-Setup: Reset the CA bundle cache and point `AI_FILE_SORTER_CONFIG_DIR` at a temporary directory.
+Setup (Windows only): Reset the CA bundle cache and point `AI_FILE_SORTER_CONFIG_DIR` at a temporary directory. Linux/macOS omit this resource and use the platform TLS tests instead.
 Procedure: Call `Utils::ensure_ca_bundle()`.
 Expected outcome: The embedded `cacert.pem` is staged under the writable app config directory, exists, is non-empty, and does not point inside `WindowsApps`.
 Run: `./build-tests/ai_file_sorter_tests "ensure_ca_bundle stages embedded certificate under writable app data"`

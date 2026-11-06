@@ -552,6 +552,21 @@ endif
 # Main rules
 all: $(PRECOMPILED_LLAMA) doc_runtime_libs $(TARGET)
 
+$(OBJ_DIR)/curl-tls-probe: scripts/curl_tls_probe.cpp $(OBJ_DIR)/CurlTls.o include/CurlTls.hpp $(BUILD_CONFIG_STAMP)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -Iinclude -o $@ scripts/curl_tls_probe.cpp $(OBJ_DIR)/CurlTls.o $(LIB_DIRS) $(filter -L%,$(LDFLAGS)) -lcurl
+
+.PHONY: test_tls
+test_tls: $(OBJ_DIR)/curl-tls-probe
+	python3 ../tests/integration/test_curl_tls.py --probe "$<" -v
+
+ifeq ($(UNAME), Darwin)
+.PHONY: check_native_tls
+check_native_tls: $(OBJ_DIR)/curl-tls-probe
+	$<
+
+$(TARGET): | check_native_tls
+endif
+
 define MACOS_RELEASE_TEMPLATE
 $1:
 ifeq ($(UNAME), Darwin)
@@ -762,10 +777,6 @@ ifeq ($(PLATFORM), Linux)
 	cp -a lib/$(GGML_PRECOMPILED_SUBDIR) $(INSTALL_LIB_DIR)/lib/
 	if [ -f ../external/pdfium/linux-x64/lib/libpdfium.so ]; then \
 		cp ../external/pdfium/linux-x64/lib/libpdfium.so $(INSTALL_LIB_DIR)/lib/$(GGML_PRECOMPILED_SUBDIR)/; \
-	fi
-	if [ -f resources/certs/cacert.pem ]; then \
-		mkdir -p $(INSTALL_LIB_DIR)/certs; \
-		cp resources/certs/cacert.pem $(INSTALL_LIB_DIR)/certs/cacert.pem; \
 	fi
 	@echo "Installing launcher script to $(INSTALL_DIR)..."
 	mkdir -p $(INSTALL_DIR)

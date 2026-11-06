@@ -21,3 +21,13 @@ TEST_CASE("AppTestRunner rejects unknown self-test suite") {
     CHECK(result.cases.empty());
     CHECK(result.error.find("Unknown test suite") != std::string::npos);
 }
+
+#ifndef _WIN32
+TEST_CASE("AppTestRunner checks the production TLS runtime", "[tls]") {
+    const auto result = AppTestRunner().run(AppTestRunner::Options{.suite = "tls"});
+    REQUIRE(result.error.empty());
+    REQUIRE(result.cases.size() == 1);
+    INFO(result.cases.front().message);
+    CHECK(result.passed());
+}
+#endif

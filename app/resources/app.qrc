@@ -78,6 +78,5 @@
     <file>whats_new/1.9.0_tr.md</file>
     <file>whats_new/1.9.0_zh_cn.md</file>
     <file>.env</file>
-    <file>certs/cacert.pem</file>
   </qresource>
 </RCC>

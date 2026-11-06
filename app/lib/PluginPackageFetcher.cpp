@@ -1,3 +1,4 @@
+#include "CurlTls.hpp"
 #include "PluginPackageFetcher.hpp"
 
 #include <curl/curl.h>
@@ -36,7 +37,7 @@ void configure_tls(CURL* curl) {
     const auto cert_path = Utils::ensure_ca_bundle();
     curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
 #else
-    (void) curl;
+    CurlTls::configure(curl);
 #endif
 }
 
@@ -321,7 +322,13 @@ void PluginPackageFetcher::default_download(const std::string& url, const std::f
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "AI-File-Sorter-PluginInstaller/1.0");
-    configure_tls(curl);
+    try {
+        configure_tls(curl);
+    } catch (...) {
+        curl_easy_cleanup(curl);
+        std::fclose(file);
+        throw;
+    }
 
     const CURLcode result = curl_easy_perform(curl);
     long http_code = 0;

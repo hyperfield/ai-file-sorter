@@ -1,3 +1,4 @@
+#include "CurlTls.hpp"
 #include "ImageRenameMetadataService.hpp"
 
 #include "Utils.hpp"
@@ -86,7 +87,7 @@ void configure_tls(CURL* curl)
     const auto cert_path = Utils::ensure_ca_bundle();
     curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
 #else
-    (void)curl;
+    CurlTls::configure(curl);
 #endif
 }
 
@@ -1085,7 +1086,12 @@ ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::rev
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     const std::string user_agent = reverse_geocoder_user_agent();
     curl_easy_setopt(curl, CURLOPT_USERAGENT, user_agent.c_str());
-    configure_tls(curl);
+    try {
+        configure_tls(curl);
+    } catch (...) {
+        curl_easy_cleanup(curl);
+        throw;
+    }
 
     curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, "Accept: application/json");

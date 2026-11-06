@@ -748,6 +748,22 @@ EOF
   echo "Verifying codesign ..."
   codesign --verify --deep --strict "$APP_BUNDLE"
 
+  echo "Checking native certificate trust in the packaged application ..."
+  local tls_executable tls_config_dir
+  tls_executable="$(cd "$MACOS_DIR" && pwd)/$APP_NAME"
+  tls_config_dir="$(mktemp -d "${TMPDIR:-/tmp}/aifs-package-tls.XXXXXX")"
+  if ! (
+    cd /
+    /usr/bin/env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH \
+      -u DYLD_FRAMEWORK_PATH -u DYLD_FALLBACK_FRAMEWORK_PATH \
+      AI_FILE_SORTER_CONFIG_DIR="$tls_config_dir" \
+      "$tls_executable" --cuda=off --vulkan=off --self-test=tls
+  ); then
+    rm -rf "$tls_config_dir"
+    return 1
+  fi
+  rm -rf "$tls_config_dir"
+
   echo "Bundle created at: $APP_BUNDLE"
 }
 
