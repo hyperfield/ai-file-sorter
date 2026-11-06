@@ -59,7 +59,10 @@ and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent
   `ctest --test-dir build-tests -C Release -R '^headless_stdout_contract$' --output-on-failure`.
   This checks startup diagnostics, JSON stdout/status files, review-only analysis,
   saved-plan apply, failure output and help using isolated temporary fixtures;
-  it does not require a model or external API.
+  it does not require a model or external API. Processes launch from a temporary
+  working directory. On macOS, loader environment overrides are removed, and
+  embedded-PDFium builds also check that a relocated executable loads its adjacent
+  runtime from a path containing spaces and non-ASCII characters.
 - API image analysis: run `./build-tests/ai_file_sorter_tests "[http-vision]"`.
   Loopback HTTP fixtures cover actual image uploads, API errors, cancellation,
   persisted settings, GUI selection, shared workflow caching and headless renaming;

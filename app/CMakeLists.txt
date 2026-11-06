@@ -807,6 +807,29 @@ if(NOT _aifs_pdfium_ready AND _aifs_try_embedded_pdfium)
        AND PDFIUM_RUNTIME
        AND EXISTS "${PDFIUM_RUNTIME}")
         add_library(pdfium SHARED IMPORTED)
+        if(APPLE)
+            # Link against a normalized build-local copy. The vendored dylib's
+            # ./libpdfium.dylib install name otherwise depends on the launch cwd.
+            set(_aifs_pdfium_source "${PDFIUM_LIBRARY}")
+            set(PDFIUM_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/pdfium-runtime/libpdfium.dylib")
+            set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+            set(_aifs_pdfium_codesign_script
+                "${CMAKE_CURRENT_SOURCE_DIR}/scripts/adhoc_codesign_macos.sh")
+            add_custom_command(
+                OUTPUT "${PDFIUM_RUNTIME}"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/pdfium-runtime"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_aifs_pdfium_source}" "${PDFIUM_RUNTIME}"
+                COMMAND /bin/chmod u+w "${PDFIUM_RUNTIME}"
+                COMMAND "${CMAKE_INSTALL_NAME_TOOL}" -id "@rpath/libpdfium.dylib" "${PDFIUM_RUNTIME}"
+                COMMAND /bin/bash "${_aifs_pdfium_codesign_script}" "${PDFIUM_RUNTIME}"
+                DEPENDS "${_aifs_pdfium_source}" "${_aifs_pdfium_codesign_script}"
+                COMMENT "Normalizing and signing the macOS PDFium runtime"
+                VERBATIM
+            )
+            add_custom_target(aifs_pdfium_runtime DEPENDS "${PDFIUM_RUNTIME}")
+            add_dependencies(pdfium aifs_pdfium_runtime)
+            set_target_properties(pdfium PROPERTIES IMPORTED_SONAME "@rpath/libpdfium.dylib")
+        endif()
         if(WIN32)
             set_target_properties(pdfium PROPERTIES
                 IMPORTED_IMPLIB "${PDFIUM_LIBRARY}"
@@ -841,6 +864,28 @@ elseif(AI_FILE_SORTER_PDF_BACKEND STREQUAL "pdftotext")
 else()
     message(WARNING "PDFium was not found. Falling back to 'pdftotext' when available.")
 endif()
+
+function(aifs_stage_pdfium_runtime target_name)
+    if(NOT _aifs_pdfium_uses_embedded_runtime)
+        return()
+    endif()
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${PDFIUM_RUNTIME}" "$<TARGET_FILE_DIR:${target_name}>"
+        VERBATIM
+    )
+    if(NOT WIN32)
+        if(APPLE)
+            set(_pdfium_rpath "@loader_path")
+        else()
+            set(_pdfium_rpath "$ORIGIN")
+        endif()
+        set_target_properties(${target_name} PROPERTIES
+            BUILD_RPATH "${_pdfium_rpath}"
+            INSTALL_RPATH "${_pdfium_rpath}"
+        )
+    endif()
+endfunction()
 
 # Sources
 set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
@@ -1407,27 +1452,7 @@ if(WIN32 AND MSVC AND AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
     endif()
 endif()
 
-if(_aifs_pdfium_uses_embedded_runtime)
-    if(PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-        add_custom_command(TARGET aifilesorter POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PDFIUM_RUNTIME}"
-                "$<TARGET_FILE_DIR:aifilesorter>"
-        )
-    endif()
-    if(NOT WIN32)
-        if(APPLE)
-            set(_pdfium_rpath "@loader_path")
-        else()
-            set(_pdfium_rpath "$ORIGIN")
-        endif()
-        set_target_properties(aifilesorter PROPERTIES
-            BUILD_RPATH "${_pdfium_rpath}"
-            INSTALL_RPATH "${_pdfium_rpath}"
-        )
-        unset(_pdfium_rpath)
-    endif()
-endif()
+aifs_stage_pdfium_runtime(aifilesorter)
 
 if(UNIX AND NOT APPLE)
     install(TARGETS aifilesorter
@@ -1823,25 +1848,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             aifs_stage_windows_qt_plugins(${target_name})
         endif()
 
-        if(_aifs_pdfium_uses_embedded_runtime AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-            add_custom_command(TARGET ${target_name} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${PDFIUM_RUNTIME}"
-                    "$<TARGET_FILE_DIR:${target_name}>"
-            )
-        endif()
-        if(_aifs_pdfium_uses_embedded_runtime AND NOT WIN32)
-            if(APPLE)
-                set(_pdfium_rpath "@loader_path")
-            else()
-                set(_pdfium_rpath "$ORIGIN")
-            endif()
-            set_target_properties(${target_name} PROPERTIES
-                BUILD_RPATH "${_pdfium_rpath}"
-                INSTALL_RPATH "${_pdfium_rpath}"
-            )
-            unset(_pdfium_rpath)
-        endif()
+        aifs_stage_pdfium_runtime(${target_name})
     endfunction()
 
     function(aifs_add_windows_test_executable target_name)
@@ -2124,11 +2131,15 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         if(Python3_Interpreter_FOUND)
             # Exercise startup/logging in the production executable, not only the test-linked services.
             add_dependencies(ai_file_sorter_tests aifilesorter)
+            set(_aifs_headless_stdout_runtime_args "")
+            if(APPLE AND _aifs_pdfium_uses_embedded_runtime)
+                list(APPEND _aifs_headless_stdout_runtime_args --check-macos-pdfium)
+            endif()
             add_test(
                 NAME headless_stdout_contract
                 COMMAND ${Python3_EXECUTABLE}
                     ${CMAKE_SOURCE_DIR}/../tests/integration/test_headless_stdout.py
-                    --app $<TARGET_FILE:aifilesorter> -v
+                    --app $<TARGET_FILE:aifilesorter> ${_aifs_headless_stdout_runtime_args} -v
             )
             set_tests_properties(headless_stdout_contract PROPERTIES LABELS "headless;integration" TIMEOUT 120)
             add_test(

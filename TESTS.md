@@ -575,8 +575,11 @@ That target also builds the production executable used by these tests. For a dir
 run: `python3 tests/integration/test_headless_stdout.py --app build-tests/aifilesorter -v`
 (use the built configuration's executable path on Windows).
 
-All cases launch the real app with isolated settings, logs and temporary files;
-no model, network API or existing user files are needed.
+All cases launch the real app from a temporary working directory with isolated
+settings, logs and fixtures; no model, network API or existing user files are
+needed. On macOS, inherited `DYLD_*` overrides are removed. CMake automatically
+adds `--check-macos-pdfium` for embedded-PDFium macOS builds; pass it on a direct
+run to enable the relocation case below.
 
 | Test case | Procedure and expected outcome |
 | --- | --- |
@@ -584,6 +587,7 @@ no model, network API or existing user files are needed.
 | `test_analysis_failure_preserves_json_stdout` | Submit files from different source folders. The app rejects this unsupported selection and emits valid JSON status records ending in `failed`, with diagnostics on stderr. |
 | `test_saved_plan_apply_stdout_is_json` | Apply a saved rename plan to a temporary fixture. Only JSON status records appear on stdout, the status file matches the final record, and the expected rename preserves the file contents. |
 | `test_help_is_usage_text_without_log_lines` | Request `--headless-help`. Stdout starts with usage text and contains no startup logs; those appear on stderr. |
+| `test_macos_embedded_pdfium_loads_beside_relocated_app` | Copy the executable and embedded PDFium runtime into a path containing spaces and Japanese text, then analyze an empty folder from a different working directory without loader search-path overrides. Status completes successfully and dyld confirms the relocated adjacent PDFium copy is loaded. Requires `--check-macos-pdfium`; skipped for other build profiles. |
 | `test_invalid_arguments_use_stderr` | Supply an unsupported operation. Stdout is empty, stderr contains diagnostics/usage, and the exit code is the usage-error code. |
 
 ### `tests/unit/test_headless_analysis_command.cpp`
