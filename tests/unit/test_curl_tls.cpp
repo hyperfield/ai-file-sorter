@@ -44,7 +44,8 @@ TEST_CASE("Apple TLS trust requires a native verification backend", "[tls]")
     version.ssl_version = "OpenSSL/3.6.0";
     const char* features[] = {"SSL", "AppleSecTrust", nullptr};
     version.feature_names = features;
-    CHECK(CurlTls::supports_apple_trust(&version));
+    // AppleSecTrust does not prevent fallback to OpenSSL's default CA locations.
+    CHECK_FALSE(CurlTls::supports_apple_trust(&version));
     version.ssl_version = "wolfSSL/5.8.0";
     CHECK_FALSE(CurlTls::supports_apple_trust(&version));
     version.ssl_version = "OpenSSL/3.6.0";

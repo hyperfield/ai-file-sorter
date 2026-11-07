@@ -2,6 +2,7 @@
 """Exercise the production trust policy against isolated loopback TLS servers."""
 
 import argparse
+import os
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,6 +20,10 @@ OPENSSL = shutil.which("openssl")
 
 
 class ResponseHandler(BaseHTTPRequestHandler):
+    def do_CONNECT(self):
+        self.server.connects.append(self.path)
+        self.send_error(502, "TLS test proxy must never receive CONNECT")
+
     def do_GET(self):
         if self.server.redirect:
             self.send_response(302)
@@ -33,9 +38,10 @@ class ResponseHandler(BaseHTTPRequestHandler):
 
 
 @contextmanager
-def server(cert=None, key=None, redirect=None):
+def server(cert=None, key=None, redirect=None, connects=None):
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), ResponseHandler)
     httpd.redirect = redirect
+    httpd.connects = connects if connects is not None else []
     scheme = "http"
     if cert:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -67,6 +73,10 @@ class CurlTlsTests(unittest.TestCase):
             "-nodes", "-days", "2", "-subj", "/CN=AI File Sorter TLS test CA",
             "-config", "ca.cnf",
             "-keyout", "ca.key", "-out", "ca.pem")
+        cls.ca_directory = cls.root / "anchors"
+        cls.ca_directory.mkdir()
+        shutil.copyfile(cls.root / "ca.pem", cls.ca_directory / "ca.pem")
+        cls.run_openssl("rehash", str(cls.ca_directory))
         for serial, hostname in enumerate(("localhost", "wrong.example"), start=1):
             cls.run_openssl(
                 "req", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes",
@@ -89,13 +99,18 @@ class CurlTlsTests(unittest.TestCase):
         subprocess.run([OPENSSL, *args], cwd=cls.root, check=True,
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
 
-    def probe(self, url=None, ca_file=None):
+    def probe(self, url=None, ca_file=None, *, proxy=None, anchors=(), environment=None):
         command = [str(PROBE)]
         if url:
             command += ["--url", url]
         if ca_file:
             command += ["--ca-file", str(ca_file)]
-        return subprocess.run(command, capture_output=True, text=True, timeout=20)
+        if proxy:
+            command += ["--proxy", proxy]
+        command += list(map(str, anchors))
+        env = os.environ.copy()
+        env.update(environment or {})
+        return subprocess.run(command, capture_output=True, text=True, timeout=20, env=env)
 
     def tls_server(self, hostname="localhost"):
         return server(self.root / f"{hostname}.pem", self.root / f"{hostname}.key")
@@ -139,6 +154,30 @@ class CurlTlsTests(unittest.TestCase):
         with self.tls_server() as url:
             result = self.probe(url, self.root / "ca.pem")
         self.assertEqual(result.returncode, 60, result.stderr)
+
+    @unittest.skipUnless(sys.platform == "darwin", "exclusive Apple trust policy")
+    def test_macos_rejects_origin_and_proxy_anchor_overrides(self):
+        overrides = (
+            ("file", ("--ca-file", self.root / "ca.pem"), {}),
+            ("directory", ("--ca-dir", self.ca_directory), {}),
+            ("blob", ("--ca-blob", self.root / "ca.pem"), {}),
+            ("SSL_CERT_FILE", (), {"SSL_CERT_FILE": str(self.root / "ca.pem"),
+                                   "SSL_CERT_DIR": str(self.root / "absent")}),
+            ("SSL_CERT_DIR", (), {"SSL_CERT_FILE": str(self.root / "absent"),
+                                  "SSL_CERT_DIR": str(self.ca_directory)}),
+        )
+        for target in ("origin", "proxy"):
+            for name, anchors, environment in overrides:
+                with self.subTest(target=target, anchors=name):
+                    connects = []
+                    with server(self.root / "localhost.pem", self.root / "localhost.key",
+                                connects=connects) as endpoint:
+                        url = endpoint if target == "origin" else "https://unreachable.invalid/"
+                        proxy = endpoint if target == "proxy" else None
+                        result = self.probe(url, proxy=proxy, anchors=anchors,
+                                            environment=environment)
+                    self.assertEqual(result.returncode, 60, result.stdout + result.stderr)
+                    self.assertEqual(connects, [], "untrusted proxy received CONNECT")
 
 
 if __name__ == "__main__":

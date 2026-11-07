@@ -35,14 +35,16 @@ UI-neutral headless flow used by integrations.
 - **TLS trust on Linux/macOS**: `CurlTls` configures certificate and hostname
   verification for HTTP clients and HTTPS proxies. Linux retains libcurl's
   distribution-configured CA locations; runtime packages require
-  `ca-certificates`. macOS requires Secure Transport or AppleSecTrust, clears
+  `ca-certificates`. macOS requires active Secure Transport, clears
   file/blob trust overrides, and validates through Apple's trust service.
   Startup selects Secure Transport before curl initialization when available;
   capability checks inspect the active backend, excluding parenthesized inactive
   entries reported by MultiSSL builds. Startup logs the platform trust policy
   and linked curl backend; macOS initialization failures reach the core log.
   CMake, Make, and macOS packaging check the selected runtime. POSIX builds do
-  not embed or install the Windows certificate bundle.
+  not embed or install the Windows certificate bundle. AppleSecTrust alone does
+  not establish exclusive native trust: OpenSSL can accept additional anchors
+  from its default paths or environment. Those alternate runtimes fail closed.
 
 ## Architectural boundaries
 

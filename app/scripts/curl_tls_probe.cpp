@@ -2,6 +2,9 @@
 
 #include <cstdio>
 #include <exception>
+#include <fstream>
+#include <iterator>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -15,6 +18,46 @@ std::size_t discard_body(char*, std::size_t size, std::size_t count, void*)
 {
     return size * count;
 }
+
+std::map<std::string, std::string> parse_options(int argc, char** argv)
+{
+    std::map<std::string, std::string> options{
+        {"--url", {}}, {"--proxy", {}}, {"--ca-file", {}}, {"--ca-dir", {}}, {"--ca-blob", {}}};
+    for (int i = 1; i < argc; ++i) {
+        const auto option = options.find(argv[i]);
+        if (i + 1 >= argc || option == options.end()) {
+            throw std::invalid_argument(
+                "Usage: curl-tls-probe [--url URL] [--proxy URL] "
+                "[--ca-file FILE] [--ca-dir DIR] [--ca-blob FILE]");
+        }
+        option->second = argv[++i];
+    }
+    return options;
+}
+
+void preset_anchors(CURL* handle, const std::map<std::string, std::string>& options)
+{
+    const auto& file = options.at("--ca-file");
+    const auto& directory = options.at("--ca-dir");
+    if (!file.empty()) {
+        curl_easy_setopt(handle, CURLOPT_CAINFO, file.c_str());
+        curl_easy_setopt(handle, CURLOPT_PROXY_CAINFO, file.c_str());
+    }
+    if (!directory.empty()) {
+        // Secure Transport rejects directory anchors at assignment time.
+        curl_easy_setopt(handle, CURLOPT_CAPATH, directory.c_str());
+        curl_easy_setopt(handle, CURLOPT_PROXY_CAPATH, directory.c_str());
+    }
+#if LIBCURL_VERSION_NUM >= 0x074D00
+    if (!options.at("--ca-blob").empty()) {
+        std::ifstream input(options.at("--ca-blob"), std::ios::binary);
+        const std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+        curl_blob blob{const_cast<char*>(bytes.data()), bytes.size(), CURL_BLOB_COPY};
+        curl_easy_setopt(handle, CURLOPT_CAINFO_BLOB, &blob);
+        curl_easy_setopt(handle, CURLOPT_PROXY_CAINFO_BLOB, &blob);
+    }
+#endif
+}
 } // namespace
 
 // Shared by the macOS build check and isolated TLS integration tests. Never installed.
@@ -26,28 +69,20 @@ int main(int argc, char** argv)
             ~GlobalCleanup() { curl_global_cleanup(); }
         } global_guard;
         std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), curl_easy_cleanup);
-        std::string url;
-        std::string ca_file;
-        for (int i = 1; i < argc; ++i) {
-            const std::string_view arg(argv[i]);
-            if (i + 1 >= argc || (arg != "--url" && arg != "--ca-file")) {
-                throw std::invalid_argument("Usage: curl-tls-probe [--url URL] [--ca-file FILE]");
-            }
-            (arg == "--url" ? url : ca_file) = argv[++i];
-        }
+        const auto options = parse_options(argc, argv);
+        const auto& url = options.at("--url");
         if (!handle) {
             throw std::runtime_error("Could not initialize cURL");
         }
-        if (!ca_file.empty()) {
-            curl_easy_setopt(handle.get(), CURLOPT_CAINFO, ca_file.c_str());
-        }
+        preset_anchors(handle.get(), options);
         CurlTls::configure(handle.get());
         if (url.empty()) {
             std::puts(curl_version());
             return 0;
         }
         curl_easy_setopt(handle.get(), CURLOPT_URL, url.c_str());
-        curl_easy_setopt(handle.get(), CURLOPT_PROXY, "");
+        curl_easy_setopt(handle.get(), CURLOPT_PROXY, options.at("--proxy").c_str());
+        curl_easy_setopt(handle.get(), CURLOPT_NOPROXY, "");
         curl_easy_setopt(handle.get(), CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(handle.get(), CURLOPT_CONNECTTIMEOUT, kConnectTimeoutSeconds);
         curl_easy_setopt(handle.get(), CURLOPT_TIMEOUT, kRequestTimeoutSeconds);

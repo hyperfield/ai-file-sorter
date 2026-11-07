@@ -13,9 +13,9 @@ namespace CurlTls {
 void initialize();
 
 /**
- * @brief Check whether a libcurl runtime can validate certificates with Apple trust.
+ * @brief Check whether a libcurl runtime enforces exclusive Apple certificate trust.
  * @param version Runtime information returned by curl_version_info().
- * @return True for active Secure Transport or an active backend supporting AppleSecTrust.
+ * @return True only for active Secure Transport. AppleSecTrust alone is additive.
  */
 bool supports_apple_trust(const curl_version_info_data* version) noexcept;
 
@@ -23,7 +23,7 @@ bool supports_apple_trust(const curl_version_info_data* version) noexcept;
  * @brief Enable certificate and hostname verification using the platform trust policy.
  *
  * Linux retains libcurl's distribution-configured trust locations. macOS requires
- * Apple native verification and clears file-based trust overrides. Windows callers
+ * Secure Transport and clears file/blob trust overrides. Windows callers
  * keep their existing, separately configured certificate-bundle policy.
  * @param handle Initialized libcurl easy handle.
  * @pre On macOS call initialize() before creating easy handles.
