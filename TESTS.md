@@ -18,19 +18,32 @@ loopback HTTPS servers. It checks untrusted-certificate rejection, redirects to
 untrusted HTTPS, ordinary HTTP, and platform runtime support. Linux also checks
 successful validation with an administrator-specified CA and rejection of a
 hostname mismatch signed by that same trusted CA. macOS instead checks that a
-file override cannot add a test CA to Apple native trust. No system trust store
+file override cannot add a test CA to Apple native trust. It also checks origin
+and HTTPS-proxy rejection with file, hashed directory, and blob anchors, plus
+`SSL_CERT_FILE` and `SSL_CERT_DIR` overrides. An untrusted proxy must receive no
+CONNECT request. No system trust store
 is modified and no external server, account, or API key is required. OpenSSL's
 command-line tool generates the temporary fixtures. The C++ `[tls]` cases cover
-native-backend capability detection, older libcurl runtime layouts, null handles,
+active-backend detection, rejection of additive AppleSecTrust/OpenSSL runtimes,
+older libcurl runtime layouts, null handles,
 the absence of the bundled CA resource on POSIX, and the production self-test.
 
 The `tls` self-test performs no network request. It checks the production-linked
 libcurl using the same policy as the HTTP clients. macOS CMake configuration and
 Make builds reject unsupported TLS backends. macOS packaging runs the signed app's
-self-test from `/` with library/framework search overrides removed, ensuring the
-packaged runtime supports native trust. Native macOS execution is still needed to
+self-test from `/` with all `DYLD_*` overrides removed, and separately audits
+dyld's loaded images to reject developer runtimes outside the bundle. Native macOS execution is still needed to
 validate Apple trust decisions; compiling the platform branch elsewhere is not
 equivalent.
+
+On native macOS, `ctest --test-dir build-tests -R '^macos_bundle_runtime$' --output-on-failure`
+(or `python3 tests/test_macos_bundle_runtime.py -v`) compiles real Mach-O fixtures.
+It covers recursive dependencies, preservation of a system curl reference beside
+a different bundled library with the same basename, read-only source preservation,
+relocation with spaces/non-ASCII paths and unavailable developer libraries,
+architecture mismatch, missing dependencies, and escaping symlinks. The release
+packager signs and audits the real application separately. Python 3.10 or newer
+and the native Xcode toolchain are required.
 
 ## Windows Vulkan startup (#125)
 

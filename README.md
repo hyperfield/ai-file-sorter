@@ -710,10 +710,12 @@ source install. Debian and RPM packages declare this runtime dependency.
 
 Apple Silicon Macs running macOS 26 or later are supported for macOS source builds and release bundles.
 
-HTTPS uses Apple's certificate trust service. The selected libcurl must provide
-Secure Transport or AppleSecTrust support; both CMake and Make check the actual
-linked runtime and reject unsupported builds. CMake accepts `CURL_ROOT` to select
-a compatible libcurl. Release packaging also runs the signed application's
+HTTPS uses Apple's certificate trust service. The selected libcurl must use
+Secure Transport; both CMake and Make check the actual linked runtime and reject
+unsupported builds. Use the macOS SDK/system libcurl. AppleSecTrust support in an
+OpenSSL build is insufficient because native verification can be supplemented by
+OpenSSL CA anchors. Remove a cached Homebrew `CURL_ROOT` when reconfiguring.
+Release packaging also runs the signed application's
 `--self-test=tls` with its packaged libraries and no developer library search
 overrides. Linux/macOS builds do not embed or install a separate CA bundle.
 
@@ -784,8 +786,18 @@ overrides. Linux/macOS builds do not embed or install a separate CA bundle.
 
    These targets rebuild the llama.cpp runtime before compiling the app.
    `sudo make install` places the macOS runtime libraries under `/usr/local/lib/aifilesorter` to avoid collisions with unrelated system or Homebrew ggml libraries.
-   The commands above build the raw executable only; they do **not** currently create a distributable `.app` bundle or `.dmg`.
-   This repository does not yet ship a documented or automated macOS bundle/DMG packaging target in `README.md`, so any `.app` / `.dmg` release packaging must be handled as a separate macOS-hosted release step.
+   Create an ad hoc signed `.app` on macOS with Python 3.10 or newer:
+
+   ```bash
+   bash scripts/create_macos_bundle.sh --default
+   ```
+
+   Set `EXECUTABLE_SRC` and `BUNDLE_OUTPUT_DIR` for a CMake executable or a separate
+   output directory. The packager copies the linked dependency closure, verifies
+   architectures, removes developer search paths, and checks actual loaded images
+   from `/` with all `DYLD_*` overrides removed. System library references remain
+   system references. Developer ID signing, notarization, and DMG creation are
+   separate release steps.
    Each variant uses distinct build directories to avoid cross-arch collisions:
    - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`
    - object files: `app/obj/arm64`

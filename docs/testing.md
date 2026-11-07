@@ -78,7 +78,10 @@ and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent
   and the macOS build/package checks. Use Python 3.10 or newer for integration
   tests; set `Python3_EXECUTABLE` if an existing CMake cache selects an older one.
 - Packaging/build-script changes: validate the relevant platform build path in
-  addition to unit tests.
+  addition to unit tests. On native macOS run CTest's `macos_bundle_runtime` (or
+  `python3 tests/test_macos_bundle_runtime.py -v`), then build a signed app using
+  `app/scripts/create_macos_bundle.sh`. Its runtime audit verifies relocation and
+  actual loaded paths in addition to the production TLS self-test.
 - Windows Vulkan startup: build the production app, its launcher when present,
   and `aifs_incompatible_vulkan_loader`, then run CTest's `windows_vulkan_startup`.
   Isolated process checks cover loader precedence, CPU fallback before GGML
