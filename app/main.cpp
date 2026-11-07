@@ -141,7 +141,9 @@ bool env_has_value(const char* key) {
 
 void set_process_env(const char* key, const std::string& value) {
 #ifdef _WIN32
-    _putenv_s(key, value.c_str());
+    const auto wide_key = QString::fromUtf8(key).toStdWString();
+    const auto wide_value = QString::fromUtf8(value.c_str()).toStdWString();
+    _wputenv_s(wide_key.c_str(), wide_value.c_str());
 #else
     setenv(key, value.c_str(), 1);
 #endif
@@ -436,11 +438,12 @@ bool windows_vulkan_backend_requested() {
 }
 
 std::optional<std::filesystem::path> windows_env_path(const char* key) {
-    const char* value = std::getenv(key);
-    if (!value || value[0] == '\0') {
+    const auto wide_key = QString::fromUtf8(key).toStdWString();
+    const wchar_t* value = _wgetenv(wide_key.c_str());
+    if (!value || value[0] == L'\0') {
         return std::nullopt;
     }
-    return Utils::utf8_to_path(value);
+    return std::filesystem::path(value);
 }
 
 std::optional<std::filesystem::path> windows_vulkan_runtime_candidate() {

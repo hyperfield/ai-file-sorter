@@ -414,9 +414,17 @@ bool Utils::is_network_available()
 std::string Utils::get_executable_path()
 {
 #ifdef _WIN32
-    char result[MAX_PATH];
-    GetModuleFileNameA(NULL, result, MAX_PATH);
-    return std::string(result);
+    // Runtime resolvers and QProcess consumers interpret this API as UTF-8.
+    // The ANSI API corrupts executable directories outside the active code page.
+    constexpr DWORD kExecutablePathCapacity = 32768;
+    std::wstring result(kExecutablePathCapacity, L'\0');
+    const DWORD length = GetModuleFileNameW(nullptr, result.data(), kExecutablePathCapacity);
+    if (length == 0 || length >= kExecutablePathCapacity) {
+        const DWORD error = length >= kExecutablePathCapacity ? ERROR_INSUFFICIENT_BUFFER : GetLastError();
+        throw std::system_error(std::error_code(error, std::system_category()), "GetModuleFileNameW failed");
+    }
+    result.resize(length);
+    return path_to_utf8(std::filesystem::path(result));
 #elif __linux__
     char result[PATH_MAX];
     ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);

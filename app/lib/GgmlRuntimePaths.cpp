@@ -373,7 +373,14 @@ void ensure_ggml_backends_loaded(const std::shared_ptr<spdlog::logger>& logger)
             }
         }
 
+#ifdef _WIN32
+        // Windows environment strings are UTF-16; ggml's C API expects UTF-8.
+        const wchar_t* native_dir = _wgetenv(L"AI_FILE_SORTER_GGML_DIR");
+        const auto encoded_dir = native_dir ? std::filesystem::path(native_dir).u8string() : std::u8string{};
+        const char* ggml_dir = reinterpret_cast<const char*>(encoded_dir.c_str());
+#else
         const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+#endif
         if (ggml_dir && ggml_dir[0] != '\0') {
             if (logger) {
                 logger->info("Loading ggml backends from '{}'", ggml_dir);
