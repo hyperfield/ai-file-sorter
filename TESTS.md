@@ -98,7 +98,7 @@ the selected GGML/llama libraries before printing clean headless help. The CMake
 fixture exports `vkGetInstanceProcAddr` but lacks `vkGetPhysicalDeviceFeatures2`.
 These Windows/MSVC precompiled-runtime tests require staged CPU and Vulkan
 payloads; launcher cases skip for direct-executable packages. No model or GPU is
-required. They do not test installation or MSIX activation.
+required. They do not test installation or application activation.
 
 ## Debian packaging compatibility
 
