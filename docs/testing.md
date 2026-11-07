@@ -64,6 +64,8 @@ and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent
   working directory. On macOS, loader environment overrides are removed, and
   embedded-PDFium builds also check that a relocated executable loads its adjacent
   runtime from a path containing spaces and non-ASCII characters.
+  Windows also runs `headless_launcher_stdout_contract` through the launcher,
+  including redirected JSON with `--console-log --development`.
 - API image analysis: run `./build-tests/ai_file_sorter_tests "[http-vision]"`.
   Loopback HTTP fixtures cover actual image uploads, API errors, cancellation,
   persisted settings, GUI selection, shared workflow caching and headless renaming;

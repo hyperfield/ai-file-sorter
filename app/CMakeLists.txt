@@ -2172,6 +2172,15 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                     --app $<TARGET_FILE:aifilesorter> ${_aifs_headless_stdout_runtime_args} -v
             )
             set_tests_properties(headless_stdout_contract PROPERTIES LABELS "headless;integration" TIMEOUT 120)
+            if(WIN32 AND STARTER_TARGET)
+                add_dependencies(ai_file_sorter_tests ${STARTER_TARGET})
+                add_test(NAME headless_launcher_stdout_contract
+                    COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_SOURCE_DIR}/../tests/integration/test_headless_stdout.py
+                        --app $<TARGET_FILE:${STARTER_TARGET}> -v)
+                set_tests_properties(headless_launcher_stdout_contract PROPERTIES
+                    LABELS "windows;headless;integration" TIMEOUT 120)
+            endif()
             add_test(
                 NAME live_llm_process_cleanup
                 COMMAND ${Python3_EXECUTABLE} -m unittest discover
