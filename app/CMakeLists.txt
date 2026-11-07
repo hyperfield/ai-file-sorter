@@ -1088,9 +1088,6 @@ set(APP_RESOURCE_FILES
     ${AIFS_HELP_RESOURCE_FILES}
     ${AIFS_WHATS_NEW_RESOURCE_FILES}
 )
-if(WIN32)
-    list(APPEND APP_RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem")
-endif()
 
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/.env"
@@ -1117,10 +1114,6 @@ foreach(_aifs_whats_new_resource IN LISTS AIFS_WHATS_NEW_RESOURCE_FILES)
         PROPERTIES QT_RESOURCE_ALIAS "whats_new/${_aifs_whats_new_name}"
     )
 endforeach()
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
-    PROPERTIES QT_RESOURCE_ALIAS "certs/cacert.pem"
-)
 
 qt_add_resources(aifilesorter "app_resources"
     PREFIX "/dev/hfstudio/AIFileSorter"
@@ -1706,6 +1699,12 @@ if(WIN32)
         "${PRECOMPILED_CUDA_BIN_DIR}/*")
     file(GLOB _aifs_precompiled_vulkan_payload LIST_DIRECTORIES false
         "${PRECOMPILED_VULKAN_BIN_DIR}/*")
+    # Backend payloads must use the application's selected curl, including when
+    # old precompiled directories still contain a different runtime.
+    foreach(_aifs_payload IN ITEMS _aifs_precompiled_cpu_payload
+            _aifs_precompiled_cuda_payload _aifs_precompiled_vulkan_payload)
+        list(FILTER ${_aifs_payload} EXCLUDE REGEX "/libcurl[.]dll$")
+    endforeach()
 
     if(_aifs_precompiled_cpu_payload)
         add_custom_command(TARGET aifilesorter POST_BUILD
@@ -1779,6 +1778,25 @@ if(WIN32)
             )
         endforeach()
     endif()
+endif()
+
+if(WIN32)
+    # Refresh actual dependency DLLs even in an existing release tree, then test
+    # the executable that will ship. A cached curl DLL must not select trust.
+    if(VCPKG_TARGET_TRIPLET)
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+                "-DAIFS_VCPKG_INSTALLED_ROOT=${AIFS_VCPKG_INSTALLED_ROOT}"
+                "-DAIFS_VCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}"
+                "-DAIFS_TARGET_CONFIG=$<CONFIG>"
+                "-DAIFS_DEST_DIR=$<TARGET_FILE_DIR:aifilesorter>"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/stage_vcpkg_runtime.cmake")
+    endif()
+    add_custom_command(TARGET aifilesorter POST_BUILD
+        COMMAND "${POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify_windows_tls.ps1"
+            -Directory "$<TARGET_FILE_DIR:aifilesorter>" -RemoveLegacyBundle
+        VERBATIM)
 endif()
 
 if(AI_FILE_SORTER_BUILD_TESTS)
@@ -2094,6 +2112,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     if(WIN32)
         set(AIFS_UPDATER_MODE_TEST_APP_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/IniConfig.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Settings.cpp"
@@ -2260,27 +2279,44 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         set_tests_properties(windows_cuda_runtime_staging PROPERTIES LABELS "build;cuda" TIMEOUT 60)
     endif()
 
-    if(NOT WIN32)
-        find_package(Python3 COMPONENTS Interpreter QUIET)
-        add_executable(aifs_curl_tls_probe
-            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/curl_tls_probe.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp")
-        target_include_directories(aifs_curl_tls_probe PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-        target_link_libraries(aifs_curl_tls_probe PRIVATE CURL::libcurl)
-        add_dependencies(ai_file_sorter_tests aifs_curl_tls_probe)
-        if(Python3_Interpreter_FOUND)
-            add_test(NAME curl_tls_trust
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    add_executable(aifs_curl_tls_probe
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/curl_tls_probe.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp")
+    target_include_directories(aifs_curl_tls_probe PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_link_libraries(aifs_curl_tls_probe PRIVATE CURL::libcurl)
+    if(WIN32)
+        aifs_set_windows_test_runtime_output(aifs_curl_tls_probe)
+        aifs_stage_test_runtime(aifs_curl_tls_probe)
+    endif()
+    add_dependencies(ai_file_sorter_tests aifs_curl_tls_probe)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME curl_tls_trust
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/../tests/integration/test_curl_tls.py
+                --probe $<TARGET_FILE:aifs_curl_tls_probe> -v)
+        set_tests_properties(curl_tls_trust PROPERTIES LABELS "tls;integration" TIMEOUT 60)
+        if(APPLE)
+            add_test(NAME macos_bundle_runtime
                 COMMAND ${Python3_EXECUTABLE}
-                    ${CMAKE_SOURCE_DIR}/../tests/integration/test_curl_tls.py
-                    --probe $<TARGET_FILE:aifs_curl_tls_probe> -v)
-            set_tests_properties(curl_tls_trust PROPERTIES LABELS "tls;integration" TIMEOUT 60)
-            if(APPLE)
-                add_test(NAME macos_bundle_runtime
-                    COMMAND ${Python3_EXECUTABLE}
-                        ${CMAKE_SOURCE_DIR}/../tests/test_macos_bundle_runtime.py -v)
-                set_tests_properties(macos_bundle_runtime PROPERTIES LABELS "build;packaging" TIMEOUT 60)
-            endif()
+                    ${CMAKE_SOURCE_DIR}/../tests/test_macos_bundle_runtime.py -v)
+            set_tests_properties(macos_bundle_runtime PROPERTIES LABELS "build;packaging" TIMEOUT 60)
         endif()
+        if(WIN32)
+            add_test(NAME windows_curl_tls_revocation
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/../tests/integration/test_windows_curl_tls.py
+                    --probe $<TARGET_FILE:aifs_curl_tls_probe> -v)
+            set_tests_properties(windows_curl_tls_revocation PROPERTIES
+                LABELS "windows;tls;integration" TIMEOUT 120)
+            add_test(NAME windows_tls_layout
+                COMMAND ${AI_FILE_SORTER_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass
+                    -File ${CMAKE_SOURCE_DIR}/../tests/test_windows_tls_layout.ps1
+                    -Directory $<TARGET_FILE_DIR:aifilesorter> -Python ${Python3_EXECUTABLE})
+            set_tests_properties(windows_tls_layout PROPERTIES LABELS "windows;tls;packaging" TIMEOUT 60)
+        endif()
+    endif()
+    if(NOT WIN32)
         find_program(AI_FILE_SORTER_MAKE_EXECUTABLE NAMES gmake make)
         if(Python3_Interpreter_FOUND AND AI_FILE_SORTER_MAKE_EXECUTABLE)
             add_test(

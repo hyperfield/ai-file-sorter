@@ -14,6 +14,13 @@ namespace {
 constexpr long kConnectTimeoutSeconds = 5;
 constexpr long kRequestTimeoutSeconds = 15;
 
+void require_option(CURLcode result)
+{
+    if (result != CURLE_OK) {
+        throw std::runtime_error(curl_easy_strerror(result));
+    }
+}
+
 std::size_t discard_body(char*, std::size_t size, std::size_t count, void*)
 {
     return size * count;
@@ -22,7 +29,8 @@ std::size_t discard_body(char*, std::size_t size, std::size_t count, void*)
 std::map<std::string, std::string> parse_options(int argc, char** argv)
 {
     std::map<std::string, std::string> options{
-        {"--url", {}}, {"--proxy", {}}, {"--ca-file", {}}, {"--ca-dir", {}}, {"--ca-blob", {}}};
+        {"--url", {}}, {"--proxy", {}}, {"--ca-file", {}}, {"--ca-dir", {}}, {"--ca-blob", {}},
+        {"--test-ca-file", {}}, {"--head", {}}, {"--seed-revocation", {}}, {"--seed-insecure", {}}};
     for (int i = 1; i < argc; ++i) {
         const auto option = options.find(argv[i]);
         if (i + 1 >= argc || option == options.end()) {
@@ -40,8 +48,8 @@ void preset_anchors(CURL* handle, const std::map<std::string, std::string>& opti
     const auto& file = options.at("--ca-file");
     const auto& directory = options.at("--ca-dir");
     if (!file.empty()) {
-        curl_easy_setopt(handle, CURLOPT_CAINFO, file.c_str());
-        curl_easy_setopt(handle, CURLOPT_PROXY_CAINFO, file.c_str());
+        require_option(curl_easy_setopt(handle, CURLOPT_CAINFO, file.c_str()));
+        require_option(curl_easy_setopt(handle, CURLOPT_PROXY_CAINFO, file.c_str()));
     }
     if (!directory.empty()) {
         // Secure Transport rejects directory anchors at assignment time.
@@ -53,14 +61,47 @@ void preset_anchors(CURL* handle, const std::map<std::string, std::string>& opti
         std::ifstream input(options.at("--ca-blob"), std::ios::binary);
         const std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
         curl_blob blob{const_cast<char*>(bytes.data()), bytes.size(), CURL_BLOB_COPY};
-        curl_easy_setopt(handle, CURLOPT_CAINFO_BLOB, &blob);
-        curl_easy_setopt(handle, CURLOPT_PROXY_CAINFO_BLOB, &blob);
+        if (!input.is_open() || bytes.empty()) {
+            throw std::runtime_error("Cannot read CA blob fixture");
+        }
+        require_option(curl_easy_setopt(handle, CURLOPT_CAINFO_BLOB, &blob));
+        require_option(curl_easy_setopt(handle, CURLOPT_PROXY_CAINFO_BLOB, &blob));
     }
+#endif
+}
+
+void seed_revocation(CURL* handle, const std::string& mode)
+{
+    if (mode.empty()) {
+        return;
+    }
+    if (mode != "no-revoke" && mode != "best-effort") {
+        throw std::invalid_argument("Unknown revocation fixture mode");
+    }
+    const long flags = mode == "no-revoke" ? CURLSSLOPT_NO_REVOKE : CURLSSLOPT_REVOKE_BEST_EFFORT;
+    require_option(curl_easy_setopt(handle, CURLOPT_SSL_OPTIONS, flags));
+    require_option(curl_easy_setopt(handle, CURLOPT_PROXY_SSL_OPTIONS, flags));
+}
+
+void install_test_anchors(CURL* handle, const std::string& file)
+{
+    if (file.empty()) {
+        return;
+    }
+#ifdef _WIN32
+    // This executable is a test-only target and is never installed. Schannel
+    // creates exclusive memory stores from these per-handle fixture anchors.
+    // Apply AFTER production policy only for signed-CRL/hostname/CONNECT tests;
+    // separate tests prove production clears all preexisting anchors.
+    require_option(curl_easy_setopt(handle, CURLOPT_CAINFO, file.c_str()));
+    require_option(curl_easy_setopt(handle, CURLOPT_PROXY_CAINFO, file.c_str()));
+#else
+    throw std::invalid_argument("Test-only memory anchors require Schannel");
 #endif
 }
 } // namespace
 
-// Shared by the macOS build check and isolated TLS integration tests. Never installed.
+// Shared by build checks and isolated TLS integration tests. Never installed.
 int main(int argc, char** argv)
 {
     try {
@@ -75,15 +116,24 @@ int main(int argc, char** argv)
             throw std::runtime_error("Could not initialize cURL");
         }
         preset_anchors(handle.get(), options);
+        seed_revocation(handle.get(), options.at("--seed-revocation"));
+        if (!options.at("--seed-insecure").empty()) {
+            require_option(curl_easy_setopt(handle.get(), CURLOPT_SSL_VERIFYPEER, 0L));
+            require_option(curl_easy_setopt(handle.get(), CURLOPT_SSL_VERIFYHOST, 0L));
+            require_option(curl_easy_setopt(handle.get(), CURLOPT_PROXY_SSL_VERIFYPEER, 0L));
+            require_option(curl_easy_setopt(handle.get(), CURLOPT_PROXY_SSL_VERIFYHOST, 0L));
+        }
         CurlTls::configure(handle.get());
+        install_test_anchors(handle.get(), options.at("--test-ca-file"));
+        std::puts(CurlTls::runtime_description().c_str());
         if (url.empty()) {
-            std::puts(curl_version());
             return 0;
         }
         curl_easy_setopt(handle.get(), CURLOPT_URL, url.c_str());
         curl_easy_setopt(handle.get(), CURLOPT_PROXY, options.at("--proxy").c_str());
         curl_easy_setopt(handle.get(), CURLOPT_NOPROXY, "");
         curl_easy_setopt(handle.get(), CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(handle.get(), CURLOPT_NOBODY, options.at("--head").empty() ? 0L : 1L);
         curl_easy_setopt(handle.get(), CURLOPT_CONNECTTIMEOUT, kConnectTimeoutSeconds);
         curl_easy_setopt(handle.get(), CURLOPT_TIMEOUT, kRequestTimeoutSeconds);
         curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, discard_body);

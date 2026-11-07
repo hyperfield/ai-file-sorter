@@ -72,9 +72,6 @@ JsonHttpResponse post_json(const std::string& url, const QJsonObject& payload) {
     const QByteArray body = QJsonDocument(payload).toJson(QJsonDocument::Compact);
     std::string response_body;
     char error_buffer[CURL_ERROR_SIZE] = {};
-#ifdef _WIN32
-    std::string ca_bundle_path;
-#endif
 
     curl_easy_setopt(curl.handle, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl.handle, CURLOPT_POST, 1L);
@@ -88,15 +85,8 @@ JsonHttpResponse post_json(const std::string& url, const QJsonObject& payload) {
     curl_easy_setopt(curl.handle, CURLOPT_TIMEOUT, 20L);
     curl_easy_setopt(curl.handle, CURLOPT_USERAGENT, "AI-File-Sorter-PluginActivator/1.0");
 
-#ifdef _WIN32
-    if (url.rfind("https://", 0) == 0) {
-        ca_bundle_path = Utils::path_to_utf8(Utils::ensure_ca_bundle());
-        curl_easy_setopt(curl.handle, CURLOPT_CAINFO, ca_bundle_path.c_str());
-    }
-#else
     // Apply before any request so an HTTP-to-HTTPS redirect uses the same policy.
     CurlTls::configure(curl.handle);
-#endif
 
     const CURLcode result = curl_easy_perform(curl.handle);
     if (result != CURLE_OK) {

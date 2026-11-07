@@ -32,15 +32,6 @@ void log_plugin_fetch(spdlog::level::level_enum level, const char* fmt, Args&&..
     }
 }
 
-void configure_tls(CURL* curl) {
-#if defined(_WIN32)
-    const auto cert_path = Utils::ensure_ca_bundle();
-    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-#else
-    CurlTls::configure(curl);
-#endif
-}
-
 FILE* open_binary_file_for_write(const std::filesystem::path& path) {
 #ifdef _WIN32
     return _wfopen(path.c_str(), L"wb");
@@ -323,7 +314,7 @@ void PluginPackageFetcher::default_download(const std::string& url, const std::f
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "AI-File-Sorter-PluginInstaller/1.0");
     try {
-        configure_tls(curl);
+        CurlTls::configure(curl);
     } catch (...) {
         curl_easy_cleanup(curl);
         std::fclose(file);

@@ -1,7 +1,5 @@
 #include <curl/curl.h>
-#ifndef _WIN32
 #include "CurlTls.hpp"
-#endif
 #include <libintl.h>
 #include <locale.h>
 
@@ -85,18 +83,18 @@ bool initialize_loggers(Logger::ConsoleOutput console_output) {
 
 namespace {
 
-#ifndef _WIN32
 void log_platform_tls_trust()
 {
     if (auto logger = Logger::get_logger("core_logger")) {
-#ifdef __APPLE__
+#ifdef _WIN32
+        logger->info("TLS certificate verification uses Windows native trust with strict revocation: {}", CurlTls::runtime_description());
+#elif defined(__APPLE__)
         logger->info("TLS certificate verification uses Apple native trust: {}", curl_version());
 #else
         logger->info("TLS certificate verification uses distribution trust: {}", curl_version());
 #endif
     }
 }
-#endif
 
 struct PluginEntitlementCommand {
     bool info_requested{false};
@@ -1137,7 +1135,6 @@ int main(int argc, char** argv) {
     if (!initialize_loggers(console_output)) {
         return EXIT_FAILURE;
     }
-#ifndef _WIN32
     try {
         CurlTls::initialize();
     } catch (const std::exception& error) {
@@ -1148,16 +1145,11 @@ int main(int argc, char** argv) {
         }
         return EXIT_FAILURE;
     }
-#else
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-#endif
     struct CurlCleanup {
         ~CurlCleanup() { curl_global_cleanup(); }
     } curl_cleanup;
 
-#ifndef _WIN32
     log_platform_tls_trust();
-#endif
 
 #ifdef _WIN32
     _putenv("GSETTINGS_SCHEMA_DIR=schemas");

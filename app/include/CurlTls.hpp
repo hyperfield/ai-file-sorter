@@ -1,13 +1,14 @@
 #pragma once
 
 #include <curl/curl.h>
+#include <string>
 
-/** @brief Configure HTTPS verification using operating-system trust on POSIX hosts. */
+/** @brief Configure HTTPS verification using maintained platform certificate trust. */
 namespace CurlTls {
 
 /**
- * @brief Initialize libcurl, selecting native Apple TLS before any easy handle exists.
- * @throws std::runtime_error If initialization or Apple native verification is unavailable.
+ * @brief Initialize libcurl, selecting native Windows/Apple TLS before any easy handle exists.
+ * @throws std::runtime_error If initialization or the required native backend is unavailable.
  * @note The caller must balance a successful call with curl_global_cleanup().
  */
 void initialize();
@@ -20,15 +21,28 @@ void initialize();
 bool supports_apple_trust(const curl_version_info_data* version) noexcept;
 
 /**
+ * @brief Check whether the active runtime supports native Windows trust and revocation.
+ * @param version Runtime information returned by curl_version_info().
+ * @return True only for active Schannel, excluding inactive MultiSSL entries.
+ */
+bool supports_windows_trust(const curl_version_info_data* version) noexcept;
+
+/**
+ * @brief Describe the active libcurl runtime and its loaded DLL path on Windows.
+ * @return Version/backend description, including a Windows DLL path when available.
+ */
+std::string runtime_description();
+
+/**
  * @brief Enable certificate and hostname verification using the platform trust policy.
  *
  * Linux retains libcurl's distribution-configured trust locations. macOS requires
- * Secure Transport and clears file/blob trust overrides. Windows callers
- * keep their existing, separately configured certificate-bundle policy.
+ * Secure Transport; Windows requires Schannel with strict revocation. Both native
+ * policies clear origin/proxy file/blob trust overrides without a PEM fallback.
  * @param handle Initialized libcurl easy handle.
- * @pre On macOS call initialize() before creating easy handles.
+ * @pre Call initialize() before creating easy handles.
  * @throws std::invalid_argument If handle is null.
- * @throws std::runtime_error If native Apple trust is unavailable or configuration fails.
+ * @throws std::runtime_error If the required native backend is unavailable or configuration fails.
  */
 void configure(CURL* handle);
 

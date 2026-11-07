@@ -1,6 +1,6 @@
 # Test Suite Guide
 
-## Linux and macOS TLS trust
+## Platform TLS trust
 
 Build `aifs_curl_tls_probe` and `ai_file_sorter_tests`, then run:
 
@@ -17,16 +17,47 @@ The Linux release CI matrix runs this target with each distribution's libcurl.
 loopback HTTPS servers. It checks untrusted-certificate rejection, redirects to
 untrusted HTTPS, ordinary HTTP, and platform runtime support. Linux also checks
 successful validation with an administrator-specified CA and rejection of a
-hostname mismatch signed by that same trusted CA. macOS instead checks that a
-file override cannot add a test CA to Apple native trust. It also checks origin
+hostname mismatch signed by that same trusted CA. macOS and Windows instead check
+that file overrides cannot add a test CA to native trust. They also check origin
 and HTTPS-proxy rejection with file, hashed directory, and blob anchors, plus
-`SSL_CERT_FILE` and `SSL_CERT_DIR` overrides. An untrusted proxy must receive no
+`SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE` and backend-selection environment
+overrides. An untrusted proxy must receive no
 CONNECT request. No system trust store
 is modified and no external server, account, or API key is required. OpenSSL's
 command-line tool generates the temporary fixtures. The C++ `[tls]` cases cover
-active-backend detection, rejection of additive AppleSecTrust/OpenSSL runtimes,
+active Schannel/Secure Transport detection, rejection of inactive MultiSSL and additive AppleSecTrust/OpenSSL runtimes,
 older libcurl runtime layouts, null handles,
-the absence of the bundled CA resource on POSIX, and the production self-test.
+the absence of the bundled CA resource on every platform, and the production self-test.
+
+On Windows use the multi-config build's paths:
+
+```powershell
+cmake --build app/build-windows --config Release --parallel
+ctest --test-dir app/build-windows -C Release -R 'curl_tls|windows_tls_layout' --output-on-failure
+./app/build-windows/tests/Release/ai_file_sorter_tests.exe '[tls]'
+./app/build-windows/Release/aifilesorter-bin.exe --cuda=off --vulkan=off --self-test=tls
+```
+
+`windows_curl_tls_revocation` uses ephemeral CA/leaf keys and a cryptographically
+verified signed CRL. GET/HEAD and authenticated HTTPS CONNECT succeed; revoked,
+unavailable-CRL and wrong-host certificates fail at both origin and proxy layers.
+Redirects and pre-seeded `NO_REVOKE`/`REVOKE_BEST_EFFORT` flags cannot bypass the
+production policy. A **test-only, never-installed probe** adds fixture anchors
+after policy configuration to exercise the trusted-chain cases using Schannel's
+memory stores. Independent native-policy tests prove file/blob overrides and old
+adjacent/staged PEMs remain ineffective. No production anchor override is exposed.
+
+`windows_tls_layout` checks idempotent legacy-file cleanup, preservation of
+unrelated files, removal of the three known obsolete backend curl copies,
+competing curl DLL rejection, a real installation directory containing spaces and
+non-ASCII characters, and the production executable's
+TLS self-test/loaded DLL path. CMake post-build and `build_windows.ps1` run the
+same runtime gate. Windows CI requires Python and
+OpenSSL's fixture generator and runs these CTest cases. Public live incident
+requests are separate manual validation, not required by the offline CI tests.
+The Windows `headless_launcher_stdout_contract` runs the existing stdout contract
+through the launcher too. Headless `--console-log --development` must preserve
+redirected JSON rather than reopening the inherited streams onto `CONOUT$`.
 
 The `tls` self-test performs no network request. It checks the production-linked
 libcurl using the same policy as the HTTP clients. macOS CMake configuration and
@@ -229,7 +260,7 @@ the controls now hosted in Sorting Rules.
 The production executable supports two developer-oriented test modes:
 
 - `--test` launches the normal GUI, implies development mode, and adds a Tests menu. The current GUI preset creates a larger sample whitelist and sample files, then runs the normal analysis flow with the selected real LLM for manual review in the Review dialog. It reuses the user's selected LLM settings, but test-mode whitelists, categorization cache, learned behavior, undo data, and sample files are stored under an isolated `test_mode_profile` directory inside the normal config directory.
-- `--self-test` runs deterministic headless checks and exits with a pass/fail status. The `whitelist` suite builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. On Linux/macOS, the `tls` suite also checks the production-linked curl runtime and platform trust policy without contacting a server. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite, and `--self-test=tls` selects only the Linux/macOS TLS check.
+- `--self-test` runs deterministic headless checks and exits with a pass/fail status. The `whitelist` suite builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. On every platform, the `tls` suite also checks the production-linked curl runtime and platform trust policy without contacting a server. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite, and `--self-test=tls` selects only the platform TLS check.
 
 ## Optional live LLM headless tests
 
@@ -1576,13 +1607,6 @@ Setup: Set a process-local LLM storage override to a temporary directory.
 Procedure: Call `Utils::make_default_path_to_file_from_download_url()` for a GGUF URL.
 Expected outcome: The resolved path points inside the override directory with the URL filename appended.
 Run: `./build-tests/ai_file_sorter_tests "LLM storage override changes default download destination"`
-
-#### Test case: ensure_ca_bundle stages embedded certificate under writable app data
-Purpose: Prevent Store/MSIX builds from trying to create runtime certificate files under the read-only package install directory.
-Setup (Windows only): Reset the CA bundle cache and point `AI_FILE_SORTER_CONFIG_DIR` at a temporary directory. Linux/macOS omit this resource and use the platform TLS tests instead.
-Procedure: Call `Utils::ensure_ca_bundle()`.
-Expected outcome: The embedded `cacert.pem` is staged under the writable app config directory, exists, is non-empty, and does not point inside `WindowsApps`.
-Run: `./build-tests/ai_file_sorter_tests "ensure_ca_bundle stages embedded certificate under writable app data"`
 
 #### Test case: is_cuda_available honors probe overrides
 Purpose: Verify that CUDA availability probes are honored.

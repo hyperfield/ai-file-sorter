@@ -32,7 +32,7 @@ UI-neutral headless flow used by integrations.
   future integrations.
 - **Update and packaging surfaces**: updater/feed parsing, launcher behavior,
   build scripts, and platform-specific packaging support release flows.
-- **TLS trust on Linux/macOS**: `CurlTls` configures certificate and hostname
+- **TLS trust**: `CurlTls` configures certificate and hostname
   verification for HTTP clients and HTTPS proxies. Linux retains libcurl's
   distribution-configured CA locations; runtime packages require
   `ca-certificates`. macOS requires active Secure Transport, clears
@@ -41,8 +41,15 @@ UI-neutral headless flow used by integrations.
   capability checks inspect the active backend, excluding parenthesized inactive
   entries reported by MultiSSL builds. Startup logs the platform trust policy
   and linked curl backend; macOS initialization failures reach the core log.
-  CMake, Make, and macOS packaging check the selected runtime. POSIX builds do
-  not embed or install the Windows certificate bundle. AppleSecTrust alone does
+  Windows requires active Schannel, uses native Windows roots and distrust policy,
+  clears origin/proxy file/blob anchors, and enforces strict revocation at both
+  TLS layers. All eight HTTP implementations apply the shared policy, including
+  HTTP-to-HTTPS redirects, HEAD requests and retries. Windows startup checks
+  initialization and logs the loaded curl DLL path; Windows build checks run the
+  production TLS self-test and reject competing curl DLLs. Reused staging layouts
+  remove the obsolete adjacent CA file. Old user-data CA caches are inert.
+  No platform embeds, stages or installs an application CA snapshot.
+  CMake, Make, and macOS packaging check the selected runtime. AppleSecTrust alone does
   not establish exclusive native trust: OpenSSL can accept additional anchors
   from its default paths or environment. Those alternate runtimes fail closed.
 

@@ -76,7 +76,9 @@ class CurlTlsTests(unittest.TestCase):
         cls.ca_directory = cls.root / "anchors"
         cls.ca_directory.mkdir()
         shutil.copyfile(cls.root / "ca.pem", cls.ca_directory / "ca.pem")
-        cls.run_openssl("rehash", str(cls.ca_directory))
+        digest = subprocess.check_output([OPENSSL, "x509", "-in", str(cls.root / "ca.pem"),
+                                          "-hash", "-noout"], text=True).strip()
+        shutil.copyfile(cls.root / "ca.pem", cls.ca_directory / (digest + ".0"))
         for serial, hostname in enumerate(("localhost", "wrong.example"), start=1):
             cls.run_openssl(
                 "req", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes",
@@ -135,28 +137,28 @@ class CurlTlsTests(unittest.TestCase):
             result = self.probe(url)
         self.assertEqual(result.returncode, 60, result.stderr)
 
-    @unittest.skipIf(sys.platform == "darwin", "macOS deliberately clears file-based trust overrides")
+    @unittest.skipIf(sys.platform in ("darwin", "win32"), "native trust clears file-based overrides")
     def test_linux_preserves_administrator_configured_ca(self):
         with self.tls_server() as url:
             result = self.probe(url, self.root / "ca.pem")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("http_status=200", result.stdout)
 
-    @unittest.skipIf(sys.platform == "darwin", "requires a fixture CA outside the Apple trust store")
+    @unittest.skipIf(sys.platform in ("darwin", "win32"), "requires administrator-configured file anchors")
     def test_linux_checks_hostname_even_with_a_trusted_issuer(self):
         with self.tls_server("wrong.example") as url:
             result = self.probe(url, self.root / "ca.pem")
         self.assertEqual(result.returncode, 60, result.stderr)
         self.assertIn("localhost", result.stderr)
 
-    @unittest.skipUnless(sys.platform == "darwin", "Apple trust policy")
-    def test_macos_does_not_add_file_anchors_to_native_trust(self):
+    @unittest.skipUnless(sys.platform in ("darwin", "win32"), "exclusive native trust policy")
+    def test_native_trust_does_not_add_file_anchors(self):
         with self.tls_server() as url:
             result = self.probe(url, self.root / "ca.pem")
         self.assertEqual(result.returncode, 60, result.stderr)
 
-    @unittest.skipUnless(sys.platform == "darwin", "exclusive Apple trust policy")
-    def test_macos_rejects_origin_and_proxy_anchor_overrides(self):
+    @unittest.skipUnless(sys.platform in ("darwin", "win32"), "exclusive native trust policy")
+    def test_native_trust_rejects_origin_and_proxy_anchor_overrides(self):
         overrides = (
             ("file", ("--ca-file", self.root / "ca.pem"), {}),
             ("directory", ("--ca-dir", self.ca_directory), {}),
@@ -165,6 +167,8 @@ class CurlTlsTests(unittest.TestCase):
                                    "SSL_CERT_DIR": str(self.root / "absent")}),
             ("SSL_CERT_DIR", (), {"SSL_CERT_FILE": str(self.root / "absent"),
                                   "SSL_CERT_DIR": str(self.ca_directory)}),
+            ("CURL_CA_BUNDLE", (), {"CURL_CA_BUNDLE": str(self.root / "ca.pem")}),
+            ("CURL_SSL_BACKEND", (), {"CURL_SSL_BACKEND": "openssl"}),
         )
         for target in ("origin", "proxy"):
             for name, anchors, environment in overrides:

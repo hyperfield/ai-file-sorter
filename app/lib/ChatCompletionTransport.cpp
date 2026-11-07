@@ -145,12 +145,7 @@ std::string ChatCompletionTransport::complete(const std::string& payload,
     if (!handle) {
         throw std::runtime_error("Initialization Error: Failed to initialize cURL.");
     }
-#ifdef _WIN32
-    const auto cert_path = Utils::ensure_ca_bundle().string();
-    curl_easy_setopt(handle, CURLOPT_CAINFO, cert_path.c_str());
-#else
     CurlTls::configure(handle);
-#endif
     const auto url = completion_url(base_url_);
     Response response;
     request.headers = curl_slist_append(request.headers, "Content-Type: application/json");

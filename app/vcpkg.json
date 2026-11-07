@@ -6,7 +6,12 @@
   "dependencies": [
     "qtbase",
     "qttools",
-    "curl",
+    {
+      "name": "curl",
+      "$comment": "Pinned curl ssl+sspi selects Schannel on Windows. Keep alternate TLS/http3 features disabled and verify the active packaged DLL at runtime.",
+      "default-features": false,
+      "features": ["non-http", "ssl", "sspi"]
+    },
     "jsoncpp",
     "sqlite3",
     "openssl",

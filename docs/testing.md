@@ -10,7 +10,7 @@ complement, not replace, the detailed case catalog in `TESTS.md`.
   outcomes.
 - **Production self-test mode**: `--self-test` runs all deterministic checks
   from the built app. `--self-test=whitelist` selects the whitelist checks;
-  Linux/macOS also support `--self-test=tls` for the linked TLS trust policy.
+  `--self-test=tls` selects the linked platform TLS trust policy on every platform.
 - **Opt-in live headless LLM tests**:
   `tests/live_llm/headless_live_llm_tests.py` runs the production headless path
   with a real local model and real/generated fixtures.
@@ -76,7 +76,10 @@ and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent
 - Updater/feed changes: run the updater and update-feed tests.
 - TLS trust changes: rebuild `aifs_curl_tls_probe` and `ai_file_sorter_tests`, run
   CTest's `curl_tls_trust`, the Catch2 `[tls]` cases, and the production app's
-  `--self-test=tls` on Linux/macOS. See `TESTS.md` for the local certificate fixtures
+  `--self-test=tls`. On Windows also run `windows_curl_tls_revocation` and
+  `windows_tls_layout`; these exercise strict signed-CRL outcomes, a real HTTPS
+  CONNECT tunnel, cleared overrides and legacy layout cleanup without importing
+  certificates into the machine trust store. See `TESTS.md` for the local certificate fixtures
   and the macOS build/package checks. Use Python 3.10 or newer for integration
   tests; set `Python3_EXECUTABLE` if an existing CMake cache selects an older one.
 - Packaging/build-script changes: validate the relevant platform build path in

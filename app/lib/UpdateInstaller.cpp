@@ -52,16 +52,6 @@ std::string ascii_lower_copy(std::string value)
     return value;
 }
 
-void configure_tls(CURL* curl)
-{
-#if defined(_WIN32)
-    const auto cert_path = Utils::ensure_ca_bundle();
-    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-#else
-    CurlTls::configure(curl);
-#endif
-}
-
 std::string normalize_sha256(std::string value)
 {
     value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
@@ -364,7 +354,7 @@ void UpdateInstaller::default_download(const std::string& url,
     };
 
     try {
-        configure_tls(curl);
+        CurlTls::configure(curl);
     } catch (const std::exception& ex) {
         std::fclose(file);
         curl_easy_cleanup(curl);

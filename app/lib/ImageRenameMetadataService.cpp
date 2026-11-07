@@ -81,16 +81,6 @@ size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp)
     return total;
 }
 
-void configure_tls(CURL* curl)
-{
-#if defined(_WIN32)
-    const auto cert_path = Utils::ensure_ca_bundle();
-    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-#else
-    CurlTls::configure(curl);
-#endif
-}
-
 bool read_byte(std::ifstream& in, uint8_t& value)
 {
     char ch = 0;
@@ -1087,7 +1077,7 @@ ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::rev
     const std::string user_agent = reverse_geocoder_user_agent();
     curl_easy_setopt(curl, CURLOPT_USERAGENT, user_agent.c_str());
     try {
-        configure_tls(curl);
+        CurlTls::configure(curl);
     } catch (...) {
         curl_easy_cleanup(curl);
         throw;

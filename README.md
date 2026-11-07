@@ -437,7 +437,7 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 
 ## Requirements
 
-- **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section.
+- **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section. HTTPS uses maintained platform trust: distribution CA certificates on Linux, Secure Transport on macOS, and Schannel with strict revocation on Windows. The app ships no static CA bundle. Windows builds verify the active linked backend and loaded DLL path.
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++` on Linux/macOS, MSVC 2022 on Windows).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS, or a Qt 6 MSVC kit / `qtbase` via vcpkg on Windows).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled` on Linux/Windows or `app/lib/precompiled-*` for macOS variant builds. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.

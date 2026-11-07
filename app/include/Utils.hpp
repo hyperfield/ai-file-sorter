@@ -63,7 +63,6 @@ public:
     static int get_installed_cuda_runtime_version();
     static std::string get_cudart_dll_name();
     static std::string abbreviate_user_path(const std::string& path);
-    static std::filesystem::path ensure_ca_bundle();
     static std::string path_to_utf8(const std::filesystem::path& path);
     static std::filesystem::path utf8_to_path(const std::string& utf8_path);
     /** @brief Build a native filesystem lookup key while preserving stored path spellings. */

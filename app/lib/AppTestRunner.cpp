@@ -6,9 +6,7 @@
 #include "Settings.hpp"
 #include "UserLearningStore.hpp"
 #include "WhitelistTestFixtures.hpp"
-#ifndef _WIN32
 #include "CurlTls.hpp"
-#endif
 
 #include <algorithm>
 #include <atomic>
@@ -320,7 +318,6 @@ std::vector<AppTestRunner::CaseResult> run_whitelist_suite()
     return results;
 }
 
-#ifndef _WIN32
 AppTestRunner::CaseResult test_platform_tls_trust()
 {
     constexpr const char* name = "platform TLS trust";
@@ -337,12 +334,11 @@ AppTestRunner::CaseResult test_platform_tls_trust()
     std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), curl_easy_cleanup);
     try {
         CurlTls::configure(handle.get());
-        return make_case_result(name, true, curl_version());
+        return make_case_result(name, true, CurlTls::runtime_description());
     } catch (const std::exception& error) {
         return make_case_result(name, false, error.what());
     }
 }
-#endif
 
 } // namespace
 
@@ -375,11 +371,9 @@ AppTestRunner::Result AppTestRunner::run(const Options& options) const
         const auto whitelist_results = run_whitelist_suite();
         result.cases.insert(result.cases.end(), whitelist_results.begin(), whitelist_results.end());
     }
-#ifndef _WIN32
     if (result.suite == "all" || result.suite == "tls") {
         result.cases.push_back(test_platform_tls_trust());
     }
-#endif
 
     return result;
 }
@@ -387,8 +381,6 @@ AppTestRunner::Result AppTestRunner::run(const Options& options) const
 std::vector<std::string> AppTestRunner::available_suites()
 {
     std::vector<std::string> suites{"all", "whitelist"};
-#ifndef _WIN32
     suites.push_back("tls");
-#endif
     return suites;
 }

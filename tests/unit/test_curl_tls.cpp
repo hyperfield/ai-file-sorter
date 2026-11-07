@@ -6,7 +6,6 @@
 #include <QFile>
 #include <stdexcept>
 
-#ifndef _WIN32
 namespace {
 class PlatformCurlInitialization : public Catch::EventListenerBase {
 public:
@@ -17,7 +16,26 @@ public:
 };
 } // namespace
 CATCH_REGISTER_LISTENER(PlatformCurlInitialization)
-#endif
+
+TEST_CASE("Windows TLS trust requires active Schannel", "[tls]")
+{
+    curl_version_info_data version{};
+    version.features = CURL_VERSION_SSL;
+    CHECK_FALSE(CurlTls::supports_windows_trust(nullptr));
+    CHECK_FALSE(CurlTls::supports_windows_trust(&version));
+    for (const auto* backend : {"OpenSSL/3.6.0", "(Schannel) OpenSSL/3.6.0",
+                                "SecureTransport", "(Schannel)", "(Schannel", "Schannel-other"}) {
+        version.ssl_version = backend;
+        CHECK_FALSE(CurlTls::supports_windows_trust(&version));
+    }
+    for (const auto* backend : {"Schannel", "Schannel (OpenSSL/3.6.0)",
+                                "(OpenSSL/3.6.0) Schannel"}) {
+        version.ssl_version = backend;
+        CHECK(CurlTls::supports_windows_trust(&version));
+    }
+    version.features = 0;
+    CHECK_FALSE(CurlTls::supports_windows_trust(&version));
+}
 
 TEST_CASE("Apple TLS trust requires a native verification backend", "[tls]")
 {
@@ -55,12 +73,10 @@ TEST_CASE("Apple TLS trust requires a native verification backend", "[tls]")
 #endif
 }
 
-#ifndef _WIN32
-TEST_CASE("POSIX builds do not embed the Windows certificate bundle", "[tls]")
+TEST_CASE("Application builds do not embed a certificate bundle", "[tls]")
 {
     CHECK_FALSE(QFile::exists(QStringLiteral(":/dev/hfstudio/AIFileSorter/certs/cacert.pem")));
 }
-#endif
 
 TEST_CASE("TLS policy rejects an uninitialized handle", "[tls]")
 {

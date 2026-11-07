@@ -122,16 +122,6 @@ void throw_for_http_status(long http_code)
     }
 }
 
-void configure_tls(CURL* curl)
-{
-#if defined(_WIN32)
-    const auto cert_path = Utils::ensure_ca_bundle();
-    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-#else
-    CurlTls::configure(curl);
-#endif
-}
-
 void open_download_url(const std::string& url)
 {
     const QUrl qurl(QString::fromStdString(url));
@@ -511,7 +501,7 @@ std::string Updater::fetch_update_metadata() const {
     std::string response_string;
 
     try {
-        configure_tls(curl);
+        CurlTls::configure(curl);
     } catch (const std::exception& ex) {
         curl_easy_cleanup(curl);
 #ifdef _WIN32
