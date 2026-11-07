@@ -500,8 +500,9 @@ if(APPLE)
     if(NOT AIFS_CURL_TRUST_COMPILED OR NOT "${AIFS_CURL_TRUST_RUN}" STREQUAL "0")
         message(FATAL_ERROR
             "macOS requires libcurl with Apple native certificate verification "
-            "(Secure Transport or AppleSecTrust). Select a compatible libcurl "
-            "with CURL_ROOT and reconfigure. No bundled-CA fallback is used.\n"
+            "(active Secure Transport; AppleSecTrust alone is insufficient). "
+            "Select the macOS SDK/system libcurl; clear a cached CURL_ROOT and "
+            "reconfigure. No bundled-CA fallback is used.\n"
             "${_aifs_curl_trust_compile_output}\n${_aifs_curl_trust_output}")
     endif()
     message(STATUS "Verified macOS native TLS trust: ${_aifs_curl_trust_output}")
@@ -2264,6 +2265,12 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/../tests/integration/test_curl_tls.py
                     --probe $<TARGET_FILE:aifs_curl_tls_probe> -v)
             set_tests_properties(curl_tls_trust PROPERTIES LABELS "tls;integration" TIMEOUT 60)
+            if(APPLE)
+                add_test(NAME macos_bundle_runtime
+                    COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_SOURCE_DIR}/../tests/test_macos_bundle_runtime.py -v)
+                set_tests_properties(macos_bundle_runtime PROPERTIES LABELS "build;packaging" TIMEOUT 60)
+            endif()
         endif()
         find_program(AI_FILE_SORTER_MAKE_EXECUTABLE NAMES gmake make)
         if(Python3_Interpreter_FOUND AND AI_FILE_SORTER_MAKE_EXECUTABLE)
