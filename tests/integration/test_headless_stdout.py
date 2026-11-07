@@ -84,6 +84,31 @@ class HeadlessOutputTests(unittest.TestCase):
                 self.assert_status_stream(result, "completed")
                 self.assertFalse(list(self.source.iterdir()))
 
+    def test_legacy_explorer_fallback_keeps_stdout_json(self):
+        sidecar = self.root / "explorer-104.settings.json"
+        config = self.root / "config" / "AIFileSorter" / "config.ini"
+        before = config.read_bytes()
+        cases = (
+            ("explorer-104", {"useSubcategories": True}, True, True),
+            ("explorer-110", {"sortingMode": "ExistingFolderTree"}, True, False),
+            ("headless-other", {"useSubcategories": True}, True, False),
+            ("explorer-no-sidecar", {}, False, False),
+        )
+        for job_id, settings, use_sidecar, legacy in cases:
+            with self.subTest(job_id=job_id):
+                sidecar.write_text(json.dumps(settings), encoding="utf-8")
+                arguments = [
+                    "--headless", "--operation", "categorize", "--path", str(self.source),
+                    "--review-only", "--job-id", job_id, "--status-file", str(self.status),
+                ]
+                if use_sidecar:
+                    arguments.extend(("--settings-overrides-file", str(sidecar)))
+                result = self.launch(*arguments)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assert_status_stream(result, "completed")
+                self.assertEqual("legacy Explorer job" in result.stderr, legacy)
+                self.assertEqual(config.read_bytes(), before)
+
     def test_analysis_failure_preserves_json_stdout(self):
         first = self.source / "first.txt"
         second = self.root / "second.txt"

@@ -619,6 +619,7 @@ run to enable the relocation case below.
 | `test_analysis_failure_preserves_json_stdout` | Submit files from different source folders. The app rejects this unsupported selection and emits valid JSON status records ending in `failed`, with diagnostics on stderr. |
 | `test_saved_plan_apply_stdout_is_json` | Apply a saved rename plan to a temporary fixture. Only JSON status records appear on stdout, the status file matches the final record, and the expected rename preserves the file contents. |
 | `test_help_is_usage_text_without_log_lines` | Request `--headless-help`. Stdout starts with usage text and contains no startup logs; those appear on stderr. |
+| `test_legacy_explorer_fallback_keeps_stdout_json` | Run an empty-folder analysis with a legacy Explorer sidecar, an explicit modern mode, an unrelated job ID, and no sidecar. Only the legacy sidecar produces the compatibility diagnostic on stderr; stdout stays JSON and config bytes stay unchanged. |
 | `test_macos_embedded_pdfium_loads_beside_relocated_app` | Copy the executable and embedded PDFium runtime into a path containing spaces and Japanese text, then analyze an empty folder from a different working directory without loader search-path overrides. Status completes successfully and dyld confirms the relocated adjacent PDFium copy is loaded. Requires `--check-macos-pdfium`; skipped for other build profiles. |
 | `test_invalid_arguments_use_stderr` | Supply an unsupported operation. Stdout is empty, stderr contains diagnostics/usage, and the exit code is the usage-error code. |
 
@@ -700,6 +701,13 @@ Setup: Create a temporary target folder containing one cached `Documents / Repor
 Procedure: Run the headless categorize command without an auto-apply override, inspect the file locations, and read the final status JSON.
 Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload and review plan file, and reports zero moved/renamed/skipped apply counts.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand prepares review before applying by default"`
+
+#### Test case: HeadlessAnalysisCommand preserves legacy Explorer sorting through review and apply
+Purpose: Keep extension 1.0.x category previews and edits consistent with the app's actual destinations.
+Setup: Cache a selected file beside an uncached sibling; configure an archive destination and existing-folder sorting, or remove the saved sorting-mode key to model an older config.
+Procedure: Run an `explorer-` job with a legacy settings sidecar in review-only mode, edit the category in the saved plan as the old extension does, and apply the approved plan. Cover categorize and categorize-and-rename operations.
+Expected outcome: The plan uses generated categories under the selected source folder, honors the reviewed filename and edited category, leaves the sibling untouched, and preserves every app config byte.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand preserves legacy Explorer sorting through review and apply"`
 
 #### Test case: HeadlessAnalysisCommand preserves UTF-8 filenames in review status
 Purpose: Prevent non-ASCII file names from being corrupted when headless jobs serialize review/status JSON.
@@ -807,6 +815,12 @@ Expected outcome: The command exits with the unsupported code, writes `failed` s
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-folder file selections"`
 
 ### `tests/unit/test_headless_settings_overrides_json.cpp`
+
+#### Test case: HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes
+Purpose: Limit generated-category compatibility to legacy Explorer sidecars without changing the generic JSON parser or other callers.
+Procedure: Parse sidecars with Explorer and unrelated job IDs; cover omitted modes, both explicit modes, and explicit invalid values.
+Expected outcome: Only an `explorer-` job whose object omits `sortingMode` receives the generated-category fallback. Other fields survive; explicit modes are honored, and invalid values retain normal inheritance behavior.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes"`
 
 #### Test case: HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences
 

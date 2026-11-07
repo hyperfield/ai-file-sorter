@@ -234,7 +234,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Simplified Chinese, Spanish, Swedish, and Turkish.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
-- **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 2.0.0.
+- **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 2.0.0. Legacy 1.0.x Explorer jobs retain generated-category sorting so their review destinations and category edits remain compatible.
 - **Local Database Caching**: Speeds up repeated categorization, preserves approved labels and rename suggestions, and provides recent-category hints for consistency.
 - **Local learning from approved reviews**: Approved category decisions can be stored locally and reused as hints for future runs without modifying the underlying model.
 - **Cache maintenance tools**: Use **Settings → Clear cache…** to inspect and clear categorization cache, image location cache, and logs, or **Settings → Reset learned behavior…** to remove the separate learned-review database.
