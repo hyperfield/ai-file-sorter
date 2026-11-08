@@ -184,6 +184,36 @@ jobs:
           aifilesorter --cuda=off --vulkan=off --self-test
           aifilesorter --cuda=off --vulkan=off --headless-help
 
+  verify-fedora-package:
+    name: Install and start package on Fedora
+    needs: build-linux
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      AI_FILE_SORTER_GPU_BACKEND: cpu
+    steps:
+      - name: Download Fedora package
+        uses: actions/download-artifact@v4
+        with:
+          name: aifilesorter-linux-fedora-latest
+          path: /tmp/aifs-packages
+
+      - name: Install with runtime dependencies only
+        shell: bash
+        run: dnf install -y --setopt=install_weak_deps=False /tmp/aifs-packages/*.rpm
+
+      - name: Verify CPU libraries, launcher, and headless startup
+        shell: bash
+        run: |
+          for library in /opt/aifilesorter/lib/precompiled/cpu/bin/*.so*; do
+            /lib64/ld-linux-x86-64.so.2 --list "$library"
+          done
+          aifilesorter --cuda=off --vulkan=off --self-test
+          aifilesorter --cuda=off --vulkan=off --headless-help
+
   build-windows:
     runs-on: windows-latest
     steps:

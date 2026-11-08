@@ -52,6 +52,10 @@ Both commands pass `--cuda=off --vulkan=off` to the installed launcher to force 
 This verifies installation, CPU library dependencies, the launcher, dynamic
 linking, and deterministic startup. It does not test GPU hardware or model inference.
 
+The `verify-fedora-package` job performs the equivalent clean installation and CPU
+startup checks in `fedora:latest`, using DNF without bypassing dependency checks.
+This also rejects RPM metadata that requires private bundled libraries externally.
+
 ## Visual input context budgets
 
 `tests/unit/test_visual_input_budget.cpp` covers the complete image/text prompt
