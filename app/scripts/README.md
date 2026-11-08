@@ -14,6 +14,7 @@ automatically redacting common sensitive data, and creating a zipped bundle to s
 - `upload_plugins.py` (Upload prepared plugin payloads and merge the remote catalog)
 - `package_deb.sh` (Build a Debian package that bundles the staged Linux runtime payloads)
 - `create_rpm.sh` (Build an RPM package that bundles the staged Linux runtime payloads)
+- `package_arch.sh` (Build a native Arch package with staged Linux runtimes and desktop integration)
 - `stage_vcpkg_runtime.cmake` (Internal CMake helper used by Windows test targets to copy config-specific vcpkg runtime DLLs beside the test executables)
 
 ## What they do

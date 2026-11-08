@@ -1,5 +1,23 @@
 # Test Suite Guide
 
+## Arch Linux packaging
+
+Run `python3 -m unittest discover -s tests/packaging -v`. The six archive tests
+in `tests/packaging/test_arch_package.py` require `bsdtar`, `patchelf`, a C
+compiler, and `desktop-file-validate`; they skip when those tools are absent.
+They build actual `.pkg.tar.zst` archives from isolated fixtures, checking
+CPU-only and combined runtime contents, pacman metadata, the generated launcher,
+desktop entry and icons, optional GPU dependencies, version/packager overrides,
+and rejection of incomplete runtimes or invalid metadata.
+
+The `verify-arch-package` CI job installs the built app in a separate
+`archlinux:latest` container using only declared runtime dependencies and desktop
+validation tools. It runs `pacman -Qkk`, `desktop-file-validate`, the system
+loader against bundled CPU libraries, and installed-launcher `--self-test` and
+`--headless-help` checks. It then removes the package and checks that the
+launcher, executable, desktop entry and icon are removed. These checks do not
+exercise GPU hardware or model inference.
+
 ## Photo location privacy
 
 Rebuild `ai_file_sorter_tests` and run:

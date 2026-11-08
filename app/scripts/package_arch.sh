@@ -28,6 +28,7 @@ Options:
 Environment:
   PKGREL             Arch package release number (default: 1)
   PKG_ARCH           Arch package architecture (default: x86_64)
+  PACKAGER           Package identity (default: AI File Sorter Team <info@filesorter.app>)
 
 Notes:
   - CPU precompiled libs are included by default.
@@ -39,19 +40,20 @@ EOF
 version_from_header() {
     local header="$1"
     if [[ ! -f "$header" ]]; then
-        echo "0.0.0"
-        return
+        echo "Version header not found: $header" >&2
+        return 1
     fi
     local line
     line="$(grep -m1 'APP_VERSION' "$header" || true)"
     if [[ -z "$line" ]]; then
-        echo "0.0.0"
-        return
+        echo "APP_VERSION not found in $header" >&2
+        return 1
     fi
     if [[ "$line" =~ \{[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*,[[:space:]]*([0-9]+)[[:space:]]*\} ]]; then
         printf "%s.%s.%s\n" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
     else
-        echo "0.0.0"
+        echo "Cannot parse APP_VERSION in $header" >&2
+        return 1
     fi
 }
 
@@ -103,7 +105,7 @@ if [[ "$AUTO_INCLUDE_GPU" == "0" && ( "$REQUIRE_CUDA" == "1" || "$REQUIRE_VULKAN
     exit 1
 fi
 
-for tool in bsdtar gzip python3; do
+for tool in bsdtar gzip patchelf python3 desktop-file-validate; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "Required packaging tool '$tool' was not found." >&2
         exit 1
@@ -115,20 +117,19 @@ PKG_VERSION="${VERSION//-/_}"
 PKG_REL="${PKGREL:-1}"
 PKG_ARCH="${PKG_ARCH:-x86_64}"
 BUILD_DATE="${SOURCE_DATE_EPOCH:-$(date +%s)}"
+PACKAGE_PACKAGER="${PACKAGER:-AI File Sorter Team <info@filesorter.app>}"
 
-if [[ -z "$PKG_VERSION" ]]; then
-    echo "Failed to determine package version." >&2
+if [[ ! "$PKG_VERSION" =~ ^[[:alnum:]][[:alnum:].+_]*$ ||
+      ! "$PKG_REL" =~ ^[1-9][0-9]*([.][0-9]+)?$ ||
+      "$PKG_ARCH" != "x86_64" || ! "$BUILD_DATE" =~ ^[0-9]+$ ||
+      "$PACKAGE_PACKAGER" == *$'\n'* || "$PACKAGE_PACKAGER" == *$'\r'* ]]; then
+    echo "Invalid package version, release, architecture, build date, or packager." >&2
     exit 1
 fi
 
 BIN_PATH="$APP_DIR/bin/aifilesorter-bin"
 if [[ ! -x "$BIN_PATH" ]]; then
-    echo "Binary not found at $BIN_PATH - running make." >&2
-    make -C "$APP_DIR"
-fi
-
-if [[ ! -x "$BIN_PATH" ]]; then
-    echo "Binary still missing after build attempt." >&2
+    echo "Binary not found at $BIN_PATH. Build the application before packaging." >&2
     exit 1
 fi
 
@@ -171,16 +172,28 @@ copy_variant_dir() {
     cp -a "$src_dir" "$PRECOMPILED_DST/"
 }
 
+require_runtime_payload() {
+    local variant="$1"
+    local library
+    local runtime_dir="$PRECOMPILED_SRC/$variant/bin"
+    local required=(libllama.so.0 libllama-common.so libggml.so.0
+                    libggml-base.so.0 libggml-cpu.so libmtmd.so.0)
+    if [[ "$variant" != "cpu" ]]; then
+        required+=("libggml-$variant.so")
+    fi
+    for library in "${required[@]}"; do
+        if [[ ! -f "$runtime_dir/$library" ]]; then
+            echo "Incomplete $variant runtime: missing $runtime_dir/$library" >&2
+            exit 1
+        fi
+    done
+}
+
 sanitize_precompiled_rpaths() {
     local root="$1"
     if [[ ! -d "$root" ]]; then
         return 0
     fi
-    if ! command -v patchelf >/dev/null 2>&1; then
-        echo "Warning: patchelf not found; packaging shared libraries without normalizing RUNPATHs." >&2
-        return 0
-    fi
-
     local lib=""
     while IFS= read -r -d '' lib; do
         patchelf --set-rpath '$ORIGIN' "$lib"
@@ -189,14 +202,19 @@ sanitize_precompiled_rpaths() {
 
 INCLUDE_CUDA="$(resolve_variant_inclusion cuda "$REQUIRE_CUDA")"
 INCLUDE_VULKAN="$(resolve_variant_inclusion vulkan "$REQUIRE_VULKAN")"
+require_runtime_payload cpu
+if [[ "$INCLUDE_CUDA" == "1" ]]; then require_runtime_payload cuda; fi
+if [[ "$INCLUDE_VULKAN" == "1" ]]; then require_runtime_payload vulkan; fi
+desktop-file-validate "$APP_DIR/resources/linux/aifilesorter.desktop"
 
 echo "Staging Arch package payload in $PKG_ROOT"
 rm -rf "$PKG_ROOT"
 mkdir -p \
     "$PKG_ROOT/opt/aifilesorter/bin" \
     "$PKG_ROOT/opt/aifilesorter/lib" \
-    "$PKG_ROOT/opt/aifilesorter/certs" \
-    "$PKG_ROOT/usr/bin"
+    "$PKG_ROOT/usr/bin" \
+    "$PKG_ROOT/usr/share/applications" \
+    "$PKG_ROOT/usr/share/licenses/aifilesorter"
 
 install -m 0755 "$BIN_PATH" "$PKG_ROOT/opt/aifilesorter/bin/aifilesorter-bin"
 ln -sf aifilesorter-bin "$PKG_ROOT/opt/aifilesorter/bin/aifilesorter"
@@ -220,13 +238,14 @@ if [[ "$INCLUDE_CUDA" == "1" ]]; then SELECTED_VARIANTS+=("cuda"); fi
 if [[ "$INCLUDE_VULKAN" == "1" ]]; then SELECTED_VARIANTS+=("vulkan"); fi
 echo "Included precompiled variants: ${SELECTED_VARIANTS[*]}"
 
-if [[ -f "$APP_DIR/resources/certs/cacert.pem" ]]; then
-    install -m 0644 "$APP_DIR/resources/certs/cacert.pem" "$PKG_ROOT/opt/aifilesorter/certs/cacert.pem"
-fi
-
-if [[ -f "$REPO_ROOT/LICENSE" ]]; then
-    install -m 0644 "$REPO_ROOT/LICENSE" "$PKG_ROOT/opt/aifilesorter/LICENSE"
-fi
+install -m 0644 "$REPO_ROOT/LICENSE" "$PKG_ROOT/usr/share/licenses/aifilesorter/LICENSE"
+install -m 0644 "$APP_DIR/resources/linux/aifilesorter.desktop" \
+    "$PKG_ROOT/usr/share/applications/aifilesorter.desktop"
+for size in 16 32 64 128 256 512; do
+    icon_dir="$PKG_ROOT/usr/share/icons/hicolor/${size}x${size}/apps"
+    install -Dm0644 "$APP_DIR/resources/images/icon_${size}x${size}.png" \
+        "$icon_dir/aifilesorter.png"
+done
 
 python3 "$SCRIPT_DIR/gen_run_wrapper.py" \
     --mode install \
@@ -238,6 +257,9 @@ chmod 0755 "$PKG_ROOT/usr/bin/run_aifilesorter.sh"
 ln -sf run_aifilesorter.sh "$PKG_ROOT/usr/bin/aifilesorter"
 
 PACKAGE_DEPENDS=(
+    "bash"
+    "ca-certificates"
+    "hicolor-icon-theme"
     "glibc"
     "gcc-libs"
     "qt6-base"
@@ -249,6 +271,7 @@ PACKAGE_DEPENDS=(
     "spdlog"
     "libmediainfo"
     "openblas"
+    "libwebp"
     "zlib"
 )
 
@@ -274,7 +297,7 @@ PKGINFO="$PKG_ROOT/.PKGINFO"
     echo "pkgdesc = AI File Sorter desktop application"
     echo "url = https://github.com/hyperfield/ai-file-sorter"
     echo "builddate = ${BUILD_DATE}"
-    echo "packager = AI File Sorter Team <support@example.com>"
+    echo "packager = ${PACKAGE_PACKAGER}"
     echo "size = ${PACKAGE_SIZE}"
     echo "arch = ${PKG_ARCH}"
     echo "license = AGPL-3.0-only"
@@ -286,11 +309,14 @@ PKGINFO="$PKG_ROOT/.PKGINFO"
     done
 } > "$PKGINFO"
 chmod 0644 "$PKGINFO"
+find "$PKG_ROOT" -type d -exec chmod 0755 {} +
+find "$PKG_ROOT/opt/aifilesorter/lib" -type f -exec chmod 0644 {} +
 
 (
     cd "$PKG_ROOT"
     bsdtar \
         -cf - \
+        --uid 0 --gid 0 \
         --format=mtree \
         --options='!all,use-set,type,uid,gid,mode,time,size,md5,sha256,link' \
         --exclude .PKGINFO \
