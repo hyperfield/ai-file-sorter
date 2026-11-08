@@ -16,6 +16,8 @@ Gute Ordner fuer den ersten Durchlauf sind:
 
 So bleibt der erste Durchlauf leicht zu pruefen. Ihre Dateien bleiben auf Ihrem Computer, wenn Sie lokale Modelle verwenden, und die KI schlaegt nur Kategorien und Namen vor. Lassen Sie Auto-Genehmigungen beim ersten Durchlauf ausgeschaltet, damit nichts verschoben oder umbenannt wird, bevor Sie die Pruefliste genehmigen.
 
+Die optionale Online-Ortssuche sendet die auf drei Dezimalstellen gerundeten GPS-Koordinaten der Fotos an den Nominatim-Dienst von OpenStreetMap, auch bei lokalen Modellen. Der Anbieter kann auch Ihre IP-Adresse und den Zeitpunkt der Anfrage sehen. Fotodateien, Dateinamen und Aufnahmedaten werden nicht gesendet; das reine Ergänzen von Kategorien um Datumsangaben bleibt lokal.
+
 ## Ein LLM einrichten
 
 Öffnen Sie **Settings -> Select LLM**. Wählen Sie ein Modell aus der Dropdown-Liste **Local LLMs** oder einen Anbieter unter **API connections**.

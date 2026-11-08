@@ -16,6 +16,8 @@ Buone cartelle per la prima esecuzione includono:
 
 Questo rende facile controllare la prima esecuzione. I file restano sul computer quando usi modelli locali, e l'IA suggerisce solo categorie e nomi. Lascia disattivate le opzioni di approvazione automatica per la prima esecuzione, cosi nulla viene spostato o rinominato finche non approvi l'elenco di revisione.
 
+La ricerca facoltativa dei luoghi online invia le coordinate GPS delle foto, arrotondate a tre decimali, al servizio Nominatim di OpenStreetMap, anche con modelli locali. Il fornitore può vedere anche il tuo indirizzo IP e l'ora della richiesta. Foto, nomi dei file e date di scatto non vengono inviati; l'aggiunta delle sole date alle categorie rimane locale.
+
 ## Configurare un LLM
 
 Apri **Settings -> Select LLM**. Scegli un modello dall'elenco a discesa **Local LLMs** o un fornitore in **API connections**.

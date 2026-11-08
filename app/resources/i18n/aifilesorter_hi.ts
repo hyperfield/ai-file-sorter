@@ -3597,8 +3597,8 @@ Please update to continue. If you choose to quit, the application will close.</s
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="282"></location>
-            <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>तिथि फ़ोटो EXIF मेटाडेटा से आती है। स्थान नाम GPS निर्देशांकों से ऑनलाइन निकाले जाते हैं, इसलिए स्थान उपसर्गों के लिए नेटवर्क पहुँच आवश्यक है।</translation>
+            <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
+            <translation>तारीखें फ़ोटो के मेटाडेटा से स्थानीय रूप से पढ़ी जाती हैं। स्थान खोजने के लिए फ़ोटो के GPS निर्देशांक तीन दशमलव स्थानों तक पूर्णांकित करके OpenStreetMap की Nominatim सेवा को भेजे जाते हैं, स्थानीय AI मॉडल का उपयोग करते समय भी। फ़ोटो के स्थान स्थानीय रखने के लिए इस विकल्प को बंद करें।</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="285"></location>

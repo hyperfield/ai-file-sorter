@@ -16,6 +16,8 @@ Good first-run folders include:
 
 This keeps the first run easy to review. Your files stay on your computer when you use local models, and the AI only suggests categories and names. Leave auto-approval options off for your first run so nothing is moved or renamed until you approve the review list.
 
+Optional online place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, even with local models. The provider can also see your IP address and request time. Photo files, filenames and capture dates are not sent; date-only category enrichment stays local.
+
 ## Set Up an LLM
 
 Open **Settings -> Select LLM**. Choose a model from the **Local LLMs** drop-down or a provider from **API connections**.

@@ -3762,8 +3762,8 @@ Please update to continue. If you choose to quit, the application will close.</s
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="282"></location>
-            <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>날짜는 사진 EXIF 메타데이터에서 가져옵니다. 장소 이름은 GPS 좌표를 바탕으로 온라인에서 확인되므로 장소 접두어에는 네트워크 연결이 필요합니다.</translation>
+            <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
+            <translation>날짜는 사진 메타데이터에서 로컬로 읽습니다. 장소 조회 시 사진의 GPS 좌표를 소수점 셋째 자리까지 반올림하여 OpenStreetMap의 Nominatim 서비스로 전송하며, 로컬 AI 모델을 사용할 때도 동일합니다. 사진 위치를 로컬에 유지하려면 이 옵션을 끄세요.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="285"></location>

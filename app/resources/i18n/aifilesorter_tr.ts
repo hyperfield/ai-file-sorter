@@ -3762,8 +3762,8 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="282"></location>
-            <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>Tarih, fotoğrafın EXIF meta verilerinden alınır. Yer adları GPS koordinatlarından çevrimiçi çözümlenir; bu nedenle yer önekleri için ağ erişimi gerekir.</translation>
+            <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
+            <translation>Tarihler fotoğraf meta verilerinden yerel olarak okunur. Yer arama, yerel yapay zeka modelleri kullanılırken de fotoğrafların GPS koordinatlarını üç ondalık basamağa yuvarlayarak OpenStreetMap'in Nominatim hizmetine gönderir. Fotoğraf konumlarını yerel tutmak için bu seçeneği kapatın.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="285"></location>

@@ -16,6 +16,8 @@ Hyvia ensimmaisen ajon kansioita ovat:
 
 Tama pitaa ensimmaisen ajon helppona tarkistaa. Tiedostosi pysyvat tietokoneellasi, kun kaytat paikallisia malleja, ja AI vain ehdottaa kategorioita ja nimia. Jata auto-hyvaksynta pois paalta ensimmaisella ajolla, jotta mitaan ei siirreta tai nimeta uudelleen ennen kuin hyvaksytyt tarkistuslistan.
 
+Valinnainen verkkopaikkahaku lähettää kuvien GPS-koordinaatit kolmen desimaalin tarkkuuteen pyöristettyinä OpenStreetMapin Nominatim-palveluun myös paikallisia malleja käytettäessä. Palveluntarjoaja näkee myös IP-osoitteesi ja pyynnön ajankohdan. Kuvatiedostoja, tiedostonimiä tai kuvauspäivämääriä ei lähetetä; pelkkien päivämäärien lisääminen luokkiin tapahtuu paikallisesti.
+
 ## Ota LLM käyttöön
 
 Avaa **Settings -> Select LLM**. Valitse malli avattavasta **Local LLMs** -luettelosta tai palveluntarjoaja kohdasta **API connections**.

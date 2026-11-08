@@ -16,6 +16,8 @@ Gode mapper til forste korsel er:
 
 Det gor den forste korsel nem at gennemga. Dine filer bliver pa computeren, nar du bruger lokale modeller, og AI'en foreslar kun kategorier og navne. Lad auto-godkendelse vaere slaet fra ved forste korsel, sa intet flyttes eller omdoebes, for du godkender gennemgangslisten.
 
+Valgfrie stedopslag på nettet sender billedernes GPS-koordinater, afrundet til tre decimaler, til OpenStreetMaps Nominatim-tjeneste, også med lokale modeller. Udbyderen kan også se din IP-adresse og tidspunktet for forespørgslen. Billedfiler, filnavne og optagelsesdatoer sendes ikke; tilføjelse af kun datoer til kategorier sker lokalt.
+
 ## Opsæt en LLM
 
 Åbn **Settings -> Select LLM**. Vælg en model fra rullelisten **Local LLMs** eller en udbyder under **API connections**.

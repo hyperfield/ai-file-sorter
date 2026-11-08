@@ -16,6 +16,8 @@ Buenas carpetas para la primera ejecucion incluyen:
 
 Esto facilita revisar la primera ejecucion. Sus archivos permanecen en su equipo cuando usa modelos locales, y la IA solo sugiere categorias y nombres. Deje desactivadas las opciones de aprobacion automatica en la primera ejecucion para que nada se mueva ni cambie de nombre hasta que apruebe la lista de revision.
 
+La búsqueda opcional de lugares en línea envía las coordenadas GPS de las fotos, redondeadas a tres decimales, al servicio Nominatim de OpenStreetMap, incluso con modelos locales. El proveedor también puede ver su dirección IP y la hora de la solicitud. No se envían las fotos, los nombres de archivo ni las fechas de captura; añadir solo fechas a las categorías se realiza localmente.
+
 ## Configurar un LLM
 
 Abra **Settings -> Select LLM**. Elija un modelo en la lista desplegable **Local LLMs** o un proveedor en **API connections**.

@@ -3730,8 +3730,8 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="282"></location>
-            <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>Dagsetning kemur frá EXIF lýsigögnum myndarinnar. Örnefni eru leyst á netinu út frá GPS hnitum, þannig að netaðgangur er nauðsynlegur fyrir staðforskeyti.</translation>
+            <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
+            <translation>Dagsetningar eru lesnar staðbundið úr lýsigögnum mynda. Staðaleit sendir GPS-hnit mynda, námunduð að þremur aukastöfum, til Nominatim-þjónustu OpenStreetMap, einnig þegar staðbundin gervigreindarlíkön eru notuð. Slökktu á þessum valkosti til að halda staðsetningum mynda á tölvunni.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="285"></location>

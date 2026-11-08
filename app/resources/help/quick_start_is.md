@@ -16,6 +16,8 @@ Godar moppur fyrir fyrstu keyrslu eru:
 
 Thetta gerir fyrstu keyrsluna audvelt ad yfirfara. Skrarnar thinar verda afram a tolvu thinri thegar thu notar stadbundin likon, og AI leggur adeins til flokka og nofn. Hafdu sjalfvirka samthykkt slokkta i fyrstu keyrslu svo ekkert se flutt eda endurnefnt fyrr en thu samthykkir yfirferdarlistann.
 
+Valfrjáls staðaleit á netinu sendir GPS-hnit mynda, námunduð að þremur aukastöfum, til Nominatim-þjónustu OpenStreetMap, einnig með staðbundnum líkönum. Þjónustuveitandinn getur einnig séð IP-tölu þína og tíma beiðninnar. Myndskrár, skráarheiti og tökudagsetningar eru ekki send; að bæta eingöngu dagsetningum við flokka fer fram á tölvunni.
+
 ## Settu upp LLM
 
 Opnaðu **Settings -> Select LLM**. Veldu líkan úr fellilistanum **Local LLMs** eða þjónustuaðila undir **API connections**.

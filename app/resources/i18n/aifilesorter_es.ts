@@ -3762,8 +3762,8 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="282"></location>
-            <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>La fecha proviene de los metadatos EXIF de la foto. Los nombres de lugares se resuelven en línea a partir de coordenadas GPS, por lo que se requiere acceso a la red para los prefijos de lugar.</translation>
+            <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
+            <translation>Las fechas se leen localmente de los metadatos de las fotos. La búsqueda de lugares envía las coordenadas GPS de las fotos, redondeadas a tres decimales, al servicio Nominatim de OpenStreetMap, incluso con modelos de IA locales. Desactive esta opción para mantener las ubicaciones de las fotos en el equipo.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="285"></location>

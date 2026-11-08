@@ -3730,8 +3730,8 @@ Please update to continue. If you choose to quit, the application will close.</s
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="282"></location>
-            <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>日期来自照片 EXIF 元数据。地名是从 GPS 坐标在线解析的，因此地名前缀需要网络访问。</translation>
+            <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
+            <translation>日期在本地从照片元数据中读取。地点查询会将照片的 GPS 坐标四舍五入到小数点后三位，再发送给 OpenStreetMap 的 Nominatim 服务，使用本地 AI 模型时也是如此。关闭此选项可将照片位置保留在本地。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="285"></location>

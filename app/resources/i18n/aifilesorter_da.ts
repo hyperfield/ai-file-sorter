@@ -3730,8 +3730,8 @@ Opdater venligst for at fortsætte. Hvis du vælger at afslutte, lukkes applikat
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="282"></location>
-            <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>Dato kommer fra foto EXIF metadata. Stednavne løses online ud fra GPS-koordinater, så der kræves netværksadgang for stedpræfikser.</translation>
+            <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
+            <translation>Datoer læses lokalt fra billedernes metadata. Stedopslag sender billedernes GPS-koordinater, afrundet til tre decimaler, til OpenStreetMaps Nominatim-tjeneste, også med lokale AI-modeller. Slå denne indstilling fra for at holde billedernes placeringer lokale.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="285"></location>

@@ -41,7 +41,11 @@ and decide whether the app may suggest new folders. Starter structures and optio
 folder-structure plugins help you set up and maintain archives such as Johnny.Decimal.
 
 Privacy-first by design:
-AI File Sorter can run entirely on your device. With local text and visual models, your files, filenames, images, and metadata stay on your computer, and no telemetry is sent. API connections send analysis data to the configured server; selecting an API visual backend also sends image contents there. A server on your own computer can work without public internet access.
+AI File Sorter can run entirely on your device. With local text and visual models and online photo place lookup disabled, analysis inputs stay on your computer, and no telemetry is sent.
+
+Enabling **Add photo date and place to filename (if available)** sends photo GPS coordinates, rounded to three decimal places, to OpenStreetMap's Nominatim service to obtain place names, even with local models. The provider can also see your IP address and request time. This lookup sends no photo files, filenames, or capture dates. Date-only category enrichment stays local.
+
+API connections send analysis data to the configured server; selecting an API visual backend also sends image contents there. A server on your own computer can work without public internet access.
 
 ---
 
@@ -360,7 +364,7 @@ Image analysis adds six related checkboxes to the main window:
 - **Analyze picture files by content**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
 - **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
 - **Add image creation date (if available) to category name**: Appends `YYYY-MM-DD` from image metadata to the category label when available. Disabled when rename-only is enabled.
-- **Add photo date and place to filename (if available)**: Adds metadata-based date/place prefixes to suggested image filenames when available.
+- **Add photo date and place to filename (if available)**: Adds date/place prefixes when available. Dates are read locally; online place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service. Leave this option off to keep photo locations local, including when adding dates to category names.
 - **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
 - **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
