@@ -1354,6 +1354,13 @@ Procedure: Retranslate the window through the test access layer, capture the vis
 Expected outcome: The translated visible labels are already alphabetized.
 Run: `./build-tests/ai_file_sorter_tests "Category language menu keeps visible entries alphabetized"`
 
+#### Test case: Category language labels strip postfix interface mnemonics
+Purpose: Keep translated postfix accelerators out of category-language labels reused from the interface-language menu.
+Setup: Install a synthetic Swedish translation and create `MainApp` with headless Qt and isolated settings.
+Procedure: Retranslate with `瑞典文(&W)` and `瑞典文 (&W)` and inspect the Swedish category-language action.
+Expected outcome: Both category-language labels contain only `瑞典文`, without the postfix accelerator or its preceding whitespace.
+Run: `./build-tests/ai_file_sorter_tests "Category language labels strip postfix interface mnemonics"`
+
 #### Test case: Full Gemma 3 category language menus are compartmentalized into submenus
 Purpose: Keep the much longer Gemma/custom category-language list usable on smaller screens by grouping it into alphabetic submenus instead of forcing one oversized flat menu.
 Setup: Build `MainApp` with offscreen Qt in a temporary config directory and switch settings to `Local_4b_Gemma`.
@@ -1384,11 +1391,18 @@ Procedure: Call `retranslate_all()` and verify the text of buttons, checkboxes, 
 Expected outcome: All UI elements show the expected English strings, including File/Edit/View, the interface/category language menus, the `Reset learned behavior…` and `Clear cache…` Settings actions, representative category-language labels such as `Hindi`, `Japanese`, `Simplified Chinese`, and `Traditional Chinese`, the interface-language menu is alphabetized, and the French language action is marked checked, demonstrating the retranslate pipeline is correctly wired.
 Run: `./build-tests/ai_file_sorter_tests "*UiTranslator updates menus*"`
 
+#### Test case: MenuMnemonicController strips postfix mnemonics while preserving literal text
+Purpose: Verify the shared mnemonic stripper removes postfix accelerators without damaging escaped ampersands or ordinary parentheses.
+Setup: Provide translated labels, prefix/postfix accelerators, whitespace, escaped ampersands, short strings, and non-accelerator parentheses.
+Procedure: Strip mnemonic markers from each label and compare the visible text with its expected value.
+Expected outcome: Valid trailing `(&X)` suffixes and preceding whitespace disappear; escaped ampersands and ordinary parentheses remain visible.
+Run: `./build-tests/ai_file_sorter_tests "MenuMnemonicController strips postfix mnemonics while preserving literal text"`
+
 #### Test case: MenuMnemonicController hides top-level menu mnemonics until activated
 Purpose: Verify that top-level menu access-key markers remain available for keyboard navigation without rendering underlines during normal pointer-driven use.
-Setup: Build a headless Qt `QMainWindow` with File and Edit menus and attach `MenuMnemonicController` to its menu bar.
-Procedure: Store mnemonic titles such as `&File` and `&Edit`, verify the visible menu titles are stripped by default, then toggle mnemonic visibility on and off.
-Expected outcome: Visible top-level titles are `File` and `Edit` until mnemonics are activated, while the stored mnemonic titles remain `&File` and `&Edit` for Alt-key access.
+Setup: Build a headless Qt `QMainWindow` with File, Edit, and postfix-mnemonic Tools menus and attach `MenuMnemonicController` to its menu bar.
+Procedure: Store mnemonic titles such as `&File`, `&Edit`, and `工具(&T)`, verify the visible menu titles are stripped by default, then send Alt press/release events and toggle mnemonic visibility on and off.
+Expected outcome: Visible top-level titles omit prefix and postfix accelerators until mnemonics are activated, while the stored mnemonic titles remain intact for Alt-key access.
 Run: `./build-tests/ai_file_sorter_tests "MenuMnemonicController hides top-level menu mnemonics until activated"`
 
 ### `tests/unit/test_cache_maintenance_service.cpp`
