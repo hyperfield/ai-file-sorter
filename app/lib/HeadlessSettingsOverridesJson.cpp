@@ -15,6 +15,8 @@
 
 namespace {
 
+constexpr std::string_view kExplorerJobIdPrefix = "explorer-";
+
 std::optional<bool> optional_bool_from_json(const QJsonObject& object, QStringView key)
 {
     const QJsonValue value = object.value(key);
@@ -191,6 +193,16 @@ HeadlessSettingsOverrides HeadlessSettingsOverridesJson::from_json(const QJsonOb
     const QJsonValue category_language = object.value(QStringLiteral("categoryLanguage"));
     if (category_language.isString()) {
         overrides.category_language = categoryLanguageFromString(category_language.toString());
+    }
+    return overrides;
+}
+
+HeadlessSettingsOverrides HeadlessSettingsOverridesJson::from_json_for_job(
+    const QJsonObject& object, std::string_view job_id)
+{
+    auto overrides = from_json(object);
+    if (job_id.starts_with(kExplorerJobIdPrefix) && !object.contains(QStringLiteral("sortingMode"))) {
+        overrides.sorting_mode = SortingMode::GeneratedCategories;
     }
     return overrides;
 }

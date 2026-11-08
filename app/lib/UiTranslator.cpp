@@ -282,7 +282,7 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     }
     if (auto* checkbox = raw_ptr(deps_.primary.add_image_date_place_to_filename_checkbox)) {
         checkbox->setText(tr("Add photo date and place to filename (if available)"));
-        checkbox->setToolTip(tr("Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes."));
+        checkbox->setToolTip(tr("Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.add_audio_video_metadata_to_filename_checkbox)) {
         checkbox->setText(tr("Add audio/video metadata to file name (if available)"));

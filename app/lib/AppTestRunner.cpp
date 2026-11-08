@@ -6,6 +6,7 @@
 #include "Settings.hpp"
 #include "UserLearningStore.hpp"
 #include "WhitelistTestFixtures.hpp"
+#include "CurlTls.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -317,6 +318,28 @@ std::vector<AppTestRunner::CaseResult> run_whitelist_suite()
     return results;
 }
 
+AppTestRunner::CaseResult test_platform_tls_trust()
+{
+    constexpr const char* name = "platform TLS trust";
+    try {
+        CurlTls::initialize();
+    } catch (const std::exception& error) {
+        return make_case_result(name, false, error.what());
+    }
+    // The application's other clients may have initialized libcurl already;
+    // this init/cleanup pair owns only the self-test's reference.
+    struct GlobalCleanup {
+        ~GlobalCleanup() { curl_global_cleanup(); }
+    } global_cleanup;
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), curl_easy_cleanup);
+    try {
+        CurlTls::configure(handle.get());
+        return make_case_result(name, true, CurlTls::runtime_description());
+    } catch (const std::exception& error) {
+        return make_case_result(name, false, error.what());
+    }
+}
+
 } // namespace
 
 bool AppTestRunner::Result::passed() const
@@ -334,8 +357,13 @@ AppTestRunner::Result AppTestRunner::run(const Options& options) const
     Result result;
     result.suite = normalize_suite(options.suite);
 
-    if (result.suite != "all" && result.suite != "whitelist") {
-        result.error = "Unknown test suite '" + options.suite + "'. Supported suites: all, whitelist.";
+    const auto suites = available_suites();
+    if (std::find(suites.begin(), suites.end(), result.suite) == suites.end()) {
+        result.error = "Unknown test suite '" + options.suite + "'. Supported suites:";
+        for (const auto& suite : suites) {
+            result.error += " " + suite;
+        }
+        result.error += ".";
         return result;
     }
 
@@ -343,11 +371,16 @@ AppTestRunner::Result AppTestRunner::run(const Options& options) const
         const auto whitelist_results = run_whitelist_suite();
         result.cases.insert(result.cases.end(), whitelist_results.begin(), whitelist_results.end());
     }
+    if (result.suite == "all" || result.suite == "tls") {
+        result.cases.push_back(test_platform_tls_trust());
+    }
 
     return result;
 }
 
 std::vector<std::string> AppTestRunner::available_suites()
 {
-    return {"all", "whitelist"};
+    std::vector<std::string> suites{"all", "whitelist"};
+    suites.push_back("tls");
+    return suites;
 }

@@ -25,6 +25,7 @@
 #include <cctype>
 #include <chrono>
 #include <sstream>
+#include <string_view>
 #include <system_error>
 #include <thread>
 #include <utility>
@@ -217,6 +218,7 @@ bool parse_value(int argc,
 }
 
 bool read_settings_overrides_file(const std::filesystem::path& path,
+                                  std::string_view job_id,
                                   HeadlessSettingsOverrides* overrides,
                                   std::string* error)
 {
@@ -240,7 +242,13 @@ bool read_settings_overrides_file(const std::filesystem::path& path,
         return false;
     }
 
-    *overrides = HeadlessSettingsOverridesJson::from_json(document.object());
+    const auto object = document.object();
+    *overrides = HeadlessSettingsOverridesJson::from_json_for_job(object, job_id);
+    if (!object.contains(QStringLiteral("sortingMode")) && overrides->sorting_mode) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->info("Using generated-category sorting for legacy Explorer job '{}'.", job_id);
+        }
+    }
     return true;
 }
 
@@ -906,6 +914,7 @@ int HeadlessAnalysisCommand::run(const Options& options,
     if (options.settings_overrides_file) {
         std::string overrides_error;
         if (!read_settings_overrides_file(*options.settings_overrides_file,
+                                          options.job_id,
                                           &settings_overrides,
                                           &overrides_error)) {
             emit_status(options,

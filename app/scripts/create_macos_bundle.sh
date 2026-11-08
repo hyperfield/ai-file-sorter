@@ -236,109 +236,7 @@ brew_prefix() {
   fi
 }
 
-maybe_brew_prefix() {
-  local formula="$1"
-  if [[ -n "${BREW_PREFIX:-}" ]]; then
-    local candidate="${BREW_PREFIX}/opt/${formula}"
-    if [[ -d "$candidate" ]]; then
-      echo "$candidate"
-      return 0
-    fi
-    return 1
-  fi
-  if brew_cmd --prefix "$formula" >/dev/null 2>&1; then
-    brew_cmd --prefix "$formula"
-    return 0
-  fi
-  return 1
-}
-
 qt_prefix() { brew_prefix "$1"; }
-
-# Dylibs we bundle (name|formula)
-DYLIB_SPECS=$(cat <<'EOF'
-libb2.1.dylib|libb2
-libbrotlicommon.1.dylib|brotli
-libbrotlidec.1.dylib|brotli
-libcrypto.3.dylib|openssl@3
-libssl.3.dylib|openssl@3
-libdouble-conversion.3.dylib|double-conversion
-libfmt.12.dylib|fmt
-libspdlog.1.16.dylib|spdlog
-libfreetype.6.dylib|freetype
-libharfbuzz.0.dylib|harfbuzz
-libgraphite2.3.dylib|graphite2
-libpng16.16.dylib|libpng
-libjsoncpp.26.dylib|jsoncpp
-libmediainfo.0.dylib|libmediainfo
-libzen.0.dylib|libzen
-libmd4c.0.dylib|md4c
-libpcre2-8.0.dylib|pcre2
-libpcre2-16.0.dylib|pcre2
-libzstd.1.dylib|zstd
-libintl.8.dylib|gettext
-libglib-2.0.0.dylib|glib
-libgthread-2.0.0.dylib|glib
-libdbus-1.3.dylib|dbus
-libjpeg.8.dylib|jpeg-turbo
-EOF
-)
-
-detect_icu_dylibs() {
-  ICU_DYLIB_SPECS=""
-
-  local qtcore
-  qtcore="$(qt_prefix qtbase)/lib/QtCore.framework/Versions/A/QtCore"
-  if [[ -f "$qtcore" ]] && command -v otool >/dev/null 2>&1; then
-    local found=0
-    local dep_path dep_name dep_formula
-    while read -r dep_path; do
-      dep_name="$(basename "$dep_path")"
-      dep_formula="$(printf '%s\n' "$dep_path" | sed -nE 's#^.*/(opt|Cellar)/([^/]+)/.*#\2#p')"
-      if [[ -z "$dep_formula" ]]; then
-        dep_formula="icu4c"
-      fi
-      ICU_DYLIB_SPECS+="${dep_name}|${dep_formula}"$'\n'
-      found=$((found + 1))
-    done < <(otool -L "$qtcore" | awk '/libicu(data|i18n|uc)\.[0-9]+(\.[0-9]+)?\.dylib/ { print $1 }')
-    if [[ "$found" -eq 3 ]]; then
-      return 0
-    fi
-    ICU_DYLIB_SPECS=""
-  fi
-
-  local candidates=()
-  local formulas=(icu4c@78 icu4c@77 icu4c)
-  local formula prefix path base version
-  for formula in "${formulas[@]}"; do
-    if prefix="$(maybe_brew_prefix "$formula")"; then
-      shopt -s nullglob
-      for path in "$prefix/lib/libicui18n."*.dylib; do
-        base="$(basename "$path")"
-        version="${base#libicui18n.}"
-        version="${version%.dylib}"
-        candidates+=("${version}|${formula}")
-      done
-      shopt -u nullglob
-    fi
-  done
-  if (( ${#candidates[@]} == 0 )); then
-    return 1
-  fi
-  local best
-  best="$(printf '%s\n' "${candidates[@]}" | sort -t'|' -k1,1V | tail -n1)"
-  version="${best%%|*}"
-  formula="${best#*|}"
-  ICU_DYLIB_SPECS=$(cat <<EOF
-libicudata.${version}.dylib|${formula}
-libicui18n.${version}.dylib|${formula}
-libicuuc.${version}.dylib|${formula}
-EOF
-)
-  return 0
-}
-
-ICU_DYLIB_SPECS=""
 
 read_app_version() {
   if [[ ! -f "$APP_VERSION_FILE" ]]; then
@@ -402,216 +300,8 @@ copy_framework() {
   rsync -a "$prefix/lib/${name}.framework" "$FRAMEWORKS_DIR/"
 }
 
-copy_lib() {
-  local lib="$1" formula="$2"
-  local prefix file active_formula fallback_formula
-  active_formula="$formula"
-  prefix="$(brew_prefix "$active_formula")"
-  file="$prefix/lib/$lib"
-  if [[ ! -f "$file" ]]; then
-    if [[ "$active_formula" == *"@"* ]]; then
-      fallback_formula="${active_formula%%@*}"
-      if [[ -n "$fallback_formula" ]]; then
-        prefix="$(brew_prefix "$fallback_formula")"
-        file="$prefix/lib/$lib"
-        if [[ -f "$file" ]]; then
-          active_formula="$fallback_formula"
-        fi
-      fi
-    fi
-  fi
-  if [[ ! -f "$file" ]]; then
-    local base alt
-    base="${lib%%.*}"
-    local stem family
-    stem="${lib%.dylib}"
-    family="${stem%.*}"
-
-    shopt -s nullglob
-    local version_matches=()
-    if [[ "$family" != "$stem" ]]; then
-      version_matches=("$prefix/lib/${family}."*.dylib)
-    fi
-    local base_matches=("$prefix/lib/${base}."*.dylib)
-    shopt -u nullglob
-
-    if (( ${#version_matches[@]} > 0 )); then
-      file="${version_matches[-1]}"
-    else
-      alt="$prefix/lib/${base}.dylib"
-      if [[ -f "$alt" ]]; then
-        file="$alt"
-      elif (( ${#base_matches[@]} > 0 )); then
-        file="${base_matches[-1]}"
-      else
-        echo "Missing $lib from $formula ($file)" >&2
-        exit 1
-      fi
-    fi
-  fi
-  local resolved_file actual
-  resolved_file="$(realpath "$file" 2>/dev/null || printf '%s\n' "$file")"
-  actual="$(basename "$resolved_file")"
-  local base_name
-  base_name="${lib%%.*}"
-  COPIED_DYLIBS+=("${actual}|${active_formula}|${lib}|${base_name}")
-  rsync -aL "$file" "$FRAMEWORKS_DIR/$actual"
-
-  if [[ "$actual" == *.dylib ]]; then
-    local prefix_name suffix compat trimmed
-    prefix_name="${actual%.dylib}"
-    suffix="${actual#*.}"
-    suffix="${suffix%.dylib}"
-    trimmed="$suffix"
-    while [[ "$trimmed" == *.* ]]; do
-      trimmed="${trimmed%.*}"
-      compat="${prefix_name%.$suffix}.${trimmed}.dylib"
-      (cd "$FRAMEWORKS_DIR" && ln -sf "$actual" "$compat")
-    done
-  fi
-}
-
 sign_path() {
   codesign --force --sign - "$1"
-}
-
-collect_macho_files() {
-  if [[ -n "${MACHO_FILES_LOADED:-}" ]]; then
-    return
-  fi
-  mapfile -t MACHO_FILES < <(
-    while IFS= read -r -d '' candidate; do
-      if file "$candidate" | grep -q 'Mach-O'; then
-        printf '%s\n' "$candidate"
-      fi
-    done < <(find "$APP_BUNDLE" -type f -print0)
-  )
-  MACHO_FILES_LOADED=1
-}
-
-resolve_bundled_ref() {
-  local dep="$1"
-  local fw
-  for fw in "${qt_frameworks[@]}"; do
-    if [[ "$dep" == *"/${fw}.framework/Versions/A/${fw}" || "$dep" == "@rpath/${fw}.framework/Versions/A/${fw}" ]]; then
-      printf '%s\n' "@rpath/${fw}.framework/Versions/A/${fw}"
-      return 0
-    fi
-  done
-
-  local base
-  base="$(basename "$dep")"
-  if [[ -f "$FRAMEWORKS_DIR/$base" || -f "$LIB_DIR/$base" ]]; then
-    printf '%s\n' "@rpath/$base"
-    return 0
-  fi
-
-  if [[ "$base" == *.dylib ]]; then
-    local stem candidate
-    stem="${base%.dylib}"
-    shopt -s nullglob
-    for candidate in "$FRAMEWORKS_DIR/${stem}"*.dylib "$LIB_DIR/${stem}"*.dylib; do
-      printf '%s\n' "@rpath/$(basename "$candidate")"
-      shopt -u nullglob
-      return 0
-    done
-    shopt -u nullglob
-  fi
-
-  return 1
-}
-
-rewrite_detected_dependencies() {
-  local bin="$1"
-  local dep new_ref
-  while read -r dep; do
-    if [[ -z "$dep" ]]; then
-      continue
-    fi
-    if new_ref="$(resolve_bundled_ref "$dep")"; then
-      if [[ "$dep" != "$new_ref" ]]; then
-        install_name_tool -change "$dep" "$new_ref" "$bin"
-      fi
-    fi
-  done < <(otool -L "$bin" | tail -n +2 | awk '{print $1}')
-}
-
-verify_no_external_homebrew_refs() {
-  echo "Verifying bundle has no unresolved Homebrew library paths ..."
-  collect_macho_files
-
-  local issues=()
-  local bin dep
-  for bin in "${MACHO_FILES[@]}"; do
-    while read -r dep; do
-      if [[ "$dep" == /opt/homebrew/* || "$dep" == /usr/local/* ]]; then
-        issues+=("$bin -> $dep")
-      fi
-    done < <(otool -L "$bin" | tail -n +2 | awk '{print $1}')
-  done
-
-  if (( ${#issues[@]} > 0 )); then
-    printf 'Unresolved external library paths remain in the bundle:\n' >&2
-    printf '  %s\n' "${issues[@]}" >&2
-    exit 1
-  fi
-}
-
-verify_arch() {
-  local expected=()
-  if [[ "$TARGET_ARCH" == "universal" ]]; then
-    expected=("x86_64" "arm64")
-  else
-    expected=("$TARGET_ARCH")
-  fi
-
-  echo "Verifying bundle architecture (${expected[*]}) ..."
-  collect_macho_files
-
-  local file info
-  for file in "${MACHO_FILES[@]}"; do
-    info="$(lipo -info "$file" 2>/dev/null || file -b "$file")"
-    for arch in "${expected[@]}"; do
-      if [[ "$info" != *"$arch"* ]]; then
-        echo "Arch mismatch: $file" >&2
-        echo "  Expected: $arch" >&2
-        echo "  Found: $info" >&2
-        exit 1
-      fi
-    done
-  done
-}
-
-rewrite_install_names() {
-  local dylibs=("${COPIED_DYLIBS[@]}")
-
-  # Ensure bundled libraries/frameworks have @rpath install IDs
-  for fw in "${qt_frameworks[@]}"; do
-    chmod u+w "$FRAMEWORKS_DIR/$fw.framework/Versions/A/$fw" 2>/dev/null || true
-    install_name_tool -id "@rpath/${fw}.framework/Versions/A/${fw}" "$FRAMEWORKS_DIR/$fw.framework/Versions/A/$fw"
-  done
-  for entry in "${dylibs[@]}"; do
-    IFS='|' read -r lib _ <<<"$entry"
-    chmod u+w "$FRAMEWORKS_DIR/$lib" 2>/dev/null || true
-    install_name_tool -id "@rpath/$lib" "$FRAMEWORKS_DIR/$lib"
-  done
-  if [[ -f "$LIB_DIR/libpdfium.dylib" ]]; then
-    chmod u+w "$LIB_DIR/libpdfium.dylib" 2>/dev/null || true
-    install_name_tool -id "@rpath/libpdfium.dylib" "$LIB_DIR/libpdfium.dylib"
-  fi
-
-  collect_macho_files
-  for bin in "${MACHO_FILES[@]}"; do
-    chmod u+w "$bin" 2>/dev/null || true
-    install_name_tool -add_rpath "@executable_path/../Frameworks" "$bin" 2>/dev/null || true
-    install_name_tool -add_rpath "@loader_path/../../Frameworks" "$bin" 2>/dev/null || true
-    install_name_tool -add_rpath "@loader_path/../Frameworks" "$bin" 2>/dev/null || true
-    install_name_tool -add_rpath "@executable_path/../lib/${PRECOMPILED_SUBDIR}" "$bin" 2>/dev/null || true
-    install_name_tool -add_rpath "@loader_path/../../lib/${PRECOMPILED_SUBDIR}" "$bin" 2>/dev/null || true
-    install_name_tool -add_rpath "@loader_path/../lib/${PRECOMPILED_SUBDIR}" "$bin" 2>/dev/null || true
-
-    rewrite_detected_dependencies "$bin"
-  done
 }
 
 build_bundle() {
@@ -686,21 +376,6 @@ EOF
     copy_framework qtbase "$fw"
   done
 
-  echo "Copying dependency dylibs ..."
-  if detect_icu_dylibs; then
-    :
-  else
-    echo "ICU libraries not found (icu4c@78/icu4c@77/icu4c). Qt frameworks may fail to launch." >&2
-    exit 1
-  fi
-  COPIED_DYLIBS=()
-  while IFS='|' read -r lib formula; do
-    if [[ -z "$lib" ]]; then
-      continue
-    fi
-    copy_lib "$lib" "$formula"
-  done <<<"${DYLIB_SPECS}"$'\n'"${ICU_DYLIB_SPECS}"
-
   echo "Copying Qt plugins ..."
   qt_plugins_root="$(brew_prefix qt)/share/qt/plugins"
   mkdir -p "$PLUGINS_DIR/platforms" "$PLUGINS_DIR/styles" "$PLUGINS_DIR/imageformats"
@@ -715,28 +390,23 @@ EOF
   echo "Removing existing code signatures ..."
   find "$APP_BUNDLE/Contents" -name "_CodeSignature" -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
-  MACHO_FILES_LOADED=""
-  MACHO_FILES=()
+  echo "Staging and checking the linked runtime dependency closure ..."
+  local signing_inventory
+  signing_inventory="$(mktemp "${TMPDIR:-/tmp}/aifs-signing.XXXXXX")"
+  if ! python3 "$APP_DIR/scripts/macos_bundle_runtime.py" prepare \
+      --bundle "$APP_BUNDLE" --executable "$MACOS_DIR/$APP_NAME" \
+      --source-executable "$EXECUTABLE_SRC" \
+      --runtime-subdir "$PRECOMPILED_SUBDIR" --arch "$TARGET_ARCH" \
+      --files "$signing_inventory"; then
+    rm -f "$signing_inventory"
+    return 1
+  fi
 
-  echo "Rewriting install names ..."
-  rewrite_install_names
-  verify_no_external_homebrew_refs
-
-  verify_arch
-
-  echo "Signing frameworks and plugins ..."
-  for fw in "${qt_frameworks[@]}"; do
-    sign_path "$FRAMEWORKS_DIR/$fw.framework/Versions/A/$fw"
-  done
+  echo "Signing bundled Mach-O images ..."
   while IFS= read -r -d '' file; do
     sign_path "$file"
-  done < <(find "$FRAMEWORKS_DIR" -type f -name '*.dylib' -print0)
-  while IFS= read -r -d '' file; do
-    sign_path "$file"
-  done < <(find "$LIB_DIR" -type f -name '*.dylib' -print0)
-  while IFS= read -r -d '' file; do
-    sign_path "$file"
-  done < <(find "$PLUGINS_DIR" -type f -name '*.dylib' -print0)
+  done < "$signing_inventory"
+  rm -f "$signing_inventory"
 
   echo "Signing main executable and bundle ..."
   sign_path "$MACOS_DIR/$APP_NAME"
@@ -747,6 +417,10 @@ EOF
 
   echo "Verifying codesign ..."
   codesign --verify --deep --strict "$APP_BUNDLE"
+
+  echo "Checking native certificate trust in the packaged application ..."
+  python3 "$APP_DIR/scripts/macos_bundle_runtime.py" verify-loaded \
+    --bundle "$APP_BUNDLE" --executable "$MACOS_DIR/$APP_NAME"
 
   echo "Bundle created at: $APP_BUNDLE"
 }

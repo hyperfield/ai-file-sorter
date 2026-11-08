@@ -16,6 +16,8 @@ Gode mapper for forste kjoring er:
 
 Dette gjor den forste kjoringen enkel a gjennomga. Filene dine blir pa datamaskinen nar du bruker lokale modeller, og AI-en foreslar bare kategorier og navn. La auto-godkjenning vaere av ved forste kjoring, slik at ingenting flyttes eller gis nytt navn for du godkjenner gjennomgangslisten.
 
+Valgfrie stedsoppslag på nettet sender bildenes GPS-koordinater, avrundet til tre desimaler, til OpenStreetMaps Nominatim-tjeneste, også med lokale modeller. Leverandøren kan også se IP-adressen din og tidspunktet for forespørselen. Bildefiler, filnavn og opptaksdatoer sendes ikke; å legge bare datoer til kategorier skjer lokalt.
+
 ## Sett opp en LLM
 
 Åpne **Settings -> Select LLM**. Velg en modell fra nedtrekkslisten **Local LLMs** eller en leverandør under **API connections**.

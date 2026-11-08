@@ -1268,6 +1268,8 @@ foreach ($variant in $selectedVariants) {
     $outputExe = Resolve-OutputExecutable -BuildDir $variant.BuildDir -ConfigurationName $Configuration
     Write-Output "Executable located at: $outputExe"
     Stage-BuildOutput -OutputExe $outputExe -BuildDir $variant.BuildDir -PackageKind $variant.PackageKind
+    & (Join-Path $appDir 'scripts\verify_windows_tls.ps1') `
+        -Directory (Split-Path -Parent $outputExe) -RemoveLegacyBundle
 
     $builtOutputs.Add([pscustomobject]@{
         Variant = $variant.Name

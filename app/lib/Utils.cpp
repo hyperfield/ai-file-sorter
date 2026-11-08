@@ -18,7 +18,6 @@
 #include <functional>
 #include <QCoreApplication>
 #include <QMetaObject>
-#include <QFile>
 #include <QString>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
@@ -177,22 +176,6 @@ std::optional<std::string> strip_prefix(const std::string& path,
 
 namespace {
 
-bool is_nonempty_file(const std::filesystem::path& path)
-{
-    std::error_code ec;
-    const auto size = std::filesystem::file_size(path, ec);
-    return !ec && size > 0;
-}
-
-QString path_to_qstring(const std::filesystem::path& path)
-{
-#ifdef _WIN32
-    return QString::fromStdWString(path.wstring());
-#else
-    return QString::fromStdString(path.string());
-#endif
-}
-
 #ifdef _WIN32
 std::optional<std::wstring> current_package_family_name()
 {
@@ -234,122 +217,6 @@ std::optional<std::filesystem::path> packaged_local_cache_root()
            L"LocalCache" / L"aifilesorter";
 }
 #endif
-
-std::filesystem::path user_writable_app_data_dir()
-{
-    constexpr const char* kAppName = "AIFileSorter";
-    if (const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR");
-        override_root && *override_root) {
-        return std::filesystem::path(override_root) / kAppName;
-    }
-
-#ifdef _WIN32
-    if (auto packaged_root = packaged_local_cache_root()) {
-        return *packaged_root;
-    }
-
-    if (const char* app_data = std::getenv("APPDATA"); app_data && *app_data) {
-        return std::filesystem::path(app_data) / kAppName;
-    }
-#elif defined(__APPLE__)
-    if (const char* home = std::getenv("HOME"); home && *home) {
-        return std::filesystem::path(home) / "Library" / "Application Support" / kAppName;
-    }
-#else
-    if (const char* home = std::getenv("HOME"); home && *home) {
-        return std::filesystem::path(home) / ".config" / kAppName;
-    }
-#endif
-
-    throw std::runtime_error("Unable to determine writable app data directory for CA bundle");
-}
-
-std::filesystem::path bundled_ca_bundle_path()
-{
-    const std::filesystem::path exe_path = std::filesystem::path(Utils::get_executable_path());
-    return exe_path.parent_path() / "certs" / "cacert.pem";
-}
-
-std::filesystem::path staged_ca_bundle_path()
-{
-    return user_writable_app_data_dir() / "certs" / "cacert.pem";
-}
-
-bool ca_bundle_staging_forced()
-{
-    const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR");
-    return override_root && *override_root;
-}
-
-QByteArray read_embedded_ca_bundle()
-{
-    QFile resource(QStringLiteral(":/dev/hfstudio/AIFileSorter/certs/cacert.pem"));
-    if (!resource.open(QIODevice::ReadOnly)) {
-        throw std::runtime_error("Failed to open embedded CA bundle resource");
-    }
-
-    QByteArray data = resource.readAll();
-    resource.close();
-    if (data.isEmpty()) {
-        throw std::runtime_error("Embedded CA bundle resource is empty");
-    }
-
-    return data;
-}
-
-void write_ca_bundle(const std::filesystem::path& cert_file, const QByteArray& data)
-{
-    std::error_code ec;
-    std::filesystem::create_directories(cert_file.parent_path(), ec);
-    if (ec) {
-        throw std::system_error(ec, "Failed to create CA bundle directory");
-    }
-
-    QFile output(path_to_qstring(cert_file));
-    if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        throw std::runtime_error("Failed to create CA bundle file at " +
-                                 Utils::path_to_utf8(cert_file));
-    }
-    if (output.write(data) != data.size()) {
-        output.close();
-        throw std::runtime_error("Failed to write CA bundle file at " +
-                                 Utils::path_to_utf8(cert_file));
-    }
-    output.close();
-}
-
-std::filesystem::path resolve_ca_bundle()
-{
-    if (!ca_bundle_staging_forced()) {
-        const auto bundled = bundled_ca_bundle_path();
-        if (is_nonempty_file(bundled)) {
-            return bundled;
-        }
-    }
-
-    const auto staged = staged_ca_bundle_path();
-    const auto data = read_embedded_ca_bundle();
-    std::error_code ec;
-    const auto current_size = std::filesystem::file_size(staged, ec);
-    if (ec || current_size != static_cast<decltype(current_size)>(data.size())) {
-        write_ca_bundle(staged, data);
-    }
-
-    return staged;
-}
-
-struct CaBundleCache {
-    std::mutex mutex;
-    bool initialized{false};
-    std::filesystem::path cached_path;
-    std::exception_ptr init_error;
-};
-
-CaBundleCache& ca_bundle_cache()
-{
-    static CaBundleCache cache;
-    return cache;
-}
 
 } // namespace
 
@@ -414,9 +281,17 @@ bool Utils::is_network_available()
 std::string Utils::get_executable_path()
 {
 #ifdef _WIN32
-    char result[MAX_PATH];
-    GetModuleFileNameA(NULL, result, MAX_PATH);
-    return std::string(result);
+    // Runtime resolvers and QProcess consumers interpret this API as UTF-8.
+    // The ANSI API corrupts executable directories outside the active code page.
+    constexpr DWORD kExecutablePathCapacity = 32768;
+    std::wstring result(kExecutablePathCapacity, L'\0');
+    const DWORD length = GetModuleFileNameW(nullptr, result.data(), kExecutablePathCapacity);
+    if (length == 0 || length >= kExecutablePathCapacity) {
+        const DWORD error = length >= kExecutablePathCapacity ? ERROR_INSUFFICIENT_BUFFER : GetLastError();
+        throw std::system_error(std::error_code(error, std::system_category()), "GetModuleFileNameW failed");
+    }
+    result.resize(length);
+    return path_to_utf8(std::filesystem::path(result));
 #elif __linux__
     char result[PATH_MAX];
     ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
@@ -432,28 +307,6 @@ std::string Utils::get_executable_path()
 #else
     throw std::runtime_error("Unsupported platform");
 #endif
-}
-
-
-std::filesystem::path Utils::ensure_ca_bundle() {
-    auto& cache = ca_bundle_cache();
-    std::lock_guard<std::mutex> lock(cache.mutex);
-
-    if (!cache.initialized) {
-        cache.initialized = true;
-        try {
-            cache.cached_path = resolve_ca_bundle();
-            cache.init_error = nullptr;
-        } catch (...) {
-            cache.init_error = std::current_exception();
-        }
-    }
-
-    if (cache.init_error) {
-        std::rethrow_exception(cache.init_error);
-    }
-
-    return cache.cached_path;
 }
 
 
@@ -1005,17 +858,6 @@ void set_cuda_memory_probe(CudaMemoryProbe probe) {
 void reset_cuda_memory_probe() {
     cuda_memory_probe() = CudaMemoryProbe{};
 }
-
-#ifdef AI_FILE_SORTER_TEST_BUILD
-void reset_ca_bundle_cache()
-{
-    auto& cache = ca_bundle_cache();
-    std::lock_guard<std::mutex> lock(cache.mutex);
-    cache.initialized = false;
-    cache.cached_path.clear();
-    cache.init_error = nullptr;
-}
-#endif
 
 } // namespace TestHooks
 

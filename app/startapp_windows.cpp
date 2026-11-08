@@ -1068,7 +1068,7 @@ int main(int argc, char* argv[]) {
     configure_runtime_paths(exeDir, ggmlPath, secureSearchEnabled, useCuda, useVulkan,
                             availability.detectedCudaRuntimeDirectory, availability.detectedVulkanRuntimeDll);
 
-    if (console_log_flag) {
+    if (console_log_flag && !headlessInvocation) {
         AttachConsole(ATTACH_PARENT_PROCESS);
         FILE* f = nullptr;
         freopen_s(&f, "CONOUT$", "w", stdout);

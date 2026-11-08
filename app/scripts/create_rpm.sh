@@ -236,10 +236,6 @@ if [[ "$INCLUDE_CUDA" == "1" ]]; then SELECTED_VARIANTS+=("cuda"); fi
 if [[ "$INCLUDE_VULKAN" == "1" ]]; then SELECTED_VARIANTS+=("vulkan"); fi
 echo "Included precompiled variants: ${SELECTED_VARIANTS[*]}"
 
-if [[ -f "$APP_DIR/resources/certs/cacert.pem" ]]; then
-    install -m 0644 "$APP_DIR/resources/certs/cacert.pem" "$PAYLOAD_ROOT/opt/aifilesorter/certs/cacert.pem"
-fi
-
 if [[ -f "$REPO_ROOT/LICENSE" ]]; then
     install -m 0644 "$REPO_ROOT/LICENSE" "$PAYLOAD_ROOT/opt/aifilesorter/LICENSE"
 fi
@@ -306,6 +302,7 @@ Summary:        AI File Sorter desktop application
 License:        AGPL-3.0-only
 URL:            https://github.com/hyperfield/ai-file-sorter
 BuildArch:      ${RPM_ARCH}
+Requires:       ca-certificates
 Source0:        ${PAYLOAD_NAME}.tar.gz
 Source1:        ${PAYLOAD_NAME}.files
 

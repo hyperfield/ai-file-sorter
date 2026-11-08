@@ -1,4 +1,5 @@
 #include "AnalysisCoordinator.hpp"
+#include "ImageMetadataTestFixtures.hpp"
 #include "ChatCompletionTestServer.hpp"
 #include "VisualModelCatalog.hpp"
 #include "ContentAnalysisUnavailable.hpp"
@@ -128,6 +129,49 @@ WorkflowResult run_cached_image_workflow(Settings& settings, DatabaseManager& da
     return {result, std::move(review)};
 }
 } // namespace
+
+TEST_CASE("Image date-only and disabled place settings never geocode or prefix filenames", "[geolocation][content-routing]")
+{
+    const bool date_category = GENERATE(false, true);
+    const bool rename = GENERATE(false, true);
+    const bool unavailable = GENERATE(false, true);
+    QtAppContext qt;
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    ChatCompletionTestServer geocoder;
+    EnvVarGuard endpoint("AI_FILE_SORTER_NOMINATIM_URL", geocoder.url());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_analyze_images_by_content(true);
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_images(rename);
+    settings.set_add_image_date_place_to_filename(false);
+    settings.set_add_image_date_to_category(date_category);
+    settings.set_use_consistency_hints(false);
+    settings.set_visual_model_id("custom:offline-photo-metadata-test");
+    const auto photo = source.path() / "gps.png";
+    ImageMetadataTestFixtures::write_gps_png(photo, 10.1234567, 20.7654321);
+    DatabaseManager database(settings.get_config_dir());
+    const auto key = ContentAnalysisCache::make_key(photo, "image-v2:" + settings.get_visual_model_id());
+    REQUIRE(key);
+    if (unavailable) {
+        REQUIRE(database.content_analysis_cache().store_unavailable(*key, "Synthetic unavailable image"));
+    } else {
+        REQUIRE(database.content_analysis_cache().store(*key, {"privacy_photo.png", "A synthetic photo."}));
+    }
+    const auto requests = std::make_shared<std::vector<Request>>();
+    const auto result = geocoder.run([&] {
+        return run_cached_image_workflow(settings, database, source.path(), requests);
+    });
+    INFO(result.result.error_message);
+    REQUIRE(result.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(result.review.size() == 1);
+    CHECK(geocoder.requests.empty());
+    const auto& entry = result.review.front();
+    CHECK(entry.suggested_name.find("2020-01-02") == std::string::npos);
+    if (rename && !unavailable) CHECK(entry.suggested_name == "privacy_photo.png");
+    CHECK((entry.category.find("2020-01-02") != std::string::npos) == date_category);
+}
 
 TEST_CASE("Shared image workflow uploads through the selected API and refreshes changed endpoint models", "[http-vision][content-routing]")
 {

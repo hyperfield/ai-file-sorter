@@ -16,6 +16,8 @@ Bons dossiers pour une premiere execution :
 
 Cela rend la premiere execution facile a verifier. Vos fichiers restent sur votre ordinateur lorsque vous utilisez des modeles locaux, et l'IA ne fait que proposer des categories et des noms. Laissez les options d'approbation automatique desactivees pour votre premiere execution afin que rien ne soit deplace ou renomme avant votre approbation de la liste de verification.
 
+La recherche de lieux en ligne facultative envoie les coordonnées GPS des photos, arrondies à trois décimales, au service Nominatim d'OpenStreetMap, même avec des modèles locaux. Le fournisseur peut également voir votre adresse IP et l'heure de la requête. Les photos, leurs noms de fichiers et leurs dates de prise de vue ne sont pas envoyés ; l'ajout de dates aux catégories reste local.
+
 ## Configurer un LLM
 
 Ouvrez **Settings -> Select LLM**. Choisissez un modèle dans la liste déroulante **Local LLMs** ou un fournisseur dans **API connections**.

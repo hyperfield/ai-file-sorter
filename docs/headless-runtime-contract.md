@@ -138,17 +138,29 @@ Usage: aifilesorter --headless --operation <categorize|rename|categorize-and-ren
 
 `--settings-overrides-file` reads a UTF-8 JSON object. Overrides affect only the current
 process's settings overlay; they do not write `config.ini`. Except for the destination
-root, omitted preferences inherit the app's persisted settings. Operation-specific
-overlays still enforce categorization-only and rename-only behavior.
+root and the legacy Explorer compatibility rule below, omitted preferences inherit
+the app's persisted settings. Operation-specific overlays still enforce
+categorization-only and rename-only behavior.
 
 **Destination initialization is deliberately different from other preferences.** The host
 loads app preferences, sets the analyzed folder, and clears the persisted destination
 before applying explicit overrides. Omitting `destinationFolder`, or setting it to an
 empty string, uses the analyzed folder (the common parent for explicit file selections).
-The persisted **sorting mode remains inherited** unless `sortingMode` is supplied.
+The persisted **sorting mode remains inherited** unless `sortingMode` is supplied,
+apart from the legacy Explorer compatibility rule below.
 Consequently, an integration that wants independent settings must send all three of
 `sortingMode`, `destinationFolder`, and `suggestNewFolders`, including an empty destination
 when appropriate. No per-job config-file write is needed.
+
+**Legacy Explorer compatibility:** for analysis requests with an `explorer-` job ID
+and a `--settings-overrides-file` whose JSON object has no `sortingMode` property,
+the app uses `GeneratedCategories` for that run. This preserves the destination and
+category-edit behavior expected by Explorer extension 1.0.x, even when the app's
+saved sorting mode is `ExistingFolderTree` or an older config has no sorting-mode key.
+It never rewrites app preferences. Extension 1.1 and later send an explicit mode and
+can use either sorting mode. An explicit but invalid property retains normal parser
+behavior; it does not identify a legacy caller. Other headless job IDs, requests
+without a settings file, and saved-plan apply retain their existing behavior.
 
 ```json
 {
@@ -182,6 +194,12 @@ Boolean overrides require JSON booleans. Unrecognized sorting-mode strings, miss
 values, and values of the wrong type are ignored; an invalid destination therefore still
 uses the analyzed root. Unknown properties are ignored. Invalid JSON or a non-object root
 is a file-level error, rather than a request to rewrite app preferences.
+
+`addImageDatePlaceToFilename` is the opt-in for online photo place lookup, even
+with local AI models. Requests to the configured geocoder use coordinates rounded
+to three decimal places, matching the local cache keys. Turning it off prevents
+place lookup; enabling `addImageDateToCategory` alone reads dates locally and does
+not send photo coordinates. These preferences retain their existing JSON types.
 
 ### Filename word-limit overrides
 

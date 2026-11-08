@@ -220,7 +220,7 @@ SYSTEM_DEPENDS="$(python3 "$SCRIPT_DIR/deb_dependencies.py" "$PKG_ROOT" \
     --library-dir /usr/local/cuda/lib64 \
     --library-dir /opt/cuda/lib64)"
 # Qt platform plugins and the WebP fallback decoder are loaded dynamically.
-PACKAGE_DEPENDS_STR="$SYSTEM_DEPENDS, qt6-wayland, libwebp7"
+PACKAGE_DEPENDS_STR="$SYSTEM_DEPENDS, ca-certificates, qt6-wayland, libwebp7"
 
 DESCRIPTION_TEXT="AI-powered file categorization tool. Requires the listed runtime libraries from the host system."
 if [[ "$INCLUDE_VULKAN" == "1" ]]; then
@@ -228,10 +228,6 @@ if [[ "$INCLUDE_VULKAN" == "1" ]]; then
 fi
 if [[ "$INCLUDE_CUDA" == "1" ]]; then
     DESCRIPTION_TEXT+=" CUDA-enabled builds require matching NVIDIA runtime libraries installed separately."
-fi
-
-if [[ -f "$APP_DIR/resources/certs/cacert.pem" ]]; then
-    install -m 0644 "$APP_DIR/resources/certs/cacert.pem" "$PKG_ROOT/opt/aifilesorter/certs/cacert.pem"
 fi
 
 if [[ -f "$REPO_ROOT/LICENSE" ]]; then

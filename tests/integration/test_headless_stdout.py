@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,7 @@ PROCESS_TIMEOUT_SECONDS = 20
 
 class HeadlessOutputTests(unittest.TestCase):
     app_path = None
+    check_macos_pdfium = False
 
     def setUp(self):
         if self.app_path is None:
@@ -36,11 +38,14 @@ class HeadlessOutputTests(unittest.TestCase):
             "APPDATA": str(self.root / "appdata"),
             "QT_QPA_PLATFORM": "offscreen",
         }
+        if sys.platform == "darwin":
+            self.environment = {key: value for key, value in self.environment.items()
+                                if not key.startswith("DYLD_")}
 
-    def launch(self, *arguments, environment=None):
+    def launch(self, *arguments, environment=None, app_path=None):
         return subprocess.run(
-            [str(self.app_path), *arguments],
-            cwd=self.app_path.parent,
+            [str(self.app_path if app_path is None else app_path), *arguments],
+            cwd=self.root,
             env=self.environment if environment is None else environment,
             capture_output=True,
             text=True,
@@ -78,6 +83,31 @@ class HeadlessOutputTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assert_status_stream(result, "completed")
                 self.assertFalse(list(self.source.iterdir()))
+
+    def test_legacy_explorer_fallback_keeps_stdout_json(self):
+        sidecar = self.root / "explorer-104.settings.json"
+        config = self.root / "config" / "AIFileSorter" / "config.ini"
+        before = config.read_bytes()
+        cases = (
+            ("explorer-104", {"useSubcategories": True}, True, True),
+            ("explorer-110", {"sortingMode": "ExistingFolderTree"}, True, False),
+            ("headless-other", {"useSubcategories": True}, True, False),
+            ("explorer-no-sidecar", {}, False, False),
+        )
+        for job_id, settings, use_sidecar, legacy in cases:
+            with self.subTest(job_id=job_id):
+                sidecar.write_text(json.dumps(settings), encoding="utf-8")
+                arguments = [
+                    "--headless", "--operation", "categorize", "--path", str(self.source),
+                    "--review-only", "--job-id", job_id, "--status-file", str(self.status),
+                ]
+                if use_sidecar:
+                    arguments.extend(("--settings-overrides-file", str(sidecar)))
+                result = self.launch(*arguments)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assert_status_stream(result, "completed")
+                self.assertEqual("legacy Explorer job" in result.stderr, legacy)
+                self.assertEqual(config.read_bytes(), before)
 
     def test_analysis_failure_preserves_json_stdout(self):
         first = self.source / "first.txt"
@@ -129,6 +159,25 @@ class HeadlessOutputTests(unittest.TestCase):
         self.assertNotIn("Loggers initialized.", result.stdout)
         self.assertIn("Loggers initialized.", result.stderr)
 
+    def test_macos_embedded_pdfium_loads_beside_relocated_app(self):
+        if not self.check_macos_pdfium:
+            self.skipTest("Requires a macOS embedded-PDFium build.")
+        relocated = (self.root / "relocated app 東京").resolve()
+        relocated.mkdir()
+        executable = relocated / self.app_path.name
+        runtime = relocated / "libpdfium.dylib"
+        shutil.copy2(self.app_path, executable)
+        shutil.copy2(self.app_path.parent / runtime.name, runtime)
+        result = self.launch(
+            "--headless", "--operation", "categorize", "--path", str(self.source),
+            "--review-only", "--status-file", str(self.status),
+            app_path=executable, environment={**self.environment, "DYLD_PRINT_LIBRARIES": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_status_stream(result, "completed")
+        self.assertIn(str(runtime), result.stderr, "dyld must load the adjacent PDFium copy")
+        self.assertFalse(list(self.source.iterdir()))
+
     def test_invalid_arguments_use_stderr(self):
         result = self.launch("--headless", "--operation", "invalid", "--path", str(self.source))
         self.assertEqual(result.returncode, 2, result.stderr)
@@ -140,6 +189,9 @@ class HeadlessOutputTests(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app", required=True, type=Path, help="Built production executable.")
+    parser.add_argument("--check-macos-pdfium", action="store_true",
+                        help="Check adjacent embedded PDFium loading after relocating the macOS app.")
     arguments, test_arguments = parser.parse_known_args()
     HeadlessOutputTests.app_path = arguments.app.resolve()
+    HeadlessOutputTests.check_macos_pdfium = arguments.check_macos_pdfium
     unittest.main(argv=[sys.argv[0], *test_arguments])

@@ -16,6 +16,8 @@ Goede mappen voor een eerste run zijn:
 
 Zo blijft de eerste run makkelijk te controleren. Uw bestanden blijven op uw computer wanneer u lokale modellen gebruikt, en de AI stelt alleen categorieen en namen voor. Laat automatische goedkeuring uit bij de eerste run, zodat niets wordt verplaatst of hernoemd voordat u de controlelijst goedkeurt.
 
+Het optioneel online opzoeken van plaatsen stuurt GPS-coördinaten van foto's, afgerond op drie decimalen, naar de Nominatim-dienst van OpenStreetMap, ook bij lokale modellen. De aanbieder kan ook uw IP-adres en het tijdstip van het verzoek zien. Fotobestanden, bestandsnamen en opnamedatums worden niet verstuurd; alleen datums aan categorieën toevoegen blijft lokaal.
+
 ## Een LLM instellen
 
 Open **Settings -> Select LLM**. Kies een model uit de vervolgkeuzelijst **Local LLMs** of een aanbieder onder **API connections**.

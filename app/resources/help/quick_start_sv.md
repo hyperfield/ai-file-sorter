@@ -16,6 +16,8 @@ Bra mappar for forsta korningen ar:
 
 Detta gor den forsta korningen enkel att granska. Dina filer stannar pa datorn nar du anvander lokala modeller, och AI:n foreslar bara kategorier och namn. Lat automatiskt godkannande vara av vid forsta korningen sa att inget flyttas eller byter namn innan du godkanner granskningslistan.
 
+Den valfria platssökningen online skickar bildernas GPS-koordinater, avrundade till tre decimaler, till OpenStreetMaps Nominatim-tjänst, även med lokala modeller. Leverantören kan också se din IP-adress och tidpunkten för begäran. Bildfiler, filnamn och fotograferingsdatum skickas inte; att endast lägga till datum i kategorier sker lokalt.
+
 ## Ställ in en LLM
 
 Öppna **Settings -> Select LLM**. Välj en modell i listrutan **Local LLMs** eller en leverantör under **API connections**.

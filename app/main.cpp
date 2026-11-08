@@ -1,4 +1,5 @@
 #include <curl/curl.h>
+#include "CurlTls.hpp"
 #include <libintl.h>
 #include <locale.h>
 
@@ -82,6 +83,19 @@ bool initialize_loggers(Logger::ConsoleOutput console_output) {
 
 namespace {
 
+void log_platform_tls_trust()
+{
+    if (auto logger = Logger::get_logger("core_logger")) {
+#ifdef _WIN32
+        logger->info("TLS certificate verification uses Windows native trust with strict revocation: {}", CurlTls::runtime_description());
+#elif defined(__APPLE__)
+        logger->info("TLS certificate verification uses Apple native trust: {}", curl_version());
+#else
+        logger->info("TLS certificate verification uses distribution trust: {}", curl_version());
+#endif
+    }
+}
+
 struct PluginEntitlementCommand {
     bool info_requested{false};
     bool activate_requested{false};
@@ -125,7 +139,9 @@ bool env_has_value(const char* key) {
 
 void set_process_env(const char* key, const std::string& value) {
 #ifdef _WIN32
-    _putenv_s(key, value.c_str());
+    const auto wide_key = QString::fromUtf8(key).toStdWString();
+    const auto wide_value = QString::fromUtf8(value.c_str()).toStdWString();
+    _wputenv_s(wide_key.c_str(), wide_value.c_str());
 #else
     setenv(key, value.c_str(), 1);
 #endif
@@ -420,11 +436,12 @@ bool windows_vulkan_backend_requested() {
 }
 
 std::optional<std::filesystem::path> windows_env_path(const char* key) {
-    const char* value = std::getenv(key);
-    if (!value || value[0] == '\0') {
+    const auto wide_key = QString::fromUtf8(key).toStdWString();
+    const wchar_t* value = _wgetenv(wide_key.c_str());
+    if (!value || value[0] == L'\0') {
         return std::nullopt;
     }
-    return Utils::utf8_to_path(value);
+    return std::filesystem::path(value);
 }
 
 std::optional<std::filesystem::path> windows_vulkan_runtime_candidate() {
@@ -1118,10 +1135,21 @@ int main(int argc, char** argv) {
     if (!initialize_loggers(console_output)) {
         return EXIT_FAILURE;
     }
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    try {
+        CurlTls::initialize();
+    } catch (const std::exception& error) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->critical("TLS initialization failed: {}", error.what());
+        } else {
+            std::fprintf(stderr, "TLS initialization failed: %s\n", error.what());
+        }
+        return EXIT_FAILURE;
+    }
     struct CurlCleanup {
         ~CurlCleanup() { curl_global_cleanup(); }
     } curl_cleanup;
+
+    log_platform_tls_trust();
 
 #ifdef _WIN32
     _putenv("GSETTINGS_SCHEMA_DIR=schemas");

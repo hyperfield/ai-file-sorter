@@ -1,5 +1,115 @@
 # Test Suite Guide
 
+## Photo location privacy
+
+Rebuild `ai_file_sorter_tests` and run:
+
+```text
+./build-tests/ai_file_sorter_tests '[geolocation]'
+```
+
+The loopback cases use synthetic TIFF/PNG EXIF dates/GPS coordinates and never send
+requests to an external geocoder. They cover:
+
+- `Image metadata requires an explicit opt-in before any place lookup`: default
+  and disabled services read dates without a connectivity check or HTTP request.
+- `Image capture-date extraction never performs a place lookup`: date extraction
+  stays offline even when the service's place permission is enabled.
+- `Geocoding transmits the same rounded coordinates used by its cache`: captured
+  requests and SQLite keys share three decimal places, covering both hemispheres,
+  rounding boundaries, normalized negative zero, and a comma-decimal C++ locale.
+- `Rounded geocoding cache avoids repeat disclosure and respects disabled lookup`:
+  different photos in the same rounded cell share a result; disabling place
+  lookup prevents even cached place enrichment.
+- `Geocoding skips images without GPS and falls back to dates while offline`:
+  absent GPS and failed connectivity preserve local date-only filenames.
+- `Image date-only and disabled place settings never geocode or prefix filenames`:
+  the real coordinator honors the existing place toggle with date-category
+  enrichment on/off, renaming on/off, and cached successful/unavailable images.
+  Date-category enrichment still works without adding date/place filename prefixes.
+
+The online-place permission is separate from local date extraction internally;
+the existing date/place checkbox remains the user-facing opt-in. No new setting
+or consent dialog is added. Three-decimal rounding reduces precision and is not
+an anonymity guarantee. Run these cases on native Windows/macOS when changing
+platform-specific metadata or networking behavior.
+
+## Platform TLS trust
+
+Build `aifs_curl_tls_probe` and `ai_file_sorter_tests`, then run:
+
+```text
+ctest --test-dir build-tests -R '^curl_tls_trust$' --output-on-failure
+./build-tests/ai_file_sorter_tests '[tls]'
+./build-tests/aifilesorter --cuda=off --vulkan=off --self-test=tls
+```
+
+Make builds can run the same loopback checks with `make -C app test_tls`.
+The Linux release CI matrix runs this target with each distribution's libcurl.
+
+`tests/integration/test_curl_tls.py` uses temporary certificate authorities and
+loopback HTTPS servers. It checks untrusted-certificate rejection, redirects to
+untrusted HTTPS, ordinary HTTP, and platform runtime support. Linux also checks
+successful validation with an administrator-specified CA and rejection of a
+hostname mismatch signed by that same trusted CA. macOS and Windows instead check
+that file overrides cannot add a test CA to native trust. They also check origin
+and HTTPS-proxy rejection with file, hashed directory, and blob anchors, plus
+`SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE` and backend-selection environment
+overrides. An untrusted proxy must receive no
+CONNECT request. No system trust store
+is modified and no external server, account, or API key is required. OpenSSL's
+command-line tool generates the temporary fixtures. The C++ `[tls]` cases cover
+active Schannel/Secure Transport detection, rejection of inactive MultiSSL and additive AppleSecTrust/OpenSSL runtimes,
+older libcurl runtime layouts, null handles,
+the absence of the bundled CA resource on every platform, and the production self-test.
+
+On Windows use the multi-config build's paths:
+
+```powershell
+cmake --build app/build-windows --config Release --parallel
+ctest --test-dir app/build-windows -C Release -R 'curl_tls|windows_tls_layout' --output-on-failure
+./app/build-windows/tests/Release/ai_file_sorter_tests.exe '[tls]'
+./app/build-windows/Release/aifilesorter-bin.exe --cuda=off --vulkan=off --self-test=tls
+```
+
+`windows_curl_tls_revocation` uses ephemeral CA/leaf keys and a cryptographically
+verified signed CRL. GET/HEAD and authenticated HTTPS CONNECT succeed; revoked,
+unavailable-CRL and wrong-host certificates fail at both origin and proxy layers.
+Redirects and pre-seeded `NO_REVOKE`/`REVOKE_BEST_EFFORT` flags cannot bypass the
+production policy. A **test-only, never-installed probe** adds fixture anchors
+after policy configuration to exercise the trusted-chain cases using Schannel's
+memory stores. Independent native-policy tests prove file/blob overrides and old
+adjacent/staged PEMs remain ineffective. No production anchor override is exposed.
+
+`windows_tls_layout` checks idempotent legacy-file cleanup, preservation of
+unrelated files, removal of the three known obsolete backend curl copies,
+competing curl DLL rejection, a real installation directory containing spaces and
+non-ASCII characters, and the production executable's
+TLS self-test/loaded DLL path. CMake post-build and `build_windows.ps1` run the
+same runtime gate. Windows CI requires Python and
+OpenSSL's fixture generator and runs these CTest cases. Public live incident
+requests are separate manual validation, not required by the offline CI tests.
+The Windows `headless_launcher_stdout_contract` runs the existing stdout contract
+through the launcher too. Headless `--console-log --development` must preserve
+redirected JSON rather than reopening the inherited streams onto `CONOUT$`.
+
+The `tls` self-test performs no network request. It checks the production-linked
+libcurl using the same policy as the HTTP clients. macOS CMake configuration and
+Make builds reject unsupported TLS backends. macOS packaging runs the signed app's
+self-test from `/` with all `DYLD_*` overrides removed, and separately audits
+dyld's loaded images to reject developer runtimes outside the bundle. Native macOS execution is still needed to
+validate Apple trust decisions; compiling the platform branch elsewhere is not
+equivalent.
+
+On native macOS, `ctest --test-dir build-tests -R '^macos_bundle_runtime$' --output-on-failure`
+(or `python3 tests/test_macos_bundle_runtime.py -v`) compiles real Mach-O fixtures.
+It covers recursive dependencies, preservation of a system curl reference beside
+a different bundled library with the same basename, read-only source preservation,
+relocation with spaces/non-ASCII paths and unavailable developer libraries,
+architecture mismatch, missing dependencies, and escaping symlinks. The release
+packager signs and audits the real application separately. Python 3.10 or newer
+and the native Xcode toolchain are required.
+
 ## Windows Vulkan startup (#125)
 
 With `AI_FILE_SORTER_BUILD_TESTS=ON`, build `aifilesorter`,
@@ -22,7 +132,7 @@ the selected GGML/llama libraries before printing clean headless help. The CMake
 fixture exports `vkGetInstanceProcAddr` but lacks `vkGetPhysicalDeviceFeatures2`.
 These Windows/MSVC precompiled-runtime tests require staged CPU and Vulkan
 payloads; launcher cases skip for direct-executable packages. No model or GPU is
-required. They do not test installation or MSIX activation.
+required. They do not test installation or application activation.
 
 ## Linux packaging compatibility
 
@@ -193,7 +303,7 @@ the controls now hosted in Sorting Rules.
 The production executable supports two developer-oriented test modes:
 
 - `--test` launches the normal GUI, implies development mode, and adds a Tests menu. The current GUI preset creates a larger sample whitelist and sample files, then runs the normal analysis flow with the selected real LLM for manual review in the Review dialog. It reuses the user's selected LLM settings, but test-mode whitelists, categorization cache, learned behavior, undo data, and sample files are stored under an isolated `test_mode_profile` directory inside the normal config directory.
-- `--self-test` runs deterministic headless checks and exits with a pass/fail status. The current suite is `whitelist`, which builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite.
+- `--self-test` runs deterministic headless checks and exits with a pass/fail status. The `whitelist` suite builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. On every platform, the `tls` suite also checks the production-linked curl runtime and platform trust policy without contacting a server. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite, and `--self-test=tls` selects only the platform TLS check.
 
 ## Optional live LLM headless tests
 
@@ -584,8 +694,11 @@ That target also builds the production executable used by these tests. For a dir
 run: `python3 tests/integration/test_headless_stdout.py --app build-tests/aifilesorter -v`
 (use the built configuration's executable path on Windows).
 
-All cases launch the real app with isolated settings, logs and temporary files;
-no model, network API or existing user files are needed.
+All cases launch the real app from a temporary working directory with isolated
+settings, logs and fixtures; no model, network API or existing user files are
+needed. On macOS, inherited `DYLD_*` overrides are removed. CMake automatically
+adds `--check-macos-pdfium` for embedded-PDFium macOS builds; pass it on a direct
+run to enable the relocation case below.
 
 | Test case | Procedure and expected outcome |
 | --- | --- |
@@ -593,6 +706,8 @@ no model, network API or existing user files are needed.
 | `test_analysis_failure_preserves_json_stdout` | Submit files from different source folders. The app rejects this unsupported selection and emits valid JSON status records ending in `failed`, with diagnostics on stderr. |
 | `test_saved_plan_apply_stdout_is_json` | Apply a saved rename plan to a temporary fixture. Only JSON status records appear on stdout, the status file matches the final record, and the expected rename preserves the file contents. |
 | `test_help_is_usage_text_without_log_lines` | Request `--headless-help`. Stdout starts with usage text and contains no startup logs; those appear on stderr. |
+| `test_legacy_explorer_fallback_keeps_stdout_json` | Run an empty-folder analysis with a legacy Explorer sidecar, an explicit modern mode, an unrelated job ID, and no sidecar. Only the legacy sidecar produces the compatibility diagnostic on stderr; stdout stays JSON and config bytes stay unchanged. |
+| `test_macos_embedded_pdfium_loads_beside_relocated_app` | Copy the executable and embedded PDFium runtime into a path containing spaces and Japanese text, then analyze an empty folder from a different working directory without loader search-path overrides. Status completes successfully and dyld confirms the relocated adjacent PDFium copy is loaded. Requires `--check-macos-pdfium`; skipped for other build profiles. |
 | `test_invalid_arguments_use_stderr` | Supply an unsupported operation. Stdout is empty, stderr contains diagnostics/usage, and the exit code is the usage-error code. |
 
 ### `tests/unit/test_headless_analysis_command.cpp`
@@ -673,6 +788,13 @@ Setup: Create a temporary target folder containing one cached `Documents / Repor
 Procedure: Run the headless categorize command without an auto-apply override, inspect the file locations, and read the final status JSON.
 Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload and review plan file, and reports zero moved/renamed/skipped apply counts.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand prepares review before applying by default"`
+
+#### Test case: HeadlessAnalysisCommand preserves legacy Explorer sorting through review and apply
+Purpose: Keep extension 1.0.x category previews and edits consistent with the app's actual destinations.
+Setup: Cache a selected file beside an uncached sibling; configure an archive destination and existing-folder sorting, or remove the saved sorting-mode key to model an older config.
+Procedure: Run an `explorer-` job with a legacy settings sidecar in review-only mode, edit the category in the saved plan as the old extension does, and apply the approved plan. Cover categorize and categorize-and-rename operations.
+Expected outcome: The plan uses generated categories under the selected source folder, honors the reviewed filename and edited category, leaves the sibling untouched, and preserves every app config byte.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand preserves legacy Explorer sorting through review and apply"`
 
 #### Test case: HeadlessAnalysisCommand preserves UTF-8 filenames in review status
 Purpose: Prevent non-ASCII file names from being corrupted when headless jobs serialize review/status JSON.
@@ -780,6 +902,12 @@ Expected outcome: The command exits with the unsupported code, writes `failed` s
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-folder file selections"`
 
 ### `tests/unit/test_headless_settings_overrides_json.cpp`
+
+#### Test case: HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes
+Purpose: Limit generated-category compatibility to legacy Explorer sidecars without changing the generic JSON parser or other callers.
+Procedure: Parse sidecars with Explorer and unrelated job IDs; cover omitted modes, both explicit modes, and explicit invalid values.
+Expected outcome: Only an `explorer-` job whose object omits `sortingMode` receives the generated-category fallback. Other fields survive; explicit modes are honored, and invalid values retain normal inheritance behavior.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes"`
 
 #### Test case: HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences
 
@@ -1522,13 +1650,6 @@ Setup: Set a process-local LLM storage override to a temporary directory.
 Procedure: Call `Utils::make_default_path_to_file_from_download_url()` for a GGUF URL.
 Expected outcome: The resolved path points inside the override directory with the URL filename appended.
 Run: `./build-tests/ai_file_sorter_tests "LLM storage override changes default download destination"`
-
-#### Test case: ensure_ca_bundle stages embedded certificate under writable app data
-Purpose: Prevent Store/MSIX builds from trying to create runtime certificate files under the read-only package install directory.
-Setup: Reset the CA bundle cache and point `AI_FILE_SORTER_CONFIG_DIR` at a temporary directory.
-Procedure: Call `Utils::ensure_ca_bundle()`.
-Expected outcome: The embedded `cacert.pem` is staged under the writable app config directory, exists, is non-empty, and does not point inside `WindowsApps`.
-Run: `./build-tests/ai_file_sorter_tests "ensure_ca_bundle stages embedded certificate under writable app data"`
 
 #### Test case: is_cuda_available honors probe overrides
 Purpose: Verify that CUDA availability probes are honored.

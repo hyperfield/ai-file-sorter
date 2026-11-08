@@ -16,6 +16,8 @@ Ilk calistirma icin iyi klasorler sunlardir:
 
 Bu, ilk calistirmayi incelemeyi kolaylastirir. Yerel modeller kullandiginizda dosyalariniz bilgisayarinizda kalir ve AI yalnizca kategoriler ve adlar onerir. Ilk calistirmada otomatik onay seceneklerini kapali birakin; boylece inceleme listesini onaylayana kadar hicbir sey tasinmaz veya yeniden adlandirilmaz.
 
+İsteğe bağlı çevrimiçi yer arama, yerel modellerle de fotoğrafların GPS koordinatlarını üç ondalık basamağa yuvarlayarak OpenStreetMap'in Nominatim hizmetine gönderir. Sağlayıcı IP adresinizi ve istek zamanını da görebilir. Fotoğraf dosyaları, dosya adları ve çekim tarihleri gönderilmez; kategorilere yalnızca tarih ekleme işlemi yerel olarak yapılır.
+
 ## Bir LLM ayarlayın
 
 **Settings -> Select LLM** menüsünü açın. **Local LLMs** açılır listesinden bir model veya **API connections** bölümünden bir sağlayıcı seçin.

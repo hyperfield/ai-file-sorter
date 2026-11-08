@@ -3730,8 +3730,8 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="282"></location>
-            <source>Date comes from photo EXIF metadata. Place names are resolved online from GPS coordinates, so network access is required for place prefixes.</source>
-            <translation>Päivämäärä tulee valokuvan EXIF-metatiedoista. Paikannimet ratkaistaan ​​verkossa GPS-koordinaateista, joten paikkaetuliitteille tarvitaan verkkoyhteys.</translation>
+            <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
+            <translation>Päivämäärät luetaan paikallisesti kuvien metatiedoista. Paikkahaku lähettää kuvien GPS-koordinaatit kolmen desimaalin tarkkuuteen pyöristettyinä OpenStreetMapin Nominatim-palveluun myös paikallisia tekoälymalleja käytettäessä. Poista valinta, jos haluat pitää kuvien sijainnit paikallisina.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="285"></location>

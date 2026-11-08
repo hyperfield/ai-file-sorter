@@ -480,6 +480,33 @@ endif()
 
 # Third-party deps (resolved best via vcpkg on Windows)
 aifs_find_required_package(CURL)
+if(APPLE)
+    # Execute the same policy used by every HTTP client against the selected
+    # libcurl. Finding headers/libraries alone does not establish native trust.
+    unset(AIFS_CURL_TRUST_RUN CACHE)
+    unset(AIFS_CURL_TRUST_COMPILED CACHE)
+    try_run(AIFS_CURL_TRUST_RUN AIFS_CURL_TRUST_COMPILED
+        "${CMAKE_CURRENT_BINARY_DIR}/curl-trust-check"
+        SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/curl_tls_probe.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp"
+        CMAKE_FLAGS
+            "-DINCLUDE_DIRECTORIES=${CMAKE_CURRENT_SOURCE_DIR}/include"
+            "-DCMAKE_CXX_STANDARD=20"
+        LINK_LIBRARIES CURL::libcurl
+        COMPILE_OUTPUT_VARIABLE _aifs_curl_trust_compile_output
+        RUN_OUTPUT_VARIABLE _aifs_curl_trust_output
+    )
+    if(NOT AIFS_CURL_TRUST_COMPILED OR NOT "${AIFS_CURL_TRUST_RUN}" STREQUAL "0")
+        message(FATAL_ERROR
+            "macOS requires libcurl with Apple native certificate verification "
+            "(active Secure Transport; AppleSecTrust alone is insufficient). "
+            "Select the macOS SDK/system libcurl; clear a cached CURL_ROOT and "
+            "reconfigure. No bundled-CA fallback is used.\n"
+            "${_aifs_curl_trust_compile_output}\n${_aifs_curl_trust_output}")
+    endif()
+    message(STATUS "Verified macOS native TLS trust: ${_aifs_curl_trust_output}")
+endif()
 aifs_find_required_package(OpenSSL)
 aifs_find_required_package(SQLite3)
 if(TARGET SQLite3::SQLite3)
@@ -807,6 +834,29 @@ if(NOT _aifs_pdfium_ready AND _aifs_try_embedded_pdfium)
        AND PDFIUM_RUNTIME
        AND EXISTS "${PDFIUM_RUNTIME}")
         add_library(pdfium SHARED IMPORTED)
+        if(APPLE)
+            # Link against a normalized build-local copy. The vendored dylib's
+            # ./libpdfium.dylib install name otherwise depends on the launch cwd.
+            set(_aifs_pdfium_source "${PDFIUM_LIBRARY}")
+            set(PDFIUM_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/pdfium-runtime/libpdfium.dylib")
+            set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+            set(_aifs_pdfium_codesign_script
+                "${CMAKE_CURRENT_SOURCE_DIR}/scripts/adhoc_codesign_macos.sh")
+            add_custom_command(
+                OUTPUT "${PDFIUM_RUNTIME}"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/pdfium-runtime"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_aifs_pdfium_source}" "${PDFIUM_RUNTIME}"
+                COMMAND /bin/chmod u+w "${PDFIUM_RUNTIME}"
+                COMMAND "${CMAKE_INSTALL_NAME_TOOL}" -id "@rpath/libpdfium.dylib" "${PDFIUM_RUNTIME}"
+                COMMAND /bin/bash "${_aifs_pdfium_codesign_script}" "${PDFIUM_RUNTIME}"
+                DEPENDS "${_aifs_pdfium_source}" "${_aifs_pdfium_codesign_script}"
+                COMMENT "Normalizing and signing the macOS PDFium runtime"
+                VERBATIM
+            )
+            add_custom_target(aifs_pdfium_runtime DEPENDS "${PDFIUM_RUNTIME}")
+            add_dependencies(pdfium aifs_pdfium_runtime)
+            set_target_properties(pdfium PROPERTIES IMPORTED_SONAME "@rpath/libpdfium.dylib")
+        endif()
         if(WIN32)
             set_target_properties(pdfium PROPERTIES
                 IMPORTED_IMPLIB "${PDFIUM_LIBRARY}"
@@ -841,6 +891,28 @@ elseif(AI_FILE_SORTER_PDF_BACKEND STREQUAL "pdftotext")
 else()
     message(WARNING "PDFium was not found. Falling back to 'pdftotext' when available.")
 endif()
+
+function(aifs_stage_pdfium_runtime target_name)
+    if(NOT _aifs_pdfium_uses_embedded_runtime)
+        return()
+    endif()
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${PDFIUM_RUNTIME}" "$<TARGET_FILE_DIR:${target_name}>"
+        VERBATIM
+    )
+    if(NOT WIN32)
+        if(APPLE)
+            set(_pdfium_rpath "@loader_path")
+        else()
+            set(_pdfium_rpath "$ORIGIN")
+        endif()
+        set_target_properties(${target_name} PROPERTIES
+            BUILD_RPATH "${_pdfium_rpath}"
+            INSTALL_RPATH "${_pdfium_rpath}"
+        )
+    endif()
+endfunction()
 
 # Sources
 set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
@@ -1015,7 +1087,6 @@ set(APP_RESOURCE_FILES
     ${AIFS_IMAGE_RESOURCE_FILES}
     ${AIFS_HELP_RESOURCE_FILES}
     ${AIFS_WHATS_NEW_RESOURCE_FILES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
 )
 
 set_source_files_properties(
@@ -1043,10 +1114,6 @@ foreach(_aifs_whats_new_resource IN LISTS AIFS_WHATS_NEW_RESOURCE_FILES)
         PROPERTIES QT_RESOURCE_ALIAS "whats_new/${_aifs_whats_new_name}"
     )
 endforeach()
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
-    PROPERTIES QT_RESOURCE_ALIAS "certs/cacert.pem"
-)
 
 qt_add_resources(aifilesorter "app_resources"
     PREFIX "/dev/hfstudio/AIFileSorter"
@@ -1407,27 +1474,7 @@ if(WIN32 AND MSVC AND AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
     endif()
 endif()
 
-if(_aifs_pdfium_uses_embedded_runtime)
-    if(PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-        add_custom_command(TARGET aifilesorter POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PDFIUM_RUNTIME}"
-                "$<TARGET_FILE_DIR:aifilesorter>"
-        )
-    endif()
-    if(NOT WIN32)
-        if(APPLE)
-            set(_pdfium_rpath "@loader_path")
-        else()
-            set(_pdfium_rpath "$ORIGIN")
-        endif()
-        set_target_properties(aifilesorter PROPERTIES
-            BUILD_RPATH "${_pdfium_rpath}"
-            INSTALL_RPATH "${_pdfium_rpath}"
-        )
-        unset(_pdfium_rpath)
-    endif()
-endif()
+aifs_stage_pdfium_runtime(aifilesorter)
 
 if(UNIX AND NOT APPLE)
     install(TARGETS aifilesorter
@@ -1652,6 +1699,12 @@ if(WIN32)
         "${PRECOMPILED_CUDA_BIN_DIR}/*")
     file(GLOB _aifs_precompiled_vulkan_payload LIST_DIRECTORIES false
         "${PRECOMPILED_VULKAN_BIN_DIR}/*")
+    # Backend payloads must use the application's selected curl, including when
+    # old precompiled directories still contain a different runtime.
+    foreach(_aifs_payload IN ITEMS _aifs_precompiled_cpu_payload
+            _aifs_precompiled_cuda_payload _aifs_precompiled_vulkan_payload)
+        list(FILTER ${_aifs_payload} EXCLUDE REGEX "/libcurl[.]dll$")
+    endforeach()
 
     if(_aifs_precompiled_cpu_payload)
         add_custom_command(TARGET aifilesorter POST_BUILD
@@ -1725,6 +1778,25 @@ if(WIN32)
             )
         endforeach()
     endif()
+endif()
+
+if(WIN32)
+    # Refresh actual dependency DLLs even in an existing release tree, then test
+    # the executable that will ship. A cached curl DLL must not select trust.
+    if(VCPKG_TARGET_TRIPLET)
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+                "-DAIFS_VCPKG_INSTALLED_ROOT=${AIFS_VCPKG_INSTALLED_ROOT}"
+                "-DAIFS_VCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}"
+                "-DAIFS_TARGET_CONFIG=$<CONFIG>"
+                "-DAIFS_DEST_DIR=$<TARGET_FILE_DIR:aifilesorter>"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/stage_vcpkg_runtime.cmake")
+    endif()
+    add_custom_command(TARGET aifilesorter POST_BUILD
+        COMMAND "${POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify_windows_tls.ps1"
+            -Directory "$<TARGET_FILE_DIR:aifilesorter>" -RemoveLegacyBundle
+        VERBATIM)
 endif()
 
 if(AI_FILE_SORTER_BUILD_TESTS)
@@ -1823,25 +1895,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             aifs_stage_windows_qt_plugins(${target_name})
         endif()
 
-        if(_aifs_pdfium_uses_embedded_runtime AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-            add_custom_command(TARGET ${target_name} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${PDFIUM_RUNTIME}"
-                    "$<TARGET_FILE_DIR:${target_name}>"
-            )
-        endif()
-        if(_aifs_pdfium_uses_embedded_runtime AND NOT WIN32)
-            if(APPLE)
-                set(_pdfium_rpath "@loader_path")
-            else()
-                set(_pdfium_rpath "$ORIGIN")
-            endif()
-            set_target_properties(${target_name} PROPERTIES
-                BUILD_RPATH "${_pdfium_rpath}"
-                INSTALL_RPATH "${_pdfium_rpath}"
-            )
-            unset(_pdfium_rpath)
-        endif()
+        aifs_stage_pdfium_runtime(${target_name})
     endfunction()
 
     function(aifs_add_windows_test_executable target_name)
@@ -1874,6 +1928,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         ${APP_LIB_SOURCES}
         ${AIFS_TEST_ONLY_APP_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_curl_tls.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_tree_catalog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_purpose_metadata.cpp"
@@ -2057,6 +2112,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     if(WIN32)
         set(AIFS_UPDATER_MODE_TEST_APP_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/IniConfig.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Settings.cpp"
@@ -2124,13 +2180,26 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         if(Python3_Interpreter_FOUND)
             # Exercise startup/logging in the production executable, not only the test-linked services.
             add_dependencies(ai_file_sorter_tests aifilesorter)
+            set(_aifs_headless_stdout_runtime_args "")
+            if(APPLE AND _aifs_pdfium_uses_embedded_runtime)
+                list(APPEND _aifs_headless_stdout_runtime_args --check-macos-pdfium)
+            endif()
             add_test(
                 NAME headless_stdout_contract
                 COMMAND ${Python3_EXECUTABLE}
                     ${CMAKE_SOURCE_DIR}/../tests/integration/test_headless_stdout.py
-                    --app $<TARGET_FILE:aifilesorter> -v
+                    --app $<TARGET_FILE:aifilesorter> ${_aifs_headless_stdout_runtime_args} -v
             )
             set_tests_properties(headless_stdout_contract PROPERTIES LABELS "headless;integration" TIMEOUT 120)
+            if(WIN32 AND STARTER_TARGET)
+                add_dependencies(ai_file_sorter_tests ${STARTER_TARGET})
+                add_test(NAME headless_launcher_stdout_contract
+                    COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_SOURCE_DIR}/../tests/integration/test_headless_stdout.py
+                        --app $<TARGET_FILE:${STARTER_TARGET}> -v)
+                set_tests_properties(headless_launcher_stdout_contract PROPERTIES
+                    LABELS "windows;headless;integration" TIMEOUT 120)
+            endif()
             add_test(
                 NAME live_llm_process_cleanup
                 COMMAND ${Python3_EXECUTABLE} -m unittest discover
@@ -2210,8 +2279,44 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         set_tests_properties(windows_cuda_runtime_staging PROPERTIES LABELS "build;cuda" TIMEOUT 60)
     endif()
 
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    add_executable(aifs_curl_tls_probe
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/curl_tls_probe.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp")
+    target_include_directories(aifs_curl_tls_probe PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_link_libraries(aifs_curl_tls_probe PRIVATE CURL::libcurl)
+    if(WIN32)
+        aifs_set_windows_test_runtime_output(aifs_curl_tls_probe)
+        aifs_stage_test_runtime(aifs_curl_tls_probe)
+    endif()
+    add_dependencies(ai_file_sorter_tests aifs_curl_tls_probe)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME curl_tls_trust
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/../tests/integration/test_curl_tls.py
+                --probe $<TARGET_FILE:aifs_curl_tls_probe> -v)
+        set_tests_properties(curl_tls_trust PROPERTIES LABELS "tls;integration" TIMEOUT 60)
+        if(APPLE)
+            add_test(NAME macos_bundle_runtime
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/../tests/test_macos_bundle_runtime.py -v)
+            set_tests_properties(macos_bundle_runtime PROPERTIES LABELS "build;packaging" TIMEOUT 60)
+        endif()
+        if(WIN32)
+            add_test(NAME windows_curl_tls_revocation
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/../tests/integration/test_windows_curl_tls.py
+                    --probe $<TARGET_FILE:aifs_curl_tls_probe> -v)
+            set_tests_properties(windows_curl_tls_revocation PROPERTIES
+                LABELS "windows;tls;integration" TIMEOUT 120)
+            add_test(NAME windows_tls_layout
+                COMMAND ${AI_FILE_SORTER_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass
+                    -File ${CMAKE_SOURCE_DIR}/../tests/test_windows_tls_layout.ps1
+                    -Directory $<TARGET_FILE_DIR:aifilesorter> -Python ${Python3_EXECUTABLE})
+            set_tests_properties(windows_tls_layout PROPERTIES LABELS "windows;tls;packaging" TIMEOUT 60)
+        endif()
+    endif()
     if(NOT WIN32)
-        find_package(Python3 COMPONENTS Interpreter QUIET)
         find_program(AI_FILE_SORTER_MAKE_EXECUTABLE NAMES gmake make)
         if(Python3_Interpreter_FOUND AND AI_FILE_SORTER_MAKE_EXECUTABLE)
             add_test(

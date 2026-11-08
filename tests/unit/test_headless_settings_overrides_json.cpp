@@ -70,6 +70,38 @@ TEST_CASE("HeadlessSettingsOverridesJson parses direct whitelist lists")
     CHECK(*overrides.allowed_subcategories == std::vector<std::string>{"Invoices", "Contracts"});
 }
 
+TEST_CASE("HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes", "[headless][explorer-compat]")
+{
+    QJsonObject object{{QStringLiteral("useSubcategories"), false},
+                       {QStringLiteral("categorizeFiles"), true}};
+    const auto legacy = HeadlessSettingsOverridesJson::from_json_for_job(object, "explorer-104");
+    CHECK(legacy.sorting_mode == SortingMode::GeneratedCategories);
+    CHECK(legacy.use_subcategories == false);
+    CHECK(legacy.categorize_files == true);
+    CHECK_FALSE(legacy.destination_folder.has_value());
+    CHECK_FALSE(HeadlessSettingsOverridesJson::from_json(object).sorting_mode.has_value());
+
+    for (const auto* job_id : {"", "headless-job", "other-explorer-job", "explorer"}) {
+        CAPTURE(job_id);
+        CHECK_FALSE(HeadlessSettingsOverridesJson::from_json_for_job(object, job_id).sorting_mode.has_value());
+    }
+    object.insert(QStringLiteral("sortingMode"), QStringLiteral("ExistingFolderTree"));
+    CHECK(HeadlessSettingsOverridesJson::from_json_for_job(object, "explorer-110").sorting_mode ==
+          SortingMode::ExistingFolderTree);
+    object.insert(QStringLiteral("sortingMode"), QStringLiteral("GeneratedCategories"));
+    CHECK(HeadlessSettingsOverridesJson::from_json_for_job(object, "explorer-110").sorting_mode ==
+          SortingMode::GeneratedCategories);
+
+    // Invalid explicit values must still inherit preferences rather than identify an old client.
+    const std::vector<QJsonValue> invalid{QJsonValue(), QJsonValue(false), QJsonValue(1),
+        QJsonValue(QStringLiteral("")), QJsonValue(QStringLiteral("invalid")),
+        QJsonValue(QJsonArray{}), QJsonValue(QJsonObject{})};
+    for (const auto& value : invalid) {
+        object.insert(QStringLiteral("sortingMode"), value);
+        CHECK_FALSE(HeadlessSettingsOverridesJson::from_json_for_job(object, "explorer-110").sorting_mode.has_value());
+    }
+}
+
 TEST_CASE("HeadlessSettingsOverridesJson parses bounded independent filename word limits", "[headless][sorting-rules]")
 {
     for (int words = 3; words <= 6; ++words) {

@@ -16,7 +16,7 @@ public:
      * @brief Options for a self-test run.
      */
     struct Options {
-        /** @brief Suite selector. Supported values include `all` and `whitelist`. */
+        /** @brief Suite selector: `all`, `whitelist`, or `tls` (Linux/macOS). */
         std::string suite{"all"};
     };
 

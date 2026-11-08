@@ -41,7 +41,11 @@ and decide whether the app may suggest new folders. Starter structures and optio
 folder-structure plugins help you set up and maintain archives such as Johnny.Decimal.
 
 Privacy-first by design:
-AI File Sorter can run entirely on your device. With local text and visual models, your files, filenames, images, and metadata stay on your computer, and no telemetry is sent. API connections send analysis data to the configured server; selecting an API visual backend also sends image contents there. A server on your own computer can work without public internet access.
+AI File Sorter can run entirely on your device. With local text and visual models and online photo place lookup disabled, analysis inputs stay on your computer, and no telemetry is sent.
+
+Enabling **Add photo date and place to filename (if available)** sends photo GPS coordinates, rounded to three decimal places, to OpenStreetMap's Nominatim service to obtain place names, even with local models. The provider can also see your IP address and request time. This lookup sends no photo files, filenames, or capture dates. Date-only category enrichment stays local.
+
+API connections send analysis data to the configured server; selecting an API visual backend also sends image contents there. A server on your own computer can work without public internet access.
 
 ---
 
@@ -234,7 +238,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Simplified Chinese, Spanish, Swedish, and Turkish.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
-- **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 2.0.0.
+- **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 2.0.0. Legacy 1.0.x Explorer jobs retain generated-category sorting so their review destinations and category edits remain compatible.
 - **Local Database Caching**: Speeds up repeated categorization, preserves approved labels and rename suggestions, and provides recent-category hints for consistency.
 - **Local learning from approved reviews**: Approved category decisions can be stored locally and reused as hints for future runs without modifying the underlying model.
 - **Cache maintenance tools**: Use **Settings → Clear cache…** to inspect and clear categorization cache, image location cache, and logs, or **Settings → Reset learned behavior…** to remove the separate learned-review database.
@@ -360,7 +364,7 @@ Image analysis adds six related checkboxes to the main window:
 - **Analyze picture files by content**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
 - **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
 - **Add image creation date (if available) to category name**: Appends `YYYY-MM-DD` from image metadata to the category label when available. Disabled when rename-only is enabled.
-- **Add photo date and place to filename (if available)**: Adds metadata-based date/place prefixes to suggested image filenames when available.
+- **Add photo date and place to filename (if available)**: Adds date/place prefixes when available. Dates are read locally; online place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service. Leave this option off to keep photo locations local, including when adding dates to category names.
 - **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
 - **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
@@ -437,7 +441,7 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 
 ## Requirements
 
-- **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section.
+- **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section. HTTPS uses maintained platform trust: distribution CA certificates on Linux, Secure Transport on macOS, and Schannel with strict revocation on Windows. The app ships no static CA bundle. Windows builds verify the active linked backend and loaded DLL path.
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++` on Linux/macOS, MSVC 2022 on Windows).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS, or a Qt 6 MSVC kit / `qtbase` via vcpkg on Windows).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled` on Linux/Windows or `app/lib/precompiled-*` for macOS variant builds. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
@@ -454,6 +458,10 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 File categorization with local LLMs is completely free of charge. If you prefer to use a remote workflow (ChatGPT, Gemini, or a custom OpenAI-compatible endpoint) you will need your own API credentials or endpoint configuration with a suitable quota or local server setup (see [Using your OpenAI API key](#using-your-openai-api-key), [Using your Gemini API key](#using-your-gemini-api-key), or [Using a custom OpenAI-compatible API](#using-a-custom-openai-compatible-api)).
 
 ### Linux
+
+HTTPS uses the distribution's certificate trust store. Install and keep the
+`ca-certificates` package updated, including when running a tarball or a manual
+source install. Debian and RPM packages declare this runtime dependency.
 
 #### Prebuilt Debian/Ubuntu package
 
@@ -709,6 +717,15 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 Apple Silicon Macs running macOS 26 or later are supported for macOS source builds and release bundles.
 
+HTTPS uses Apple's certificate trust service. The selected libcurl must use
+Secure Transport; both CMake and Make check the actual linked runtime and reject
+unsupported builds. Use the macOS SDK/system libcurl. AppleSecTrust support in an
+OpenSSL build is insufficient because native verification can be supplemented by
+OpenSSL CA anchors. Remove a cached Homebrew `CURL_ROOT` when reconfiguring.
+Release packaging also runs the signed application's
+`--self-test=tls` with its packaged libraries and no developer library search
+overrides. Linux/macOS builds do not embed or install a separate CA bundle.
+
 1. **Install Xcode command-line tools** (`xcode-select --install`) with a macOS 26 or newer SDK.
 2. **Install Homebrew** (if required).
 3. **Install dependencies**
@@ -776,8 +793,18 @@ Apple Silicon Macs running macOS 26 or later are supported for macOS source buil
 
    These targets rebuild the llama.cpp runtime before compiling the app.
    `sudo make install` places the macOS runtime libraries under `/usr/local/lib/aifilesorter` to avoid collisions with unrelated system or Homebrew ggml libraries.
-   The commands above build the raw executable only; they do **not** currently create a distributable `.app` bundle or `.dmg`.
-   This repository does not yet ship a documented or automated macOS bundle/DMG packaging target in `README.md`, so any `.app` / `.dmg` release packaging must be handled as a separate macOS-hosted release step.
+   Create an ad hoc signed `.app` on macOS with Python 3.10 or newer:
+
+   ```bash
+   bash scripts/create_macos_bundle.sh --default
+   ```
+
+   Set `EXECUTABLE_SRC` and `BUNDLE_OUTPUT_DIR` for a CMake executable or a separate
+   output directory. The packager copies the linked dependency closure, verifies
+   architectures, removes developer search paths, and checks actual loaded images
+   from `/` with all `DYLD_*` overrides removed. System library references remain
+   system references. Developer ID signing, notarization, and DMG creation are
+   separate release steps.
    Each variant uses distinct build directories to avoid cross-arch collisions:
    - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`
    - object files: `app/obj/arm64`
@@ -1210,6 +1237,7 @@ Headless self-test mode:
 
 - `--self-test` runs deterministic self-tests from the production executable and exits with a pass/fail status instead of opening the main window.
 - `--self-test=whitelist` runs the deterministic large-whitelist suite explicitly. `--self-test=whitelists` is accepted as an alias.
+- On Linux/macOS, `--self-test=tls` checks the linked TLS runtime and trust configuration without contacting a server. The default `--self-test` includes this check.
 - The headless whitelist suite uses temporary app data, a large synthetic category list, learned-behavior fixtures, and a deterministic LLM stub. It verifies that large whitelists are reduced to relevant candidates, learned categories can outrank generic model output, and Unicode labels such as emoji survive the flow.
 - The full Catch2 unit suite extends this coverage with smart branching whitelist persistence, prompt construction, and valid category/subcategory pair enforcement.
 - On Windows GUI builds, add `--console-log` if you want to see the self-test output in the launching console.

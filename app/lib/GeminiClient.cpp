@@ -1,3 +1,4 @@
+#include "CurlTls.hpp"
 #include "GeminiClient.hpp"
 
 #include "LocalLLMPromptBuilder.hpp"
@@ -136,14 +137,7 @@ CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
         throw std::runtime_error("Initialization Error: Failed to initialize cURL.");
     }
 
-#ifdef _WIN32
-    try {
-        const auto cert_path = Utils::ensure_ca_bundle();
-        curl_easy_setopt(request.handle, CURLOPT_CAINFO, cert_path.string().c_str());
-    } catch (const std::exception& ex) {
-        throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
-    }
-#endif
+    CurlTls::configure(request.handle);
     return request;
 }
 

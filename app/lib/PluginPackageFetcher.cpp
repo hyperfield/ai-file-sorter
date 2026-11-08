@@ -1,3 +1,4 @@
+#include "CurlTls.hpp"
 #include "PluginPackageFetcher.hpp"
 
 #include <curl/curl.h>
@@ -29,15 +30,6 @@ void log_plugin_fetch(spdlog::level::level_enum level, const char* fmt, Args&&..
     } else {
         std::fprintf(stderr, "%s\n", message.c_str());
     }
-}
-
-void configure_tls(CURL* curl) {
-#if defined(_WIN32)
-    const auto cert_path = Utils::ensure_ca_bundle();
-    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-#else
-    (void) curl;
-#endif
 }
 
 FILE* open_binary_file_for_write(const std::filesystem::path& path) {
@@ -321,7 +313,13 @@ void PluginPackageFetcher::default_download(const std::string& url, const std::f
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "AI-File-Sorter-PluginInstaller/1.0");
-    configure_tls(curl);
+    try {
+        CurlTls::configure(curl);
+    } catch (...) {
+        curl_easy_cleanup(curl);
+        std::fclose(file);
+        throw;
+    }
 
     const CURLcode result = curl_easy_perform(curl);
     long http_code = 0;
